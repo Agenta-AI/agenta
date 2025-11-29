@@ -25,9 +25,10 @@ AGENTA_CACHE_DELETE_BATCH_SIZE = 1000
 CACHE_DEBUG = False
 CACHE_DEBUG_VALUE = False
 
-# Use prefix-based separation instead of logical databases
+# Use volatile Redis instance for caching (prefix-based separation)
+# See /sandbox/architecture/redis.split.specs.md for architecture details
 r = Redis.from_url(
-    url=env.REDIS_URI,
+    url=env.VALKEY_CACHE_URL,
     decode_responses=True,
     socket_timeout=0.5,  # read/write timeout
 )

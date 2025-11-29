@@ -51,11 +51,12 @@ ag.init(
 )
 
 # BROKER -------------------------------------------------------------------
-# Create broker with Redis Streams (analogous to FastAPI app in routers.py)
+# Create broker with durable Redis Streams for task queues
+# See /sandbox/architecture/redis.split.specs.md for architecture details
 broker = RedisStreamBroker(
-    url=env.REDIS_URI,
-    queue_name="streams:tasks",
-    consumer_group_name="streams:tasks",
+    url=env.VALKEY_QUEUE_URL,
+    queue_name="queues:taskiq:evaluations",
+    consumer_group_name="taskiq-workers",
 )
 
 
@@ -184,7 +185,7 @@ def main() -> int:
         # Run Taskiq worker
         # Broker and workers are instantiated above (like routers.py does for FastAPI)
         args = WorkerArgs(
-            broker="workers:broker",  # Reference broker from this module
+            broker="queues:broker",  # Reference broker from this module
             modules=[],  # Workers already registered, no auto-discovery needed
             fs_discover=False,
             workers=1,  # Number of worker processes
