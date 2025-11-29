@@ -63,10 +63,15 @@ const EvaluatorMetricsSpiderChart = ({
         })
     }, [metrics, maxScore, series])
 
-    if (metrics.length === 0) {
+    // Spider/radar charts need at least 3 data points to form a proper polygon
+    if (metrics.length < 3) {
         return (
             <div className={clsx("flex items-center justify-center", className)}>
-                <Typography.Text type="secondary">No metrics available</Typography.Text>
+                <Typography.Text type="secondary">
+                    {metrics.length === 0
+                        ? "No metrics available"
+                        : "At least 3 metrics required for spider chart"}
+                </Typography.Text>
             </div>
         )
     }
