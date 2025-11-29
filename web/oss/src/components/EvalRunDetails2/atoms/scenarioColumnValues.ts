@@ -26,6 +26,7 @@ import {
     type ColumnDescriptorInput,
     type ColumnValueDescriptor,
 } from "./table/columnAccess"
+import {evaluationRunIndexAtomFamily} from "./table/run"
 import {testcaseQueryMetaAtomFamily, testcaseValueAtomFamily} from "./table/testcases"
 import {traceQueryMetaAtomFamily, traceValueAtomFamily} from "./traces"
 
@@ -193,12 +194,37 @@ const pickStep = (steps: IStepResponse[], stepKey?: string): IStepResponse | und
     return steps[0]
 }
 
-const extractStepsByKind = (steps: IStepResponse[]) => {
+interface RunIndex {
+    inputKeys?: Set<string>
+    invocationKeys?: Set<string>
+    annotationKeys?: Set<string>
+}
+
+const extractStepsByKind = (steps: IStepResponse[], runIndex?: RunIndex | null) => {
     const inputs: IStepResponse[] = []
     const invocations: IStepResponse[] = []
     const annotations: IStepResponse[] = []
 
     steps.forEach((step) => {
+        const stepKey = (step as any)?.stepKey ?? (step as any)?.step_key ?? ""
+
+        // Use runIndex for classification if available (most reliable)
+        if (runIndex) {
+            if (runIndex.inputKeys?.has(stepKey)) {
+                inputs.push(step)
+                return
+            }
+            if (runIndex.invocationKeys?.has(stepKey)) {
+                invocations.push(step)
+                return
+            }
+            if (runIndex.annotationKeys?.has(stepKey)) {
+                annotations.push(step)
+                return
+            }
+        }
+
+        // Fallback to step properties if runIndex doesn't have the key
         const kind = getStepKind(step)
         if (kind === "input") {
             inputs.push(step)
@@ -267,17 +293,59 @@ const toTestcaseId = (step: IStepResponse | undefined) => {
     return (step as any)?.testcaseId || (step as any)?.testcase_id || undefined
 }
 
+/**
+ * Detects if a metric value is just a "string type placeholder" without actual data.
+ * String metrics don't store actual values (can't build distribution), so we get
+ * `{"type":"string","count":N}` instead of the real value.
+ * In this case, we should fall back to annotation data.
+ */
+const isStringTypePlaceholder = (value: unknown): boolean => {
+    if (typeof value !== "object" || value === null) return false
+    const obj = value as Record<string, unknown>
+    // Check if it's a string-type metric placeholder: has type="string" and count, but no actual value
+    if (obj.type === "string" && typeof obj.count === "number") {
+        // If it only has type and count (and maybe other metadata), it's a placeholder
+        const hasActualValue =
+            obj.value !== undefined ||
+            obj.freq !== undefined ||
+            obj.frequency !== undefined ||
+            obj.rank !== undefined ||
+            obj.mean !== undefined
+        return !hasActualValue
+    }
+    return false
+}
+
 const resolveAnnotationValue = (
-    annotationData: AnnotationDto | null | undefined,
+    annotationData: AnnotationDto | AnnotationDto[] | null | undefined,
     column: ColumnValueConfig,
     descriptor: ColumnValueDescriptor,
 ) => {
     if (!annotationData) return undefined
 
+    // Handle array of annotations - use the first one (most recent)
+    const annotation = Array.isArray(annotationData) ? annotationData[0] : annotationData
+    if (!annotation) return undefined
+
     const pathSegments = descriptor.pathSegments ?? column.pathSegments ?? splitPath(column.path)
-    const outputs = annotationData?.data?.outputs ?? {}
+    const outputs = annotation?.data?.outputs ?? {}
     const annotationDescriptor = descriptor.annotation
     const metricCandidates = annotationDescriptor?.metricPathCandidates ?? []
+
+    // Extract the valueKey (last segment of the path) for direct lookup
+    const valueKey = column.valueKey ?? pathSegments[pathSegments.length - 1]
+
+    // First, try direct lookup by valueKey in each output category
+    if (valueKey) {
+        const directValue =
+            outputs?.metrics?.[valueKey] ??
+            outputs?.notes?.[valueKey] ??
+            outputs?.extra?.[valueKey] ??
+            outputs?.[valueKey]
+        if (directValue !== undefined) {
+            return directValue
+        }
+    }
 
     for (const segments of metricCandidates) {
         const metricValue =
@@ -293,10 +361,10 @@ const resolveAnnotationValue = (
     const segmentVariants = annotationDescriptor?.segmentVariants ?? [pathSegments]
 
     const candidateSources: unknown[] = [
-        {annotation: annotationData},
-        annotationData,
-        {attributes: {ag: annotationData}},
-        annotationData?.data,
+        {annotation: annotation},
+        annotation,
+        {attributes: {ag: annotation}},
+        annotation?.data,
         outputs,
         outputs?.metrics,
         outputs?.notes,
@@ -350,7 +418,8 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
             const stepsQuery = get(scenarioStepsQueryFamily({scenarioId, runId}))
             const stepsQueryLoading = stepsQuery.isLoading || stepsQuery.isPending
             const baseSteps = stepsQuery.data?.steps ?? []
-            const derivedByKind = extractStepsByKind(baseSteps)
+            const runIndex = get(evaluationRunIndexAtomFamily(runId ?? null))
+            const derivedByKind = extractStepsByKind(baseSteps, runIndex)
             const inputs = derivedByKind.inputs
             const invocations = derivedByKind.invocations
             const annotations = derivedByKind.annotations
@@ -720,23 +789,33 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     metricType: column.metricType,
                 })
 
+                // Check if this is a string-type placeholder (no actual value)
+                // String metrics don't store values, so we need to fall back to annotation data
+                const isPlaceholder = isStringTypePlaceholder(metricValue)
+
                 metricCandidate = {
-                    value: metricValue,
-                    displayValue: metricDisplayValue,
+                    value: isPlaceholder ? undefined : metricValue,
+                    displayValue: isPlaceholder ? undefined : metricDisplayValue,
                     isLoading: metricMeta.isLoading,
                     isFetching: metricMeta.isFetching,
                     error: metricMeta.error,
                     resolvedStepKey: resolvedMetricStepKey,
                 } as ScenarioStepValueResult & {resolvedStepKey?: string | null | undefined}
 
+                // For metric columns, return immediately unless it's a string-type placeholder
+                // String-type placeholders need to fall through to annotation lookup
                 if (column.stepType === "metric" || column.columnKind === "metric") {
-                    return metricCandidate
+                    if (!isPlaceholder) {
+                        return metricCandidate
+                    }
+                    // Fall through to annotation lookup for string-type metrics
                 }
 
                 const isOutputLikeColumn = isOutputsColumn(column)
 
                 if (
                     !isOutputLikeColumn &&
+                    !isPlaceholder &&
                     metricValue !== undefined &&
                     metricValue !== null &&
                     metricCandidate.isLoading === false
@@ -745,6 +824,68 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                 }
 
                 if (metricMeta.isLoading || metricMeta.isFetching) {
+                    return metricCandidate
+                }
+
+                // For string-type metrics, fall through to annotation lookup
+                if (isPlaceholder) {
+                    // First, try to get trace ID from any available step
+                    let targetStep = pickStep(
+                        annotations.length ? annotations : invocations,
+                        column.stepKey,
+                    )
+                    // If no step found by stepKey, try to get any invocation step for trace ID
+                    if (!targetStep && invocations.length === 0 && steps.length > 0) {
+                        // Try to find any step with a traceId
+                        targetStep = steps.find((s: IStepResponse) => toTraceId(s)) as
+                            | IStepResponse
+                            | undefined
+                    }
+                    const traceId = toTraceId(targetStep)
+                    console.log("[scenarioColumnValues] String-type metric fallback", {
+                        columnId: column.id,
+                        metricKey: column.metricKey,
+                        stepKey: column.stepKey,
+                        metricValue,
+                        annotationsCount: annotations.length,
+                        invocationsCount: invocations.length,
+                        stepsCount: steps.length,
+                        stepsQueryLoading,
+                        targetStep,
+                        traceId,
+                    })
+                    if (traceId) {
+                        const annotationQuery = get(
+                            evaluationAnnotationQueryAtomFamily({traceId, runId}),
+                        ) as QueryState<AnnotationDto | null>
+                        const annotationData =
+                            annotationQuery.data ?? (targetStep as any)?.annotation ?? null
+                        const valueFromAnnotation = resolveAnnotationValue(
+                            annotationData,
+                            column,
+                            descriptor,
+                        )
+                        console.log("[scenarioColumnValues] Annotation lookup result", {
+                            columnId: column.id,
+                            annotationData,
+                            valueFromAnnotation,
+                            descriptor,
+                        })
+                        if (valueFromAnnotation !== undefined) {
+                            return {
+                                value: valueFromAnnotation,
+                                displayValue: formatMetricDisplay({
+                                    value: valueFromAnnotation,
+                                    metricKey: column.metricKey ?? column.valueKey ?? column.path,
+                                    metricType: column.metricType,
+                                }),
+                                isLoading: annotationQuery.isLoading,
+                                isFetching: annotationQuery.isFetching,
+                                error: annotationQuery.error,
+                            }
+                        }
+                    }
+                    // If no annotation value found, return the placeholder candidate
                     return metricCandidate
                 }
             }

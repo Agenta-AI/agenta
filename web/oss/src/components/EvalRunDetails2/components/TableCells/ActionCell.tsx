@@ -82,15 +82,6 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
         return map
     }, [invocationSelection.steps])
 
-    console.log("ActionCell debug", {
-        scenarioId,
-        humanInvocationKeys,
-        humanAnnotationKeys,
-        invocationSelection,
-        invocationMap,
-        runIndexInvocationKeys: runIndex ? [...(runIndex.invocationKeys ?? [])] : null,
-    })
-
     if (!scenarioId || !effectiveRunId || !runIndex) {
         return (
             <div className="flex h-full items-center justify-center text-xs text-neutral-400">

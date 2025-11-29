@@ -42,19 +42,6 @@ const buildScenarioStepsSelector = (kind: "input" | "invocation" | "annotation")
                       ? runIndex?.invocationKeys
                       : runIndex?.annotationKeys
 
-            // Debug: log raw steps and filtering
-            if (kind === "invocation") {
-                console.log("[useScenarioStepsSelectors] invocation filter debug", {
-                    scenarioId,
-                    effectiveRunId,
-                    rawStepsCount: steps.length,
-                    rawStepKeys: steps.map((s: IStepResponse) => s.stepKey),
-                    kindKeySet: kindKeySet ? [...kindKeySet] : null,
-                    queryData: query.data,
-                    queryStatus: {isLoading: query.isLoading, isFetching: query.isFetching},
-                })
-            }
-
             // Filter steps by kind using runIndex key sets
             // If runIndex is not available yet, return all steps (don't filter)
             let filtered: IStepResponse[] =
