@@ -85,14 +85,14 @@ class TracingWorker:
                 mkstream=True,  # Create stream if it doesn't exist
             )
             log.info(
-                "[TracingWorker] Created consumer group",
+                "[INGEST] Created consumer group",
                 stream=self.stream_name,
                 group=self.consumer_group,
             )
         except Exception as e:
             # BUSYGROUP means group already exists - this is fine
             if "BUSYGROUP" not in str(e):
-                log.error(f"[TracingWorker] Failed to create consumer group: {e}")
+                log.error(f"[INGEST] Failed to create consumer group: {e}")
                 raise
 
     async def read_batch(self) -> List[Tuple[bytes, Dict[bytes, bytes]]]:
@@ -112,14 +112,29 @@ class TracingWorker:
             )
 
             if not messages:
+                log.warning("[INGEST] Empty batch! (timeout)")
                 return []
 
             # messages format: [(stream_name, [(id, data), (id, data), ...])]
             stream_data = messages[0]
-            return stream_data[1]  # Return [(id, data), ...]
+            batch = stream_data[1]  # Return [(id, data), ...]
+
+            # Calculate batch size in bytes
+            batch_bytes = sum(len(data.get(b"data", b"")) for _, data in batch)
+            batch_mb = batch_bytes / (1024 * 1024)
+
+            log.debug(
+                "[INGEST] Read batch from stream",
+                batch_size=len(batch),
+                batch_bytes=batch_bytes,
+                batch_bytes_mb=batch_mb,
+                max_batch_size=self.batch_size,
+            )
+
+            return batch
 
         except Exception as e:
-            log.error(f"[TracingWorker] Failed to read batch: {e}")
+            log.error(f"[INGEST] Failed to read batch: {e}")
             return []
 
     async def ack_and_delete(self, message_ids: List[bytes]):
@@ -143,10 +158,10 @@ class TracingWorker:
             # DEL messages (remove from stream)
             await self.redis.xdel(self.stream_name, *message_ids)
 
-            log.debug(f"[TracingWorker] ACKed and deleted {len(message_ids)} messages")
+            log.debug(f"[INGEST] ACKed and deleted {len(message_ids)} messages")
 
         except Exception as e:
-            log.error(f"[TracingWorker] Failed to ACK/DEL messages: {e}")
+            log.error(f"[INGEST] Failed to ACK/DEL messages: {e}")
             # Don't raise - messages will remain pending and can be claimed later
 
     async def process_batch(
@@ -183,7 +198,7 @@ class TracingWorker:
                 # Check if we've exceeded the batch size limit
                 if batch_bytes > self.max_batch_bytes:
                     log.warning(
-                        "[TracingWorker] Batch size limit exceeded, stopping batch processing",
+                        "[INGEST] Batch size limit exceeded, stopping batch processing",
                         batch_bytes=batch_bytes,
                         max_bytes=self.max_batch_bytes,
                         processed_count=processed_count,
@@ -208,21 +223,21 @@ class TracingWorker:
 
             except Exception as e:
                 log.error(
-                    f"[TracingWorker] Failed to deserialize span: {e}",
+                    f"[INGEST] Failed to deserialize span: {e}",
                     msg_id=msg_id,
                 )
                 # Continue processing other messages
 
         if not spans_by_org:
             log.debug(
-                "[TracingWorker] No valid spans in batch",
+                "[INGEST] No valid spans in batch",
                 processed_count=processed_count,
                 batch_bytes=batch_bytes,
             )
             return (processed_count, processed_message_ids)
 
         log.debug(
-            "[TracingWorker] Batch deserialized and grouped",
+            "[INGEST] Batch deserialized and grouped",
             processed_count=processed_count,
             batch_bytes=batch_bytes,
             batch_bytes_mb=batch_bytes / (1024 * 1024),
@@ -233,7 +248,7 @@ class TracingWorker:
         for organization_id, spans_by_proj_user in spans_by_org.items():
             # Count root spans (delta)
             delta = sum(
-                len([s for s in spans if s.parent_span_id is None])
+                len([s for s in spans if s.parent_id is None])
                 for spans in spans_by_proj_user.values()
             )
 
@@ -242,17 +257,17 @@ class TracingWorker:
 
             if is_ee() and delta > 0:
                 try:
-                    # Layer 2: Authoritative DB check + adjust
+                    # Layer 2: Authoritative DB check + adjust (use_cache=False for hard check)
                     allowed, meter, rollback = await check_entitlements(
                         organization_id=organization_id,
                         key=Counter.TRACES,
                         delta=delta,
-                        use_cache=False,  # ✅ Authoritative check in worker
+                        use_cache=False,
                     )
 
                     if not allowed:
                         log.warning(
-                            "[TracingWorker] Quota exceeded, dropping batch",
+                            "[INGEST] Quota exceeded, dropping batch",
                             org_id=str(organization_id),
                             delta=delta,
                         )
@@ -260,7 +275,7 @@ class TracingWorker:
 
                 except Exception as e:
                     log.error(
-                        "[TracingWorker] Entitlements check failed",
+                        "[INGEST] Entitlements check failed",
                         org_id=str(organization_id),
                         error=str(e),
                     )
@@ -277,24 +292,17 @@ class TracingWorker:
                     )
 
                     log.debug(
-                        "[TracingWorker] Created spans",
+                        "[INGEST] Created spans",
                         org_id=str(organization_id),
                         project_id=str(project_id),
                         user_id=str(user_id),
                         count=len(span_dtos),
                     )
 
-                    # Batch meter adjustment after successful create
+                    # Meter already adjusted by check_entitlements(use_cache=False)
+                    # Just cache it for soft checks (Layer 1) in OTLP router
                     if is_ee() and meter and allowed:
                         try:
-                            await meter.adjust(delta=delta)
-                            log.debug(
-                                "[TracingWorker] Adjusted meter",
-                                org_id=str(organization_id),
-                                delta=delta,
-                            )
-
-                            # Cache meter for soft checks (Layer 1) in OTLP router
                             meter_data = {
                                 "value": meter.value,
                                 "synced": meter.synced,
@@ -309,9 +317,15 @@ class TracingWorker:
                                 ttl=3600,  # 1 hour cache
                             )
 
+                            log.debug(
+                                "[INGEST] Cached meter after adjustment",
+                                org_id=str(organization_id),
+                                delta=delta,
+                            )
+
                         except Exception as e:
                             log.error(
-                                "[TracingWorker] Failed to adjust meter",
+                                "[INGEST] Failed to cache meter",
                                 org_id=str(organization_id),
                                 error=str(e),
                                 exc_info=True,
@@ -319,7 +333,7 @@ class TracingWorker:
 
                 except Exception as e:
                     log.error(
-                        "[TracingWorker] Failed to create spans",
+                        "[INGEST] Failed to create spans",
                         org_id=str(organization_id),
                         project_id=str(project_id),
                         user_id=str(user_id),
@@ -343,7 +357,7 @@ class TracingWorker:
         4. On error, messages remain pending for retry
         """
         log.info(
-            "[TracingWorker] Starting worker",
+            "[INGEST] Starting worker",
             stream=self.stream_name,
             consumer_group=self.consumer_group,
             consumer=self.consumer_name,
@@ -358,7 +372,7 @@ class TracingWorker:
                     continue
 
                 log.debug(
-                    "[TracingWorker] Processing batch",
+                    "[INGEST] Processing batch",
                     count=len(batch),
                 )
 
@@ -366,7 +380,7 @@ class TracingWorker:
                 processed_count, processed_message_ids = await self.process_batch(batch)
 
                 log.debug(
-                    "[TracingWorker] Batch processing complete",
+                    "[INGEST] Batch processing complete",
                     total_count=len(batch),
                     processed_count=processed_count,
                     remaining_count=len(batch) - processed_count,
@@ -378,7 +392,7 @@ class TracingWorker:
 
             except Exception as e:
                 log.error(
-                    "[TracingWorker] Error in worker loop: {e}",
+                    "[INGEST] Error in worker loop: {e}",
                     exc_info=True,
                 )
                 # Sleep before retry to avoid tight error loop

@@ -19,6 +19,9 @@ from oss.src.apis.fastapi.otlp.utils.processing import parse_from_otel_span_dto
 
 from oss.src.core.tracing.service import TracingService
 
+if is_ee():
+    from ee.src.utils.entitlements import check_entitlements, Counter
+
 
 MAX_OTLP_BATCH_SIZE = env.AGENTA_OTLP_MAX_BATCH_BYTES
 MAX_OTLP_BATCH_SIZE_MB = MAX_OTLP_BATCH_SIZE // (1024 * 1024)
@@ -69,6 +72,9 @@ class OTLPRouter:
         """
         Soft check: Validate TRACES quota using cached meter (Layer 1).
 
+        Uses check_entitlements with use_cache=True for fast quota validation
+        without touching the database. Falls back to hard check in worker on error.
+
         Returns:
             (allowed: bool, error_message: str)
         """
@@ -76,46 +82,32 @@ class OTLPRouter:
             return True, ""
 
         try:
-            # Count root spans (same logic as hard check in worker)
-            delta = sum(1 for span in spans if span.parent_span_id is None)
+            # Count root spans (delta)
+            delta = sum(1 for span in spans if span.parent_id is None)
 
             if delta == 0:
                 return True, ""
 
-            # Get cached meter from Redis
-            cached_meter = await self.tracing.get_meter_cache(
-                organization_id=organization_id
+            # Layer 1: Soft check using cached entitlements (use_cache=True)
+            allowed, _, _ = await check_entitlements(
+                organization_id=UUID(organization_id),
+                key=Counter.TRACES,
+                delta=delta,
+                use_cache=True,  # ✅ Soft check: cache only, no DB writes
             )
 
-            if not cached_meter:
-                # No cached meter - allow and let hard check in worker handle it
-                log.debug(
-                    "[OTLP] No cached meter found, allowing tentatively",
-                    org_id=str(organization_id),
-                )
-                return True, ""
-
-            # Extract meter state
-            current_value = cached_meter.get("value", 0)
-            synced = cached_meter.get("synced", 0)
-            available = current_value - synced
-
-            if available >= delta:
-                # Soft check passes
+            if allowed:
                 log.debug(
                     "[OTLP] Soft meter check passed",
                     org_id=str(organization_id),
                     delta=delta,
-                    available=available,
                 )
                 return True, ""
             else:
-                # Soft check fails - reject immediately
                 log.warning(
                     "[OTLP] Soft meter check failed - quota exceeded",
                     org_id=str(organization_id),
                     delta=delta,
-                    available=available,
                 )
                 return (
                     False,
@@ -149,9 +141,9 @@ class OTLPRouter:
 
         try:
             await self.tracing.publish_to_stream(
-                organization_id=organization_id,
-                project_id=project_id,
-                user_id=user_id,
+                organization_id=UUID(organization_id),
+                project_id=UUID(project_id),
+                user_id=UUID(user_id),
                 span_dtos=spans,
             )
 
