@@ -21,6 +21,7 @@ python = "^3.11"
 #
 fastapi = "^0.122"
 pydantic = "^2"
+python-dotenv = "^1"
 uvicorn = "^0.38"
 redis = "^6"
 sendgrid = "^6"
@@ -44,27 +45,19 @@ genson = "^1"
 jsonschema = "^4"
 orjson = "^3"
 pandas = "^2"
-googleapis-common-protos = "^1"
-watchdog = { extras = ["watchmedo"], version = "^3" }
 sqlalchemy-json = "^0.7"
-python-multipart = "^0.0.20"
 gunicorn = "^23"
 python-jsonpath = "^2"
+bson = "^0.5"
 
+# BLOCKED BY NEW RELIC INCOMPATIBILITY
 # opentelemetry-api = "^1"
 # opentelemetry-sdk = "^1"
 # opentelemetry-exporter-otlp-proto-http = "^1"
 # protobuf = "^5"
 
-# audit fixes
-h11 = "^0.16"
-ecdsa = "^0.19"
-bson = "^0.5"
-tiktoken = "^0.11"
-
-google-auth = "^2"
-
 [tool.poetry.group.dev.dependencies]
+watchdog = { extras = ["watchmedo"], version = "^3" }
 pytest = "^8"
 pytest-asyncio = "^0.21"
 faker = "^23"
