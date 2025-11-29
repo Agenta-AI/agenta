@@ -122,10 +122,10 @@ class EnvironSettings(BaseModel):
     REDIS_DURABLE_URL: str | None = os.getenv("REDIS_DURABLE_URL")
 
     # Per-kind URLs (highest precedence)
-    REDIS_CACHE_URL: str | None = os.getenv("REDIS_CACHE_URL")
-    REDIS_CHANNEL_URL: str | None = os.getenv("REDIS_CHANNEL_URL")
-    REDIS_QUEUE_URL: str | None = os.getenv("REDIS_QUEUE_URL")
-    REDIS_STREAM_URL: str | None = os.getenv("REDIS_STREAM_URL")
+    REDIS_CACHES_URL: str | None = os.getenv("REDIS_CACHES_URL")
+    REDIS_CHANNELS_URL: str | None = os.getenv("REDIS_CHANNELS_URL")
+    REDIS_QUEUES_URL: str | None = os.getenv("REDIS_QUEUES_URL")
+    REDIS_STREAMS_URL: str | None = os.getenv("REDIS_STREAMS_URL")
 
     REDIS_CACHE_HOST: str = os.getenv("REDIS_CACHE_HOST") or "redis-volatile"
     REDIS_CACHE_PORT: int = int(os.getenv("REDIS_CACHE_PORT") or "6379")
@@ -140,33 +140,33 @@ class EnvironSettings(BaseModel):
             self.REDIS_DURABLE_URL = "redis://redis-durable:6380/0"
 
         # Build per-kind URLs with precedence rules
-        # CACHE: REDIS_CACHE_URL → REDIS_VOLATILE_URL → REDIS_URL → default
-        if not self.REDIS_CACHE_URL:
-            self.REDIS_CACHE_URL = (
+        # CACHES: REDIS_CACHES_URL → REDIS_VOLATILE_URL → REDIS_URL → default
+        if not self.REDIS_CACHES_URL:
+            self.REDIS_CACHES_URL = (
                 self.REDIS_VOLATILE_URL
                 or self.REDIS_URL
                 or f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
             )
 
-        # CHANNEL: REDIS_CHANNEL_URL → REDIS_VOLATILE_URL → REDIS_URL → default
-        if not self.REDIS_CHANNEL_URL:
-            self.REDIS_CHANNEL_URL = (
+        # CHANNELS: REDIS_CHANNELS_URL → REDIS_VOLATILE_URL → REDIS_URL → default
+        if not self.REDIS_CHANNELS_URL:
+            self.REDIS_CHANNELS_URL = (
                 self.REDIS_VOLATILE_URL
                 or self.REDIS_URL
                 or f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
             )
 
-        # QUEUE: REDIS_QUEUE_URL → REDIS_DURABLE_URL → REDIS_URL → default
-        if not self.REDIS_QUEUE_URL:
-            self.REDIS_QUEUE_URL = (
+        # QUEUES: REDIS_QUEUES_URL → REDIS_DURABLE_URL → REDIS_URL → default
+        if not self.REDIS_QUEUES_URL:
+            self.REDIS_QUEUES_URL = (
                 self.REDIS_DURABLE_URL
                 or self.REDIS_URL
                 or "redis://redis-durable:6380/0"
             )
 
-        # STREAM: REDIS_STREAM_URL → REDIS_DURABLE_URL → REDIS_URL → default
-        if not self.REDIS_STREAM_URL:
-            self.REDIS_STREAM_URL = (
+        # STREAMS: REDIS_STREAMS_URL → REDIS_DURABLE_URL → REDIS_URL → default
+        if not self.REDIS_STREAMS_URL:
+            self.REDIS_STREAMS_URL = (
                 self.REDIS_DURABLE_URL
                 or self.REDIS_URL
                 or "redis://redis-durable:6380/0"

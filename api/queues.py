@@ -54,7 +54,7 @@ ag.init(
 # Create broker with durable Redis Streams for task queues
 # Valkey 7+ compatible
 broker = RedisStreamBroker(
-    url=env.REDIS_QUEUE_URL,
+    url=env.REDIS_QUEUES_URL,
     queue_name="queues:taskiq:evaluations",
     consumer_group_name="taskiq-workers",
 )
