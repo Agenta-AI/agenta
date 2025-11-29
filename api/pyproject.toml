@@ -15,8 +15,9 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
+agenta = ">=0.64.0"
 python = "^3.11"
-fastapi = "^0.116.1"
+fastapi = ">=0.116.0"
 pydantic = "^2.11.7"
 uvicorn = "^0.34.3"
 redis = "^6.4.0"
@@ -57,7 +58,6 @@ python-jsonpath = "^2.0.0"
 h11 = "^0.16.0"
 ecdsa = "^0.19.1"
 bson = "^0.5.10"
-agenta = ">=0.61.0"
 tiktoken = "0.11.0"
 
 google-auth = ">=2.23,<3"
