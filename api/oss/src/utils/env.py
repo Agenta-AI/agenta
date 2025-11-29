@@ -114,8 +114,8 @@ class EnvironSettings(BaseModel):
     # REDIS - Split into volatile (caches/channels) and durable (queues/streams)
     # Runtime: Valkey 7+ (fully Redis-compatible)
 
-    # Global fallback
-    REDIS_URL: str | None = os.getenv("REDIS_URL")
+    # Global fallback (defaults to volatile instance if not specified)
+    REDIS_URL: str | None = os.getenv("REDIS_URL") or "redis://redis-volatile:6379/0"
 
     # Class-level URLs (volatile for caches/channels, durable for queues/streams)
     REDIS_VOLATILE_URL: str | None = os.getenv("REDIS_VOLATILE_URL")
