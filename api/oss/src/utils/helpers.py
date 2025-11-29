@@ -185,7 +185,6 @@ def validate_required_env_vars():
         "POSTGRES_URI_SUPERTOKENS",
         "ALEMBIC_CFG_PATH_CORE",
         "ALEMBIC_CFG_PATH_TRACING",
-        "REDIS_URI",
     ]
 
     for var in REQUIRED_ENV_VARS:

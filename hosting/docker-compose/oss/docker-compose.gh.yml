@@ -69,7 +69,7 @@ services:
                 condition: service_completed_successfully
         restart: always
 
-    worker:
+    queues:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -89,12 +89,42 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "workers.py"
+                "queues.py"
             ]
 
         depends_on:
             - postgres
-            - redis
+            - redis-volatile
+            - redis-durable
+        restart: always
+
+    streams:
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+
+        networks:
+            - agenta-oss-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "streams.py"
+            ]
+
+        depends_on:
+            - postgres
+            - redis-volatile
+            - redis-durable
         restart: always
 
     cron:
@@ -242,21 +272,22 @@ services:
             timeout: 5s
             retries: 5
 
-    redis:
-        image: redis:8
+    redis-volatile:
+        image: valkey:9
 
         command: >
-            redis-server
+            valkey-server
             --appendonly no
             --save ""
             --maxmemory 512mb
             --maxmemory-policy volatile-lru
+            --port 6379
 
         ports:
             - "6379:6379"
 
         volumes:
-            - redis-data:/data
+            - redis-volatile-data:/data
 
         networks:
             - agenta-oss-gh-network
@@ -267,7 +298,40 @@ services:
         restart: always
 
         healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
+            test: ["CMD", "valkey-cli", "-p", "6379", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
+    redis-durable:
+        image: valkey:9
+
+        command: >
+            valkey-server
+            --appendonly yes
+            --appendfsync no
+            --save ""
+            --maxmemory 512mb
+            --maxmemory-policy noeviction
+            --port 6380
+
+        ports:
+            - "6380:6380"
+
+        volumes:
+            - redis-durable-data:/data
+
+        networks:
+            - agenta-oss-gh-network
+
+        labels:
+            - "traefik.enable=false"
+
+        restart: always
+
+        healthcheck:
+            test: ["CMD", "valkey-cli", "-p", "6380", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -346,4 +410,5 @@ networks:
 
 volumes:
     postgres-data:
-    redis-data:
+    redis-volatile-data:
+    redis-durable-data:

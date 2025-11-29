@@ -111,68 +111,66 @@ class EnvironSettings(BaseModel):
         os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES") or str(10 * 1024 * 1024)
     )
 
-    # VALKEY/REDIS - Split into volatile (caches/channels) and durable (queues/streams)
-    # See /sandbox/architecture/redis.split.specs.md for detailed architecture
+    # REDIS - Split into volatile (caches/channels) and durable (queues/streams)
+    # Runtime: Valkey 7+ (fully Redis-compatible)
 
     # Global fallback
-    VALKEY_URL: str | None = os.getenv("VALKEY_URL")
+    REDIS_URL: str | None = os.getenv("REDIS_URL")
 
     # Class-level URLs (volatile for caches/channels, durable for queues/streams)
-    VALKEY_VOLATILE_URL: str | None = os.getenv("VALKEY_VOLATILE_URL")
-    VALKEY_DURABLE_URL: str | None = os.getenv("VALKEY_DURABLE_URL")
+    REDIS_VOLATILE_URL: str | None = os.getenv("REDIS_VOLATILE_URL")
+    REDIS_DURABLE_URL: str | None = os.getenv("REDIS_DURABLE_URL")
 
     # Per-kind URLs (highest precedence)
-    VALKEY_CACHE_URL: str | None = os.getenv("VALKEY_CACHE_URL")
-    VALKEY_CHANNEL_URL: str | None = os.getenv("VALKEY_CHANNEL_URL")
-    VALKEY_QUEUE_URL: str | None = os.getenv("VALKEY_QUEUE_URL")
-    VALKEY_STREAM_URL: str | None = os.getenv("VALKEY_STREAM_URL")
+    REDIS_CACHE_URL: str | None = os.getenv("REDIS_CACHE_URL")
+    REDIS_CHANNEL_URL: str | None = os.getenv("REDIS_CHANNEL_URL")
+    REDIS_QUEUE_URL: str | None = os.getenv("REDIS_QUEUE_URL")
+    REDIS_STREAM_URL: str | None = os.getenv("REDIS_STREAM_URL")
 
-    # Legacy support: REDIS_URI falls back to VALKEY_URL
-    REDIS_URI: str | None = os.getenv("REDIS_URI") or os.getenv("VALKEY_URL")
     REDIS_CACHE_HOST: str = os.getenv("REDIS_CACHE_HOST") or "redis-volatile"
     REDIS_CACHE_PORT: int = int(os.getenv("REDIS_CACHE_PORT") or "6379")
 
     @model_validator(mode="after")
     def build_redis_urls(self):
-        """Build Valkey URLs with proper precedence: per-kind → class-level → global → defaults."""
+        """Build Redis URLs with proper precedence: per-kind → class-level → global → defaults."""
         # Set class-level defaults if not provided
-        if not self.VALKEY_VOLATILE_URL:
-            self.VALKEY_VOLATILE_URL = f"redis://{self.REDIS_CACHE_HOST}:6379/0"
-        if not self.VALKEY_DURABLE_URL:
-            self.VALKEY_DURABLE_URL = f"redis://redis-durable:6380/0"
+        if not self.REDIS_VOLATILE_URL:
+            self.REDIS_VOLATILE_URL = f"redis://{self.REDIS_CACHE_HOST}:6379/0"
+        if not self.REDIS_DURABLE_URL:
+            self.REDIS_DURABLE_URL = "redis://redis-durable:6380/0"
 
         # Build per-kind URLs with precedence rules
-        # CACHE: VALKEY_CACHE_URL → VALKEY_VOLATILE_URL → VALKEY_URL → default
-        if not self.VALKEY_CACHE_URL:
-            self.VALKEY_CACHE_URL = (
-                self.VALKEY_VOLATILE_URL or self.VALKEY_URL or
-                f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
+        # CACHE: REDIS_CACHE_URL → REDIS_VOLATILE_URL → REDIS_URL → default
+        if not self.REDIS_CACHE_URL:
+            self.REDIS_CACHE_URL = (
+                self.REDIS_VOLATILE_URL
+                or self.REDIS_URL
+                or f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
             )
 
-        # CHANNEL: VALKEY_CHANNEL_URL → VALKEY_VOLATILE_URL → VALKEY_URL → default
-        if not self.VALKEY_CHANNEL_URL:
-            self.VALKEY_CHANNEL_URL = (
-                self.VALKEY_VOLATILE_URL or self.VALKEY_URL or
-                f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
+        # CHANNEL: REDIS_CHANNEL_URL → REDIS_VOLATILE_URL → REDIS_URL → default
+        if not self.REDIS_CHANNEL_URL:
+            self.REDIS_CHANNEL_URL = (
+                self.REDIS_VOLATILE_URL
+                or self.REDIS_URL
+                or f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
             )
 
-        # QUEUE: VALKEY_QUEUE_URL → VALKEY_DURABLE_URL → VALKEY_URL → default
-        if not self.VALKEY_QUEUE_URL:
-            self.VALKEY_QUEUE_URL = (
-                self.VALKEY_DURABLE_URL or self.VALKEY_URL or
-                "redis://redis-durable:6380/0"
+        # QUEUE: REDIS_QUEUE_URL → REDIS_DURABLE_URL → REDIS_URL → default
+        if not self.REDIS_QUEUE_URL:
+            self.REDIS_QUEUE_URL = (
+                self.REDIS_DURABLE_URL
+                or self.REDIS_URL
+                or "redis://redis-durable:6380/0"
             )
 
-        # STREAM: VALKEY_STREAM_URL → VALKEY_DURABLE_URL → VALKEY_URL → default
-        if not self.VALKEY_STREAM_URL:
-            self.VALKEY_STREAM_URL = (
-                self.VALKEY_DURABLE_URL or self.VALKEY_URL or
-                "redis://redis-durable:6380/0"
+        # STREAM: REDIS_STREAM_URL → REDIS_DURABLE_URL → REDIS_URL → default
+        if not self.REDIS_STREAM_URL:
+            self.REDIS_STREAM_URL = (
+                self.REDIS_DURABLE_URL
+                or self.REDIS_URL
+                or "redis://redis-durable:6380/0"
             )
-
-        # Ensure legacy REDIS_URI for backwards compatibility
-        if not self.REDIS_URI:
-            self.REDIS_URI = self.VALKEY_CACHE_URL
 
         return self
 

@@ -11,7 +11,7 @@ import asyncio
 import os
 from typing import Dict, List, Tuple, Optional
 from uuid import UUID
-from redis.asyncio import Redis
+from valkey.asyncio import Redis
 
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.dtos import OTelFlatSpan
@@ -321,8 +321,8 @@ async def main_async() -> int:
         warn_deprecated_env_vars()
         validate_required_env_vars()
 
-        # Create durable Redis client for streams
-        redis_client = Redis.from_url(env.VALKEY_STREAM_URL, decode_responses=False)
+        # Create durable Redis client for streams (Valkey 7+ compatible)
+        redis_client = Redis.from_url(env.REDIS_STREAM_URL, decode_responses=False)
 
         # Initialize DAO
         tracing_dao = TracingDAO()

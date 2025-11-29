@@ -3,7 +3,7 @@ from json import dumps, loads
 from random import random
 from asyncio import sleep
 
-from redis.asyncio import Redis
+from valkey.asyncio import Redis
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
@@ -26,9 +26,9 @@ CACHE_DEBUG = False
 CACHE_DEBUG_VALUE = False
 
 # Use volatile Redis instance for caching (prefix-based separation)
-# See /sandbox/architecture/redis.split.specs.md for architecture details
+# Valkey 7+ client is fully Redis-compatible
 r = Redis.from_url(
-    url=env.VALKEY_CACHE_URL,
+    url=env.REDIS_CACHE_URL,
     decode_responses=True,
     socket_timeout=0.5,  # read/write timeout
 )
