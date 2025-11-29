@@ -24,8 +24,7 @@ exclude = [
 
 [tool.poetry.dependencies]
 python = "^3.11"
-starlette = "^0.47.0"
-fastapi = "^0.116.0"
+fastapi = "^0.122.0"
 pydantic = "^2"
 python-dotenv = "^1.0.0"
 importlib-metadata = ">=8.0.0,<9.0"
