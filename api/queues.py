@@ -45,7 +45,8 @@ import agenta as ag
 
 log = get_module_logger(__name__)
 
-# Initialize Agenta SDK
+# Initialize Agenta SDK for workflow invocation in evaluation tasks
+# Idempotent - safe to call multiple times
 ag.init(
     api_url=env.AGENTA_API_URL,
 )
@@ -183,7 +184,7 @@ def main() -> int:
         log.info("[WORKER] Starting Taskiq worker with Redis Streams")
 
         # Run Taskiq worker
-        # Broker and workers are instantiated above (like routers.py does for FastAPI)
+        # Broker and workers are instantiated above (like routes.py does for FastAPI)
         args = WorkerArgs(
             broker="queues:broker",  # Reference broker from this module
             modules=[],  # Workers already registered, no auto-discovery needed

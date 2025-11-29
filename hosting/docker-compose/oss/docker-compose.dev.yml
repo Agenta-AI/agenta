@@ -30,12 +30,12 @@ services:
         restart: always
 
     api:
-        build: 
+        build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/routers.py:/app/routers.py
+            - ../../../api/routes.py:/app/routes.py
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -59,7 +59,7 @@ services:
         command:
             [
                 "uvicorn",
-                "routers:app",
+                "routes:app",
                 "--host",
                 "0.0.0.0",
                 "--port",

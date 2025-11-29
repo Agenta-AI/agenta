@@ -1,5 +1,6 @@
 from typing import Union, Optional, Callable
 from uuid import UUID
+from datetime import datetime, timezone
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
@@ -62,7 +63,21 @@ async def check_entitlements(
     organization_id: UUID,
     key: Union[Flag, Counter, Gauge],
     delta: Optional[int] = None,
+    # soft-check mode
+    use_cache: Optional[bool] = False,
 ) -> tuple[bool, Optional[MeterDTO], Optional[Callable]]:
+    """
+    Checks entitlements for flags, counters, or gauges.
+    - If `use_cache=True`, performs a soft-check:
+        1. Tries Redis cached value first.
+        2. Falls back to DB fetch if cache is cold.
+        3. NEVER writes to DB.
+    - Otherwise, performs a full atomic adjust() in DB.
+    """
+    # -------------------------------------------------------------- #
+    # 1. Parse key type (Flag / Counter / Gauge)
+    # -------------------------------------------------------------- #
+
     flag = None
     try:
         flag = Flag(key)
@@ -84,8 +99,12 @@ async def check_entitlements(
     if flag is None and counter is None and gauge is None:
         raise EntitlementsException(f"Invalid key [{key}]")
 
+    # -------------------------------------------------------------- #
+    # 2. Load subscription data (cached)
+    # -------------------------------------------------------------- #
+
     cache_key = {
-        "organization_id": organization_id,
+        "organization_id": str(organization_id),
     }
 
     subscription_data = await get_cache(
@@ -94,7 +113,9 @@ async def check_entitlements(
     )
 
     if subscription_data is None:
-        subscription = await subscriptions_service.read(organization_id=organization_id)
+        subscription = await subscriptions_service.read(
+            organization_id=str(organization_id),
+        )
 
         if not subscription:
             raise EntitlementsException(
@@ -118,6 +139,10 @@ async def check_entitlements(
     if plan not in ENTITLEMENTS:
         raise EntitlementsException(f"Missing plan [{plan}] in entitlements")
 
+    # -------------------------------------------------------------- #
+    # 3. Handle flags (boolean entitlements)
+    # -------------------------------------------------------------- #
+
     if flag:
         if flag not in ENTITLEMENTS[plan][Tracker.FLAGS]:
             raise EntitlementsException(f"Invalid flag: {flag} for plan [{plan}]")
@@ -131,6 +156,10 @@ async def check_entitlements(
             )
 
         return check is True, None, None
+
+    # -------------------------------------------------------------- #
+    # 4. Determine quota and current billing period
+    # -------------------------------------------------------------- #
 
     quota = None
 
@@ -149,6 +178,69 @@ async def check_entitlements(
     if not quota:
         raise EntitlementsException(f"No quota found for key [{key}] in plan [{plan}]")
 
+    # Compute current year/month based on anchor
+    now = datetime.now(timezone.utc)
+
+    if not anchor or now.day < anchor:
+        year, month = now.year, now.month
+    else:
+        if now.month == 12:
+            year, month = now.year + 1, 1
+        else:
+            year, month = now.year, now.month + 1
+
+    # -------------------------------------------------------------- #
+    # 5. Soft-check mode (Layer 1)
+    # -------------------------------------------------------------- #
+    if use_cache:
+        # 5.1. Try Redis cache first
+        cache_key = {
+            "organization_id": str(organization_id),
+            "key": key.value,
+            "year": str(year) if quota.monthly else "-",
+            "month": str(month) if quota.monthly else "-",
+        }
+
+        cached_value = await get_cache(
+            namespace="entitlements:meters",
+            key=cache_key,
+        )
+
+        if cached_value is not None:
+            current_value = cached_value
+
+        else:
+            # 5.2. Fallback to DB fetch for current billing period only
+            meters = await meters_service.fetch(
+                organization_id=str(organization_id),
+                key=key,
+                year=year,
+                month=month,
+            )
+
+            current_value = (meters[0].value if meters else 0) or 0
+
+            # Cache value for future soft-checks
+            # Two-tier: Local (60s) + Redis (24h)
+            # Local cache ensures hot meter values are always fresh
+            # Redis provides distributed cache across instances
+            await set_cache(
+                namespace="entitlements:meters",
+                key=cache_key,
+                value=current_value,
+                ttl=24 * 60 * 60,  # 24 hours (Redis TTL)
+            )
+
+        # 5.3. Decide based on quota
+        proposed_value = current_value + (delta or 0)
+        allowed = quota.limit is None or proposed_value <= quota.limit
+
+        return allowed, None, None
+
+    # -------------------------------------------------------------- #
+    # 6. Full check + adjust mode (Layer 2)
+    # -------------------------------------------------------------- #
+
     meter = MeterDTO(
         organization_id=organization_id,
         key=key,
@@ -161,9 +253,30 @@ async def check_entitlements(
         anchor=anchor,
     )
 
+    # ✅ If allowed, sync both cache layers so they're always fresh
+    if check:
+        cache_key = {
+            "organization_id": str(organization_id),
+            "key": key.value,
+            "year": str(year) if quota.monthly else "-",
+            "month": str(month) if quota.monthly else "-",
+        }
+
+        current_value = (meter.value if meter else 0) or 0
+
+        # Sync both cache tiers:
+        # - Local (60s): Ensures this instance has hot value
+        # - Redis (24h): Ensures all instances have consistent distributed cache
+        await set_cache(
+            namespace="entitlements:meters",
+            key=cache_key,
+            value=current_value,
+            ttl=24 * 60 * 60,  # 24 hours (Redis TTL)
+        )
+
     # TODO: remove this line
     log.info(
-        f"adjusting: {organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'allow' if check else 'deny '} | {meter.key}: {meter.value - meter.synced} [{meter.value}]"
+        f"adjusting: {organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'allow' if check else 'deny '} | {meter.key}: {meter.value-meter.synced} [{meter.value}]"
     )
 
     return check is True, meter, _
