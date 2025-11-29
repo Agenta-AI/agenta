@@ -327,10 +327,9 @@ async def main_async() -> int:
         # Initialize DAO
         tracing_dao = TracingDAO()
 
-        # Initialize service with durable Redis client
+        # Initialize service
         tracing_service = TracingService(
             tracing_dao=tracing_dao,
-            redis_client=redis_client,
         )
 
         # Initialize worker
