@@ -50,7 +50,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceResponseData,
 )
 
-from oss.src.services.auth_helper import sign_secret_token
+from oss.src.services.auth_service import sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
 
 from agenta.sdk.decorators.running import (

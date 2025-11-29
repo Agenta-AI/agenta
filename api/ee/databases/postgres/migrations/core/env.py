@@ -27,7 +27,6 @@ if config.config_file_name is not None:
 from oss.src.dbs.postgres.shared.base import Base
 
 import oss.src.dbs.postgres.secrets.dbes
-import oss.src.dbs.postgres.observability.dbes
 import oss.src.dbs.postgres.tracing.dbes
 import oss.src.dbs.postgres.testcases.dbes
 import oss.src.dbs.postgres.testsets.dbes
