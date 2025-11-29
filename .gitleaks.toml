@@ -28,6 +28,8 @@ regexes = [
   # ------------------------------------------------------------ PUBLIC KEYS
   '''phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7''',  # POSTHOG
   '''phc_3urGRy5TL1HhaHnRYL0JSHxJxigRVackhphHtozUmdp''',  # POSTHOG
+  '''phc_CwyyDlHGNnRFptVWhTe0HOeKnq1jeOZNk9hduYiOClp''',  # POSTHOG
+  '''phc_qH8GezjMAeToR9ygdsnTH0C9c2njhO7CFqf66pTUX7H''',  # POSTHOG
   '''18ab633e81d706cbda7c78d25d0fe763''',                 # ALGOLIA
   # ----------------------------------------------------------------------------
 ]
