@@ -27,7 +27,7 @@ CACHE_DEBUG_VALUE = False
 
 # Use volatile Redis instance for caching (prefix-based separation)
 r = Redis.from_url(
-    url=env.REDIS_CACHES_URL,
+    url=env.REDIS_URI_CACHES,
     decode_responses=True,
     socket_timeout=0.5,  # read/write timeout
 )
