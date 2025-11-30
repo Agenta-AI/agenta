@@ -2,11 +2,15 @@ import {getDefaultStore} from "jotai"
 import {eagerAtom} from "jotai-eager"
 import {selectAtom} from "jotai/utils"
 
+import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
+import {lastVisitedEvaluationAtom} from "@/oss/components/pages/evaluations/state/lastVisitedEvaluationAtom"
 import type {AppStateSnapshot, RouteLayer} from "@/oss/state/appState"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {selectedOrgAtom} from "@/oss/state/org/selectors/org"
 
 import {recentAppIdAtom} from "../app"
+import type {UserOnboardingStatus} from "../onboarding/types"
+import {resolveOnboardingSection} from "./resolveURLSection"
 
 export interface URLState {
     appId: string
@@ -32,7 +36,7 @@ export type URLLocationScope =
     | "public"
     | "unknown"
 
-export interface URLLocationState {
+interface BaseURLLocationState {
     scope: URLLocationScope
     routeLayer: RouteLayer
     section: string | null
@@ -41,13 +45,17 @@ export interface URLLocationState {
     key: string
 }
 
+export interface URLLocationState extends BaseURLLocationState {
+    resolvedSection: keyof UserOnboardingStatus | null
+}
+
 const createLocationState = (
     scope: URLLocationScope,
     routeLayer: RouteLayer,
     section: string | null,
     subsection: string | null,
     trail: string,
-): URLLocationState => {
+): BaseURLLocationState => {
     const normalizedSection = section ?? null
     const normalizedSubsection = subsection ?? null
     const normalizedTrail = trail || ""
@@ -77,7 +85,7 @@ const createLocationState = (
     }
 }
 
-const resolveLocationFromSnapshot = (snapshot: AppStateSnapshot): URLLocationState => {
+const resolveLocationFromSnapshot = (snapshot: AppStateSnapshot): BaseURLLocationState => {
     const {segments, restPath, routeLayer} = snapshot
     const [first, second] = segments
 
@@ -176,14 +184,28 @@ const resolveLocationFromSnapshot = (snapshot: AppStateSnapshot): URLLocationSta
     )
 }
 
-const urlLocationEquality = (prev: URLLocationState, next: URLLocationState) =>
+const urlLocationEquality = (prev: BaseURLLocationState, next: BaseURLLocationState) =>
     prev.key === next.key && prev.routeLayer === next.routeLayer
 
-export const urlLocationAtom = selectAtom(
+const baseUrlLocationAtom = selectAtom(
     appStateSnapshotAtom,
     resolveLocationFromSnapshot,
     urlLocationEquality,
 )
+
+export const urlLocationAtom = eagerAtom<URLLocationState>((get) => {
+    const location = get(baseUrlLocationAtom)
+    const evalType = get(evalTypeAtom)
+    const lastVisitedEvaluation = get(lastVisitedEvaluationAtom)
+
+    return {
+        ...location,
+        resolvedSection: resolveOnboardingSection(location.section, {
+            evalType,
+            lastVisitedEvaluation,
+        }),
+    }
+})
 
 export const urlAtom = eagerAtom<URLState>((get) => {
     const snapshot = get(appStateSnapshotAtom)

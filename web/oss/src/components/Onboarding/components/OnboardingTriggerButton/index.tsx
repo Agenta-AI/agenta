@@ -3,7 +3,7 @@ import {memo, useCallback, useMemo, MouseEvent} from "react"
 import {QuestionCircleOutlined} from "@ant-design/icons"
 import {Button, Tooltip} from "antd"
 import type {ButtonProps, TooltipProps} from "antd"
-import {resolveOnboardingSection, triggerOnboardingAtom} from "@/oss/state/onboarding"
+import {triggerOnboardingAtom} from "@/oss/state/onboarding"
 import {useAtomValue, useSetAtom} from "jotai"
 import {urlLocationAtom} from "@/oss/state/url"
 
@@ -18,7 +18,7 @@ const OnboardingTriggerButton = ({
 }: OnboardingTriggerButtonProps) => {
     const setTriggerOnboarding = useSetAtom(triggerOnboardingAtom)
     const userLocation = useAtomValue(urlLocationAtom)
-    const normalizedSection = resolveOnboardingSection(userLocation.section)
+    const normalizedSection = userLocation.resolvedSection
 
     const handleClick: ButtonProps["onClick"] = useCallback(
         (event: MouseEvent<HTMLButtonElement>) => {

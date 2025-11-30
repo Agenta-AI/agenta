@@ -11,11 +11,9 @@ import type {OnboardingControlLabels, UserOnboardingStatus} from "@/oss/state/on
 import {
     currentOnboardingStepAtom,
     isNewUserAtom,
-    resolveOnboardingSection,
     triggerOnboardingAtom,
     updateUserOnboardingStatusAtom,
 } from "@/oss/state/onboarding"
-import {fullJourneyStateAtom} from "@/oss/state/onboarding/atoms/helperAtom"
 import {urlLocationAtom} from "@/oss/state/url"
 
 const {Text} = Typography
@@ -52,9 +50,7 @@ const OnboardingCard = ({
     const setCurrentStep = useSetAtom(currentOnboardingStepAtom)
     const updateOnboardingStatus = useSetAtom(updateUserOnboardingStatusAtom)
     const isNewUser = useAtomValue(isNewUserAtom)
-    const userSection = useAtomValue(urlLocationAtom).section
-    const fullJourneyState = useAtomValue(fullJourneyStateAtom)
-    const setFullJourneyState = useSetAtom(fullJourneyStateAtom)
+    const userOnboardingSection = useAtomValue(urlLocationAtom).resolvedSection
     const setTriggerOnboarding = useSetAtom(triggerOnboardingAtom)
 
     const cleanupHandlersRef = useRef<Set<() => void>>(new Set())
@@ -118,7 +114,7 @@ const OnboardingCard = ({
             if (!status) return
 
             const resolvedSection =
-                extendedStep?.onboardingSection ?? resolveOnboardingSection(userSection)
+                extendedStep?.onboardingSection ?? userOnboardingSection
             if (!resolvedSection) return
 
             updateOnboardingStatus({section: resolvedSection, status})
@@ -127,11 +123,9 @@ const OnboardingCard = ({
             step,
             skipTour,
             isNewUser,
-            userSection,
+            userOnboardingSection,
             updateOnboardingStatus,
             runCleanupHandlers,
-            fullJourneyState.active,
-            setFullJourneyState,
             setTriggerOnboarding,
         ],
     )

@@ -151,13 +151,3 @@ export type DemoOnlineEvaluationContext = {
 }
 
 export const demoOnlineEvaluationAtom = atom<DemoOnlineEvaluationContext | null>(null)
-
-export const fullJourneyStateAtom = atom<{
-    active: boolean
-    state?: string | null
-    journeyId?: string | null
-}>({
-    active: false,
-    state: null,
-    journeyId: null,
-})

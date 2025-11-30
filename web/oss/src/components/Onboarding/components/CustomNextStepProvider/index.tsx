@@ -1,11 +1,9 @@
 import {
     isNewUserAtom,
     onboardingStepsAtom,
-    resolveOnboardingSection,
     triggerOnboardingAtom,
     userOnboardingStatusAtom,
 } from "@/oss/state/onboarding"
-import {fullJourneyStateAtom} from "@/oss/state/onboarding/atoms/helperAtom"
 import {urlLocationAtom} from "@/oss/state/url"
 import {useAtomValue, useSetAtom} from "jotai"
 import {NextStep, useNextStep} from "nextstepjs"
@@ -20,20 +18,19 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
     const userOnboardingJourneyStatus = useAtomValue(userOnboardingStatusAtom)
     const manualTrigger = useAtomValue(triggerOnboardingAtom)
     const setTriggerOnboarding = useSetAtom(triggerOnboardingAtom)
-    const fullJourneyState = useAtomValue(fullJourneyStateAtom)
-    const setFullJourneyState = useSetAtom(fullJourneyStateAtom)
     const {startNextStep} = useNextStep()
     const autoStartSignatureRef = useRef<string | null>(null)
 
-    const previousSectionRef = useRef(userLocation.section)
+    const previousSectionRef = useRef(userLocation.resolvedSection ?? userLocation.section)
     useEffect(() => {
-        if (previousSectionRef.current !== userLocation.section) {
-            previousSectionRef.current = userLocation.section
-            if (!manualTrigger && !fullJourneyState.active) {
+        const resolvedSection = userLocation.resolvedSection ?? userLocation.section
+        if (previousSectionRef.current !== resolvedSection) {
+            previousSectionRef.current = resolvedSection
+            if (!manualTrigger) {
                 setTriggerOnboarding(null)
             }
         }
-    }, [userLocation.section, manualTrigger, fullJourneyState.active])
+    }, [userLocation.resolvedSection, userLocation.section, manualTrigger, setTriggerOnboarding])
 
     useEffect(() => {
         if (!isNewUser) {
@@ -41,11 +38,7 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
             return
         }
 
-        if (fullJourneyState.active) {
-            return
-        }
-
-        const normalizedSection = resolveOnboardingSection(userLocation.section)
+        const normalizedSection = userLocation.resolvedSection
         if (!normalizedSection) {
             autoStartSignatureRef.current = null
             return
@@ -72,10 +65,9 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
         startNextStep(currentTour.tour)
     }, [
         isNewUser,
-        userLocation.section,
+        userLocation.resolvedSection,
         userOnboardingJourneyStatus,
         onboardingSteps,
-        fullJourneyState.active,
         startNextStep,
     ])
 
@@ -93,13 +85,10 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
         if (!tourId) return
 
         startNextStep(tourId)
-    }, [manualTrigger, onboardingSteps, startNextStep, fullJourneyState.journeyId])
+    }, [manualTrigger, onboardingSteps, startNextStep])
 
     const handleComplete = () => {
         setTriggerOnboarding(null)
-        if (fullJourneyState.active) {
-            setFullJourneyState({active: false, state: null, journeyId: null})
-        }
     }
 
     return (
