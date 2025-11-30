@@ -144,6 +144,7 @@ const useHeaderViewportVisibility = ({
 
     const queueVisibilityUpdate = useCallback(
         (columnKey: string, visible: boolean) => {
+            console.log("queueVisibilityUpdate")
             if (visible) {
                 clearHideTimeout(columnKey)
                 enqueueVisibilityChange(columnKey, true)
@@ -319,6 +320,7 @@ const useHeaderViewportVisibility = ({
 
     const registerHeader = useCallback(
         (columnKey: string) => {
+            console.log("registerHeader")
             if (!enabled || !scopeId || !columnKey) {
                 return () => undefined
             }

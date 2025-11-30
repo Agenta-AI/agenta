@@ -519,6 +519,15 @@ const EvaluationRunsTableActive = ({
         columnsRef.current = columns
     }, [columns])
 
+    const rowKeyExtractor = useCallback((record: EvaluationRunTableRow) => record.key, [])
+
+    const columnVisibilityMenuRenderer = useCallback(
+        (ctrls: any, close: () => void) => (
+            <ColumnVisibilityPopoverContent controls={ctrls} onClose={close} />
+        ),
+        [],
+    )
+
     return (
         <div
             className={clsx("flex flex-col", autoHeight ? "h-full min-h-0" : "min-h-0", className)}
@@ -528,7 +537,7 @@ const EvaluationRunsTableActive = ({
                 datasetStore={evaluationRunsDatasetStore}
                 tableScope={tableScope}
                 columns={columns}
-                rowKey={(record) => record.key}
+                rowKey={rowKeyExtractor}
                 title={headerTitle}
                 filters={filtersNode}
                 primaryActions={createButton}
@@ -541,9 +550,7 @@ const EvaluationRunsTableActive = ({
                 tableProps={tableProps}
                 rowSelection={rowSelectionConfig}
                 className="flex-1 min-h-0"
-                columnVisibilityMenuRenderer={(ctrls, close) => (
-                    <ColumnVisibilityPopoverContent controls={ctrls} onClose={close} />
-                )}
+                columnVisibilityMenuRenderer={columnVisibilityMenuRenderer}
                 pagination={tablePagination}
                 onPaginationStateChange={handlePaginationStateChange}
                 exportOptions={exportOptions}
