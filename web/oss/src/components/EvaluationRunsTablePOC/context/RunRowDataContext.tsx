@@ -17,8 +17,12 @@ export const useRunRowSummary = (record?: EvaluationRunTableRow, _isVisible = tr
 
 export const useRunRowDetails = (record?: EvaluationRunTableRow, _isVisible = true) => {
     const runId = record?.preview?.id ?? record?.runId ?? null
+    const projectId = record?.projectId ?? null
     const enabled = Boolean(record && !record.__isSkeleton && runId)
-    const {camelRun, runIndex, status, isLoading} = usePreviewRunDetails(runId, {enabled})
+    const {camelRun, runIndex, status, isLoading} = usePreviewRunDetails(runId, {
+        enabled,
+        projectId,
+    })
 
     return {camelRun, runIndex, status, isLoading}
 }
