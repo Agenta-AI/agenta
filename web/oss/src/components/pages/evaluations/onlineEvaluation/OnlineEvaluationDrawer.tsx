@@ -19,6 +19,7 @@ import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import type {Evaluator, Filter} from "@/oss/lib/Types"
+
 import {
     createSimpleEvaluation,
     createSimpleQuery,

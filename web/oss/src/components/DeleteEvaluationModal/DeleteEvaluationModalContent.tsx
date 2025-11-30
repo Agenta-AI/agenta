@@ -1,9 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Typography, message} from "antd"
+import {Typography} from "antd"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
+import {message} from "@/oss/components/AppMessageContext"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 
 import type {DeleteEvaluationModalDeletionConfig} from "./types"

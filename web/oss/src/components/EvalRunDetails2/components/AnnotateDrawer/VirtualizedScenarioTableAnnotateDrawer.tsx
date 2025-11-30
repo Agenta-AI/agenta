@@ -1,10 +1,11 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {Button, DrawerProps, Spin, message} from "antd"
+import {Button, DrawerProps, Spin} from "antd"
 import deepEqual from "fast-deep-equal"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import {message} from "@/oss/components/AppMessageContext"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {
     generateAnnotationPayloadData,

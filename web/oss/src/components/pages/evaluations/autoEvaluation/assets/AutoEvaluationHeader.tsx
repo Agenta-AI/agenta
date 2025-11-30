@@ -1,13 +1,14 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {ArrowsLeftRight, Export, Gauge, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Space, Input, message, theme, Typography} from "antd"
+import {Button, Space, Input, theme, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useAtom, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {formatMetricValue} from "@/oss/components/Evaluations/MetricDetailsPopover"
 import EditColumns from "@/oss/components/Filters/EditColumns"
 import {formatColumnTitle} from "@/oss/components/Filters/EditColumns/assets/helper"
