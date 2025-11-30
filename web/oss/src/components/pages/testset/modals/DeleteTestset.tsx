@@ -4,7 +4,7 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {Modal, ModalProps} from "antd"
 import {KeyedMutator} from "swr"
 
-import {checkIfResourceValidForDeletion} from "@/oss/lib/helpers/evaluate"
+import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {testset} from "@/oss/lib/Types"
 import {deleteTestsets} from "@/oss/services/testsets/api"
 

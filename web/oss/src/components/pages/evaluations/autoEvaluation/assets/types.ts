@@ -1,6 +1,6 @@
 import {ColumnsType} from "antd/es/table"
 
-import {EvaluationRow} from "@/oss/components/HumanEvaluations/types"
+import {EvaluationRow} from "@/oss/components/SaveTestsetModal/types"
 import {BasicStats} from "@/oss/lib/metricUtils"
 
 export interface AutoEvaluationHeaderProps {

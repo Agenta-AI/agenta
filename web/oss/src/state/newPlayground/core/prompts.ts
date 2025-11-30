@@ -159,14 +159,10 @@ const derivedStablePromptVariablesAtomFamily = atomFamily((revisionId: string) =
             if (!variant || !spec) return [] as string[]
             const prompts = derivePromptsFromSpec(variant as any, spec as any, routePath)
             const vars = collectVariablesFromPrompts(prompts as any[])
-            if (process.env.NODE_ENV !== "production") {
-                // eslint-disable-next-line no-console
-                console.debug("derivedStablePromptVariables", {revisionId, routePath, vars})
-            }
+
             return vars
         } catch (error) {
             if (process.env.NODE_ENV !== "production") {
-                // eslint-disable-next-line no-console
                 console.warn("derivedStablePromptVariables error", {revisionId, error})
             }
             return [] as string[]

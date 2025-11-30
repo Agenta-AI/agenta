@@ -159,6 +159,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
 
     const {createNewRun: createPreviewEvaluationRun} = usePreviewEvaluations({
         appId: selectedAppId || appId,
+        skip: !props.open,
     })
     const {testsets, isLoading: testsetsLoading} = useTestsetsData()
 

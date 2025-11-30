@@ -1,7 +1,7 @@
-import EvalRunDetailsPage from "@/oss/components/EvalRunDetails"
+import EvalRunDetailsPage from "@/oss/components/EvalRunDetails2/test"
 
 const EvaluationPage = () => {
-    return <EvalRunDetailsPage evalType="human" />
+    return <EvalRunDetailsPage type="human" />
 }
 
 export default EvaluationPage

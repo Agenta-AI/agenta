@@ -2,7 +2,7 @@ import {SWRResponse, SWRConfiguration} from "swr"
 
 import type {PreviewTestset, SnakeToCamelCaseKeys} from "../../Types"
 import {AnnotationDto} from "../useAnnotations/types"
-import {RunIndex} from "../useEvaluationRunData/assets/helpers/buildRunIndex"
+import {RunIndex} from "@/oss/lib/evaluations/buildRunIndex"
 
 // Step type for useEvaluationRunScenarioSteps fetcher result (camelCase, derived from StepResponseStep)
 // Options for fetching steps (pagination, filters)

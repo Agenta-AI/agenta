@@ -12,7 +12,7 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.evaluations.types import (
     EvaluationStatus,
-    EvaluationRunFlags,
+    EvaluationRunQueryFlags,
     EvaluationQueueFlags,
     #
     EvaluationClosedConflict,
@@ -85,7 +85,7 @@ async def parse_run_query_request(
 
     __flags = None
     try:
-        __flags = EvaluationRunFlags(**_flags) if _flags else None  # type: ignore
+        __flags = EvaluationRunQueryFlags(**_flags) if _flags else None  # type: ignore
     except:
         pass
 

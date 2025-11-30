@@ -79,9 +79,31 @@ class EvaluationClosedConflict(Exception):
 
 
 class EvaluationRunFlags(BaseModel):
-    is_closed: Optional[bool] = None  # Indicates if the run is modifiable
+    is_live: bool = False  # Indicates if the run has live queries
+    is_active: bool = False  # Indicates if the run is currently active
+    is_closed: bool = False  # Indicates if the run is modifiable
+    #
+    has_queries: bool = False  # Indicates if the run has queries
+    has_testsets: bool = False  # Indicates if the run has testsets
+    has_evaluators: bool = False  # Indicates if the run has evaluators
+    #
+    has_custom: bool = False  # Indicates if the run has custom evaluators
+    has_human: bool = False  # Indicates if the run has human evaluators
+    has_auto: bool = False  # Indicates if the run has auto evaluators
+
+
+class EvaluationRunQueryFlags(BaseModel):
     is_live: Optional[bool] = None  # Indicates if the run has live queries
     is_active: Optional[bool] = None  # Indicates if the run is currently active
+    is_closed: Optional[bool] = None  # Indicates if the run is modifiable
+    #
+    has_queries: Optional[bool] = None  # Indicates if the run has queries
+    has_testsets: Optional[bool] = None  # Indicates if the run has testsets
+    has_evaluators: Optional[bool] = None  # Indicates if the run has evaluators
+    #
+    has_custom: Optional[bool] = None  # Indicates if the run has custom evaluators
+    has_human: Optional[bool] = None  # Indicates if the run has human evaluators
+    has_auto: Optional[bool] = None  # Indicates if the run has auto evaluators
 
 
 class EvaluationRunDataStepInput(BaseModel):
@@ -152,7 +174,7 @@ class EvaluationRunEdit(Identifier, Header, Metadata):
 
 
 class EvaluationRunQuery(Header, Metadata):
-    flags: Optional[EvaluationRunFlags] = None  # type: ignore
+    flags: Optional[EvaluationRunQueryFlags] = None  # type: ignore
 
     status: Optional[EvaluationStatus] = None
     statuses: Optional[List[EvaluationStatus]] = None
@@ -321,10 +343,10 @@ class EvaluationMetricsQuery(Metadata):
     intervals: Optional[List[int]] = None
 
     timestamp: Optional[datetime] = None
-    timestamps: Optional[List[datetime]] = None
+    timestamps: Optional[Union[List[datetime], bool]] = None
 
     scenario_id: Optional[UUID] = None
-    scenario_ids: Optional[List[UUID]] = None
+    scenario_ids: Optional[Union[List[UUID], bool]] = None
 
     run_id: Optional[UUID] = None
     run_ids: Optional[List[UUID]] = None
@@ -333,6 +355,19 @@ class EvaluationMetricsQuery(Metadata):
 
 
 class EvaluationMetricsRefresh(BaseModel):
+    interval: Optional[int] = None
+
+    timestamp: Optional[datetime] = None
+    timestamps: Optional[List[datetime]] = None
+
+    scenario_id: Optional[UUID] = None
+    scenario_ids: Optional[List[UUID]] = None
+
+    run_id: Optional[UUID] = None
+    run_ids: Optional[List[UUID]] = None
+
+
+class EvaluationMetricsSpecsRefresh(BaseModel):
     query: Optional[TracingQuery] = None
     specs: Optional[List[MetricSpec]] = None
 
@@ -401,6 +436,8 @@ class EvaluationQueueQuery(Header, Metadata):
 
 SimpleEvaluationFlags = EvaluationRunFlags
 
+SimpleEvaluationQueryFlags = EvaluationRunQueryFlags
+
 SimpleEvaluationStatus = EvaluationStatus
 
 
@@ -440,6 +477,6 @@ class SimpleEvaluationEdit(Identifier, Header, Metadata):
 
 
 class SimpleEvaluationQuery(Header, Metadata):
-    flags: Optional[SimpleEvaluationFlags] = None  # type: ignore
+    flags: Optional[SimpleEvaluationQueryFlags] = None  # type: ignore
 
     ids: Optional[List[UUID]] = None

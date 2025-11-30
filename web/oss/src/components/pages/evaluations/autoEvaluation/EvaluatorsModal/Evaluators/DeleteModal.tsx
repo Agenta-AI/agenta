@@ -4,7 +4,7 @@ import {ExclamationCircleOutlined} from "@ant-design/icons"
 import {Modal, Space, theme, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
-import {checkIfResourceValidForDeletion} from "@/oss/lib/helpers/evaluate"
+import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {EvaluatorConfig, JSSTheme} from "@/oss/lib/Types"
 import {deleteEvaluatorConfig} from "@/oss/services/evaluations/api"
 

@@ -1,4 +1,4 @@
-import {getEvaluatorTags} from "@/oss/lib/helpers/evaluate"
+import {getEvaluatorTags} from "@/oss/lib/evaluations/legacy"
 
 export const EVALUATOR_CATEGORY_ENTRIES = getEvaluatorTags()
 

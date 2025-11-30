@@ -294,7 +294,7 @@ export const createEvaluationRunConfig = ({
     revisions,
     evaluators,
     correctAnswerColumn,
-    meta = {}, // Default to empty object if not provided
+    meta = undefined, // Default to empty object if not provided
 }: CreateEvaluationRunInput) => {
     // Pre-build the input step (which now includes variantId & revisionId) and mappings
     const inputStep = buildInputStep(testset)

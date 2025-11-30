@@ -5,6 +5,8 @@ export interface VirtualScenarioTableAnnotateDrawerState {
     open: boolean
     scenarioId?: string
     runId?: string
+    title?: string
+    context?: Record<string, any>
 }
 
 export const virtualScenarioTableAnnotateDrawerAtom = atom<VirtualScenarioTableAnnotateDrawerState>(
@@ -12,5 +14,7 @@ export const virtualScenarioTableAnnotateDrawerAtom = atom<VirtualScenarioTableA
         open: false,
         scenarioId: undefined,
         runId: undefined,
+        title: "Annotate scenario",
+        context: undefined,
     },
 )

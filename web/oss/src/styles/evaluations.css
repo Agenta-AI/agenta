@@ -1,0 +1,217 @@
+.evaluations-tabs .ant-tabs-ink-bar {
+    background-color: var(--tab-indicator-color, #dbeafe) !important;
+}
+.evaluations-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: #0f172a;
+}
+
+.application-variant-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-top: 2px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: rgba(15, 23, 42, 0.55);
+}
+
+.application-variant-label {
+    font-weight: 500;
+    color: rgba(15, 23, 42, 0.85);
+}
+
+.application-variant-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #1d2939;
+    background: rgba(5, 23, 41, 0.08);
+}
+
+.compare-runs-match-tags .ant-tag {
+    margin-inline-end: 0;
+}
+
+.compare-runs-list .ant-list-item {
+    border: none !important;
+    padding: 8px 4px;
+}
+
+.compare-run-row {
+    cursor: pointer;
+    flex-direction: column;
+    gap: 4px;
+    border-radius: 6px;
+}
+
+.compare-run-row:hover {
+    background: #f9fafb;
+}
+
+.compare-run-row__main {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    width: 100%;
+    gap: 8px;
+}
+
+.compare-run-row__meta {
+    margin-left: auto;
+}
+
+.compare-run-row__sub {
+    font-size: 12px;
+    color: #475467;
+}
+
+.compare-run-row__testsets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.compare-runs-scroll-hint {
+    font-size: 12px;
+    color: #98a2b3;
+    text-align: right;
+}
+
+.compare-runs-status-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.compare-runs-status-filters__label {
+    font-size: 12px;
+    color: #667085;
+}
+
+.compare-runs-filter-btn {
+    border-radius: 999px !important;
+    border-color: #d0d5dd !important;
+    color: #344054 !important;
+    background-color: #fff !important;
+    padding-inline: 12px;
+    font-weight: 500;
+}
+
+.compare-runs-filter-btn--active {
+    background-color: #e4ecff !important;
+    border-color: #c7d7fe !important;
+    color: #1d3a8a !important;
+}
+
+.compare-runs-selected-tags {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-chip-select .ant-select-selection-overflow {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    gap: 6px;
+}
+
+.filter-chip-select .ant-select-selection-overflow::-webkit-scrollbar {
+    height: 6px;
+}
+
+.filter-chip-select .ant-select-selection-overflow::-webkit-scrollbar-thumb {
+    background-color: rgba(5, 23, 41, 0.2);
+    border-radius: 999px;
+}
+
+.filter-chip-select .ant-select-selection-item {
+    margin-inline-end: 0 !important;
+}
+
+.metadata-summary-table .ant-table,
+.metadata-summary-table .ant-table-container,
+.metadata-summary-table .ant-table-content {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.metadata-summary-table .ant-table-container::before,
+.metadata-summary-table .ant-table-container::after {
+    display: none;
+}
+
+.metadata-summary-table .ant-table-tbody > tr > td {
+    border-bottom: 1px solid #eaeff5;
+    border-inline: none;
+}
+
+.metadata-summary-table .ant-table-tbody > tr > td:first-of-type {
+    border-right: 1px solid #eaeff5;
+}
+
+.metadata-summary-table .ant-table-tbody > tr:last-child > td {
+    border-bottom: none;
+}
+
+.agenta-scenario-table .ant-table-tbody > tr > td {
+    padding: 0 !important;
+    vertical-align: top;
+    background-color: #fff;
+}
+
+.agenta-scenario-table .scenario-row--comparison .ant-table-cell {
+    background-color: inherit !important;
+}
+
+.scenario-table-cell {
+    width: 100%;
+    min-height: 96px;
+    max-height: 160px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+
+.scenario-table-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #0f172a;
+}
+
+.scenario-table-placeholder {
+    color: #98a2b3;
+}
+
+.scenario-table-meta {
+    font-size: 12px;
+    color: #667085;
+}
+
+.scenario-table-cell .ant-tag {
+    border-radius: 999px;
+}
+
+/* Scenario cell hover popover styles */
+.scenario-cell-popover .ant-popover-inner {
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.scenario-cell-popover .ant-popover-inner-content {
+    padding: 0;
+}

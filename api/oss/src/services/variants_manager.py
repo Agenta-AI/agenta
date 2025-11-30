@@ -172,6 +172,18 @@ async def _fetch_variant(
                 # project_id=project_id,
                 variant_revision_id=variant_ref.id.hex,
             )
+            if not app_variant_revision:
+                app_variant = await fetch_app_variant_by_id(
+                    app_variant_id=variant_ref.id.hex,
+                    include_hidden=True,
+                )
+                if app_variant:
+                    variant_ref.version = variant_ref.version or app_variant.revision
+                    app_variant_revision = await fetch_app_variant_revision_by_variant(
+                        project_id=project_id,
+                        app_variant_id=app_variant.id.hex,
+                        revision=variant_ref.version,
+                    )
 
         # by application_id, variant_slug, and ...
         elif (
@@ -214,10 +226,11 @@ async def _fetch_variant(
         if not app_variant_revision:
             return None, None
 
-        if not app_variant:
+        if not app_variant and app_variant_revision:
             app_variant = await fetch_app_variant_by_id(
                 # project_id=project_id,
                 app_variant_id=app_variant_revision.variant_id.hex,
+                include_hidden=True,
             )
 
     if not (app_variant_revision and app_variant):
@@ -800,9 +813,7 @@ async def fetch_config_by_variant_ref(
         project_id=project_id,
         base_id=app_variant.base_id,
     )
-
-    if not deployment:
-        return None
+    deployment_uri = deployment.uri if deployment else None
 
     app = await _fetch_app(
         project_id=project_id,
@@ -823,7 +834,7 @@ async def fetch_config_by_variant_ref(
 
     config = ConfigDTO(
         params=app_variant_revision.config_parameters,
-        url=deployment.uri,
+        url=deployment_uri,
         #
         application_ref=ReferenceDTO(
             slug=app.app_name,

@@ -4,6 +4,7 @@
 @import "./code-editor-styles.css";
 @import "./human-evals.css";
 @import "./loading.css";
+@import "./evaluations.css";
 
 @layer tailwind-base, antd;
 

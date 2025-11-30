@@ -6,14 +6,14 @@ import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/draw
 import {useAppId} from "@/oss/hooks/useAppId"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
-import {RunIndex, StepMeta} from "@/oss/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"
+import {RunIndex, StepMeta} from "@/oss/lib/evaluations/buildRunIndex"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {
     EnrichedEvaluationRun,
     EvaluationRun,
     IEvaluationRunDataStep,
-} from "@/oss/lib/hooks/usePreviewEvaluations/types"
+} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
 import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"

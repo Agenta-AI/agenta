@@ -33,6 +33,16 @@ const Annotate = ({
         queries: {is_human: true},
     })
 
+    // Stabilize array dependencies to prevent infinite loops
+    const selectedEvaluatorsKey = useMemo(
+        () => JSON.stringify(selectedEvaluators.slice().sort()),
+        [selectedEvaluators],
+    )
+    const annotationsKey = useMemo(
+        () => JSON.stringify(annotations.map((a) => a.references?.evaluator?.slug ?? a.id).sort()),
+        [annotations],
+    )
+
     // converting selected evaluator into useable metrics
     useEffect(() => {
         try {
@@ -43,11 +53,18 @@ const Annotate = ({
                 selectedEvaluators,
             })
 
-            setUpdatedMetrics((prev) => ({...prev, ...metrics}))
+            setUpdatedMetrics((prev) => {
+                // Only update if metrics actually changed to prevent loops
+                const hasChanges = Object.keys(metrics).some(
+                    (key) => JSON.stringify(prev[key]) !== JSON.stringify(metrics[key]),
+                )
+                if (!hasChanges) return prev
+                return {...prev, ...metrics}
+            })
         } catch (error) {
             onCaptureError?.(["Invalid evaluator schema"])
         }
-    }, [selectedEvaluators])
+    }, [selectedEvaluatorsKey, evaluators])
 
     // get metrics data from the selected annotation
     useEffect(() => {
@@ -60,14 +77,21 @@ const Annotate = ({
                 evaluators: _evaluators as EvaluatorDto[],
             })
 
-            setUpdatedMetrics((prev) => ({
-                ...prev,
-                ...initialMetrics,
-            }))
+            setUpdatedMetrics((prev) => {
+                // Only update if metrics actually changed to prevent loops
+                const hasChanges = Object.keys(initialMetrics).some(
+                    (key) => JSON.stringify(prev[key]) !== JSON.stringify(initialMetrics[key]),
+                )
+                if (!hasChanges) return prev
+                return {
+                    ...prev,
+                    ...initialMetrics,
+                }
+            })
         } catch (error) {
             onCaptureError?.(["Invalid evaluator schema"])
         }
-    }, [annotations])
+    }, [annotationsKey, evaluators])
 
     // active collapse for the first open drawer
     useEffect(() => {
