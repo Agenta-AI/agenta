@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 import type {Key, ReactNode} from "react"
 
-import {Button} from "antd"
 import clsx from "clsx"
 
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"
+import TableSettingsDropdown from "../components/columnVisibility/TableSettingsDropdown"
 import TableShell from "../components/TableShell"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
 import useTableExport, {type TableExportOptions} from "../hooks/useTableExport"
@@ -61,6 +61,7 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
     beforeTable?: ReactNode
     afterTable?: ReactNode
     columnVisibilityMenuRenderer?: ColumnVisibilityMenuRenderer<Row> | ColumnVisibilityRenderer<Row>
+    columnVisibility?: InfiniteVirtualTableProps<Row>["columnVisibility"]
     rowSelection?: InfiniteVirtualTableRowSelection<Row>
     onPaginationStateChange?: (payload: {resetPages: () => void; loadNextPage: () => void}) => void
     onRowsChange?: (rows: Row[]) => void
@@ -69,6 +70,12 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
     exportFilename?: string
     renderExportButton?: (props: {onExport: () => void; loading: boolean}) => ReactNode
     exportOptions?: TableFeatureExportOptions<Row>
+    /**
+     * When true, the gear icon opens a dropdown menu with actions (Export, Column Visibility)
+     * instead of directly opening the column visibility popover.
+     * Default: false (gear icon opens column visibility popover directly)
+     */
+    useSettingsDropdown?: boolean
     keyboardShortcuts?: InfiniteVirtualTableProps<Row>["keyboardShortcuts"]
 }
 
@@ -76,11 +83,18 @@ const DEFAULT_ROW_HEIGHT = 48
 const DEFAULT_CONTROLS_HEIGHT = 72
 const DEFAULT_TABLE_HEADER_HEIGHT = 48
 
+interface ColumnVisibilityRendererContext {
+    scopeId: string | null
+    onExport?: () => void
+    isExporting?: boolean
+}
+
 const resolveColumnVisibilityRenderer = <Row extends InfiniteTableRowBase>(
     renderer: InfiniteVirtualTableFeatureProps<Row>["columnVisibilityMenuRenderer"],
     config: InfiniteVirtualTableProps<Row>["columnVisibility"] | undefined,
-    scopeId: string | null,
+    context: ColumnVisibilityRendererContext,
 ): ColumnVisibilityMenuRenderer<Row> => {
+    const {scopeId, onExport, isExporting} = context
     if (!renderer) {
         return (controls, close) => (
             <ColumnVisibilityPopoverContent
@@ -88,10 +102,12 @@ const resolveColumnVisibilityRenderer = <Row extends InfiniteTableRowBase>(
                 onClose={close}
                 scopeId={scopeId}
                 resolveNodeMeta={config?.resolveNodeMeta}
+                onExport={onExport}
+                isExporting={isExporting}
             />
         )
     }
-    return (controls, close) => renderer(controls, close, {scopeId})
+    return (controls, close) => renderer(controls, close, {scopeId, onExport, isExporting})
 }
 
 function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
@@ -126,18 +142,10 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         exportFilename,
         renderExportButton,
         exportOptions,
+        useSettingsDropdown = false,
         keyboardShortcuts,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
-    const columnVisibilityRenderer = useMemo(
-        () =>
-            resolveColumnVisibilityRenderer(
-                columnVisibilityMenuRenderer,
-                columnVisibility,
-                scopeId,
-            ),
-        [columnVisibilityMenuRenderer, columnVisibility, scopeId],
-    )
 
     useEffect(() => {
         onPaginationStateChange?.({
@@ -222,17 +230,49 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         if (renderExportButton) {
             return renderExportButton({onExport: exportHandler, loading: isExporting})
         }
-        return (
-            <Button loading={isExporting} onClick={exportHandler}>
-                Export CSV
-            </Button>
-        )
+        // Export button is now rendered inside the column visibility popover
+        return null
     }, [enableExport, exportHandler, isExporting, renderExportButton])
+
+    const columnVisibilityRenderer = useMemo(
+        () =>
+            resolveColumnVisibilityRenderer(columnVisibilityMenuRenderer, columnVisibility, {
+                scopeId,
+                onExport: enableExport ? exportHandler : undefined,
+                isExporting,
+            }),
+        [
+            columnVisibilityMenuRenderer,
+            columnVisibility,
+            scopeId,
+            enableExport,
+            exportHandler,
+            isExporting,
+        ],
+    )
 
     const viewportTrackingEnabled = useMemo(
         () =>
             tableScope.viewportTrackingEnabled ?? pagination.rows.some((row) => !row.__isSkeleton),
         [pagination.rows, tableScope.viewportTrackingEnabled],
+    )
+
+    const settingsDropdownRenderer = useCallback(
+        (controls: ColumnVisibilityState<Row>) => (
+            <TableSettingsDropdown
+                controls={controls}
+                onExport={enableExport ? exportHandler : undefined}
+                isExporting={isExporting}
+                renderColumnVisibilityContent={(ctrls, close) =>
+                    columnVisibilityRenderer(ctrls, close, {
+                        scopeId,
+                        onExport: enableExport ? exportHandler : undefined,
+                        isExporting,
+                    })
+                }
+            />
+        ),
+        [columnVisibilityRenderer, enableExport, exportHandler, isExporting, scopeId],
     )
 
     const columnVisibilityConfig = useMemo(
@@ -241,16 +281,18 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             defaultHiddenKeys: tableScope.columnVisibilityDefaults,
             viewportTrackingEnabled,
             renderMenuContent: columnVisibilityRenderer,
+            renderMenuTrigger: useSettingsDropdown ? settingsDropdownRenderer : undefined,
         }),
         [
             columnVisibilityRenderer,
+            settingsDropdownRenderer,
             tableScope.columnVisibilityDefaults,
             tableScope.columnVisibilityStorageKey,
+            useSettingsDropdown,
             viewportTrackingEnabled,
         ],
     )
 
-    console.log("InfiniteVirtualTableFeatureShellBase")
     return (
         <div
             className={clsx("flex flex-col", autoHeight ? "h-full min-h-0" : "min-h-0", className)}

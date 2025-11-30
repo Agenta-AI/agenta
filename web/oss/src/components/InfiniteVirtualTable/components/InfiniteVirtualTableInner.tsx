@@ -513,6 +513,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                 registerHeader={visibilityRegistration}
                 version={columnVisibilityVersion}
                 renderMenuContent={columnVisibility?.renderMenuContent}
+                renderMenuTrigger={columnVisibility?.renderMenuTrigger}
                 scopeId={resolvedScopeId}
             >
                 <ColumnVisibilityFlagProvider scopeId={resolvedScopeId}>

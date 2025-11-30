@@ -19,6 +19,8 @@ export interface ColumnVisibilityPopoverContentProps<RowType extends object> {
     controls?: ColumnVisibilityState<RowType>
     scopeId?: string | null
     resolveNodeMeta?: ColumnVisibilityNodeMetaResolver
+    onExport?: () => void
+    isExporting?: boolean
 }
 
 type VisibilityTreeNode = DataNode & {searchLabel: string}
@@ -28,6 +30,8 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
     controls,
     scopeId = null,
     resolveNodeMeta,
+    onExport,
+    isExporting,
 }: ColumnVisibilityPopoverContentProps<RowType>) => {
     const fallbackControls = useColumnVisibilityControls<RowType>()
     const visibilityControls = controls ?? fallbackControls

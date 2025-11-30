@@ -32,12 +32,18 @@ const ColumnVisibilityMenuTrigger = <RowType extends object>({
     const {
         controls: fallbackControls,
         renderMenuContent: contextRenderContent,
+        renderMenuTrigger: contextRenderTrigger,
         scopeId: contextScopeId,
     } = useColumnVisibilityContext<RowType>()
     const visibilityControls = controls ?? fallbackControls
     const effectiveScopeId = scopeId ?? contextScopeId ?? null
 
     const contentRenderer = renderContent ?? contextRenderContent
+
+    // If a custom trigger renderer is provided, use it instead of the default popover trigger
+    if (contextRenderTrigger) {
+        return <>{contextRenderTrigger(visibilityControls, {scopeId: effectiveScopeId})}</>
+    }
 
     return (
         <ColumnVisibilityTrigger

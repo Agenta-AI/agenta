@@ -21,6 +21,7 @@ export {
 export {default as ColumnVisibilityTrigger} from "./components/ColumnVisibilityTrigger"
 export {default as ColumnVisibilityMenuTrigger} from "./components/columnVisibility/ColumnVisibilityMenuTrigger"
 export {default as ColumnVisibilityPopoverContent} from "./components/columnVisibility/ColumnVisibilityPopoverContent"
+export {default as TableSettingsDropdown} from "./components/columnVisibility/TableSettingsDropdown"
 export {default as FiltersPopoverTrigger} from "./components/filters/FiltersPopoverTrigger"
 export {default as TableShell} from "./components/TableShell"
 export {InfiniteVirtualTableFeatureShell, useInfiniteTableFeaturePagination} from "./features"

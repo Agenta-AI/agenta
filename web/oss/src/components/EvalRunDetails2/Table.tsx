@@ -254,13 +254,20 @@ const EvalRunDetailsTable = ({
                     rowKey={(record) => record.key}
                     tableClassName="agenta-scenario-table"
                     resizableColumns={false}
-                    columnVisibilityMenuRenderer={(controls, close, {scopeId}) => (
+                    useSettingsDropdown
+                    columnVisibilityMenuRenderer={(
+                        controls,
+                        close,
+                        {scopeId, onExport, isExporting},
+                    ) => (
                         <ScenarioColumnVisibilityPopoverContent
                             controls={controls}
                             onClose={close}
                             scopeId={scopeId}
                             runId={runId}
                             evaluationType={evaluationType}
+                            onExport={onExport}
+                            isExporting={isExporting}
                         />
                     )}
                     pagination={paginationForShell}

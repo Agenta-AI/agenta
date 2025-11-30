@@ -522,8 +522,17 @@ const EvaluationRunsTableActive = ({
     const rowKeyExtractor = useCallback((record: EvaluationRunTableRow) => record.key, [])
 
     const columnVisibilityMenuRenderer = useCallback(
-        (ctrls: any, close: () => void) => (
-            <ColumnVisibilityPopoverContent controls={ctrls} onClose={close} />
+        (
+            ctrls: any,
+            close: () => void,
+            context: {onExport?: () => void; isExporting?: boolean},
+        ) => (
+            <ColumnVisibilityPopoverContent
+                controls={ctrls}
+                onClose={close}
+                onExport={context.onExport}
+                isExporting={context.isExporting}
+            />
         ),
         [],
     )
