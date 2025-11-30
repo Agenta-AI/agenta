@@ -14,12 +14,19 @@ export type UserOnboardingStatus<T = OnboardingState> = {
     fullJourney: T
 }
 
+export type OnboardingControlLabels = {
+    next?: string
+    previous?: string
+    finish?: string
+}
+
 export type OnboardingStep = Tour["steps"][number] & {
     onEnter?: () => void
     onExit?: () => void
     onCleanup?: () => void
     onboardingSection?: keyof UserOnboardingStatus
     advanceOnClick?: boolean
+    controlLabels?: OnboardingControlLabels
 }
 
 export type CurrentOnboardingStep = OnboardingStep

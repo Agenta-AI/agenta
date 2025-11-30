@@ -7,7 +7,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import type {CardComponentProps} from "nextstepjs"
 import {NormalizedStepContent} from "./types"
 
-import type {UserOnboardingStatus} from "@/oss/state/onboarding"
+import type {OnboardingControlLabels, UserOnboardingStatus} from "@/oss/state/onboarding"
 import {
     currentOnboardingStepAtom,
     isNewUserAtom,
@@ -25,15 +25,18 @@ type StepWithEffects = CardComponentProps["step"] & {
     onExit?: () => void
     onCleanup?: () => void
     onboardingSection?: keyof UserOnboardingStatus
+    controlLabels?: OnboardingControlLabels
 }
 
 const normalizeStep = (step: CardComponentProps["step"]): NormalizedStepContent => {
+    const extendedStep = step as StepWithEffects | undefined
     return {
         icon: step?.icon ?? null,
         title: step?.title,
         content: step?.content,
         showControls: step?.showControls ?? true,
         showSkip: step?.showSkip ?? true,
+        controlLabels: extendedStep?.controlLabels,
     }
 }
 
@@ -138,6 +141,10 @@ const OnboardingCard = ({
         () => Math.round(((currentStep + 1) / totalSteps) * 100),
         [currentStep, totalSteps],
     )
+    const controlLabels = normalized.controlLabels ?? ({} as OnboardingControlLabels)
+    const previousLabel = controlLabels.previous ?? "Previous"
+    const nextLabel = controlLabels.next ?? "Next"
+    const finishLabel = controlLabels.finish ?? "Finish"
 
     const adjustedArrow = useMemo(() => {
         if (!isValidElement(arrow)) return null
@@ -205,7 +212,7 @@ const OnboardingCard = ({
                                     disabled={currentStep === 0}
                                     className="text-xs !h-7 rounded-lg !border-colorBorder hover:!border-colorBorder bg-white text-colorText hover:!text-colorTextSecondary"
                                 >
-                                    Previous
+                                    {previousLabel}
                                 </Button>
 
                                 {currentStep < totalSteps - 1 ? (
@@ -216,7 +223,7 @@ const OnboardingCard = ({
                                         iconPosition="end"
                                         className="text-xs !h-7 bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg"
                                     >
-                                        Next
+                                        {nextLabel}
                                     </Button>
                                 ) : (
                                     <Button
@@ -226,7 +233,7 @@ const OnboardingCard = ({
                                         onClick={() => onSkipStep("done")}
                                         className="text-xs !h-7 bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg"
                                     >
-                                        Finish
+                                        {finishLabel}
                                     </Button>
                                 )}
                             </div>
