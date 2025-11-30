@@ -88,7 +88,8 @@ services:
 
         depends_on:
             - rabbitmq
-            - redis
+            - redis-volatile
+            - redis-durable
 
     cron:
         image: ${AWS_ECR_URL}/${AGENTA_API_IMAGE_NAME}:${AGENTA_API_IMAGE_TAG}
@@ -126,41 +127,64 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee}
 
-    redis:
-        image: redis:latest
-
-        volumes:
-            - redis-data:/data
-
-        restart: always
-
-        networks:
-            - agenta-network
-        labels:
-            - "traefik.enable=false"
-
-    cache:
-        image: redis:latest
+    redis-volatile:
+        image: redis:8
 
         command: >
-            redis-server --port 6378 --appendonly no --appendfsync no --save "" --maxmemory 128mb --maxmemory-policy allkeys-lru
+            redis-server
+            --appendonly no
+            --save ""
+            --maxmemory 512mb
+            --maxmemory-policy volatile-lru
+            --port 6379
 
         ports:
-            - "6378:6378"
-
-        volumes:
-            - cache-data:/data
-
-        restart: always
+            - "6379:6379"
 
         networks:
             - agenta-network
-
         labels:
             - "traefik.enable=false"
 
+        volumes:
+            - redis-volatile-data:/data
+
+        restart: always
+
         healthcheck:
-            test: [ "CMD", "redis-cli", "-p", "6378", "ping" ]
+            test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
+    redis-durable:
+        image: redis:8
+
+        command: >
+            redis-server
+            --appendonly yes
+            --appendfsync no
+            --save ""
+            --maxmemory 1gb
+            --maxmemory-policy noeviction
+            --port 6380
+
+        ports:
+            - "6380:6380"
+
+        networks:
+            - agenta-network
+        labels:
+            - "traefik.enable=false"
+
+        volumes:
+            - redis-durable-data:/data
+
+        restart: always
+
+        healthcheck:
+            test: ["CMD", "redis-cli", "-p", "6380", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -237,5 +261,5 @@ networks:
 
 volumes:
     rabbitmq-data:
-    redis-data:
-    cache-data:
+    redis-volatile-data:
+    redis-durable-data:
