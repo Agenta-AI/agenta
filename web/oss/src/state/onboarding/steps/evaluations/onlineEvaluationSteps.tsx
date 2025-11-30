@@ -6,6 +6,7 @@ import {
     closeOnlineEvaluationDrawerAtom,
 } from "@/oss/components/pages/evaluations/onlineEvaluation/state/drawerAtom"
 
+import {ensureDemoOnlineEvaluation, redirectToPlayground} from "../../assets/utils"
 import {isOnlineEvaluatorAvailableAtom} from "../../atoms/helperAtom"
 import {OnboardingStepsContext, TourDefinition} from "../types"
 
@@ -171,17 +172,68 @@ export const ONLINE_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
     },
 ]
 
+export const ONE_CLICK_ONLINE_EVALUATION_STEPS: TourDefinition[number]["steps"] = [
+    {
+        icon: "⚡",
+        title: "Create an online evaluation",
+        content: (
+            <span>
+                We will set up a live online evaluation for you automatically—no manual config
+                needed.
+            </span>
+        ),
+        showControls: true,
+        showSkip: true,
+        controlLabels: {
+            next: "Create evaluation",
+        },
+        onNext: ensureDemoOnlineEvaluation,
+    },
+    {
+        icon: "🧭",
+        title: "Head to the playground",
+        content: (
+            <span>
+                Jump to the playground to run your prompt and send traffic into the newly created
+                evaluation.
+            </span>
+        ),
+        showControls: true,
+        showSkip: true,
+        controlLabels: {
+            next: "Go to playground",
+        },
+        onNext: redirectToPlayground,
+    },
+]
+
 // Helper functions
 export const resolveOnlineEvaluationSteps = (ctx: OnboardingStepsContext) => {
     const defaultStore = getDefaultStore()
     const hasEvaluators = defaultStore.get(isOnlineEvaluatorAvailableAtom)
-
+    const tourId = ctx.tourId
     if (ctx.location?.subsection === "results") {
-        return [{tour: "online-evaluation-run-tour", steps: ONLINE_EVAL_RUN_STEPS}]
+        if (tourId === "online-evaluation-run-tour") {
+            return [{tour: "online-evaluation-run-tour", steps: ONLINE_EVAL_RUN_STEPS}]
+        }
     }
 
     if (hasEvaluators) {
-        return [{tour: "online-evaluation-quickstart", steps: CREATE_NEW_ONLINE_EVALUATION_STEPS}]
+        if (tourId === "online-evaluation-quickstart") {
+            return [
+                {tour: "online-evaluation-quickstart", steps: CREATE_NEW_ONLINE_EVALUATION_STEPS},
+            ]
+        } else if (tourId === "one-click-online-evaluation") {
+            return [{tour: "one-click-online-evaluation", steps: ONE_CLICK_ONLINE_EVALUATION_STEPS}]
+        }
+        if (!tourId) {
+            return [
+                {
+                    tour: "online-evaluation-quickstart",
+                    steps: CREATE_NEW_ONLINE_EVALUATION_STEPS,
+                },
+            ]
+        }
     }
 
     return []

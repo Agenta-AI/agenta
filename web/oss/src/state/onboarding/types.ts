@@ -23,6 +23,7 @@ export type OnboardingStep = Tour["steps"][number] & {
     onEnter?: () => void
     onExit?: () => void
     onCleanup?: () => void
+    onNext?: () => void | Promise<void>
     onboardingSection?: keyof UserOnboardingStatus
     advanceOnClick?: boolean
     controlLabels?: OnboardingControlLabels

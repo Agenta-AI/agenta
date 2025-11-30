@@ -22,6 +22,7 @@ type StepWithEffects = CardComponentProps["step"] & {
     onEnter?: () => void
     onExit?: () => void
     onCleanup?: () => void
+    onNext?: () => void | Promise<void>
     onboardingSection?: keyof UserOnboardingStatus
     controlLabels?: OnboardingControlLabels
 }
@@ -97,14 +98,6 @@ const OnboardingCard = ({
         }
     }, [setCurrentStep, runCleanupHandlers])
 
-    const onPrevStep = useCallback(() => {
-        prevStep()
-    }, [prevStep])
-
-    const onNextStep = useCallback(() => {
-        nextStep()
-    }, [nextStep])
-
     const onSkipStep = useCallback(
         (status: string) => {
             const extendedStep = step as StepWithEffects | undefined
@@ -129,6 +122,33 @@ const OnboardingCard = ({
             setTriggerOnboarding,
         ],
     )
+
+    const handleAdvance = useCallback(
+        async (isFinalStep?: boolean) => {
+            const extendedStep = step as StepWithEffects | undefined
+            try {
+                if (extendedStep?.onNext) {
+                    await extendedStep.onNext()
+                }
+            } catch (error) {
+                console.error("Failed to run onboarding advance handler", error)
+            }
+            if (isFinalStep) {
+                onSkipStep("done")
+                return
+            }
+            nextStep()
+        },
+        [step, nextStep, onSkipStep],
+    )
+
+    const onPrevStep = useCallback(() => {
+        prevStep()
+    }, [prevStep])
+
+    const onNextStep = useCallback(() => {
+        handleAdvance()
+    }, [handleAdvance])
 
     const normalized = useMemo(() => normalizeStep(step), [step])
     const percent = useMemo(
@@ -224,7 +244,7 @@ const OnboardingCard = ({
                                         type="primary"
                                         icon={<ArrowRight size={14} className="mt-0.5" />}
                                         iconPosition="end"
-                                        onClick={() => onSkipStep("done")}
+                                        onClick={() => handleAdvance(true)}
                                         className="text-xs !h-7 bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg"
                                     >
                                         {finishLabel}

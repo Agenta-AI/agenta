@@ -39,7 +39,7 @@ export const buildChecklistSections = ({
                         ? undefined
                         : "You need a project before you can run evaluations.",
                     cta: "Launch evaluation",
-                    tour: {section: "autoEvaluations"},
+                    tour: {section: "autoEvaluations", tourId: "auto-evaluation-quickstart"},
                     prerequisites: [CHECKLIST_PREREQUISITES.needsProject],
                 },
                 {
@@ -52,7 +52,7 @@ export const buildChecklistSections = ({
                         ? undefined
                         : "Project-level access is required for online evaluations.",
                     cta: "Configure online eval",
-                    tour: {section: "onlineEvaluations"},
+                    tour: {section: "onlineEvaluations", tourId: "one-click-online-evaluation"},
                     prerequisites: [CHECKLIST_PREREQUISITES.needsProject],
                 },
             ],

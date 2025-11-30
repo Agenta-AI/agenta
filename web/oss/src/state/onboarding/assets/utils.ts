@@ -1,6 +1,7 @@
 import Router from "next/router"
 import {getDefaultStore} from "jotai"
 import {v4 as uuidv4} from "uuid"
+import {queryClientAtom} from "jotai-tanstack-query"
 
 import {collectEvaluatorCandidates} from "@/oss/components/pages/evaluations/onlineEvaluation/utils/evaluatorDetails"
 import {evaluatorConfigsAtom} from "@/oss/lib/atoms/evaluation"
@@ -64,6 +65,16 @@ const safePush = async (href: string | null | undefined) => {
     }
 }
 
+const invalidateEvaluationQueries = async () => {
+    const store = getDefaultStore()
+    const queryClient = store.get(queryClientAtom)
+    try {
+        await queryClient.invalidateQueries({queryKey: ["previewEvaluationRuns"]})
+    } catch (error) {
+        console.error("[onboarding] failed to invalidate evaluation queries", error)
+    }
+}
+
 export const createOnlineEvaluation = async (): Promise<DemoOnlineEvaluationContext> => {
     const evaluatorConfig = await findLlmJudgeConfig()
     if (!evaluatorConfig) {
@@ -111,12 +122,25 @@ export const createOnlineEvaluation = async (): Promise<DemoOnlineEvaluationCont
         throw new Error("Failed to create the demo online evaluation.")
     }
 
+    await invalidateEvaluationQueries()
+
     return {
         evaluation,
         evaluatorConfig,
         queryId,
         queryRevisionId,
     }
+}
+
+export const ensureDemoOnlineEvaluation = async (): Promise<DemoOnlineEvaluationContext> => {
+    const store = getDefaultStore()
+    const existing = store.get(demoOnlineEvaluationAtom)
+    if (existing?.evaluation?.id) {
+        return existing
+    }
+    const context = await createOnlineEvaluation()
+    store.set(demoOnlineEvaluationAtom, context)
+    return context
 }
 
 export const redirectToAppsPage = async () => {
