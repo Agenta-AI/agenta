@@ -90,9 +90,10 @@ const GetStartedSection = ({
                     title={<TreeView size={24} />}
                     className={classes.getStartedCard}
                     onClick={() => setIsSetupTracingModal(true)}
+                    id="tour-setup-tracing-card"
                 >
                     <div className="flex items-center justify-between">
-                        <Text>Set Up Tracing</Text>
+                        <Text >Set Up Tracing</Text>
 
                         <Tooltip title="Start instrumenting your LLM application">
                             <Info size={16} />

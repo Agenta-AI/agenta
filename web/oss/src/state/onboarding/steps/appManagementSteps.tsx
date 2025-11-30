@@ -1,3 +1,5 @@
+import {setCompleteWidgetTaskMap} from "@/oss/components/Onboarding/components/OnboardingWidget"
+import {clearOnboardingState, redirectToAppsPage} from "../assets/utils"
 import {OnboardingStepsContext, TourDefinition} from "./types"
 
 const APP_CREATION_STEPS = [
@@ -11,22 +13,66 @@ const APP_CREATION_STEPS = [
                     <span>Click here to create new application using predefined templates</span>
                 ),
                 selector: "#tour-create-new-prompt",
-                waitForSelector: true,
                 side: "left",
                 showControls: false,
                 showSkip: false,
                 pointerPadding: 12,
                 pointerRadius: 12,
                 advanceOnClick: true,
+                onNext: () => {
+                    clearOnboardingState()
+                },
             },
         ],
     },
 ]
 
+// integration
+const SETUP_TRACING_TOUR: TourDefinition = [
+    {
+        tour: "trace-setup",
+        steps: [
+            {
+                icon: "🛰️",
+                title: "Set up tracing",
+                content: (
+                    <span>
+                        Open tracing setup to instrument your app and start capturing traces for
+                        observability.
+                    </span>
+                ),
+                selector: "#tour-setup-tracing-card",
+                side: "top",
+                showControls: false,
+                showSkip: false,
+                pointerPadding: 12,
+                pointerRadius: 12,
+                advanceOnClick: true,
+                onNext: () => {
+                    setCompleteWidgetTaskMap("trace-setup")
+                    clearOnboardingState()
+                    void redirectToAppsPage()
+                },
+            },
+        ],
+    },
+]
+
+export const resolveTours = (ctx: OnboardingStepsContext): TourDefinition => {
+    const tourId = ctx.tourId
+    if (tourId === "trace-setup") {
+        return SETUP_TRACING_TOUR
+    }
+    if (tourId === "create-first-app") {
+        return APP_CREATION_STEPS
+    }
+    return []
+}
+
 const APP_MANAGEMENT_TOUR_MAP: Record<string, (ctx: OnboardingStepsContext) => TourDefinition> = {
-    Hobbyist: () => APP_CREATION_STEPS,
-    "ML/AI Engineer or Data scientist": () => APP_CREATION_STEPS,
-    "Frontend / Backend Developer": () => APP_CREATION_STEPS,
+    Hobbyist: (ctx) => resolveTours(ctx),
+    "ML/AI Engineer or Data scientist": (ctx) => resolveTours(ctx),
+    "Frontend / Backend Developer": (ctx) => resolveTours(ctx),
 }
 
 export const APP_MANAGEMENT_TOURS = new Proxy(APP_MANAGEMENT_TOUR_MAP, {

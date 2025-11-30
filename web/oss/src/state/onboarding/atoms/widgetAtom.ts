@@ -1,5 +1,6 @@
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
+import {OnboardingState, UserOnboardingStatus} from "../types"
 import {currentOnboardingStepWithLocationAtom} from "./stepsAtom"
 
 export type OnboardingWidgetPosition = {
@@ -18,7 +19,13 @@ type OnboardingWidgetUIState = {
     closed: boolean
 }
 
-export const currentRunningWidgetOnboardingAtom = atom<string | null>(null)
+export type RunningWidgetOnboarding = {
+    section: keyof UserOnboardingStatus
+    completionKey: string
+    initialStatus: OnboardingState
+}
+
+export const currentRunningWidgetOnboardingAtom = atom<RunningWidgetOnboarding | null>(null)
 
 export const onboardingWidgetCompletionAtom = atomWithStorage<Record<string, boolean>>(
     ONBOARDING_WIDGET_COMPLETION_KEY,

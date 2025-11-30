@@ -14,13 +14,13 @@ export const TOUR_STEPS: Record<string, (ctx: OnboardingStepsContext) => TourDef
     playgroundPostRun: (_ctx) => {
         return resolvePlaygroundPostRunTour()
     },
-    autoEvaluations: (ctx) => {
+    autoEvaluation: (ctx) => {
         return evaluationTour(ctx, "auto")
     },
     humanEvaluations: (ctx) => {
         return evaluationTour(ctx, "human")
     },
-    onlineEvaluations: (ctx) => {
+    onlineEvaluation: (ctx) => {
         return evaluationTour(ctx, "online")
     },
     trace: (ctx) => {

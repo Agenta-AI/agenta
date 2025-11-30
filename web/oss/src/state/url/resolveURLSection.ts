@@ -17,18 +17,18 @@ const resolveEvaluationSection = (
 ): keyof UserOnboardingStatus => {
     if (value) {
         const normalized = value.toLowerCase()
-        if (normalized.includes("online")) return "onlineEvaluations"
+        if (normalized.includes("online")) return "onlineEvaluation"
         if (normalized.includes("human")) return "humanEvaluations"
-        return "autoEvaluations"
+        return "autoEvaluation"
     }
 
     const store = getDefaultStore()
     const evalType = options?.evalType ?? store.get(evalTypeAtom)
     const lastVisited = options?.lastVisitedEvaluation ?? store.get(lastVisitedEvaluationAtom)
 
-    if (evalType === "online" || lastVisited?.includes("online")) return "onlineEvaluations"
+    if (evalType === "online" || lastVisited?.includes("online")) return "onlineEvaluation"
     if (evalType === "human" || lastVisited?.includes("human")) return "humanEvaluations"
-    return "autoEvaluations"
+    return "autoEvaluation"
 }
 
 export const resolveOnboardingSection = (
@@ -55,7 +55,7 @@ export const resolveOnboardingSection = (
         }
         const mapped = TOUR_STEP_KEY_MAPPER[candidate]
         if (mapped) {
-            if (mapped === "autoEvaluations" && candidate.includes("evaluation")) {
+            if (mapped === "autoEvaluation" && candidate.includes("evaluation")) {
                 return resolveEvaluationSection(null, options)
             }
             return mapped

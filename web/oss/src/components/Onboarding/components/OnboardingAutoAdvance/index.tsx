@@ -29,7 +29,7 @@ const OnboardingAutoAdvance = () => {
             return
         }
 
-        const handleClick = (event: MouseEvent) => {
+        const handleClick = async (event: MouseEvent) => {
             if (!activeStep.selector) return
 
             const target = event.target
@@ -38,6 +38,12 @@ const OnboardingAutoAdvance = () => {
             const matchedTarget = target.closest(activeStep.selector)
             if (!matchedTarget) {
                 return
+            }
+
+            try {
+                await activeStep.onNext?.()
+            } catch (error) {
+                console.error("Failed to run onboarding advance handler", error)
             }
 
             if (currentStep >= totalSteps - 1) {

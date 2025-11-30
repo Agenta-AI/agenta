@@ -6,9 +6,9 @@ export type UserOnboardingStatus<T = OnboardingState> = {
     apps: T
     playground: T
     playgroundPostRun: T
-    autoEvaluations: T
+    autoEvaluation: T
     humanEvaluations: T
-    onlineEvaluations: T
+    onlineEvaluation: T
     observability: T
     trace: T
 }

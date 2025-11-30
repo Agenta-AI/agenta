@@ -160,8 +160,8 @@ const getPlaygroundTourDefinition = (): TourDefinition => {
     const store = getDefaultStore()
     const isChat = store.get(appChatModeAtom)
     return isChat
-        ? [{tour: "playground-chat-quickstart", steps: PLAYGROUND_CHAT_TOUR}]
-        : [{tour: "playground-completion-quickstart", steps: PLAYGROUND_COMPLETION_TOUR}]
+        ? [{tour: "playground-quickstart", steps: PLAYGROUND_CHAT_TOUR}]
+        : [{tour: "playground-quickstart", steps: PLAYGROUND_COMPLETION_TOUR}]
 }
 
 const PLAYGROUND_TOUR_MAP: Record<string, (ctx: OnboardingStepsContext) => TourDefinition> = {

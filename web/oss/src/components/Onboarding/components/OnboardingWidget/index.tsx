@@ -3,7 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {CheckCircle, Circle, Minus, Question, X} from "@phosphor-icons/react"
 import {Button, Modal, Progress, Tooltip} from "antd"
 import clsx from "clsx"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
@@ -40,6 +40,14 @@ const normalizeRoutePath = (value: string) => {
     }
     const normalizedPath = path.replace(/\/+$/, "")
     return query ? `${normalizedPath}?${query}` : normalizedPath
+}
+
+export const setCompleteWidgetTaskMap = (key: string) => {
+    const store = getDefaultStore()
+    store.set(onboardingWidgetCompletionAtom, (prev) => ({
+        ...prev,
+        [key]: true,
+    }))
 }
 
 const OnboardingWidget = () => {
@@ -145,19 +153,18 @@ const OnboardingWidget = () => {
     // // marking widget onboarding as completed
     useEffect(() => {
         if (!currentRunningWidgetOnboarding) return
-        if (
-            userOnboardingStatus[currentRunningWidgetOnboarding as keyof UserOnboardingStatus] ==
-            "idle"
-        )
-            return
-        if (completedMap[currentRunningWidgetOnboarding]) return
+        const {section, completionKey, initialStatus} = currentRunningWidgetOnboarding
+        const currentStatus = userOnboardingStatus[section]
+        if (currentStatus === initialStatus) return
+        if (currentStatus === "idle") return
+        if (completedMap[completionKey]) return
 
         setCompletedMap((prev) => ({
             ...prev,
-            [currentRunningWidgetOnboarding]: true,
+            [completionKey]: true,
         }))
         setCurrentRunningWidgetOnboarding(null)
-    }, [currentRunningWidgetOnboarding, userOnboardingStatus])
+    }, [currentRunningWidgetOnboarding, userOnboardingStatus, completedMap, setCompletedMap])
 
     const sections = useMemo(
         () =>
@@ -169,6 +176,11 @@ const OnboardingWidget = () => {
         [projectURL, appURL, recentlyVisitedAppURL],
     )
 
+    const getCompletionKey = useCallback(
+        (item: ChecklistItem) => item.tour?.tourId ?? item.tour?.section ?? item.id,
+        [],
+    )
+
     const allItems = useMemo(
         () => sections.reduce<ChecklistItem[]>((acc, section) => acc.concat(section.items), []),
         [sections],
@@ -176,10 +188,10 @@ const OnboardingWidget = () => {
     const totalTasks = allItems.length
     const completedCount = useMemo(() => {
         return allItems.reduce(
-            (count, item) => (completedMap[item.tour?.section] ? count + 1 : count),
+            (count, item) => (completedMap[getCompletionKey(item)] ? count + 1 : count),
             0,
         )
-    }, [allItems, completedMap])
+    }, [allItems, completedMap, getCompletionKey])
     const progressPercent = totalTasks ? Math.round((completedCount / totalTasks) * 100) : 0
 
     useEffect(() => {
@@ -225,12 +237,27 @@ const OnboardingWidget = () => {
             const navigationCompleted = await navigateIfNeeded()
             if (!navigationCompleted) return
 
-            if (item.tour) {
-                setTriggerOnboarding({state: item.tour.section, tourId: item.tour?.tourId})
-                setCurrentRunningWidgetOnboarding(item.tour.section)
+            const completionKey = getCompletionKey(item)
+            if (!item.tour) {
+                setCompletedMap((prev) => ({...prev, [completionKey]: true}))
+                return
             }
+
+            setTriggerOnboarding({state: item.tour.section, tourId: item.tour?.tourId})
+            setCurrentRunningWidgetOnboarding({
+                section: item.tour.section,
+                completionKey,
+                initialStatus: userOnboardingStatus[item.tour.section],
+            })
         },
-        [router, setCompletedMap, setTriggerOnboarding, setCurrentRunningWidgetOnboarding],
+        [
+            router,
+            setCompletedMap,
+            setTriggerOnboarding,
+            setCurrentRunningWidgetOnboarding,
+            getCompletionKey,
+            userOnboardingStatus,
+        ],
     )
 
     const onMinimize = useCallback(() => {
@@ -472,7 +499,7 @@ const OnboardingWidget = () => {
                                     <div className="flex flex-col gap-2">
                                         {section.items.map((item) => {
                                             const isCompleted = Boolean(
-                                                completedMap[item.tour?.section],
+                                                completedMap[getCompletionKey(item)],
                                             )
                                             return (
                                                 <button
