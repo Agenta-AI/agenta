@@ -191,21 +191,21 @@ const OnboardingCard = ({
     const progressWidth = useMemo(() => `${percent}%`, [percent])
 
     return (
-        <section className="w-[360px]">
-            <Card className="!rounded-xl !p-0" classNames={{body: "!p-4"}}>
-                <div className="flex w-full flex-col gap-5">
-                    <div className="flex flex-col gap-2">
+        <section className="w-[340px]">
+            <Card className="!rounded-xl !p-0" classNames={{body: "!px-4 !py-[10px]"}}>
+                <div className="flex w-full flex-col gap-4">
+                    <div className="flex flex-col gap-1">
                         <div className="flex items-center justify-between gap-4">
-                            <Text className="!mb-0 text-sm font-semibold leading-6 text-colorText">
+                            <Text className="!mb-0 !text-sm font-medium leading-6 text-colorText">
                                 {normalized.title}
                             </Text>
 
-                            <Text className="!mb-0 text-sm font-medium text-colorTextSecondary">
+                            <Text className="!mb-0 !text-xs font-medium text-colorTextSecondary">
                                 {currentStep + 1} / {totalSteps}
                             </Text>
                         </div>
 
-                        <Text className="!mb-0 text-xs leading-5 text-colorTextSecondary">
+                        <Text className="!mb-0 !text-xs leading-5 text-colorTextSecondary">
                             {normalized.content}
                         </Text>
                     </div>
@@ -219,12 +219,13 @@ const OnboardingCard = ({
                                 />
                             </div>
 
-                            <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
                                 <Button
                                     onClick={onPrevStep}
                                     icon={<ArrowLeft size={14} className="mt-0.5" />}
                                     disabled={currentStep === 0}
-                                    className="text-xs !h-7 rounded-lg !border-colorBorder hover:!border-colorBorder bg-white text-colorText hover:!text-colorTextSecondary"
+                                    className="!text-xs !h-[26px] rounded-lg !border-colorBorder hover:!border-colorBorder bg-white text-colorText hover:!text-colorTextSecondary"
+                                    size="small"
                                 >
                                     {previousLabel}
                                 </Button>
@@ -235,7 +236,8 @@ const OnboardingCard = ({
                                         onClick={onNextStep}
                                         icon={<ArrowRight size={14} className="mt-0.5" />}
                                         iconPosition="end"
-                                        className="text-xs !h-7 bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg"
+                                        className="!text-xs !h-[26px] bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg"
+                                        size="small"
                                     >
                                         {nextLabel}
                                     </Button>
@@ -245,7 +247,8 @@ const OnboardingCard = ({
                                         icon={<ArrowRight size={14} className="mt-0.5" />}
                                         iconPosition="end"
                                         onClick={() => handleAdvance(true)}
-                                        className="text-xs !h-7 bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg"
+                                        className="!text-xs !h-[26px] bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg"
+                                        size="small"
                                     >
                                         {finishLabel}
                                     </Button>
@@ -258,9 +261,10 @@ const OnboardingCard = ({
                 {normalized.showSkip && skipTour ? (
                     <Button
                         type="default"
-                        className="text-xs !h-7 mt-4 w-full rounded-lg !border-colorBorder hover:!border-colorBorder bg-white text-colorText hover:!text-colorTextSecondary"
+                        className="!text-xs mt-2 w-full rounded-lg !border-colorBorder hover:!border-colorBorder bg-white text-colorText hover:!text-colorTextSecondary"
                         onClick={() => onSkipStep("skipped")}
                         disabled={currentStep === totalSteps - 1}
+                        size="small"
                     >
                         Skip
                     </Button>
