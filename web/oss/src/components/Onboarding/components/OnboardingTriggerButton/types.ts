@@ -4,7 +4,7 @@ import type {ReactNode} from "react"
 
 export type TriggerPayload = {
     state: keyof UserOnboardingStatus
-    type?: "beginner" | "advanced"
+    tourId?: string
 }
 
 export type OnboardingTriggerButtonProps = {

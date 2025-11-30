@@ -12,6 +12,7 @@ export type OnboardingStepsContext = {
     currentStep: CurrentOnboardingStepExtended | null
     location: URLLocationState | null
     userOnboardingStatus: UserOnboardingStatus
+    tourId?: string
 }
 
 export interface CustomTour extends Omit<Tour, "steps"> {

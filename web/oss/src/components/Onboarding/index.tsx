@@ -69,7 +69,7 @@ const OnboardingCard = ({
     }, [])
 
     useEffect(() => {
-        if (!step?.selector && !currentStep) {
+        if (!step?.selector && currentStep == null) {
             skipTour?.()
         }
     }, [step, skipTour, currentStep])

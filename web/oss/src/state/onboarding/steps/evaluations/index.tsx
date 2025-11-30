@@ -30,12 +30,12 @@ export const evaluationTour = (ctx: OnboardingStepsContext, type?: EvaluationTou
     const resolvedType = resolveRequestedType(type, currentEval, evalType)
 
     if (resolvedType === "online") {
-        const resolver = (ONLINE_EVALUATION_TOURS as any)[role] ?? ONLINE_EVALUATION_TOURS.Hobbyist
+        const resolver = (ONLINE_EVALUATION_TOURS as any)[role]
         return resolver(ctx)
     }
 
     if (resolvedType === "auto") {
-        const resolver = (AUTO_EVALUATION_TOURS as any)[role] ?? AUTO_EVALUATION_TOURS.Hobbyist
+        const resolver = (AUTO_EVALUATION_TOURS as any)[role]
         return resolver(ctx)
     }
 

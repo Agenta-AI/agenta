@@ -7,6 +7,7 @@ export type ChecklistPrerequisite =
 
 export type ChecklistItemTour = {
     section: keyof UserOnboardingStatus
+    tourId?: string
 }
 
 export type ChecklistItem = {

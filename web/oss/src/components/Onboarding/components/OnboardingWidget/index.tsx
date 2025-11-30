@@ -226,7 +226,7 @@ const OnboardingWidget = () => {
             if (!navigationCompleted) return
 
             if (item.tour) {
-                setTriggerOnboarding({state: item.tour.section})
+                setTriggerOnboarding({state: item.tour.section, tourId: item.tour?.tourId})
                 setCurrentRunningWidgetOnboarding(item.tour.section)
             }
         },

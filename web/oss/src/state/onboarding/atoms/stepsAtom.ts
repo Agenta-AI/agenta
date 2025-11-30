@@ -95,7 +95,7 @@ export const currentOnboardingStepWithLocationAtom = atom(
 
 export const triggerOnboardingAtom = atom<{
     state: keyof UserOnboardingStatus
-    type?: "beginner" | "advanced"
+    tourId?: string
 } | null>(null)
 
 export const onboardingStepsAtom = atom<Tour[]>((get) => {
@@ -111,6 +111,7 @@ export const onboardingStepsAtom = atom<Tour[]>((get) => {
 
     if (manualTrigger) {
         const requestedState = manualTrigger.state as keyof typeof TOUR_STEPS
+        const requestedTourId = manualTrigger.tourId
         const effectiveState =
             requestedState === "playground" && hasPlaygroundRun
                 ? ("playgroundPostRun" as keyof typeof TOUR_STEPS)
@@ -119,12 +120,19 @@ export const onboardingStepsAtom = atom<Tour[]>((get) => {
         const tourSteps = TOUR_STEPS[effectiveState]
         if (!tourSteps) return []
 
-        return tourSteps({
+        const tours = tourSteps({
             userContext: onboardingProfile,
             currentStep,
             location: userLocation,
             userOnboardingStatus: userOnboardingJourneyStatus,
+            tourId: requestedTourId,
         })
+        if (!tours.length) return []
+        // if (requestedTourId) {
+        //     const filtered = tours.filter((tour) => tour.tour === requestedTourId)
+        //     return filtered.length ? filtered : tours
+        // }
+        return tours
     }
 
     return []

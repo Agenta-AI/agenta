@@ -81,7 +81,12 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
         if (lastManualTriggerRef.current === manualTrigger) return
 
         lastManualTriggerRef.current = manualTrigger
-        const tourId = onboardingSteps[0]?.tour
+        const targetTour =
+            manualTrigger.tourId !== undefined
+                ? onboardingSteps.find((tour) => tour.tour === manualTrigger.tourId) ??
+                  onboardingSteps[0]
+                : onboardingSteps[0]
+        const tourId = targetTour?.tour
         if (!tourId) return
 
         startNextStep(tourId)

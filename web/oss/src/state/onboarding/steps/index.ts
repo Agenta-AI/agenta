@@ -1,6 +1,5 @@
 import {APP_MANAGEMENT_TOURS} from "./appManagementSteps"
 import {evaluationTour} from "./evaluations"
-import {OBSERVABILITY_TOURS} from "./observabilitySteps"
 import {PLAYGROUND_TOURS, resolvePlaygroundPostRunTour} from "./playgroundSteps"
 import {TRACE_TOURS} from "./traceSteps"
 import {OnboardingStepsContext, TourDefinition} from "./types"
