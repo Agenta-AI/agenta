@@ -113,12 +113,16 @@ const AppWithVariants = memo(
                                 <OldAppDeprecationBanner>
                                     <CustomWorkflowBanner />
                                     <Content
-                                        className={clsx(classes.content, {
-                                            "flex flex-col min-h-0 grow":
-                                                isHumanEval || isEvaluator,
-                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                isPlayground || isEvaluator,
-                                        })}
+                                        className={clsx(
+                                            classes.content,
+                                            "[&.ant-layout-content]:p-0",
+                                            {
+                                                "flex flex-col min-h-0 grow":
+                                                    isHumanEval || isEvaluator,
+                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                    isPlayground,
+                                            },
+                                        )}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
                                             <ConfigProvider
@@ -139,7 +143,8 @@ const AppWithVariants = memo(
                                     className={clsx(classes.content, {
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                             isPlayground || isEvaluator,
-                                        "flex flex-col min-h-0 grow": isHumanEval || isEvaluator,
+                                        "flex flex-col min-h-0 grow !px-0 !pb-0":
+                                            isHumanEval || isEvaluator,
                                     })}
                                 >
                                     <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -237,12 +242,11 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 pathname.includes("/post-signup") ||
                 pathname.includes("/workspaces"),
             isAppRoute: baseAppURL ? asPath.startsWith(baseAppURL) : false,
-            isPlayground:
-                pathname.includes("/playground") || pathname.includes("/evaluations/results"),
+            isPlayground: pathname.includes("/playground"),
+            //  || pathname.includes("/evaluations/results"),
             isEvaluator: pathname.includes("/evaluators/configure"),
             isHumanEval:
-                pathname.includes("/evaluations/single_model_test") ||
-                selectedEvaluation === "human_annotation",
+                pathname.includes("/evaluations/") || selectedEvaluation === "human_annotation",
         }
     }, [appState.asPath, appState.pathname, baseAppURL, query.selectedEvaluation])
 

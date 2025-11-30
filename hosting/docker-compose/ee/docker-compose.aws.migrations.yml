@@ -1,0 +1,16 @@
+name: agenta-ee-aws-migrations
+
+services:
+    alembic:
+        image: ${AWS_ECR_URL}/${AGENTA_API_IMAGE_NAME}:${AGENTA_API_IMAGE_TAG}
+
+        networks:
+            - agenta-migrations-network
+
+        env_file:
+            - ${ENV_FILE:-./.env.ee}
+
+        command: tail -f /dev/null
+    
+networks:
+    agenta-migrations-network:

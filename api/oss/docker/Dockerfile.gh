@@ -17,7 +17,7 @@ RUN pip install --upgrade pip \
 
 #
 COPY ./oss /app/oss/
-COPY ./entrypoint.py ./pyproject.toml /app/
+COPY ./routes.py ./queues.py ./streams.py ./pyproject.toml /app/
 
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi

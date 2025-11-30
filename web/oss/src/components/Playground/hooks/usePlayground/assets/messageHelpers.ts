@@ -159,11 +159,10 @@ export const createMessageFromSchema = (
 
                                         const fileBase =
                                             createObjectFromMetadata(fileOptionMetadata)
-                                        const fileProp =
-                                            (fileBase as any)?.file ?? {
-                                                __id: generateId(),
-                                                __metadata: hashMetadata(itemMetadata),
-                                            }
+                                        const fileProp = (fileBase as any)?.file ?? {
+                                            __id: generateId(),
+                                            __metadata: hashMetadata(itemMetadata),
+                                        }
                                         const ensureScalarNode = (node: any) => {
                                             if (node && typeof node === "object") return node
                                             return {
@@ -193,11 +192,13 @@ export const createMessageFromSchema = (
                                             },
                                             mime_type: {
                                                 ...ensureScalarNode(fileProp?.mime_type),
-                                                value: item.file?.mime_type || item.file?.format || "",
+                                                value:
+                                                    item.file?.mime_type || item.file?.format || "",
                                             },
                                             format: {
                                                 ...ensureScalarNode(fileProp?.format),
-                                                value: item.file?.format || item.file?.mime_type || "",
+                                                value:
+                                                    item.file?.format || item.file?.mime_type || "",
                                             },
                                         }
 

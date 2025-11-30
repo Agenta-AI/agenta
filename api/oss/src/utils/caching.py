@@ -1,8 +1,9 @@
 from typing import Any, Type, Optional, Union
-from json import dumps, loads
 from random import random
 from asyncio import sleep
 
+import orjson
+from cachetools import TTLCache
 from redis.asyncio import Redis
 from pydantic import BaseModel
 
@@ -11,8 +12,8 @@ from oss.src.utils.env import env
 
 log = get_module_logger(__name__)
 
-AGENTA_CACHE_DB = 1
 AGENTA_CACHE_TTL = 5 * 60  # 5 minutes
+AGENTA_CACHE_LOCAL_TTL = 60  # 60 seconds for local in-memory cache (Layer 1)
 
 AGENTA_CACHE_BACKOFF_BASE = 50  # Base backoff delay in milliseconds
 AGENTA_CACHE_ATTEMPTS_MAX = 4  # Maximum number of attempts to retry cache retrieval
@@ -26,11 +27,15 @@ AGENTA_CACHE_DELETE_BATCH_SIZE = 1000
 CACHE_DEBUG = False
 CACHE_DEBUG_VALUE = False
 
-r = Redis(
-    host=env.REDIS_CACHE_HOST,
-    port=env.REDIS_CACHE_PORT,
-    db=AGENTA_CACHE_DB,
-    decode_responses=True,
+# Two-tier caching: Local TTLCache (60s) + Redis (5min)
+# Layer 1: Local in-memory cache with 60s TTL (4096 entries max)
+local_cache: TTLCache = TTLCache(maxsize=4096, ttl=AGENTA_CACHE_LOCAL_TTL)
+
+# Use volatile Redis instance for caching (prefix-based separation)
+# decode_responses=False: orjson operates on bytes for 3x performance vs json
+r = Redis.from_url(
+    url=env.REDIS_CACHES_URL,
+    decode_responses=False,
     socket_timeout=0.5,  # read/write timeout
 )
 
@@ -70,7 +75,7 @@ def _pack(
     else:
         raise TypeError("Cache key must be str or dict")
 
-    return f"p:{project_id}:u:{user_id}:{namespace}:{key}"
+    return f"cache:p:{project_id}:u:{user_id}:{namespace}:{key}"
 
 
 async def _scan(pattern: str) -> list[str]:
@@ -100,28 +105,30 @@ async def _scan(pattern: str) -> list[str]:
 
 def _serialize(
     value: Any,
-) -> str:
+) -> bytes:
     if value is None:
-        return "__NULL__"
+        return b"__NULL__"
 
     if isinstance(value, BaseModel):
-        return dumps(value.model_dump(mode="json", exclude_none=True))
+        return orjson.dumps(value.model_dump(mode="json", exclude_none=True))
 
     elif isinstance(value, list) and all(isinstance(v, BaseModel) for v in value):
-        return dumps([v.model_dump(mode="json", exclude_none=True) for v in value])
+        return orjson.dumps(
+            [v.model_dump(mode="json", exclude_none=True) for v in value]
+        )
 
-    return dumps(value)
+    return orjson.dumps(value)
 
 
 def _deserialize(
-    raw: str,
+    raw: bytes,
     model: Optional[Type[BaseModel]] = None,
     is_list: bool = False,
 ) -> Any:
-    if raw == "__NULL__":
+    if raw == b"__NULL__":
         return None
 
-    data = loads(raw)
+    data = orjson.loads(raw)
 
     if not model:
         return data
@@ -153,15 +160,30 @@ async def _try_get_and_maybe_renew(
 ) -> Optional[Any]:
     data = None
 
-    raw = await r.get(cache_name)
-
-    if raw:
+    # Layer 1: Check local in-memory cache first (60s TTL, ~1μs latency)
+    if cache_name in local_cache:
+        raw = local_cache[cache_name]
         if CACHE_DEBUG:
             log.debug(
-                "[cache] HIT  ",
+                "[cache] L1-HIT",
                 name=cache_name,
-                value=data if CACHE_DEBUG_VALUE else "***",
+                value=raw if CACHE_DEBUG_VALUE else "***",
             )
+        return _deserialize(raw, model=model, is_list=is_list)
+
+    # Layer 2: Check Redis (distributed, 5min TTL, ~1ms latency)
+    raw = await r.get(cache_name)
+
+    if raw is not None:
+        if CACHE_DEBUG:
+            log.debug(
+                "[cache] L2-HIT",
+                name=cache_name,
+                value=raw if CACHE_DEBUG_VALUE else "***",
+            )
+
+        # Populate local cache from Redis hit
+        local_cache[cache_name] = raw
 
         data = _deserialize(raw, model=model, is_list=is_list)
 
@@ -300,16 +322,23 @@ async def set_cache(
             project_id=project_id,
             user_id=user_id,
         )
-        cache_value = _serialize(value)
+        cache_value: bytes = _serialize(value)
         cache_px = int(ttl * 1000)
 
+        # Write to both cache layers
+        # Layer 1: Local in-memory cache (auto-expires via TTL)
+        local_cache[cache_name] = cache_value
+
+        # Layer 2: Redis distributed cache
         await r.set(cache_name, cache_value, px=cache_px)
 
         if CACHE_DEBUG:
             log.debug(
                 "[cache] SAVE ",
                 name=cache_name,
-                value=cache_value if CACHE_DEBUG_VALUE else "***",
+                value=cache_value.decode("utf-8", errors="ignore")
+                if CACHE_DEBUG_VALUE
+                else "***",
             )
 
         lock_name = f"lock::{cache_name}"
@@ -423,6 +452,8 @@ async def invalidate_cache(
                 user_id=user_id,
             )
 
+            # Clear from both cache layers
+            local_cache.pop(cache_name, None)
             await r.delete(cache_name)
 
         else:
@@ -435,6 +466,12 @@ async def invalidate_cache(
 
             keys = await _scan(cache_name)
 
+            # Clear from local cache (pattern matching)
+            for local_key in list(local_cache.keys()):
+                if local_key.startswith(cache_name.rstrip("*")):
+                    local_cache.pop(local_key, None)
+
+            # Clear from Redis
             for i in range(0, len(keys), AGENTA_CACHE_DELETE_BATCH_SIZE):
                 await r.delete(*keys[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE])
 

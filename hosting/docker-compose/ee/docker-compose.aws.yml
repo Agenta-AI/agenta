@@ -1,0 +1,241 @@
+name: agenta-ee-aws
+
+services:
+    web:
+        image: ${AWS_ECR_URL}/${AGENTA_WEB_IMAGE_NAME}:${AGENTA_WEB_IMAGE_TAG}
+
+        restart: always
+
+        networks:
+            - agenta-network
+        labels:
+            - "traefik.http.routers.web.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/`)"
+            - "traefik.http.routers.web.entrypoints=web"
+            - "traefik.http.services.web.loadbalancer.server.port=3000"
+            - "autoheal=true" # Enable autohealing for this container
+        env_file:
+            - ${ENV_FILE:-./.env.ee}
+        working_dir: /app/ee
+        command: sh -c "node ./server.js"
+
+    api:
+        image: ${AWS_ECR_URL}/${AGENTA_API_IMAGE_NAME}:${AGENTA_API_IMAGE_TAG}
+
+        restart: always
+
+        networks:
+            - agenta-network
+        labels:
+            - "traefik.http.routers.api.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/api/`)"
+            - "traefik.http.routers.api.entrypoints=web"
+            - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
+            - "traefik.http.middlewares.api-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.api.middlewares=api-strip"
+            - "traefik.http.services.api.loadbalancer.server.port=8000"
+            - "traefik.http.services.api.loadbalancer.sticky.cookie=true"
+            - "traefik.http.routers.api.service=api"
+            # Health check for lb as it requires an ip address
+            - "traefik.http.routers.api-health.rule=HostRegexp(`{ip:[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}}`) && PathPrefix(`/api/health`)"
+            - "traefik.http.routers.api-health.entrypoints=web"
+            - "traefik.http.routers.api-health.service=api"
+            - "autoheal=true" # Enable autohealing for this container
+
+        env_file:
+            - ${ENV_FILE:-./.env.ee}
+        environment:
+            - NEW_RELIC_APP_NAME=${STAGE}_ee_api
+            - NEW_RELIC_LABELS=ee;api;${STAGE}
+
+        command: >
+            newrelic-admin run-program gunicorn entrypoint:app
+            --bind 0.0.0.0:8000
+            --worker-class uvicorn.workers.UvicornWorker
+            --workers 2
+            --max-requests 10000
+            --max-requests-jitter 1000
+            --timeout 60
+            --graceful-timeout 60
+            --log-level info
+            --access-logfile -
+            --error-logfile -
+
+        healthcheck:
+            test: [ "CMD", "python3", "-c", "import urllib.request; exit(0) if urllib.request.urlopen('http://localhost:8000/api/health').getcode() == 200 else exit(1)" ]
+            interval: 5s
+            timeout: 1s
+            retries: 5
+            start_period: 5s
+
+    worker:
+        image: ${AWS_ECR_URL}/${AGENTA_API_IMAGE_NAME}:${AGENTA_API_IMAGE_TAG}
+
+        restart: always
+
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        labels:
+            - "traefik.enable=false"
+
+        env_file:
+            - ${ENV_FILE:-./.env.ee}
+        environment:
+            - NEW_RELIC_APP_NAME=${STAGE}_ee_worker
+            - NEW_RELIC_LABELS=ee;worker;${STAGE}
+
+        command: [ "newrelic-admin", "run-program", "celery", "-A", "entrypoint.celery_app", "worker", "--concurrency=4", "--max-tasks-per-child=1", "--prefetch-multiplier=1" ]
+
+        depends_on:
+            - rabbitmq
+            - redis
+
+    cron:
+        image: ${AWS_ECR_URL}/${AGENTA_API_IMAGE_NAME}:${AGENTA_API_IMAGE_TAG}
+
+        restart: always
+
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        labels:
+            - "traefik.enable=false"
+
+        env_file:
+            - ${ENV_FILE:-./.env.ee}
+
+        command: cron -f
+
+        depends_on:
+            - api
+
+    rabbitmq:
+        image: rabbitmq:3-management
+
+        volumes:
+            - rabbitmq-data:/var/lib/rabbitmq
+
+        restart: always
+
+        networks:
+            - agenta-network
+        labels:
+            - "traefik.enable=false"
+
+        env_file:
+            - ${ENV_FILE:-./.env.ee}
+
+    redis:
+        image: redis:latest
+
+        volumes:
+            - redis-data:/data
+
+        restart: always
+
+        networks:
+            - agenta-network
+        labels:
+            - "traefik.enable=false"
+
+    cache:
+        image: redis:latest
+
+        command: >
+            redis-server --port 6378 --appendonly no --appendfsync no --save "" --maxmemory 128mb --maxmemory-policy allkeys-lru
+
+        ports:
+            - "6378:6378"
+
+        volumes:
+            - cache-data:/data
+
+        restart: always
+
+        networks:
+            - agenta-network
+
+        labels:
+            - "traefik.enable=false"
+
+        healthcheck:
+            test: [ "CMD", "redis-cli", "-p", "6378", "ping" ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
+    traefik:
+        image: traefik:v2.10
+
+        volumes:
+            - ./traefik.ee.yml:/traefik.yml
+            - /var/run/docker.sock:/var/run/docker.sock
+
+        restart: always
+
+        networks:
+            - agenta-network
+
+        ports:
+            - "80:80"
+            - "8080:8080"
+            - "443:443"
+
+    autoheal:
+        image: willfarrell/autoheal
+
+        restart: always
+
+        networks:
+            - agenta-network
+        labels:
+            - "traefik.enable=false"
+
+        environment:
+            AUTOHEAL_CONTAINER_LABEL: "all"
+            AUTOHEAL_INTERVAL: "10"
+
+    agent:
+        image: newrelic/infrastructure:latest
+
+        cap_add:
+            - SYS_PTRACE
+        pid: host
+        privileged: true
+
+        volumes:
+            - "/:/host:ro"
+
+        restart: always
+
+        networks:
+            - agenta-network
+        labels:
+            - "traefik.enable=false"
+
+        env_file:
+            - ${ENV_FILE:-./.env.ee}
+
+    stripe:
+        image: stripe/stripe-cli:latest
+
+        command: [ listen, --forward-to, http://api:8000/billing/stripe/events/, --events, "customer.subscription.created,customer.subscription.deleted,invoice.payment_failed,invoice.payment_succeeded" ]
+
+        env_file:
+            - ${ENV_FILE:-./.env.ee}
+
+        restart: always
+
+        networks:
+            - agenta-network
+
+networks:
+    agenta-network:
+
+
+volumes:
+    rabbitmq-data:
+    redis-data:
+    cache-data:

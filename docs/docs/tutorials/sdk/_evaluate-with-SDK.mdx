@@ -25,7 +25,7 @@ We assume that you have already created an LLM application and variants in agent
 ### Architectural Overview:
 
 In this scenario, evaluations are executed on the Agenta backend. Specifically, Agenta invokes the LLM application for each row in the test set and subsequently processes the output using the designated evaluator.
-This operation is managed through Celery tasks. The interactions with the LLM application are asynchronous, batched, and include retry mechanisms. Additionally, the batching configuration can be adjusted to avoid exceeding the rate limits imposed by the LLM provider.
+This operation is managed through TaskIQ tasks. The interactions with the LLM application are asynchronous, batched, and include retry mechanisms. Additionally, the batching configuration can be adjusted to avoid exceeding the rate limits imposed by the LLM provider.
 
 ## Setup
 

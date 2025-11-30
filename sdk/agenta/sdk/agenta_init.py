@@ -70,7 +70,11 @@ class AgentaSingleton:
 
         """
 
-        log.info("Agenta -  SDK ver: %s", version("agenta"))
+        # Idempotency check: if already initialized, skip re-initialization
+        if self.tracing and self.api and self.async_api:
+            return
+
+        log.info("Agenta -     SDK ver: %s", version("agenta"))
 
         config = {}
         if config_fname:
@@ -118,7 +122,7 @@ class AgentaSingleton:
             or None  # NO FALLBACK
         )
 
-        log.info("Agenta -  API URL: %s", self.api_url)
+        log.info("Agenta -     API URL: %s", self.api_url)
 
         self.scope_type = (
             scope_type

@@ -1,7 +1,7 @@
 import type {ParsedUrlQuery} from "querystring"
 
 import {atom, getDefaultStore} from "jotai"
-import type {Store} from "jotai/vanilla"
+import type {Store} from "jotai/vanilla/store"
 import Router from "next/router"
 
 import {setLocationAtom, parseRouterState} from "@/oss/state/appState"

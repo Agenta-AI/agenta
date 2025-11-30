@@ -74,7 +74,9 @@ export const RunEvaluationView = () => {
         <div className="flex flex-col gap-8">
             <div className="flex flex-col gap-1">
                 <div className="flex justify-between items-center">
-                    <Title level={1} style={{margin: 0}}>Evaluate from SDK</Title>
+                    <Title level={1} style={{margin: 0}}>
+                        Evaluate from SDK
+                    </Title>
                     <div className="flex items-center gap-2">
                         <Button
                             icon={<Play size={16} className="mt-1" />}
@@ -98,28 +100,26 @@ export const RunEvaluationView = () => {
             </div>
             <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
 
-            
             <div className="flex flex-col gap-2">
                 <Text strong>1. Install the required packages:</Text>
-                <TracingCodeComponent 
+                <TracingCodeComponent
                     command={{
                         title: "Bash",
-                        code: "pip install -U agenta"
-                    }} 
-                    index={0} 
+                        code: "pip install -U agenta",
+                    }}
+                    index={0}
                 />
             </div>
 
             <div className="flex flex-col gap-4">
-                <TracingCodeComponent 
+                <TracingCodeComponent
                     command={{
                         title: "Python Code",
-                        code: CODE_SNIPPET
-                    }} 
-                    index={1} 
+                        code: CODE_SNIPPET,
+                    }}
+                    index={1}
                 />
             </div>
-
         </div>
     )
 }

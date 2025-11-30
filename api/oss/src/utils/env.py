@@ -1,6 +1,6 @@
 import os
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
@@ -33,17 +33,6 @@ class EnvironSettings(BaseModel):
     POSTGRES_URI_SUPERTOKENS: str = os.getenv("POSTGRES_URI_SUPERTOKENS") or ""
     ALEMBIC_CFG_PATH_CORE: str = os.getenv("ALEMBIC_CFG_PATH_CORE") or ""
     ALEMBIC_CFG_PATH_TRACING: str = os.getenv("ALEMBIC_CFG_PATH_TRACING") or ""
-
-    # TASK QUEUE / BROKER (REQUIRED)
-    REDIS_URL: str = os.getenv("REDIS_URL") or ""
-    RABBITMQ_DEFAULT_USER: str = os.getenv("RABBITMQ_DEFAULT_USER") or "guest"
-    RABBITMQ_DEFAULT_PASS: str = os.getenv("RABBITMQ_DEFAULT_PASS") or "guest"
-    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL") or ""
-    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND") or ""
-
-    # CACHE (REQUIRED)
-    REDIS_CACHE_HOST: str = os.getenv("REDIS_CACHE_HOST") or "cache"
-    REDIS_CACHE_PORT: int = int(os.getenv("REDIS_CACHE_PORT") or "6378")
 
     # Mail
     SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY") or ""
@@ -121,6 +110,69 @@ class EnvironSettings(BaseModel):
     AGENTA_OTLP_MAX_BATCH_BYTES: int = int(
         os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES") or str(10 * 1024 * 1024)
     )
+
+    # REDIS - Split into volatile (caches/channels) and durable (queues/streams)
+    # Runtime: Valkey 7+ (fully Redis-compatible)
+
+    # Global fallback (defaults to volatile instance if not specified)
+    REDIS_URL: str | None = os.getenv("REDIS_URL") or "redis://redis-volatile:6379/0"
+
+    # Class-level URLs (volatile for caches/channels, durable for queues/streams)
+    REDIS_VOLATILE_URL: str | None = os.getenv("REDIS_VOLATILE_URL")
+    REDIS_DURABLE_URL: str | None = os.getenv("REDIS_DURABLE_URL")
+
+    # Per-kind URLs (highest precedence)
+    REDIS_CACHES_URL: str | None = os.getenv("REDIS_CACHES_URL")
+    REDIS_CHANNELS_URL: str | None = os.getenv("REDIS_CHANNELS_URL")
+    REDIS_QUEUES_URL: str | None = os.getenv("REDIS_QUEUES_URL")
+    REDIS_STREAMS_URL: str | None = os.getenv("REDIS_STREAMS_URL")
+
+    REDIS_CACHE_HOST: str = os.getenv("REDIS_CACHE_HOST") or "redis-volatile"
+    REDIS_CACHE_PORT: int = int(os.getenv("REDIS_CACHE_PORT") or "6379")
+
+    @model_validator(mode="after")
+    def build_redis_urls(self):
+        """Build Redis URLs with proper precedence: per-kind → class-level → global → defaults."""
+        # Set class-level defaults if not provided
+        if not self.REDIS_VOLATILE_URL:
+            self.REDIS_VOLATILE_URL = f"redis://{self.REDIS_CACHE_HOST}:6379/0"
+        if not self.REDIS_DURABLE_URL:
+            self.REDIS_DURABLE_URL = "redis://redis-durable:6380/0"
+
+        # Build per-kind URLs with precedence rules
+        # CACHES: REDIS_CACHES_URL → REDIS_VOLATILE_URL → REDIS_URL → default
+        if not self.REDIS_CACHES_URL:
+            self.REDIS_CACHES_URL = (
+                self.REDIS_VOLATILE_URL
+                or self.REDIS_URL
+                or f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
+            )
+
+        # CHANNELS: REDIS_CHANNELS_URL → REDIS_VOLATILE_URL → REDIS_URL → default
+        if not self.REDIS_CHANNELS_URL:
+            self.REDIS_CHANNELS_URL = (
+                self.REDIS_VOLATILE_URL
+                or self.REDIS_URL
+                or f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
+            )
+
+        # QUEUES: REDIS_QUEUES_URL → REDIS_DURABLE_URL → REDIS_URL → default
+        if not self.REDIS_QUEUES_URL:
+            self.REDIS_QUEUES_URL = (
+                self.REDIS_DURABLE_URL
+                or self.REDIS_URL
+                or "redis://redis-durable:6380/0"
+            )
+
+        # STREAMS: REDIS_STREAMS_URL → REDIS_DURABLE_URL → REDIS_URL → default
+        if not self.REDIS_STREAMS_URL:
+            self.REDIS_STREAMS_URL = (
+                self.REDIS_DURABLE_URL
+                or self.REDIS_URL
+                or "redis://redis-durable:6380/0"
+            )
+
+        return self
 
 
 env = EnvironSettings()
