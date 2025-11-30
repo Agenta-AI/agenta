@@ -6,7 +6,7 @@ from oss.src.services import db_manager
 from ee.src.services import db_manager_ee
 from oss.src.utils.common import APIRouter
 from ee.src.services import workspace_manager
-from ee.src.models.db_models import Permission
+from ee.src.models.shared_models import Permission
 from ee.src.services.selectors import (
     get_user_own_org,
     get_user_org_and_workspace_id,
@@ -21,7 +21,6 @@ from ee.src.utils.permissions import (
     check_rbac_permission,
 )
 from ee.src.models.api.organization_models import (
-    CreateOrganization,
     OrganizationUpdate,
     OrganizationOutput,
 )
@@ -106,10 +105,6 @@ async def fetch_organization_details(
             )
 
         organization = await get_organization_details(organization_id)
-
-        if membership.role == "viewer" or membership.is_demo:
-            if "default_workspace" in organization:
-                organization["default_workspace"].members = []
 
         return organization
 

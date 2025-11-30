@@ -7,7 +7,7 @@ from sqlalchemy.future import select
 from sqlalchemy import Connection, update, func, or_, insert, delete
 
 from oss.src.models.db_models import APIKeyDB
-from ee.src.models.db_models import ProjectDB
+from oss.src.models.db_models import ProjectDB
 from ee.src.models.extended.deprecated_models import DeprecatedAPIKeyDB
 
 

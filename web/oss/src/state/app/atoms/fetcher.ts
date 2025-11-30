@@ -80,7 +80,7 @@ export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
     return {
         queryKey: ["apps", projectId],
         queryFn: async () => {
-            const data = await fetchAllApps()
+            const data = await fetchAllApps(projectId)
             return data.filter((app) => app.app_type !== "custom (sdk)")
         },
         staleTime: 1000 * 60, // 1 minute

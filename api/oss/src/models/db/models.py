@@ -1,26 +1,32 @@
 from oss.src.utils.common import is_ee
 
 if is_ee():
-    from ee.src.models.db_models import (
+    from oss.src.models.db_models import (
         APIKeyDB,
         ProjectDB,
         WorkspaceDB,
         OrganizationDB,
         InvitationDB,
+        AppDB,
+        EvaluationDB,
+        DeploymentDB,
+        HumanEvaluationDB,
+        EvaluationScenarioDB,
+        HumanEvaluationScenarioDB,
+    )
+    from ee.src.models.db_models import (
         OrganizationMemberDB,
         WorkspaceMemberDB,
         ProjectMemberDB,
-        AppDB_ as AppDB,
-        EvaluationDB_ as EvaluationDB,
-        DeploymentDB_ as DeploymentDB,
-        HumanEvaluationDB_ as HumanEvaluationDB,
-        EvaluationScenarioDB_ as EvaluationScenarioDB,
-        HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
     )
 else:
     from oss.src.models.db_models import (
-        AppDB,
+        APIKeyDB,
         ProjectDB,
+        WorkspaceDB,
+        OrganizationDB,
+        InvitationDB,
+        AppDB,
         EvaluationDB,
         DeploymentDB,
         HumanEvaluationDB,
@@ -55,15 +61,15 @@ models = [
     EvaluationScenarioDB,
     AppVariantRevisionsDB,
     HumanEvaluationScenarioDB,
+    OrganizationDB,
+    WorkspaceDB,
+    APIKeyDB,
+    InvitationDB,
 ]
 
 if is_ee():
     models.extend(
         [
-            OrganizationDB,
-            WorkspaceDB,
-            APIKeyDB,
-            InvitationDB,
             OrganizationMemberDB,
             ProjectMemberDB,
             WorkspaceMemberDB,

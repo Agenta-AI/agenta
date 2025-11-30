@@ -1,4 +1,6 @@
+import axios from "@/oss/lib/api/assets/axiosConfig"
 import {fetchJson, getBaseUrl} from "@/oss/lib/api/assets/fetchClient"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 
 import {ProjectsResponse} from "./types"
 
@@ -6,56 +8,44 @@ import {ProjectsResponse} from "./types"
 //  - fetch: GET single entity from server
 //  - fetchAll: GET all entities from server
 //  - create: POST data to server
-//  - update: PUT data to server
+//  - update: PATCH data on server
 //  - delete: DELETE data from server
 
 export const fetchAllProjects = async (): Promise<ProjectsResponse[]> => {
     const base = getBaseUrl()
     const url = new URL("api/projects", base)
 
-    console.log("🔍 Project fetcher debug:", {
-        base,
-        url: url.toString(),
-    })
-
     try {
-        console.log("🚀 Calling fetchJson with URL:", url.toString())
         const data = await fetchJson(url)
-        console.log("✅ Project fetcher success:", {
-            count: data?.length || 0,
-            data: data?.slice(0, 2), // Show first 2 projects for debugging
-        })
-        return data || []
+        return Array.isArray(data) ? data : []
     } catch (error) {
-        console.error("❌ Project fetcher failed:", {
-            message: error?.message,
-            status: error?.status,
-            statusText: error?.statusText,
-            url: url.toString(),
-            stack: error?.stack?.split("\n").slice(0, 3).join("\n"),
-        })
-        // Return empty array instead of throwing to prevent test failures
+        console.error("Failed to fetch projects", error)
         return []
     }
 }
 
+export const fetchProject = async (projectId: string): Promise<ProjectsResponse> => {
+    const base = getBaseUrl()
+    const url = new URL(`api/projects/${projectId}`, base)
+    return await fetchJson(url)
+}
+
 export const createProject = async (data: {
-    project_name: string
-    workspace_id?: string
-    description?: string
+    name: string
+    make_default?: boolean
 }): Promise<ProjectsResponse> => {
     const response = await axios.post(`${getAgentaApiUrl()}/projects`, data)
     return response.data
 }
 
-export const updateProject = async (
+export const patchProject = async (
     projectId: string,
     data: {
-        project_name?: string
-        description?: string
+        name?: string
+        make_default?: boolean
     },
 ): Promise<ProjectsResponse> => {
-    const response = await axios.put(`${getAgentaApiUrl()}/projects/${projectId}`, data)
+    const response = await axios.patch(`${getAgentaApiUrl()}/projects/${projectId}`, data)
     return response.data
 }
 
