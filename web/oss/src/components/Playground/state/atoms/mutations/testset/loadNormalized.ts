@@ -51,6 +51,10 @@ const MESSAGE_FIELD_KEYS = new Set([
 type NormalizedContentPart =
     | {type: "text"; text: string}
     | {type: "image_url"; image_url: {url: string; detail?: string}}
+    | {
+          type: "file"
+          file: {file_id: string; name?: string; mime_type?: string}
+      }
 
 const unwrapValue = (input: any): any => {
     const visited = new Set<any>()
@@ -87,6 +91,28 @@ const buildImagePart = (raw: any): NormalizedContentPart | null => {
     return part
 }
 
+const buildFilePart = (raw: any): NormalizedContentPart | null => {
+    const value = unwrapValue(raw)
+    if (!value || typeof value !== "object") return null
+    const fileId = asString((value as any).file_id ?? (value as any).fileId ?? value)
+    const fileData = asString((value as any).file_data ?? (value as any).fileData)
+    if (!fileId && !fileData) return null
+    const name = asString((value as any).name)
+
+    const mimeType = asString((value as any).format ?? (value as any).format)
+    const filePart: NormalizedContentPart = {
+        type: "file",
+        file: {},
+    }
+    if (fileId) filePart.file.file_id = fileId
+    if (fileData) filePart.file.file_data = fileData
+    if (name) filePart.file.name = name
+    if (mimeType) filePart.file.format = mimeType
+
+    console.log("filePart", filePart)
+    return filePart
+}
+
 const normalizeContentPart = (part: any): NormalizedContentPart | null => {
     const value = unwrapValue(part)
     if (value == null) return null
@@ -102,10 +128,17 @@ const normalizeContentPart = (part: any): NormalizedContentPart | null => {
     if (explicitType === "image_url") {
         return buildImagePart((value as any).image_url ?? (value as any).imageUrl)
     }
+    if (explicitType === "file") {
+        return buildFilePart((value as any).file)
+    }
 
     const imageCandidate = (value as any).image_url ?? (value as any).imageUrl
     const imagePart = imageCandidate ? buildImagePart(imageCandidate) : null
     if (imagePart) return imagePart
+
+    const fileCandidate = (value as any).file
+    const filePart = fileCandidate ? buildFilePart(fileCandidate) : null
+    if (filePart) return filePart
 
     const textValue =
         asString((value as any).text) ??
@@ -162,6 +195,13 @@ const toolContentToString = (raw: any): string => {
                         return JSON.stringify(part.image_url)
                     } catch {
                         return String(part.image_url)
+                    }
+                }
+                if (part.type === "file") {
+                    try {
+                        return JSON.stringify(part.file)
+                    } catch {
+                        return String(part.file)
                     }
                 }
                 return ""

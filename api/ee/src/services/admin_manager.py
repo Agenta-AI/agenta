@@ -13,13 +13,16 @@ from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.models.db_models import UserDB
 from oss.src.services.api_key_service import create_api_key
 
-from ee.src.models.db_models import (
+from oss.src.models.db_models import (
+    OrganizationDB,
     WorkspaceDB,
     ProjectDB,
-    OrganizationDB,
-    ProjectMemberDB as ProjectMembershipDB,
-    WorkspaceMemberDB as WorkspaceMembershipDB,
+)
+
+from ee.src.models.db_models import (
     OrganizationMemberDB as OrganizationMembershipDB,
+    WorkspaceMemberDB as WorkspaceMembershipDB,
+    ProjectMemberDB as ProjectMembershipDB,
 )
 
 log = get_module_logger(__name__)
@@ -59,7 +62,6 @@ Tier = str
 class OrganizationRequest(BaseModel):
     name: str
     description: str
-    is_paying: bool
 
 
 class WorkspaceRequest(BaseModel):
@@ -192,9 +194,6 @@ async def create_organization(
             owner="",  # move 'owner' from here to membership 'role'
             # type=...  # remove 'type'
         )
-
-        if is_ee():
-            organization_db.is_paying = request.is_paying
 
         session.add(organization_db)
 

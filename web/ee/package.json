@@ -1,6 +1,6 @@
 {
     "name": "@agenta/ee",
-    "version": "0.62.9",
+    "version": "0.64.1",
     "private": true,
     "engines": {
         "node": ">=18"
