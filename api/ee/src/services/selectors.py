@@ -2,18 +2,21 @@ from typing import Dict, List, Union
 
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.orm import load_only, joinedload
+from sqlalchemy.orm import load_only
 
 from oss.src.services import db_manager
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.shared.engine import engine
 from ee.src.models.api.organization_models import Organization
-from ee.src.models.db_models import (
-    WorkspaceDB,
+
+from oss.src.models.db_models import (
     OrganizationDB,
-    WorkspaceMemberDB,
+    WorkspaceDB,
+)
+from ee.src.models.db_models import (
     OrganizationMemberDB,
+    WorkspaceMemberDB,
 )
 
 log = get_module_logger(__name__)
@@ -117,9 +120,9 @@ async def get_org_default_workspace(organization: Organization) -> WorkspaceDB:
 
     async with engine.core_session() as session:
         result = await session.execute(
-            select(WorkspaceDB)
-            .filter_by(organization_id=organization.id, type="default")
-            .options(joinedload(WorkspaceDB.members))
+            select(WorkspaceDB).filter_by(
+                organization_id=organization.id, type="default"
+            )
         )
         workspace = result.scalars().first()
         return workspace
