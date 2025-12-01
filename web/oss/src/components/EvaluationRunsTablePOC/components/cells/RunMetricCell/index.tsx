@@ -135,7 +135,7 @@ const RunMetricCellContent = memo(
             !stepKeyForSelection
 
         if (isUnavailable) {
-            return <Typography.Text type="secondary">—</Typography.Text>
+            return <div className="not-available-table-cell" />
         }
 
         if (selection.state === "loading") {
