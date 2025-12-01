@@ -42,7 +42,6 @@ const RunMetricCellContent = memo(
         descriptor: RunMetricDescriptor
         isVisible?: boolean
     }) => {
-        // console.log("RunMetricCellContent")
         const rawRunId = record.preview?.id ?? record.runId ?? null
         const runId = typeof rawRunId === "string" && rawRunId.trim().length > 0 ? rawRunId : null
         const runScopedMetricPath = runId ? descriptor.metricPathsByRunId?.[runId] : undefined

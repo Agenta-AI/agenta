@@ -327,11 +327,6 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
             includeTimestamp: isOnlineEvaluation,
         })
 
-        console.log("[columns.ts] Meta columns created", {
-            metaColumnIds: metaColumns.map((c) => c.id),
-            hasTimestamp: metaColumns.some((c) => c.metaRole === "timestamp"),
-        })
-
         const evaluatorQuery = get(evaluationEvaluatorsByRunQueryAtomFamily(runId))
         const evaluators = evaluatorQuery?.data ?? []
 

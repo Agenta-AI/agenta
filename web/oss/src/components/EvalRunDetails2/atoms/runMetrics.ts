@@ -1115,28 +1115,52 @@ export const latestTemporalMetricStatsSelectorFamily = atomFamily(
 
             // Get temporal series for this run
             const temporalSeries = temporalRunSeries.get(runId) ?? {}
-            if (!Object.keys(temporalSeries).length) {
-                return {state: "hasData", stats: undefined, resolvedKey: undefined}
+
+            // Try temporal series first if available
+            if (Object.keys(temporalSeries).length) {
+                const seriesKeyCandidates = buildTemporalSeriesKeyCandidates(
+                    temporalSeries,
+                    metricKey,
+                    metricPath,
+                    stepKey,
+                )
+
+                // Find matching series and get the latest point
+                for (const seriesKey of seriesKeyCandidates) {
+                    const series = temporalSeries[seriesKey]
+                    if (series && series.length > 0) {
+                        // Series is sorted by timestamp ascending, so last element is latest
+                        const latestPoint = series[series.length - 1]
+                        if (latestPoint?.stats) {
+                            return {
+                                state: "hasData",
+                                stats: latestPoint.stats,
+                                resolvedKey: seriesKey,
+                            }
+                        }
+                    }
+                }
             }
 
-            const seriesKeyCandidates = buildTemporalSeriesKeyCandidates(
-                temporalSeries,
-                metricKey,
-                metricPath,
-                stepKey,
-            )
+            // Fallback to run-level stats if temporal series is empty or doesn't have matching data
+            // This is important for online evaluations where metrics might not have timestamps
+            if (loadableResult.state === "hasData" && loadableResult.data) {
+                const runLevelStats = loadableResult.data as Record<string, BasicStats>
+                // Run-level stats use dot separator (stepKey.metricKey), not colon
+                const candidates = [
+                    stepKey && metricPath ? `${stepKey}.${metricPath}` : null,
+                    stepKey && metricKey ? `${stepKey}.${metricKey}` : null,
+                    metricPath,
+                    metricKey,
+                ].filter((c): c is string => Boolean(c))
 
-            // Find matching series and get the latest point
-            for (const seriesKey of seriesKeyCandidates) {
-                const series = temporalSeries[seriesKey]
-                if (series && series.length > 0) {
-                    // Series is sorted by timestamp ascending, so last element is latest
-                    const latestPoint = series[series.length - 1]
-                    if (latestPoint?.stats) {
+                for (const candidate of candidates) {
+                    const stats = runLevelStats[candidate]
+                    if (stats) {
                         return {
                             state: "hasData",
-                            stats: latestPoint.stats,
-                            resolvedKey: seriesKey,
+                            stats,
+                            resolvedKey: candidate,
                         }
                     }
                 }

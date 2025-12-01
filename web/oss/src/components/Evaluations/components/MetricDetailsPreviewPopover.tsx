@@ -720,7 +720,7 @@ const MetricDetailsPreviewPopover = memo(
                     />
                 }
             >
-                <div className="flex w-full h-full">{children}</div>
+                <div className="flex w-full">{children}</div>
             </Popover>
         )
     },

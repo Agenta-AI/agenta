@@ -466,7 +466,9 @@ const extractMetricValueFromData = (
         })
     }
 
-    const candidates = [...evaluatorCandidates, ...stepCandidates, ...baseCandidates].filter(
+    // Prioritize stepCandidates over evaluatorCandidates since online evaluations
+    // use stepKey (e.g., "evaluator-142233c5fdb7") as the primary key in flatMap
+    const candidates = [...stepCandidates, ...evaluatorCandidates, ...baseCandidates].filter(
         (candidate, index, array) => candidate && array.indexOf(candidate) === index,
     )
 

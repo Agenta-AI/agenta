@@ -59,7 +59,16 @@ const PreviewEvaluationMetricCell = ({
     )
     const hasInvocation = invocationSummary.state === "ready" && Boolean(invocationSummary.traceId)
     const isAnnotationColumn = column.stepType === "annotation"
-    const showInvalidState = isAnnotationColumn && !hasInvocation && !showSkeleton
+    // For online evaluations, we don't need an invocation check since data comes from live traces
+    // Also skip invalid state if we already have a valid value
+    const isOnlineEvaluation = evaluationType === "online"
+    const hasValidValue = value !== undefined && value !== null
+    const showInvalidState =
+        isAnnotationColumn &&
+        !hasInvocation &&
+        !showSkeleton &&
+        !isOnlineEvaluation &&
+        !hasValidValue
 
     const formatted = formatMetricDisplay({
         value,
