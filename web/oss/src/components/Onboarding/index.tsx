@@ -106,8 +106,7 @@ const OnboardingCard = ({
             setTriggerOnboarding(null)
             if (!status) return
 
-            const resolvedSection =
-                extendedStep?.onboardingSection ?? userOnboardingSection
+            const resolvedSection = extendedStep?.onboardingSection ?? userOnboardingSection
             if (!resolvedSection) return
 
             updateOnboardingStatus({section: resolvedSection, status})

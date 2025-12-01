@@ -37,6 +37,11 @@ import {BOUNDARY_PADDING, CLOSING_ANIMATION_MS, TOGGLE_DRAG_THRESHOLD} from "./c
 import {type ChecklistItem} from "./types"
 import {buildChecklistSections, clamp} from "./utils"
 
+type ElementSize = {width: number; height: number}
+
+const DEFAULT_WIDGET_SIZE: ElementSize = {width: 280, height: 360}
+const DEFAULT_TOGGLE_SIZE: ElementSize = {width: 30, height: 30}
+
 const normalizeRoutePath = (value: string) => {
     if (!value) return ""
     const withoutOrigin = value.replace(/^https?:\/\/[^/]+/i, "")
@@ -105,6 +110,11 @@ const OnboardingWidget = () => {
     const [isDragging, setIsDragging] = useState(false)
     const [isDraggingToggle, setIsDraggingToggle] = useState(false)
     const [isClosing, setIsClosing] = useState(false)
+    const [widgetSize, setWidgetSize] = useState<ElementSize | null>(null)
+    const [toggleSize, setToggleSize] = useState<ElementSize | null>(null)
+
+    const shouldRenderWidget = !isClosed && (!isMinimized || isClosing)
+    const showToggleButton = !isClosed && isMinimized && !isClosing
 
     useEffect(() => {
         if (!isClosing) return
@@ -355,6 +365,123 @@ const OnboardingWidget = () => {
         dragStateRef.current = null
     }, [isDragging, setStoredPosition])
 
+    const getWidgetSize = useCallback(() => widgetSize ?? DEFAULT_WIDGET_SIZE, [widgetSize])
+
+    const getToggleSize = useCallback(() => toggleSize ?? DEFAULT_TOGGLE_SIZE, [toggleSize])
+
+    const clampToViewport = useCallback((position: OnboardingWidgetPosition, size: ElementSize) => {
+        const maxX = Math.max(BOUNDARY_PADDING, window.innerWidth - size.width - BOUNDARY_PADDING)
+        const maxY = Math.max(BOUNDARY_PADDING, window.innerHeight - size.height - BOUNDARY_PADDING)
+        return {
+            x: clamp(position.x, BOUNDARY_PADDING, maxX),
+            y: clamp(position.y, BOUNDARY_PADDING, maxY),
+        }
+    }, [])
+
+    const getTogglePositionFromWidget = useCallback(
+        (
+            widgetPosition: OnboardingWidgetPosition | null,
+            widgetSizeOverride?: ElementSize,
+            toggleSizeOverride?: ElementSize,
+        ) => {
+            if (!widgetPosition) return null
+            const widgetBounds = widgetSizeOverride ?? getWidgetSize()
+            const toggleBounds = toggleSizeOverride ?? getToggleSize()
+            const candidate = {
+                x: widgetPosition.x + widgetBounds.width - toggleBounds.width,
+                y: widgetPosition.y + widgetBounds.height - toggleBounds.height,
+            }
+            return clampToViewport(candidate, toggleBounds)
+        },
+        [clampToViewport, getToggleSize, getWidgetSize],
+    )
+
+    const getWidgetPositionFromToggle = useCallback(
+        (togglePosition: OnboardingWidgetPosition | null, widgetSizeOverride?: ElementSize) => {
+            if (!togglePosition) return null
+            const widgetBounds = widgetSizeOverride ?? getWidgetSize()
+            const toggleBounds = getToggleSize()
+            const candidate = {
+                x: togglePosition.x - widgetBounds.width + toggleBounds.width,
+                y: togglePosition.y - widgetBounds.height + toggleBounds.height,
+            }
+            return clampToViewport(candidate, widgetBounds)
+        },
+        [clampToViewport, getToggleSize, getWidgetSize],
+    )
+
+    useEffect(() => {
+        if (!widgetRef.current) return
+        const element = widgetRef.current
+        const updateSize = () => {
+            const rect = element.getBoundingClientRect()
+            setWidgetSize({width: rect.width, height: rect.height})
+        }
+        updateSize()
+        const observer = new ResizeObserver(updateSize)
+        observer.observe(element)
+        return () => observer.disconnect()
+    }, [shouldRenderWidget])
+
+    useEffect(() => {
+        if (!toggleRef.current) return
+        const element = toggleRef.current
+        const updateSize = () => {
+            const rect = element.getBoundingClientRect()
+            setToggleSize({width: rect.width, height: rect.height})
+        }
+        updateSize()
+        const observer = new ResizeObserver(updateSize)
+        observer.observe(element)
+        return () => observer.disconnect()
+    }, [showToggleButton])
+
+    useEffect(() => {
+        const handleResize = () => {
+            setStoredPosition((prev) => {
+                if (!prev) return prev
+                const clamped = clampToViewport(prev, getWidgetSize())
+                return clamped.x === prev.x && clamped.y === prev.y ? prev : clamped
+            })
+            setToggleStoredPosition((prev) => {
+                if (!prev) return prev
+                const clamped = clampToViewport(prev, getToggleSize())
+                return clamped.x === prev.x && clamped.y === prev.y ? prev : clamped
+            })
+        }
+
+        handleResize()
+        window.addEventListener("resize", handleResize)
+        return () => window.removeEventListener("resize", handleResize)
+    }, [clampToViewport, getToggleSize, getWidgetSize, setStoredPosition, setToggleStoredPosition])
+
+    useEffect(() => {
+        if (!storedPosition) {
+            if (!toggleStoredPosition) return
+            const widgetPosition = getWidgetPositionFromToggle(toggleStoredPosition)
+            if (!widgetPosition) return
+            setStoredPosition(widgetPosition)
+            return
+        }
+
+        const nextTogglePosition = getTogglePositionFromWidget(storedPosition)
+        if (!nextTogglePosition) return
+
+        setToggleStoredPosition((prev) => {
+            if (prev && prev.x === nextTogglePosition.x && prev.y === nextTogglePosition.y) {
+                return prev
+            }
+            return nextTogglePosition
+        })
+    }, [
+        getTogglePositionFromWidget,
+        getWidgetPositionFromToggle,
+        setStoredPosition,
+        setToggleStoredPosition,
+        storedPosition,
+        toggleStoredPosition,
+    ])
+
     useEffect(() => {
         if (!isDragging) return
 
@@ -367,6 +494,10 @@ const OnboardingWidget = () => {
             const nextY = clamp(event.clientY - offsetY, BOUNDARY_PADDING, maxY)
             const nextPosition: OnboardingWidgetPosition = {x: nextX, y: nextY}
             setStoredPosition(nextPosition)
+            const nextTogglePosition = getTogglePositionFromWidget(nextPosition, {width, height})
+            if (nextTogglePosition) {
+                setToggleStoredPosition(nextTogglePosition)
+            }
         }
 
         const handlePointerUp = () => {
@@ -396,6 +527,7 @@ const OnboardingWidget = () => {
                 startY: event.clientY,
             }
             toggleMovedRef.current = false
+            setToggleSize({width: rect.width, height: rect.height})
             setIsDraggingToggle(true)
         },
         [setIsDraggingToggle],
@@ -431,6 +563,13 @@ const OnboardingWidget = () => {
             const nextY = clamp(event.clientY - offsetY, BOUNDARY_PADDING, maxY)
             const nextPosition: OnboardingWidgetPosition = {x: nextX, y: nextY}
             setToggleStoredPosition(nextPosition)
+            const nextWidgetPosition = getWidgetPositionFromToggle(nextPosition, {
+                width: widgetSize?.width ?? DEFAULT_WIDGET_SIZE.width,
+                height: widgetSize?.height ?? DEFAULT_WIDGET_SIZE.height,
+            })
+            if (nextWidgetPosition) {
+                setStoredPosition(nextWidgetPosition)
+            }
         }
 
         const handlePointerUp = () => {
@@ -470,9 +609,6 @@ const OnboardingWidget = () => {
             ? {top: toggleStoredPosition.y, left: toggleStoredPosition.x}
             : {bottom: BOUNDARY_PADDING, right: BOUNDARY_PADDING}),
     }
-
-    const shouldRenderWidget = !isClosed && (!isMinimized || isClosing)
-    const showToggleButton = !isClosed && isMinimized && !isClosing
 
     return (
         <>
