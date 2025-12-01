@@ -173,9 +173,9 @@
 
 .scenario-table-cell {
     width: 100%;
-    height: 160px;
-    min-height: 160px;
-    max-height: 160px;
+    height: var(--scenario-row-height, 160px);
+    min-height: var(--scenario-row-height, 160px);
+    max-height: var(--scenario-row-height, 160px);
     padding: 12px;
     display: flex;
     flex-direction: column;
@@ -184,6 +184,19 @@
     gap: 8px;
     overflow: hidden;
     position: relative;
+}
+
+/* Row height variants */
+.agenta-scenario-table--row-small {
+    --scenario-row-height: 80px;
+}
+
+.agenta-scenario-table--row-medium {
+    --scenario-row-height: 160px;
+}
+
+.agenta-scenario-table--row-large {
+    --scenario-row-height: 280px;
 }
 
 
@@ -210,7 +223,7 @@
 .scenario-table-cell--invalid {
     width: calc(100% + 24px);
     height: calc(100% + 24px);
-    min-height: 160px;
+    min-height: var(--scenario-row-height, 160px);
     padding: 0 !important;
     margin: -12px;
     background: repeating-linear-gradient(

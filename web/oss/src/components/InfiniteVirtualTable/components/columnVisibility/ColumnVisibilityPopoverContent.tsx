@@ -21,6 +21,8 @@ export interface ColumnVisibilityPopoverContentProps<RowType extends object> {
     resolveNodeMeta?: ColumnVisibilityNodeMetaResolver
     onExport?: () => void
     isExporting?: boolean
+    /** Additional content to render before the visibility controls */
+    additionalContent?: React.ReactNode
 }
 
 type VisibilityTreeNode = DataNode & {searchLabel: string}
@@ -32,6 +34,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
     resolveNodeMeta,
     onExport,
     isExporting,
+    additionalContent,
 }: ColumnVisibilityPopoverContentProps<RowType>) => {
     const fallbackControls = useColumnVisibilityControls<RowType>()
     const visibilityControls = controls ?? fallbackControls
@@ -239,6 +242,8 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
 
     return (
         <div className="flex flex-col gap-3 min-w-[360px] max-w-[420px]">
+            {additionalContent}
+
             <Input
                 allowClear
                 placeholder="Search columns"

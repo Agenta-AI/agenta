@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 import type {Key, ReactNode} from "react"
 
+import type {MenuProps} from "antd"
 import clsx from "clsx"
 
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"
@@ -85,6 +86,11 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
         disabled?: boolean
         label?: string
     }
+    /**
+     * Additional menu items for the settings dropdown.
+     * Only used when useSettingsDropdown is true.
+     */
+    settingsDropdownMenuItems?: MenuProps["items"]
     keyboardShortcuts?: InfiniteVirtualTableProps<Row>["keyboardShortcuts"]
 }
 
@@ -153,6 +159,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         exportOptions,
         useSettingsDropdown = false,
         settingsDropdownDelete,
+        settingsDropdownMenuItems,
         keyboardShortcuts,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
@@ -276,6 +283,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                 onDelete={settingsDropdownDelete?.onDelete}
                 deleteDisabled={settingsDropdownDelete?.disabled}
                 deleteLabel={settingsDropdownDelete?.label}
+                additionalMenuItems={settingsDropdownMenuItems}
                 renderColumnVisibilityContent={(ctrls, close) =>
                     columnVisibilityRenderer(ctrls, close, {
                         scopeId,
@@ -292,6 +300,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             isExporting,
             scopeId,
             settingsDropdownDelete,
+            settingsDropdownMenuItems,
         ],
     )
 

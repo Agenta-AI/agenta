@@ -17,6 +17,8 @@ export interface TableSettingsDropdownProps<RowType extends object> {
         controls: ColumnVisibilityState<RowType>,
         close: () => void,
     ) => ReactNode
+    /** Additional menu items to render after Column visibility */
+    additionalMenuItems?: MenuProps["items"]
 }
 
 /**
@@ -32,6 +34,7 @@ const TableSettingsDropdown = <RowType extends object>({
     deleteDisabled,
     deleteLabel = "Delete",
     renderColumnVisibilityContent,
+    additionalMenuItems,
 }: TableSettingsDropdownProps<RowType>) => {
     const [dropdownOpen, setDropdownOpen] = useState(false)
     const [columnVisibilityOpen, setColumnVisibilityOpen] = useState(false)
@@ -61,6 +64,12 @@ const TableSettingsDropdown = <RowType extends object>({
                 handleOpenColumnVisibility()
             },
         })
+
+        // Additional menu items (e.g., Row height)
+        if (additionalMenuItems?.length) {
+            items.push({type: "divider"})
+            items.push(...additionalMenuItems)
+        }
 
         // Export option (if enabled)
         if (onExport) {
@@ -96,7 +105,15 @@ const TableSettingsDropdown = <RowType extends object>({
         }
 
         return items
-    }, [deleteDisabled, deleteLabel, handleOpenColumnVisibility, isExporting, onDelete, onExport])
+    }, [
+        additionalMenuItems,
+        deleteDisabled,
+        deleteLabel,
+        handleOpenColumnVisibility,
+        isExporting,
+        onDelete,
+        onExport,
+    ])
 
     return (
         <Popover

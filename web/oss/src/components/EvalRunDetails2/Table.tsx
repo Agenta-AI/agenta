@@ -22,7 +22,9 @@ import {
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"
 import useResizablePreviewColumns from "./hooks/useResizablePreviewColumns"
+import useRowHeightMenuItems from "./hooks/useRowHeightMenuItems"
 import {openFocusDrawerAtom, setFocusDrawerTargetAtom} from "./state/focusDrawerAtom"
+import {scenarioRowHeightAtom} from "./state/rowHeight"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
 
 type TableRowData = PreviewTableRow
@@ -48,6 +50,8 @@ const EvalRunDetailsTable = ({
 }: EvalRunDetailsTableProps) => {
     const pageSize = skeletonRowCount ?? 50
     const compareRunIds = useAtomValue(compareRunIdsAtom)
+    const rowHeight = useAtomValue(scenarioRowHeightAtom)
+    const rowHeightMenuItems = useRowHeightMenuItems()
     const setFocusDrawerTarget = useSetAtom(setFocusDrawerTargetAtom)
     const openFocusDrawer = useSetAtom(openFocusDrawerAtom)
 
@@ -252,9 +256,13 @@ const EvalRunDetailsTable = ({
                     tableScope={tableScope}
                     columns={resizableColumns}
                     rowKey={(record) => record.key}
-                    tableClassName="agenta-scenario-table"
+                    tableClassName={clsx(
+                        "agenta-scenario-table",
+                        `agenta-scenario-table--row-${rowHeight}`,
+                    )}
                     resizableColumns={false}
                     useSettingsDropdown
+                    settingsDropdownMenuItems={rowHeightMenuItems}
                     columnVisibilityMenuRenderer={(
                         controls,
                         close,
