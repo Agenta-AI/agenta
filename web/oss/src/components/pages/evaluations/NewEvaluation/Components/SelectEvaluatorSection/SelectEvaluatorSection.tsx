@@ -50,37 +50,42 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     const fetchData = useFetchEvaluatorsData({
         preview: preview as boolean,
         queries: {is_human: preview},
-        appId: selectedAppId || "",
+        appId: selectedAppId || null,
     })
     const evaluatorsRegistryUrl = useMemo(
         () => `${projectURL}/evaluators?tab=${preview ? "human" : "automatic"}`,
         [projectURL, preview],
     )
 
-    const evaluationData = useMemo(() => {
-        if (preview) {
-            const evaluators = (propsEvaluators ||
-                fetchData.evaluatorsSwr.data ||
-                []) as EvaluatorDto<"response">[]
-            const evaluatorConfigs = evaluators
-            const isLoadingEvaluators = fetchData.isLoadingEvaluators
-            const isLoadingEvaluatorConfigs = fetchData.isLoadingEvaluatorConfigs
-            return {evaluators, evaluatorConfigs, isLoadingEvaluators, isLoadingEvaluatorConfigs}
-        } else {
-            const evaluators = propsEvaluators?.length
-                ? propsEvaluators
-                : ((fetchData.evaluatorsSwr.data || []) as Evaluator[])
-            const evaluatorConfigs = (propsEvaluatorConfigs ||
-                fetchData.evaluatorConfigsSwr.data ||
-                []) as EvaluatorConfig[]
-            const isLoadingEvaluators = fetchData.isLoadingEvaluators
-            const isLoadingEvaluatorConfigs = fetchData.isLoadingEvaluatorConfigs
-            return {evaluators, evaluatorConfigs, isLoadingEvaluators, isLoadingEvaluatorConfigs}
-        }
-    }, [fetchData, preview, propsEvaluators, propsEvaluatorConfigs])
+    const {
+        evaluatorsSwr,
+        evaluatorConfigsSwr,
+        isLoadingEvaluators: fetchLoadingEvaluators,
+        isLoadingEvaluatorConfigs: fetchLoadingConfigs,
+    } = fetchData
 
-    const {evaluators, evaluatorConfigs, isLoadingEvaluators, isLoadingEvaluatorConfigs} =
-        evaluationData
+    const evaluators = useMemo(() => {
+        if (preview) {
+            return (
+                propsEvaluators?.length ? propsEvaluators : evaluatorsSwr.data || []
+            ) as EvaluatorDto<"response">[]
+        }
+        return propsEvaluators?.length
+            ? propsEvaluators
+            : ((evaluatorsSwr.data || []) as Evaluator[])
+    }, [preview, propsEvaluators, evaluatorsSwr.data])
+
+    const evaluatorConfigs = useMemo(() => {
+        if (preview) {
+            return evaluators as EvaluatorConfig[]
+        }
+        return (
+            propsEvaluatorConfigs?.length ? propsEvaluatorConfigs : evaluatorConfigsSwr.data || []
+        ) as EvaluatorConfig[]
+    }, [preview, propsEvaluatorConfigs, evaluatorConfigsSwr.data, evaluators])
+
+    const isLoadingEvaluators = fetchLoadingEvaluators
+    const isLoadingEvaluatorConfigs = fetchLoadingConfigs
 
     const [searchTerm, setSearchTerm] = useState("")
     const prevSelectedAppIdRef = useRef<string | undefined>()
@@ -184,13 +189,13 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
         ? EvaluatorDto<"response">[]
         : EvaluatorConfig[] = useMemo(() => {
         if (preview) {
-            // Explicitly narrow types for Preview = true
+            // Explicitly narrow types for Preview = true (human evaluations)
             let data = evaluators as EvaluatorDto<"response">[]
 
-            // Filter out human evaluators and evaluators without metrics
+            // Filter to only include human evaluators with metrics
             data = data.filter((item) => {
-                // Exclude human evaluators
-                if (item.flags?.is_human) return false
+                // Only include human evaluators
+                if (!item.flags?.is_human) return false
 
                 // Exclude evaluators without metric definitions
                 const metrics = getMetricsFromEvaluator(item)
@@ -212,11 +217,6 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
             ) as any
         }
     }, [searchTerm, evaluatorConfigs, preview, evaluators])
-
-    const selectedEvalConfig = useMemo(
-        () => evaluatorConfigs.filter((config) => selectedEvalConfigs.includes(config.id)),
-        [evaluatorConfigs, selectedEvalConfigs],
-    )
 
     const onSelectEvalConfig = (selectedRowKeys: React.Key[]) => {
         const currentSelected = new Set(selectedEvalConfigs)

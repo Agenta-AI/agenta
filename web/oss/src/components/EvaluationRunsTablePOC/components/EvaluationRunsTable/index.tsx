@@ -576,7 +576,7 @@ const EvaluationRunsTableActive = ({
                     />
                 ) : (
                     <NewEvaluationModal
-                        preview
+                        preview={selectedCreateType === "human"}
                         open={isCreateModalOpen}
                         evaluationType={selectedCreateType}
                         onCancel={closeCreateModal}

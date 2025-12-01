@@ -69,7 +69,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
     const evaluationData = useFetchEvaluatorsData({
         preview,
         queries: {is_human: evaluationType === "human"},
-        appId: selectedAppId || "",
+        appId: selectedAppId || null,
     })
 
     // Use useMemo to derive evaluators, evaluatorConfigs, and loading flags based on preview flag
