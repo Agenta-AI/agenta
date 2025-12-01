@@ -500,6 +500,24 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         [scenarioRow?.status],
     )
 
+    // Keyboard shortcut: ⌘+Enter (Mac) or Ctrl+Enter (Windows) to run invocation
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0
+            const modifierKey = isMac ? event.metaKey : event.ctrlKey
+
+            if (modifierKey && event.key === "Enter") {
+                event.preventDefault()
+                if (pendingInvocationStepKey && !isRunningInvocation) {
+                    handleRunInvocation()
+                }
+            }
+        }
+
+        window.addEventListener("keydown", handleKeyDown)
+        return () => window.removeEventListener("keydown", handleKeyDown)
+    }, [pendingInvocationStepKey, isRunningInvocation, handleRunInvocation])
+
     // Handle annotation save - mirrors VirtualizedScenarioTableAnnotateDrawer logic
     const handleAnnotationSave = useCallback(async () => {
         if (!canSubmitAnnotations || !activeId) return
@@ -911,21 +929,35 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                             >
                                 {/* Overlay when invocation is not successful */}
                                 {!allInvocationsSuccessful && pendingInvocationStepKey ? (
-                                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 backdrop-blur-[2px] rounded-lg">
+                                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 backdrop-blur-md rounded-lg">
                                         <Typography.Text
                                             type="secondary"
-                                            className="mb-3 text-center px-4"
+                                            className="mb-4 text-center px-4 font-medium"
                                         >
                                             Run the scenario to generate output before annotating
                                         </Typography.Text>
-                                        <Button
-                                            type="primary"
-                                            onClick={handleRunInvocation}
-                                            loading={isRunningInvocation}
-                                            disabled={isRunningInvocation}
-                                        >
-                                            {isRunningInvocation ? "Running..." : "Run"}
-                                        </Button>
+                                        <div className="flex gap-4 items-center mt-1">
+                                            <Button
+                                                type="primary"
+                                                onClick={handleRunInvocation}
+                                                loading={isRunningInvocation}
+                                                disabled={isRunningInvocation}
+                                            >
+                                                {isRunningInvocation ? "Running..." : "Run"}
+                                            </Button>
+                                            <Typography.Text
+                                                type="secondary"
+                                                className="text-xs text-neutral-400"
+                                            >
+                                                or press{" "}
+                                                <kbd className="px-1.5 py-0.5 text-xs font-semibold text-neutral-600 bg-neutral-100 border border-neutral-300 rounded">
+                                                    ⌘
+                                                </kbd>{" "}
+                                                <kbd className="px-1.5 py-0.5 text-xs font-semibold text-neutral-600 bg-neutral-100 border border-neutral-300 rounded">
+                                                    Enter
+                                                </kbd>
+                                            </Typography.Text>
+                                        </div>
                                     </div>
                                 ) : null}
                                 {hasInvocationOutput ? (
