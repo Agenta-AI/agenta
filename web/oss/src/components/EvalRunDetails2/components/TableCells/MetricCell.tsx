@@ -11,6 +11,7 @@ import type {BasicStats} from "@/oss/lib/metricUtils"
 import {invocationTraceSummaryAtomFamily} from "../../atoms/invocationTraceSummary"
 import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
+import {previewEvalTypeAtom} from "../../state/evalType"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../../utils/metricFormatter"
 import {buildFrequencyChartData} from "../EvaluatorMetricsChart/utils/chartData"
 
@@ -35,11 +36,16 @@ const PreviewEvaluationMetricCell = ({
     scenarioId,
     runId,
     column,
+    scenarioTimestamp,
 }: {
     scenarioId?: string
     runId?: string
     column: EvaluationTableColumn
+    /** Timestamp for the scenario row (used for online evaluations to get temporal stats) */
+    scenarioTimestamp?: string | null
 }) => {
+    // Get evaluation type from atom to determine if this is an online evaluation
+    const evaluationType = useAtomValue(previewEvalTypeAtom)
     const {ref, selection, showSkeleton} = useScenarioCellValue({
         scenarioId,
         runId,
@@ -238,6 +244,8 @@ const PreviewEvaluationMetricCell = ({
                 highlightValue={highlightValue}
                 fallbackValue={fallbackValue}
                 stepType={column.stepType}
+                evaluationType={evaluationType ?? undefined}
+                scenarioTimestamp={scenarioTimestamp}
             >
                 {content}
             </MetricDetailsPreviewPopover>

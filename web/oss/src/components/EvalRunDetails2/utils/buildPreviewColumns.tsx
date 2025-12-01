@@ -147,6 +147,7 @@ const createStaticMetricColumns = <RowType,>(
                 scenarioId={record.scenarioId ?? record.id}
                 runId={record.runId}
                 column={pseudoColumn}
+                scenarioTimestamp={record.timestamp}
             />
         )
 
@@ -424,6 +425,7 @@ export function buildPreviewColumns<RowType>({
                         scenarioId={record.scenarioId ?? record.id}
                         runId={record.runId}
                         column={column}
+                        scenarioTimestamp={record.timestamp}
                     />
                 )
             }

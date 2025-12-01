@@ -66,12 +66,16 @@ const RunMetricCellContent = memo(
                 ? undefined
                 : descriptor.metricKey
 
+        // Get evaluation kind from record - for online evaluations, use temporal metrics
+        const evaluationKind = record.evaluationKind
+
         const selection = useRunMetricSelection(
             {
                 runId,
                 metricKey: metricKeyForSelection,
                 metricPath: metricPathForSelection,
                 stepKey: stepKeyForSelection,
+                evaluationKind,
             },
             {
                 enabled: Boolean(isVisible),

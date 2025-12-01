@@ -48,7 +48,7 @@ import {capitalize} from "./utils/evaluatorDetails"
 interface OnlineEvaluationDrawerProps {
     open: boolean
     onClose: () => void
-    onCreate?: (values: any) => void
+    onCreate?: (values: any) => void | Promise<void>
 }
 
 const {Text, Link: TypographyLink} = Typography
@@ -352,7 +352,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 })
             }
             message.success("Online evaluation created")
-            onCreate?.(evaluation)
+            await onCreate?.(evaluation)
             await invalidateUseEvaluatorsQueries()
             onClose()
         } catch (error) {

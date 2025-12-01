@@ -401,7 +401,7 @@ const FiltersSummary = () => {
                                         ? "Loading…"
                                         : chip.closable
                                           ? undefined
-                                          : "Preset by context; change scope to remove"
+                                          : "Preset by context; change view tab to remove"
                                 }
                             >
                                 <span className={toneColors ? "text-inherit" : undefined}>

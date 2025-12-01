@@ -197,6 +197,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         setSelectedTestsetId={setSelectedTestsetId}
                         testsets={testsets}
                         selectedVariantRevisionIds={selectedVariantRevisionIds}
+                        selectedVariants={selectedVariants}
                         className="pt-2"
                     />
                 ) : (

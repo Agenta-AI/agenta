@@ -1030,7 +1030,7 @@ export const runTemporalMetricKeysAtomFamily = atomFamily((runId: string | null 
     }),
 )
 
-const emptyTemporalSeriesAtom = atom<Record<string, TemporalMetricPoint[]>>({})
+const _emptyTemporalSeriesAtom = atom<Record<string, TemporalMetricPoint[]>>({})
 
 export const runTemporalMetricSeriesAtomFamily = atomFamily((runId: string | null | undefined) => {
     return atom((get) => {
@@ -1039,3 +1039,218 @@ export const runTemporalMetricSeriesAtomFamily = atomFamily((runId: string | nul
         return temporalRunSeries.get(runId) ?? {}
     })
 })
+
+/**
+ * Selector for getting the latest temporal metric stats for a given metric.
+ * Used for online evaluations where we want to show the most recent temporal data
+ * instead of run-level aggregated stats.
+ */
+interface LatestTemporalMetricStatsSelectorArgs {
+    runId: string
+    metricKey?: string
+    metricPath?: string
+    stepKey?: string
+}
+
+/**
+ * Helper function to build series key candidates for temporal metric lookup
+ */
+const buildTemporalSeriesKeyCandidates = (
+    temporalSeries: Record<string, TemporalMetricPoint[]>,
+    metricKey?: string,
+    metricPath?: string,
+    stepKey?: string,
+): string[] => {
+    const primaryKey = canonicalizeMetricKey(metricKey ?? metricPath ?? "")
+    const baseCandidates = Array.from(
+        new Set(
+            [primaryKey, metricKey, metricPath]
+                .filter((candidate): candidate is string => Boolean(candidate && candidate.length))
+                .map((candidate) => canonicalizeMetricKey(candidate)),
+        ),
+    )
+
+    const seriesKeyCandidates: string[] = []
+    if (stepKey) {
+        baseCandidates.forEach((base) => {
+            seriesKeyCandidates.push(`${stepKey}:${base}`)
+        })
+    }
+    baseCandidates.forEach((base) => {
+        Object.keys(temporalSeries).forEach((seriesKey) => {
+            if (seriesKey.endsWith(`:${base}`) || seriesKey === base) {
+                if (!seriesKeyCandidates.includes(seriesKey)) {
+                    seriesKeyCandidates.push(seriesKey)
+                }
+            }
+        })
+    })
+
+    return seriesKeyCandidates
+}
+
+export const latestTemporalMetricStatsSelectorFamily = atomFamily(
+    ({
+        runId,
+        metricKey,
+        metricPath,
+        stepKey,
+    }: LatestTemporalMetricStatsSelectorArgs): Atom<RunLevelMetricSelection> => {
+        return atom((get) => {
+            if (!runId) {
+                return {state: "hasData", stats: undefined, resolvedKey: undefined}
+            }
+
+            // First ensure the metrics are loaded
+            const loadableResult = get(
+                previewRunMetricStatsLoadableFamily({runId, includeTemporal: true}),
+            )
+
+            if (loadableResult.state === "loading") {
+                return {state: "loading"}
+            }
+            if (loadableResult.state === "hasError") {
+                return {state: "hasError", error: loadableResult.error}
+            }
+
+            // Get temporal series for this run
+            const temporalSeries = temporalRunSeries.get(runId) ?? {}
+            if (!Object.keys(temporalSeries).length) {
+                return {state: "hasData", stats: undefined, resolvedKey: undefined}
+            }
+
+            const seriesKeyCandidates = buildTemporalSeriesKeyCandidates(
+                temporalSeries,
+                metricKey,
+                metricPath,
+                stepKey,
+            )
+
+            // Find matching series and get the latest point
+            for (const seriesKey of seriesKeyCandidates) {
+                const series = temporalSeries[seriesKey]
+                if (series && series.length > 0) {
+                    // Series is sorted by timestamp ascending, so last element is latest
+                    const latestPoint = series[series.length - 1]
+                    if (latestPoint?.stats) {
+                        return {
+                            state: "hasData",
+                            stats: latestPoint.stats,
+                            resolvedKey: seriesKey,
+                        }
+                    }
+                }
+            }
+
+            return {state: "hasData", stats: undefined, resolvedKey: undefined}
+        })
+    },
+    (a, b) =>
+        a.runId === b.runId &&
+        a.metricKey === b.metricKey &&
+        a.metricPath === b.metricPath &&
+        a.stepKey === b.stepKey,
+)
+
+/**
+ * Selector for getting temporal metric stats at a specific timestamp.
+ * Used for online evaluation scenario popovers where we want to show
+ * the temporal distribution at the time of that scenario.
+ */
+interface TemporalMetricStatsAtTimestampArgs {
+    runId: string
+    metricKey?: string
+    metricPath?: string
+    stepKey?: string
+    /** ISO timestamp string or epoch milliseconds */
+    timestamp?: string | number | null
+}
+
+export const temporalMetricStatsAtTimestampSelectorFamily = atomFamily(
+    ({
+        runId,
+        metricKey,
+        metricPath,
+        stepKey,
+        timestamp,
+    }: TemporalMetricStatsAtTimestampArgs): Atom<RunLevelMetricSelection> => {
+        return atom((get) => {
+            if (!runId) {
+                return {state: "hasData", stats: undefined, resolvedKey: undefined}
+            }
+
+            // First ensure the metrics are loaded
+            const loadableResult = get(
+                previewRunMetricStatsLoadableFamily({runId, includeTemporal: true}),
+            )
+
+            if (loadableResult.state === "loading") {
+                return {state: "loading"}
+            }
+            if (loadableResult.state === "hasError") {
+                return {state: "hasError", error: loadableResult.error}
+            }
+
+            // Get temporal series for this run
+            const temporalSeries = temporalRunSeries.get(runId) ?? {}
+            if (!Object.keys(temporalSeries).length) {
+                return {state: "hasData", stats: undefined, resolvedKey: undefined}
+            }
+
+            const seriesKeyCandidates = buildTemporalSeriesKeyCandidates(
+                temporalSeries,
+                metricKey,
+                metricPath,
+                stepKey,
+            )
+
+            // Parse target timestamp
+            const targetTimestamp = timestamp
+                ? typeof timestamp === "number"
+                    ? timestamp
+                    : new Date(timestamp).getTime()
+                : null
+
+            // Find matching series and get the point at or before the target timestamp
+            for (const seriesKey of seriesKeyCandidates) {
+                const series = temporalSeries[seriesKey]
+                if (series && series.length > 0) {
+                    let matchingPoint: TemporalMetricPoint | null = null
+
+                    if (targetTimestamp && Number.isFinite(targetTimestamp)) {
+                        // Find the point at or closest before the target timestamp
+                        for (let i = series.length - 1; i >= 0; i--) {
+                            if (series[i].timestamp <= targetTimestamp) {
+                                matchingPoint = series[i]
+                                break
+                            }
+                        }
+                        // If no point before, use the first point
+                        if (!matchingPoint && series.length > 0) {
+                            matchingPoint = series[0]
+                        }
+                    } else {
+                        // No timestamp specified, use the latest point
+                        matchingPoint = series[series.length - 1]
+                    }
+
+                    if (matchingPoint?.stats) {
+                        return {
+                            state: "hasData",
+                            stats: matchingPoint.stats,
+                            resolvedKey: seriesKey,
+                        }
+                    }
+                }
+            }
+
+            return {state: "hasData", stats: undefined, resolvedKey: undefined}
+        })
+    },
+    (a, b) =>
+        a.runId === b.runId &&
+        a.metricKey === b.metricKey &&
+        a.metricPath === b.metricPath &&
+        a.stepKey === b.stepKey &&
+        a.timestamp === b.timestamp,
+)
