@@ -105,7 +105,7 @@ const TableSettingsDropdown = <RowType extends object>({
             open={columnVisibilityOpen}
             onOpenChange={setColumnVisibilityOpen}
             content={renderColumnVisibilityContent(controls, handleCloseColumnVisibility)}
-            destroyTooltipOnHide
+            destroyOnHidden
         >
             <Dropdown
                 trigger={["click"]}

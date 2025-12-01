@@ -24,6 +24,7 @@ import {
     evaluationRunsScopeIdAtom,
     evaluationRunsTableFetchEnabledAtom,
 } from "./context"
+import {previewRunSummaryAtomFamily} from "./runSummaries"
 import {
     evaluationRunsMetaVersionAtom,
     evaluationRunsTableMetaAtom,
@@ -318,7 +319,30 @@ export const evaluationRunsSelectedLabelsAtom = atom((get) => {
     const rows = get(evaluationRunsSelectedRowsAtom)
     if (!rows.length) return ""
     return rows
-        .map((row) => row.runId ?? row.preview?.id ?? row.key)
+        .map((row) => {
+            const runId = row.preview?.id ?? row.runId
+            const projectId = row.projectId
+            // Try to get the name from the run summary cache
+            if (projectId && runId) {
+                try {
+                    const summaryAtom = previewRunSummaryAtomFamily({projectId, runId})
+                    const summaryResult = get(summaryAtom) as any
+                    const name = summaryResult?.data?.name ?? summaryResult?.name
+                    if (name && typeof name === "string" && name.trim().length > 0) {
+                        return name
+                    }
+                } catch {
+                    // Fall through to fallback
+                }
+            }
+            // Fallback: try row.name, legacy.name, or show shortened ID
+            const fallbackName =
+                (row as any)?.name ??
+                (row.legacy as any)?.name ??
+                (runId ? getUniquePartOfId(runId) : null) ??
+                row.key
+            return fallbackName
+        })
         .filter((label): label is string => typeof label === "string" && label.length > 0)
         .join(" | ")
 })

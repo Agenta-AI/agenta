@@ -18,6 +18,7 @@ import useTableExport, {
     EXPORT_RESOLVE_SKIP,
     type TableExportColumnContext,
 } from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
+import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 
 import {shouldIgnoreRowClick} from "../../actions/navigationActions"
 import {evaluationRunsTableFetchEnabledAtom} from "../../atoms/context"
@@ -179,7 +180,7 @@ const EvaluationRunsTableActive = ({
         createEvaluationType,
         evaluationKind: contextEvaluationKind,
     } = useAtomValue(evaluationRunsTableComponentSliceAtom)
-    const setMetaUpdater = useSetAtom(evaluationRunsMetaUpdaterAtom)
+    const _setMetaUpdater = useSetAtom(evaluationRunsMetaUpdaterAtom)
     const setResetCallback = useSetAtom(evaluationRunsTableResetAtom)
     const setActivePreviewProjectId = useSetAtom(activePreviewProjectIdAtom)
     const [isCreateModalOpen, setIsCreateModalOpen] = useAtom(evaluationRunsCreateModalOpenAtom)
@@ -285,11 +286,17 @@ const EvaluationRunsTableActive = ({
 
     const handleCreateSuccess = useCallback(async () => {
         setIsCreateModalOpen(false)
-        // Invalidate the query cache to force a refetch
-        await queryClient.invalidateQueries({queryKey: EVALUATION_RUNS_QUERY_KEY_ROOT})
+        // Clear the local preview runs cache (fetchPreviewRunsShared has its own 10s TTL cache)
+        // This is necessary because React Query's invalidation won't bypass this local cache
+        clearPreviewRunsCache()
+        // Invalidate React Query cache so stale data isn't served
+        await queryClient.invalidateQueries({
+            queryKey: EVALUATION_RUNS_QUERY_KEY_ROOT,
+            exact: false,
+        })
+        // Reset pages to trigger fresh data load with new query atoms
         resetPages()
-        setMetaUpdater((prev) => ({...prev}))
-    }, [queryClient, resetPages, setIsCreateModalOpen, setMetaUpdater])
+    }, [queryClient, resetPages, setIsCreateModalOpen])
 
     useEffect(() => {
         if (contextEvaluationKind !== "all") {
