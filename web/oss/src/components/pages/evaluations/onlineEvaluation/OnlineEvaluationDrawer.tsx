@@ -415,7 +415,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             open={open}
             onClose={onClose}
             width={520}
-            destroyOnClose
+            destroyOnHidden
             closeOnLayoutClick={false}
             styles={{body: {padding: 0}, footer: {padding: 8}}}
             footer={

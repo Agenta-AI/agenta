@@ -60,7 +60,7 @@ const TraceDrawer = () => {
             closeOnLayoutClick={false}
             afterOpenChange={handleAfterOpenChange}
             className="[&_.ant-drawer-body]:p-0"
-            destroyOnClose
+            destroyOnHidden
         >
             {open && <TraceDrawerContent />}
         </EnhancedDrawer>
