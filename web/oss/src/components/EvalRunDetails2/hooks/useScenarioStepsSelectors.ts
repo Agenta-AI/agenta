@@ -4,7 +4,7 @@ import {useAtomValue} from "jotai"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import type {IStepResponse} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
+import type {IStepResponse} from "@/oss/lib/evaluations"
 
 import {activePreviewRunIdAtom} from "../atoms/run"
 import {scenarioStepsQueryFamily} from "../atoms/scenarioSteps"

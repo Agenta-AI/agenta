@@ -1,62 +1,38 @@
-import {SWRResponse, SWRConfiguration} from "swr"
+import {SWRConfiguration, SWRResponse} from "swr"
 
-import type {PreviewTestset, SnakeToCamelCaseKeys} from "../../Types"
-import {AnnotationDto} from "../useAnnotations/types"
-import {RunIndex} from "@/oss/lib/evaluations/buildRunIndex"
+import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import type {PreviewTestset, SnakeToCamelCaseKeys} from "@/oss/lib/Types"
 
-// Step type for useEvaluationRunScenarioSteps fetcher result (camelCase, derived from StepResponseStep)
-// Options for fetching steps (pagination, filters)
-export interface UseEvaluationRunScenarioStepsOptions {
-    limit?: number
-    next?: string
-    keys?: string[]
-    statuses?: string[]
-}
-
-// Result type returned by the hook
-export interface UseEvaluationRunScenarioStepsResult {
-    isLoading: boolean
-    swrData: SWRResponse<UseEvaluationRunScenarioStepsFetcherResult[], any>
-    // Function to revalidate
-    mutate: () => Promise<any>
-}
-
-export interface UseEvaluationRunScenarioStepsConfig extends SWRConfiguration {
-    concurrency?: number
-}
-
-// --- Types for useEvaluationRunScenarioSteps fetcher result ---
+// --- Step Response Types (snake_case from API) ---
 export interface StepResponse {
     steps: StepResponseStep[]
     count: number
     next?: string
 }
+
 export interface StepResponseStep {
     id: string
-    //
     run_id: string
     scenario_id: string
     step_key: string
     repeat_idx?: number
     timestamp?: string
     interval?: number
-    //
     status: string
-    //
-    // hash_id?: string
     trace_id?: string
     testcase_id?: string
     error?: Record<string, any>
-    //
     created_at?: string
     created_by_id?: string
-    //
     is_legacy?: boolean
     inputs?: Record<string, any>
     ground_truth?: Record<string, any>
 }
+
+/** Step response in camelCase (derived from StepResponseStep) */
 export type IStepResponse = SnakeToCamelCaseKeys<StepResponseStep>
 
+// --- Trace Types ---
 export interface TraceNode {
     trace_id: string
     span_id: string
@@ -107,6 +83,7 @@ export interface TraceTree {
     nodes: TraceNode[]
 }
 
+// --- Invocation Types ---
 export type InvocationParameters = Record<
     string,
     {
@@ -128,6 +105,7 @@ export type InvocationParameters = Record<
     } | null
 >
 
+// --- Extended Step Types ---
 export interface IInvocationStep extends IStepResponse {
     trace?: TraceTree
     invocationParameters?: InvocationParameters
@@ -138,25 +116,38 @@ export interface IInputStep extends IStepResponse {
     groundTruth?: Record<string, any>
     testcase?: PreviewTestset["data"]["testcases"][number]
 }
+
 export interface IAnnotationStep extends IStepResponse {
     annotation?: AnnotationDto
+}
+
+// --- Hook-specific Types ---
+export interface UseEvaluationRunScenarioStepsOptions {
+    limit?: number
+    next?: string
+    keys?: string[]
+    statuses?: string[]
+}
+
+export interface UseEvaluationRunScenarioStepsResult {
+    isLoading: boolean
+    swrData: SWRResponse<UseEvaluationRunScenarioStepsFetcherResult[], any>
+    mutate: () => Promise<any>
+}
+
+export interface UseEvaluationRunScenarioStepsConfig extends SWRConfiguration {
+    concurrency?: number
 }
 
 export interface UseEvaluationRunScenarioStepsFetcherResult {
     steps: IStepResponse[]
     mappings?: any[]
-
-    // Single primary steps (kept for backward compatibility)
-    // invocationStep?: IStepResponse
     annotationSteps: IAnnotationStep[]
     invocationSteps: IInvocationStep[]
     inputSteps: IInputStep[]
     annotations?: AnnotationDto[] | null
-
-    // NEW: support multiple role steps per scenario
     inputStep?: IStepResponse
     scenarioId?: string
     trace?: TraceTree | TraceData | null
-    // annotation?: AnnotationDto | null
     invocationParameters?: InvocationParameters
 }

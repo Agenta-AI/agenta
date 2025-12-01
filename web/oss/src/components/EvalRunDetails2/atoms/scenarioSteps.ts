@@ -3,8 +3,8 @@ import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import type {IStepResponse} from "@/oss/lib/evaluations"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
-import type {IStepResponse} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 import {getProjectValues} from "@/oss/state/project"
 import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
 

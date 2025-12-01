@@ -1,8 +1,8 @@
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
+import type {IStepResponse} from "@/oss/lib/evaluations"
 import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import type {IStepResponse} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 
 import {readInvocationResponse} from "../../../lib/traces/traceUtils"
 import {previewEvalTypeAtom} from "../state/evalType"

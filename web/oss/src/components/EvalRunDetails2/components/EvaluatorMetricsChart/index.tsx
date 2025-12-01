@@ -6,6 +6,7 @@ import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
+import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../atoms/table/evaluators"
@@ -13,14 +14,6 @@ import {buildBooleanHistogram, isBooleanMetricStats} from "../../utils/metricDis
 
 import HistogramChart from "./HistogramChart"
 import {buildFrequencyChartData, buildHistogramChartData} from "./utils/chartData"
-
-const format3Sig = (value: number) => {
-    if (!Number.isFinite(value)) return String(value)
-    const abs = Math.abs(value)
-    if (abs !== 0 && (abs < 0.001 || abs >= 1000)) return value.toExponential(2)
-    const s = value.toPrecision(3)
-    return String(Number(s))
-}
 
 interface ComparisonSeriesEntry {
     runId: string
