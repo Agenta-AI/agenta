@@ -20,6 +20,7 @@ const APP_CREATION_STEPS = [
                 pointerRadius: 12,
                 advanceOnClick: true,
                 onNext: () => {
+                    setCompleteWidgetTaskMap("create-first-app")
                     clearOnboardingState()
                 },
             },

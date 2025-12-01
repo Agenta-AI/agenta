@@ -11,6 +11,7 @@ export type UserOnboardingStatus<T = OnboardingState> = {
     onlineEvaluation: T
     observability: T
     trace: T
+    deployment: T
 }
 
 export type OnboardingControlLabels = {

@@ -19,6 +19,18 @@ export const buildChecklistSections = ({
             title: "Guides",
             items: [
                 {
+                    id: "create-app",
+                    title: "Create your first app",
+                    description:
+                        "Start by creating your first app to unlock the rest of the guide.",
+                    href: `${projectURL}/apps`,
+                    disabled: !projectURL,
+                    tip: projectURL ? undefined : "Open a project to create your first app.",
+                    cta: "Open App Management",
+                    tour: {section: "apps", tourId: "create-first-app"},
+                    prerequisites: [CHECKLIST_PREREQUISITES.needsProject],
+                },
+                {
                     id: "create-first-prompt",
                     title: "Create your first prompt",
                     description: "Open the playground and design your first prompt or template.",
@@ -65,11 +77,11 @@ export const buildChecklistSections = ({
                     id: "prompt-management",
                     title: "Set up prompt management",
                     description: "Organize prompt variants in the registry for easy deployment.",
-                    href: hasAppTarget ? `${appBase}/variants` : undefined,
+                    href: hasAppTarget ? `${appBase}/deployments` : undefined,
                     disabled: !hasAppTarget,
                     tip: hasAppTarget ? undefined : "Select an app to reach the registry.",
                     cta: "Open registry",
-                    tour: {section: "apps"},
+                    tour: {section: "deployment", tourId: "prompt-setup"},
                     prerequisites: [CHECKLIST_PREREQUISITES.needsApp],
                 },
                 {

@@ -9,6 +9,7 @@ export const defaultUserOnboardingState: UserOnboardingStatus = {
     onlineEvaluation: "idle",
     observability: "idle",
     trace: "idle",
+    deployment: "idle",
 }
 
 export const ONBOARDING_SECTIONS = Object.keys(defaultUserOnboardingState) as Array<

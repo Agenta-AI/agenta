@@ -98,6 +98,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                     <Button
                         type="primary"
                         onClick={() => envRevisions && openDeploymentsDrawer({initialWidth: 720})}
+                        id="tour-setup-prompt"
                     >
                         Use API
                     </Button>

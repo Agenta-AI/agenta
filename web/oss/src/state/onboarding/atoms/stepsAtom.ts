@@ -128,10 +128,6 @@ export const onboardingStepsAtom = atom<Tour[]>((get) => {
             tourId: requestedTourId,
         })
         if (!tours.length) return []
-        // if (requestedTourId) {
-        //     const filtered = tours.filter((tour) => tour.tour === requestedTourId)
-        //     return filtered.length ? filtered : tours
-        // }
         return tours
     }
 

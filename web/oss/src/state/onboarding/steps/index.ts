@@ -2,6 +2,7 @@ import {APP_MANAGEMENT_TOURS} from "./appManagementSteps"
 import {evaluationTour} from "./evaluations"
 import {PLAYGROUND_TOURS, resolvePlaygroundPostRunTour} from "./playgroundSteps"
 import {TRACE_TOURS} from "./traceSteps"
+import {DEPLOYMENT_TOURS} from "./deploymentSteps"
 import {OnboardingStepsContext, TourDefinition} from "./types"
 
 export const TOUR_STEPS: Record<string, (ctx: OnboardingStepsContext) => TourDefinition> = {
@@ -25,6 +26,10 @@ export const TOUR_STEPS: Record<string, (ctx: OnboardingStepsContext) => TourDef
     },
     trace: (ctx) => {
         const resolver = TRACE_TOURS[ctx.userContext?.userRole] ?? TRACE_TOURS.Hobbyist
+        return resolver(ctx)
+    },
+    deployment: (ctx) => {
+        const resolver = DEPLOYMENT_TOURS[ctx.userContext?.userRole] ?? DEPLOYMENT_TOURS.Hobbyist
         return resolver(ctx)
     },
 }
