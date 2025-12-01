@@ -1,6 +1,7 @@
 import type {Key, MouseEvent} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {useQueryClient} from "@tanstack/react-query"
 import {Button, Grid, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
@@ -20,7 +21,7 @@ import useTableExport, {
 
 import {shouldIgnoreRowClick} from "../../actions/navigationActions"
 import {evaluationRunsTableFetchEnabledAtom} from "../../atoms/context"
-import {evaluationRunsDatasetStore} from "../../atoms/tableStore"
+import {evaluationRunsDatasetStore, EVALUATION_RUNS_QUERY_KEY_ROOT} from "../../atoms/tableStore"
 import {
     evaluationRunsDeleteModalOpenAtom,
     evaluationRunsCreateModalOpenAtom,
@@ -190,6 +191,7 @@ const EvaluationRunsTableActive = ({
     const setDeleteModalOpen = useSetAtom(evaluationRunsDeleteModalOpenAtom)
     const selectionSnapshot = useAtomValue(evaluationRunsSelectionSnapshotAtom)
     const store = useStore()
+    const queryClient = useQueryClient()
 
     // Responsive: use settings dropdown on narrow screens (< lg breakpoint)
     const screens = Grid.useBreakpoint()
@@ -281,11 +283,13 @@ const EvaluationRunsTableActive = ({
         setIsCreateModalOpen(false)
     }, [setIsCreateModalOpen])
 
-    const handleCreateSuccess = useCallback(() => {
+    const handleCreateSuccess = useCallback(async () => {
         setIsCreateModalOpen(false)
+        // Invalidate the query cache to force a refetch
+        await queryClient.invalidateQueries({queryKey: EVALUATION_RUNS_QUERY_KEY_ROOT})
         resetPages()
         setMetaUpdater((prev) => ({...prev}))
-    }, [resetPages, setIsCreateModalOpen, setMetaUpdater])
+    }, [queryClient, resetPages, setIsCreateModalOpen, setMetaUpdater])
 
     useEffect(() => {
         if (contextEvaluationKind !== "all") {
