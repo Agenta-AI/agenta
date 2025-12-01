@@ -130,18 +130,59 @@ export const createMetricProcessor = ({
         const status = summary.status?.toLowerCase?.() ?? null
         const hasLegacyShape = containsLegacyValueLeaf(metric?.data)
 
+        // Statuses that indicate a scenario has NOT been executed yet
+        // These should NOT trigger a metric refresh - there's nothing to refresh
+        const pendingStatuses = new Set([
+            "pending",
+            "waiting",
+            "created",
+            "queued",
+            "scheduled",
+            "initializing",
+            "not_started",
+            "not-started",
+        ])
+        // A scenario is considered "pending" (not yet run) if:
+        // 1. It has an explicit pending status, OR
+        // 2. It has no status at all (null/undefined means not yet executed)
+        const isPendingScenario = status ? pendingStatuses.has(status) : true
+
+        console.debug("[MetricProcessor] processMetric", {
+            scope,
+            scenarioId: summary.scenarioId,
+            status,
+            isPendingScenario,
+            hasLegacyShape,
+        })
+
         if (scope === "scenario") {
-            if (status && status !== "success") {
-                reasons.push(`status:${status}`)
-            }
-            if (hasLegacyShape) {
-                reasons.push("legacy-value-leaf")
+            // Skip ALL refresh logic for scenarios that haven't been run yet
+            // There's no data to refresh if the scenario hasn't been executed
+            if (isPendingScenario) {
+                console.debug("[MetricProcessor] Skipping pending scenario", {
+                    scenarioId: summary.scenarioId,
+                    status,
+                })
+                // Return early - don't add any reasons for pending scenarios
+            } else {
+                // Only trigger refresh for scenarios that have been executed
+                if (status && status !== "success") {
+                    reasons.push(`status:${status}`)
+                }
+                if (hasLegacyShape) {
+                    reasons.push("legacy-value-leaf")
+                }
             }
         } else if (hasLegacyShape) {
             reasons.push("legacy-run-value-leaf")
         }
 
         const shouldRefresh = reasons.length > 0
+        console.debug("[MetricProcessor] processMetric result", {
+            scenarioId: summary.scenarioId,
+            shouldRefresh,
+            reasons,
+        })
         const shouldDelete = shouldRefresh && scope === "scenario" && Boolean(summary.id)
 
         if (shouldRefresh) {
@@ -191,15 +232,21 @@ export const createMetricProcessor = ({
     }
 
     const markScenarioGap = (scenarioId: string, reason: string) => {
+        console.debug("[MetricProcessor] markScenarioGap called", {
+            scenarioId,
+            reason,
+            projectId,
+            runId,
+            source,
+        })
+        // Track the gap for informational purposes, but do NOT add to scenarioIds
+        // for refresh. Missing metrics typically means the scenario hasn't been run yet
+        // (pending/waiting), so there's nothing to refresh.
+        // If a scenario has been run but metrics are missing, the processMetric function
+        // will handle it based on the metric's status field.
         state.scenarioGaps.push({scenarioId, reason})
-        state.scenarioIds.add(scenarioId)
-        // console.info("[EvalRunDetails2] Metric processor scenario gap (debug mode)", {
-        //     projectId,
-        //     runId,
-        //     source,
-        //     scenarioId,
-        //     reason,
-        // })
+        // NOTE: Intentionally NOT adding to state.scenarioIds to prevent refresh
+        // for scenarios that simply don't have metrics yet
     }
 
     const getPendingActions = () => {
@@ -229,7 +276,21 @@ export const createMetricProcessor = ({
     }: {triggerRefresh?: boolean} = {}): Promise<MetricProcessorFlushResult> => {
         const {pending, scenarioIds, runLevelFlags, scenarioGaps} = getPendingActions()
 
+        console.debug("[MetricProcessor] flush called", {
+            triggerRefresh,
+            pendingCount: pending.length,
+            scenarioIdsCount: scenarioIds.length,
+            scenarioIds,
+            runLevelFlagsCount: runLevelFlags.length,
+            scenarioGapsCount: scenarioGaps.length,
+            scenarioGaps,
+            projectId,
+            runId,
+            source,
+        })
+
         if (!pending.length && !runLevelFlags.length && !scenarioGaps.length) {
+            console.debug("[MetricProcessor] flush: nothing to do, returning empty result")
             return makeEmptyFlushResult()
         }
 
@@ -243,6 +304,9 @@ export const createMetricProcessor = ({
 
         if (triggerRefresh) {
             const uniqueScenarioIds = Array.from(new Set(scenarioIds.filter(Boolean)))
+            console.debug("[MetricProcessor] flush: will trigger refresh for scenarios", {
+                uniqueScenarioIds,
+            })
             if (uniqueScenarioIds.length) {
                 const pendingByScenario = new Map<string, MetricProcessorResult[]>()
                 pending.forEach((result) => {
