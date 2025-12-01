@@ -1,0 +1,239 @@
+================================================================================
+TAGS FEATURE IMPLEMENTATION PLAN - WORK SUMMARY
+================================================================================
+
+PROJECT SCOPE: /claude/api only (OSS and EE)
+
+================================================================================
+DESIGN OVERVIEW (from specs)
+================================================================================
+
+Canonical Storage:
+  - Entity.tags = JSONB with flat, dot-notation keys (already stored correctly)
+  - Example: { "env": "prod", "owner.name": "Juan", "metrics.latency.p95": 120 }
+
+Shared Registry:
+  - tags table: (project_id, kind, key) → stores unique tag keys per entity type
+  - Purpose: Enable tag autocomplete in UI for each project/kind combination
+
+Sync Mechanism:
+  - PostgreSQL triggers on entity INSERT/UPDATE
+  - Extracts keys from tags field and inserts into tags table
+  - Uses ON CONFLICT DO NOTHING to preserve manual edits
+
+================================================================================
+ENTITY KINDS & TABLES REQUIRING TAGS SUPPORT
+================================================================================
+
+All tables ALREADY have tags field (inherit TagsDBA mixin).
+
+Entity Kind          | Tables                                    | Count
+─────────────────────────────────────────────────────────────────────
+testset              | testset_artifacts                        | 1 trigger
+                     | testset_variants                         | 1 trigger
+                     | testset_revisions                        | 1 trigger
+─────────────────────────────────────────────────────────────────────
+workflow             | workflow_artifacts                       | 1 trigger
+                     | workflow_variants                        | 1 trigger
+                     | workflow_revisions                       | 1 trigger
+─────────────────────────────────────────────────────────────────────
+query                | query_artifacts                          | 1 trigger
+                     | query_variants                           | 1 trigger
+                     | query_revisions                          | 1 trigger
+─────────────────────────────────────────────────────────────────────
+evaluation_run       | evaluation_runs                          | 1 trigger
+evaluation_scenario  | evaluation_scenarios                     | 1 trigger
+evaluation_result    | evaluation_results                       | 1 trigger
+evaluation_metrics   | evaluation_metrics                       | 1 trigger
+evaluation_queue     | evaluation_queues                        | 1 trigger
+blob                 | blobs                                    | 1 trigger
+─────────────────────────────────────────────────────────────────────
+                                                      TOTAL: 15 triggers
+
+================================================================================
+WORK BREAKDOWN - 7 MAIN TASKS
+================================================================================
+
+PHASE 1: DATABASE SCHEMA & TRIGGERS
+───────────────────────────────────
+
+[Task 1.1] Create tags table migration
+  File: /claude/api/oss/databases/postgres/migrations/core/versions/
+  SQL:  CREATE TABLE tags(project_id UUID, kind TEXT, key TEXT, PK...)
+  Work: ~30 min
+  Dependencies: None
+
+[Task 1.2] Create trigger function migration
+  File: /claude/api/oss/databases/postgres/migrations/core/versions/
+  SQL:  CREATE FUNCTION sync_tags_from_entity() RETURNS TRIGGER
+  Work: ~30 min
+  Dependencies: Task 1.1 (tags table must exist)
+
+[Task 1.3] Attach triggers to 15 entity tables
+  File: /claude/api/oss/databases/postgres/migrations/core/versions/
+  SQL:  15 x CREATE TRIGGER statements, one per table
+  Work: ~20 min (copy-paste friendly)
+  Dependencies: Task 1.2 (function must exist)
+
+[Task 1.4] Backfill tags table from existing entities
+  File: /claude/api/oss/databases/postgres/migrations/core/versions/
+  SQL:  INSERT...SELECT from each entity table, extract tag keys
+  Work: ~30 min
+  Dependencies: Task 1.1 (tags table), Task 1.3 (triggers)
+
+PHASE 2: API ENDPOINTS
+──────────────────────
+
+[Task 2.1] Create tags API module
+  Create: /claude/api/oss/src/apis/fastapi/tags/
+  Files: __init__.py, models.py, router.py
+  Endpoints:
+    - GET /projects/{project_id}/tags?kind=testset → List tag keys
+  Work: ~45 min
+  Dependencies: None (DB schema ready from Phase 1)
+
+PHASE 3: UTILITY FUNCTIONS
+──────────────────────────
+
+[Task 3.1] Add tag utilities module
+  Create: /claude/api/oss/src/core/tags/utils.py
+  Functions:
+    - flatten(nested_dict) → flat dict with dot-notation keys
+    - unflatten(flat_dict) → nested dict from dot-notation
+  Work: ~20 min (specs include pseudo-code)
+  Dependencies: None
+
+================================================================================
+OPTIONAL PHASE 4: INTEGRATION (NOT IN SCOPE FOR NOW)
+═════════════════════════════════════════════════════
+
+[Task 4.1] Update entity DTOs (if API needs nested format)
+[Task 4.2] Update entity service layer (if flattening needed on API boundary)
+
+SKIP FOR NOW per instructions: "assume all in dot format already"
+
+================================================================================
+DATABASE SCHEMA DESIGN
+================================================================================
+
+CREATE TABLE tags (
+    project_id UUID NOT NULL,
+    kind       TEXT NOT NULL,   -- 'testset', 'workflow', 'query', etc.
+    key        TEXT NOT NULL,   -- dot-notation: 'env', 'owner.name', etc.
+    
+    PRIMARY KEY (project_id, kind, key),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+Index: (project_id, kind) for quick autocomplete queries
+
+Example data:
+  (proj_1, 'testset', 'env')
+  (proj_1, 'testset', 'owner.name')
+  (proj_1, 'workflow', 'env')
+  (proj_1, 'workflow', 'metrics.latency.p95')
+
+================================================================================
+TRIGGER FUNCTION
+================================================================================
+
+CREATE OR REPLACE FUNCTION sync_tags_from_entity()
+RETURNS trigger AS $$
+DECLARE
+    k text;
+    entity_kind text;
+BEGIN
+    entity_kind := TG_ARGV[0];
+    
+    IF TG_OP IN ('INSERT', 'UPDATE') THEN
+        IF NEW.tags IS NOT NULL THEN
+            FOR k IN SELECT jsonb_object_keys(NEW.tags)
+            LOOP
+                INSERT INTO tags(project_id, kind, key)
+                VALUES (NEW.project_id, entity_kind, k)
+                ON CONFLICT (project_id, kind, key) DO NOTHING;
+            END LOOP;
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+Usage:
+  CREATE TRIGGER trg_testset_artifacts_sync_tags 
+    AFTER INSERT OR UPDATE ON testset_artifacts
+    FOR EACH ROW
+    EXECUTE FUNCTION sync_tags_from_entity('testset');
+
+================================================================================
+KEY FEATURES & SEMANTICS
+================================================================================
+
+1. TRIGGERS: Fire only on INSERT/UPDATE, NOT on DELETE
+   → Orphaned keys remain in tags table (expected)
+
+2. CONFLICT RESOLUTION: ON CONFLICT DO NOTHING
+   → Preserves manual edits to tags table
+   → If user deletes a key, re-inserts when entity updates
+
+3. BACKFILL: One-time migration to populate tags from existing entities
+   → Uses same ON CONFLICT DO NOTHING pattern
+
+4. NO VALIDATION: Input tags assumed already in dot-notation
+   → Skip flatten/unflatten at boundaries for now
+
+5. PER-KIND SCOPING: Each entity kind has separate tag namespace
+   → testset.env ≠ workflow.env in tags table (separate rows)
+
+================================================================================
+FILE LOCATIONS SUMMARY
+================================================================================
+
+MIGRATIONS (4 files):
+  /claude/api/oss/databases/postgres/migrations/core/versions/
+    - <timestamp>_add_tags_table.py
+    - <timestamp>_add_sync_tags_trigger_function.py
+    - <timestamp>_attach_tags_triggers.py
+    - <timestamp>_backfill_tags_from_entities.py
+
+API ENDPOINTS:
+  /claude/api/oss/src/apis/fastapi/tags/
+    - __init__.py
+    - models.py (DTOs)
+    - router.py (endpoints)
+
+UTILITIES:
+  /claude/api/oss/src/core/tags/
+    - __init__.py
+    - utils.py (flatten/unflatten functions)
+
+REFERENCE PLAN:
+  /claude/TAGS_IMPLEMENTATION_PLAN.md (detailed, generated)
+  /claude/TAGS_WORK_SUMMARY.txt (this file)
+
+================================================================================
+ESTIMATED EFFORT
+================================================================================
+
+Phase 1 (Database):        2.0 hours (4 migration files)
+Phase 2 (API):             0.75 hours (1 module with routes)
+Phase 3 (Utilities):       0.3 hours (simple utility functions)
+───────────────────────────────────────
+TOTAL (Phases 1-3):       ~3.0 hours
+
+Testing & Integration:     TBD (can be done incrementally)
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Review this summary against requirements
+2. Confirm entity kinds and table names are correct
+3. Check if EE (/claude/api/ee/databases/) needs separate migrations
+4. Execute Phase 1 migrations
+5. Implement Phase 2 API endpoints
+6. Implement Phase 3 utilities
+7. Write integration tests
+
+================================================================================

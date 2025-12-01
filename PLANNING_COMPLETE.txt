@@ -1,0 +1,386 @@
+================================================================================
+✅ TAGS IMPLEMENTATION PLANNING - COMPLETE
+================================================================================
+
+Date: 2025-11-27
+Location: /claude (OSS and EE)
+Status: Ready for implementation
+
+================================================================================
+DELIVERABLES CREATED
+================================================================================
+
+📋 DOCUMENTATION (5 files created in /claude/)
+
+1. README_TAGS.md ⭐ START HERE
+   - Overview and navigation guide
+   - Which document to read for what purpose
+   - Quick reference and FAQ
+   - ~5 minute read
+
+2. TAGS_WORK_SUMMARY.txt (EXECUTIVE SUMMARY)
+   - Complete overview of scope and approach
+   - Entity mappings (9 kinds, 15 tables)
+   - Work breakdown (7 tasks in 3 phases)
+   - Schema design and trigger logic
+   - File structure and effort estimates
+   - ~8 minute read
+
+3. TAGS_STARTER_GUIDE.md (IMPLEMENTATION GUIDE)
+   - Step-by-step implementation for workflows (start small)
+   - 5 clear implementation steps
+   - Testing scenarios
+   - Expansion strategy to other entities
+   - Migration template
+   - ~10 minute read
+
+4. TAGS_SQL_EXAMPLES.md (DEVELOPER REFERENCE)
+   - Complete, ready-to-use SQL code
+   - Trigger function exact syntax
+   - All 15 trigger statements
+   - Test scenarios with queries
+   - Full Alembic migration template
+   - ~8 minute reference
+
+5. TAGS_IMPLEMENTATION_PLAN.md (DETAILED PLAN)
+   - Full technical specifications
+   - All 7 tasks broken down in detail
+   - Phase-by-phase approach
+   - Database schema with explanations
+   - EE considerations
+   - ~15 minute read
+
+6. TAGS_ARCHITECTURE_DIAGRAM.txt (VISUAL REFERENCE)
+   - ASCII diagrams of system architecture
+   - Entity → Trigger → Tags table flow
+   - Manual edit scenario walkthrough
+   - Performance characteristics
+   - Scaling strategy
+   - Key numbers and indexes
+
+================================================================================
+KEY FINDINGS
+================================================================================
+
+✅ GOOD NEWS:
+  • All entity tables ALREADY have tags column (inherit TagsDBA mixin)
+  • No entity schema changes needed
+  • Tags are already stored in JSONB with dot-notation keys
+  • Trigger pattern is simple and reusable across all 15 tables
+  • Single trigger function handles all 9 entity kinds
+
+🎯 SCOPE:
+  • 9 entity kinds: testset, workflow, query, evaluation_run, evaluation_scenario,
+                    evaluation_result, evaluation_metrics, evaluation_queue, blob
+  • 15 total tables (3 git-based entities with artifact/variant/revision each)
+  • 15 triggers (one per table, same function)
+  • 1 shared tags registry table
+  • 3 core components: DB table, trigger function, API endpoint
+
+📊 EFFORT ESTIMATE:
+  • Phase 1 (Database): 2 hours (4 migration files)
+  • Phase 2 (API): 45 minutes (1 module with routes)
+  • Phase 3 (Utilities): 20 minutes (2 functions)
+  • Total: ~3.25 hours (implementation, testing separate)
+
+================================================================================
+RECOMMENDED APPROACH
+================================================================================
+
+START SMALL: Implement Workflows First
+
+Why workflows?
+  ✓ 3 tables = good sample size
+  ✓ Same pattern applies to all entities
+  ✓ Easy to validate before scaling
+  ✓ Can expand incrementally
+
+Implementation order:
+  1. Create 4 migration files for workflows
+     - Create tags table
+     - Create trigger function
+     - Attach 3 workflow triggers
+     - Backfill from existing workflows
+  2. Test with workflows in isolation
+  3. Create tags API endpoint
+  4. Expand to remaining entities (testsets, queries, evaluations, blobs)
+
+Benefits:
+  ✓ Fast initial validation (can test in 2-3 hours)
+  ✓ Low risk (isolated to workflows first)
+  ✓ Easy to scale (copy-paste pattern to other entities)
+  ✓ Team can review and approve before full rollout
+
+================================================================================
+NEXT STEPS (IMMEDIATE ACTIONS)
+================================================================================
+
+1. READ (15 minutes)
+   → Start with README_TAGS.md to understand structure
+   → Read TAGS_WORK_SUMMARY.txt for full picture
+   → Skim TAGS_STARTER_GUIDE.md for implementation approach
+
+2. REVIEW (30 minutes)
+   → Check entity tables match your codebase
+   → Verify workflow tables exist at expected location
+   → Confirm migration directory structure
+
+3. CREATE MIGRATION FILES (90 minutes)
+   → Use TAGS_SQL_EXAMPLES.md as template
+   → Create 4 files:
+     a) Add tags table
+     b) Add trigger function + workflow triggers
+     c) Backfill tags from workflows
+   → Verify migration IDs don't conflict
+
+4. TEST (60 minutes)
+   → Run migrations
+   → Insert/update workflow with tags
+   → Verify tags table populated
+   → Test API endpoint (if implemented)
+
+5. EXPAND (120 minutes per entity group)
+   → Add testsets (same pattern as workflows)
+   → Add queries (same pattern)
+   → Add evaluations (5 tables, same pattern)
+   → Add blobs (1 table, same pattern)
+
+================================================================================
+IMPLEMENTATION CHECKLIST
+================================================================================
+
+PREPARATION:
+  ☐ Review README_TAGS.md (understand overview)
+  ☐ Review TAGS_WORK_SUMMARY.txt (understand scope)
+  ☐ Review TAGS_STARTER_GUIDE.md (understand approach)
+  ☐ Verify entity tables exist in /claude/api/oss/src/dbs/
+
+WORKFLOWS:
+  ☐ Create migration: add tags table
+  ☐ Create migration: add trigger function + workflow triggers
+  ☐ Create migration: backfill from workflows
+  ☐ Test: Run migrations successfully
+  ☐ Test: Insert workflow with tags, verify tags table
+  ☐ Test: Update workflow tags, verify trigger fired
+  ☐ Test: Delete key from tags, update entity, verify key recreated
+
+API ENDPOINTS:
+  ☐ Create /apis/fastapi/tags/ module
+  ☐ Create models.py with TagKeyResponse DTO
+  ☐ Create router.py with GET /projects/{id}/tags endpoint
+  ☐ Test: API returns correct keys for kind
+
+UTILITIES:
+  ☐ Create /core/tags/utils.py
+  ☐ Implement flatten() function
+  ☐ Implement unflatten() function
+  ☐ Test: flatten/unflatten round-trip
+
+EXPANSION (OPTIONAL):
+  ☐ Add testsets triggers (copy-paste workflow pattern)
+  ☐ Add queries triggers (copy-paste workflow pattern)
+  ☐ Add evaluations triggers (5 kinds, same pattern)
+  ☐ Add blobs trigger (same pattern)
+  ☐ Backfill all remaining entities
+
+INTEGRATION:
+  ☐ Write integration tests
+  ☐ Update API documentation
+  ☐ Create user guide for tags feature
+
+================================================================================
+FILES TO CREATE/MODIFY
+================================================================================
+
+NEW FILES TO CREATE:
+✏️  /claude/api/oss/databases/postgres/migrations/core/versions/
+    - 0001_add_tags_table.py
+    - 0002_add_tags_trigger_and_workflow_triggers.py
+    - 0003_backfill_tags_from_workflows.py
+
+✏️  /claude/api/oss/src/apis/fastapi/tags/
+    - __init__.py
+    - models.py
+    - router.py
+
+✏️  /claude/api/oss/src/core/tags/
+    - __init__.py
+    - utils.py
+
+POSSIBLY MODIFY:
+  • /claude/api/oss/src/apis/fastapi/__init__.py (register tags router)
+  • /claude/api/oss/src/main.py (or main FastAPI app setup)
+
+FILES TO REFERENCE (READ-ONLY):
+  • /claude/api/oss/src/dbs/postgres/workflows/dbes.py (verify tables)
+  • /claude/api/oss/src/dbs/postgres/shared/dbas.py (TagsDBA definition)
+  • /claude/api/oss/databases/postgres/migrations/core/versions/ (migration examples)
+
+================================================================================
+KEY DOCUMENTS
+================================================================================
+
+Design Specification:
+  → /sandbox/architecture/tags.initial.specs.md (source of truth)
+
+Planning Documents (in /claude/):
+  → README_TAGS.md (navigation guide)
+  → TAGS_WORK_SUMMARY.txt (executive overview)
+  → TAGS_STARTER_GUIDE.md (how to implement)
+  → TAGS_SQL_EXAMPLES.md (code examples)
+  → TAGS_IMPLEMENTATION_PLAN.md (detailed plan)
+  → TAGS_ARCHITECTURE_DIAGRAM.txt (visual reference)
+  → PLANNING_COMPLETE.txt (this file)
+
+================================================================================
+KEY NUMBERS
+================================================================================
+
+Entity Kinds:           9
+Workflow-related Kinds: 3 (testset, workflow, query with 3 tables each)
+Single-table Kinds:     5 (evaluation_run/scenario/result/metrics/queue)
+Other Kinds:            1 (blob)
+
+Total Tables:           15 (3+3+3+1+1+1+1+1+1)
+Triggers:               15 (one per table)
+Trigger Function:       1 (reused across all)
+Tags Registry Table:    1 (shared, scoped by project_id + kind)
+
+Typical tag keys per project:           50-500
+Typical tag keys per entity kind:       5-20
+Typical entries in tags table (large project): ~100,000
+Index operations:       O(log n) for lookups, ~1ms typical
+
+================================================================================
+DESIGN PRINCIPLES (RECAP)
+================================================================================
+
+1. FLAT DOT-NOTATION: Tags stored as {"env": "prod", "owner.name": "Juan"}
+   → Not nested: {"owner": {"name": "Juan"}}
+
+2. REGISTRY PATTERN: Separate tags table (project_id, kind, key)
+   → For autocomplete queries
+   → Values stay in entity.tags
+
+3. TRIGGER-BASED SYNC: PostgreSQL triggers auto-maintain the registry
+   → On entity INSERT/UPDATE: extract tag keys and insert into registry
+   → ON CONFLICT DO NOTHING: preserves manual edits
+
+4. MANUAL EDIT SAFETY: Users can edit/delete keys in tags table
+   → Deleted keys re-created if entity still uses them
+   → Edits are preserved
+
+5. NO VALIDATION: Tags assumed already in dot-notation
+   → Flatten/unflatten helpers available but not required
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+
+✅ Workflows complete:
+   • migrations run without error
+   • tags table populated from existing workflows
+   • triggers fire on workflow INSERT/UPDATE
+   • manual edits to tags table are preserved
+
+✅ API endpoints working:
+   • GET /projects/{id}/tags?kind=workflow returns list of keys
+   • Response is correct format and sorted
+
+✅ Utilities available:
+   • flatten() and unflatten() work correctly
+   • Round-trip conversion preserves data
+
+✅ Expansion successful:
+   • Same pattern successfully applied to 6 more entity kinds
+   • All triggers fire correctly
+   • Backfill completes without errors
+
+✅ Integration complete:
+   • Tests pass
+   • Documentation updated
+   • Feature ready for production
+
+================================================================================
+ESTIMATED TIMELINE
+================================================================================
+
+Workflows Only:
+  • Planning: COMPLETE ✅
+  • Implementation: ~2-3 hours
+  • Testing: ~1 hour
+  • Review/Iteration: ~1 hour
+  Total: ~4-5 hours
+
+Full Implementation (All 9 Kinds):
+  • Workflows: ~4-5 hours
+  • Testsets + Queries: ~2 hours (copy-paste, simpler)
+  • Evaluations + Blobs: ~1 hour (single table each)
+  • API + Utilities: ~2 hours (independent of DB count)
+  • Testing & Integration: ~3-4 hours
+  Total: ~12-16 hours
+
+================================================================================
+QUESTIONS ANSWERED
+================================================================================
+
+Q: Are all entities ready with tags column?
+A: ✅ Yes, all tables already inherit TagsDBA mixin
+
+Q: Do I need to modify existing entity tables?
+A: ❌ No, tags column already exists
+
+Q: Will triggers affect existing code?
+A: ❌ No, triggers only read and populate new tags table
+
+Q: What if tags are not in dot-notation?
+A: Specs assume they are. Flatten/unflatten utilities provided for future.
+
+Q: Can users edit the tags table?
+A: ✅ Yes, they can edit/delete keys. Deleted keys re-added if entity still uses them.
+
+Q: Should I implement all entities at once?
+A: 🔄 No, start with workflows, validate, then expand
+
+Q: What about EE?
+A: 🔄 EE inherits from OSS. Apply same migrations, possibly separately if EE has own migration chain.
+
+================================================================================
+CONTACTS & REFERENCES
+================================================================================
+
+Source Documents:
+  • Design Spec: /sandbox/architecture/tags.initial.specs.md
+  • Code Location: /claude/api/oss/src/dbs/postgres/
+
+Planning Documents:
+  • All in /claude/ directory (this planning session output)
+
+Entity Definitions:
+  • Workflows: /claude/api/oss/src/dbs/postgres/workflows/dbes.py
+  • Testsets: /claude/api/oss/src/dbs/postgres/testsets/dbes.py
+  • Queries: /claude/api/oss/src/dbs/postgres/queries/dbes.py
+  • Evaluations: /claude/api/oss/src/dbs/postgres/evaluations/dbes.py
+  • Shared: /claude/api/oss/src/dbs/postgres/shared/dbas.py (TagsDBA)
+
+Migrations:
+  • Location: /claude/api/oss/databases/postgres/migrations/core/versions/
+  • Examples: See TAGS_SQL_EXAMPLES.md
+
+================================================================================
+FINAL NOTES
+================================================================================
+
+✅ Planning is COMPLETE - All documents created and ready
+✅ Implementation is STRAIGHTFORWARD - Clear step-by-step approach
+✅ Design is PROVEN - Pattern used successfully in many systems
+✅ Scope is CLEAR - 9 entities, 15 tables, 1 registry table
+✅ Risk is LOW - Changes are additive, no existing table modifications
+
+Ready to proceed with implementation!
+
+Next: Review documents, create migration files, test with workflows.
+
+================================================================================
+END OF PLANNING SUMMARY
+================================================================================

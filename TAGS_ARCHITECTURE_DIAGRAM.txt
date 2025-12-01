@@ -1,0 +1,245 @@
+================================================================================
+TAGS FEATURE - ARCHITECTURE DIAGRAM
+================================================================================
+
+ENTITY TABLES (Already have tags column)
+═════════════════════════════════════════════════════════════════════════════
+
+    workflow_artifacts                 testset_artifacts
+    ├─ project_id UUID ─────┐          ├─ project_id UUID ──┐
+    ├─ id UUID              │          ├─ id UUID           │
+    ├─ slug STRING          │          ├─ slug STRING       │
+    ├─ tags JSONB ◄──┐      │          ├─ tags JSONB ◄──┐   │
+    │  {                    │          │  {               │   │
+    │    "env": "prod"      │          │    "env": "dev"  │   │
+    │    "owner.name": "J"  │          │    "version": "1"│   │
+    │  }                    │          │  }               │   │
+    └───────────────────────┤          └────────────────────┤
+         (and variants)     │               (and variants)  │
+         (and revisions)    │               (and revisions) │
+                            │                               │
+    evaluation_runs         │         evaluation_scenarios  │
+    ├─ project_id UUID ─────┤         ├─ project_id UUID ──┤
+    ├─ id UUID              │         ├─ id UUID           │
+    ├─ tags JSONB ◄──────┐  │         ├─ tags JSONB ◄──┐   │
+    │  {                  │  │         │  {               │   │
+    │    "experiment": 1  │  │         │    "iteration": 5│   │
+    │  }                  │  │         │  }               │   │
+    └─────────────────────┤  │         └────────────────────┤
+                          │  │
+    [... and 5 more]      │  │         [... and 2 more] │  │
+    ├─ blobs             │  │         ├─ queries       │  │
+    └─ tags JSONB ◄──────┘  │         └─ tags JSONB ◄──┘  │
+                            │                             │
+                            ▼                             ▼
+                         INSERT/UPDATE                 INSERT/UPDATE
+                            │                             │
+                            └──────────────────┬──────────┘
+                                               │
+                                         TRIGGER FIRES
+                                               │
+                        ┌──────────────────────┴─────────────────────┐
+                        │                                            │
+                        ▼                                            ▼
+        FOR EACH NEW.tags KEY              FOR EACH NEW.tags KEY
+                        │                                            │
+    sync_tags_from_entity('workflow')   sync_tags_from_entity(...)
+                        │                                            │
+                        └──────────────────────┬─────────────────────┘
+                                               │
+                                               ▼
+                            INSERT INTO tags(project_id, kind, key)
+                            ON CONFLICT (project_id, kind, key)
+                            DO NOTHING
+                                               │
+                                               ▼
+
+
+TAGS TABLE (Registry)
+═════════════════════════════════════════════════════════════════════════════
+
+    ╔═══════════════════════════════════════════════════════════════╗
+    ║ TABLE: tags                                                   ║
+    ║ ┌─────────────────────────────────────────────────────────┐ ║
+    ║ │ project_id             │ kind         │ key               │ ║
+    ║ ├─────────────────────────────────────────────────────────┤ ║
+    ║ │ proj_uuid_1            │ workflow     │ env               │ ║
+    ║ │ proj_uuid_1            │ workflow     │ owner.name        │ ║
+    ║ │ proj_uuid_1            │ testset      │ env               │ ║
+    ║ │ proj_uuid_1            │ testset      │ version           │ ║
+    ║ │ proj_uuid_1            │ evaluation_run│ experiment       │ ║
+    ║ │ proj_uuid_1            │ evaluation_scenario│iteration    │ ║
+    ║ │ proj_uuid_2            │ workflow     │ region.name       │ ║
+    ║ │ ...                    │ ...          │ ...               │ ║
+    ║ └─────────────────────────────────────────────────────────┘ ║
+    ║                                                               ║
+    ║ PRIMARY KEY: (project_id, kind, key)                         ║
+    ║ FOREIGN KEY: project_id → projects.id CASCADE                ║
+    ║ INDEX: (project_id, kind) for fast autocomplete              ║
+    ╚═══════════════════════════════════════════════════════════════╝
+                        ▲
+                        │
+                        │ User queries for autocomplete
+                        │
+        ┌───────────────┴──────────────┐
+        │                              │
+   API ENDPOINT                   USER INTERFACE
+   ═══════════════                ═══════════════
+        │                              │
+   GET /projects/{id}/tags         When user edits entity tags:
+   ?kind=workflow                  Show suggestions for keys
+        │                           from tags table
+        │                           (grouped by kind)
+        ▼
+   Response:
+   [
+     {"key": "env"},
+     {"key": "owner.name"}
+   ]
+
+
+TRIGGER FLOW - DETAILED
+═════════════════════════════════════════════════════════════════════════════
+
+  User Updates Workflow
+         │
+         ▼
+  UPDATE workflow_artifacts
+  SET tags = '{"env": "prod", "region": "us-east"}'
+         │
+         └─────────────────────┐
+                               ▼
+                    DATABASE TRIGGER FIRES
+                    (trg_workflow_artifacts_sync_tags)
+                               │
+                    ┌──────────┴──────────┐
+                    │                     │
+            AFTER INSERT/UPDATE      FOR EACH ROW
+                    │                     │
+                    └──────────┬──────────┘
+                               ▼
+                    CALL sync_tags_from_entity('workflow')
+                               │
+              ┌────────────────┴────────────────┐
+              │                                 │
+         For key "env"                    For key "region"
+              │                                 │
+    INSERT INTO tags                  INSERT INTO tags
+      (project_id, kind, key)            (project_id, kind, key)
+      VALUES (proj, 'workflow', 'env')   VALUES (proj, 'workflow', 'region')
+      ON CONFLICT DO NOTHING             ON CONFLICT DO NOTHING
+              │                                 │
+              └────────────────┬────────────────┘
+                               ▼
+                    Tags table is now in sync
+                    (key 'env' and 'region' exist)
+
+
+MANUAL EDIT SCENARIO
+═════════════════════════════════════════════════════════════════════════════
+
+Step 1: User manually deletes a key from tags table
+        ┌─────────────────────────────────────────────┐
+        │ DELETE FROM tags                            │
+        │ WHERE project_id = X                        │
+        │   AND kind = 'workflow'                     │
+        │   AND key = 'env'                           │
+        └─────────────────────────────────────────────┘
+                          ▼
+                    Key removed from tags
+
+Step 2: User updates workflow (entity still has 'env' key)
+        ┌─────────────────────────────────────────────┐
+        │ UPDATE workflow_artifacts                   │
+        │ SET tags = '{"env": "prod", ...}'           │
+        └─────────────────────────────────────────────┘
+                          ▼
+                    Trigger fires!
+                          ▼
+        Trigger reads jsonb_object_keys(NEW.tags):
+        - Sees 'env', 'region', ... (all current keys)
+                          ▼
+        Attempts INSERT for each key:
+        - 'env': INSERT ... ON CONFLICT DO NOTHING
+        - 'region': INSERT ... ON CONFLICT DO NOTHING
+                          ▼
+        Result: 'env' is RE-CREATED in tags table!
+                (was deleted, but trigger recreated it)
+
+
+PERFORMANCE CHARACTERISTICS
+═════════════════════════════════════════════════════════════════════════════
+
+Query: Get tag keys for autocomplete (workflow kind, project X)
+  SELECT key FROM tags
+  WHERE project_id = X AND kind = 'workflow'
+
+  Index: ix_tags_project_id_kind (project_id, kind)
+  ┌──────────────────────────────────┐
+  │ Index lookup: O(log n)           │
+  │ Return rows: O(k) where k = keys │
+  │ Total: Very fast (typical < 1ms) │
+  └──────────────────────────────────┘
+
+
+Query: Get entities with specific tag value
+  SELECT * FROM workflow_artifacts
+  WHERE project_id = X AND tags @> '{"env": "prod"}'
+
+  Index: ix_workflow_artifacts_tags (GIN, already exists)
+  ┌──────────────────────────────────────┐
+  │ GIN index: O(log n) + O(m) results   │
+  │ Total: Fast (typical < 10ms)         │
+  └──────────────────────────────────────┘
+
+
+SCALING ACROSS ENTITIES
+═════════════════════════════════════════════════════════════════════════════
+
+Current (Workflows Only):
+  ┌────────────────────────────────────────┐
+  │ 3 tables with triggers → 1 tags table  │
+  │ Each trigger watches for INSERT/UPDATE │
+  └────────────────────────────────────────┘
+
+After Full Implementation (9 kinds):
+  ┌────────────────────────────────────────┐
+  │ 15 tables with triggers → 1 tags table │
+  │ Same sync_tags_from_entity function    │
+  │ Attached to 15 separate tables         │
+  │                                        │
+  │ Tags table grows with unique (pid, kind, key) │
+  │ But index stays fast (scoped by kind)  │
+  └────────────────────────────────────────┘
+
+
+KEY NUMBERS (AFTER FULL IMPLEMENTATION)
+═════════════════════════════════════════════════════════════════════════════
+
+Entity Kinds:              9
+  - Git-based (artifact/variant/revision): testset, workflow, query (9 tables)
+  - Single-table: evaluation_run, evaluation_scenario, evaluation_result,
+                  evaluation_metrics, evaluation_queue (5 tables)
+  - Other: blob (1 table)
+
+Total Tables:             15 (3+3+3+1+1+1+1+1+1)
+Triggers:                 15 (one per table)
+Trigger Function:         1  (reused across all triggers)
+Tags Table:               1  (shared registry)
+
+Typical tags per entity kind: 5-20 keys
+Typical projects: 1000+
+Typical entries in tags table: ~10,000-100,000 rows
+
+Index Strategy:
+  - Primary Key (project_id, kind, key): B-tree (used by triggers)
+  - (project_id, kind): B-tree (used by autocomplete queries)
+  - Total indexes: 2
+
+Query Performance:
+  - Get keys for kind: ~1ms (B-tree scan)
+  - Insert from trigger: ~0.5ms (with PK check)
+  - Backfill 1M entities: ~10-20 seconds
+
+================================================================================
+

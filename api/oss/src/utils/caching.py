@@ -3,7 +3,7 @@ from json import dumps, loads
 from random import random
 from asyncio import sleep
 
-from redis.asyncio import Redis
+from valkey.asyncio import Redis
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger

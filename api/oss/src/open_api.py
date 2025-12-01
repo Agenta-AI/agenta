@@ -11,4 +11,5 @@ open_api_tags_metadata = [
     {"name": "Organizations"},
     {"name": "Bases"},
     {"name": "Configs"},
+    {"name": "Tags"},
 ]

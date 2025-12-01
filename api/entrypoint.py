@@ -53,6 +53,7 @@ from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
+from oss.src.dbs.postgres.tags.dao import TagsDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
@@ -71,6 +72,7 @@ from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.service import SimpleEvaluationsService
+from oss.src.core.tags.service import TagsService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
@@ -89,6 +91,7 @@ from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
+from oss.src.apis.fastapi.tags.router import TagsRouter
 
 
 from oss.src.routers import (
@@ -220,6 +223,8 @@ workflows_dao = GitDAO(
 
 evaluations_dao = EvaluationsDAO()
 
+tags_dao = TagsDAO()
+
 # SERVICES ---------------------------------------------------------------------
 
 vault_service = VaultService(
@@ -284,6 +289,10 @@ simple_evaluations_service = SimpleEvaluationsService(
     evaluations_service=evaluations_service,
     simple_testsets_service=simple_testsets_service,
     simple_evaluators_service=simple_evaluators_service,
+)
+
+tags_service = TagsService(
+    dao=tags_dao,
 )
 
 # ROUTERS ----------------------------------------------------------------------
@@ -365,6 +374,10 @@ annotations = AnnotationsRouter(
     annotations_service=annotations_service,
 )
 
+tags = TagsRouter(
+    tags_service=tags_service,
+)
+
 # MOUNTING ROUTERS TO APP ROUTES -----------------------------------------------
 
 app.include_router(
@@ -401,6 +414,12 @@ app.include_router(
     router=annotations.router,
     prefix="/preview/annotations",
     tags=["Annotations"],
+)
+
+app.include_router(
+    router=tags.router,
+    prefix="/preview/tags",
+    tags=["Tags"],
 )
 
 app.include_router(

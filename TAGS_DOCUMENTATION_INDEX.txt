@@ -1,0 +1,367 @@
+================================================================================
+📚 TAGS FEATURE - DOCUMENTATION INDEX
+================================================================================
+
+Location: /claude/
+Planning Complete: 2025-11-27
+Status: Ready for Implementation
+
+================================================================================
+DOCUMENT OVERVIEW & READING PATH
+================================================================================
+
+START HERE ⭐⭐⭐
+└─ README_TAGS.md
+   What: Navigation guide, quick reference, FAQ
+   Read Time: 5 minutes
+   Purpose: Understand what each document contains and which to read next
+
+
+EXECUTIVE OVERVIEW ⭐⭐
+└─ TAGS_WORK_SUMMARY.txt
+   What: Big picture overview of scope, approach, and effort
+   Read Time: 8 minutes
+   Contains:
+     • Complete entity mapping (9 kinds, 15 tables)
+     • Work breakdown (7 tasks, 3 phases)
+     • Database schema design
+     • Trigger logic explanation
+     • File structure
+     • Effort estimates (~3 hours coding)
+
+
+IMPLEMENTATION GUIDE ⭐⭐
+├─ TAGS_STARTER_GUIDE.md
+│  What: Step-by-step guide for building workflows first
+│  Read Time: 10 minutes
+│  Best For: Actually implementing the feature
+│  Contains:
+│     • 5 implementation steps for workflows
+│     • Testing scenarios with SQL examples
+│     • Expansion strategy (testsets → queries → evaluations → blobs)
+│     • Migration file template
+│
+└─ TAGS_SQL_EXAMPLES.md
+   What: Complete, ready-to-use code examples
+   Read Time: 8 minutes (reference as needed)
+   Best For: Copy-paste when building migration files
+   Contains:
+     • SQL syntax (CREATE TABLE, CREATE FUNCTION, CREATE TRIGGER)
+     • Test scenarios with expected results
+     • Full Alembic migration file template
+     • All 15 trigger statements for reference
+
+
+DETAILED TECHNICAL PLAN
+├─ TAGS_IMPLEMENTATION_PLAN.md
+│  What: Comprehensive technical specification
+│  Read Time: 15 minutes
+│  Contains:
+│     • All 7 tasks broken down in detail
+│     • Phase-by-phase approach (Phase 1, 2, 3, 4)
+│     • Database schema with reasoning
+│     • Entity kinds complete mapping
+│     • EE considerations
+│
+└─ TAGS_ARCHITECTURE_DIAGRAM.txt
+   What: Visual architecture diagrams and flow explanations
+   Read Time: 10 minutes (reference as needed)
+   Contains:
+     • Entity → Trigger → Tags Table flow diagram
+     • Trigger execution flow
+     • Manual edit scenario walkthrough
+     • Performance characteristics
+     • Scaling strategy (workflows → all 15 tables)
+     • Key metrics and numbers
+
+
+COMPLETION STATUS
+└─ PLANNING_COMPLETE.txt
+   What: Final summary indicating planning is done
+   Contains:
+     • Deliverables checklist
+     • Key findings and good news
+     • Recommended approach (start with workflows)
+     • Next steps (immediate actions)
+     • Implementation checklist
+     • Files to create/modify
+     • Success criteria
+     • Estimated timeline
+
+
+================================================================================
+RECOMMENDED READING ORDER
+================================================================================
+
+For Quick Understanding (15 minutes):
+  1. README_TAGS.md (5 min) - Understand structure
+  2. TAGS_WORK_SUMMARY.txt (8 min) - Get the big picture
+  3. Skim PLANNING_COMPLETE.txt (2 min) - See next steps
+
+For Implementation (40 minutes):
+  1. README_TAGS.md (5 min)
+  2. TAGS_STARTER_GUIDE.md (10 min)
+  3. TAGS_SQL_EXAMPLES.md (15 min) - Review code examples
+  4. PLANNING_COMPLETE.txt (10 min) - Implementation checklist
+
+For Deep Understanding (60 minutes):
+  1. README_TAGS.md (5 min)
+  2. TAGS_WORK_SUMMARY.txt (8 min)
+  3. TAGS_STARTER_GUIDE.md (10 min)
+  4. TAGS_IMPLEMENTATION_PLAN.md (15 min)
+  5. TAGS_ARCHITECTURE_DIAGRAM.txt (10 min)
+  6. PLANNING_COMPLETE.txt (12 min)
+
+For Code Development (90 minutes):
+  1. TAGS_STARTER_GUIDE.md (10 min) - understand approach
+  2. TAGS_SQL_EXAMPLES.md (15 min) - copy code examples
+  3. TAGS_ARCHITECTURE_DIAGRAM.txt (5 min) - understand trigger flow
+  4. Use PLANNING_COMPLETE.txt as checklist (5 min)
+  5. Start coding migrations (50+ min)
+
+
+================================================================================
+DOCUMENT CHARACTERISTICS
+================================================================================
+
+README_TAGS.md
+  Format: Markdown with sections
+  Style: Friendly, navigational
+  Purpose: Help you find what you need
+  Best for: First-time readers
+  When to Read: Before reading any other document
+
+TAGS_WORK_SUMMARY.txt
+  Format: Text with structured sections
+  Style: Executive summary, high-level overview
+  Purpose: Understand scope and approach
+  Best for: Managers, architects, or quick briefing
+  When to Read: After README, before diving into details
+
+TAGS_STARTER_GUIDE.md
+  Format: Markdown with code examples
+  Style: How-to guide, step-by-step
+  Purpose: Implement the feature incrementally
+  Best for: Developers starting implementation
+  When to Read: When ready to start coding
+
+TAGS_SQL_EXAMPLES.md
+  Format: Code blocks with inline SQL/Python
+  Style: Reference manual
+  Purpose: Copy-paste ready code
+  Best for: Writing migration files
+  When to Read: While creating database migrations
+
+TAGS_IMPLEMENTATION_PLAN.md
+  Format: Markdown with detailed sections
+  Style: Technical specification
+  Purpose: Complete technical understanding
+  Best for: Code reviewers, technical leads
+  When to Read: For thorough review and validation
+
+TAGS_ARCHITECTURE_DIAGRAM.txt
+  Format: ASCII diagrams with explanations
+  Style: Visual representation
+  Purpose: Understand system architecture and flows
+  Best for: System designers, visual learners
+  When to Read: To understand how components interact
+
+PLANNING_COMPLETE.txt
+  Format: Text with checklist and summary
+  Style: Project completion summary
+  Purpose: Confirm planning is done, define next steps
+  Best for: Project tracking and validation
+  When to Read: After other documents to confirm readiness
+
+
+================================================================================
+KEY INFORMATION BY TOPIC
+================================================================================
+
+WHERE TO FIND...                          DOCUMENT(S)
+
+Entity Kinds and Tables
+  → TAGS_WORK_SUMMARY.txt (Entity Kinds section)
+  → TAGS_IMPLEMENTATION_PLAN.md (Entity Kinds Mapping section)
+
+Database Schema Design
+  → TAGS_WORK_SUMMARY.txt (Database Schema section)
+  → TAGS_SQL_EXAMPLES.md (Section 1 & 2)
+  → TAGS_ARCHITECTURE_DIAGRAM.txt (Tags Table diagram)
+
+Trigger Logic
+  → TAGS_WORK_SUMMARY.txt (Trigger Function section)
+  → TAGS_SQL_EXAMPLES.md (Section 2)
+  → TAGS_ARCHITECTURE_DIAGRAM.txt (Trigger Flow diagrams)
+
+How to Implement
+  → TAGS_STARTER_GUIDE.md (all sections)
+  → TAGS_SQL_EXAMPLES.md (migration template)
+
+Testing Scenarios
+  → TAGS_STARTER_GUIDE.md (Testing section)
+  → TAGS_SQL_EXAMPLES.md (Section 5)
+
+File Locations
+  → TAGS_WORK_SUMMARY.txt (File Locations section)
+  → PLANNING_COMPLETE.txt (Files to Create/Modify section)
+
+Implementation Checklist
+  → PLANNING_COMPLETE.txt (Implementation Checklist)
+
+All 15 Trigger Statements
+  → TAGS_SQL_EXAMPLES.md (Section 7)
+
+EE Considerations
+  → TAGS_IMPLEMENTATION_PLAN.md (EE Considerations section)
+
+Performance Characteristics
+  → TAGS_ARCHITECTURE_DIAGRAM.txt (Performance section)
+
+Estimated Effort & Timeline
+  → PLANNING_COMPLETE.txt (Estimated Timeline section)
+  → TAGS_WORK_SUMMARY.txt (Estimated Effort section)
+
+
+================================================================================
+QUICK FACTS (FROM DOCUMENTS)
+================================================================================
+
+Scope:
+  • 9 entity kinds
+  • 15 tables (testset, workflow, query with 3 each; 5 evaluation tables; 1 blob)
+  • 1 trigger function (reused)
+  • 15 triggers (one per table)
+  • 1 tags registry table
+
+Effort:
+  • 3.25 hours total coding time
+  • 2 hours database (4 migrations)
+  • 0.75 hours API (1 module)
+  • 0.33 hours utilities
+
+Approach:
+  • Start with workflows (3 tables)
+  • Test and validate
+  • Expand to remaining entities
+
+Key Design:
+  • Flat dot-notation tags: {"env": "prod", "owner.name": "Juan"}
+  • Separate tags registry table (project_id, kind, key)
+  • PostgreSQL triggers auto-sync
+  • ON CONFLICT DO NOTHING preserves manual edits
+
+Good News:
+  • Tags column already exists on all tables
+  • No schema changes to entities needed
+  • Single trigger function for all kinds
+  • Pattern proven and straightforward
+
+
+================================================================================
+ACCESSING DOCUMENTS
+================================================================================
+
+All documents are in: /Users/junaway/Agenta/github/claude/
+
+File List:
+  README_TAGS.md                      ← Start here (5 min)
+  TAGS_WORK_SUMMARY.txt              ← Overview (8 min)
+  TAGS_STARTER_GUIDE.md              ← How to build (10 min)
+  TAGS_SQL_EXAMPLES.md               ← Code examples (reference)
+  TAGS_IMPLEMENTATION_PLAN.md        ← Full spec (15 min)
+  TAGS_ARCHITECTURE_DIAGRAM.txt      ← Visual diagrams (10 min)
+  PLANNING_COMPLETE.txt              ← Project status (reference)
+  TAGS_DOCUMENTATION_INDEX.txt       ← This file
+
+Source Design Document:
+  /sandbox/architecture/tags.initial.specs.md (source of truth)
+
+Code References:
+  /claude/api/oss/src/dbs/postgres/workflows/dbes.py (workflows)
+  /claude/api/oss/src/dbs/postgres/testsets/dbes.py (testsets)
+  /claude/api/oss/src/dbs/postgres/shared/dbas.py (TagsDBA definition)
+
+
+================================================================================
+DOCUMENT RELATIONSHIPS
+================================================================================
+
+README_TAGS.md (INDEX)
+    ↓
+TAGS_WORK_SUMMARY.txt (OVERVIEW)
+    ├─→ TAGS_STARTER_GUIDE.md (IMPLEMENTATION)
+    │      ├─→ TAGS_SQL_EXAMPLES.md (CODE)
+    │      └─→ Testing section
+    ├─→ TAGS_IMPLEMENTATION_PLAN.md (DETAIL)
+    ├─→ TAGS_ARCHITECTURE_DIAGRAM.txt (VISUAL)
+    └─→ PLANNING_COMPLETE.txt (STATUS & CHECKLIST)
+
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Read README_TAGS.md (understand structure)
+2. Read TAGS_WORK_SUMMARY.txt (understand scope)
+3. Read TAGS_STARTER_GUIDE.md (understand approach)
+4. Review TAGS_SQL_EXAMPLES.md (see code)
+5. Check PLANNING_COMPLETE.txt (implementation checklist)
+6. Create migration files (use TAGS_SQL_EXAMPLES.md)
+7. Test with workflows
+8. Expand to other entities
+9. Add API endpoints
+10. Add utility functions
+
+
+================================================================================
+QUESTIONS?
+================================================================================
+
+"What should I read first?"
+  → README_TAGS.md
+
+"What's the scope?"
+  → TAGS_WORK_SUMMARY.txt (Entity Kinds & Work Breakdown sections)
+
+"How do I implement this?"
+  → TAGS_STARTER_GUIDE.md
+
+"Show me the actual code"
+  → TAGS_SQL_EXAMPLES.md
+
+"I want complete technical details"
+  → TAGS_IMPLEMENTATION_PLAN.md
+
+"How do the parts fit together?"
+  → TAGS_ARCHITECTURE_DIAGRAM.txt
+
+"What's my checklist?"
+  → PLANNING_COMPLETE.txt (Implementation Checklist section)
+
+"Is planning complete?"
+  → Yes! See PLANNING_COMPLETE.txt
+
+
+================================================================================
+VERSION & STATUS
+================================================================================
+
+Created: 2025-11-27
+Last Updated: 2025-11-27
+Status: ✅ COMPLETE - Ready for Implementation
+Planning Phase: ✅ DONE
+Implementation Phase: 🔄 READY TO START
+
+Documents: 7 files
+Lines of Documentation: ~2500+
+Code Examples: 100+
+Diagrams: 10+
+Estimated Total Read Time: 60 minutes (comprehensive)
+Estimated Total Read Time: 15 minutes (quick overview)
+
+Next Phase: Implementation (start with workflows)
+
+================================================================================
+END OF DOCUMENTATION INDEX
+================================================================================
