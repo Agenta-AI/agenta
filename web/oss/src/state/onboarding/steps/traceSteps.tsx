@@ -2,26 +2,24 @@ import {getDefaultStore} from "jotai"
 
 import {
     isDrawerOpenAtom,
-    traceDrawerActiveTabAtom,
     traceDrawerAtom,
-    TraceDrawerTabKey,
-    TRACE_DRAWER_VIEWPORT_ID,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 
 import {OnboardingStepsContext, TourDefinition} from "./types"
 
-const TRACE_TABS_BY_SELECTOR: Record<string, TraceDrawerTabKey> = {
+const TRACE_TABS_BY_SELECTOR: Record<string, any> = {
     "#tour-trace-tab-overview": "overview",
     "#tour-trace-tab-raw": "raw_data",
     "#tour-trace-tab-annotations": "annotations",
 }
+const TRACE_DRAWER_VIEWPORT_ID = ""
 
 const ensureTraceTab = (selector?: string | null) => {
     if (!selector) return
     const tab = TRACE_TABS_BY_SELECTOR[selector]
     if (!tab) return
 
-    getDefaultStore().set(traceDrawerActiveTabAtom, tab)
+    // getDefaultStore().set(traceDrawerActiveTabAtom, tab)
 }
 
 export const TRACE_DRAWER_STEPS: TourDefinition[number]["steps"] = [
