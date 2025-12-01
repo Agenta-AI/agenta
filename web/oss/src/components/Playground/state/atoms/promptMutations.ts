@@ -79,78 +79,103 @@ export const deletePromptMessageMutationAtomFamily = atomFamily((compoundKey: st
 
 // Add a tool for a prompt identified by `${revisionId}:${promptId}`
 export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) =>
-    atom(null, (get, set, payload?: Record<string, any>) => {
-        const [revisionId, promptId] = compoundKey.split(":", 2)
-        const newTool = {
-            __id: uuidv4(),
-            __metadata: hashMetadata({
-                type: "object",
-                name: "ToolConfiguration",
-                description: "Tool configuration",
-                properties: {
-                    type: {
-                        type: "string",
-                        description: "Type of the tool",
-                    },
-                    name: {
-                        type: "string",
-                        description: "Name of the tool",
-                    },
-                    description: {
-                        type: "string",
-                        description: "Description of the tool",
-                    },
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            type: {
-                                type: "string",
-                                enum: ["object", "function"],
-                            },
-                        },
-                    },
-                },
-                required: ["name", "description", "parameters"],
-            }),
-            value: payload || {
-                type: "function",
-                function: {
-                    name: "get_weather",
-                    description: "Get current temperature for a given location.",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            location: {
-                                type: "string",
-                                description: "City and country e.g. Bogotá, Colombia",
-                            },
-                        },
-                        required: ["location"],
-                        additionalProperties: false,
-                    },
-                },
+    atom(
+        null,
+        (
+            get,
+            set,
+            params?: {
+                payload?: Record<string, any>
+                source?: "inline" | "builtin"
+                providerKey?: string
+                providerLabel?: string
+                toolCode?: string
+                toolLabel?: string
             },
-        }
-
-        // const revisions = get(revisionListAtom) || []
-        // const variant = revisions.find((r: any) => r.id === revisionId)
-        set(promptsAtomFamily(revisionId), (prev: any[]) => {
-            const list = Array.isArray(prev) ? prev : []
-            const next = list.map((p: any) => {
-                if (!(p?.__id === promptId || p?.__name === promptId)) return p
-                const currentTools = p?.llmConfig?.tools?.value || []
-                return {
-                    ...p,
-                    llmConfig: {
-                        ...p.llmConfig,
-                        tools: {
-                            ...p.llmConfig?.tools,
-                            value: [...currentTools, newTool],
+        ) => {
+            const [revisionId, promptId] = compoundKey.split(":", 2)
+            const payload = params?.payload
+            const source = params?.source ?? (payload ? "builtin" : "inline")
+            const providerKey = params?.providerKey
+            const providerLabel = params?.providerLabel
+            const toolCode = params?.toolCode
+            const toolLabel = params?.toolLabel
+            const newTool = {
+                __id: uuidv4(),
+                __source: source,
+                __provider: providerKey,
+                __providerLabel: providerLabel,
+                __tool: toolCode,
+                __toolLabel: toolLabel,
+                __metadata: hashMetadata({
+                    type: "object",
+                    name: "ToolConfiguration",
+                    description: "Tool configuration",
+                    properties: {
+                        type: {
+                            type: "string",
+                            description: "Type of the tool",
+                        },
+                        name: {
+                            type: "string",
+                            description: "Name of the tool",
+                        },
+                        description: {
+                            type: "string",
+                            description: "Description of the tool",
+                        },
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                type: {
+                                    type: "string",
+                                    enum: ["object", "function"],
+                                },
+                            },
                         },
                     },
-                }
+                    required: ["name", "description", "parameters"],
+                }),
+                value: payload || {
+                    type: "function",
+                    function: {
+                        name: "get_weather",
+                        description: "Get current temperature for a given location.",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                location: {
+                                    type: "string",
+                                    description: "City and country e.g. Bogotá, Colombia",
+                                },
+                            },
+                            required: ["location"],
+                            additionalProperties: false,
+                        },
+                    },
+                },
+            }
+
+            // const revisions = get(revisionListAtom) || []
+            // const variant = revisions.find((r: any) => r.id === revisionId)
+            set(promptsAtomFamily(revisionId), (prev: any[]) => {
+                const list = Array.isArray(prev) ? prev : []
+                const next = list.map((p: any) => {
+                    if (!(p?.__id === promptId || p?.__name === promptId)) return p
+                    const currentTools = p?.llmConfig?.tools?.value || []
+                    return {
+                        ...p,
+                        llmConfig: {
+                            ...p.llmConfig,
+                            tools: {
+                                ...p.llmConfig?.tools,
+                                value: [...currentTools, newTool],
+                            },
+                        },
+                    }
+                })
+                return next
             })
-            return next
-        })
-    }),
+        },
+    ),
 )
