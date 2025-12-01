@@ -370,12 +370,12 @@ const OnboardingWidget = () => {
                 <div ref={widgetRef} style={containerStyle} className="pointer-events-auto">
                     <section
                         className={clsx(
-                            "w-[280px] max-w-[calc(100vw-32px)] rounded-2xl border border-colorBorder bg-white shadow-2xl transition-all duration-300 ease-in-out",
+                            "w-[250px] max-w-[calc(100vw-32px)] rounded-xl border border-solid border-gray-100 bg-white shadow-2xl flex flex-col gap-3",
                             {"select-none": isDragging},
                         )}
                     >
                         <div
-                            className="flex flex-col gap-2 border-b border-colorBorder px-4 pt-3 pb-1 cursor-move"
+                            className="flex flex-col gap-2 border-0 border-b border-solid border-gray-100 px-4 pt-3 pb-1 cursor-move"
                             onPointerDown={startDragging}
                         >
                             <div className="flex items-start justify-between gap-3">
@@ -401,19 +401,18 @@ const OnboardingWidget = () => {
                                     />
                                 </Tooltip>
                             </div>
-                            <div>
-                                <Progress className="" percent={progressPercent} status="active" />
-                            </div>
+
+                            <Progress className="" percent={progressPercent} status="active" />
                         </div>
 
                         <div className="max-h-[400px] overflow-y-auto px-4 pb-3 flex flex-col gap-2">
                             {sections.map((section) => (
-                                <div key={section.id} className="mb-2 last:mb-0">
+                                <div key={section.id} className="mb-0 last:mb-0 flex flex-col gap-1">
                                     <div className="flex items-center gap-1 font-medium text-colorTextSecondary">
                                         <Question size={14} />
                                         {section.title}
                                     </div>
-                                    <div className="flex flex-col gap-2">
+                                    <div className="flex flex-col gap-1">
                                         {section.items.map((item) => {
                                             const isCompleted = Boolean(
                                                 completedMap[getCompletionKey(item)],
@@ -425,9 +424,9 @@ const OnboardingWidget = () => {
                                                     disabled={item.disabled}
                                                     onClick={() => onClickGuideItem(item)}
                                                     className={clsx(
-                                                        "flex w-full items-center gap-2 rounded-xl border px-3 py-1.5 text-left transition hover:shadow",
+                                                        "flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition hover:shadow",
                                                         {
-                                                            "border-colorBorder bg-white hover:border-colorPrimary":
+                                                            "border-colorBorder bg-white hover:border-colorPrimary cursor-pointer":
                                                                 !isCompleted && !item.disabled,
                                                             "border-colorPrimary bg-[#f5f7fa]":
                                                                 isCompleted,
@@ -438,7 +437,7 @@ const OnboardingWidget = () => {
                                                 >
                                                     <span
                                                         className={clsx(
-                                                            "mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border",
+                                                            "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border",
                                                             {
                                                                 "border-colorPrimary bg-colorPrimary text-white":
                                                                     isCompleted,
@@ -448,13 +447,13 @@ const OnboardingWidget = () => {
                                                         )}
                                                     >
                                                         {isCompleted ? (
-                                                            <CheckCircle size={16} weight="fill" />
+                                                            <CheckCircle size={14} weight="fill" />
                                                         ) : (
-                                                            <Circle size={16} />
+                                                            <Circle size={14} />
                                                         )}
                                                     </span>
 
-                                                    <span className="text-sm font-medium text-colorText">
+                                                    <span className="text-xs font-medium text-colorText">
                                                         {item.title}
                                                     </span>
                                                 </button>
