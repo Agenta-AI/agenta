@@ -17,17 +17,12 @@ import {
 import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
 import TemplateFormatSelector from "./TemplateFormatSelector"
 import toolsSpecs from "./tools.specs.json"
+import {TOOL_PROVIDERS_META} from "../../PlaygroundTool/assets"
 
 interface Props {
     variantId: string
     compoundKey: string
     viewOnly?: boolean
-}
-
-const TOOL_PROVIDERS_META: Record<string, {label: string; iconKey?: keyof typeof LLMIconMap}> = {
-    openai: {label: "Open AI", iconKey: "OpenAI"},
-    anthropic: {label: "Anthropic", iconKey: "Anthropic"},
-    google: {label: "Google Gemini", iconKey: "Google Gemini"},
 }
 
 const formatToolLabel = (toolCode: string) =>
@@ -100,8 +95,15 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
     }, [searchTerm])
 
     const handleAddTool = useCallback(
-        (payload?: Record<string, any>) => {
-            addNewTool(payload)
+        (params?: {
+            payload?: Record<string, any>
+            source?: "inline" | "builtin"
+            providerKey?: string
+            providerLabel?: string
+            toolCode?: string
+            toolLabel?: string
+        }) => {
+            addNewTool(params)
             setIsDropdownOpen(false)
             setSearchTerm("")
         },
@@ -124,7 +126,7 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
                     type="primary"
                     size="small"
                     className="shrink-0"
-                    onClick={() => handleAddTool()}
+                    onClick={() => handleAddTool({source: "inline"})}
                 >
                     + Create in-line
                 </Button>
@@ -147,15 +149,24 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
                                 </Typography.Text>
                             </div>
                             <div className="flex flex-col">
-                                {tools.map(({code, label, payload}) => (
+                                {tools.map(({code, label: toolLabel, payload}) => (
                                     <Button
                                         key={code}
                                         type="text"
                                         block
                                         className="flex items-center gap-2 justify-start text-left px-1 hover:!bg-[#F8FAFC]"
-                                        onClick={() => handleAddTool(payload)}
+                                        onClick={() =>
+                                            handleAddTool({
+                                                payload,
+                                                source: "builtin",
+                                                providerKey: key,
+                                                providerLabel: label,
+                                                toolCode: code,
+                                                toolLabel,
+                                            })
+                                        }
                                     >
-                                        <span className="text-[#0F172A]">{label}</span>
+                                        <span className="text-[#0F172A]">{toolLabel}</span>
                                     </Button>
                                 ))}
                             </div>
