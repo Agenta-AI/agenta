@@ -6,7 +6,6 @@ import {Button, Space, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
-import OnboardingTriggerButton from "@/oss/components/Onboarding/components/OnboardingTriggerButton"
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
 import {
     isSpansResponse,
@@ -496,15 +495,6 @@ const TraceHeader = ({
                 </Space>
 
                 <Space>
-                    <OnboardingTriggerButton
-                        triggerPayload={{state: "trace"}}
-                        tooltipTitle="Need help? Start the trace drawer tour."
-                        buttonProps={{
-                            type: "default",
-                            size: "middle",
-                            disabled: !displayTrace,
-                        }}
-                    />
                     <Button
                         icon={<DeleteOutlined />}
                         onClick={() => setIsDeleteModalOpen(true)}

@@ -3,7 +3,7 @@ import {useEffect, useMemo, useState} from "react"
 import {Typography} from "antd"
 import {useRouter} from "next/router"
 import dayjs from "dayjs"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
@@ -29,7 +29,6 @@ import HelpAndSupportSection from "./components/HelpAndSupportSection"
 import useCustomWorkflowConfig from "./modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import ProjectHeaderActions from "./components/ProjectHeaderActions"
 import {useProjectData} from "@/oss/state/project"
-import {isAddAppFromTemplatedAtom} from "./state/atom"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -68,8 +67,7 @@ const AppManagement: React.FC = () => {
     const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const {user} = useProfileData()
     const [templateKey, setTemplateKey] = useState<ServiceType | undefined>(undefined)
-    const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] =
-        useAtom(isAddAppFromTemplatedAtom)
+    const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
     const [isSetupTracingModal, setIsSetupTracingModal] = useState(false)
     const [newApp, setNewApp] = useState("")
     const [searchTerm, setSearchTerm] = useState("")

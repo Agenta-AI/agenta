@@ -3,13 +3,12 @@ import {useEffect, useMemo, useState} from "react"
 import {Database} from "@phosphor-icons/react"
 import {Button, Divider, Space, Tabs, TabsProps, Tag, Typography, Tooltip, Skeleton} from "antd"
 import clsx from "clsx"
-import {getDefaultStore, useAtom, useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {
     isDrawerOpenAtom,
     resetTraceDrawerAtom,
-    traceDrawerActiveTabAtom,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {KeyValuePair} from "@/oss/lib/Types"
@@ -45,7 +44,7 @@ const TraceContent = ({
     const activeTraceData = useAtomValue(spanAgDataAtomFamily(activeTrace))
     const {key, children, spans, invocationIds, ...filteredTrace} = activeTrace || {}
     const classes = useStyles()
-    const [tab, setTab] = useAtom(traceDrawerActiveTabAtom)
+    const [tab, setTab] = useState("overview")
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
     const testsetData = useMemo(() => {
         if (!activeTrace?.key) return [] as {data: KeyValuePair; key: string; id: number}[]
@@ -69,7 +68,7 @@ const TraceContent = ({
             return [
                 {
                     key: "loading",
-                    label: <span id="tour-trace-tab-overview">Overview</span>,
+                    label: "Overview",
                     children: loadingContent,
                 },
             ]
@@ -83,7 +82,7 @@ const TraceContent = ({
             return [
                 {
                     key: "raw_data",
-                    label: <span id="tour-trace-tab-raw">Raw Data</span>,
+                    label: "Raw Data",
                     children: (
                         <AccordionTreePanel
                             label={errorPayload ? "Error" : "Raw Data"}
@@ -99,12 +98,12 @@ const TraceContent = ({
         return [
             {
                 key: "overview",
-                label: <span id="tour-trace-tab-overview">Overview</span>,
+                label: "Overview",
                 children: <OverviewTabItem activeTrace={activeTrace} />,
             },
             {
                 key: "raw_data",
-                label: <span id="tour-trace-tab-raw">Raw Data</span>,
+                label: "Raw Data",
                 children: (
                     <AccordionTreePanel
                         label={"Raw Data"}
@@ -116,7 +115,7 @@ const TraceContent = ({
             },
             {
                 key: "annotations",
-                label: <span id="tour-trace-tab-annotations">Annotations</span>,
+                label: "Annotations",
                 children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
             },
         ]
@@ -128,7 +127,7 @@ const TraceContent = ({
         if (!itemKeys.includes(tab) && itemKeys.length > 0) {
             setTab(itemKeys[0])
         }
-    }, [itemKeys.join("|"), tab, setTab])
+    }, [itemKeys.join("|"), tab])
 
     useEffect(() => {
         return () => {
@@ -176,7 +175,6 @@ const TraceContent = ({
                         tabBarExtraContent={
                             <Space className="mr-4">
                                 <Button
-                                    id="tour-trace-add-testset"
                                     className="flex items-center"
                                     onClick={() => setIsTestsetDrawerOpen(true)}
                                     disabled={!activeTrace?.key}
@@ -186,7 +184,6 @@ const TraceContent = ({
                                 </Button>
 
                                 <AnnotateDrawerButton
-                                    id="tour-trace-annotate-button"
                                     label="Annotate"
                                     data={activeTrace?.annotations || []}
                                     traceSpanIds={{

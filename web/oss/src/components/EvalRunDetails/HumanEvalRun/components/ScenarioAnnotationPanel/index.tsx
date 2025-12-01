@@ -4,7 +4,7 @@ import {Card, Typography} from "antd"
 import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
-import {loadable, selectAtom} from "jotai/utils"
+import {selectAtom, loadable} from "jotai/utils"
 import dynamic from "next/dynamic"
 
 import {
@@ -15,10 +15,10 @@ import {UpdatedMetricsType} from "@/oss/components/pages/observability/drawer/An
 import {isAnnotationCreatedByCurrentUser} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/utils"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {
-    evaluationRunStateFamily,
     getCurrentRunId,
     scenarioStepFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
+import {evaluationRunStateFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {UseEvaluationRunScenarioStepsFetcherResult} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 
 import AnnotateScenarioButton from "../AnnotateScenarioButton"

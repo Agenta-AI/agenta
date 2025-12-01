@@ -20,12 +20,10 @@ export interface InvocationResponseProps {
     scenarioId: string
     stepKey: string
     runId?: string
-    highlightTour?: boolean
 }
 
 export interface InvocationRunProps {
     invStep: any
     scenarioId: string
     runId?: string
-    isPrimary?: boolean
 }

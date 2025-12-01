@@ -6,7 +6,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import NextViewport from "@/oss/components/Onboarding/components/NextViewport"
 import useTraceDrawer from "@/oss/components/pages/observability/drawer/hooks/useTraceDrawer"
 import TraceSidePanel from "@/oss/components/pages/observability/drawer/TraceSidePanel"
 import {useObservability} from "@/oss/state/newObservability"
@@ -16,7 +15,6 @@ import {clearTraceParamAtom} from "@/oss/state/url"
 import {
     isDrawerOpenAtom,
     closeTraceDrawerAtom,
-    TRACE_DRAWER_VIEWPORT_ID,
     setTraceDrawerActiveSpanAtom,
     setTraceDrawerTraceAtom,
 } from "./store/traceDrawerStore"
@@ -50,8 +48,6 @@ const TraceDrawer = () => {
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
     const [, setTraceQueryParam] = useQueryParamState("trace")
     const [, setSpanQueryParam] = useQueryParamState("span")
-
-    const [drawerOpened, setDrawerOpened] = useState(false)
 
     // Initialize selection when drawer payload changes
     const lastPayloadActiveIdRef = useRef<string | undefined>(undefined)
@@ -98,11 +94,7 @@ const TraceDrawer = () => {
 
     const handleAfterOpenChange = useCallback(
         (isOpen: boolean) => {
-            if (isOpen) {
-                setDrawerOpened(true)
-            }
             if (!isOpen) {
-                setDrawerOpened(false)
                 clearTraceParam()
                 setSpanQueryParam(undefined, {shallow: true})
             }
@@ -162,39 +154,39 @@ const TraceDrawer = () => {
             closeOnLayoutClick={false}
             afterOpenChange={handleAfterOpenChange}
             className="[&_.ant-drawer-body]:p-0"
-            zIndex={900}
         >
-            <Spin spinning={Boolean(isLoading)} tip="Loading trace…" size="large">
-                <div className="h-full">
-                    <Splitter className="h-[calc(100%-48px)]">
-                        <Splitter.Panel defaultSize={320} collapsible>
-                            <TraceTree
-                                activeTraceId={activeId}
-                                selected={activeId}
-                                setSelected={setSelected}
-                                enableTour={drawerOpened}
-                            />
-                        </Splitter.Panel>
-                        <Splitter.Panel min={400} defaultSize={640}>
-                            <TraceContent
-                                activeTrace={activeTrace as any}
-                                traceResponse={traceResponse}
-                                error={error as any}
-                                isLoading={isLoading}
-                            />
-                        </Splitter.Panel>
-                        {isAnnotationsSectionOpen && (
-                            <Splitter.Panel min={200} defaultSize={320} collapsible>
-                                <TraceSidePanel
-                                    activeTrace={activeTrace as any}
+            <div className="h-full w-full">
+                <Spin spinning={Boolean(isLoading)} tip="Loading trace…" size="large">
+                    <div className="h-full">
+                        <Splitter className="h-[calc(100%-48px)]">
+                            <Splitter.Panel defaultSize={320} collapsible>
+                                <TraceTree
                                     activeTraceId={activeId}
+                                    selected={activeId}
+                                    setSelected={setSelected}
+                                />
+                            </Splitter.Panel>
+                            <Splitter.Panel min={400} defaultSize={640}>
+                                <TraceContent
+                                    activeTrace={activeTrace as any}
+                                    traceResponse={traceResponse}
+                                    error={error as any}
                                     isLoading={isLoading}
                                 />
                             </Splitter.Panel>
-                        )}
-                    </Splitter>
-                </div>
-            </Spin>
+                            {isAnnotationsSectionOpen && (
+                                <Splitter.Panel min={200} defaultSize={320} collapsible>
+                                    <TraceSidePanel
+                                        activeTrace={activeTrace as any}
+                                        activeTraceId={activeId}
+                                        isLoading={isLoading}
+                                    />
+                                </Splitter.Panel>
+                            )}
+                        </Splitter>
+                    </div>
+                </Spin>
+            </div>
         </EnhancedDrawer>
     )
 }

@@ -94,24 +94,20 @@ const TraceSidePanel = ({
                 <Typography.Text className={classes.collapseItemLabel}>Annotations</Typography.Text>
             ),
             children: annotationsContent,
-            id: "tour-trace-annotation-view",
         },
         {
             key: "details",
             label: <Typography.Text className={classes.collapseItemLabel}>Details</Typography.Text>,
             children: detailsContent,
-            id: "tour-trace-side-panel",
         },
     ]
 
     return (
-        <div className="h-full">
-            <Collapse
-                items={items}
-                defaultActiveKey={["annotations", "details"]}
-                className={classes.collapseContainer}
-            />
-        </div>
+        <Collapse
+            items={items}
+            defaultActiveKey={["annotations", "details"]}
+            className={classes.collapseContainer}
+        />
     )
 }
 

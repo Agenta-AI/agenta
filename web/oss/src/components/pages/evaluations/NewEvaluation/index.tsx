@@ -1,6 +1,6 @@
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, memo, useEffect, useMemo, useRef, useState} from "react"
 
-import {getDefaultStore, useAtom} from "jotai"
+import {getDefaultStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -26,7 +26,6 @@ import {buildEvaluationNavigationUrl} from "../utils"
 
 import {DEFAULT_ADVANCE_SETTINGS} from "./assets/constants"
 import {useStyles} from "./assets/styles"
-import {activeEvaluationPanelAtom} from "./state/activeEvaluationPanelAtom"
 import type {LLMRunRateLimitWithCorrectAnswer, NewEvaluationModalGenericProps} from "./types"
 
 const NewEvaluationModalContent = dynamic(() => import("./Components/NewEvaluationModalContent"), {
@@ -103,7 +102,9 @@ const NewEvaluationModal = <Preview extends boolean = true>({
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
     const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>([])
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
-    const [activePanel, setActivePanel] = useAtom(activeEvaluationPanelAtom)
+    const [activePanel, setActivePanel] = useState<string | null>(
+        isAppScoped ? "variantPanel" : "appPanel",
+    )
     const [evaluationName, setEvaluationName] = useState("")
     const [nameFocused, setNameFocused] = useState(false)
     const [advanceSettings, setAdvanceSettings] =
@@ -123,7 +124,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
         if (!selectedAppId) return
         if (activePanel !== "appPanel") return
         setActivePanel("variantPanel")
-    }, [props.open, isAppScoped, selectedAppId, activePanel, setActivePanel])
+    }, [props.open, isAppScoped, selectedAppId, activePanel])
 
     const handleAppSelection = useCallback(
         (value: string) => {
@@ -163,12 +164,9 @@ const NewEvaluationModal = <Preview extends boolean = true>({
 
     const {secrets} = useVaultSecret()
 
-    const handlePanelChange = useCallback(
-        (key: string | string[]) => {
-            setActivePanel(key as any)
-        },
-        [setActivePanel],
-    )
+    const handlePanelChange = useCallback((key: string | string[]) => {
+        setActivePanel(key as string)
+    }, [])
 
     const afterClose = useCallback(() => {
         props?.afterClose?.()
@@ -181,7 +179,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
         if (!isAppScoped) {
             setSelectedAppId("")
         }
-    }, [props?.afterClose, isAppScoped, setActivePanel])
+    }, [props?.afterClose, isAppScoped])
 
     // Track focus on any input within modal to avoid overriding user typing
     useEffect(() => {
@@ -508,7 +506,6 @@ const NewEvaluationModal = <Preview extends boolean = true>({
             okText="Start Evaluation"
             maskClosable={false}
             width={1200}
-            zIndex={900}
             className={classes.modalContainer}
             confirmLoading={submitLoading}
             afterClose={afterClose}

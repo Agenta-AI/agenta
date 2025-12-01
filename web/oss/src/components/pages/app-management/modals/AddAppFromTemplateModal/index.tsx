@@ -67,7 +67,6 @@ const AddAppFromTemplatedModal = ({
             title={null}
             className={classes.modalContainer}
             width={480}
-            zIndex={900}
             centered
             {...props}
         >
@@ -80,7 +79,6 @@ const AddAppFromTemplatedModal = ({
                     <Text className={classes.label}>Provide the name of the application</Text>
                     <Input
                         placeholder="Enter a name"
-                        id="tour-app-name-input"
                         value={newApp}
                         onChange={(e) => setNewApp(e.target.value)}
                         onKeyDown={handleEnterKeyPress}
@@ -103,7 +101,7 @@ const AddAppFromTemplatedModal = ({
 
                 <div className="space-y-2">
                     <Text className={classes.label}>Choose the prompt type</Text>
-                    <Flex gap={16} id="tour-template-list">
+                    <Flex gap={16}>
                         {noTemplateMessage ? (
                             <Card title="No Templates Available" className={classes.card}>
                                 <Text>{noTemplateMessage}</Text>
@@ -131,7 +129,6 @@ const AddAppFromTemplatedModal = ({
                         type="primary"
                         disabled={!newApp || isError || !templateKey}
                         onClick={handleCreateApp}
-                        id="tour-create-app-button"
                     >
                         Create New Prompt
                     </Button>

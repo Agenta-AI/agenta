@@ -11,14 +11,7 @@ const CustomWorkflowModalContent = dynamic(
 
 const CustomWorkflowModal = (props: CustomWorkflowModalProps) => {
     return (
-        <EnhancedModal
-            title={null}
-            width={480}
-            closeIcon={null}
-            footer={null}
-            zIndex={900}
-            {...props}
-        >
+        <EnhancedModal title={null} width={480} closeIcon={null} footer={null} {...props}>
             <CustomWorkflowModalContent {...props} />
         </EnhancedModal>
     )

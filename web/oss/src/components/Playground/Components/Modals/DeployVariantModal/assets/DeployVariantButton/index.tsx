@@ -1,14 +1,16 @@
-import {cloneElement, isValidElement, useMemo} from "react"
+import {cloneElement, isValidElement, useMemo, useState} from "react"
 
 import {CloudArrowUp} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
 import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
-
-import {openDeployVariantModalAtom} from "../../store/deployVariantModalStore"
+import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 
 import {DeployVariantButtonProps} from "./types"
+
+const DeployVariantModal = dynamic(() => import("../.."), {ssr: false})
 
 const DeployVariantButton = ({
     variantId,
@@ -18,31 +20,28 @@ const DeployVariantButton = ({
     children,
     ...props
 }: DeployVariantButtonProps) => {
-    const openDeployModal = useSetAtom(openDeployVariantModalAtom)
+    const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
+    const {
+        environments: _environments,
+        mutate: mutateEnv,
+        isEnvironmentsLoading,
+    } = useEnvironments()
 
-    const revisionKey = revisionId ?? variantId ?? ""
-    const variant = useAtomValue(variantByRevisionIdAtomFamily(revisionKey)) as any
+    // Focused read for the specific revision's metadata
+    const variant = useAtomValue(variantByRevisionIdAtomFamily(revisionId)) as any
 
-    const payload = useMemo(() => {
-        const inferredRevisionId = revisionId ?? variant?.id ?? null
-        const inferredParentVariantId =
-            typeof variant?.variantId === "string" ? variant.variantId : (variantId ?? null)
-
-        const variantName = variant?.variantName ?? variant?.name ?? label ?? "Variant"
-        const revision = variant?.revisionNumber ?? variant?.revision ?? ""
-
+    const {environments, variantName, revision} = useMemo(() => {
         return {
-            parentVariantId: inferredParentVariantId ?? null,
-            revisionId: inferredRevisionId ?? null,
-            variantName,
-            revision,
-            mutate: undefined,
+            variantName: variant?.variantName || "",
+            revision: (variant as any)?.revisionNumber ?? (variant as any)?.revision ?? "",
+            environments: _environments,
         }
-    }, [variant, variantId, revisionId, label])
+    }, [variant, _environments])
 
-    const handleOpen = () => {
-        if (!payload.revisionId && !payload.parentVariantId) return
-        openDeployModal(payload as any)
+    const onSuccess = async () => {
+        // Just refetch environments - the revisionListAtom will automatically update
+        // when the deployment state changes through SWR revalidation
+        await mutateEnv()
     }
 
     return (
@@ -53,19 +52,33 @@ const DeployVariantButton = ({
                         onClick: () => void
                     }>,
                     {
-                        onClick: handleOpen,
+                        onClick: () => {
+                            setIsDeployModalOpen(true)
+                        },
                     },
                 )
             ) : (
                 <EnhancedButton
                     type="text"
                     icon={icon && <CloudArrowUp size={14} />}
-                    onClick={handleOpen}
+                    onClick={() => setIsDeployModalOpen(true)}
                     tooltipProps={icon && !label ? {title: "Deploy"} : {}}
                     label={label}
                     {...props}
                 />
             )}
+
+            <DeployVariantModal
+                open={isDeployModalOpen}
+                onCancel={() => setIsDeployModalOpen(false)}
+                variantId={variantId}
+                revisionId={revisionId}
+                environments={environments}
+                mutate={onSuccess}
+                variantName={variantName}
+                revision={revision}
+                isLoading={isEnvironmentsLoading}
+            />
         </>
     )
 }

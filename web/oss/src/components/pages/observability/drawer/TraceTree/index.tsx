@@ -93,13 +93,7 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
     )
 }
 
-const TraceTree: React.FC<TraceTreeProps> = ({
-    activeTrace: active,
-    activeTraceId,
-    selected,
-    setSelected,
-    enableTour = false,
-}) => {
+const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: TraceTreeProps) => {
     const classes = useStyles()
     const [searchValue, setSearchValue] = useState("")
 
@@ -192,7 +186,6 @@ const TraceTree: React.FC<TraceTreeProps> = ({
                 settings={traceTreeSettings}
                 selectedKey={selected}
                 onSelect={setSelected}
-                enableTour={enableTour}
             />
         </div>
     )
