@@ -14,17 +14,6 @@
 </div>
 
 
----
-
-<div align="center">
-
-<strong>We're live today on Product Hunt and would appreciate your support!</strong>
-<br /><br />
-<a href="https://www.producthunt.com/products/agenta?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-agenta" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1031958&theme=light&t=1764327133736" alt="Agenta - Open&#0045;source&#0032;prompt&#0032;management&#0032;&#0038;&#0032;evals&#0032;for&#0032;AI&#0032;teams | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
-</div>
-
----
-
   <br />
       <div align="center" >
         <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
