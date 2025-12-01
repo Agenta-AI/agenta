@@ -230,13 +230,18 @@ evaluators = [
                             "type": "object",
                             "properties": {
                                 "score": {
-                                    "type": "boolean",
+                                    "type": "number",
                                     "description": "The grade results",
+                                    "minimum": 0,
+                                    "maximum": 10,
                                 }
                             },
-                            "required": ["score"],
-                            "strict": True,
+                            "required": [
+                                "score",
+                            ],
+                            "additionalProperties": False,
                         },
+                        "strict": True,
                     },
                     "version": "4",
                 },
@@ -266,12 +271,15 @@ evaluators = [
                             "properties": {
                                 "score": {
                                     "type": "boolean",
-                                    "description": "The hallucination detection result",
+                                    "description": "The grade results",
                                 }
                             },
-                            "required": ["score"],
-                            "strict": True,
+                            "required": [
+                                "score",
+                            ],
+                            "additionalProperties": False,
                         },
+                        "strict": True,
                     },
                     "version": "4",
                 },
@@ -340,13 +348,18 @@ evaluators = [
                         "type": "object",
                         "properties": {
                             "score": {
-                                "type": "boolean",
+                                "type": "number",
                                 "description": "The grade results",
+                                "minimum": 0,
+                                "maximum": 10,
                             }
                         },
-                        "required": ["score"],
-                        "strict": True,
+                        "required": [
+                            "score",
+                        ],
+                        "additionalProperties": False,
                     },
+                    "strict": True,
                 },
                 "type": "llm_response_schema",
                 "advanced": False,
