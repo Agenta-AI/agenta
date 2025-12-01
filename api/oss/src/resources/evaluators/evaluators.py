@@ -203,7 +203,7 @@ evaluators = [
     {
         "name": "LLM-as-a-judge",
         "key": "auto_ai_critique",
-        "direct_use": False,
+        "direct_use": True,
         "requires_llm_api_keys": True,
         "settings_presets": [
             {
@@ -221,6 +221,7 @@ evaluators = [
                         },
                     ],
                     "model": "gpt-4o-mini",
+                    "template_format": "curly",
                     "response_type": "json_schema",
                     "json_schema": {
                         "name": "schema",
@@ -323,6 +324,13 @@ evaluators = [
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
                 "description": "The LLM model to use for the evaluation",
             },
+            "template_format": {
+                "label": "Template Format",
+                "type": "hidden",
+                "default": "curly",
+                "advanced": True,
+                "description": "Formatting style for prompt variables",
+            },
             "response_type": {
                 "label": "Response Type",
                 "default": "json_schema",
@@ -361,6 +369,8 @@ evaluators = [
             },
         },
         "description": "LLM-as-a-judge uses a configurable prompt template that takes the output—and optionally inputs or data from the testcase such as correct answer—to evaluate the generated output.",
+        "requires_testcase": "always",
+        "requires_trace": "always",
         "oss": True,
         "tags": ["ai_llm", "functional"],
     },

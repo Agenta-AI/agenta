@@ -5,6 +5,8 @@ from oss.src.services import db_manager
 
 from oss.src.models.db_models import EvaluatorConfigDB
 from oss.src.models.converters import evaluator_config_db_to_pydantic
+import copy
+
 from oss.src.resources.evaluators.evaluators import get_all_evaluators
 from oss.src.models.api.evaluation_model import LegacyEvaluator, EvaluatorConfig
 
@@ -132,15 +134,18 @@ async def create_ready_to_use_evaluators(project_id: str):
 
     for evaluator in direct_use_evaluators:
         settings_values = {
-            setting_name: setting.get("default")
+            setting_name: copy.deepcopy(setting.get("default"))
             for setting_name, setting in evaluator.settings_template.items()
-            if setting.get("ground_truth_key") is True and setting.get("default", "")
+            if "default" in setting
         }
 
         for setting_name, default_value in settings_values.items():
-            assert default_value != "", (
-                f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
-            )
+            if evaluator.settings_template.get(setting_name, {}).get(
+                "ground_truth_key"
+            ):
+                assert default_value != "", (
+                    f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
+                )
 
         assert hasattr(evaluator, "name") and hasattr(evaluator, "key"), (
             f"'name' and 'key' does not exist in the evaluator: {evaluator}"
