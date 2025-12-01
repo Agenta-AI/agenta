@@ -126,6 +126,18 @@ const RunMetricCellContent = memo(
             return <Typography.Text>—</Typography.Text>
         }
 
+        // Check if metric is unavailable for this run BEFORE checking loading state
+        // This prevents cells from being stuck in loading when the metric simply doesn't exist for this run
+        const isUnavailable =
+            descriptor.kind === "evaluator" &&
+            (descriptor.metricPathsByRunId || descriptor.stepKeysByRunId) &&
+            !metricPathForSelection &&
+            !stepKeyForSelection
+
+        if (isUnavailable) {
+            return <Typography.Text type="secondary">—</Typography.Text>
+        }
+
         if (selection.state === "loading") {
             return <RunMetricCellSkeleton />
         }
@@ -134,11 +146,6 @@ const RunMetricCellContent = memo(
         }
 
         const stats = selection.stats as BasicStats | undefined
-        const isUnavailable =
-            descriptor.kind === "evaluator" &&
-            (descriptor.metricPathsByRunId || descriptor.stepKeysByRunId) &&
-            !metricPathForSelection &&
-            !stepKeyForSelection
 
         let display =
             descriptor.kind === "invocation"
@@ -152,13 +159,7 @@ const RunMetricCellContent = memo(
         let fallback: ReactNode = stats ?? display
         let customChildren: ReactNode | undefined
 
-        if (isUnavailable) {
-            display = ""
-            highlight = display
-            fallback = undefined
-        }
-
-        if (descriptor.kind === "evaluator" && !isUnavailable) {
+        if (descriptor.kind === "evaluator") {
             const frequencyEntries = buildFrequencyEntries(stats)
             if (frequencyEntries.length > 0) {
                 const total = frequencyEntries.reduce((acc, entry) => acc + entry.count, 0)
