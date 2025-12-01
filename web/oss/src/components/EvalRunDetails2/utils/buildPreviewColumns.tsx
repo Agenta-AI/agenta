@@ -292,7 +292,7 @@ export function buildPreviewColumns<RowType>({
                     const tooltipLabel = formatStatusLabel(statusRaw)
 
                     return (
-                        <div className="flex h-full min-h-[54px] w-full items-center justify-start">
+                        <div className="flex h-full min-h-[54px] w-full items-start justify-start pt-4">
                             <Tooltip title={tooltipLabel} placement="topLeft">
                                 <span className="inline-flex items-center gap-2 text-xs font-medium">
                                     <span
