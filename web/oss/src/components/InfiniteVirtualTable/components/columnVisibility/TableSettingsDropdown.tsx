@@ -1,6 +1,6 @@
 import {type ReactNode, useState, useMemo, useCallback} from "react"
 
-import {DownloadSimple, Eye, GearSix} from "@phosphor-icons/react"
+import {DownloadSimple, Eye, GearSix, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Popover, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 
@@ -10,6 +10,9 @@ export interface TableSettingsDropdownProps<RowType extends object> {
     controls: ColumnVisibilityState<RowType>
     onExport?: () => void
     isExporting?: boolean
+    onDelete?: () => void
+    deleteDisabled?: boolean
+    deleteLabel?: string
     renderColumnVisibilityContent: (
         controls: ColumnVisibilityState<RowType>,
         close: () => void,
@@ -25,6 +28,9 @@ const TableSettingsDropdown = <RowType extends object>({
     controls,
     onExport,
     isExporting,
+    onDelete,
+    deleteDisabled,
+    deleteLabel = "Delete",
     renderColumnVisibilityContent,
 }: TableSettingsDropdownProps<RowType>) => {
     const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -72,8 +78,25 @@ const TableSettingsDropdown = <RowType extends object>({
             })
         }
 
+        // Delete option (if enabled)
+        if (onDelete) {
+            items.push({type: "divider"})
+            items.push({
+                key: "delete",
+                label: deleteLabel,
+                icon: <Trash size={16} />,
+                disabled: deleteDisabled,
+                danger: true,
+                onClick: (e) => {
+                    e.domEvent.stopPropagation()
+                    onDelete()
+                    setDropdownOpen(false)
+                },
+            })
+        }
+
         return items
-    }, [handleOpenColumnVisibility, isExporting, onExport])
+    }, [deleteDisabled, deleteLabel, handleOpenColumnVisibility, isExporting, onDelete, onExport])
 
     return (
         <Popover

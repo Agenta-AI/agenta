@@ -513,6 +513,9 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                         />
                         {hasReferenceControls ? (
                             <FieldGrid>
+                                {/* Order follows evaluation run graph: Input → Application → Evaluators */}
+                                {/* For auto/human: Testset → App → Variant → Evaluators */}
+                                {/* For online: Query → Evaluators */}
                                 {shouldShowTestsetSection ? (
                                     <Section title="Testsets">
                                         <Select
@@ -533,28 +536,6 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                                                     ? "Add testset IDs"
                                                     : "Select a project first"
                                             }
-                                        />
-                                    </Section>
-                                ) : null}
-                                {shouldShowEvaluatorSection ? (
-                                    <Section title="Evaluators">
-                                        <Select
-                                            mode="tags"
-                                            className={chipSelectClassName}
-                                            value={draftReferences.evaluator}
-                                            options={filterOptions.evaluatorOptions}
-                                            loading={
-                                                shouldShowEvaluatorSection &&
-                                                filterOptions.evaluatorLoading
-                                            }
-                                            tagRender={referenceTagRenderers.evaluator}
-                                            onChange={(values) =>
-                                                handleReferenceChange(
-                                                    "evaluator",
-                                                    values as string[],
-                                                )
-                                            }
-                                            placeholder="Add evaluator slugs"
                                         />
                                     </Section>
                                 ) : null}
@@ -625,6 +606,28 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                                                 </Select.Option>
                                             ))}
                                         </Select>
+                                    </Section>
+                                ) : null}
+                                {shouldShowEvaluatorSection ? (
+                                    <Section title="Evaluators">
+                                        <Select
+                                            mode="tags"
+                                            className={chipSelectClassName}
+                                            value={draftReferences.evaluator}
+                                            options={filterOptions.evaluatorOptions}
+                                            loading={
+                                                shouldShowEvaluatorSection &&
+                                                filterOptions.evaluatorLoading
+                                            }
+                                            tagRender={referenceTagRenderers.evaluator}
+                                            onChange={(values) =>
+                                                handleReferenceChange(
+                                                    "evaluator",
+                                                    values as string[],
+                                                )
+                                            }
+                                            placeholder="Add evaluator slugs"
+                                        />
                                     </Section>
                                 ) : null}
                             </FieldGrid>

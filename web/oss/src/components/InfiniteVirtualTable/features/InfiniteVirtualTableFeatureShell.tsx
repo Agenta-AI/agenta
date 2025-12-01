@@ -76,6 +76,15 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      * Default: false (gear icon opens column visibility popover directly)
      */
     useSettingsDropdown?: boolean
+    /**
+     * Delete action configuration for the settings dropdown.
+     * Only used when useSettingsDropdown is true.
+     */
+    settingsDropdownDelete?: {
+        onDelete: () => void
+        disabled?: boolean
+        label?: string
+    }
     keyboardShortcuts?: InfiniteVirtualTableProps<Row>["keyboardShortcuts"]
 }
 
@@ -143,6 +152,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         renderExportButton,
         exportOptions,
         useSettingsDropdown = false,
+        settingsDropdownDelete,
         keyboardShortcuts,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
@@ -263,6 +273,9 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                 controls={controls}
                 onExport={enableExport ? exportHandler : undefined}
                 isExporting={isExporting}
+                onDelete={settingsDropdownDelete?.onDelete}
+                deleteDisabled={settingsDropdownDelete?.disabled}
+                deleteLabel={settingsDropdownDelete?.label}
                 renderColumnVisibilityContent={(ctrls, close) =>
                     columnVisibilityRenderer(ctrls, close, {
                         scopeId,
@@ -272,7 +285,14 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                 }
             />
         ),
-        [columnVisibilityRenderer, enableExport, exportHandler, isExporting, scopeId],
+        [
+            columnVisibilityRenderer,
+            enableExport,
+            exportHandler,
+            isExporting,
+            scopeId,
+            settingsDropdownDelete,
+        ],
     )
 
     const columnVisibilityConfig = useMemo(
