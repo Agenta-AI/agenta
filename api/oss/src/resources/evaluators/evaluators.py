@@ -225,16 +225,20 @@ evaluators = [
                     "json_schema": {
                         "name": "schema",
                         "schema": {
-                            "type": "object",
                             "title": "extract",
                             "description": "Extract information from the user's response.",
+                            "type": "object",
                             "properties": {
                                 "score": {
                                     "type": "number",
                                     "description": "The grade results",
+                                    "minimum": 0,
+                                    "maximum": 10,
                                 }
                             },
-                            "required": ["score"],
+                            "required": [
+                                "score",
+                            ],
                             "additionalProperties": False,
                         },
                         "strict": True,
@@ -261,16 +265,18 @@ evaluators = [
                     "json_schema": {
                         "name": "schema",
                         "schema": {
-                            "type": "object",
                             "title": "extract",
                             "description": "Extract information from the user's response.",
+                            "type": "object",
                             "properties": {
                                 "score": {
                                     "type": "boolean",
-                                    "description": "The hallucination detection result",
+                                    "description": "The grade results",
                                 }
                             },
-                            "required": ["score"],
+                            "required": [
+                                "score",
+                            ],
                             "additionalProperties": False,
                         },
                         "strict": True,
@@ -337,16 +343,20 @@ evaluators = [
                 "default": {
                     "name": "schema",
                     "schema": {
-                        "type": "object",
                         "title": "extract",
                         "description": "Extract information from the user's response.",
+                        "type": "object",
                         "properties": {
                             "score": {
                                 "type": "number",
                                 "description": "The grade results",
+                                "minimum": 0,
+                                "maximum": 10,
                             }
                         },
-                        "required": ["score"],
+                        "required": [
+                            "score",
+                        ],
                         "additionalProperties": False,
                     },
                     "strict": True,
