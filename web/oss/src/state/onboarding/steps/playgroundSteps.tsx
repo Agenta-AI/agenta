@@ -107,7 +107,7 @@ export const PLAYGROUND_CHAT_TOUR: TourDefinition[number]["steps"] = [
             </span>
         ),
         selector: "#tour-playground-run-all-button",
-        side: "bottom",
+        side: "left",
         showControls: true,
         showSkip: true,
         pointerPadding: 12,
