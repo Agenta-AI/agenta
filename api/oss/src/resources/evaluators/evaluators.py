@@ -271,7 +271,7 @@ evaluators = [
                             "properties": {
                                 "score": {
                                     "type": "boolean",
-                                    "description": "The grade results",
+                                    "description": "The hallucination detection result",
                                 }
                             },
                             "required": [
