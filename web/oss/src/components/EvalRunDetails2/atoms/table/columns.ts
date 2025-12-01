@@ -6,12 +6,7 @@ import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 import {GeneralAutoEvalMetricColumns, GeneralHumanEvalMetricColumns} from "../../constants/table"
 import {previewEvalTypeAtom} from "../../state/evalType"
-import {
-    titleize,
-    formatReferenceLabel,
-    humanizeIdentifier,
-    humanizeStepKey,
-} from "../../utils/labelHelpers"
+import {titleize, formatReferenceLabel, humanizeStepKey} from "../../utils/labelHelpers"
 
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "./evaluators"
 import {evaluationRunQueryAtomFamily} from "./run"
@@ -20,7 +15,6 @@ import type {
     EvaluationTableColumn,
     EvaluationTableColumnGroup,
     EvaluationTableColumnsResult,
-    EvaluatorDefinition,
 } from "./types"
 
 interface RawMapping {
@@ -333,6 +327,18 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
         const mappings = Array.isArray(runData.camelRun?.data?.mappings)
             ? runData.camelRun.data.mappings
             : []
+
+        console.debug("[columns.ts] Building columns from mappings", {
+            runId,
+            mappingsCount: mappings.length,
+            mappings: mappings.map((m: any) => ({
+                stepKey: m?.step?.key,
+                stepPath: m?.step?.path,
+                columnKind: m?.column?.kind,
+                columnName: m?.column?.name,
+            })),
+            steps: Object.keys(runData.runIndex.steps ?? {}),
+        })
 
         const counters: Record<"input" | "invocation" | "annotation", number> = {
             input: 0,

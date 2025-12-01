@@ -178,6 +178,9 @@ const buildMappings = (
     }[] = []
     const pushedTestsetColumns = new Set<string>()
 
+    // First, extract actual columns from the testset to validate against
+    const testsetColumns = testset ? new Set(extractColumnsFromTestset(testset)) : new Set<string>()
+
     // Generate input mappings aligned with Playground (schema + initial prompt vars for custom; prompt tokens for non-custom)
     {
         const store = getDefaultStore()
@@ -195,8 +198,11 @@ const buildMappings = (
             variableNames = store.get(stablePromptVariablesAtomFamily(revision.id)) || []
         }
 
+        // Only add schema-derived columns if they actually exist in the testset
         variableNames.forEach((name) => {
             if (!name || typeof name !== "string") return
+            // Only add if the testset actually has this column
+            if (testsetColumns.size > 0 && !testsetColumns.has(name)) return
             pushedTestsetColumns.add(name)
             mappings.push({
                 column: {kind: "testset", name},
@@ -205,7 +211,12 @@ const buildMappings = (
         })
 
         const req = spec ? (getRequestSchema as any)(spec, {routePath}) : undefined
-        if (req?.properties?.messages && !pushedTestsetColumns.has("messages")) {
+        // Only add messages column if the testset actually has it
+        if (
+            req?.properties?.messages &&
+            !pushedTestsetColumns.has("messages") &&
+            testsetColumns.has("messages")
+        ) {
             pushedTestsetColumns.add("messages")
             mappings.push({
                 column: {kind: "testset", name: "messages"},
@@ -214,12 +225,12 @@ const buildMappings = (
         }
     }
 
-    if (testset && pushedTestsetColumns.size === 0) {
+    // Always add testset columns that weren't already added from schema
+    if (testset) {
         const normalizedCorrectAnswer = (correctAnswerColumn || "")
             .replace(/[\W_]/g, "")
             .toLowerCase()
-        const derivedColumns = extractColumnsFromTestset(testset)
-        derivedColumns.forEach((name) => {
+        testsetColumns.forEach((name) => {
             if (!name || typeof name !== "string") return
             const normalized = name.trim()
             if (!normalized || normalized.startsWith("__")) return
