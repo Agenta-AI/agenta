@@ -72,14 +72,11 @@ def query_run_references(
 
 def _make_run_flags(
     run: Optional[Union[EvaluationRun, EvaluationRunEdit]] = None,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[EvaluationRunFlags]:
     flags = EvaluationRunFlags()
 
     if not run or not run.data or not run.data.steps:
-        return flags.model_dump(
-            mode="json",
-            exclude_none=True,
-        )
+        return flags
 
     flags = run.flags or EvaluationRunFlags()
 
@@ -114,19 +111,16 @@ def _make_run_flags(
             if _step.origin == "auto":
                 flags.has_auto = True
 
-    return flags.model_dump(
-        mode="json",
-        exclude_none=True,
-    )
+    return flags
 
 
 def create_run_flags(
     run: Optional[EvaluationRun] = None,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[EvaluationRunFlags]:
     return _make_run_flags(run)
 
 
 def edit_run_flags(
     run: Optional[EvaluationRunEdit] = None,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[EvaluationRunFlags]:
     return _make_run_flags(run)

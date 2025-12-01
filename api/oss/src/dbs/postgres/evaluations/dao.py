@@ -99,7 +99,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
         run_references = create_run_references(_run)
 
-        run_flags = create_run_flags(_run)
+        _run.flags = create_run_flags(_run)
 
         run_dbe = create_dbe_from_dto(
             DBE=EvaluationRunDBE,
@@ -107,7 +107,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             dto=_run,
             #
             references=run_references,
-            flags=run_flags,
         )
 
         if _run.data:
@@ -157,7 +156,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         for _run in _runs:
             run_references = create_run_references(_run)
 
-            run_flags = create_run_flags(_run)
+            _run.flags = create_run_flags(_run)
 
             run_dbe = create_dbe_from_dto(
                 DBE=EvaluationRunDBE,
@@ -165,7 +164,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 dto=_run,
                 #
                 references=run_references,
-                flags=run_flags,
             )
 
             if _run.data:
@@ -296,7 +294,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             run_references = edit_run_references(run)
 
-            run_flags = edit_run_flags(run)
+            run.flags = edit_run_flags(run)
 
             run_dbe = edit_dbe_from_dto(
                 dbe=run_dbe,
@@ -305,7 +303,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 updated_by_id=user_id,
                 #
                 references=run_references,
-                flags=run_flags,
             )
 
             if run.data:
@@ -367,7 +364,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 run_references = edit_run_references(run)
 
-                run_flags = edit_run_flags(run)
+                run.flags = edit_run_flags(run)
 
                 run_dbe = edit_dbe_from_dto(
                     dbe=run_dbe,
@@ -376,7 +373,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     updated_by_id=user_id,
                     #
                     references=run_references,
-                    flags=run_flags,
                 )
 
                 if run.data:
