@@ -225,18 +225,19 @@ evaluators = [
                     "json_schema": {
                         "name": "schema",
                         "schema": {
+                            "type": "object",
                             "title": "extract",
                             "description": "Extract information from the user's response.",
-                            "type": "object",
                             "properties": {
                                 "score": {
-                                    "type": "boolean",
+                                    "type": "numeric/continuous",
                                     "description": "The grade results",
                                 }
                             },
                             "required": ["score"],
-                            "strict": True,
+                            "additionalProperties": False,
                         },
+                        "strict": True,
                     },
                     "version": "4",
                 },
@@ -260,9 +261,9 @@ evaluators = [
                     "json_schema": {
                         "name": "schema",
                         "schema": {
+                            "type": "object",
                             "title": "extract",
                             "description": "Extract information from the user's response.",
-                            "type": "object",
                             "properties": {
                                 "score": {
                                     "type": "boolean",
@@ -270,8 +271,9 @@ evaluators = [
                                 }
                             },
                             "required": ["score"],
-                            "strict": True,
+                            "additionalProperties": False,
                         },
+                        "strict": True,
                     },
                     "version": "4",
                 },
@@ -335,18 +337,19 @@ evaluators = [
                 "default": {
                     "name": "schema",
                     "schema": {
+                        "type": "object",
                         "title": "extract",
                         "description": "Extract information from the user's response.",
-                        "type": "object",
                         "properties": {
                             "score": {
-                                "type": "boolean",
+                                "type": "numeric/continuous",
                                 "description": "The grade results",
                             }
                         },
                         "required": ["score"],
-                        "strict": True,
+                        "additionalProperties": False,
                     },
+                    "strict": True,
                 },
                 "type": "llm_response_schema",
                 "advanced": False,
