@@ -6,6 +6,7 @@ import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {
     previewRunMetricStatsSelectorFamily,
+    temporalMetricStatsAtTimestampSelectorFamily,
     type RunLevelMetricSelection,
 } from "@/oss/components/Evaluations/atoms/runMetrics"
 import {
@@ -268,6 +269,8 @@ const MetricPopoverContent = ({
     shouldLoad,
     showScenarioValue = true,
     prefetchedStats,
+    evaluationType,
+    scenarioTimestamp,
 }: {
     runId?: string
     metricKey?: string
@@ -280,7 +283,13 @@ const MetricPopoverContent = ({
     shouldLoad: boolean
     showScenarioValue?: boolean
     prefetchedStats?: BasicStats
+    /** For online evaluations, use temporal metrics instead of run-level stats */
+    evaluationType?: "auto" | "human" | "online" | "custom"
+    /** Timestamp for the scenario row (used for online evaluations to get temporal stats) */
+    scenarioTimestamp?: string | number | null
 }) => {
+    const isOnlineEvaluation = evaluationType === "online"
+
     const prefetchedSelectionAtom = useMemo(
         () =>
             prefetchedStats
@@ -293,20 +302,40 @@ const MetricPopoverContent = ({
         [prefetchedStats, metricKey, metricPath],
     )
     const effectiveShouldLoad = shouldLoad || Boolean(prefetchedStats)
-    const selectionAtom = useMemo(
-        () =>
-            prefetchedSelectionAtom
-                ? prefetchedSelectionAtom
-                : runId && effectiveShouldLoad
-                  ? previewRunMetricStatsSelectorFamily({
-                        runId,
-                        metricKey,
-                        metricPath,
-                        stepKey,
-                    })
-                  : idleRunMetricSelectionAtom,
-        [prefetchedSelectionAtom, runId, metricKey, metricPath, stepKey, effectiveShouldLoad],
-    )
+    const selectionAtom = useMemo(() => {
+        if (prefetchedSelectionAtom) {
+            return prefetchedSelectionAtom
+        }
+        if (!runId || !effectiveShouldLoad) {
+            return idleRunMetricSelectionAtom
+        }
+        // For online evaluations, use temporal stats at the scenario's timestamp
+        if (isOnlineEvaluation) {
+            return temporalMetricStatsAtTimestampSelectorFamily({
+                runId,
+                metricKey,
+                metricPath,
+                stepKey,
+                timestamp: scenarioTimestamp,
+            })
+        }
+        // For other evaluation types, use run-level stats
+        return previewRunMetricStatsSelectorFamily({
+            runId,
+            metricKey,
+            metricPath,
+            stepKey,
+        })
+    }, [
+        prefetchedSelectionAtom,
+        runId,
+        metricKey,
+        metricPath,
+        stepKey,
+        effectiveShouldLoad,
+        isOnlineEvaluation,
+        scenarioTimestamp,
+    ])
 
     const selection = useAtomValueWithSchedule(selectionAtom, {priority: LOW_PRIORITY})
     const loading = selection.state === "loading"
@@ -641,6 +670,8 @@ const MetricDetailsPreviewPopover = memo(
         stepKey,
         showScenarioValue,
         prefetchedStats,
+        evaluationType,
+        scenarioTimestamp,
         children,
     }: {
         runId?: string
@@ -653,6 +684,10 @@ const MetricDetailsPreviewPopover = memo(
         stepKey?: string
         showScenarioValue?: boolean
         prefetchedStats?: BasicStats
+        /** For online evaluations, use temporal metrics instead of run-level stats */
+        evaluationType?: "auto" | "human" | "online" | "custom"
+        /** Timestamp for the scenario row (used for online evaluations to get temporal stats) */
+        scenarioTimestamp?: string | number | null
         children: React.ReactNode
     }) => {
         const [shouldLoad, setShouldLoad] = useState(false)
@@ -680,6 +715,8 @@ const MetricDetailsPreviewPopover = memo(
                         shouldLoad={shouldLoad}
                         showScenarioValue={showScenarioValue}
                         prefetchedStats={prefetchedStats}
+                        evaluationType={evaluationType}
+                        scenarioTimestamp={scenarioTimestamp}
                     />
                 }
             >
