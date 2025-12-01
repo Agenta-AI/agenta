@@ -802,7 +802,7 @@ class EvaluationsService:
         timestamps = metrics.timestamps
         interval = metrics.interval
 
-        log.debug(
+        log.info(
             "[METRICS] [REFRESH]",
             run_id=run_id,
             run_ids=run_ids,
