@@ -1,7 +1,8 @@
 import type {Key, MouseEvent} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {Button, Tooltip} from "antd"
+import {useQueryClient} from "@tanstack/react-query"
+import {Button, Grid, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
@@ -20,7 +21,7 @@ import useTableExport, {
 
 import {shouldIgnoreRowClick} from "../../actions/navigationActions"
 import {evaluationRunsTableFetchEnabledAtom} from "../../atoms/context"
-import {evaluationRunsDatasetStore} from "../../atoms/tableStore"
+import {evaluationRunsDatasetStore, EVALUATION_RUNS_QUERY_KEY_ROOT} from "../../atoms/tableStore"
 import {
     evaluationRunsDeleteModalOpenAtom,
     evaluationRunsCreateModalOpenAtom,
@@ -190,6 +191,11 @@ const EvaluationRunsTableActive = ({
     const setDeleteModalOpen = useSetAtom(evaluationRunsDeleteModalOpenAtom)
     const selectionSnapshot = useAtomValue(evaluationRunsSelectionSnapshotAtom)
     const store = useStore()
+    const queryClient = useQueryClient()
+
+    // Responsive: use settings dropdown on narrow screens (< lg breakpoint)
+    const screens = Grid.useBreakpoint()
+    const isNarrowScreen = !screens.lg
     const tableExport = useTableExport<EvaluationRunTableRow>()
     const columnsRef = useRef<ReturnType<typeof useEvaluationRunsColumns> | null>(null)
 
@@ -277,11 +283,13 @@ const EvaluationRunsTableActive = ({
         setIsCreateModalOpen(false)
     }, [setIsCreateModalOpen])
 
-    const handleCreateSuccess = useCallback(() => {
+    const handleCreateSuccess = useCallback(async () => {
         setIsCreateModalOpen(false)
+        // Invalidate the query cache to force a refetch
+        await queryClient.invalidateQueries({queryKey: EVALUATION_RUNS_QUERY_KEY_ROOT})
         resetPages()
         setMetaUpdater((prev) => ({...prev}))
-    }, [resetPages, setIsCreateModalOpen, setMetaUpdater])
+    }, [queryClient, resetPages, setIsCreateModalOpen, setMetaUpdater])
 
     useEffect(() => {
         if (contextEvaluationKind !== "all") {
@@ -390,7 +398,48 @@ const EvaluationRunsTableActive = ({
         () => (createSupported ? <EvaluationRunsCreateButton /> : null),
         [createSupported],
     )
-    const deleteButton = useMemo(() => <EvaluationRunsDeleteButton />, [])
+    // On wide screens, show delete button in header; on narrow screens, it's in the dropdown
+    const deleteButton = useMemo(
+        () => (isNarrowScreen ? null : <EvaluationRunsDeleteButton />),
+        [isNarrowScreen],
+    )
+
+    // Delete action config for the settings dropdown (narrow screens only)
+    const settingsDropdownDelete = useMemo(
+        () =>
+            isNarrowScreen
+                ? {
+                      onDelete: () => setDeleteModalOpen(true),
+                      disabled: !selectionSnapshot.hasSelection,
+                      label: "Delete selected",
+                  }
+                : undefined,
+        [isNarrowScreen, selectionSnapshot.hasSelection, setDeleteModalOpen],
+    )
+
+    // Export button for wide screens (on narrow screens, export is in the dropdown)
+    const renderExportButton = useCallback(
+        ({onExport, loading}: {onExport: () => void; loading: boolean}) => {
+            if (isNarrowScreen) return null
+            const disabled = !selectionSnapshot.hasSelection
+            const tooltip = disabled ? "Select runs to export" : undefined
+            return (
+                <Tooltip title={tooltip}>
+                    <span>
+                        <Button
+                            className="evaluation-runs-table__export"
+                            disabled={disabled}
+                            onClick={onExport}
+                            loading={loading}
+                        >
+                            Export CSV
+                        </Button>
+                    </span>
+                </Tooltip>
+            )
+        },
+        [isNarrowScreen, selectionSnapshot.hasSelection],
+    )
 
     const fallbackControlsHeight = showFilters ? 96 : headerTitle ? 48 : 24
 
@@ -470,28 +519,6 @@ const EvaluationRunsTableActive = ({
         [handleExportRow, handleOpenRun, handleRequestDelete],
     )
 
-    const renderExportButton = useCallback(
-        ({onExport, loading}: {onExport: () => void; loading: boolean}) => {
-            const disabled = !selectionSnapshot.hasSelection
-            const tooltip = disabled ? "Select runs to export" : undefined
-            return (
-                <Tooltip title={tooltip}>
-                    <span>
-                        <Button
-                            className="evaluation-runs-table__export"
-                            disabled={disabled}
-                            onClick={onExport}
-                            loading={loading}
-                        >
-                            Export CSV
-                        </Button>
-                    </span>
-                </Tooltip>
-            )
-        },
-        [selectionSnapshot.hasSelection],
-    )
-
     const exportOptions = useMemo(
         () => ({
             resolveValue: exportResolveValue,
@@ -564,6 +591,8 @@ const EvaluationRunsTableActive = ({
                 onPaginationStateChange={handlePaginationStateChange}
                 exportOptions={exportOptions}
                 renderExportButton={renderExportButton}
+                useSettingsDropdown={isNarrowScreen}
+                settingsDropdownDelete={settingsDropdownDelete}
                 keyboardShortcuts={infiniteTableKeyboardShortcuts}
             />
 

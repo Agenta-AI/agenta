@@ -164,8 +164,6 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
         )
     }, [displayedTab, displayedRunKind, projectId])
 
-    console.log("EvaluationTabs")
-
     return (
         <>
             <div
@@ -226,8 +224,6 @@ interface EvaluationsViewProps {
 
 const EvaluationsView = ({scope = "app", appId}: EvaluationsViewProps) => {
     const tabItems = scope === "project" ? PROJECT_TAB_ITEMS : APP_TAB_ITEMS
-
-    console.log("EvaluationsView")
 
     return (
         <EvaluationTabs

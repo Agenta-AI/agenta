@@ -448,6 +448,9 @@ const NewEvaluationModal = <Preview extends boolean = true>({
                         path: `/evaluations/results/${runId}`,
                     })
 
+                    // Trigger revalidation and close modal before redirect
+                    onSuccess?.()
+
                     if (scope === "project") {
                         router.push({
                             pathname: targetPath,
@@ -464,20 +467,20 @@ const NewEvaluationModal = <Preview extends boolean = true>({
                     }
                 }
             } else {
-                createEvaluation(targetAppId, {
-                    testset_id: selectedTestsetId,
-                    revisions_ids: selectedVariantRevisionIds,
-                    evaluators_configs: selectedEvalConfigs,
-                    rate_limit: rateLimitValues,
-                    correct_answer_column: correct_answer_column,
-                    name: evaluationName,
-                })
-                    .then(onSuccess)
-                    .catch(console.error)
-                    .finally(() => {
-                        // refetch
-                        setSubmitLoading(false)
+                try {
+                    await createEvaluation(targetAppId, {
+                        testset_id: selectedTestsetId,
+                        revisions_ids: selectedVariantRevisionIds,
+                        evaluators_configs: selectedEvalConfigs,
+                        rate_limit: rateLimitValues,
+                        correct_answer_column: correct_answer_column,
+                        name: evaluationName,
                     })
+                    // Trigger revalidation and close modal after successful creation
+                    onSuccess?.()
+                } catch (error) {
+                    console.error("[NewEvaluationModal] Error creating auto evaluation:", error)
+                }
             }
         } catch (error) {
             console.error(error)
