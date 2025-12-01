@@ -11,6 +11,7 @@ export const PLAYGROUND_COMPLETION_TOUR: TourDefinition[number]["steps"] = [
                 Edit your system and user messages here to steer how Agenta completes the request.
             </span>
         ),
+        onboardingSection: "playground" as const,
         selector: "#tour-playground-prompt",
         side: "right",
         showControls: true,
@@ -27,6 +28,7 @@ export const PLAYGROUND_COMPLETION_TOUR: TourDefinition[number]["steps"] = [
                 can replay regressions instantly.
             </span>
         ),
+        onboardingSection: "playground" as const,
         selector: "#tour-playground-load-testset",
         side: "bottom",
         showControls: true,
@@ -39,6 +41,7 @@ export const PLAYGROUND_COMPLETION_TOUR: TourDefinition[number]["steps"] = [
         icon: "⚡️",
         title: "Run the prompt",
         content: <span>Execute the prompt with the current variables to inspect the output.</span>,
+        onboardingSection: "playground" as const,
         selector: "#tour-playground-run-all-button",
         side: "left",
         showControls: true,
@@ -60,6 +63,7 @@ export const PLAYGROUND_CHAT_TOUR: TourDefinition[number]["steps"] = [
                 reply.
             </span>
         ),
+        onboardingSection: "playground" as const,
         selector: "#tour-playground-prompt",
         side: "right",
         showControls: true,
@@ -76,6 +80,7 @@ export const PLAYGROUND_CHAT_TOUR: TourDefinition[number]["steps"] = [
                 before chat begins.
             </span>
         ),
+        onboardingSection: "playground" as const,
         selector: "#tour-playground-variable",
         side: "right",
         showControls: true,
@@ -90,6 +95,7 @@ export const PLAYGROUND_CHAT_TOUR: TourDefinition[number]["steps"] = [
         content: (
             <span>Type the first user turn to kick off your conversation and test the flow.</span>
         ),
+        onboardingSection: "playground" as const,
         selector: "#tour-chat-user-message",
         side: "left",
         showControls: true,
@@ -106,6 +112,7 @@ export const PLAYGROUND_CHAT_TOUR: TourDefinition[number]["steps"] = [
                 Execute the chat turn to preview the assistant response and iterate quickly.
             </span>
         ),
+        onboardingSection: "playground" as const,
         selector: "#tour-playground-run-all-button",
         side: "left",
         showControls: true,

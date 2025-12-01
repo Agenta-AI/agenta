@@ -1,12 +1,20 @@
 import {useEffect, useMemo} from "react"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useNextStep} from "nextstepjs"
 
-import {onboardingStepsAtom} from "@/oss/state/onboarding"
-import type {OnboardingStep} from "@/oss/state/onboarding/types"
+import {
+    onboardingStepsAtom,
+    triggerOnboardingAtom,
+    updateUserOnboardingStatusAtom,
+} from "@/oss/state/onboarding"
+import type {OnboardingStep, UserOnboardingStatus} from "@/oss/state/onboarding/types"
+import {urlLocationAtom} from "@/oss/state/url"
 
 const OnboardingAutoAdvance = () => {
     const onboardingTours = useAtomValue(onboardingStepsAtom)
+    const updateUserOnboardingStatus = useSetAtom(updateUserOnboardingStatusAtom)
+    const setTriggerOnboarding = useSetAtom(triggerOnboardingAtom)
+    const userLocation = useAtomValue(urlLocationAtom)
     const {currentTour, currentStep, isNextStepVisible, setCurrentStep, closeNextStep} =
         useNextStep()
 
@@ -23,6 +31,11 @@ const OnboardingAutoAdvance = () => {
         const step = matchingTour.steps[currentStep] as OnboardingStep | undefined
         return {activeStep: step ?? null, totalSteps: matchingTour.steps.length}
     }, [currentTour, currentStep, onboardingTours])
+
+    const resolvedSectionFromLocation = useMemo(
+        () => userLocation.resolvedSection ?? userLocation.section,
+        [userLocation.resolvedSection, userLocation.section],
+    )
 
     useEffect(() => {
         if (!activeStep?.advanceOnClick || !activeStep.selector || !isNextStepVisible) {
@@ -47,6 +60,13 @@ const OnboardingAutoAdvance = () => {
             }
 
             if (currentStep >= totalSteps - 1) {
+                const resolvedSection =
+                    (activeStep?.onboardingSection as keyof UserOnboardingStatus | undefined) ??
+                    resolvedSectionFromLocation
+                if (resolvedSection) {
+                    updateUserOnboardingStatus({section: resolvedSection, status: "done"})
+                }
+                setTriggerOnboarding(null)
                 closeNextStep()
                 return
             }
@@ -58,7 +78,17 @@ const OnboardingAutoAdvance = () => {
         return () => {
             document.removeEventListener("click", handleClick, true)
         }
-    }, [activeStep, currentStep, totalSteps, isNextStepVisible, closeNextStep, setCurrentStep])
+    }, [
+        activeStep,
+        currentStep,
+        totalSteps,
+        isNextStepVisible,
+        closeNextStep,
+        setCurrentStep,
+        resolvedSectionFromLocation,
+        setTriggerOnboarding,
+        updateUserOnboardingStatus,
+    ])
 
     return null
 }
