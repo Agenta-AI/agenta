@@ -230,7 +230,7 @@ evaluators = [
                             "description": "Extract information from the user's response.",
                             "properties": {
                                 "score": {
-                                    "type": "numeric/continuous",
+                                    "type": "number",
                                     "description": "The grade results",
                                 }
                             },
@@ -342,7 +342,7 @@ evaluators = [
                         "description": "Extract information from the user's response.",
                         "properties": {
                             "score": {
-                                "type": "numeric/continuous",
+                                "type": "number",
                                 "description": "The grade results",
                             }
                         },
