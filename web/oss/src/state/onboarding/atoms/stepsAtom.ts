@@ -4,10 +4,10 @@ import {eagerAtom} from "jotai-eager"
 import {atomWithStorage} from "jotai/utils"
 import {Tour} from "nextstepjs"
 
-import {defaultUserOnboardingState} from "../constants"
 import {userAtom} from "../../profile"
 import {sessionExistsAtom} from "../../session"
 import {urlLocationAtom} from "../../url"
+import {defaultUserOnboardingState} from "../assets/constants"
 import {TOUR_STEPS} from "../steps"
 import {
     CurrentOnboardingStep,

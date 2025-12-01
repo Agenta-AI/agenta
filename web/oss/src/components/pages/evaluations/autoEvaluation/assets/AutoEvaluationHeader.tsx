@@ -510,7 +510,6 @@ const AutoEvaluationHeader = ({
                         <Button
                             icon={<Plus size={14} />}
                             className={classes.button}
-                            // id="tour-start-new-evaluation"
                             onClick={() => openAutoEvaluationModal()}
                         >
                             Create new
@@ -527,7 +526,6 @@ const AutoEvaluationHeader = ({
                                         type="primary"
                                         icon={<Plus size={14} />}
                                         className={classes.button}
-                                        id="tour-start-new-evaluation"
                                         onClick={() => openAutoEvaluationModal()}
                                     >
                                         Start new evaluation
@@ -535,7 +533,6 @@ const AutoEvaluationHeader = ({
                                     <Button
                                         icon={<Gauge size={14} className="mt-0.5" />}
                                         className={classes.button}
-                                        id="tour-configure-evaluator"
                                         onClick={() => {
                                             router.push(`${projectURL}/evaluators?tab=automatic`)
                                         }}

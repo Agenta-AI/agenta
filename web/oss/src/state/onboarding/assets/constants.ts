@@ -1,4 +1,4 @@
-import {UserOnboardingStatus} from "./types"
+import {UserOnboardingStatus} from "../types"
 
 export const defaultUserOnboardingState: UserOnboardingStatus = {
     apps: "idle",

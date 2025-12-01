@@ -3,7 +3,7 @@ import {getDefaultStore} from "jotai"
 import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
 import {lastVisitedEvaluationAtom} from "@/oss/components/pages/evaluations/state/lastVisitedEvaluationAtom"
 
-import {ONBOARDING_SECTIONS, TOUR_STEP_KEY_MAPPER} from "../onboarding/constants"
+import {ONBOARDING_SECTIONS, TOUR_STEP_KEY_MAPPER} from "../onboarding/assets/constants"
 import {UserOnboardingStatus} from "../onboarding/types"
 
 export type ResolveOnboardingSectionOptions = {

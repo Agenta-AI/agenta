@@ -1,7 +1,6 @@
-import {useCallback, memo, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {getDefaultStore} from "jotai"
-import {useAtom} from "jotai"
+import {getDefaultStore, useAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -27,8 +26,8 @@ import {buildEvaluationNavigationUrl} from "../utils"
 
 import {DEFAULT_ADVANCE_SETTINGS} from "./assets/constants"
 import {useStyles} from "./assets/styles"
-import type {LLMRunRateLimitWithCorrectAnswer, NewEvaluationModalGenericProps} from "./types"
 import {activeEvaluationPanelAtom} from "./state/activeEvaluationPanelAtom"
+import type {LLMRunRateLimitWithCorrectAnswer, NewEvaluationModalGenericProps} from "./types"
 
 const NewEvaluationModalContent = dynamic(() => import("./Components/NewEvaluationModalContent"), {
     ssr: false,
@@ -507,7 +506,6 @@ const NewEvaluationModal = <Preview extends boolean = true>({
             title={<span>New {evaluationType === "auto" ? "Auto" : "Human"} Evaluation</span>}
             onOk={onSubmit}
             okText="Start Evaluation"
-            okButtonProps={{id: "tour-new-eval-start"}}
             maskClosable={false}
             width={1200}
             zIndex={900}
