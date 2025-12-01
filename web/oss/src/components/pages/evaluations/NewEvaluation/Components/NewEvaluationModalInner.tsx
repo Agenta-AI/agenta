@@ -353,11 +353,9 @@ const NewEvaluationModalInner = ({
     ])
 
     const onSubmit = useCallback(async () => {
-        setSubmitLoading(true)
         onSubmitStateChange?.(true)
         try {
             if (!(await validateSubmission())) {
-                setSubmitLoading(false)
                 onSubmitStateChange?.(false)
                 return
             }
@@ -365,7 +363,6 @@ const NewEvaluationModalInner = ({
             const targetAppId = selectedAppId || appId
             if (!targetAppId) {
                 message.error("Please select an application")
-                setSubmitLoading(false)
                 onSubmitStateChange?.(false)
                 return
             }
@@ -412,7 +409,6 @@ const NewEvaluationModalInner = ({
                                   : ""
                         }`,
                     )
-                    setSubmitLoading(false)
                     onSubmitStateChange?.(false)
                     return
                 } else {
@@ -465,7 +461,6 @@ const NewEvaluationModalInner = ({
         } catch (error) {
             console.error(error)
         } finally {
-            setSubmitLoading(false)
             onSubmitStateChange?.(false)
         }
     }, [
