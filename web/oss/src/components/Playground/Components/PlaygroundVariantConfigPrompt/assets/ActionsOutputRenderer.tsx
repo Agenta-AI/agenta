@@ -134,17 +134,17 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
 
             <Divider className="m-0" type="horizontal" />
 
-            <div className="max-h-64 overflow-y-auto flex flex-col gap-3 p-3">
+            <div className="max-h-64 overflow-y-auto flex flex-col p-1">
                 {filteredToolGroups.length > 0 ? (
                     filteredToolGroups.map(({key, label, Icon, tools}) => (
-                        <div key={key} className="flex flex-col gap-2">
-                            <div className="flex items-center gap-2 px-1">
+                        <div key={key} className="flex flex-col">
+                            <div className="flex items-center py-[5px] px-1.5 h-[28px]">
                                 {Icon && (
                                     <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[#F8FAFC]">
-                                        <Icon className="h-4 w-4" />
+                                        <Icon className="h-4 w-4 text-[#758391]" />
                                     </span>
                                 )}
-                                <Typography.Text className="font-medium text-[#0F172A]">
+                                <Typography.Text className="text-[#758391]">
                                     {label}
                                 </Typography.Text>
                             </div>
@@ -154,7 +154,7 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
                                         key={code}
                                         type="text"
                                         block
-                                        className="flex items-center gap-2 justify-start text-left px-1 hover:!bg-[#F8FAFC]"
+                                        className="flex h-[28px] items-center gap-2 justify-start text-left py-[5px] px-1.5 hover:!bg-[#F8FAFC]"
                                         onClick={() =>
                                             handleAddTool({
                                                 payload,
