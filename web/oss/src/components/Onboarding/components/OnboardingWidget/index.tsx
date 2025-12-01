@@ -20,12 +20,19 @@ import {
     currentRunningWidgetOnboardingAtom,
     onboardingWidgetClosedAtom,
     onboardingWidgetCompletionAtom,
+    onboardingWidgetSkippedAtom,
     onboardingWidgetMinimizedAtom,
     onboardingWidgetMinimizeHintAtom,
     onboardingWidgetPositionAtom,
     onboardingWidgetTogglePositionAtom,
     type OnboardingWidgetPosition,
 } from "@/oss/state/onboarding/atoms/widgetAtom"
+import {
+    trackOnboardingAllTasksCompleted,
+    trackOnboardingGuideClosed,
+    trackOnboardingTaskCompleted,
+    trackOnboardingTaskSkipped,
+} from "../../utils/trackOnboarding"
 import {BOUNDARY_PADDING, CLOSING_ANIMATION_MS, TOGGLE_DRAG_THRESHOLD} from "./constants"
 import {type ChecklistItem} from "./types"
 import {buildChecklistSections, clamp} from "./utils"
@@ -54,6 +61,7 @@ const OnboardingWidget = () => {
     const router = useRouter()
     const {projectURL, appURL, recentlyVisitedAppURL} = useURL()
     const [completedMap, setCompletedMap] = useAtom(onboardingWidgetCompletionAtom)
+    const [skippedMap, setSkippedMap] = useAtom(onboardingWidgetSkippedAtom)
     const [isMinimized, setIsMinimized] = useAtom(onboardingWidgetMinimizedAtom)
     const [currentRunningWidgetOnboarding, setCurrentRunningWidgetOnboarding] = useAtom(
         currentRunningWidgetOnboardingAtom,
@@ -159,12 +167,18 @@ const OnboardingWidget = () => {
         if (currentStatus === "idle") return
         if (completedMap[completionKey]) return
 
-        setCompletedMap((prev) => ({
-            ...prev,
-            [completionKey]: true,
-        }))
+        setCompletedMap((prev) => {
+            const next = {...prev, [completionKey]: true}
+            trackOnboardingTaskCompleted({
+                ...buildBasePayload(),
+                completed_tasks: Object.keys(next).length,
+                task_id: completionKey,
+            })
+            return next
+        })
+
         setCurrentRunningWidgetOnboarding(null)
-    }, [currentRunningWidgetOnboarding, userOnboardingStatus, completedMap, setCompletedMap])
+    }, [currentRunningWidgetOnboarding, userOnboardingStatus, completedMap, skippedMap])
 
     const sections = useMemo(
         () =>
@@ -192,7 +206,24 @@ const OnboardingWidget = () => {
             0,
         )
     }, [allItems, completedMap, getCompletionKey])
+
+    const skippedCount = useMemo(() => {
+        return allItems.reduce(
+            (count, item) => (skippedMap[getCompletionKey(item)] ? count + 1 : count),
+            0,
+        )
+    }, [allItems, skippedMap, getCompletionKey])
+
+    const buildBasePayload = useCallback(
+        () => ({
+            total_tasks: totalTasks,
+            completed_tasks: completedCount,
+            skipped_tasks: skippedCount,
+        }),
+        [totalTasks, completedCount, skippedCount],
+    )
     const progressPercent = totalTasks ? Math.round((completedCount / totalTasks) * 100) : 0
+    const totalDone = completedCount + skippedCount
 
     useEffect(() => {
         if (!canInitializeVisibility) return
@@ -200,19 +231,20 @@ const OnboardingWidget = () => {
         if (!autoOpenedRef.current) return
         if (autoClosedRef.current) return
         if (!totalTasks) return
-        if (completedCount < totalTasks) return
+        if (totalDone < totalTasks) return
+
+        if (!autoClosedRef.current) {
+            trackOnboardingAllTasksCompleted(buildBasePayload())
+            trackOnboardingGuideClosed({
+                ...buildBasePayload(),
+                close_reason: "auto_all_done",
+            })
+        }
 
         setIsClosed(true)
         setIsMinimized(true)
         autoClosedRef.current = true
-    }, [
-        canInitializeVisibility,
-        isNewUser,
-        completedCount,
-        totalTasks,
-        setIsClosed,
-        setIsMinimized,
-    ])
+    }, [canInitializeVisibility, isNewUser, totalDone, totalTasks])
 
     const onClickGuideItem = useCallback(
         async (item: ChecklistItem) => {
@@ -239,7 +271,15 @@ const OnboardingWidget = () => {
 
             const completionKey = getCompletionKey(item)
             if (!item.tour) {
-                setCompletedMap((prev) => ({...prev, [completionKey]: true}))
+                setCompletedMap((prev) => {
+                    const next = {...prev, [completionKey]: true}
+                    trackOnboardingTaskCompleted({
+                        ...buildBasePayload(),
+                        completed_tasks: Object.keys(next).length,
+                        task_id: completionKey,
+                    })
+                    return next
+                })
                 return
             }
 
@@ -257,6 +297,8 @@ const OnboardingWidget = () => {
             setCurrentRunningWidgetOnboarding,
             getCompletionKey,
             userOnboardingStatus,
+            buildBasePayload,
+            trackOnboardingTaskCompleted,
         ],
     )
 
@@ -276,6 +318,10 @@ const OnboardingWidget = () => {
 
     const onClose = useCallback(() => {
         setIsClosed(true)
+        trackOnboardingGuideClosed({
+            ...buildBasePayload(),
+            close_reason: "manual",
+        })
         Modal.info({
             title: "Onboarding guide hidden",
             content: (
@@ -484,14 +530,14 @@ const OnboardingWidget = () => {
                                     </Tooltip>
                                 </div>
                             </div>
-                            <div className="">
+                            <div>
                                 <Progress className="" percent={progressPercent} status="active" />
                             </div>
                         </div>
 
                         <div className="max-h-[400px] overflow-y-auto px-4 pb-3 flex flex-col gap-2">
                             {sections.map((section) => (
-                                <div key={section.id} className="mb-4 last:mb-0">
+                                <div key={section.id} className="mb-2 last:mb-0">
                                     <div className="flex items-center gap-1 font-medium text-colorTextSecondary">
                                         <Question size={14} />
                                         {section.title}

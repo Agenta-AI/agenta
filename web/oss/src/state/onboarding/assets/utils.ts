@@ -11,13 +11,14 @@ import {
     createSimpleQuery,
     retrieveQueryRevision,
     type SimpleEvaluationCreatePayload,
-    type SimpleEvaluationPayload,
 } from "@/oss/services/onlineEvaluations/api"
 import {fetchAllEvaluatorConfigs} from "@/oss/services/evaluators"
 import {lastVisitedEvaluationAtom} from "@/oss/components/pages/evaluations/state/lastVisitedEvaluationAtom"
 import {waitForValidURL, getURLValues} from "@/oss/state/url"
 
-import {demoOnlineEvaluationAtom, type DemoOnlineEvaluationContext} from "../atoms/helperAtom"
+import {currentOnboardingStepAtom, triggerOnboardingAtom} from "../atoms/stepsAtom"
+import {currentRunningWidgetOnboardingAtom} from "../atoms/widgetAtom"
+import {demoOnlineEvaluationAtom, DemoOnlineEvaluationContext} from "../atoms/helperAtom"
 
 const DEMO_EVALUATION_NAME = "demo-evaluation"
 const LLM_JUDGE_KEYS = new Set([
@@ -68,6 +69,7 @@ const safePush = async (href: string | null | undefined) => {
 const invalidateEvaluationQueries = async () => {
     const store = getDefaultStore()
     const queryClient = store.get(queryClientAtom)
+    if (!queryClient) return
     try {
         await queryClient.invalidateQueries({queryKey: ["previewEvaluationRuns"]})
     } catch (error) {
@@ -194,4 +196,11 @@ export const getDemoEvaluationRunRoute = (): string | null => {
     const urls = getURLValues()
     if (!urls.projectURL) return null
     return `${urls.projectURL}/evaluations/results/${context.evaluation.id}?type=online`
+}
+
+export const clearOnboardingState = () => {
+    const store = getDefaultStore()
+    store.set(triggerOnboardingAtom, null)
+    store.set(currentOnboardingStepAtom, null)
+    store.set(currentRunningWidgetOnboardingAtom, null)
 }

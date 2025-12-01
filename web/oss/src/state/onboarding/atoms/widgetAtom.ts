@@ -9,6 +9,7 @@ export type OnboardingWidgetPosition = {
 }
 
 const ONBOARDING_WIDGET_COMPLETION_KEY = "onboarding-widget-completion"
+const ONBOARDING_WIDGET_SKIPPED_KEY = "onboarding-widget-skipped"
 const ONBOARDING_WIDGET_UI_STATE_KEY = "onboarding-widget-ui-state"
 
 type OnboardingWidgetUIState = {
@@ -29,6 +30,11 @@ export const currentRunningWidgetOnboardingAtom = atom<RunningWidgetOnboarding |
 
 export const onboardingWidgetCompletionAtom = atomWithStorage<Record<string, boolean>>(
     ONBOARDING_WIDGET_COMPLETION_KEY,
+    {},
+)
+
+export const onboardingWidgetSkippedAtom = atomWithStorage<Record<string, boolean>>(
+    ONBOARDING_WIDGET_SKIPPED_KEY,
     {},
 )
 

@@ -29,19 +29,19 @@ export const buildChecklistSections = ({
                     tour: {section: "playground", tourId: "playground-quickstart"},
                     prerequisites: [CHECKLIST_PREREQUISITES.needsApp],
                 },
-                {
-                    id: "first-evaluation",
-                    title: "Run your first evaluation",
-                    description: "Compare prompts with a quick automatic evaluation.",
-                    href: getEvaluationLink("auto_evaluation"),
-                    disabled: !evaluationBase,
-                    tip: evaluationBase
-                        ? undefined
-                        : "You need a project before you can run evaluations.",
-                    cta: "Launch evaluation",
-                    tour: {section: "autoEvaluation", tourId: "one-click-auto-evaluation"},
-                    prerequisites: [CHECKLIST_PREREQUISITES.needsProject],
-                },
+                // {
+                //     id: "first-evaluation",
+                //     title: "Run your first evaluation",
+                //     description: "Compare prompts with a quick automatic evaluation.",
+                //     href: getEvaluationLink("auto_evaluation"),
+                //     disabled: !evaluationBase,
+                //     tip: evaluationBase
+                //         ? undefined
+                //         : "You need a project before you can run evaluations.",
+                //     cta: "Launch evaluation",
+                //     tour: {section: "autoEvaluation", tourId: "one-click-auto-evaluation"},
+                //     prerequisites: [CHECKLIST_PREREQUISITES.needsProject],
+                // },
                 {
                     id: "online-evaluation",
                     title: "Set up online evaluation",

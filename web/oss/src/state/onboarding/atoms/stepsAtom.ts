@@ -117,7 +117,7 @@ export const onboardingStepsAtom = atom<Tour[]>((get) => {
                 ? ("playgroundPostRun" as keyof typeof TOUR_STEPS)
                 : requestedState
 
-        const tourSteps = TOUR_STEPS[effectiveState]
+        const tourSteps = TOUR_STEPS[requestedState]
         if (!tourSteps) return []
 
         const tours = tourSteps({
