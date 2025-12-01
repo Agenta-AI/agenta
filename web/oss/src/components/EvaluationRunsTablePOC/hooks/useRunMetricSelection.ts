@@ -12,7 +12,9 @@ import {
 import type {ConcreteEvaluationRunKind} from "../types"
 
 const idleMetricSelectionAtom = atom<RunLevelMetricSelection>({
-    state: "loading",
+    state: "hasData",
+    stats: undefined,
+    resolvedKey: undefined,
 })
 
 /**
