@@ -94,3 +94,11 @@ export interface NewEvaluationModalGenericProps<Preview extends boolean = true>
     extends Omit<NewEvaluationModalProps, "preview"> {
     preview?: Preview
 }
+
+export interface NewEvaluationModalInnerProps {
+    onSuccess?: () => void
+    preview?: boolean
+    evaluationType: "auto" | "human"
+    onSubmitStateChange?: (loading: boolean) => void
+    isOpen?: boolean
+}
