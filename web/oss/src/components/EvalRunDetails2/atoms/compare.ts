@@ -8,10 +8,31 @@ import type {EvaluationRunQueryResult} from "./table/run"
 
 export const MAX_COMPARISON_RUNS = 4
 
-export const COMPARISON_COLORS = ["transparent", "#F3F8FF", "#FDF4F4", "#F6F0FF", "#F1FAF0"]
+/**
+ * Unified color palette for run comparison.
+ * Each entry has:
+ * - solid: Full color for charts, badges, accents
+ * - tint: Light background color for table rows
+ */
+export const RUN_COMPARISON_PALETTE = [
+    {solid: "#3B82F6", tint: "#EFF6FF"}, // Blue
+    {solid: "#F97316", tint: "#FFF7ED"}, // Orange
+    {solid: "#8B5CF6", tint: "#F5F3FF"}, // Purple
+    {solid: "#10B981", tint: "#ECFDF5"}, // Green
+    {solid: "#EC4899", tint: "#FDF2F8"}, // Pink
+]
+
+/** Light background colors for table row distinction */
+export const COMPARISON_COLORS = RUN_COMPARISON_PALETTE.map((c) => c.tint)
+
+/** Solid colors for charts and visual accents */
+export const COMPARISON_SOLID_COLORS = RUN_COMPARISON_PALETTE.map((c) => c.solid)
 
 export const getComparisonColor = (index: number) =>
     COMPARISON_COLORS[index] ?? COMPARISON_COLORS[0]
+
+export const getComparisonSolidColor = (index: number) =>
+    COMPARISON_SOLID_COLORS[index] ?? COMPARISON_SOLID_COLORS[0]
 
 export const compareRunIdsAtom = atom<string[]>([])
 export const compareRunIdsWriteAtom = atom(
@@ -69,7 +90,7 @@ export const deriveRunComparisonStructure = ({
     steps,
 }: {
     runIndex?: RunIndex | null
-    steps?: Array<Record<string, any>> | null
+    steps?: Record<string, any>[] | null
 }): RunComparisonStructure => {
     const testsetIds = new Set<string>()
     let hasQueryInput = false
