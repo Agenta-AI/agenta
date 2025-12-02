@@ -1,11 +1,10 @@
 import {useCallback, memo, useEffect, useMemo, useRef, useState} from "react"
 
-import {getDefaultStore} from "jotai"
+import {getDefaultStore, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {message} from "@/oss/components/AppMessageContext"
-import {useAppId} from "@/oss/hooks/useAppId"
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
@@ -16,6 +15,7 @@ import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {createEvaluation} from "@/oss/services/evaluations/api"
 import {fetchTestset} from "@/oss/services/testsets/api"
 import {useAppsData} from "@/oss/state/app/hooks"
+import {appIdentifiersAtom} from "@/oss/state/appState"
 import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
 import {useTestsetsData} from "@/oss/state/testset"
@@ -41,7 +41,8 @@ const NewEvaluationModalInner = ({
     onSubmitStateChange,
     isOpen,
 }: NewEvaluationModalInnerProps) => {
-    const appId = useAppId()
+    // Use appIdentifiersAtom directly to get the URL-derived appId without fallback to stale values
+    const {appId} = useAtomValue(appIdentifiersAtom)
     const isAppScoped = Boolean(appId)
     const {apps: availableApps = []} = useAppsData()
     const [selectedAppId, setSelectedAppId] = useState<string>(appId || "")
@@ -427,20 +428,10 @@ const NewEvaluationModalInner = ({
                     // Trigger revalidation and close modal before redirect
                     onSuccess?.()
 
-                    if (scope === "project") {
-                        router.push({
-                            pathname: targetPath,
-                            query: {
-                                ...(targetAppId ? {app_id: targetAppId} : {}),
-                                type: "human",
-                            },
-                        })
-                    } else {
-                        router.push({
-                            pathname: targetPath,
-                            query: {type: "human"},
-                        })
-                    }
+                    router.push({
+                        pathname: targetPath,
+                        query: {type: "human"},
+                    })
                 }
             } else {
                 try {

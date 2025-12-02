@@ -19,6 +19,7 @@ import useTableExport, {
     type TableExportColumnContext,
 } from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
+import {useQueryParamState} from "@/oss/state/appState"
 
 import {shouldIgnoreRowClick} from "../../actions/navigationActions"
 import {evaluationRunsTableFetchEnabledAtom} from "../../atoms/context"
@@ -193,6 +194,7 @@ const EvaluationRunsTableActive = ({
     const selectionSnapshot = useAtomValue(evaluationRunsSelectionSnapshotAtom)
     const store = useStore()
     const queryClient = useQueryClient()
+    const [, setKindParam] = useQueryParamState("kind", "auto")
 
     // Responsive: use settings dropdown on narrow screens (< lg breakpoint)
     const screens = Grid.useBreakpoint()
@@ -286,6 +288,10 @@ const EvaluationRunsTableActive = ({
 
     const handleCreateSuccess = useCallback(async () => {
         setIsCreateModalOpen(false)
+        // Switch to the tab matching the created evaluation type (e.g., human -> Human Evals tab)
+        if (selectedCreateType && selectedCreateType !== "online") {
+            setKindParam(selectedCreateType)
+        }
         // Clear the local preview runs cache (fetchPreviewRunsShared has its own 10s TTL cache)
         // This is necessary because React Query's invalidation won't bypass this local cache
         clearPreviewRunsCache()
@@ -296,7 +302,7 @@ const EvaluationRunsTableActive = ({
         })
         // Reset pages to trigger fresh data load with new query atoms
         resetPages()
-    }, [queryClient, resetPages, setIsCreateModalOpen])
+    }, [queryClient, resetPages, selectedCreateType, setIsCreateModalOpen, setKindParam])
 
     useEffect(() => {
         if (contextEvaluationKind !== "all") {

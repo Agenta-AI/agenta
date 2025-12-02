@@ -6,7 +6,6 @@ import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {slugify} from "@/oss/lib/utils/slugify"
-import {getAppValues} from "@/oss/state/app"
 import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
@@ -97,8 +96,8 @@ const buildInvocationStep = (revision: EnhancedVariant, inputKey: string) => {
     )
     const references: Record<string, {id: string}> = {}
 
-    const {currentApp} = getAppValues()
-    const appId = currentApp?.app_id as string
+    // Use the appId from the revision itself, not from global state which may have stale values
+    const appId = revision.appId
     references.application = {id: appId}
 
     if (revision.variantId !== undefined) {
