@@ -1,5 +1,5 @@
 import {atom} from "jotai"
-import {atomWithStorage} from "jotai/utils"
+import {atomWithStorage, createJSONStorage} from "jotai/utils"
 import {OnboardingState, UserOnboardingStatus} from "../types"
 import {currentOnboardingStepWithLocationAtom} from "./stepsAtom"
 
@@ -47,6 +47,8 @@ const onboardingWidgetUIStateAtom = atomWithStorage<OnboardingWidgetUIState>(
         togglePosition: null,
         closed: false,
     },
+    createJSONStorage(() => (typeof window === "undefined" ? undefined : localStorage)),
+    {getOnInit: true},
 )
 
 export const onboardingWidgetMinimizedAtom = atom(
@@ -116,6 +118,7 @@ export const onboardingWidgetClosedAtom = atom(
     (get, set, update: boolean | ((prev: boolean) => boolean)) => {
         const prev = get(onboardingWidgetUIStateAtom)
         const nextValue = typeof update === "function" ? update(prev.closed) : update
+
         set(onboardingWidgetUIStateAtom, {
             ...prev,
             closed: nextValue,

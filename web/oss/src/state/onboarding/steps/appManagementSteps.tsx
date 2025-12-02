@@ -1,5 +1,6 @@
 import {setCompleteWidgetTaskMap} from "@/oss/components/Onboarding/components/OnboardingWidget"
 import {clearOnboardingState, redirectToAppsPage} from "../assets/utils"
+import {resolveGeneralTours} from "./generalSteps"
 import {OnboardingStepsContext, TourDefinition} from "./types"
 
 const APP_CREATION_STEPS = [
@@ -66,6 +67,11 @@ export const resolveTours = (ctx: OnboardingStepsContext): TourDefinition => {
     }
     if (tourId === "create-first-app") {
         return APP_CREATION_STEPS
+    }
+
+    if (tourId === "reopen-onboarding-guide") {
+        const generalTours = resolveGeneralTours(ctx)
+        if (generalTours.length) return generalTours
     }
     return []
 }

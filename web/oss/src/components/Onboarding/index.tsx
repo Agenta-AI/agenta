@@ -15,6 +15,7 @@ import {
     updateUserOnboardingStatusAtom,
 } from "@/oss/state/onboarding"
 import {urlLocationAtom} from "@/oss/state/url"
+import clsx from "clsx"
 
 const {Text} = Typography
 
@@ -190,7 +191,12 @@ const OnboardingCard = ({
     const progressWidth = useMemo(() => `${percent}%`, [percent])
 
     return (
-        <section className="w-[340px]">
+        <section
+            className={clsx(
+                "w-[340px]",
+                step?.selector === ".tour-help-docs-link" && "translate-x-16",
+            )}
+        >
             <Card className="!rounded-xl !p-0" classNames={{body: "!px-4 !py-[10px]"}}>
                 <div className="flex w-full flex-col gap-4">
                     <div className="flex flex-col gap-1">

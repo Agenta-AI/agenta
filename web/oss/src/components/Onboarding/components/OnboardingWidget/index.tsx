@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {X} from "@phosphor-icons/react"
-import {Button, Modal, Progress, Tooltip, Checkbox, Typography} from "antd"
+import {Button, Checkbox, Progress, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {getDefaultStore, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -12,16 +12,16 @@ import {
     triggerOnboardingAtom,
     userOnboardingStatusAtom,
 } from "@/oss/state/onboarding"
-import {userAtom} from "@/oss/state/profile"
-import {sessionExistsAtom} from "@/oss/state/session"
 import {
     currentRunningWidgetOnboardingAtom,
     onboardingWidgetClosedAtom,
     onboardingWidgetCompletionAtom,
-    onboardingWidgetSkippedAtom,
     onboardingWidgetPositionAtom,
+    onboardingWidgetSkippedAtom,
     type OnboardingWidgetPosition,
 } from "@/oss/state/onboarding/atoms/widgetAtom"
+import {userAtom} from "@/oss/state/profile"
+import {sessionExistsAtom} from "@/oss/state/session"
 import {
     trackOnboardingAllTasksCompleted,
     trackOnboardingGuideClosed,
@@ -84,7 +84,6 @@ const OnboardingWidget = () => {
     const autoClosedRef = useRef(false)
     const [isDragging, setIsDragging] = useState(false)
     const [widgetSize, setWidgetSize] = useState<ElementSize | null>(null)
-    const store = useMemo(() => getDefaultStore(), [])
 
     const shouldRenderWidget = !isClosed
 
@@ -250,17 +249,8 @@ const OnboardingWidget = () => {
             ...buildBasePayload(),
             close_reason: "manual",
         })
-        Modal.info({
-            title: "Onboarding guide hidden",
-            content: (
-                <p className="mb-0">
-                    You can reopen the Onboarding Guide anytime from the sidebar under{" "}
-                    <strong>Help &amp; Docs → Onboarding Guide</strong>.
-                </p>
-            ),
-            okText: "Got it",
-        })
-    }, [setIsClosed])
+        setTriggerOnboarding({state: "apps", tourId: "reopen-onboarding-guide"})
+    }, [setIsClosed, buildBasePayload, setTriggerOnboarding])
 
     const startDragging = useCallback((event: React.PointerEvent) => {
         if (event.button !== 0) return
