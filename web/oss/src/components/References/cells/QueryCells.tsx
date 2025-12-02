@@ -12,7 +12,8 @@ import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import FiltersPreview from "../../pages/evaluations/onlineEvaluation/components/FiltersPreview"
 import usePreviewQueryRevision from "../hooks/usePreviewQueryRevision"
 
-const CELL_CLASS = "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2"
+const CELL_CLASS =
+    "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2 whitespace-nowrap overflow-hidden text-ellipsis"
 
 export const PreviewQueryCellSkeleton = () => <SkeletonLine width="70%" />
 
@@ -72,7 +73,7 @@ const PreviewQueryCellContent = ({
     return (
         <div className="flex flex-col items-start gap-1">
             <TooltipWithCopyAction title="Copy query ID" copyText={copySource}>
-                <div>
+                <div className="w-full">
                     <FiltersPreview filtering={revision?.filtering} compact />
                 </div>
             </TooltipWithCopyAction>
