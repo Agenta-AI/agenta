@@ -156,13 +156,14 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
                 <EvaluationRunsTablePOC
                     includePreview
                     pageSize={15}
+                    appId={appId}
                     projectIdOverride={projectId ?? undefined}
                     evaluationKind={displayedRunKind}
                     className="flex-1 min-h-0"
                 />
             </div>
         )
-    }, [displayedTab, displayedRunKind, projectId])
+    }, [displayedTab, displayedRunKind, projectId, appId])
 
     return (
         <>
