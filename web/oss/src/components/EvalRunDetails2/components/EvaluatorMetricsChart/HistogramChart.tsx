@@ -28,13 +28,13 @@ interface HistogramChartProps {
     barGap?: number | string
     barCategoryGap?: number | string
     tooltipLabel?: string
-    series?: Array<{
+    series?: {
         key: string
         name: string
         color?: string
         barProps?: Partial<React.ComponentProps<typeof Bar>>
-    }>
-    referenceLines?: Array<{value: number; color?: string; label?: string}>
+    }[]
+    referenceLines?: {value: number; color?: string; label?: string}[]
     showLegend?: boolean
     barProps?: Partial<React.ComponentProps<typeof Bar>>
 }

@@ -1,10 +1,10 @@
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
-import {evaluationRunQueryAtomFamily} from "./table/run"
 import {activePreviewRunIdAtom} from "./run"
+import {evaluationRunQueryAtomFamily} from "./table/run"
 
-type RunDerivedRefs = {
+interface RunDerivedRefs {
     applicationId: string | null
     applicationVariantId: string | null
     variantId: string | null

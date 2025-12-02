@@ -21,7 +21,6 @@ import {
 } from "./evaluationPreviewTableStore"
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"
-import useResizablePreviewColumns from "./hooks/useResizablePreviewColumns"
 import useRowHeightMenuItems from "./hooks/useRowHeightMenuItems"
 import {openFocusDrawerAtom, setFocusDrawerTargetAtom} from "./state/focusDrawerAtom"
 import {scenarioRowHeightAtom} from "./state/rowHeight"
@@ -79,10 +78,6 @@ const EvalRunDetailsTable = ({
     const {columnResult} = usePreviewTableData({runId})
 
     const previewColumns = usePreviewColumns({columnResult, evaluationType})
-
-    const {columns: resizableColumns, components} = useResizablePreviewColumns({
-        baseColumns: previewColumns.columns,
-    })
 
     const mergedRows = useMemo(() => {
         if (!compareSlots.some(Boolean)) {
@@ -254,13 +249,13 @@ const EvalRunDetailsTable = ({
                 <InfiniteVirtualTableFeatureShell<TableRowData>
                     datasetStore={evaluationPreviewDatasetStore}
                     tableScope={tableScope}
-                    columns={resizableColumns}
+                    columns={previewColumns.columns}
                     rowKey={(record) => record.key}
                     tableClassName={clsx(
                         "agenta-scenario-table",
                         `agenta-scenario-table--row-${rowHeight}`,
                     )}
-                    resizableColumns={false}
+                    resizableColumns
                     useSettingsDropdown
                     settingsDropdownMenuItems={rowHeightMenuItems}
                     columnVisibilityMenuRenderer={(
@@ -280,7 +275,6 @@ const EvalRunDetailsTable = ({
                     )}
                     pagination={paginationForShell}
                     tableProps={{
-                        components,
                         rowClassName: (record) =>
                             clsx("scenario-row", {
                                 "scenario-row--comparison": record.isComparisonRow,

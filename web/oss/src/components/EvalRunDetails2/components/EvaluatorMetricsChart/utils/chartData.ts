@@ -82,14 +82,15 @@ const normalizeStats = (value: BasicStats | undefined): any => {
 
 export const buildHistogramChartData = (
     stats: Record<string, any>,
-): {data: Array<{x: string | number; y: number; edge?: number}>; binSize?: number} => {
+): {data: {x: string | number; y: number; edge?: number}[]; binSize?: number} => {
     const normalized = normalizeStats(stats)
 
     const distribution = Array.isArray(normalized?.distribution) ? normalized.distribution : []
     if (!distribution.length) return {data: []}
 
-    const result: {data: Array<{x: string | number; y: number; edge?: number}>; binSize?: number} =
-        {data: []}
+    const result: {data: {x: string | number; y: number; edge?: number}[]; binSize?: number} = {
+        data: [],
+    }
     if (typeof normalized.binSize === "number" && typeof normalized.min === "number") {
         const entries = distribution.map((entry: any, idx: number) => {
             const start = Number(normalized.min) + idx * Number(normalized.binSize)
@@ -127,7 +128,7 @@ export const buildHistogramChartData = (
 
 export const buildFrequencyChartData = (
     stats: Record<string, any>,
-): Array<{label: string | number; value: number}> => {
+): {label: string | number; value: number}[] => {
     const normalized = normalizeStats(stats)
 
     const frequency = Array.isArray(normalized?.frequency) ? normalized.frequency : []

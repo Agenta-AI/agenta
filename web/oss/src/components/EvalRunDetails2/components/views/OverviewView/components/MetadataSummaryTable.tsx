@@ -15,7 +15,7 @@ import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluato
 import type {BasicStats} from "@/oss/lib/metricUtils"
 import {useProjectData} from "@/oss/state/project"
 
-import {buildFrequencyChartData} from "../../../EvaluatorMetricsChart/utils/chartData"
+import {getComparisonColor} from "../../../../atoms/compare"
 import {evaluationQueryRevisionAtomFamily} from "../../../../atoms/query"
 import {
     runCreatedAtAtomFamily,
@@ -27,13 +27,14 @@ import {
     evaluationRunIndexAtomFamily,
     evaluationRunQueryAtomFamily,
 } from "../../../../atoms/table/run"
-import {getComparisonColor} from "../../../../atoms/compare"
 import type {
     QueryConditionPayload,
     QueryFilteringPayload,
 } from "../../../../services/onlineEvaluations/api"
+import {buildFrequencyChartData} from "../../../EvaluatorMetricsChart/utils/chartData"
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import {resolveMetricValue} from "../utils/metrics"
+
 import RunNameTag from "./RunNameTag"
 
 interface MetadataSummaryTableProps {

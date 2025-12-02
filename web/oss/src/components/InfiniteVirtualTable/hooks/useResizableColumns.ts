@@ -49,7 +49,6 @@ export interface UseResizableColumnsArgs<RowType> {
     enabled?: boolean
     minWidth?: number
     scopeId?: string | null
-    onLiveResize?: (params: {columnKey: string; width: number; minWidth: number}) => void
 }
 
 export interface UseResizableColumnsResult<RowType> {
@@ -66,33 +65,35 @@ export const useResizableColumns = <RowType>({
     enabled = false,
     minWidth = DEFAULT_MIN_WIDTH,
     scopeId = null,
-    onLiveResize,
 }: UseResizableColumnsArgs<RowType>): UseResizableColumnsResult<RowType> => {
     const widthsAtom = useMemo(() => getColumnWidthsAtom(scopeId), [scopeId])
     const [columnWidths, setColumnWidths] = useAtom(widthsAtom)
     const [isResizing, setIsResizing] = useState(false)
     const columnMetaRef = useRef<Record<string, {minWidth: number}>>({})
-    const liveWidthsRef = useRef<Record<string, number>>({})
 
-    const queueWidthUpdate = useCallback(
+    const commitWidth = useCallback(
         (colKey: string, width: number) => {
             const metaMinWidth = columnMetaRef.current[colKey]?.minWidth ?? minWidth
             const clamped = Math.max(width, metaMinWidth)
-            liveWidthsRef.current = {
-                ...liveWidthsRef.current,
-                [colKey]: clamped,
-            }
-            onLiveResize?.({columnKey: colKey, width: clamped, minWidth: metaMinWidth})
+            setColumnWidths((prev) => {
+                if (prev[colKey] === clamped) {
+                    return prev
+                }
+                return {
+                    ...prev,
+                    [colKey]: clamped,
+                }
+            })
         },
-        [minWidth, onLiveResize],
+        [minWidth, setColumnWidths],
     )
 
     const handleResize = useCallback(
         (colKey: string) =>
             (_: unknown, {size}: {size: {width: number}}) => {
-                queueWidthUpdate(colKey, size.width)
+                commitWidth(colKey, size.width)
             },
-        [queueWidthUpdate],
+        [commitWidth],
     )
 
     const handleResizeStart = useCallback(() => {
@@ -102,24 +103,10 @@ export const useResizableColumns = <RowType>({
     const handleResizeStop = useCallback(
         (colKey: string) =>
             (_: unknown, {size}: {size: {width: number}}) => {
-                const metaMinWidth = columnMetaRef.current[colKey]?.minWidth ?? minWidth
-                const clamped = Math.max(size.width, metaMinWidth)
-                setColumnWidths((prev) => {
-                    if (prev[colKey] === clamped) {
-                        return prev
-                    }
-                    return {
-                        ...prev,
-                        [colKey]: clamped,
-                    }
-                })
-                liveWidthsRef.current = {
-                    ...liveWidthsRef.current,
-                    [colKey]: clamped,
-                }
+                commitWidth(colKey, size.width)
                 setIsResizing(false)
             },
-        [minWidth, setColumnWidths],
+        [commitWidth],
     )
 
     const buildHeaderCellProps = useCallback(

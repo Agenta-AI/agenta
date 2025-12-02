@@ -1,12 +1,9 @@
-import {atom} from "jotai"
-import {atomWithStorage} from "jotai/utils"
+import {atom, type PrimitiveAtom} from "jotai"
 
-type ColumnWidthAtom = ReturnType<typeof atomWithStorage<Record<string, number>>>
+type ColumnWidthAtom = PrimitiveAtom<Record<string, number>>
 
 const DEFAULT_SCOPE = "__default__"
 const scopeKey = (scopeId: string | null | undefined) => scopeId ?? DEFAULT_SCOPE
-const storageKey = (scopeId: string | null | undefined) =>
-    `infinite-table:column-widths:${scopeKey(scopeId)}`
 
 const atomCache = new Map<string, ColumnWidthAtom>()
 
@@ -17,10 +14,8 @@ const createColumnWidthsAtom = (scopeId: string | null | undefined) => {
         return cached
     }
 
-    const safeAtom: ColumnWidthAtom =
-        typeof window === "undefined"
-            ? (atom<Record<string, number>>({}) as ColumnWidthAtom)
-            : atomWithStorage<Record<string, number>>(storageKey(scopeId), {})
+    // Use simple atom without storage - widths are session-only and reset on navigation
+    const safeAtom: ColumnWidthAtom = atom<Record<string, number>>({})
 
     atomCache.set(key, safeAtom)
     return safeAtom

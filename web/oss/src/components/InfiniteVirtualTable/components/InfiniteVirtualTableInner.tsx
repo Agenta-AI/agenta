@@ -116,33 +116,6 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         useColumnVisibilityControlsBuilder<RecordType>(columnVisibilityResult)
     const lastReportedVersionRef = useRef<number | null>(null)
 
-    const applyLiveColumnWidth = useCallback(
-        ({
-            columnKey,
-            width,
-            minWidth: columnMinWidth,
-        }: {
-            columnKey: string
-            width: number
-            minWidth: number
-        }) => {
-            const targets = columnDomRefs.current.get(columnKey)
-            if (!targets) return
-            const clamped = Math.max(width, columnMinWidth)
-            const widthPx = `${clamped}px`
-            targets.cols.forEach((col) => {
-                col.style.width = widthPx
-                col.style.minWidth = widthPx
-            })
-            targets.headers.forEach((th) => {
-                th.style.width = widthPx
-                th.style.minWidth = widthPx
-                th.style.maxWidth = widthPx
-            })
-        },
-        [],
-    )
-
     const {
         columns: resizableProcessedColumns,
         headerComponents: resizableHeaderComponents,
@@ -152,7 +125,6 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         columns: visibleColumns,
         enabled: resizableEnabled,
         minWidth: resizable?.minWidth,
-        onLiveResize: applyLiveColumnWidth,
         scopeId: resolvedScopeId,
     })
     const visibilityTrackingEnabled = baseTrackingEnabled && active

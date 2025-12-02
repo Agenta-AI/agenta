@@ -126,7 +126,7 @@ const EvaluatorTemporalMetricsChart = ({
                         ? {name: entry.name, value: formatted, color: entry.color}
                         : null
                 })
-                .filter(Boolean) as Array<{name: string; value: string; color: string}>,
+                .filter(Boolean) as {name: string; value: string; color: string}[],
         [series, isBoolean],
     )
 

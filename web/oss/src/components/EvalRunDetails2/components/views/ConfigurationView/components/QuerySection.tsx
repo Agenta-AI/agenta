@@ -5,12 +5,12 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import FiltersPreview from "@/oss/components/pages/evaluations/onlineEvaluation/components/FiltersPreview"
+import ReferenceTag from "@/oss/components/References/ReferenceTag"
 
 import {
     evaluationQueryReferenceAtomFamily,
     evaluationQueryRevisionAtomFamily,
 } from "../../../../atoms/query"
-import ReferenceTag from "@/oss/components/References/ReferenceTag"
 import {formatSamplingRate, formatWindowRange, stringifyError} from "../utils"
 
 import {ReadOnlyContainer} from "./CopyableFields"

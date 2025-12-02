@@ -288,7 +288,7 @@ export const ensureBinSize = (statsMap: RunLevelStatsMap): RunLevelStatsMap => {
 const collectNestedStats = (
     value: any,
     prefix: string,
-    bucket: Array<{key: string; stats: BasicStats}>,
+    bucket: {key: string; stats: BasicStats}[],
     seen: Set<any>,
 ) => {
     if (!value || typeof value !== "object") return
@@ -348,7 +348,7 @@ export const flattenRunLevelMetricData = (
                 }
             }
 
-            const nestedStats: Array<{key: string; stats: BasicStats}> = []
+            const nestedStats: {key: string; stats: BasicStats}[] = []
             collectNestedStats(normalizedValue, "", nestedStats, new Set<any>())
 
             nestedStats.forEach(({key: nestedKey, stats}) => {
