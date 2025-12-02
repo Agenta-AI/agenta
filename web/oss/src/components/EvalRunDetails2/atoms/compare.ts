@@ -51,6 +51,8 @@ export interface RunComparisonStructure {
     testsetIds: string[]
     hasQueryInput: boolean
     inputStepCount: number
+    /** Evaluator identifiers (id or slug) for matching runs with shared evaluators */
+    evaluatorIds: string[]
 }
 
 const extractRefsTestsetId = (refs: Record<string, any> | undefined | null): string | undefined => {
@@ -85,6 +87,12 @@ const refsIndicateQuery = (refs: Record<string, any> | undefined | null): boolea
     ].some((value) => (typeof value === "string" ? value.length > 0 : Boolean(value)))
 }
 
+const extractEvaluatorId = (refs: Record<string, any> | undefined | null): string | undefined => {
+    if (!refs?.evaluator) return undefined
+    // Prefer id, fall back to slug for matching
+    return refs.evaluator.id ?? refs.evaluator.slug ?? undefined
+}
+
 export const deriveRunComparisonStructure = ({
     runIndex,
     steps,
@@ -93,14 +101,16 @@ export const deriveRunComparisonStructure = ({
     steps?: Record<string, any>[] | null
 }): RunComparisonStructure => {
     const testsetIds = new Set<string>()
+    const evaluatorIds = new Set<string>()
     let hasQueryInput = false
     let inputStepCount = 0
 
-    const inspectStep = (
+    const inspectInputStep = (
         step: {references?: Record<string, any>; kind?: string} | null | undefined,
     ) => {
         if (!step) return
-        const kind = step.kind ?? step.type ?? step.stepType ?? step.step_role
+        const kind =
+            step.kind ?? (step as any).type ?? (step as any).stepType ?? (step as any).step_role
         if (kind && kind !== "input") return
         inputStepCount += 1
         if (refsIndicateQuery(step.references)) {
@@ -110,17 +120,29 @@ export const deriveRunComparisonStructure = ({
         if (testsetId) testsetIds.add(testsetId)
     }
 
+    const inspectAnnotationStep = (
+        step: {references?: Record<string, any>; kind?: string} | null | undefined,
+    ) => {
+        if (!step) return
+        const evaluatorId = extractEvaluatorId(step.references)
+        if (evaluatorId) evaluatorIds.add(evaluatorId)
+    }
+
     const seenKeys = new Set<string>()
 
     if (runIndex) {
         Object.values(runIndex.steps ?? {}).forEach((meta) => {
-            if (meta.kind !== "input") return
-            inputStepCount += 1
-            if (refsIndicateQuery(meta.refs)) {
-                hasQueryInput = true
+            if (meta.kind === "input") {
+                inputStepCount += 1
+                if (refsIndicateQuery(meta.refs)) {
+                    hasQueryInput = true
+                }
+                const testsetId = extractRefsTestsetId(meta.refs)
+                if (testsetId) testsetIds.add(testsetId)
+            } else if (meta.kind === "annotation") {
+                const evaluatorId = extractEvaluatorId(meta.refs)
+                if (evaluatorId) evaluatorIds.add(evaluatorId)
             }
-            const testsetId = extractRefsTestsetId(meta.refs)
-            if (testsetId) testsetIds.add(testsetId)
             if (meta.key) {
                 seenKeys.add(meta.key)
             }
@@ -131,7 +153,8 @@ export const deriveRunComparisonStructure = ({
         steps.forEach((step: any) => {
             const key = typeof step?.key === "string" ? step.key : undefined
             if (key && seenKeys.has(key)) return
-            inspectStep(step ?? undefined)
+            inspectInputStep(step ?? undefined)
+            inspectAnnotationStep(step ?? undefined)
             if (key) seenKeys.add(key)
         })
     }
@@ -140,6 +163,7 @@ export const deriveRunComparisonStructure = ({
         testsetIds: Array.from(testsetIds),
         hasQueryInput,
         inputStepCount,
+        evaluatorIds: Array.from(evaluatorIds),
     }
 }
 
@@ -148,6 +172,7 @@ export interface CompareAvailabilityState {
     canCompare: boolean
     reason?: "loading" | "no-input" | "no-testset" | "query-input"
     testsetIds: string[]
+    evaluatorIds: string[]
 }
 
 export const compareAvailabilityAtomFamily = atomFamily((runId: string | null) =>
@@ -158,6 +183,7 @@ export const compareAvailabilityAtomFamily = atomFamily((runId: string | null) =
                 canCompare: false,
                 reason: "no-input",
                 testsetIds: [],
+                evaluatorIds: [],
             }
         }
 
@@ -171,6 +197,7 @@ export const compareAvailabilityAtomFamily = atomFamily((runId: string | null) =
                 canCompare: false,
                 reason: "loading",
                 testsetIds: [],
+                evaluatorIds: [],
             }
         }
 
@@ -196,6 +223,7 @@ export const compareAvailabilityAtomFamily = atomFamily((runId: string | null) =
             canCompare,
             reason,
             testsetIds: structure.testsetIds,
+            evaluatorIds: structure.evaluatorIds,
         }
     }),
 )

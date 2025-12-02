@@ -4,6 +4,7 @@ import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip, Typography}
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
+import ReferenceTag from "@/oss/components/References/ReferenceTag"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {projectIdAtom} from "@/oss/state/project"
@@ -17,8 +18,6 @@ import {
 } from "../atoms/compare"
 import useRunScopedUrls from "../hooks/useRunScopedUrls"
 import {setCompareQueryParams} from "../state/urlCompare"
-
-import ReferenceTag from "@/oss/components/References/ReferenceTag"
 
 import usePreviewEvaluations from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
 
@@ -39,6 +38,7 @@ interface CandidateRun {
         testsetIds: string[]
         hasQueryInput: boolean
         inputStepCount: number
+        evaluatorIds: string[]
     }
 }
 
@@ -122,6 +122,7 @@ interface CompareRunsPopoverContentProps {
     availability: {
         canCompare: boolean
         testsetIds: string[]
+        evaluatorIds: string[]
         isLoading: boolean
         reason?: keyof typeof reasonLabelMap
     }
@@ -140,6 +141,7 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
     const candidates = useMemo<CandidateRun[]>(() => {
         if (!availability.canCompare || !Array.isArray(runs)) return []
         const baseTestsetIds = new Set(availability.testsetIds)
+        const baseEvaluatorIds = new Set(availability.evaluatorIds)
         return runs
             .filter((run) => run?.id && run.id !== runId)
             .map((run) => {
@@ -160,12 +162,18 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                 if (!candidate.structure.inputStepCount) return false
                 if (candidate.structure.hasQueryInput) return false
                 if (!candidate.structure.testsetIds.length) return false
+                // Must share at least one testset
                 const sharesTestset = candidate.structure.testsetIds.some((id) =>
                     baseTestsetIds.has(id),
                 )
-                return sharesTestset
+                if (!sharesTestset) return false
+                // Must share at least one evaluator for meaningful comparison
+                const sharesEvaluator = candidate.structure.evaluatorIds.some((id) =>
+                    baseEvaluatorIds.has(id),
+                )
+                return sharesEvaluator
             })
-    }, [availability.canCompare, availability.testsetIds, runs, runId])
+    }, [availability.canCompare, availability.testsetIds, availability.evaluatorIds, runs, runId])
 
     const candidateTestsetIds = useMemo(() => {
         const ids = new Set<string>()
