@@ -403,13 +403,20 @@ const ScenarioColumnValue = memo(
         if (isMetric) {
             const {value, displayValue} = selection
 
-            const formattedValue =
+            // Ensure formattedValue is always a string
+            // displayValue might be a boolean (e.g., true/false for boolean metrics)
+            // which would render as nothing in React if not converted to string
+            const rawFormattedValue =
                 displayValue ??
                 formatMetricDisplay({
                     value,
                     metricKey: descriptor.metricKey ?? descriptor.valueKey ?? descriptor.path,
                     metricType: descriptor.metricType,
                 })
+            const formattedValue =
+                typeof rawFormattedValue === "boolean"
+                    ? String(rawFormattedValue)
+                    : rawFormattedValue
 
             const isPlaceholder = formattedValue === METRIC_EMPTY_PLACEHOLDER
 

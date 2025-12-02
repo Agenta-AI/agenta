@@ -870,12 +870,33 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                         // Filter annotations by evaluator slug to get the right one for this column
                         const allAnnotations = annotationQuery.data ?? []
                         const evaluatorSlug = column.stepKey?.split(".").pop() // e.g., "new-human" from "completion_testset-xxx.new-human"
-                        const matchingAnnotation = allAnnotations.find(
-                            (ann: AnnotationDto) =>
-                                ann?.references?.evaluator?.slug === evaluatorSlug,
-                        )
+                        const evaluatorId = column.evaluatorId ?? column.evaluatorSlug ?? null
 
-                        const annotationData = matchingAnnotation ?? null
+                        // Try multiple matching strategies for finding the right annotation
+                        const matchingAnnotation = allAnnotations.find((ann: AnnotationDto) => {
+                            const annEvaluatorSlug = ann?.references?.evaluator?.slug
+                            const annEvaluatorId = ann?.references?.evaluator?.id
+
+                            // Match by evaluator slug from step key
+                            if (evaluatorSlug && annEvaluatorSlug === evaluatorSlug) return true
+                            // Match by evaluator ID
+                            if (
+                                evaluatorId &&
+                                (annEvaluatorId === evaluatorId || annEvaluatorSlug === evaluatorId)
+                            )
+                                return true
+                            // Match by column's evaluator slug
+                            if (column.evaluatorSlug && annEvaluatorSlug === column.evaluatorSlug)
+                                return true
+
+                            return false
+                        })
+
+                        // If no specific match found, use the first annotation as fallback
+                        // (for cases where there's only one annotation per trace)
+                        const annotationData =
+                            matchingAnnotation ??
+                            (allAnnotations.length === 1 ? allAnnotations[0] : null)
                         const valueFromAnnotation = resolveAnnotationValue(
                             annotationData,
                             column,
@@ -895,8 +916,9 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                             }
                         }
                     }
-                    // If no annotation value found, return the placeholder candidate
-                    return metricCandidate
+                    // If no annotation value found via invocation trace ID,
+                    // fall through to the regular annotation column handling below
+                    // which uses the annotation step's own trace ID
                 }
             }
 
