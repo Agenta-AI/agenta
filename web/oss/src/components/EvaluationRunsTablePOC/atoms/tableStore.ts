@@ -35,6 +35,8 @@ export interface EvaluationRunsTableMeta {
     referenceFilters?: Record<string, string[]> | null
     evaluationTypeFilters?: ConcreteEvaluationRunKind[] | null
     dateRange?: {from?: string | null; to?: string | null} | null
+    /** Internal refresh trigger - incrementing this forces a refetch */
+    _refreshTrigger?: number
 }
 
 interface EvaluationRunsTableMetaState {
@@ -140,6 +142,20 @@ const mergeLockedAppFilters = (
     return Object.keys(base).length ? base : null
 }
 
+/**
+ * Atom to trigger a refresh of the evaluation runs table.
+ * Incrementing this will cause the table to refetch data.
+ */
+export const evaluationRunsRefreshTriggerAtom = atom(0)
+
+/**
+ * Write-only atom to invalidate the evaluation runs table and trigger a refetch.
+ * Call this after updating a run (rename, status change, annotation, etc.)
+ */
+export const invalidateEvaluationRunsTableAtom = atom(null, (get, set) => {
+    set(evaluationRunsRefreshTriggerAtom, (prev) => prev + 1)
+})
+
 export const evaluationRunsTableMetaAtom = atom<
     EvaluationRunsTableMeta,
     [EvaluationRunsTableMeta | ((prev: EvaluationRunsTableMeta) => EvaluationRunsTableMeta)],
@@ -150,6 +166,7 @@ export const evaluationRunsTableMetaAtom = atom<
         const signature = computeContextSignature(context)
         const state = get(evaluationRunsMetaStateAtomFamily(signature))
         const isEnabled = get(evaluationRunsTableFetchEnabledAtom)
+        const refreshTrigger = get(evaluationRunsRefreshTriggerAtom)
 
         const previewFlags = state.previewFlags ?? context.derivedPreviewFlags
 
@@ -181,6 +198,7 @@ export const evaluationRunsTableMetaAtom = atom<
             referenceFilters,
             evaluationTypeFilters,
             dateRange,
+            _refreshTrigger: refreshTrigger,
         }
 
         return meta

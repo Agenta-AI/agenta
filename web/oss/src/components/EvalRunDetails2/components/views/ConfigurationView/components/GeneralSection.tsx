@@ -2,12 +2,15 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Form, Input, Tag, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
+import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import ReadOnlyBox from "@/oss/components/pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 
+import {effectiveProjectIdAtom} from "../../../../atoms/run"
 import {evaluationRunQueryAtomFamily} from "../../../../atoms/table/run"
 import {deriveRunTags} from "../utils"
 
@@ -30,6 +33,8 @@ const GeneralSectionHeader = ({runId, index}: {runId: string; index: number}) =>
 
 const GeneralSection = ({runId, showActions = true}: GeneralSectionProps) => {
     const [collapsed, setCollapsed] = useState(false)
+    const projectId = useAtomValue(effectiveProjectIdAtom)
+    const invalidateRunsTable = useSetAtom(invalidateEvaluationRunsTableAtom)
     const runQueryAtom = useMemo(() => evaluationRunQueryAtomFamily(runId), [runId])
     const runQuery = useAtomValue(runQueryAtom)
     const isLoading = runQuery.isPending && !runQuery.data
@@ -85,14 +90,20 @@ const GeneralSection = ({runId, showActions = true}: GeneralSectionProps) => {
                     description: editDescription,
                 },
             })
+            // Invalidate the cache before refetching to ensure fresh data
+            if (projectId) {
+                invalidatePreviewRunCache(projectId, runId)
+            }
             await runQuery.refetch?.()
+            // Also invalidate the runs table so it shows updated data when user navigates back
+            invalidateRunsTable()
             message.success("Evaluation run updated")
         } catch (err: any) {
             message.error(err?.message || "Failed to update evaluation run")
         } finally {
             setSaving(false)
         }
-    }, [editName, editDescription, runId, runQuery])
+    }, [editName, editDescription, runId, runQuery, projectId, invalidateRunsTable])
 
     const handleReset = useCallback(() => {
         setEditName(runData?.name ?? "")

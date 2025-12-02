@@ -4,6 +4,7 @@ import {Button, Card, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
+import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {uuidToSpanId} from "@/oss/lib/traces/helpers"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
 import {upsertStepResultWithAnnotation} from "@/oss/services/evaluations/results/api"
@@ -48,6 +49,7 @@ const ScenarioAnnotationPanel = ({
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [justSaved, setJustSaved] = useState(false)
     const invalidateRunMetricStats = useSetAtom(invalidatePreviewRunMetricStatsAtom)
+    const invalidateRunsTable = useSetAtom(invalidateEvaluationRunsTableAtom)
 
     // Single action to set all scenario data atomically
     const setScenarioData = useSetAtom(setScenarioDataAtom)
@@ -347,6 +349,8 @@ const ScenarioAnnotationPanel = ({
             invalidateScenarioStepsBatcherCache()
             invalidateMetricBatcherCache()
             invalidateRunMetricStats(runId)
+            // Invalidate the runs table so it shows updated metrics when user navigates back
+            invalidateRunsTable()
 
             // Note: We intentionally do NOT reset metrics here.
             // The metricEdits will be preserved until the cache invalidation
@@ -369,6 +373,7 @@ const ScenarioAnnotationPanel = ({
         runId,
         scenarioId,
         invalidateRunMetricStats,
+        invalidateRunsTable,
         setErrors,
     ])
 
