@@ -835,6 +835,18 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     const invocationStep = invocations[0]
                     const invocationTraceId = toTraceId(invocationStep)
 
+                    // If steps are still loading, we don't have the invocation trace ID yet
+                    // Return loading state to prevent showing empty value prematurely
+                    if (!invocationTraceId && stepsQueryLoading) {
+                        return {
+                            value: undefined,
+                            displayValue: undefined,
+                            isLoading: true,
+                            isFetching: stepsQuery.isFetching,
+                            error: undefined,
+                        }
+                    }
+
                     if (invocationTraceId) {
                         const annotationQuery = get(
                             evaluationAnnotationQueryAtomFamily({
@@ -842,6 +854,18 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                                 runId,
                             }),
                         ) as QueryState<AnnotationDto[] | null>
+
+                        // If annotation query is still loading, indicate loading state
+                        // This ensures the cell shows a loading indicator until annotation data is ready
+                        if (annotationQuery.isLoading || annotationQuery.isFetching) {
+                            return {
+                                value: undefined,
+                                displayValue: undefined,
+                                isLoading: true,
+                                isFetching: annotationQuery.isFetching,
+                                error: undefined,
+                            }
+                        }
 
                         // Filter annotations by evaluator slug to get the right one for this column
                         const allAnnotations = annotationQuery.data ?? []
@@ -865,8 +889,8 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                                     metricKey: column.metricKey ?? column.valueKey ?? column.path,
                                     metricType: column.metricType,
                                 }),
-                                isLoading: annotationQuery.isLoading,
-                                isFetching: annotationQuery.isFetching,
+                                isLoading: false,
+                                isFetching: false,
                                 error: annotationQuery.error,
                             }
                         }
