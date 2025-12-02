@@ -23,7 +23,11 @@ import {useQueryParamState} from "@/oss/state/appState"
 
 import {shouldIgnoreRowClick} from "../../actions/navigationActions"
 import {evaluationRunsTableFetchEnabledAtom} from "../../atoms/context"
-import {evaluationRunsDatasetStore, EVALUATION_RUNS_QUERY_KEY_ROOT} from "../../atoms/tableStore"
+import {
+    evaluationRunsDatasetStore,
+    EVALUATION_RUNS_QUERY_KEY_ROOT,
+    invalidateEvaluationRunsTableAtom,
+} from "../../atoms/tableStore"
 import {
     evaluationRunsDeleteModalOpenAtom,
     evaluationRunsCreateModalOpenAtom,
@@ -191,6 +195,7 @@ const EvaluationRunsTableActive = ({
     const [selectedRowKeys, setSelectedRowKeys] = useAtom(evaluationRunsSelectedRowKeysAtom)
     const [rowExportingKey, setRowExportingKey] = useState<string | null>(null)
     const setDeleteModalOpen = useSetAtom(evaluationRunsDeleteModalOpenAtom)
+    const invalidateRunsTable = useSetAtom(invalidateEvaluationRunsTableAtom)
     const selectionSnapshot = useAtomValue(evaluationRunsSelectionSnapshotAtom)
     const store = useStore()
     const queryClient = useQueryClient()
@@ -300,9 +305,18 @@ const EvaluationRunsTableActive = ({
             queryKey: EVALUATION_RUNS_QUERY_KEY_ROOT,
             exact: false,
         })
+        // Trigger refresh in all scoped stores (e.g., LatestEvaluationRunsTable on Overview page)
+        invalidateRunsTable()
         // Reset pages to trigger fresh data load with new query atoms
         resetPages()
-    }, [queryClient, resetPages, selectedCreateType, setIsCreateModalOpen, setKindParam])
+    }, [
+        invalidateRunsTable,
+        queryClient,
+        resetPages,
+        selectedCreateType,
+        setIsCreateModalOpen,
+        setKindParam,
+    ])
 
     useEffect(() => {
         if (contextEvaluationKind !== "all") {

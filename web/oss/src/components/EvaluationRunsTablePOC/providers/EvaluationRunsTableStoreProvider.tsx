@@ -16,6 +16,7 @@ import {
     evaluationRunsTableFetchEnabledAtom,
     evaluationRunsTableOverridesAtom,
 } from "../atoms/context"
+import {evaluationRunsRefreshTriggerAtom} from "../atoms/tableStore"
 import {evaluationRunsTablePageSizeAtom} from "../atoms/view"
 
 type WritableAtom = PrimitiveAtom<any> & {write: any}
@@ -25,6 +26,7 @@ const MIRRORED_GLOBAL_ATOMS: WritableAtom[] = [
     sessionExistsAtom as WritableAtom,
     activeInviteAtom as WritableAtom,
     recentAppIdAtom as WritableAtom,
+    evaluationRunsRefreshTriggerAtom as WritableAtom,
 ]
 
 interface EvaluationRunsTableStoreProviderProps extends PropsWithChildren {
