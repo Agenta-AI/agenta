@@ -178,11 +178,7 @@ export const createMetricProcessor = ({
         }
 
         const shouldRefresh = reasons.length > 0
-        console.debug("[MetricProcessor] processMetric result", {
-            scenarioId: summary.scenarioId,
-            shouldRefresh,
-            reasons,
-        })
+
         const shouldDelete = shouldRefresh && scope === "scenario" && Boolean(summary.id)
 
         if (shouldRefresh) {
@@ -223,22 +219,9 @@ export const createMetricProcessor = ({
 
     const markRunLevelGap = (reason: string) => {
         state.runLevelFlags.push(reason)
-        // console.info("[EvalRunDetails2] Metric processor run-level gap (debug mode)", {
-        //     projectId,
-        //     runId,
-        //     source,
-        //     reason,
-        // })
     }
 
     const markScenarioGap = (scenarioId: string, reason: string) => {
-        console.debug("[MetricProcessor] markScenarioGap called", {
-            scenarioId,
-            reason,
-            projectId,
-            runId,
-            source,
-        })
         // Track the gap for informational purposes, but do NOT add to scenarioIds
         // for refresh. Missing metrics typically means the scenario hasn't been run yet
         // (pending/waiting), so there's nothing to refresh.
@@ -276,18 +259,18 @@ export const createMetricProcessor = ({
     }: {triggerRefresh?: boolean} = {}): Promise<MetricProcessorFlushResult> => {
         const {pending, scenarioIds, runLevelFlags, scenarioGaps} = getPendingActions()
 
-        console.debug("[MetricProcessor] flush called", {
-            triggerRefresh,
-            pendingCount: pending.length,
-            scenarioIdsCount: scenarioIds.length,
-            scenarioIds,
-            runLevelFlagsCount: runLevelFlags.length,
-            scenarioGapsCount: scenarioGaps.length,
-            scenarioGaps,
-            projectId,
-            runId,
-            source,
-        })
+        // console.debug("[MetricProcessor] flush called", {
+        //     triggerRefresh,
+        //     pendingCount: pending.length,
+        //     scenarioIdsCount: scenarioIds.length,
+        //     scenarioIds,
+        //     runLevelFlagsCount: runLevelFlags.length,
+        //     scenarioGapsCount: scenarioGaps.length,
+        //     scenarioGaps,
+        //     projectId,
+        //     runId,
+        //     source,
+        // })
 
         if (!pending.length && !runLevelFlags.length && !scenarioGaps.length) {
             console.debug("[MetricProcessor] flush: nothing to do, returning empty result")
@@ -497,17 +480,17 @@ export const createMetricProcessor = ({
                 )
                 unexpectedScenarioMetricIds = Array.from(unexpectedScenarioMetricIdsSet)
 
-                console.info("[EvalRunDetails2] Scenario metrics refresh triggered", {
-                    projectId,
-                    runId,
-                    source,
-                    scenarioIds: uniqueScenarioIds,
-                    details: scenarioRefreshDetails,
-                    runLevelMetricIdsFromScenarioRefresh,
-                    runLevelMetricIdsFromScenarioFallback,
-                    unexpectedScenarioMetricIds,
-                    missingScenarioIdsAfterAttempts,
-                })
+                // console.info("[EvalRunDetails2] Scenario metrics refresh triggered", {
+                //     projectId,
+                //     runId,
+                //     source,
+                //     scenarioIds: uniqueScenarioIds,
+                //     details: scenarioRefreshDetails,
+                //     runLevelMetricIdsFromScenarioRefresh,
+                //     runLevelMetricIdsFromScenarioFallback,
+                //     unexpectedScenarioMetricIds,
+                //     missingScenarioIdsAfterAttempts,
+                // })
             }
         }
 

@@ -308,14 +308,6 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
         const evaluationType = get(previewEvalTypeAtom)
         const isOnlineEvaluation = evaluationType === "online"
 
-        console.log("[columns.ts] Building columns", {
-            evaluationType,
-            isOnlineEvaluation,
-            hasHumanInvocation,
-            hasHumanAnnotation,
-            runId,
-        })
-
         const metaColumns = createMetaColumns({
             includeAction: includeActionColumn,
             includeTimestamp: isOnlineEvaluation,

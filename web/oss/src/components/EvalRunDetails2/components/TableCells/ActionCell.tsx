@@ -7,7 +7,7 @@ import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTab
 
 import {activePreviewRunIdAtom} from "../../atoms/run"
 import {triggerRunInvocationAtom, runningInvocationsAtom} from "../../atoms/runInvocationAction"
-import {evaluationRunIndexAtomFamily} from "../../atoms/table/run"
+import {evaluationRunIndexAtomFamily, evaluationRunQueryAtomFamily} from "../../atoms/table/run"
 import {
     useScenarioInputSteps,
     useScenarioInvocationSteps,
@@ -25,7 +25,12 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
     const fallbackRunId = useAtomValue(activePreviewRunIdAtom)
     const effectiveRunId = runId ?? fallbackRunId ?? undefined
 
+    const runQuery = useAtomValue(evaluationRunQueryAtomFamily(effectiveRunId ?? null))
     const runIndex = useAtomValue(evaluationRunIndexAtomFamily(effectiveRunId ?? null))
+    // Only consider loading if we have a runId and the query is actually fetching
+    // When runId is null, the query is disabled and isPending will be true forever
+    const isRunQueryLoading =
+        Boolean(effectiveRunId) && !runIndex && (runQuery.isLoading || runQuery.isFetching)
     const runningInvocations = useAtomValue(runningInvocationsAtom)
     const triggerRunInvocation = useSetAtom(triggerRunInvocationAtom)
 
@@ -93,6 +98,15 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
         })
         return map
     }, [invocationSelection.steps])
+
+    // Show spinner while run query is loading
+    if (isRunQueryLoading) {
+        return (
+            <div className="flex h-full items-center justify-center">
+                <Spin size="small" />
+            </div>
+        )
+    }
 
     if (!scenarioId || !effectiveRunId || !runIndex) {
         return (

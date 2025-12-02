@@ -1,43 +1,28 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Card, Tag, Typography} from "antd"
-import deepEqual from "fast-deep-equal"
+import {Card, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {message} from "@/oss/components/AppMessageContext"
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
-import {
-    generateAnnotationPayloadData,
-    generateNewAnnotationPayloadData,
-    getInitialMetricsFromAnnotations,
-} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 import {uuidToSpanId} from "@/oss/lib/traces/helpers"
-import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
-import {upsertStepResultWithAnnotation} from "@/oss/services/evaluations/results/api"
-import {upsertScenarioMetricData} from "@/oss/services/runMetrics/api"
 
-import {
-    invalidateAnnotationBatcherCache,
-    scenarioAnnotationsQueryAtomFamily,
-} from "../../../atoms/annotations"
-import {evaluationMetricQueryAtomFamily, invalidateMetricBatcherCache} from "../../../atoms/metrics"
+import {scenarioAnnotationsQueryAtomFamily} from "../../../atoms/annotations"
+import {evaluationMetricQueryAtomFamily} from "../../../atoms/metrics"
 import {runningInvocationsAtom, triggerRunInvocationAtom} from "../../../atoms/runInvocationAction"
 import {invalidatePreviewRunMetricStatsAtom} from "../../../atoms/runMetrics"
-import {
-    invalidateScenarioStepsBatcherCache,
-    scenarioStepsQueryFamily,
-} from "../../../atoms/scenarioSteps"
+import {scenarioStepsQueryFamily} from "../../../atoms/scenarioSteps"
 import type {EvaluationTableColumn} from "../../../atoms/table"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../../atoms/table/evaluators"
 import {evaluationRunIndexAtomFamily} from "../../../atoms/table/run"
 import {evaluationPreviewTableStore} from "../../../evaluationPreviewTableStore"
 import usePreviewTableData from "../../../hooks/usePreviewTableData"
 import {pocUrlStateAtom} from "../../../state/urlState"
-import {buildScenarioMetricDataFromAnnotation} from "../../../utils/buildAnnotationMetricData"
 
 import ColumnValueView from "./ColumnValueView"
+import ScenarioAnnotationPanel from "./ScenarioAnnotationPanel"
 import ScenarioLoadingIndicator from "./ScenarioLoadingIndicator"
 import ScenarioNavigator from "./ScenarioNavigator"
 import StepContentRenderer from "./StepContentRenderer"
@@ -48,14 +33,6 @@ import {
     getStepKey,
     getTraceIdForStep,
 } from "./utils"
-
-const Annotate = dynamic(
-    () =>
-        import(
-            "@agenta/oss/src/components/pages/observability/drawer/AnnotateDrawer/assets/Annotate"
-        ),
-    {ssr: false},
-)
 
 const SharedGenerationResultUtils = dynamic(
     () => import("@agenta/oss/src/components/SharedGenerationResultUtils"),
@@ -268,33 +245,40 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         ),
     )
 
-    const existingAnnotations = useMemo(
-        () =>
-            annotationsQuery?.data?.length
-                ? annotationsQuery.data
-                : (annotationSteps
-                      .map(
-                          (step: any) =>
-                              step?.annotation ?? step?.annotations ?? step?.data?.annotations,
-                      )
-                      .filter(Boolean) as any[]),
-        // Include activeId to ensure recalculation when scenario changes
+    const existingAnnotations = useMemo(() => {
+        const fromQuery = annotationsQuery?.data?.length ? annotationsQuery.data : null
+        const fromSteps = annotationSteps
+            .map((step: any) => step?.annotation ?? step?.annotations ?? step?.data?.annotations)
+            .filter(Boolean) as any[]
 
-        [annotationsQuery?.data, annotationSteps, activeId],
-    )
+        const result = fromQuery ?? fromSteps
+
+        console.log("[SingleScenarioViewerPOC] existingAnnotations computed:", {
+            activeId,
+            fromQueryCount: fromQuery?.length ?? 0,
+            fromStepsCount: fromSteps.length,
+            resultCount: result.length,
+            result: result.map((a: any) => ({
+                slug: a?.references?.evaluator?.slug,
+                outputs: a?.data?.outputs,
+            })),
+        })
+
+        return result
+    }, [annotationsQuery?.data, annotationSteps, activeId])
 
     // Local annotation state
     const [localAnnotations, setLocalAnnotations] = useState<any[]>([])
-    const [annotationErrors, setAnnotationErrors] = useState<string[]>([])
+    const [_annotationErrors, _setAnnotationErrors] = useState<string[]>([])
     const [annotationMetrics, setAnnotationMetrics] = useState<Record<string, any>>({})
-    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [_isSubmitting, _setIsSubmitting] = useState(false)
 
     // Reset annotation state when scenario changes
     useEffect(() => {
         // Always reset when activeId changes
         setAnnotationMetrics({})
         setLocalAnnotations([])
-        setAnnotationErrors([])
+        _setAnnotationErrors([])
     }, [activeId])
 
     // Combined annotations (existing + local optimistic updates)
@@ -330,7 +314,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         return list.map((e: any) => e?.raw ?? e).filter(Boolean)
     }, [evaluatorQuery])
 
-    const annotationsForAnnotate = useMemo(() => [...combinedAnnotations], [combinedAnnotations])
+    const _annotationsForAnnotate = useMemo(() => [...combinedAnnotations], [combinedAnnotations])
 
     const selectedEvaluators = useMemo(
         () =>
@@ -353,7 +337,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
     }, [combinedAnnotations, evaluatorDtos])
 
     // Create a stable key for the Annotate component based on actual values
-    const annotateComponentKey = useMemo(() => {
+    const _annotateComponentKey = useMemo(() => {
         const metricsHash = JSON.stringify(baselineMetrics)
         return `${activeId}-${metricsHash.slice(0, 50)}`
     }, [activeId, baselineMetrics])
@@ -519,7 +503,8 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
     }, [pendingInvocationStepKey, isRunningInvocation, handleRunInvocation])
 
     // Handle annotation save - mirrors VirtualizedScenarioTableAnnotateDrawer logic
-    const handleAnnotationSave = useCallback(async () => {
+    // NOTE: This is now handled by ScenarioAnnotationPanel, kept for reference
+    const _handleAnnotationSave = useCallback(async () => {
         if (!canSubmitAnnotations || !activeId) return
 
         setIsSubmitting(true)
@@ -919,91 +904,20 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                             </Card>
                         </div>
 
-                        {/* Annotations Card */}
-                        <div className="flex w-5/12 max-w-[400px] sticky top-0 self-start">
-                            <Card
-                                title="Annotations"
-                                className="w-full relative"
-                                classNames={{body: "!p-2"}}
-                                key={annotateComponentKey}
-                            >
-                                {/* Overlay when invocation is not successful */}
-                                {!allInvocationsSuccessful && pendingInvocationStepKey ? (
-                                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 backdrop-blur-md rounded-lg">
-                                        <Typography.Text
-                                            type="secondary"
-                                            className="mb-4 text-center px-4 font-medium"
-                                        >
-                                            Run the scenario to generate output before annotating
-                                        </Typography.Text>
-                                        <div className="flex gap-4 items-center mt-1">
-                                            <Button
-                                                type="primary"
-                                                onClick={handleRunInvocation}
-                                                loading={isRunningInvocation}
-                                                disabled={isRunningInvocation}
-                                            >
-                                                {isRunningInvocation ? "Running..." : "Run"}
-                                            </Button>
-                                            <Typography.Text
-                                                type="secondary"
-                                                className="text-xs text-neutral-400"
-                                            >
-                                                or press{" "}
-                                                <kbd className="px-1.5 py-0.5 text-xs font-semibold text-neutral-600 bg-neutral-100 border border-neutral-300 rounded">
-                                                    ⌘
-                                                </kbd>{" "}
-                                                <kbd className="px-1.5 py-0.5 text-xs font-semibold text-neutral-600 bg-neutral-100 border border-neutral-300 rounded">
-                                                    Enter
-                                                </kbd>
-                                            </Typography.Text>
-                                        </div>
-                                    </div>
-                                ) : null}
-                                {hasInvocationOutput ? (
-                                    <div className="flex flex-col gap-3">
-                                        {annotationsQuery?.isFetching ? (
-                                            <Typography.Text type="secondary">
-                                                Loading annotations…
-                                            </Typography.Text>
-                                        ) : (
-                                            <Annotate
-                                                key={annotateComponentKey}
-                                                annotations={annotationsForAnnotate}
-                                                updatedMetrics={
-                                                    Object.keys(annotationMetrics).length > 0
-                                                        ? annotationMetrics
-                                                        : baselineMetrics
-                                                }
-                                                setUpdatedMetrics={setAnnotationMetrics}
-                                                selectedEvaluators={selectedEvaluators}
-                                                errorMessage={annotationErrors}
-                                                disabled={!hasInvocationOutput}
-                                            />
-                                        )}
-                                        <div className="flex items-center justify-between">
-                                            <Button
-                                                type="primary"
-                                                className="w-full"
-                                                disabled={
-                                                    !canSubmitAnnotations ||
-                                                    annotationsQuery?.isFetching ||
-                                                    isSubmitting
-                                                }
-                                                loading={isSubmitting}
-                                                onClick={handleAnnotationSave}
-                                            >
-                                                Annotate
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <Typography.Text type="secondary">
-                                        To annotate, please generate output.
-                                    </Typography.Text>
-                                )}
-                            </Card>
-                        </div>
+                        {/* Annotations Card - Using new reliable ScenarioAnnotationPanel */}
+                        <ScenarioAnnotationPanel
+                            runId={runId}
+                            scenarioId={activeId}
+                            evaluators={evaluatorDtos}
+                            annotations={existingAnnotations}
+                            invocationSteps={invocationSteps}
+                            allSteps={steps}
+                            hasInvocationOutput={hasInvocationOutput}
+                            allInvocationsSuccessful={allInvocationsSuccessful}
+                            pendingInvocationStepKey={pendingInvocationStepKey}
+                            isRunningInvocation={isRunningInvocation}
+                            onRunInvocation={handleRunInvocation}
+                        />
                     </div>
                 </div>
             </div>

@@ -239,6 +239,42 @@ const PreviewAnnotateContent = ({
         [annotationMetrics, selectedEvaluators],
     )
 
+    // Check if all required fields are filled for all evaluators
+    const allRequiredFieldsFilled = useMemo(() => {
+        if (evaluatorDtos.length === 0) return false
+
+        const isEmptyValue = (value: unknown): boolean => {
+            if (value === null || value === undefined || value === "") return true
+            if (Array.isArray(value) && value.length === 0) return true
+            return false
+        }
+
+        for (const evaluator of evaluatorDtos) {
+            const slug = evaluator?.slug
+            if (!slug) continue
+
+            // Get required fields from evaluator schema
+            const requiredKeys: string[] =
+                evaluator?.data?.service?.format?.properties?.outputs?.required ?? []
+
+            if (requiredKeys.length === 0) continue
+
+            // Get current metric values for this evaluator
+            const metricFields = annotationMetrics?.[slug]
+            if (!metricFields) return false
+
+            // Check each required field
+            for (const key of requiredKeys) {
+                const field = metricFields[key]
+                const value = (field as any)?.value
+
+                if (isEmptyValue(value)) return false
+            }
+        }
+
+        return true
+    }, [evaluatorDtos, annotationMetrics])
+
     const primaryInvocation = invocationSteps[0]
 
     // Find the step that has a trace_id - this is the one we should link annotations to
@@ -309,10 +345,16 @@ const PreviewAnnotateContent = ({
         (primaryInvocation as any)?.testset_id ??
         (primaryInvocation as any)?.testset?.id
 
+    // Can submit if:
+    // - Has trace ID for linking
+    // - Has invocation output
+    // - Has pending changes OR new annotation metrics
+    // - All required fields are filled
     const canSubmitAnnotations =
         !!traceSpanIds.traceId &&
         hasInvocationOutput &&
-        (hasPendingAnnotationChanges || hasNewAnnotationMetrics)
+        (hasPendingAnnotationChanges || hasNewAnnotationMetrics) &&
+        allRequiredFieldsFilled
 
     const handleAnnotate = useCallback(async () => {
         if (!canSubmitAnnotations) return
