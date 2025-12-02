@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {CheckCircle, Circle, Question, X} from "@phosphor-icons/react"
-import {Button, Modal, Progress, Tooltip} from "antd"
+import {X} from "@phosphor-icons/react"
+import {Button, Modal, Progress, Tooltip, Checkbox, Typography} from "antd"
 import clsx from "clsx"
 import {getDefaultStore, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -370,93 +370,81 @@ const OnboardingWidget = () => {
                 <div ref={widgetRef} style={containerStyle} className="pointer-events-auto">
                     <section
                         className={clsx(
-                            "w-[250px] max-w-[calc(100vw-32px)] rounded-xl border border-solid border-gray-100 bg-white shadow-2xl flex flex-col gap-3",
+                            "w-[280px] max-w-[calc(100vw-32px)] rounded-xl bg-white flex flex-col gap-4 shadow-[0_2px_8px_0_rgba(0,0,0,.16),0_2px_4px_0_rgba(0,0,0,.08)]",
                             {"select-none": isDragging},
                         )}
                     >
                         <div
-                            className="flex flex-col gap-2 border-0 border-b border-solid border-gray-100 px-4 pt-3 pb-1 cursor-move"
+                            className="flex flex-col gap-2 px-6 pt-4 pb-1 cursor-move"
                             onPointerDown={startDragging}
                         >
                             <div className="flex items-start justify-between gap-3">
-                                <div className="flex flex-col">
-                                    <span className="text-sm font-semibold text-colorText">
+                                <div className="flex flex-col gap-1">
+                                    <Typography.Text className="text-sm font-semibold text-colorText">
                                         Onboarding Guide
-                                    </span>
-                                    <span className="text-xs text-colorTextSecondary">
+                                    </Typography.Text>
+                                    <Typography.Text className="text-xs text-colorTextSecondary">
                                         {completedCount} of {totalTasks} tasks completed
-                                    </span>
+                                    </Typography.Text>
                                 </div>
                                 <Tooltip title="Close guide">
                                     <Button
                                         type="text"
                                         size="small"
                                         icon={<X size={16} />}
-                                        aria-label="Close onboarding guide"
                                         onClick={(event) => {
                                             event.stopPropagation()
                                             onClose()
                                         }}
-                                        className="!text-colorTextSecondary hover:!text-colorText"
                                     />
                                 </Tooltip>
                             </div>
+                        </div>
 
+                        <div className="px-6">
                             <Progress className="" percent={progressPercent} status="active" />
                         </div>
 
-                        <div className="max-h-[400px] overflow-y-auto px-4 pb-3 flex flex-col gap-2">
+                        <div className="max-h-[400px] overflow-y-auto px-6 pb-5 flex flex-col gap-4">
                             {sections.map((section) => (
-                                <div key={section.id} className="mb-0 last:mb-0 flex flex-col gap-1">
-                                    <div className="flex items-center gap-1 font-medium text-colorTextSecondary">
-                                        <Question size={14} />
+                                <div
+                                    key={section.id}
+                                    className="mb-0 last:mb-0 flex flex-col gap-1"
+                                >
+                                    <Typography.Text className="font-medium text-colorTextSecondary">
                                         {section.title}
-                                    </div>
-                                    <div className="flex flex-col gap-1">
+                                    </Typography.Text>
+                                    <div className="flex flex-col gap-2">
                                         {section.items.map((item) => {
                                             const isCompleted = Boolean(
                                                 completedMap[getCompletionKey(item)],
                                             )
                                             return (
-                                                <button
+                                                <div
                                                     key={item.id}
-                                                    type="button"
-                                                    disabled={item.disabled}
-                                                    onClick={() => onClickGuideItem(item)}
-                                                    className={clsx(
-                                                        "flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition hover:shadow",
+                                                    onClick={() =>
+                                                        !item.disabled && onClickGuideItem(item)
+                                                    }
+                                                    className={clsx([
+                                                        "flex items-center gap-2 rounded-lg px-4 py-3",
+                                                        "border border-solid border-colorBorderSecondary",
+
                                                         {
-                                                            "border-colorBorder bg-white hover:border-colorPrimary cursor-pointer":
-                                                                !isCompleted && !item.disabled,
-                                                            "border-colorPrimary bg-[#f5f7fa]":
-                                                                isCompleted,
                                                             "cursor-not-allowed opacity-60":
                                                                 item.disabled,
+                                                            "bg-colorBgContainerDisabled":
+                                                                isCompleted,
+                                                            "cursor-pointer hover:bg-gray-50 transition-all":
+                                                                !isCompleted && !item.disabled,
                                                         },
-                                                    )}
+                                                    ])}
                                                 >
-                                                    <span
-                                                        className={clsx(
-                                                            "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border",
-                                                            {
-                                                                "border-colorPrimary bg-colorPrimary text-white":
-                                                                    isCompleted,
-                                                                "border-colorBorder bg-white text-colorTextSecondary":
-                                                                    !isCompleted,
-                                                            },
-                                                        )}
-                                                    >
-                                                        {isCompleted ? (
-                                                            <CheckCircle size={14} weight="fill" />
-                                                        ) : (
-                                                            <Circle size={14} />
-                                                        )}
-                                                    </span>
+                                                    <Checkbox checked={isCompleted} />
 
-                                                    <span className="text-xs font-medium text-colorText">
+                                                    <Typography.Text className="text-xs font-medium text-colorTextHeading">
                                                         {item.title}
-                                                    </span>
-                                                </button>
+                                                    </Typography.Text>
+                                                </div>
                                             )
                                         })}
                                     </div>
