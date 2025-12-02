@@ -169,7 +169,11 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
         <>
             <div
                 className={clsx(
-                    "flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px-24px)] overflow-hidden -mt-6 -mb-6",
+                    "flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px-24px)] overflow-hidden",
+                    {
+                        "-mt-6 -mb-6": scope === "project",
+                        "px-6": scope === "app",
+                    },
                 )}
             >
                 <div className="mt-4 w-full flex items-start justify-between gap-8">
