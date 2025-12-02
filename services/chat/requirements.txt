@@ -10,9 +10,4 @@ newrelic
 
 # LiteLLM
 boto3
-google-auth>=2.23,<3
-google-cloud-aiplatform>=1.38
-
-# Miscellaneous / Temporary
-decorator
-restrictedpython
+google-cloud-aiplatform

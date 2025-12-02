@@ -19,7 +19,6 @@ import {getProjectValues, useProjectData} from "@/oss/state/project"
 
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflowBanner"
-import ProductHuntModal from "../ProductHuntModal/ProductHuntModal"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
 
 import BreadcrumbContainer from "./assets/Breadcrumbs"
@@ -271,7 +270,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     >
                         {children}
                         {contextHolder}
-                        <ProductHuntModal />
                     </AppWithVariants>
                 </ProtectedRoute>
             )}
