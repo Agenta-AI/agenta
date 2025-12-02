@@ -146,6 +146,8 @@ interface NumberInputProps {
     step?: number
     description?: string
     useSlider?: boolean
+    /** When true, enforces integer values by rounding */
+    isInteger?: boolean
 }
 
 /**
@@ -161,13 +163,23 @@ export const NumberInput = memo(function NumberInput({
     step = 1,
     description,
     useSlider = false,
+    isInteger = false,
 }: NumberInputProps) {
     const handleChange = useCallback(
         (newValue: number | null) => {
-            onChange(newValue)
+            if (newValue === null) {
+                onChange(null)
+                return
+            }
+            // Round to integer if isInteger is true
+            const finalValue = isInteger ? Math.round(newValue) : newValue
+            onChange(finalValue)
         },
-        [onChange],
+        [onChange, isInteger],
     )
+
+    // Ensure displayed value is also rounded for integers
+    const displayValue = value !== null && isInteger ? Math.round(value) : value
 
     return (
         <div className="flex flex-col gap-1 playground-property-control">
@@ -178,12 +190,13 @@ export const NumberInput = memo(function NumberInput({
                     </Typography.Text>
                     {useSlider && (
                         <InputNumber
-                            value={value}
+                            value={displayValue}
                             onChange={handleChange}
                             disabled={disabled}
                             min={min}
                             max={max}
                             step={step}
+                            precision={isInteger ? 0 : undefined}
                             size="small"
                             className="w-[70px]"
                         />
@@ -192,7 +205,7 @@ export const NumberInput = memo(function NumberInput({
             </Tooltip>
             {useSlider ? (
                 <Slider
-                    value={value ?? min ?? 0}
+                    value={displayValue ?? min ?? 0}
                     onChange={handleChange}
                     disabled={disabled}
                     min={min}
@@ -202,12 +215,13 @@ export const NumberInput = memo(function NumberInput({
                 />
             ) : (
                 <InputNumber
-                    value={value}
+                    value={displayValue}
                     onChange={handleChange}
                     disabled={disabled}
                     min={min}
                     max={max}
                     step={step}
+                    precision={isInteger ? 0 : undefined}
                     className="w-full"
                 />
             )}
@@ -298,8 +312,11 @@ interface AnnotationMetadata {
     value: unknown
     description?: string
     options?: {label: string; value: string}[]
+    // transformMetadata uses min/max, but some sources use minimum/maximum
     minimum?: number
     maximum?: number
+    min?: number
+    max?: number
     step?: number
     as?: string
     disabled?: boolean
@@ -307,6 +324,7 @@ interface AnnotationMetadata {
     mode?: "multiple" | "tags"
     allowClear?: boolean
     disableClear?: boolean
+    isInteger?: boolean
 }
 
 interface AnnotationFieldRendererProps {
@@ -366,18 +384,23 @@ export const AnnotationFieldRenderer = memo(function AnnotationFieldRenderer({
 
     // Number/integer type
     if (type === "number" || type === "integer") {
-        const useSlider = metadata.minimum !== undefined && metadata.maximum !== undefined
+        // Support both min/max (from transformMetadata) and minimum/maximum (from schema)
+        const minValue = metadata.min ?? metadata.minimum
+        const maxValue = metadata.max ?? metadata.maximum
+        const useSlider = minValue !== undefined && maxValue !== undefined
+        const isInteger = type === "integer" || metadata.isInteger
         return (
             <NumberInput
                 label={metadata.title}
                 value={metadata.value as number | null}
                 onChange={handleChange as (value: number | null) => void}
                 disabled={metadata.disabled}
-                min={metadata.minimum}
-                max={metadata.maximum}
-                step={metadata.step ?? (type === "integer" ? 1 : 0.1)}
+                min={minValue}
+                max={maxValue}
+                step={metadata.step ?? (isInteger ? 1 : 0.1)}
                 description={metadata.description}
                 useSlider={useSlider}
+                isInteger={isInteger}
             />
         )
     }
