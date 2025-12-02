@@ -116,11 +116,12 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
                 <Input
                     allowClear
                     autoFocus
+                    bordered={false}
                     placeholder="Search"
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     prefix={<MagnifyingGlass size={16} className="text-[#98A2B3]" />}
-                    className="flex-1 border-none outline-none"
+                    className="flex-1 !shadow-none !outline-none !border-none focus:!shadow-none focus:!outline-none focus:!border-none"
                 />
                 <Button
                     type="primary"
@@ -199,7 +200,8 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
                         open={isDropdownOpen}
                         onOpenChange={setIsDropdownOpen}
                         trigger={["click"]}
-                        popupRender={() => dropdownContent}
+                        menu={{items: []}}
+                        dropdownRender={() => dropdownContent}
                         placement="bottomLeft"
                     >
                         <AddButton
