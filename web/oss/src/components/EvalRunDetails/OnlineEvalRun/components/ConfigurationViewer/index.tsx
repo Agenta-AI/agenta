@@ -390,10 +390,7 @@ const ConfigurationViewer = () => {
     }, [resolvedEvaluator?.id, evaluatorFromRun?.id, evaluatorJson, hasEvaluatorJson])
 
     return (
-        <div
-            className="w-full h-full overflow-auto px-6 bg-zinc-1 pt-2"
-            id="tour-online-eval-configuration-panel"
-        >
+        <div className="w-full h-full overflow-auto px-6 bg-zinc-1 pt-2">
             {/* Top: evaluation info tag */}
 
             {/* Panels */}

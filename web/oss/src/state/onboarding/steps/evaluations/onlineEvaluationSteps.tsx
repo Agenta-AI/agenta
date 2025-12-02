@@ -1,6 +1,5 @@
 import {getDefaultStore} from "jotai"
 
-import {urlStateAtom} from "@/oss/components/EvalRunDetails/state/urlState"
 import {
     openOnlineEvaluationDrawerAtom,
     closeOnlineEvaluationDrawerAtom,
@@ -16,13 +15,6 @@ const openOnlineEvalDrawer = () => {
 }
 const closeOnlineEvalDrawer = () => {
     getDefaultStore().set(closeOnlineEvaluationDrawerAtom)
-}
-
-const ensureOnlineEvalView = (view: "overview" | "results" | "configuration") => {
-    getDefaultStore().set(urlStateAtom, (draft) => {
-        if (draft.view === view) return
-        draft.view = view
-    })
 }
 
 // Steps for creating online eval
@@ -83,95 +75,6 @@ export const CREATE_NEW_ONLINE_EVALUATION_STEPS = [
     },
 ]
 
-// Steps for general online eval run page view
-export const ONLINE_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
-    {
-        icon: "📊",
-        title: "Live results table",
-        content: <span>Monitor live evaluation results here in real-time.</span>,
-        selector: "#tour-online-eval-results-table",
-        side: "left",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 16,
-        pointerRadius: 12,
-        onEnter: () => ensureOnlineEvalView("results"),
-    },
-    {
-        icon: "🔄",
-        title: "Refresh on demand",
-        content: <span>Trigger an immediate refresh to pull the latest scenarios.</span>,
-        selector: "#tour-online-eval-refresh-button",
-        side: "bottom",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        onEnter: () => ensureOnlineEvalView("results"),
-        advanceOnClick: true,
-    },
-    {
-        icon: "🗂️",
-        title: "Switch to overview",
-        content: <span>Use the Overview tab to inspect aggregate scoring dashboards.</span>,
-        selector: "#tour-online-eval-tab-overview",
-        side: "bottom",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        onEnter: () => ensureOnlineEvalView("results"),
-        advanceOnClick: true,
-    },
-    {
-        icon: "🏁",
-        title: "Overview & evaluator scores",
-        content: <span>View the aggregated evaluation scores here.</span>,
-        selector: "#tour-online-eval-score-section",
-        side: "left",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 16,
-        pointerRadius: 12,
-        onEnter: () => ensureOnlineEvalView("overview"),
-    },
-    {
-        icon: "📈",
-        title: "Evaluator metrics",
-        content: (
-            <span>
-                Dive deeper into evaluator-specific metrics and time series to understand how scores
-                change over time.
-            </span>
-        ),
-        selector: "#tour-online-eval-metrics-section",
-        side: "left",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 16,
-        pointerRadius: 12,
-        onEnter: () => ensureOnlineEvalView("overview"),
-    },
-    {
-        icon: "🧭",
-        title: "Open configuration tab",
-        content: (
-            <span>
-                Jump into the Configuration tab whenever you need to double-check filters, sampling,
-                or evaluator settings.
-            </span>
-        ),
-        selector: "#tour-online-eval-tab-configuration",
-        side: "bottom",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        onEnter: () => ensureOnlineEvalView("overview"),
-        advanceOnClick: true,
-    },
-]
-
 export const ONE_CLICK_ONLINE_EVALUATION_STEPS: TourDefinition[number]["steps"] = [
     {
         icon: "⚡",
@@ -212,11 +115,6 @@ export const resolveOnlineEvaluationSteps = (ctx: OnboardingStepsContext) => {
     const defaultStore = getDefaultStore()
     const hasEvaluators = defaultStore.get(isOnlineEvaluatorAvailableAtom)
     const tourId = ctx.tourId
-    if (ctx.location?.subsection === "results") {
-        if (tourId === "online-evaluation-run-tour") {
-            return [{tour: "online-evaluation-run-tour", steps: ONLINE_EVAL_RUN_STEPS}]
-        }
-    }
 
     if (hasEvaluators) {
         if (tourId === "online-evaluation-quickstart") {

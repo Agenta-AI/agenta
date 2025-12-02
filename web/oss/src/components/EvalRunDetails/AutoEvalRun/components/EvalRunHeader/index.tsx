@@ -262,7 +262,6 @@ const EvalRunHeader = ({className, name, id}: {className?: string; name: string;
                         </div>
                     </div>
                     <Button
-                        id={"tour-online-eval-refresh-button"}
                         icon={<ReloadOutlined />}
                         onClick={onRefresh}
                         loading={isRefreshing}
@@ -272,7 +271,6 @@ const EvalRunHeader = ({className, name, id}: {className?: string; name: string;
                     </Button>
                     {canStop ? (
                         <Button
-                            id={"tour-online-eval-stop-button"}
                             danger
                             onClick={onStop}
                             loading={action === "stop"}

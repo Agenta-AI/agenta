@@ -779,17 +779,11 @@ const EvalRunOverviewViewer = ({type = "auto"}: {type: "auto" | "online"}) => {
 
     return (
         <>
-            <div
-                className="px-6"
-                id={type === "online" ? "tour-online-eval-score-section" : undefined}
-            >
+            <div className="px-6">
                 <EvalRunScoreTable type={type} />
             </div>
 
-            <div
-                className="px-6 w-full flex flex-wrap gap-2"
-                id={type === "online" ? "tour-online-eval-metrics-section" : undefined}
-            >
+            <div className="px-6 w-full flex flex-wrap gap-2">
                 {hasMetrics ? (
                     <>
                         {combinedMetricEntries
