@@ -154,7 +154,7 @@ const Section = ({title, children}: {title: React.ReactNode; children: React.Rea
 )
 
 const FieldGrid = ({children}: {children: ReactNode}) => (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 w-full">{children}</div>
+    <div className="grid grid-cols-2 gap-3 w-full">{children}</div>
 )
 
 const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersContentProps) => {
@@ -467,7 +467,7 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
     return (
         <>
             <div className="flex flex-col gap-3 min-w-[320px] min-h-[0] text-gray-700 bg-white px-5 py-4 rounded-[20px] shadow-[0_20px_45px_rgba(15,23,42,0.12)]">
-                <div className="grid gap-6 lg:grid-cols-2">
+                <div className="grid grid-cols-2 gap-3">
                     <Section title="Status">
                         <Select
                             mode="multiple"
