@@ -309,19 +309,59 @@ const RunMetricValue = memo(
 
 RunMetricValue.displayName = "RunMetricValue"
 
+/**
+ * Strip evaluator/group name prefix from a label to avoid redundancy.
+ * e.g., "New Human IsAwesome" -> "IsAwesome" when groupLabel is "New Human"
+ */
+const stripGroupPrefix = (label: string, groupLabel?: string): string => {
+    if (!groupLabel || !label) return label
+    const normalizedGroup = groupLabel.toLowerCase().replace(/[-_\s]+/g, "")
+    const normalizedLabel = label.toLowerCase().replace(/[-_\s]+/g, "")
+    if (!normalizedLabel.startsWith(normalizedGroup)) return label
+
+    // Find where the prefix ends in the original label
+    let prefixEndIndex = 0
+    let groupIndex = 0
+    while (prefixEndIndex < label.length && groupIndex < groupLabel.length) {
+        const labelChar = label[prefixEndIndex].toLowerCase()
+        const groupChar = groupLabel[groupIndex].toLowerCase()
+        if (labelChar === groupChar) {
+            groupIndex++
+        } else if (/[-_\s]/.test(label[prefixEndIndex])) {
+            // Skip separators in label
+        } else if (/[-_\s]/.test(groupLabel[groupIndex])) {
+            // Skip separators in group
+            groupIndex++
+            continue
+        } else {
+            break
+        }
+        prefixEndIndex++
+    }
+    // Skip any trailing separators after the prefix
+    while (prefixEndIndex < label.length && /[-_\s]/.test(label[prefixEndIndex])) {
+        prefixEndIndex++
+    }
+    return label.slice(prefixEndIndex) || label
+}
+
 const ScenarioColumnValue = memo(
     ({
         runId,
         scenarioId,
         column,
         descriptor,
+        groupLabel,
     }: {
         runId: string
         scenarioId: string
         column: EvaluationTableColumn
         descriptor: ColumnValueDescriptor
+        groupLabel?: string
     }) => {
-        const displayLabel = column.displayLabel ?? column.label ?? column.id
+        const rawLabel = column.displayLabel ?? column.label ?? column.id
+        // Strip group/evaluator name prefix from label to avoid redundancy
+        const displayLabel = groupLabel ? stripGroupPrefix(rawLabel, groupLabel) : rawLabel
         const isMetric =
             column.kind === "metric" ||
             column.kind === "evaluator" ||
@@ -685,6 +725,7 @@ export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps)
                                 scenarioId={scenarioId}
                                 column={column}
                                 descriptor={descriptor}
+                                groupLabel={section.label}
                             />
                         ))}
                     </div>
