@@ -374,6 +374,7 @@ export const evaluationRunsTableHeaderStateAtom = atom((get) => {
         createTooltip,
         evaluationKind: context.evaluationKind,
         defaultCreateType: context.createEvaluationType,
+        scope: context.scope,
     }
 })
 
