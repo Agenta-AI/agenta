@@ -112,16 +112,12 @@ const AppWithVariants = memo(
                                 <OldAppDeprecationBanner>
                                     <CustomWorkflowBanner />
                                     <Content
-                                        className={clsx(
-                                            classes.content,
-                                            "[&.ant-layout-content]:p-0",
-                                            {
-                                                "flex flex-col min-h-0 grow":
-                                                    isHumanEval || isEvaluator,
-                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                    isPlayground,
-                                            },
-                                        )}
+                                        className={clsx(classes.content, {
+                                            "flex flex-col min-h-0 grow":
+                                                isHumanEval || isEvaluator,
+                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                isPlayground,
+                                        })}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
                                             <ConfigProvider
@@ -142,8 +138,7 @@ const AppWithVariants = memo(
                                     className={clsx(classes.content, {
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                             isPlayground || isEvaluator,
-                                        "flex flex-col min-h-0 grow !px-0 !pb-0":
-                                            isHumanEval || isEvaluator,
+                                        "flex flex-col min-h-0 grow": isHumanEval || isEvaluator,
                                     })}
                                 >
                                     <ErrorBoundary FallbackComponent={ErrorFallback}>
