@@ -250,7 +250,7 @@ export const appUriStateQueryAtom = atomWithQuery<UriState | undefined>((get) =>
 // appStatus is Loading atom family. by looking at the query atom loading status
 export const appStatusLoadingAtom = selectAtom(
     appUriStateQueryAtom,
-    (q: any) => !q?.isFetched,
+    (q: any) => q?.fetchStatus === "fetching",
     Object.is,
 )
 

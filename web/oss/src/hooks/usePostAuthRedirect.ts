@@ -11,6 +11,7 @@ import {useProfileData} from "@/oss/state/profile"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {useProjectData} from "@/oss/state/project"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
+import {isNewUserStorageAtom} from "../state/onboarding/atoms/stepsAtom"
 
 interface AuthUserLike {
     createdNewRecipeUser?: boolean
@@ -57,8 +58,12 @@ const usePostAuthRedirect = () => {
             const loginMethodCount = authResult?.user?.loginMethods?.length ?? 0
             const isNewUser =
                 isDemo() && Boolean(authResult?.createdNewRecipeUser) && loginMethodCount === 1
+            const store = getDefaultStore()
 
             if (isNewUser) {
+                // set true for new user
+                store.set(isNewUserStorageAtom, true)
+
                 if (isInvitedUser) {
                     await router.push("/workspaces/accept?survey=true")
                 } else {
@@ -67,6 +72,9 @@ const usePostAuthRedirect = () => {
                 }
                 return
             }
+
+            // user already exists
+            store.set(isNewUserStorageAtom, false)
 
             if (isInvitedUser) {
                 await router.push("/workspaces/accept")
@@ -78,7 +86,6 @@ const usePostAuthRedirect = () => {
             let context = await waitForWorkspaceContext({requireProjectId: false})
 
             if (!context.workspaceId) {
-                const store = getDefaultStore()
                 const fallbackWorkspace = resolvePreferredWorkspaceId(
                     (store.get(userAtom) as {id?: string} | null)?.id ?? null,
                     store.get(orgsAtom),

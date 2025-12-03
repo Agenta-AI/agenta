@@ -5,10 +5,7 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {appTypeAtom} from "@/oss/components/Playground/state/atoms/app"
-import {
-    generationInputRowIdsAtom,
-    generationRowIdsAtom,
-} from "@/oss/components/Playground/state/atoms/generationProperties"
+import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {clearAllRunsMutationAtom} from "@/oss/components/Playground/state/atoms/utilityMutations"
 import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 
@@ -68,7 +65,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     return (
         <div
             className={clsx(
-                "h-[48px] flex justify-between items-center gap-4 sticky top-0 z-[1000] !bg-[white]",
+                "h-[48px] flex justify-between items-center gap-4 sticky top-0 z-[800] !bg-[white]",
                 classes.container,
             )}
         >
@@ -84,7 +81,9 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                         </Button>
                     </Tooltip>
 
-                    <LoadTestsetButton label="Load testset" variantId={variantId} />
+                    <div id="tour-playground-load-testset">
+                        <LoadTestsetButton label="Load testset" variantId={variantId} />
+                    </div>
 
                     <TestsetDrawerButton
                         label="Add all to testset"
@@ -92,11 +91,13 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                         size="small"
                         disabled={isRunning}
                         resultHashes={resultHashes}
+                        id="tour-playground-add-testset"
                     />
 
                     {!isRunning ? (
                         <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
                             <RunButton
+                                id="tour-playground-run-all-button"
                                 isRunAll
                                 type="primary"
                                 onClick={() => runTests()}
