@@ -818,8 +818,8 @@ export const evaluationRunsFiltersButtonStateAtom = selectAtom(
     evaluationRunsFiltersSummaryAtom,
     (summary) => {
         const buttonType = summary.filtersActive ? "primary" : "default"
-        const label = summary.filtersCount > 0 ? `Filters (${summary.filtersCount})` : "Filters"
-        return {buttonType, label}
+        const filterCount = summary.filtersCount
+        return {buttonType, filterCount}
     },
-    (a, b) => a.buttonType === b.buttonType && a.label === b.label,
+    (a, b) => a.buttonType === b.buttonType && a.filterCount === b.filterCount,
 )
