@@ -664,3 +664,172 @@ export const evaluatorReferenceAtomFamily = atomFamily(
         }),
     (a, b) => a.projectId === b.projectId && a.slug === b.slug && a.id === b.id,
 )
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Query Reference
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface QueryReference {
+    id?: string | null
+    slug?: string | null
+    name?: string | null
+}
+
+interface QueryReferenceRequest {
+    projectId: string
+    queryId?: string | null
+    querySlug?: string | null
+}
+
+const queryReferenceBatchFetcher = createBatchFetcher<
+    QueryReferenceRequest,
+    QueryReference | null,
+    Map<string, QueryReference | null>
+>({
+    serializeKey: ({projectId, queryId, querySlug}) =>
+        [projectId ?? "none", queryId ?? "none", querySlug ?? "none"].join(":"),
+    batchFn: async (requests: QueryReferenceRequest[], serializedKeys: string[]) => {
+        const results = new Map<string, QueryReference | null>()
+        const grouped = new Map<
+            string,
+            {
+                projectId: string
+                entries: {
+                    key: string
+                    queryId?: string | null
+                    querySlug?: string | null
+                }[]
+            }
+        >()
+
+        requests.forEach((request, index) => {
+            const serializedKey = serializedKeys[index]
+            const {projectId, queryId, querySlug} = request
+            if (!projectId || (!queryId && !querySlug)) {
+                results.set(serializedKey, null)
+                return
+            }
+            const existing = grouped.get(projectId)
+            if (existing) {
+                existing.entries.push({key: serializedKey, queryId, querySlug})
+            } else {
+                grouped.set(projectId, {
+                    projectId,
+                    entries: [{key: serializedKey, queryId, querySlug}],
+                })
+            }
+        })
+
+        await Promise.all(
+            Array.from(grouped.values()).map(async ({projectId, entries}) => {
+                const dedupRefs = Array.from(
+                    new Map(
+                        entries
+                            .map(({queryId, querySlug}) => {
+                                if (!queryId && !querySlug) return null
+                                const key = `${queryId ?? ""}:${querySlug ?? ""}`
+                                return [key, {id: queryId, slug: querySlug}] as const
+                            })
+                            .filter((item): item is NonNullable<typeof item> => item !== null),
+                    ).values(),
+                )
+
+                if (!dedupRefs.length) {
+                    entries.forEach(({key}) => results.set(key, null))
+                    return
+                }
+
+                try {
+                    const response = await axios.post(
+                        "/preview/queries/query",
+                        {
+                            query_refs: dedupRefs.map((ref) => ({
+                                id: ref.id,
+                                slug: ref.slug,
+                            })),
+                        },
+                        {params: {project_id: projectId}, _ignoreError: true} as any,
+                    )
+
+                    const queries: any[] = Array.isArray(response?.data?.queries)
+                        ? response.data.queries
+                        : []
+
+                    const lookup = queries.map((raw) => snakeToCamelCaseKeys(raw))
+                    const byId = new Map<string, QueryReference>()
+                    const bySlug = new Map<string, QueryReference>()
+
+                    lookup.forEach((query) => {
+                        const ref: QueryReference = {
+                            id: query?.id ?? null,
+                            slug: query?.slug ?? null,
+                            name: query?.name ?? query?.slug ?? null,
+                        }
+                        if (ref.id) byId.set(ref.id, ref)
+                        if (ref.slug) bySlug.set(ref.slug, ref)
+                    })
+
+                    entries.forEach(({key, queryId, querySlug}) => {
+                        let matched: QueryReference | null = null
+                        if (queryId) matched = byId.get(queryId) ?? null
+                        if (!matched && querySlug) matched = bySlug.get(querySlug) ?? null
+                        results.set(key, matched ?? {id: queryId, slug: querySlug, name: null})
+                    })
+                } catch (error) {
+                    console.warn("[References] failed to batch fetch query references", {
+                        projectId,
+                        error,
+                    })
+                    entries.forEach(({key, queryId, querySlug}) => {
+                        results.set(key, {id: queryId, slug: querySlug, name: null})
+                    })
+                }
+            }),
+        )
+
+        return results
+    },
+    resolveResult: (response, request, serializedKey) => {
+        if (response.has(serializedKey)) {
+            return response.get(serializedKey) ?? null
+        }
+        return {
+            id: request.queryId ?? null,
+            slug: request.querySlug ?? null,
+            name: null,
+        }
+    },
+})
+
+export const queryReferenceAtomFamily = atomFamily(
+    ({
+        projectId,
+        queryId,
+        querySlug,
+    }: {
+        projectId: string | null
+        queryId?: string | null
+        querySlug?: string | null
+    }) =>
+        atomWithQuery<QueryReference | null>(() => {
+            return {
+                queryKey: [
+                    "references",
+                    "query-ref",
+                    projectId ?? "none",
+                    queryId ?? "none",
+                    querySlug ?? "none",
+                ],
+                enabled: Boolean(projectId && (queryId || querySlug)),
+                staleTime: 60_000,
+                gcTime: 5 * 60 * 1000,
+                refetchOnWindowFocus: false,
+                refetchOnReconnect: false,
+                queryFn: async () => {
+                    if (!projectId || (!queryId && !querySlug)) return null
+                    return queryReferenceBatchFetcher({projectId, queryId, querySlug})
+                },
+            }
+        }),
+    (a, b) => a.projectId === b.projectId && a.queryId === b.queryId && a.querySlug === b.querySlug,
+)

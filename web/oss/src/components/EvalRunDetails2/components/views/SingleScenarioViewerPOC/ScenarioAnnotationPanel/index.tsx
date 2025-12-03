@@ -347,8 +347,10 @@ const ScenarioAnnotationPanel = ({
 
             message.success("Annotations saved successfully")
 
-            // Update scenario and run status
+            // Update scenario status to success after annotation is saved
             await updateScenarioStatus(scenarioId, "success")
+
+            // Check if all scenarios in the run are complete and update run status
             await checkAndUpdateRunStatus(runId)
 
             // Mark as just saved - this disables the button until annotations are refetched

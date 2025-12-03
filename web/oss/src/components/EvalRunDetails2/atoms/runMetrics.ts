@@ -472,8 +472,8 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
             const basePayload = {
                 metrics: {
                     run_ids: Array.from(entry.runIds),
-                    // scenario_ids: false,
-                    // timestamps: false,
+                    scenario_ids: false,
+                    timestamps: false,
                 },
                 // windowing: {
                 //     limit: 1,
@@ -499,8 +499,11 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
             }
 
             const runLevelMetrics = Array.isArray(response.data?.metrics)
-                ? response.data.metrics
+                ? (response.data.metrics as {run_id: string; name: string; value: any}[])
                 : []
+
+            console.log("runLevelMetrics", runLevelMetrics)
+            // addMetrics([runLevelMetrics.pop()], "runLevel")
             addMetrics(runLevelMetrics, "runLevel")
 
             if (entry.needsTemporal) {

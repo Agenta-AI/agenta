@@ -1,10 +1,12 @@
 export {default as ReferenceTag} from "./ReferenceTag"
 export {
     ApplicationReferenceLabel,
-    VariantReferenceLabel,
-    VariantReferenceText,
+    EvaluatorReferenceLabel,
+    QueryReferenceLabel,
     TestsetTag,
     TestsetTagList,
+    VariantReferenceLabel,
+    VariantReferenceText,
 } from "./ReferenceLabels"
 export {VariantReferenceChip, TestsetReferenceChip, TestsetChipList} from "./ReferenceChips"
 export * from "./referenceColors"
@@ -12,14 +14,16 @@ export * from "./referenceColors"
 // Re-export types and atoms for advanced usage
 export type {
     AppReference,
-    TestsetReference,
-    VariantConfigReference,
     EvaluatorReference,
     EvaluatorReferenceMetric,
+    QueryReference,
+    TestsetReference,
+    VariantConfigReference,
 } from "./atoms/entityReferences"
 export {
     appReferenceAtomFamily,
-    previewTestsetReferenceAtomFamily,
-    variantConfigAtomFamily,
     evaluatorReferenceAtomFamily,
+    previewTestsetReferenceAtomFamily,
+    queryReferenceAtomFamily,
+    variantConfigAtomFamily,
 } from "./atoms/entityReferences"

@@ -70,10 +70,8 @@ const TestsetCard = ({
     const simpleQuery = useAtomValue(simpleAtom)
 
     const isLoading =
-        referenceQuery.isPending ||
-        referenceQuery.isFetching ||
-        simpleQuery.isPending ||
-        simpleQuery.isFetching
+        ((referenceQuery.isPending || referenceQuery.isFetching) && !referenceQuery.isError) ||
+        ((simpleQuery.isPending || simpleQuery.isFetching) && !simpleQuery.isError)
 
     const simple = simpleQuery.data
 

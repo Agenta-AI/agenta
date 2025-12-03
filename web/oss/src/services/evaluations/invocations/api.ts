@@ -5,6 +5,7 @@
  */
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {EvaluationStatus} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
 import {queryStepResults} from "../results/api"
@@ -125,10 +126,6 @@ export const runInvocation = async (params: RunInvocationParams): Promise<Invoca
             references,
         })
 
-        // NOTE: Do NOT update scenario status here - invocation success means the scenario
-        // is still pending annotation. Scenario status will be updated to "success" only
-        // after the annotation is saved.
-
         return {
             success: true,
             response: responseData,
@@ -147,6 +144,9 @@ export const runInvocation = async (params: RunInvocationParams): Promise<Invoca
                 status: "error",
                 references,
             })
+
+            // Update scenario status to error/failure
+            await updateScenarioStatus(scenarioId, EvaluationStatus.ERROR)
         } catch (updateError) {
             console.error("[runInvocation] Failed to update step result with error:", updateError)
         }
@@ -227,5 +227,106 @@ const upsertStepResultWithInvocation = async ({
                 },
             ],
         })
+    }
+}
+
+/**
+ * Update a scenario's status.
+ */
+const updateScenarioStatus = async (
+    scenarioId: string,
+    status: EvaluationStatus,
+): Promise<void> => {
+    const {projectId} = getProjectValues()
+
+    try {
+        await axios.patch(`/preview/evaluations/scenarios/?project_id=${projectId}`, {
+            scenarios: [{id: scenarioId, status}],
+        })
+    } catch (error) {
+        console.error("[updateScenarioStatus] Failed to update scenario status:", error)
+    }
+}
+
+/**
+ * Check if all scenarios in a run are complete and update the run status accordingly.
+ * A run is considered complete when all its scenarios have a terminal status (success, error, failure).
+ */
+const checkAndUpdateRunStatus = async (runId: string): Promise<void> => {
+    const {projectId} = getProjectValues()
+
+    try {
+        // Query all scenarios for this run
+        const scenariosResponse = await axios.post(
+            `/preview/evaluations/scenarios/query?project_id=${projectId}`,
+            {
+                scenario: {run_ids: [runId]},
+                windowing: {limit: 1000}, // Get all scenarios
+            },
+        )
+
+        const scenarios = scenariosResponse.data?.scenarios ?? []
+
+        if (scenarios.length === 0) {
+            return
+        }
+
+        // Terminal statuses that indicate a scenario is complete
+        const terminalStatuses = new Set([
+            EvaluationStatus.SUCCESS,
+            EvaluationStatus.ERROR,
+            EvaluationStatus.FINISHED,
+            EvaluationStatus.FINISHED_WITH_ERRORS,
+            EvaluationStatus.FAILURE,
+            EvaluationStatus.FAILED,
+            EvaluationStatus.ERRORS,
+            EvaluationStatus.CANCELLED,
+            // Also check string values in case API returns different format
+            "success",
+            "error",
+            "failure",
+            "failed",
+            "errors",
+            "cancelled",
+            "EVALUATION_FINISHED",
+            "EVALUATION_FINISHED_WITH_ERRORS",
+            "EVALUATION_FAILED",
+        ])
+
+        // Check if all scenarios have terminal status
+        const allComplete = scenarios.every((scenario: {status?: string}) =>
+            terminalStatuses.has(scenario.status ?? ""),
+        )
+
+        if (!allComplete) {
+            return
+        }
+
+        // Determine run status based on scenario statuses
+        const hasErrors = scenarios.some(
+            (scenario: {status?: string}) =>
+                scenario.status === EvaluationStatus.ERROR ||
+                scenario.status === EvaluationStatus.FAILURE ||
+                scenario.status === EvaluationStatus.FAILED ||
+                scenario.status === EvaluationStatus.ERRORS ||
+                scenario.status === "error" ||
+                scenario.status === "failure" ||
+                scenario.status === "failed" ||
+                scenario.status === "errors" ||
+                scenario.status === "EVALUATION_FAILED",
+        )
+
+        const runStatus = hasErrors
+            ? EvaluationStatus.FINISHED_WITH_ERRORS
+            : EvaluationStatus.FINISHED
+
+        // Update run status
+        await axios.patch(`/preview/evaluations/runs/${runId}?project_id=${projectId}`, {
+            run: {id: runId, status: runStatus},
+        })
+
+        console.log(`[checkAndUpdateRunStatus] Run ${runId} status updated to ${runStatus}`)
+    } catch (error) {
+        console.error("[checkAndUpdateRunStatus] Failed to check/update run status:", error)
     }
 }

@@ -5,16 +5,16 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import FiltersPreview from "@/oss/components/pages/evaluations/onlineEvaluation/components/FiltersPreview"
-import ReferenceTag from "@/oss/components/References/ReferenceTag"
 
 import {
     evaluationQueryReferenceAtomFamily,
     evaluationQueryRevisionAtomFamily,
 } from "../../../../atoms/query"
-import {formatSamplingRate, formatWindowRange, stringifyError} from "../utils"
+import {QueryReferenceLabel} from "../../../references"
+import {formatSamplingRate, stringifyError} from "../utils"
 
 import {ReadOnlyContainer} from "./CopyableFields"
-import {ConfigBlock, SectionCard, SectionHeaderRow} from "./SectionPrimitives"
+import {SectionCard, SectionHeaderRow} from "./SectionPrimitives"
 
 const {Text} = Typography
 const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
@@ -32,7 +32,9 @@ const QuerySection = ({runId}: QuerySectionProps) => {
     const cfg = queryRevisionQuery.data
     const queryRevision = cfg?.revision
     const queryRevisionError = queryRevisionQuery.error
-    const isLoading = queryRevisionQuery.isPending || queryRevisionQuery.isFetching
+    const isLoading =
+        (queryRevisionQuery.isPending || queryRevisionQuery.isFetching) &&
+        !queryRevisionQuery.isError
 
     const revisionId =
         queryRevision?.id ?? queryReference.queryRevisionId ?? queryReference.queryId ?? null
@@ -72,7 +74,7 @@ const QuerySection = ({runId}: QuerySectionProps) => {
     }
 
     return (
-        <SectionCard>
+        <>
             {queryRevisionError ? (
                 <Alert
                     type="error"
@@ -83,30 +85,31 @@ const QuerySection = ({runId}: QuerySectionProps) => {
                 />
             ) : null}
 
-            <div className="flex flex-col gap-2">
-                <SectionHeaderRow
-                    left={
-                        <ReferenceTag
-                            label={queryReference.querySlug ?? queryReference.queryId ?? "—"}
-                            copyValue={queryReference.queryId ?? undefined}
-                            showIcon={false}
-                            className="max-w-[220px]"
-                            tone="query"
+            <SectionHeaderRow
+                left={
+                    <div className="flex flex-col gap-1">
+                        <Text className="text-sm font-semibold text-[#344054]">Query</Text>
+                    </div>
+                }
+                right={
+                    queryJson ? (
+                        <Segmented
+                            options={[
+                                {label: "Details", value: "details"},
+                                {label: "JSON", value: "json"},
+                            ]}
+                            size="small"
+                            value={view}
+                            onChange={(val) => setView(val as "details" | "json")}
                         />
-                    }
-                    right={
-                        queryJson ? (
-                            <Segmented
-                                options={[
-                                    {label: "Details", value: "details"},
-                                    {label: "JSON", value: "json"},
-                                ]}
-                                size="small"
-                                value={view}
-                                onChange={(val) => setView(val as "details" | "json")}
-                            />
-                        ) : undefined
-                    }
+                    ) : undefined
+                }
+            />
+
+            <div className="flex flex-wrap items-center gap-2 -mt-2">
+                <QueryReferenceLabel
+                    queryId={queryReference.queryId}
+                    querySlug={queryReference.querySlug}
                 />
                 {(() => {
                     const revBase = revisionSlug ?? revisionId
@@ -117,16 +120,13 @@ const QuerySection = ({runId}: QuerySectionProps) => {
                                   : ""
                           }`
                         : null
-                    const rawWindow = formatWindowRange(windowing)
-                    const windowLabel = rawWindow === "Not specified" ? "—" : rawWindow
-                    const parts = [revLabel, windowLabel].filter((p) => p && p !== "—")
-                    if (parts.length === 0) return null
-                    return <Text className="text-sm text-neutral-600">{parts.join(" • ")}</Text>
+                    if (!revLabel) return null
+                    return <Text className="text-sm text-neutral-600">{revLabel}</Text>
                 })()}
             </div>
 
             {view === "json" && queryJson ? (
-                <div className="rounded-md border border-solid border-[#E4E7EC] bg-[#F8FAFC]">
+                <div className="rounded-md border border-solid border-[#E4E7EC] bg-[#F8FAFC] mt-3">
                     <JsonEditor
                         key={(revisionId ?? revisionSlug ?? "query") as string}
                         initialValue={queryJson}
@@ -140,16 +140,18 @@ const QuerySection = ({runId}: QuerySectionProps) => {
                     />
                 </div>
             ) : (
-                <div className="flex flex-col gap-3">
-                    <ConfigBlock title="Filters">
+                <div className="flex flex-col gap-3 mt-3">
+                    <div className="flex flex-col gap-1">
+                        <Text className="font-medium text-neutral-800">Filters</Text>
                         <FiltersPreview filtering={filters ?? undefined} />
-                    </ConfigBlock>
-                    <ConfigBlock title="Sample rate">
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <Text className="font-medium text-neutral-800">Sample rate</Text>
                         <ReadOnlyContainer>{formatSamplingRate(windowing?.rate)}</ReadOnlyContainer>
-                    </ConfigBlock>
+                    </div>
                 </div>
             )}
-        </SectionCard>
+        </>
     )
 }
 

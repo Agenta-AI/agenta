@@ -8,6 +8,7 @@ import {useAtomValue} from "jotai"
 
 import {
     ApplicationReferenceLabel as GenericApplicationReferenceLabel,
+    QueryReferenceLabel as GenericQueryReferenceLabel,
     TestsetTag as GenericTestsetTag,
     TestsetTagList as GenericTestsetTagList,
     VariantReferenceLabel as GenericVariantReferenceLabel,
@@ -168,6 +169,33 @@ export const VariantReferenceText = memo(
                 revisionId={variantId}
                 projectId={projectId}
                 fallback={fallback}
+            />
+        )
+    },
+)
+
+/**
+ * Evaluation-scoped query reference label.
+ * Gets projectId from evaluation context.
+ */
+export const QueryReferenceLabel = memo(
+    ({
+        queryId,
+        querySlug,
+        href,
+    }: {
+        queryId?: string | null
+        querySlug?: string | null
+        href?: string | null
+    }) => {
+        const projectId = useAtomValue(effectiveProjectIdAtom)
+
+        return (
+            <GenericQueryReferenceLabel
+                queryId={queryId}
+                querySlug={querySlug}
+                projectId={projectId}
+                href={href}
             />
         )
     },

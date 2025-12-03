@@ -7,6 +7,7 @@
  */
 export {
     ApplicationReferenceLabel,
+    QueryReferenceLabel,
     TestsetTag,
     TestsetTagList,
     VariantReferenceLabel,

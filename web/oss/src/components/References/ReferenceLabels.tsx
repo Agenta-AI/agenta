@@ -6,7 +6,9 @@ import {useAtomValue} from "jotai"
 
 import {
     appReferenceAtomFamily,
+    evaluatorReferenceAtomFamily,
     previewTestsetReferenceAtomFamily,
+    queryReferenceAtomFamily,
     variantConfigAtomFamily,
 } from "./atoms/entityReferences"
 import ReferenceTag from "./ReferenceTag"
@@ -33,13 +35,13 @@ export const TestsetTag = memo(
         )
         const query = useAtomValue(queryAtom)
 
-        if (query.isPending || query.isFetching) {
+        if ((query.isPending || query.isFetching) && !query.isError) {
             return <Skeleton.Input active size="small" style={{width: 160}} />
         }
 
         const ref = query.data
-        // If we have an ID but no name, the testset was likely deleted
-        const isDeleted = Boolean(ref?.id && !ref?.name)
+        // If we have an ID but no name, or query errored, the testset was likely deleted
+        const isDeleted = Boolean(query.isError || (ref?.id && !ref?.name))
         const label = isDeleted ? "Deleted" : (ref?.name ?? ref?.id ?? testsetId)
         // Don't show link for deleted testsets
         const href = isDeleted ? null : projectURL ? `${projectURL}/testsets/${testsetId}` : null
@@ -118,13 +120,13 @@ export const ApplicationReferenceLabel = memo(
             return <Text type="secondary">—</Text>
         }
 
-        if (query.isPending || query.isFetching) {
+        if ((query.isPending || query.isFetching) && !query.isError) {
             return <Skeleton.Input active size="small" style={{width: 140}} />
         }
 
         const ref = query.data
-        // If we have an ID but no name/slug, the app was likely deleted
-        const isDeleted = Boolean(ref?.id && !ref?.name && !ref?.slug)
+        // If we have an ID but no name/slug, or query errored, the app was likely deleted
+        const isDeleted = Boolean(query.isError || (ref?.id && !ref?.name && !ref?.slug))
         const label = isDeleted ? "Deleted" : (ref?.name ?? ref?.slug ?? ref?.id ?? applicationId)
         // Don't show link for deleted apps
         const href = isDeleted
@@ -176,13 +178,15 @@ export const VariantReferenceLabel = memo(
             return <Text type="secondary">—</Text>
         }
 
-        if (query.isPending || query.isFetching) {
+        if ((query.isPending || query.isFetching) && !query.isError) {
             return <Skeleton.Input active size="small" style={{width: 140}} />
         }
 
         const ref = query.data
-        // If we have a revisionId but no variantName and no revision, the variant was likely deleted
-        const isDeleted = Boolean(ref?.revisionId && !ref?.variantName && ref?.revision == null)
+        // If we have a revisionId but no variantName and no revision, or query errored, the variant was likely deleted
+        const isDeleted = Boolean(
+            query.isError || (ref?.revisionId && !ref?.variantName && ref?.revision == null),
+        )
         const label = isDeleted
             ? "Deleted"
             : (ref?.variantName ?? fallbackLabel ?? ref?.revisionId ?? revisionId)
@@ -242,5 +246,111 @@ export const VariantReferenceText = memo(
         const label = ref?.variantName ?? ref?.revisionId ?? revisionId
 
         return <Text>{label}</Text>
+    },
+)
+
+/**
+ * Generic evaluator reference label that fetches and displays an evaluator reference.
+ * Requires projectId to be passed explicitly for reusability across contexts.
+ */
+export const EvaluatorReferenceLabel = memo(
+    ({
+        evaluatorId,
+        evaluatorSlug,
+        projectId,
+        href: explicitHref,
+    }: {
+        evaluatorId?: string | null
+        evaluatorSlug?: string | null
+        projectId: string | null
+        href?: string | null
+    }) => {
+        const queryAtom = useMemo(
+            () => evaluatorReferenceAtomFamily({projectId, slug: evaluatorSlug, id: evaluatorId}),
+            [projectId, evaluatorSlug, evaluatorId],
+        )
+        const query = useAtomValue(queryAtom)
+
+        if (!evaluatorId && !evaluatorSlug) {
+            return <Text type="secondary">—</Text>
+        }
+
+        if ((query.isPending || query.isFetching) && !query.isError) {
+            return <Skeleton.Input active size="small" style={{width: 140}} />
+        }
+
+        const ref = query.data
+        // If we have an ID/slug but no name, or query errored, the evaluator was likely deleted
+        const isDeleted = Boolean(query.isError || ((ref?.id || ref?.slug) && !ref?.name))
+        const displayId = evaluatorId ?? evaluatorSlug ?? ref?.id ?? ref?.slug ?? ""
+        const label = isDeleted
+            ? "Deleted"
+            : (ref?.name ?? ref?.slug ?? ref?.id ?? evaluatorSlug ?? evaluatorId ?? "—")
+        // Don't show link for deleted evaluators
+        const href = isDeleted ? null : explicitHref
+
+        return (
+            <ReferenceTag
+                label={label}
+                href={href ?? undefined}
+                tooltip={isDeleted ? `Evaluator ${displayId} was deleted` : label}
+                copyValue={displayId}
+                className="max-w-[220px]"
+                tone="evaluator"
+            />
+        )
+    },
+)
+
+/**
+ * Generic query reference label that fetches and displays a query reference.
+ * Requires projectId to be passed explicitly for reusability across contexts.
+ */
+export const QueryReferenceLabel = memo(
+    ({
+        queryId,
+        querySlug,
+        projectId,
+        href: explicitHref,
+    }: {
+        queryId?: string | null
+        querySlug?: string | null
+        projectId: string | null
+        href?: string | null
+    }) => {
+        const queryAtom = useMemo(
+            () => queryReferenceAtomFamily({projectId, queryId, querySlug}),
+            [projectId, queryId, querySlug],
+        )
+        const query = useAtomValue(queryAtom)
+
+        if (!queryId && !querySlug) {
+            return <Text type="secondary">—</Text>
+        }
+
+        if ((query.isPending || query.isFetching) && !query.isError) {
+            return <Skeleton.Input active size="small" style={{width: 140}} />
+        }
+
+        const ref = query.data
+        // If we have an ID/slug but no name, or query errored, the query was likely deleted
+        const isDeleted = Boolean(query.isError || ((ref?.id || ref?.slug) && !ref?.name))
+        const displayId = queryId ?? querySlug ?? ref?.id ?? ref?.slug ?? ""
+        const label = isDeleted
+            ? "Deleted"
+            : (ref?.name ?? ref?.slug ?? ref?.id ?? querySlug ?? queryId ?? "—")
+        // Don't show link for deleted queries
+        const href = isDeleted ? null : explicitHref
+
+        return (
+            <ReferenceTag
+                label={label}
+                href={href ?? undefined}
+                tooltip={isDeleted ? `Query ${displayId} was deleted` : label}
+                copyValue={displayId}
+                className="max-w-[220px]"
+                tone="query"
+            />
+        )
     },
 )

@@ -106,7 +106,8 @@ export const applicationReferenceQueryAtomFamily = atomFamily((appId: string | n
                 try {
                     const response = await axios.get(`/apps/${appId}`, {
                         params: {project_id: projectId},
-                    })
+                        _ignoreError: true,
+                    } as any)
                     return normalizeApplication(response.data, appId)
                 } catch (error) {
                     console.warn("[EvalRunDetails2] Failed to resolve application", {
@@ -167,7 +168,8 @@ export const testsetReferenceQueryAtomFamily = atomFamily((testsetId: string | n
                 try {
                     const response = await axios.get(`/preview/testsets/${testsetId}`, {
                         params: {project_id: projectId},
-                    })
+                        _ignoreError: true,
+                    } as any)
                     return normalizeTestset(response.data, testsetId)
                 } catch (error) {
                     console.warn("[EvalRunDetails2] Failed to resolve testset", {
