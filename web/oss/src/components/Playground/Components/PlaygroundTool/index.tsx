@@ -17,6 +17,7 @@ import PromptMessageContentOptions from "../PlaygroundVariantPropertyControl/ass
 import SharedEditor from "../SharedEditor"
 
 import {TOOL_PROVIDERS_META, TOOL_SCHEMA} from "./assets"
+import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 
 export type ToolFunction = {
     name?: string
@@ -272,28 +273,54 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
     const isReadOnly = Boolean(disabled)
     const [minimized, setMinimized] = useState(false)
 
-    const {toolObj, editorText, editorValid, onEditorChange} = useToolState(
-        value,
-        isReadOnly,
-        editorProps?.handleChange,
-    )
-
     const builtinMeta = useMemo(() => {
-        if (!baseProperty || baseProperty.__source !== "builtin") return undefined
+        const agentaMetadata =
+            (baseProperty as any)?.agenta_metadata ||
+            (baseProperty as any)?.value?.agenta_metadata ||
+            stripAgentaMetadataDeep((value as any)?.agenta_metadata)
+        const source = baseProperty?.__source || agentaMetadata?.source
 
-        const isBuiltinTool = baseProperty.__source === "builtin"
-        const providerKey = baseProperty.__provider as string | undefined
+        const isBuiltinTool = source === "builtin"
+        if (!baseProperty && !isBuiltinTool) return {agentaMetadata}
+
+        const providerKey = (baseProperty as any)?.__provider || agentaMetadata?.provider
         const providerConfig = providerKey ? TOOL_PROVIDERS_META[providerKey] : undefined
         const Icon =
             providerConfig?.iconKey != null ? LLMIconMap[providerConfig.iconKey] : undefined
 
-        const providerLabel = baseProperty.__providerLabel || providerConfig?.label || providerKey
-        const toolLabel = baseProperty.__toolCode || baseProperty.__tool
+        const providerLabel =
+            (baseProperty as any)?.__providerLabel ||
+            agentaMetadata?.providerLabel ||
+            providerConfig?.label ||
+            providerKey
+        const toolLabel =
+            (baseProperty as any)?.__toolCode ||
+            (baseProperty as any)?.__tool ||
+            agentaMetadata?.toolCode ||
+            agentaMetadata?.toolLabel
 
-        if (!providerLabel && !toolLabel && !Icon) return undefined
+        return {providerLabel, toolLabel, Icon, isBuiltinTool, agentaMetadata}
+    }, [baseProperty, value])
 
-        return {providerLabel, toolLabel, Icon, isBuiltinTool}
-    }, [baseProperty])
+    const cleanedValue = useMemo(() => stripAgentaMetadataDeep(value), [value])
+
+    const {toolObj, editorText, editorValid, onEditorChange} = useToolState(
+        cleanedValue,
+        isReadOnly,
+        useCallback(
+            (next: ToolObj) => {
+                const merged =
+                    (builtinMeta?.agentaMetadata && {
+                        ...next,
+                        agenta_metadata: builtinMeta.agentaMetadata,
+                    }) ||
+                    next
+
+                editorProps?.handleChange?.(merged)
+            },
+            [editorProps?.handleChange, builtinMeta?.agentaMetadata],
+        ),
+    )
 
     useAtomValue(variantByRevisionIdAtomFamily(variantId))
     const appUriInfo = useAtomValue(appUriInfoAtom)
