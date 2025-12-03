@@ -4,11 +4,10 @@ import {DownOutlined} from "@ant-design/icons"
 import {Button, Form, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import {TestsetTagList} from "@/oss/components/References"
-
 import {testsetReferenceQueryAtomFamily} from "../../../../atoms/references"
 import {runTestsetIdsAtomFamily} from "../../../../atoms/runDerived"
 import {simpleTestsetDetailsAtomFamily} from "../../../../atoms/testsetDetails"
+import {TestsetTagList} from "../../../references"
 
 import {SectionCard, SectionHeaderRow, SectionSkeleton} from "./SectionPrimitives"
 

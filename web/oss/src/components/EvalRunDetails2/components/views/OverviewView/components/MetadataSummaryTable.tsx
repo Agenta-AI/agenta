@@ -6,11 +6,6 @@ import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
-import {
-    ApplicationReferenceLabel,
-    TestsetTagList,
-    VariantReferenceLabel,
-} from "@/oss/components/References"
 import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 import {useProjectData} from "@/oss/state/project"
@@ -32,6 +27,7 @@ import type {
     QueryFilteringPayload,
 } from "../../../../services/onlineEvaluations/api"
 import {buildFrequencyChartData} from "../../../EvaluatorMetricsChart/utils/chartData"
+import {ApplicationReferenceLabel, TestsetTagList, VariantReferenceLabel} from "../../../references"
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import {resolveMetricValue} from "../utils/metrics"
 

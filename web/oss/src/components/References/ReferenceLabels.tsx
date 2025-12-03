@@ -5,32 +5,33 @@ import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import {
-    applicationReferenceQueryAtomFamily,
-    testsetReferenceQueryAtomFamily,
-    variantReferenceQueryAtomFamily,
-    useRunIdentifiers,
-    useRunScopedUrls,
-} from "./EvalRunReferences"
+    appReferenceAtomFamily,
+    previewTestsetReferenceAtomFamily,
+    variantConfigAtomFamily,
+} from "./atoms/entityReferences"
 import ReferenceTag from "./ReferenceTag"
 
 const {Text} = Typography
 
-const TestsetTag = memo(
+/**
+ * Generic testset tag that fetches and displays a testset reference.
+ * Requires projectId to be passed explicitly for reusability across contexts.
+ */
+export const TestsetTag = memo(
     ({
         testsetId,
+        projectId,
         projectURL,
-        runId,
     }: {
         testsetId: string
+        projectId: string | null
         projectURL?: string | null
-        runId?: string | null
     }) => {
         const queryAtom = useMemo(
-            () => testsetReferenceQueryAtomFamily(testsetId ?? null),
-            [testsetId],
+            () => previewTestsetReferenceAtomFamily({projectId, testsetId}),
+            [projectId, testsetId],
         )
         const query = useAtomValue(queryAtom)
-        const {buildTestsetHref} = useRunScopedUrls(runId)
 
         if (query.isPending || query.isFetching) {
             return <Skeleton.Input active size="small" style={{width: 160}} />
@@ -38,9 +39,7 @@ const TestsetTag = memo(
 
         const ref = query.data
         const label = ref?.name ?? ref?.id ?? testsetId
-        const href =
-            buildTestsetHref(testsetId) ??
-            (projectURL ? `${projectURL}/testsets/${testsetId}` : null)
+        const href = projectURL ? `${projectURL}/testsets/${testsetId}` : null
 
         return (
             <ReferenceTag
@@ -55,16 +54,20 @@ const TestsetTag = memo(
     },
 )
 
+/**
+ * Generic testset tag list that renders multiple testset tags.
+ * Requires projectId to be passed explicitly for reusability across contexts.
+ */
 export const TestsetTagList = memo(
     ({
         ids,
+        projectId,
         projectURL,
-        runId,
         className,
     }: {
         ids: string[]
+        projectId: string | null
         projectURL?: string | null
-        runId?: string | null
         className?: string
     }) => {
         if (!ids.length) {
@@ -74,37 +77,37 @@ export const TestsetTagList = memo(
         return (
             <div className={clsx("flex flex-wrap gap-2", className)}>
                 {ids.map((id) => (
-                    <TestsetTag key={id} testsetId={id} projectURL={projectURL} runId={runId} />
+                    <TestsetTag
+                        key={id}
+                        testsetId={id}
+                        projectId={projectId}
+                        projectURL={projectURL}
+                    />
                 ))}
             </div>
         )
     },
 )
 
+/**
+ * Generic application reference label that fetches and displays an app reference.
+ * Requires projectId to be passed explicitly for reusability across contexts.
+ */
 export const ApplicationReferenceLabel = memo(
     ({
-        runId,
-        applicationId: explicitApplicationId,
-        projectURL: explicitProjectURL,
+        applicationId,
+        projectId,
+        projectURL,
+        href: explicitHref,
     }: {
-        runId?: string | null
-        applicationId?: string | null
+        applicationId: string | null
+        projectId: string | null
         projectURL?: string | null
+        href?: string | null
     }) => {
-        const {applicationId: runApplicationId} = useRunIdentifiers(runId)
-        const {
-            applicationId: scopedApplicationId,
-            projectURL: scopedProjectURL,
-            appDetailHref,
-        } = useRunScopedUrls(runId, explicitApplicationId ?? runApplicationId ?? null)
-
-        const applicationId =
-            explicitApplicationId ?? scopedApplicationId ?? runApplicationId ?? null
-        const projectURL = explicitProjectURL ?? scopedProjectURL
-
         const queryAtom = useMemo(
-            () => applicationReferenceQueryAtomFamily(applicationId ?? null),
-            [applicationId],
+            () => appReferenceAtomFamily({projectId, appId: applicationId}),
+            [projectId, applicationId],
         )
         const query = useAtomValue(queryAtom)
 
@@ -119,7 +122,7 @@ export const ApplicationReferenceLabel = memo(
         const ref = query.data
         const label = ref?.name ?? ref?.slug ?? ref?.id ?? applicationId
         const href =
-            appDetailHref ??
+            explicitHref ??
             (projectURL && applicationId ? `${projectURL}/apps/${applicationId}` : null)
 
         return (
@@ -135,34 +138,34 @@ export const ApplicationReferenceLabel = memo(
     },
 )
 
+/**
+ * Generic variant reference label that fetches and displays a variant config reference.
+ * Uses revisionId to fetch variant config details.
+ * Requires projectId to be passed explicitly for reusability across contexts.
+ */
 export const VariantReferenceLabel = memo(
     ({
-        variantId: explicitVariantId,
-        applicationId: explicitApplicationId,
-        runId,
+        revisionId,
+        projectId,
         fallbackLabel,
         showVersionPill = false,
         explicitVersion,
+        href: explicitHref,
     }: {
-        variantId?: string | null
-        applicationId?: string | null
-        runId?: string | null
+        revisionId?: string | null
+        projectId: string | null
         fallbackLabel?: string | null
         showVersionPill?: boolean
         explicitVersion?: number | string | null
+        href?: string | null
     }) => {
-        const {variantId: runVariantId, applicationId: runApplicationId} = useRunIdentifiers(runId)
-        const effectiveVariantId = explicitVariantId ?? runVariantId ?? null
-        const effectiveApplicationId = explicitApplicationId ?? runApplicationId ?? null
-        const {buildVariantPlaygroundHref} = useRunScopedUrls(runId, effectiveApplicationId)
-
         const queryAtom = useMemo(
-            () => variantReferenceQueryAtomFamily(effectiveVariantId ?? null),
-            [effectiveVariantId],
+            () => variantConfigAtomFamily({projectId, revisionId}),
+            [projectId, revisionId],
         )
         const query = useAtomValue(queryAtom)
 
-        if (!effectiveVariantId) {
+        if (!revisionId) {
             return <Text type="secondary">—</Text>
         }
 
@@ -171,21 +174,16 @@ export const VariantReferenceLabel = memo(
         }
 
         const ref = query.data
-        const label = ref?.name ?? ref?.slug ?? fallbackLabel ?? ref?.id ?? effectiveVariantId
-        const resolvedVersion =
-            explicitVersion ??
-            ref?.revision ??
-            ref?.version ??
-            (typeof ref?.variant === "object" ? (ref.variant as any)?.revision : null)
-        const href = buildVariantPlaygroundHref(effectiveVariantId)
+        const label = ref?.variantName ?? fallbackLabel ?? ref?.revisionId ?? revisionId
+        const resolvedVersion = explicitVersion ?? ref?.revision ?? null
 
         return (
             <div className="flex items-center gap-2">
                 <ReferenceTag
                     label={label}
-                    href={href ?? undefined}
+                    href={explicitHref ?? undefined}
                     tooltip={label}
-                    copyValue={effectiveVariantId ?? undefined}
+                    copyValue={revisionId ?? undefined}
                     className="max-w-[220px]"
                     tone="variant"
                 />
@@ -199,15 +197,27 @@ export const VariantReferenceLabel = memo(
     },
 )
 
+/**
+ * Generic variant reference text (no tag styling, just text).
+ * Requires projectId to be passed explicitly for reusability across contexts.
+ */
 export const VariantReferenceText = memo(
-    ({variantId, fallback}: {variantId: string | null; fallback?: string}) => {
+    ({
+        revisionId,
+        projectId,
+        fallback,
+    }: {
+        revisionId: string | null
+        projectId: string | null
+        fallback?: string
+    }) => {
         const queryAtom = useMemo(
-            () => variantReferenceQueryAtomFamily(variantId ?? null),
-            [variantId],
+            () => variantConfigAtomFamily({projectId, revisionId}),
+            [projectId, revisionId],
         )
         const query = useAtomValue(queryAtom)
 
-        if (!variantId) {
+        if (!revisionId) {
             return <Text type="secondary">{fallback ?? "—"}</Text>
         }
 
@@ -216,7 +226,7 @@ export const VariantReferenceText = memo(
         }
 
         const ref = query.data
-        const label = ref?.name ?? ref?.slug ?? ref?.id ?? variantId
+        const label = ref?.variantName ?? ref?.revisionId ?? revisionId
 
         return <Text>{label}</Text>
     },
