@@ -23,11 +23,7 @@ import {useQueryParamState} from "@/oss/state/appState"
 
 import {shouldIgnoreRowClick} from "../../actions/navigationActions"
 import {evaluationRunsTableFetchEnabledAtom} from "../../atoms/context"
-import {
-    evaluationRunsDatasetStore,
-    EVALUATION_RUNS_QUERY_KEY_ROOT,
-    invalidateEvaluationRunsTableAtom,
-} from "../../atoms/tableStore"
+import {evaluationRunsDatasetStore} from "../../atoms/tableStore"
 import {
     evaluationRunsDeleteModalOpenAtom,
     evaluationRunsCreateModalOpenAtom,
@@ -45,6 +41,7 @@ import {
     useEvaluationRunsColumns,
     resolveReferenceExportValue,
 } from "../../hooks/useEvaluationRunsColumns"
+import useEvaluationRunsPolling from "../../hooks/useEvaluationRunsPolling"
 import type {EvaluationRunTableRow} from "../../types"
 import type {
     EvaluationRunsColumnExportMetadata,
@@ -195,7 +192,6 @@ const EvaluationRunsTableActive = ({
     const [selectedRowKeys, setSelectedRowKeys] = useAtom(evaluationRunsSelectedRowKeysAtom)
     const [rowExportingKey, setRowExportingKey] = useState<string | null>(null)
     const setDeleteModalOpen = useSetAtom(evaluationRunsDeleteModalOpenAtom)
-    const invalidateRunsTable = useSetAtom(invalidateEvaluationRunsTableAtom)
     const selectionSnapshot = useAtomValue(evaluationRunsSelectionSnapshotAtom)
     const store = useStore()
     const queryClient = useQueryClient()
@@ -233,6 +229,9 @@ const EvaluationRunsTableActive = ({
         resetOnScopeChange: false,
     })
     const {rows: displayedRows, loadNextPage, resetPages} = pagination
+
+    // Poll for updates when evaluations are running
+    useEvaluationRunsPolling({rows: displayedRows})
 
     const buildRowHandlers = useCallback(
         (record: EvaluationRunTableRow) => {
@@ -300,23 +299,15 @@ const EvaluationRunsTableActive = ({
         // Clear the local preview runs cache (fetchPreviewRunsShared has its own 10s TTL cache)
         // This is necessary because React Query's invalidation won't bypass this local cache
         clearPreviewRunsCache()
-        // Invalidate React Query cache so stale data isn't served
-        await queryClient.invalidateQueries({
-            queryKey: EVALUATION_RUNS_QUERY_KEY_ROOT,
-            exact: false,
+        // Use refetchQueries for a background refresh that keeps existing data visible
+        // instead of invalidateQueries + invalidateRunsTable which causes full skeleton reload
+        await queryClient.refetchQueries({
+            predicate: (query) => {
+                const key = query.queryKey
+                return Array.isArray(key) && key[0] === "evaluation-runs-table"
+            },
         })
-        // Trigger refresh in all scoped stores (e.g., LatestEvaluationRunsTable on Overview page)
-        invalidateRunsTable()
-        // Reset pages to trigger fresh data load with new query atoms
-        resetPages()
-    }, [
-        invalidateRunsTable,
-        queryClient,
-        resetPages,
-        selectedCreateType,
-        setIsCreateModalOpen,
-        setKindParam,
-    ])
+    }, [queryClient, selectedCreateType, setIsCreateModalOpen, setKindParam])
 
     useEffect(() => {
         if (contextEvaluationKind !== "all") {
