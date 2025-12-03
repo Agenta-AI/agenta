@@ -8,7 +8,10 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
+import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {queryClient} from "@/oss/lib/api/queryClient"
+import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {runInvocation} from "@/oss/services/evaluations/invocations/api"
 import {fetchVariantConfig} from "@/oss/services/variantConfigs/api"
 import {getProjectValues} from "@/oss/state/project"
@@ -299,9 +302,44 @@ export const triggerRunInvocationAtom = atom(
                 const metricQuery = store.get(metricQueryAtom)
                 await metricQuery.refetch?.()
 
+                // Clear the preview runs cache and trigger a background refetch of the runs table
+                // This ensures the status update is reflected immediately in the runs table
+                clearPreviewRunsCache()
+                set(invalidateEvaluationRunsTableAtom)
+                await queryClient.refetchQueries({
+                    predicate: (query) => {
+                        const key = query.queryKey
+                        if (!Array.isArray(key)) return false
+                        // Match evaluation-runs-table queries (for the runs list page)
+                        if (key[0] === "evaluation-runs-table") return true
+                        // Match run metric stats queries
+                        if (key[0] === "preview" && key[1] === "run-metric-stats") return true
+                        // Match eval-table scenarios queries (for the run details page)
+                        if (key[0] === "eval-table" && key[1] === "scenarios") return true
+                        return false
+                    },
+                })
+
                 console.log("[runInvocationAction] Caches invalidated and data refetched")
             } else {
                 message.error(`Invocation failed: ${result.error}`)
+
+                // Still need to refetch the runs table since scenario/run status may have been updated
+                clearPreviewRunsCache()
+                set(invalidateEvaluationRunsTableAtom)
+                await queryClient.refetchQueries({
+                    predicate: (query) => {
+                        const key = query.queryKey
+                        if (!Array.isArray(key)) return false
+                        // Match evaluation-runs-table queries (for the runs list page)
+                        if (key[0] === "evaluation-runs-table") return true
+                        // Match run metric stats queries
+                        if (key[0] === "preview" && key[1] === "run-metric-stats") return true
+                        // Match eval-table scenarios queries (for the run details page)
+                        if (key[0] === "eval-table" && key[1] === "scenarios") return true
+                        return false
+                    },
+                })
             }
 
             return result

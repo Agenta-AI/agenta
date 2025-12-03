@@ -125,6 +125,10 @@ export const runInvocation = async (params: RunInvocationParams): Promise<Invoca
             references,
         })
 
+        // NOTE: Do NOT update scenario status here - invocation success means the scenario
+        // is still pending annotation. Scenario status will be updated to "success" only
+        // after the annotation is saved.
+
         return {
             success: true,
             response: responseData,

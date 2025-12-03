@@ -117,12 +117,6 @@ const PreviewEvalRunHeader = ({
                 <Space size={8} wrap className="text-[#475467]">
                     {runStatus ? (
                         <>
-                            <span
-                                className={clsx(
-                                    "shrink-0 inline-block w-2 h-2 rounded-full",
-                                    statusDotClass,
-                                )}
-                            />
                             <Tag color={statusColor(runStatus)} className="m-0">
                                 {runStatus}
                             </Tag>

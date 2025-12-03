@@ -1,13 +1,19 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
+import {useQueryClient} from "@tanstack/react-query"
 import {Button, Card, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
+import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {uuidToSpanId} from "@/oss/lib/traces/helpers"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
 import {upsertStepResultWithAnnotation} from "@/oss/services/evaluations/results/api"
+import {
+    checkAndUpdateRunStatus,
+    updateScenarioStatus,
+} from "@/oss/services/evaluations/scenarios/api"
 import {upsertScenarioMetricData} from "@/oss/services/runMetrics/api"
 
 import {invalidateAnnotationBatcherCache} from "../../../../atoms/annotations"
@@ -48,6 +54,7 @@ const ScenarioAnnotationPanel = ({
 }: ScenarioAnnotationPanelProps) => {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [justSaved, setJustSaved] = useState(false)
+    const queryClient = useQueryClient()
     const invalidateRunMetricStats = useSetAtom(invalidatePreviewRunMetricStatsAtom)
     const invalidateRunsTable = useSetAtom(invalidateEvaluationRunsTableAtom)
 
@@ -340,17 +347,33 @@ const ScenarioAnnotationPanel = ({
 
             message.success("Annotations saved successfully")
 
+            // Update scenario and run status
+            await updateScenarioStatus(scenarioId, "success")
+            await checkAndUpdateRunStatus(runId)
+
             // Mark as just saved - this disables the button until annotations are refetched
             setJustSaved(true)
 
-            // Invalidate caches - this will trigger a refetch of annotations
-            // which will update the baseline metrics and clear the edits naturally
+            // Invalidate caches to trigger a refetch of annotations
             invalidateAnnotationBatcherCache()
             invalidateScenarioStepsBatcherCache()
             invalidateMetricBatcherCache()
             invalidateRunMetricStats(runId)
-            // Invalidate the runs table so it shows updated metrics when user navigates back
+
+            // Clear the preview runs cache and trigger a background refetch
+            clearPreviewRunsCache()
             invalidateRunsTable()
+            await queryClient.refetchQueries({
+                predicate: (query) => {
+                    const key = query.queryKey
+                    if (!Array.isArray(key)) return false
+                    if (key[0] === "evaluation-runs-table") return true
+                    if (key[0] === "preview" && key[1] === "run-metric-stats") return true
+                    if (key[0] === "preview" && key[1] === "evaluation-run") return true
+                    if (key[0] === "eval-table" && key[1] === "scenarios") return true
+                    return false
+                },
+            })
 
             // Note: We intentionally do NOT reset metrics here.
             // The metricEdits will be preserved until the cache invalidation
@@ -375,6 +398,7 @@ const ScenarioAnnotationPanel = ({
         invalidateRunMetricStats,
         invalidateRunsTable,
         setErrors,
+        queryClient,
     ])
 
     // Show overlay when invocation is not successful

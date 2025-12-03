@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {useQueryClient} from "@tanstack/react-query"
 import {Button, DrawerProps, Spin} from "antd"
 import deepEqual from "fast-deep-equal"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
@@ -7,6 +8,7 @@ import dynamic from "next/dynamic"
 
 import {message} from "@/oss/components/AppMessageContext"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
+import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {
     generateAnnotationPayloadData,
     generateNewAnnotationPayloadData,
@@ -14,9 +16,14 @@ import {
 } from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 import type {UpdatedMetricsType} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/types"
 import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
+import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {uuidToSpanId} from "@/oss/lib/traces/helpers"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
 import {upsertStepResultWithAnnotation} from "@/oss/services/evaluations/results/api"
+import {
+    checkAndUpdateRunStatus,
+    updateScenarioStatus,
+} from "@/oss/services/evaluations/scenarios/api"
 import {upsertScenarioMetricData} from "@/oss/services/runMetrics/api"
 
 import {
@@ -67,6 +74,8 @@ const PreviewAnnotateContent = ({
 
     // Invalidate run-level metric stats after annotation updates
     const invalidateRunMetricStats = useSetAtom(invalidatePreviewRunMetricStatsAtom)
+    const invalidateRunsTable = useSetAtom(invalidateEvaluationRunsTableAtom)
+    const queryClient = useQueryClient()
 
     const stepsLoading = stepsQuery?.isLoading || stepsQuery?.isFetching
 
@@ -648,11 +657,14 @@ const PreviewAnnotateContent = ({
 
             message.success("Annotations updated successfully")
 
+            // Update scenario and run status
+            await updateScenarioStatus(scenarioId, "success")
+            await checkAndUpdateRunStatus(runId)
+
             // Invalidate caches to force fresh data fetch
             invalidateAnnotationBatcherCache()
             invalidateScenarioStepsBatcherCache()
             invalidateMetricBatcherCache()
-            // Invalidate run-level metric stats (for overview charts and summary tables)
             invalidateRunMetricStats(runId)
 
             // Refetch all relevant data to update the UI
@@ -663,6 +675,22 @@ const PreviewAnnotateContent = ({
                     metricsQuery?.refetch?.(),
                 ].filter(Boolean),
             )
+
+            // Clear the preview runs cache and trigger a background refetch
+            clearPreviewRunsCache()
+            invalidateRunsTable()
+            await queryClient.refetchQueries({
+                predicate: (query) => {
+                    const key = query.queryKey
+                    if (!Array.isArray(key)) return false
+                    if (key[0] === "evaluation-runs-table") return true
+                    if (key[0] === "preview" && key[1] === "run-metric-stats") return true
+                    if (key[0] === "preview" && key[1] === "evaluation-run") return true
+                    if (key[0] === "eval-table" && key[1] === "scenarios") return true
+                    if (key[0] === "evaluation-preview-table") return true
+                    return false
+                },
+            })
 
             setAnnotationMetrics({})
             setTempSelectedEvaluators([])
@@ -696,6 +724,8 @@ const PreviewAnnotateContent = ({
         runId,
         scenarioId,
         invalidateRunMetricStats,
+        invalidateRunsTable,
+        queryClient,
     ])
 
     useEffect(() => {
