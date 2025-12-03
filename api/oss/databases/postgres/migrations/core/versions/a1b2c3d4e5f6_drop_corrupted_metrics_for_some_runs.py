@@ -15,6 +15,7 @@ revision: str = "a1b2c3d4e5f6"
 down_revision: Union[str, None] = "652f6113b5f5"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+# dummy change
 
 
 def upgrade() -> None:
