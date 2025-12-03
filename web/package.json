@@ -11,7 +11,7 @@
         "ajv-formats": "^3.0.1",
         "jotai-eager": "^0.2.3",
         "json5": "^2.2.3",
-        "next": "15.5.2"
+        "next": "15.5.7"
     },
     "devDependencies": {
         "@agenta/ee": "workspace:./ee",
