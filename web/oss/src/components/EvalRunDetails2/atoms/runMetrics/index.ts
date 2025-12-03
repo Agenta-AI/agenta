@@ -251,6 +251,7 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                     projectId,
                     runId,
                     includeTemporalFlagValue,
+                    isRunInProgress, // Include to re-run query when status changes from in-progress to terminal
                 ],
                 enabled: Boolean(projectId && runId),
                 staleTime: 30_000,
