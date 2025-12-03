@@ -406,7 +406,12 @@ const ScenarioAnnotationPanel = ({
 
     return (
         <div className="flex w-5/12 max-w-[400px] sticky top-0 self-start">
-            <Card title="Annotations" className="w-full relative" classNames={{body: "!p-2"}}>
+            <Card
+                title="Annotations"
+                className="w-full relative"
+                classNames={{body: "!p-2"}}
+                id="focus-section-annotations"
+            >
                 {showRunOverlay && (
                     <RunOverlay isRunning={isRunningInvocation} onRun={onRunInvocation} />
                 )}

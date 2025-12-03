@@ -61,10 +61,12 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
     }, [compareIds])
 
     useEffect(() => {
-        if (!availability.canCompare && compareIds.length) {
+        // Only clear compare IDs if we're done loading and comparison is not available
+        // Don't clear while still loading to preserve URL-restored state
+        if (!availability.isLoading && !availability.canCompare && compareIds.length) {
             setCompareIds([])
         }
-    }, [availability.canCompare, compareIds, setCompareIds])
+    }, [availability.isLoading, availability.canCompare, compareIds, setCompareIds])
 
     useEffect(() => {
         if (compareIds.length && compareIds.includes(runId)) {
@@ -78,40 +80,46 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
           ? reasonLabelMap[availability.reason]
           : undefined
 
+    const handleButtonClick = useCallback(() => {
+        setOpen((prev) => !prev)
+    }, [])
+
+    const handlePopoverOpenChange = useCallback((newOpen: boolean) => {
+        // Only allow the popover to close itself (e.g., clicking outside)
+        // The button handles its own toggle
+        if (!newOpen) {
+            setOpen(false)
+        }
+    }, [])
+
     const button = (
-        <Button
-            type="primary"
-            onClick={() => setOpen((prev) => !prev)}
-            disabled={!availability.canCompare}
-        >
+        <Button type="primary" onClick={handleButtonClick} disabled={!availability.canCompare}>
             Compare{compareIds.length ? ` (${compareIds.length})` : ""}
         </Button>
     )
 
     return (
-        <div>
+        <Popover
+            open={open && availability.canCompare}
+            onOpenChange={handlePopoverOpenChange}
+            trigger={[]}
+            placement="bottomRight"
+            destroyOnHidden
+            overlayStyle={{minWidth: 360, maxHeight: 440}}
+            content={
+                open && availability.canCompare ? (
+                    <CompareRunsPopoverContent runId={runId} availability={availability} />
+                ) : null
+            }
+        >
             {disabledReason ? (
                 <Tooltip title={disabledReason} placement="bottom">
                     <span>{button}</span>
                 </Tooltip>
             ) : (
-                <>{button}</>
+                button
             )}
-
-            <Popover
-                open={open && availability.canCompare}
-                onOpenChange={setOpen}
-                trigger={["click"]}
-                placement="bottomRight"
-                destroyOnHidden
-                overlayStyle={{minWidth: 360, maxHeight: 440}}
-                content={
-                    open && availability.canCompare ? (
-                        <CompareRunsPopoverContent runId={runId} availability={availability} />
-                    ) : null
-                }
-            />
-        </div>
+        </Popover>
     )
 }
 

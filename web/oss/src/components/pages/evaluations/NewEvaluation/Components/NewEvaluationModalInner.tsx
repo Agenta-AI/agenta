@@ -329,17 +329,17 @@ const NewEvaluationModalInner = ({
                 return false
             }
 
-            if (variantInputs.length > 0) {
-                const isInputParamsAndTestsetColumnsMatch = variantInputs.every((input) => {
-                    return testsetColumns.includes(input)
-                })
-                if (!isInputParamsAndTestsetColumnsMatch) {
-                    message.error(
-                        "The testset columns do not match the selected variant input parameters",
-                    )
-                    return false
-                }
-            }
+            // if (variantInputs.length > 0) {
+            //     const isInputParamsAndTestsetColumnsMatch = variantInputs.every((input) => {
+            //         return testsetColumns.includes(input)
+            //     })
+            //     if (!isInputParamsAndTestsetColumnsMatch) {
+            //         message.error(
+            //             "The testset columns do not match the selected variant input parameters",
+            //         )
+            //         return false
+            //     }
+            // }
         }
         return true
     }, [

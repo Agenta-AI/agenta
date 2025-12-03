@@ -52,18 +52,18 @@ body {
     }
 
     .agenta-scenario-table {
-        
         .ant-table-row {
             cursor: pointer;
         }
 
-        .ant-table-row, .ant-table-row > * {
+        .ant-table-row,
+        .ant-table-row > * {
             transition: background-color 200ms ease;
         }
 
         .ant-table-row.evaluation-runs-table__row--highlighted {
             background-color: #e9efff !important;
-            
+
             .ant-table-cell {
                 background-color: inherit !important;
             }

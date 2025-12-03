@@ -37,12 +37,23 @@ export interface QueryState<T> {
     error?: unknown
 }
 
+export interface StepError {
+    code?: number
+    type?: string
+    message: string
+    stacktrace?: string
+}
+
+export type {StepError as EvaluatorStepError}
+
 export interface ScenarioStepValueResult {
     value: unknown
     displayValue?: unknown
     isLoading: boolean
     isFetching: boolean
     error?: unknown
+    /** Error from the step itself (e.g., evaluator failure) */
+    stepError?: StepError | null
 }
 
 interface ColumnValueConfig {
@@ -291,6 +302,51 @@ const toTraceId = (step: IStepResponse | undefined) => {
 const toTestcaseId = (step: IStepResponse | undefined) => {
     if (!step) return undefined
     return (step as any)?.testcaseId || (step as any)?.testcase_id || undefined
+}
+
+/**
+ * Extract step error if the step has status "failure" and an error object.
+ * This is used to display evaluator errors in the UI.
+ */
+const extractStepError = (step: IStepResponse | undefined): StepError | null => {
+    if (!step) return null
+    const status = (step as any)?.status
+    const error = (step as any)?.error
+    if (status === "failure" && error && typeof error === "object") {
+        return {
+            code: error.code,
+            type: error.type,
+            message: error.message ?? "Unknown error",
+            stacktrace: error.stacktrace,
+        }
+    }
+    return null
+}
+
+/**
+ * Find a step by stepKey and check if it has an error.
+ */
+const findStepWithError = (
+    steps: IStepResponse[],
+    stepKey?: string,
+): {step: IStepResponse | undefined; error: StepError | null} => {
+    if (!steps.length) return {step: undefined, error: null}
+    if (stepKey) {
+        const match = steps.find((step) => {
+            const possibleKeys = [
+                (step as any)?.key,
+                (step as any)?.stepKey,
+                (step as any)?.step_key,
+            ]
+            return possibleKeys.includes(stepKey)
+        })
+        if (match) {
+            return {step: match, error: extractStepError(match)}
+        }
+    }
+    // Return first step if no stepKey match
+    const firstStep = steps[0]
+    return {step: firstStep, error: extractStepError(firstStep)}
 }
 
 /**
@@ -580,10 +636,25 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                         error: undefined,
                     }
                 }
-                const targetStep = pickStep(
+
+                // Use findStepWithError to also check for step-level errors (e.g., invocation failures)
+                const {step: targetStep, error: stepError} = findStepWithError(
                     invocations.length ? invocations : steps,
                     column.stepKey,
                 )
+
+                // If the step has an error (e.g., invocation failed), return early with the error
+                if (stepError) {
+                    return {
+                        value: undefined,
+                        displayValue: undefined,
+                        isLoading: false,
+                        isFetching: false,
+                        error: undefined,
+                        stepError,
+                    }
+                }
+
                 const traceId = toTraceId(targetStep)
                 const pathSegments = descriptor.pathSegments
 
@@ -932,10 +1003,25 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                         error: undefined,
                     }
                 }
-                const targetStep = pickStep(
+
+                // Use findStepWithError to also check for step-level errors (e.g., evaluator failures)
+                const {step: targetStep, error: stepError} = findStepWithError(
                     annotations.length ? annotations : steps,
                     column.stepKey,
                 )
+
+                // If the step has an error (e.g., evaluator failed), return early with the error
+                if (stepError) {
+                    return {
+                        value: undefined,
+                        displayValue: undefined,
+                        isLoading: false,
+                        isFetching: false,
+                        error: undefined,
+                        stepError,
+                    }
+                }
+
                 const traceId = toTraceId(targetStep)
                 const annotationQuery = traceId
                     ? (get(
@@ -1048,6 +1134,8 @@ export interface ScenarioColumnValueSelection {
     value: unknown
     displayValue?: unknown
     isLoading: boolean
+    /** Error from the step itself (e.g., evaluator failure) */
+    stepError?: StepError | null
 }
 
 export const scenarioColumnValueSelectionAtomFamily = atomFamily(
@@ -1059,6 +1147,7 @@ export const scenarioColumnValueSelectionAtomFamily = atomFamily(
                     value: result.value,
                     displayValue: result.displayValue,
                     isLoading: result.isLoading,
+                    stepError: result.stepError,
                 }
 
                 debugScenarioValue("Column selection snapshot", {
@@ -1069,10 +1158,14 @@ export const scenarioColumnValueSelectionAtomFamily = atomFamily(
                     path: column.path,
                     valueShape: summarizeDataShape(selection.value),
                     isLoading: selection.isLoading,
+                    hasStepError: Boolean(selection.stepError),
                 })
 
                 return selection
             },
-            (prev, next) => Object.is(prev.value, next.value) && prev.isLoading === next.isLoading,
+            (prev, next) =>
+                Object.is(prev.value, next.value) &&
+                prev.isLoading === next.isLoading &&
+                prev.stepError === next.stepError,
         ),
 )

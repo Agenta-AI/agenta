@@ -1,6 +1,7 @@
 import {memo, useMemo} from "react"
 
 import clsx from "clsx"
+import {AlertCircle} from "lucide-react"
 
 import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
@@ -100,7 +101,7 @@ const PreviewEvaluationInvocationCell = ({
     column: EvaluationTableColumn
 }) => {
     const {ref, selection, showSkeleton} = useScenarioCellValue({scenarioId, runId, column})
-    const {value} = selection
+    const {value, stepError} = selection
 
     const widthStyle = {width: "100%"}
     const chatNodes = useMemo(
@@ -127,6 +128,48 @@ const PreviewEvaluationInvocationCell = ({
             <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
                 <div className="h-3 w-full rounded bg-neutral-200 animate-pulse" />
             </div>
+        )
+    }
+
+    // Show error state when invocation has failed - display error message in cell with red styling
+    if (stepError) {
+        const errorPopoverContent = (
+            <div className="flex flex-col gap-2 text-red-600">
+                <div className="flex items-center gap-1.5 text-red-500">
+                    <AlertCircle size={14} className="flex-shrink-0" />
+                    <span className="text-xs font-medium">Invocation Error</span>
+                </div>
+                <span className="whitespace-pre-wrap break-words text-xs">{stepError.message}</span>
+            </div>
+        )
+
+        return (
+            <CellContentPopover content={errorPopoverContent}>
+                <div
+                    ref={ref}
+                    className={clsx(CONTAINER_CLASS, "!justify-between")}
+                    style={widthStyle}
+                >
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5 text-red-500">
+                                <AlertCircle size={14} className="flex-shrink-0" />
+                                <span className="text-xs font-medium">Error</span>
+                            </div>
+                            <span className="scenario-table-text whitespace-pre-wrap text-red-600 text-xs">
+                                {stepError.message}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex-shrink-0 mt-2">
+                        <InvocationTraceSummary
+                            scenarioId={scenarioId}
+                            stepKey={column.stepKey}
+                            runId={runId}
+                        />
+                    </div>
+                </div>
+            </CellContentPopover>
         )
     }
 

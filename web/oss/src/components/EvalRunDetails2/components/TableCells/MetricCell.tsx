@@ -3,6 +3,7 @@ import {memo, useMemo} from "react"
 import {Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
+import {AlertCircle} from "lucide-react"
 
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 import EvaluatorMetricBar from "@/oss/components/Evaluations/EvaluatorMetricBar"
@@ -14,6 +15,8 @@ import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {previewEvalTypeAtom} from "../../state/evalType"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../../utils/metricFormatter"
 import {buildFrequencyChartData} from "../EvaluatorMetricsChart/utils/chartData"
+
+import CellContentPopover from "./CellContentPopover"
 
 const CONTAINER_CLASS = "scenario-table-cell"
 
@@ -51,7 +54,7 @@ const PreviewEvaluationMetricCell = ({
         runId,
         column,
     })
-    const {value, displayValue} = selection
+    const {value, displayValue, stepError} = selection
 
     // Check if invocation has been run for this scenario (for annotation/evaluator metrics)
     const invocationSummary = useAtomValue(
@@ -234,6 +237,40 @@ const PreviewEvaluationMetricCell = ({
             >
                 <div className="h-3 w-full rounded bg-neutral-200 animate-pulse" />
             </div>
+        )
+    }
+
+    // Show error state when evaluator/step has failed - display error message in cell with red styling
+    if (stepError) {
+        const errorPopoverContent = (
+            <div className="flex flex-col gap-2 text-red-600">
+                <div className="flex items-center gap-1.5 text-red-500">
+                    <AlertCircle size={14} className="flex-shrink-0" />
+                    <span className="text-xs font-medium">Evaluator Error</span>
+                </div>
+                <span className="whitespace-pre-wrap break-words text-xs">{stepError.message}</span>
+            </div>
+        )
+
+        return (
+            <CellContentPopover content={errorPopoverContent}>
+                <div
+                    ref={ref}
+                    className={CONTAINER_CLASS}
+                    data-cell-type="metric"
+                    style={{width: "100%"}}
+                >
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-red-500">
+                            <AlertCircle size={14} className="flex-shrink-0" />
+                            <span className="text-xs font-medium">Error</span>
+                        </div>
+                        <span className="scenario-table-text whitespace-pre-wrap text-red-600 text-xs">
+                            {stepError.message}
+                        </span>
+                    </div>
+                </div>
+            </CellContentPopover>
         )
     }
 

@@ -15,6 +15,7 @@ import {
     testsetReferenceQueryAtomFamily,
     variantReferenceQueryAtomFamily,
 } from "../atoms/references"
+import {effectiveProjectIdAtom} from "../atoms/run"
 import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../atoms/runDerived"
 import type {
     ColumnValueDescriptor,
@@ -620,6 +621,7 @@ InvocationMetaChips.displayName = "InvocationMetaChips"
 
 export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps) => {
     const {columnResult} = usePreviewTableData({runId})
+    const projectId = useAtomValue(effectiveProjectIdAtom)
     const descriptorMap = useAtomValue(
         useMemo(() => columnValueDescriptorMapAtomFamily(runId ?? null), [runId]),
     )
@@ -702,10 +704,6 @@ export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps)
             className="flex h-full flex-col gap-4 overflow-auto bg-[#F8FAFC] p-4"
             data-focus-drawer-content
         >
-            <div className="flex flex-wrap items-center gap-2">
-                {variantId ? <VariantReferenceChip variantId={variantId} /> : null}
-                <TestsetChipList ids={testsetIds ?? []} />
-            </div>
             {sections.map((section) => (
                 <section
                     key={section.id}

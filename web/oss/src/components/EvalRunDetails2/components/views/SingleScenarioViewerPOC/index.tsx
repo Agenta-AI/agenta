@@ -813,7 +813,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                     <div className="flex gap-3 w-full items-start">
                         <div className="flex flex-col gap-3 shrink min-w-0 grow w-7/12">
                             {/* Inputs Card */}
-                            <Card title="Inputs">
+                            <Card title="Inputs" id="focus-section-inputs">
                                 {!columnResult ? (
                                     <Typography.Text type="secondary">
                                         Loading inputs…
@@ -855,7 +855,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                             </Card>
 
                             {/* Output Card */}
-                            <Card title="Output">
+                            <Card title="Output" id="focus-section-outputs">
                                 {!columnResult ? (
                                     <Typography.Text type="secondary">
                                         Loading invocation…

@@ -15,6 +15,7 @@ import {evaluationQueryRevisionAtomFamily} from "../../../../atoms/query"
 import {
     runCreatedAtAtomFamily,
     runInvocationRefsAtomFamily,
+    runStatusAtomFamily,
     runTestsetIdsAtomFamily,
     runUpdatedAtAtomFamily,
 } from "../../../../atoms/runDerived"
@@ -147,6 +148,54 @@ const UpdatedCell = ({runId}: MetadataCellProps) => {
     const updated = useAtomValueWithSchedule(updatedAtom, {priority: LOW_PRIORITY})
     if (!updated) return <Typography.Text type="secondary">—</Typography.Text>
     return <Typography.Text>{new Date(updated).toLocaleString()}</Typography.Text>
+}
+
+type StatusTone = "success" | "processing" | "default" | "error" | "warning"
+
+const STATUS_COLORS: Record<StatusTone, string> = {
+    success: "#12B76A",
+    processing: "#3B82F6",
+    default: "#98A2B3",
+    error: "#F04438",
+    warning: "#F79009",
+}
+
+const mapStatusTone = (raw: string): StatusTone => {
+    const s = raw.toLowerCase()
+    if (s.includes("success") || s.includes("completed") || s === "finished" || s === "ok")
+        return "success"
+    if (s.includes("fail") || s.includes("error")) return "error"
+    if (s.includes("run") || s.includes("progress") || s.includes("queued") || s.includes("active"))
+        return "processing"
+    if (s.includes("warn") || s.includes("partial") || s.includes("degraded")) return "warning"
+    if (s.includes("cancel") || s.includes("stop") || s.includes("closed")) return "default"
+    return "default"
+}
+
+const humanizeStatus = (value: string) =>
+    value
+        .toString()
+        .replaceAll("_", " ")
+        .replace(/(^|\s)([a-z])/g, (match) => match.toUpperCase())
+
+const StatusCell = ({runId}: MetadataCellProps) => {
+    const statusAtom = useMemo(() => runStatusAtomFamily(runId), [runId])
+    const status = useAtomValueWithSchedule(statusAtom, {priority: LOW_PRIORITY})
+    if (!status) return <Typography.Text type="secondary">—</Typography.Text>
+
+    const tone = mapStatusTone(status)
+    const label = humanizeStatus(status)
+    const dotColor = STATUS_COLORS[tone]
+
+    return (
+        <span className="inline-flex items-center gap-2">
+            <span
+                className="inline-block rounded-full"
+                style={{backgroundColor: dotColor, width: 10, height: 10}}
+            />
+            <Typography.Text>{label}</Typography.Text>
+        </span>
+    )
 }
 
 const ApplicationCell = ({runId, projectURL}: MetadataCellProps) => (
@@ -333,6 +382,7 @@ const InvocationErrorsCell = makeMetricCell("attributes.ag.metrics.errors.cumula
 
 const METADATA_ROWS: MetadataRowRecord[] = [
     {key: "evaluations", label: "Evaluations", Cell: MetadataRunNameCell},
+    {key: "status", label: "Status", Cell: StatusCell},
     {key: "created", label: "Created at", Cell: CreatedCell},
     {key: "updated", label: "Updated at", Cell: UpdatedCell},
     {
