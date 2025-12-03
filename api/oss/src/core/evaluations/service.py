@@ -885,6 +885,9 @@ class EvaluationsService:
         steps_metrics_keys: Dict[str, List[Dict[str, str]]] = dict()
 
         for step in run.data.steps:
+            log.debug("metrics keys", steps_metrics_keys)
+            log.debug("------------------------------")
+            log.debug("key", step.key)
             steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
 
             if step.type == "annotation":
@@ -931,6 +934,8 @@ class EvaluationsService:
                         for metric_key in metrics_keys
                     ]
 
+        log.debug("metrics keys", steps_metrics_keys)
+
         if not steps_metrics_keys:
             log.warning("[WARN] No steps metrics keys found")
             return []
@@ -964,6 +969,9 @@ class EvaluationsService:
             step_metrics_keys = steps_metrics_keys[step_key]
             step_trace_ids = steps_trace_ids[step_key]
 
+            log.debug(".............................")
+            log.debug(step_key)
+
             try:
                 query = TracingQuery(
                     filtering=Filtering(
@@ -989,6 +997,8 @@ class EvaluationsService:
                         path="atttributes.ag",
                     )
                 ]
+
+                log.debug("specs", specs)
 
                 buckets = await self.tracing_service.analytics(
                     project_id=project_id,
