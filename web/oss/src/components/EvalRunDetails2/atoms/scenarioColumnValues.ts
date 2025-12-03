@@ -798,6 +798,29 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     column.columnKind === "metric" ||
                     (column.stepType === "annotation" && Boolean(column.metricKey)))
 
+            // For metric columns, check for step errors before attempting metric lookup
+            // This ensures evaluator errors are displayed in metric cells
+            if (
+                shouldAttemptMetricLookup &&
+                column.stepKey &&
+                (column.stepType === "metric" || column.columnKind === "metric")
+            ) {
+                const {error: stepError} = findStepWithError(
+                    annotations.length ? annotations : steps,
+                    column.stepKey,
+                )
+                if (stepError) {
+                    return {
+                        value: undefined,
+                        displayValue: undefined,
+                        isLoading: false,
+                        isFetching: false,
+                        error: undefined,
+                        stepError,
+                    }
+                }
+            }
+
             let metricCandidate: ScenarioStepValueResult | null = null
 
             if (shouldAttemptMetricLookup) {
@@ -826,7 +849,11 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     possibleKeys.forEach(pushCandidate)
                 })
 
-                if (!candidateStepKeys.includes(null)) {
+                // Only fall back to null stepKey if the column doesn't have a specific stepKey.
+                // This prevents cross-evaluator matching when comparing runs with different
+                // evaluator configurations (e.g., matching "success" from exact-match when
+                // looking for similarity-match's "success").
+                if (!column.stepKey && !candidateStepKeys.includes(null)) {
                     candidateStepKeys.push(null)
                 }
 

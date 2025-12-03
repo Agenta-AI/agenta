@@ -894,9 +894,14 @@ export const previewRunMetricStatsSelectorFamily = atomFamily(
                 })
             }
 
-            const candidates = [...stepCandidates, ...baseCandidates].filter(
-                (candidate, index, array) => array.indexOf(candidate) === index,
-            )
+            // When stepKey is provided, only use step-prefixed candidates to ensure
+            // we match metrics from the same evaluator. This prevents cross-evaluator
+            // matching when comparing runs with different evaluator configurations.
+            const candidates = (
+                stepKey && stepCandidates.length > 0
+                    ? stepCandidates
+                    : [...stepCandidates, ...baseCandidates]
+            ).filter((candidate, index, array) => array.indexOf(candidate) === index)
 
             const statsKeys = Object.keys(statsMap || {})
 

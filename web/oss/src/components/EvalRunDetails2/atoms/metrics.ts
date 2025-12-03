@@ -466,11 +466,16 @@ const extractMetricValueFromData = (
         })
     }
 
+    // When stepKey is provided, only use step-prefixed candidates to ensure
+    // we match metrics from the same evaluator. This prevents cross-evaluator
+    // matching when comparing runs with different evaluator configurations.
     // Prioritize stepCandidates over evaluatorCandidates since online evaluations
     // use stepKey (e.g., "evaluator-142233c5fdb7") as the primary key in flatMap
-    const candidates = [...stepCandidates, ...evaluatorCandidates, ...baseCandidates].filter(
-        (candidate, index, array) => candidate && array.indexOf(candidate) === index,
-    )
+    const candidates = (
+        stepKey && stepCandidates.length > 0
+            ? [...stepCandidates, ...evaluatorCandidates]
+            : [...stepCandidates, ...evaluatorCandidates, ...baseCandidates]
+    ).filter((candidate, index, array) => candidate && array.indexOf(candidate) === index)
 
     for (const candidate of candidates) {
         if (candidate && Object.prototype.hasOwnProperty.call(flatMap, candidate)) {
@@ -489,7 +494,15 @@ const extractMetricValueFromData = (
     })
 
     for (const suffix of suffixes) {
-        const matchingKey = Object.keys(flatMap).find((key) => key.endsWith(suffix))
+        const matchingKey = Object.keys(flatMap).find((key) => {
+            if (!key.endsWith(suffix)) return false
+            // When stepKey is provided, only match keys that start with the stepKey
+            // to prevent cross-evaluator matching
+            if (stepKey && !key.startsWith(`${stepKey}.`) && key !== stepKey) {
+                return false
+            }
+            return true
+        })
         if (matchingKey) {
             logMetricLookupMatch(context, matchingKey, "flat-suffix")
             return flatMap[matchingKey]

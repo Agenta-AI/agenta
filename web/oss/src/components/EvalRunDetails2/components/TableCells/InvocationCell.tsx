@@ -139,7 +139,14 @@ const PreviewEvaluationInvocationCell = ({
                     <AlertCircle size={14} className="flex-shrink-0" />
                     <span className="text-xs font-medium">Invocation Error</span>
                 </div>
-                <span className="whitespace-pre-wrap break-words text-xs">{stepError.message}</span>
+                <span className="whitespace-pre-wrap break-words text-xs font-medium">
+                    {stepError.message}
+                </span>
+                {stepError.stacktrace ? (
+                    <span className="whitespace-pre-wrap break-words text-xs text-red-500/80 border-t border-red-200 pt-2 mt-1">
+                        {stepError.stacktrace}
+                    </span>
+                ) : null}
             </div>
         )
 
