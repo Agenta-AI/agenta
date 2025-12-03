@@ -909,6 +909,7 @@ class EvaluationsService:
                     continue
 
                 if evaluator_revision.data and evaluator_revision.data.schemas:
+                    log.info(evaluator_revision.data.schemas.get("outputs"))
                     metrics_keys = get_metrics_keys_from_schema(
                         schema=(evaluator_revision.data.schemas.get("outputs")),
                     )
@@ -922,6 +923,7 @@ class EvaluationsService:
                         for metric_key in metrics_keys
                     ]
                 elif evaluator_revision.data and evaluator_revision.data.service:
+                    log.info(evaluator_revision.data.service.get("format"))
                     metrics_keys = get_metrics_keys_from_schema(
                         schema=(evaluator_revision.data.service.get("format")),
                     )
