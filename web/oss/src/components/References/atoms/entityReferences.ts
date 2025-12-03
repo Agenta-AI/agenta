@@ -54,7 +54,8 @@ const appReferenceBatchFetcher = createBatchFetcher<
                 try {
                     const response = await axios.get(`/apps/${encodeURIComponent(appId)}`, {
                         params: {project_id: projectId},
-                    })
+                        _ignoreError: true,
+                    } as any)
                     const data = response.data ?? {}
                     const reference: AppReference = {
                         id: data?.id ?? appId,
@@ -284,7 +285,7 @@ const variantConfigBatchFetcher = createBatchFetcher<
                         {
                             variant_refs: uniqueIds.map((id) => ({id})),
                         },
-                        {params: {project_id: projectId}},
+                        {params: {project_id: projectId}, _ignoreError: true} as any,
                     )
 
                     const payload = response?.data ?? {}

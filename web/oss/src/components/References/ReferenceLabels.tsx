@@ -38,14 +38,17 @@ export const TestsetTag = memo(
         }
 
         const ref = query.data
-        const label = ref?.name ?? ref?.id ?? testsetId
-        const href = projectURL ? `${projectURL}/testsets/${testsetId}` : null
+        // If we have an ID but no name, the testset was likely deleted
+        const isDeleted = Boolean(ref?.id && !ref?.name)
+        const label = isDeleted ? "Deleted" : (ref?.name ?? ref?.id ?? testsetId)
+        // Don't show link for deleted testsets
+        const href = isDeleted ? null : projectURL ? `${projectURL}/testsets/${testsetId}` : null
 
         return (
             <ReferenceTag
                 label={label}
                 href={href ?? undefined}
-                tooltip={label}
+                tooltip={isDeleted ? `Testset ${testsetId} was deleted` : label}
                 copyValue={testsetId}
                 className="max-w-[220px]"
                 tone="testset"
@@ -120,16 +123,20 @@ export const ApplicationReferenceLabel = memo(
         }
 
         const ref = query.data
-        const label = ref?.name ?? ref?.slug ?? ref?.id ?? applicationId
-        const href =
-            explicitHref ??
-            (projectURL && applicationId ? `${projectURL}/apps/${applicationId}` : null)
+        // If we have an ID but no name/slug, the app was likely deleted
+        const isDeleted = Boolean(ref?.id && !ref?.name && !ref?.slug)
+        const label = isDeleted ? "Deleted" : (ref?.name ?? ref?.slug ?? ref?.id ?? applicationId)
+        // Don't show link for deleted apps
+        const href = isDeleted
+            ? null
+            : (explicitHref ??
+              (projectURL && applicationId ? `${projectURL}/apps/${applicationId}` : null))
 
         return (
             <ReferenceTag
                 label={label}
                 href={href ?? undefined}
-                tooltip={label}
+                tooltip={isDeleted ? `Application ${applicationId} was deleted` : label}
                 copyValue={applicationId ?? undefined}
                 className="max-w-[220px]"
                 tone="app"
@@ -174,15 +181,21 @@ export const VariantReferenceLabel = memo(
         }
 
         const ref = query.data
-        const label = ref?.variantName ?? fallbackLabel ?? ref?.revisionId ?? revisionId
-        const resolvedVersion = explicitVersion ?? ref?.revision ?? null
+        // If we have a revisionId but no variantName and no revision, the variant was likely deleted
+        const isDeleted = Boolean(ref?.revisionId && !ref?.variantName && ref?.revision == null)
+        const label = isDeleted
+            ? "Deleted"
+            : (ref?.variantName ?? fallbackLabel ?? ref?.revisionId ?? revisionId)
+        const resolvedVersion = isDeleted ? null : (explicitVersion ?? ref?.revision ?? null)
+        // Don't show link for deleted variants
+        const href = isDeleted ? null : explicitHref
 
         return (
             <div className="flex items-center gap-2">
                 <ReferenceTag
                     label={label}
-                    href={explicitHref ?? undefined}
-                    tooltip={label}
+                    href={href ?? undefined}
+                    tooltip={isDeleted ? `Variant ${revisionId} was deleted` : label}
                     copyValue={revisionId ?? undefined}
                     className="max-w-[220px]"
                     tone="variant"
