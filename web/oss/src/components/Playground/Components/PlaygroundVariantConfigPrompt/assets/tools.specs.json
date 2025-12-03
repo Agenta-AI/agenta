@@ -58,16 +58,17 @@
             {
                 "type": "function",
                 "function": {
-                    "name": "example_function",
-                    "description": "Description",
+                    "name": "get_weather",
+                    "description": "Get current weather",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "param": {
-                                "type": "string"
+                            "location": {
+                                "type": "string",
+                                "description": "City name"
                             }
                         },
-                        "required": ["param"]
+                        "required": ["location"]
                     }
                 }
             }
