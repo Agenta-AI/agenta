@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {Input, Tooltip} from "antd"
+import {Input, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import JSON5 from "json5"
@@ -10,12 +10,14 @@ import {EditorProvider} from "@/oss/components/Editor/Editor"
 import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
+import LLMIconMap from "@/oss/components/LLMIcons"
 
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControl/assets/PlaygroundVariantPropertyControlWrapper"
 import PromptMessageContentOptions from "../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
 import SharedEditor from "../SharedEditor"
 
-import {TOOL_SCHEMA} from "./assets"
+import {TOOL_PROVIDERS_META, TOOL_SCHEMA} from "./assets"
+import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 
 export type ToolFunction = {
     name?: string
@@ -161,41 +163,83 @@ function ToolHeader(props: {
     minimized: boolean
     onToggleMinimize: () => void
     onDelete?: () => void
+    isBuiltinTool?: boolean
+    builtinProviderLabel?: string
+    builtinToolLabel?: string
+    builtinIcon?: React.FC<{className?: string}>
 }) {
-    const {name, desc, editorValid, isReadOnly, minimized, onToggleMinimize, onDelete} = props
+    const {
+        name,
+        desc,
+        editorValid,
+        isReadOnly,
+        minimized,
+        onToggleMinimize,
+        onDelete,
+        isBuiltinTool,
+        builtinProviderLabel,
+        builtinToolLabel,
+        builtinIcon: BuiltinIcon,
+    } = props
 
     return (
         <div className={clsx("w-full flex items-center justify-between", "py-1")}>
             <div className="grow">
-                <div className="flex flex-col gap-1">
-                    <Tooltip
-                        trigger={["hover", "focus"]}
-                        title={!editorValid ? "Fix JSON errors to edit" : "Function Name"}
-                        placement="topLeft"
-                    >
-                        <Input
-                            value={name}
-                            variant="borderless"
-                            placeholder="Function Name"
-                            readOnly
-                            disabled={!editorValid}
-                        />
-                    </Tooltip>
+                {isBuiltinTool ? (
+                    <div className="flex items-center gap-1">
+                        <div className="flex items-center">
+                            {BuiltinIcon && (
+                                <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[#F8FAFC]">
+                                    <BuiltinIcon className="h-4 w-4" />
+                                </span>
+                            )}
+                            {builtinProviderLabel && (
+                                <Typography.Text>{builtinProviderLabel}</Typography.Text>
+                            )}
+                        </div>
 
-                    <Tooltip
-                        trigger={["hover", "focus"]}
-                        title={!editorValid ? "Fix JSON errors to edit" : "Function Description"}
-                        placement="topLeft"
-                    >
-                        <Input
-                            value={desc}
-                            variant="borderless"
-                            placeholder="Function Description"
-                            readOnly
-                            disabled={!editorValid}
-                        />
-                    </Tooltip>
-                </div>
+                        {builtinToolLabel && (
+                            <>
+                                {builtinProviderLabel && <Typography.Text>/</Typography.Text>}
+                                <Typography.Text type="secondary">
+                                    {builtinToolLabel}
+                                </Typography.Text>
+                            </>
+                        )}
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-1">
+                        <Tooltip
+                            trigger={["hover", "focus"]}
+                            title={!editorValid ? "Fix JSON errors to edit" : "Function Name"}
+                            placement="topLeft"
+                        >
+                            <Input
+                                value={name}
+                                variant="borderless"
+                                placeholder="Function Name"
+                                readOnly
+                                disabled={!editorValid}
+                            />
+                        </Tooltip>
+
+                        <Tooltip
+                            trigger={["hover", "focus"]}
+                            title={
+                                !editorValid ? "Fix JSON errors to edit" : "Function Description"
+                            }
+                            placement="topLeft"
+                        >
+                            <Input
+                                value={desc}
+                                variant="borderless"
+                                placeholder="Function Description"
+                                readOnly
+                                disabled={!editorValid}
+                            />
+                        </Tooltip>
+                    </div>
+                )}
             </div>
 
             <PromptMessageContentOptions
@@ -229,10 +273,53 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
     const isReadOnly = Boolean(disabled)
     const [minimized, setMinimized] = useState(false)
 
+    const builtinMeta = useMemo(() => {
+        const agentaMetadata =
+            (baseProperty as any)?.agenta_metadata ||
+            (baseProperty as any)?.value?.agenta_metadata ||
+            stripAgentaMetadataDeep((value as any)?.agenta_metadata)
+        const source = baseProperty?.__source || agentaMetadata?.source
+
+        const isBuiltinTool = source === "builtin"
+        if (!baseProperty && !isBuiltinTool) return {agentaMetadata}
+
+        const providerKey = (baseProperty as any)?.__provider || agentaMetadata?.provider
+        const providerConfig = providerKey ? TOOL_PROVIDERS_META[providerKey] : undefined
+        const Icon =
+            providerConfig?.iconKey != null ? LLMIconMap[providerConfig.iconKey] : undefined
+
+        const providerLabel =
+            (baseProperty as any)?.__providerLabel ||
+            agentaMetadata?.providerLabel ||
+            providerConfig?.label ||
+            providerKey
+        const toolLabel =
+            (baseProperty as any)?.__toolCode ||
+            (baseProperty as any)?.__tool ||
+            agentaMetadata?.toolCode ||
+            agentaMetadata?.toolLabel
+
+        return {providerLabel, toolLabel, Icon, isBuiltinTool, agentaMetadata}
+    }, [baseProperty, value])
+
+    const cleanedValue = useMemo(() => stripAgentaMetadataDeep(value), [value])
+
     const {toolObj, editorText, editorValid, onEditorChange} = useToolState(
-        value,
+        cleanedValue,
         isReadOnly,
-        editorProps?.handleChange,
+        useCallback(
+            (next: ToolObj) => {
+                const merged =
+                    (builtinMeta?.agentaMetadata && {
+                        ...next,
+                        agenta_metadata: builtinMeta.agentaMetadata,
+                    }) ||
+                    next
+
+                editorProps?.handleChange?.(merged)
+            },
+            [editorProps?.handleChange, builtinMeta?.agentaMetadata],
+        ),
     )
 
     useAtomValue(variantByRevisionIdAtomFamily(variantId))
@@ -290,7 +377,7 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
                     editorProps={{
                         codeOnly: true,
                         noProvider: true,
-                        validationSchema: TOOL_SCHEMA,
+                        validationSchema: builtinMeta?.isBuiltinTool ? undefined : TOOL_SCHEMA,
                     }}
                     handleChange={(e) => {
                         if (isReadOnly) return
@@ -315,6 +402,10 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
                             minimized={minimized}
                             onToggleMinimize={() => setMinimized((v) => !v)}
                             onDelete={deleteMessage}
+                            isBuiltinTool={builtinMeta?.isBuiltinTool}
+                            builtinProviderLabel={builtinMeta?.providerLabel}
+                            builtinToolLabel={builtinMeta?.toolLabel}
+                            builtinIcon={builtinMeta?.Icon}
                         />
                     }
                 />
