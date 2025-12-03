@@ -492,96 +492,99 @@ export const createMetricProcessor = ({
                 //     missingScenarioIdsAfterAttempts,
                 // })
             }
-        }
 
-        // Only attempt run-level refresh when there are actionable signals.
-        // Allow a bootstrap attempt when the ONLY flag is "missing-run-level-entry"
-        // and there are no scenario or run pending signals (prevents total suppression).
-        const hasRunPending = pending.some((entry) => entry.scope === "run" && entry.shouldRefresh)
-        const hasActionableRunFlag = runLevelFlags.some((f) => f !== "missing-run-level-entry")
-        const hasScenarioSignals = scenarioIds.length > 0 || scenarioGaps.length > 0
-        const hasMissingRunOnly =
-            runLevelFlags.length > 0 && runLevelFlags.every((f) => f === "missing-run-level-entry")
+            // Only attempt run-level refresh when there are actionable signals.
+            // Allow a bootstrap attempt when the ONLY flag is "missing-run-level-entry"
+            // and there are no scenario or run pending signals (prevents total suppression).
+            const hasRunPending = pending.some(
+                (entry) => entry.scope === "run" && entry.shouldRefresh,
+            )
+            const hasActionableRunFlag = runLevelFlags.some((f) => f !== "missing-run-level-entry")
+            const hasScenarioSignals = scenarioIds.length > 0 || scenarioGaps.length > 0
+            const hasMissingRunOnly =
+                runLevelFlags.length > 0 &&
+                runLevelFlags.every((f) => f === "missing-run-level-entry")
 
-        const shouldRunRefresh =
-            hasRunPending ||
-            hasActionableRunFlag ||
-            (!hasScenarioSignals && !hasRunPending && hasMissingRunOnly)
+            const shouldRunRefresh =
+                hasRunPending ||
+                hasActionableRunFlag ||
+                (!hasScenarioSignals && !hasRunPending && hasMissingRunOnly)
 
-        if (shouldRunRefresh) {
-            try {
-                const params = new URLSearchParams()
-                params.set("project_id", projectId)
-                const response = await axios.post(
-                    `/preview/evaluations/metrics/refresh`,
-                    {
-                        metrics: {
-                            run_id: runId,
+            if (shouldRunRefresh) {
+                try {
+                    const params = new URLSearchParams()
+                    params.set("project_id", projectId)
+                    const response = await axios.post(
+                        `/preview/evaluations/metrics/refresh`,
+                        {
+                            metrics: {
+                                run_id: runId,
+                            },
                         },
-                    },
-                    {
-                        params,
-                    },
-                )
-                const refreshedMetrics = Array.isArray(response.data?.metrics)
-                    ? response.data.metrics
-                    : []
-                const runMetrics = refreshedMetrics.filter(
-                    (metric: any) => !metric?.scenario_id && !metric?.scenarioId,
-                )
-                const newMetricIds = runMetrics
-                    .map((metric: any) => metric?.id)
-                    .filter((id): id is string => Boolean(id))
-                const runReasons = new Set<string>()
-                const runOldMetricIds = new Set<string>()
-                pending
-                    .filter((entry) => entry.scope === "run")
-                    .forEach((entry) => {
-                        entry.reasons.forEach((reason) => runReasons.add(reason))
-                        if (entry.metricId) runOldMetricIds.add(entry.metricId)
-                    })
+                        {
+                            params,
+                        },
+                    )
+                    const refreshedMetrics = Array.isArray(response.data?.metrics)
+                        ? response.data.metrics
+                        : []
+                    const runMetrics = refreshedMetrics.filter(
+                        (metric: any) => !metric?.scenario_id && !metric?.scenarioId,
+                    )
+                    const newMetricIds = runMetrics
+                        .map((metric: any) => metric?.id)
+                        .filter((id): id is string => Boolean(id))
+                    const runReasons = new Set<string>()
+                    const runOldMetricIds = new Set<string>()
+                    pending
+                        .filter((entry) => entry.scope === "run")
+                        .forEach((entry) => {
+                            entry.reasons.forEach((reason) => runReasons.add(reason))
+                            if (entry.metricId) runOldMetricIds.add(entry.metricId)
+                        })
 
-                const oldMetricIdsArray = Array.from(runOldMetricIds)
-                const reusedRunMetricIds = newMetricIds.filter((id) => runOldMetricIds.has(id))
-                const staleRunMetricIds = oldMetricIdsArray.filter(
-                    (id) => !reusedRunMetricIds.includes(id),
-                )
+                    const oldMetricIdsArray = Array.from(runOldMetricIds)
+                    const reusedRunMetricIds = newMetricIds.filter((id) => runOldMetricIds.has(id))
+                    const staleRunMetricIds = oldMetricIdsArray.filter(
+                        (id) => !reusedRunMetricIds.includes(id),
+                    )
 
-                runRefreshDetails = {
-                    reasons: Array.from(runReasons),
-                    oldMetricIds: oldMetricIdsArray,
-                    newMetricIds,
-                    reusedMetricIds: reusedRunMetricIds,
-                    staleMetricIds: staleRunMetricIds,
-                    returnedCount: runMetrics.length,
-                }
+                    runRefreshDetails = {
+                        reasons: Array.from(runReasons),
+                        oldMetricIds: oldMetricIdsArray,
+                        newMetricIds,
+                        reusedMetricIds: reusedRunMetricIds,
+                        staleMetricIds: staleRunMetricIds,
+                        returnedCount: runMetrics.length,
+                    }
 
-                refreshed = refreshed || runMetrics.length > 0
+                    refreshed = refreshed || runMetrics.length > 0
 
-                if (runMetrics.length > 0) {
-                    console.info("[EvalRunDetails2] Run-level metrics refresh triggered", {
+                    if (runMetrics.length > 0) {
+                        console.info("[EvalRunDetails2] Run-level metrics refresh triggered", {
+                            projectId,
+                            runId,
+                            source,
+                            runLevelFlags,
+                            details: runRefreshDetails,
+                        })
+                    } else {
+                        console.debug("[EvalRunDetails2] Run-level metrics refresh returned 0", {
+                            projectId,
+                            runId,
+                            source,
+                            runLevelFlags,
+                        })
+                    }
+                } catch (error) {
+                    console.warn("[EvalRunDetails2] Run-level metrics refresh failed", {
                         projectId,
                         runId,
                         source,
                         runLevelFlags,
-                        details: runRefreshDetails,
-                    })
-                } else {
-                    console.debug("[EvalRunDetails2] Run-level metrics refresh returned 0", {
-                        projectId,
-                        runId,
-                        source,
-                        runLevelFlags,
+                        error,
                     })
                 }
-            } catch (error) {
-                console.warn("[EvalRunDetails2] Run-level metrics refresh failed", {
-                    projectId,
-                    runId,
-                    source,
-                    runLevelFlags,
-                    error,
-                })
             }
         }
 

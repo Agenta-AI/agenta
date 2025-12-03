@@ -573,6 +573,22 @@ const previewRunMetricStatsQueryFamily = atomFamily(
 
             const includeTemporalFlagValue = includeTemporalFlag(includeTemporal)
 
+            // Statuses that indicate an evaluation is still in progress
+            // When in progress, we should NOT trigger metric refresh as:
+            // 1. 0 metrics means the evaluation hasn't produced any results yet
+            // 2. Partial metrics means the evaluation is still running
+            // Triggering refresh during in-progress state causes premature run-level metrics creation
+            const IN_PROGRESS_STATUSES = new Set([
+                "evaluation_initialized",
+                "initialized",
+                "evaluation_started",
+                "started",
+                "running",
+                "pending",
+            ])
+            // If runStatus is undefined (not yet loaded), assume in-progress to prevent premature refresh
+            const isRunInProgress = runStatus ? IN_PROGRESS_STATUSES.has(runStatus) : true
+
             const fetchMetrics = async () => {
                 if (!projectId || !runId) return []
                 return runMetricsBatchFetcher({
@@ -648,10 +664,12 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                         return {metrics: entries, flushResult}
                     }
 
+                    // Do NOT trigger refresh when the run is in progress
+                    // This prevents premature run-level metric creation during polling
                     let {metrics, flushResult} = await processMetrics({
                         entries: fetchedMetrics,
                         source: "run-metric-stats-query",
-                        triggerRefresh: true,
+                        triggerRefresh: !isRunInProgress,
                     })
 
                     // Re-fetch after refresh to get updated metrics
