@@ -2,7 +2,7 @@ import os
 import json
 from typing import Any, Dict, Union, Optional
 
-from daytona import Daytona, DaytonaConfig
+from daytona import Daytona, DaytonaConfig, Sandbox
 
 from agenta.sdk.workflows.runners.base import CodeRunner
 
@@ -115,9 +115,6 @@ class DaytonaRunner(CodeRunner):
                 CreateSandboxFromSnapshotParams(
                     snapshot=snapshot_id,
                     ephemeral=True,
-                    auto_archive_interval=0,
-                    auto_delete_interval=0,
-                    auto_stop_interval=0,
                 )
             )
 
@@ -154,7 +151,7 @@ class DaytonaRunner(CodeRunner):
             Float score between 0 and 1, or None if execution fails
         """
         self._initialize_client()
-        sandbox = self._create_sandbox()
+        sandbox: Sandbox = self._create_sandbox()
 
         try:
             # Prepare all parameters as a single dict
@@ -233,6 +230,8 @@ class DaytonaRunner(CodeRunner):
             # Response has stdout, stderr, and error fields
             response_stdout = response.stdout if hasattr(response, "stdout") else ""
             response_error = response.error if hasattr(response, "error") else None
+
+            sandbox.delete()
 
             if response_error:
                 log.error(f"Sandbox execution error: {response_error}")
