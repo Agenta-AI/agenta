@@ -1887,6 +1887,12 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             )
 
             stmt = stmt.on_conflict_do_update(
+                index_elements=[
+                    EvaluationMetricsDBE.project_id,
+                    EvaluationMetricsDBE.run_id,
+                    EvaluationMetricsDBE.scenario_id,
+                    EvaluationMetricsDBE.timestamp,
+                ],
                 set_={
                     # Lifecycle fields (always updated on conflict)
                     EvaluationMetricsDBE.updated_at: datetime.now(timezone.utc),
