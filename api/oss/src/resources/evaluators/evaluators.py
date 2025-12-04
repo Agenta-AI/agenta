@@ -230,7 +230,7 @@ evaluators = [
                             "type": "object",
                             "properties": {
                                 "score": {
-                                    "type": "number",
+                                    "type": "boolean",
                                     "description": "The grade results",
                                     "minimum": 0,
                                     "maximum": 10,
@@ -348,7 +348,7 @@ evaluators = [
                         "type": "object",
                         "properties": {
                             "score": {
-                                "type": "number",
+                                "type": "boolean",
                                 "description": "The grade results",
                                 "minimum": 0,
                                 "maximum": 10,
