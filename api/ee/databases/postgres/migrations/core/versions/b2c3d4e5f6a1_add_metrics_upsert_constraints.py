@@ -69,7 +69,7 @@ def downgrade() -> None:
 
     # Recreate the old broken unique constraint
     op.create_unique_constraint(
-        "evaluation_metrics_project_id_run_id_scenario_id_timestamp_key",
+        "uq_evaluation_metrics_project_run_scenario_timestamp_interval",
         "evaluation_metrics",
-        ["project_id", "run_id", "scenario_id", "timestamp"],
+        ["project_id", "run_id", "scenario_id", "timestamp", "interval"],
     )

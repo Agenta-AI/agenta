@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.65.1"
+version = "0.66.0"
 description = "Agenta API"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
@@ -50,6 +50,7 @@ gunicorn = "^23"
 python-jsonpath = "^2"
 bson = "^0.5"
 python-multipart = "^0.0.20"
+daytona = "^0.121.0"
 
 # BLOCKED BY NEW RELIC INCOMPATIBILITY
 # opentelemetry-api = "^1"
