@@ -60,6 +60,12 @@ export interface MetricProcessorOptions {
     source: string
 }
 
+export interface MetricProcessorFlushOptions {
+    triggerRefresh?: boolean
+    /** If true, this is a temporal/live evaluation that doesn't produce run-level metrics */
+    isTemporalOnly?: boolean
+}
+
 export interface MetricProcessorResult {
     metricId: string | null
     scenarioId: string | null
@@ -115,5 +121,5 @@ export interface MetricProcessor {
         runLevelFlags: string[]
         scenarioGaps: {scenarioId: string; reason: string}[]
     }
-    flush: (options?: {triggerRefresh?: boolean}) => Promise<MetricProcessorFlushResult>
+    flush: (options?: MetricProcessorFlushOptions) => Promise<MetricProcessorFlushResult>
 }
