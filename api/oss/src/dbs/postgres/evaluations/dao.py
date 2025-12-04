@@ -1883,7 +1883,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         # - ux_evaluation_metrics_temporal: for temporal metrics
         async with engine.core_session() as session:
             stmt = pg_insert(EvaluationMetricsDBE).values(
-                [dbe.__dict__ for dbe in metric_dbes]
+                [{k: v for k, v in dbe.__dict__.items() if not k.startswith('_')} for dbe in metric_dbes]
             )
 
             stmt = stmt.on_conflict_do_update(
