@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import not_
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm.attributes import flag_modified
 
 
@@ -1818,6 +1817,37 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
     # - EVALUATION METRICS -----------------------------------------------------
 
+    async def _upsert_metrics_batch(
+        self,
+        session: AsyncSession,
+        metrics_batch: List[Dict],
+        constraint_name: str,
+    ) -> None:
+        """Upsert a batch of metrics with the appropriate constraint."""
+        if not metrics_batch:
+            return
+
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        # Use SQLAlchemy's insert with on_conflict_do_update
+        stmt = pg_insert(EvaluationMetricsDBE).values(metrics_batch)
+
+        stmt = stmt.on_conflict_do_update(
+            constraint=constraint_name,
+            set_={
+                EvaluationMetricsDBE.updated_at: stmt.excluded.updated_at,
+                EvaluationMetricsDBE.updated_by_id: stmt.excluded.updated_by_id,
+                EvaluationMetricsDBE.data: stmt.excluded.data,
+                EvaluationMetricsDBE.flags: stmt.excluded.flags,
+                EvaluationMetricsDBE.tags: stmt.excluded.tags,
+                EvaluationMetricsDBE.meta: stmt.excluded.meta,
+                EvaluationMetricsDBE.status: stmt.excluded.status,
+                EvaluationMetricsDBE.version: stmt.excluded.version,
+            },
+        )
+
+        await session.execute(stmt)
+
     async def create_metrics(
         self,
         *,
@@ -1876,11 +1906,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             for _metric in _metrics
         ]
 
-        # Upsert via INSERT ... ON CONFLICT DO UPDATE
-        # PostgreSQL automatically uses correct partial unique index:
-        # - ux_evaluation_metrics_global: for global metrics
-        # - ux_evaluation_metrics_variational: for variational metrics
-        # - ux_evaluation_metrics_temporal: for temporal metrics
+        # Classify metrics into 3 groups based on NULL pattern, then batch upsert
         async with engine.core_session() as session:
             # Convert DBE instances to dicts using SQLAlchemy's inspection
             from sqlalchemy.inspection import inspect
@@ -1890,34 +1916,42 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             values_list = []
             for dbe in metric_dbes:
-                values_dict = {k: v for k, v in dbe.__dict__.items() if k in column_names}
+                values_dict = {
+                    k: v for k, v in dbe.__dict__.items() if k in column_names
+                }
                 values_list.append(values_dict)
 
-            stmt = pg_insert(EvaluationMetricsDBE).values(values_list)
+            # Precompute which metrics belong to each of the 3 index types
+            now = datetime.now(timezone.utc)
+            global_metrics = []     # scenario_id IS NULL AND timestamp IS NULL
+            variational_metrics = [] # scenario_id IS NOT NULL AND timestamp IS NULL
+            temporal_metrics = []    # scenario_id IS NULL AND timestamp IS NOT NULL
 
-            stmt = stmt.on_conflict_do_update(
-                index_elements=[
-                    EvaluationMetricsDBE.project_id,
-                    EvaluationMetricsDBE.run_id,
-                    EvaluationMetricsDBE.scenario_id,
-                    EvaluationMetricsDBE.timestamp,
-                ],
-                set_={
-                    # Lifecycle fields (always updated on conflict)
-                    EvaluationMetricsDBE.updated_at: datetime.now(timezone.utc),
-                    EvaluationMetricsDBE.updated_by_id: user_id,
-                    # Data fields (user-defined, replaced from insert attempt)
-                    EvaluationMetricsDBE.data: stmt.excluded.data,
-                    EvaluationMetricsDBE.flags: stmt.excluded.flags,
-                    EvaluationMetricsDBE.tags: stmt.excluded.tags,
-                    EvaluationMetricsDBE.meta: stmt.excluded.meta,
-                    EvaluationMetricsDBE.status: stmt.excluded.status,
-                    # Management fields (use version from insert attempt)
-                    EvaluationMetricsDBE.version: stmt.excluded.version,
-                }
-            )
+            for value_dict in values_list:
+                scenario_id = value_dict.get("scenario_id")
+                timestamp = value_dict.get("timestamp")
 
-            await session.execute(stmt)
+                # Add lifecycle values
+                value_dict["updated_at"] = now
+                value_dict["updated_by_id"] = user_id
+
+                if scenario_id is None and timestamp is None:
+                    global_metrics.append(value_dict)
+                elif timestamp is None and scenario_id is not None:
+                    variational_metrics.append(value_dict)
+                elif scenario_id is None and timestamp is not None:
+                    temporal_metrics.append(value_dict)
+                else:
+                    get_module_logger(__name__).warning(
+                        f"Unexpected metric pattern: scenario_id={scenario_id}, "
+                        f"timestamp={timestamp}. Skipping upsert."
+                    )
+
+            # Upsert each metric type with its corresponding constraint
+            await self._upsert_metrics_batch(session, global_metrics, "ux_evaluation_metrics_global")
+            await self._upsert_metrics_batch(session, variational_metrics, "ux_evaluation_metrics_variational")
+            await self._upsert_metrics_batch(session, temporal_metrics, "ux_evaluation_metrics_temporal")
+
             await session.commit()
 
         _metrics = [
