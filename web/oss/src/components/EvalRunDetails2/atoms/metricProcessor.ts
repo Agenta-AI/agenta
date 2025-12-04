@@ -3,6 +3,7 @@ import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 import {
     MetricProcessor,
+    MetricProcessorFlushOptions,
     MetricProcessorFlushResult,
     MetricProcessorOptions,
     MetricProcessorResult,
@@ -11,6 +12,14 @@ import {
     RunRefreshDetailResult,
     ScenarioRefreshDetailResult,
 } from "./runMetrics/types"
+
+// Track which runIds have already attempted bootstrap refresh
+// This prevents repeated refresh attempts when backend returns empty results
+const bootstrapAttemptedRuns = new Set<string>()
+
+export const clearBootstrapAttempt = (runId: string) => {
+    bootstrapAttemptedRuns.delete(runId)
+}
 
 const LEGACY_VALUE_ALLOWED_KEYS = new Set([
     "value",
@@ -256,7 +265,8 @@ export const createMetricProcessor = ({
 
     const flush = async ({
         triggerRefresh = true,
-    }: {triggerRefresh?: boolean} = {}): Promise<MetricProcessorFlushResult> => {
+        isTemporalOnly = false,
+    }: MetricProcessorFlushOptions = {}): Promise<MetricProcessorFlushResult> => {
         const {pending, scenarioIds, runLevelFlags, scenarioGaps} = getPendingActions()
 
         // console.debug("[MetricProcessor] flush called", {
@@ -505,12 +515,23 @@ export const createMetricProcessor = ({
                 runLevelFlags.length > 0 &&
                 runLevelFlags.every((f) => f === "missing-run-level-entry")
 
+            // Option A: Track bootstrap attempts to prevent repeated refresh when backend returns empty
+            const alreadyAttemptedBootstrap = bootstrapAttemptedRuns.has(runId)
+
+            // Option C: Skip bootstrap for temporal/live evaluations that don't produce run-level metrics
+            const canAttemptBootstrap =
+                !isTemporalOnly && !alreadyAttemptedBootstrap && hasMissingRunOnly
+
             const shouldRunRefresh =
-                hasRunPending ||
-                hasActionableRunFlag ||
-                (!hasScenarioSignals && !hasRunPending && hasMissingRunOnly)
+                (!hasRunPending && hasActionableRunFlag) ||
+                (!hasScenarioSignals && !hasRunPending && canAttemptBootstrap)
 
             if (shouldRunRefresh) {
+                // Mark bootstrap attempt to prevent repeated tries
+                if (canAttemptBootstrap) {
+                    bootstrapAttemptedRuns.add(runId)
+                }
+
                 try {
                     const params = new URLSearchParams()
                     params.set("project_id", projectId)

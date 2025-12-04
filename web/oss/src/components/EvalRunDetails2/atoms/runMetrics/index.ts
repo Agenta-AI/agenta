@@ -297,6 +297,24 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                             processor.markRunLevelGap("missing-run-level-entry")
                         }
 
+                        // Detect if this is a temporal/live evaluation
+                        // Temporal evaluations have entries with timestamp/interval but no static run-level entry
+                        const hasTemporalEntries = entries.some(
+                            (entry: any) =>
+                                !entry?.scenario_id &&
+                                !entry?.scenarioId &&
+                                (entry?.timestamp || entry?.interval?.timestamp),
+                        )
+                        const hasStaticRunLevelEntry = entries.some(
+                            (entry: any) =>
+                                !entry?.scenario_id &&
+                                !entry?.scenarioId &&
+                                !entry?.timestamp &&
+                                !entry?.interval?.timestamp,
+                        )
+                        // If we have temporal entries but no static run-level entry, this is a temporal-only evaluation
+                        const isTemporalOnly = hasTemporalEntries && !hasStaticRunLevelEntry
+
                         const processed = entries.map((entry: any) => {
                             const scope: MetricScope =
                                 entry?.scenario_id || entry?.scenarioId ? "scenario" : "run"
@@ -317,7 +335,7 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                             processor.markRunLevelGap("missing-run-level-entry")
                         }
 
-                        const flushResult = await processor.flush({triggerRefresh})
+                        const flushResult = await processor.flush({triggerRefresh, isTemporalOnly})
 
                         return {metrics: filtered, flushResult}
                     }

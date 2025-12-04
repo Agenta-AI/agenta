@@ -234,12 +234,9 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
         }
 
         return (
-            <div className="flex flex-wrap gap-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
                 {temporalCharts.map((entry) => (
-                    <div
-                        key={entry.key}
-                        className="w-full lg:w-[calc(50%-8px)] xl:w-[calc(33.33%-10px)]"
-                    >
+                    <div key={entry.key}>
                         <EvaluatorTemporalMetricsChart
                             name={entry.metricLabel}
                             metricKey={entry.metricKey}
@@ -316,12 +313,9 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
         }
 
         return (
-            <div className="flex flex-wrap gap-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
                 {chartEntries.map((entry) => (
-                    <div
-                        key={entry.key}
-                        className="w-full lg:w-[calc(50%-8px)] xl:w-[calc(33.33%-10px)]"
-                    >
+                    <div key={entry.key}>
                         <EvaluatorMetricsChart
                             runId={baseRunId}
                             runDisplayName={runDisplayName}

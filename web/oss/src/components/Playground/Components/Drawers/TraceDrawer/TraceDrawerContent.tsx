@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
-import {Splitter, Spin} from "antd"
+import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
+import {Button, Splitter, Spin} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -17,7 +18,13 @@ const TraceContent = dynamic(
 const TraceHeader = dynamic(() => import("@/oss/components/pages/observability/drawer/TraceHeader"))
 const TraceTree = dynamic(() => import("@/oss/components/pages/observability/drawer/TraceTree"))
 
-const TraceDrawerContent = () => {
+interface TraceDrawerContentProps {
+    onClose: () => void
+    onToggleWidth: () => void
+    isExpanded: boolean
+}
+
+const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerContentProps) => {
     const [selected, setSelected] = useState("")
     const {traces, activeSpanId, getTraceById, traceResponse, error, isLoading, traceId} =
         useTraceDrawer()
@@ -79,7 +86,13 @@ const TraceDrawerContent = () => {
 
     return (
         <div className="h-full w-full flex flex-col">
-            <div className="flex items-center gap-3 px-4 py-2 border-b border-[var(--ant-color-border)]">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--ant-color-border)]">
+                <Button onClick={onClose} type="text" icon={<CloseOutlined />} />
+                <Button
+                    onClick={onToggleWidth}
+                    type="text"
+                    icon={isExpanded ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                />
                 <div className="flex-1 min-w-0">
                     <TraceHeader
                         activeTrace={activeTrace as any}
