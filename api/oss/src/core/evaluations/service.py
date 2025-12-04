@@ -1018,7 +1018,7 @@ class EvaluationsService:
                     )
                 ]
 
-                log.info(f"[METRICS] Step '{step_key}': built {len(specs)} metric specs")
+                log.info(f"[METRICS] Step '{step_key}': {len(specs)} metric specs")
                 steps_specs[step_key] = specs
 
                 buckets = await self.tracing_service.analytics(
@@ -1029,6 +1029,10 @@ class EvaluationsService:
                 )
 
                 log.info(f"[METRICS] Step '{step_key}': analytics returned {len(buckets)} buckets")
+
+                if len(buckets) == 0:
+                    log.warning(f"[WARN] Step '{step_key}': No metrics from analytics (0 buckets)")
+                    continue
 
                 if len(buckets) != 1:
                     log.warning("[WARN] There should be one and only one bucket")
