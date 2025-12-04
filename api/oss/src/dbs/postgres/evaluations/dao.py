@@ -1882,9 +1882,18 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         # - ux_evaluation_metrics_variational: for variational metrics
         # - ux_evaluation_metrics_temporal: for temporal metrics
         async with engine.core_session() as session:
-            stmt = pg_insert(EvaluationMetricsDBE).values(
-                [{k: v for k, v in dbe.__dict__.items() if not k.startswith('_')} for dbe in metric_dbes]
-            )
+            # Convert DBE instances to dicts using SQLAlchemy's inspection
+            from sqlalchemy.inspection import inspect
+
+            mapper = inspect(EvaluationMetricsDBE)
+            column_names = {col.name for col in mapper.columns}
+
+            values_list = []
+            for dbe in metric_dbes:
+                values_dict = {k: v for k, v in dbe.__dict__.items() if k in column_names}
+                values_list.append(values_dict)
+
+            stmt = pg_insert(EvaluationMetricsDBE).values(values_list)
 
             stmt = stmt.on_conflict_do_update(
                 index_elements=[
