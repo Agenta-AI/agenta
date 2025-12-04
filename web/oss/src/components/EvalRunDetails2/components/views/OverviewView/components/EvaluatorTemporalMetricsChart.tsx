@@ -89,11 +89,14 @@ const EvaluatorTemporalMetricsChart = ({
         const map = new Map<number, Record<string, unknown>>()
         series.forEach((entry) => {
             entry.points.forEach((point) => {
-                const row = map.get(point.timestamp) ?? {timestamp: point.timestamp}
+                let row = map.get(point.timestamp)
+                if (!row) {
+                    row = {timestamp: point.timestamp}
+                    map.set(point.timestamp, row)
+                }
                 row[entry.id] = point.value
                 row[`${entry.id}__count`] = point.scenarioCount
                 row[`${entry.id}__p50`] = point.p50
-                map.set(point.timestamp, row)
             })
         })
         return Array.from(map.values()).sort((a, b) => Number(a.timestamp) - Number(b.timestamp))

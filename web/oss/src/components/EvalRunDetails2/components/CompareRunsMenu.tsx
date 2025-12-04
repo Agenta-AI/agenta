@@ -381,28 +381,6 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                                     ) : null}
                                 </Space>
                             </div>
-
-                            {/* {resolvedTestsetNames.length ? (
-                                <Text type="secondary" className="compare-run-row__sub">
-                                    Testsets:
-                                </Text>
-                            ) : null}
-                            {resolvedTestsetNames.length ? (
-                                <div className="compare-run-row__testsets">
-                                    {item.structure.testsetIds.map((id) => {
-                                        const label =
-                                            candidateTestsetNameMap[id] ?? id ?? "Unknown testset"
-                                        return (
-                                            <TestsetReferenceTag
-                                                key={`${item.id}-${id}`}
-                                                label={label}
-                                                copyValue={id}
-                                                href={buildTestsetHref(id) ?? undefined}
-                                            />
-                                        )
-                                    })}
-                                </div>
-                            ) : null} */}
                         </List.Item>
                     )
                 }}
@@ -599,6 +577,8 @@ const useTestsetNameMap = (testsetIds: string[]) => {
             } catch (error) {
                 if (!cancelled) {
                     setNames({})
+                    console.error("Failed to fetch testset names:", error)
+                    message.error("Failed to load testset names. Please try again later.")
                 }
             }
         }

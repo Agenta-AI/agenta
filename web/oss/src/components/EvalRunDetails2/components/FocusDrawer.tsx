@@ -727,35 +727,6 @@ export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps)
                     </div>
                 </section>
             ))}
-
-            {/* {ungroupedColumns.length ? (
-                <section
-                    id={toSectionAnchorId("additional-details")}
-                    className={`${SECTION_CARD_CLASS} flex flex-col gap-3`}
-                >
-                    <div className="border-b border-[#EAECF0] px-4 py-3">
-                        <Title level={5} className="!mb-0 text-[#1D2939]">
-                            Additional Details
-                        </Title>
-                    </div>
-                    <div className="flex flex-col gap-3 px-4 pb-4">
-                        {ungroupedColumns.map((column) => {
-                            const descriptor =
-                                descriptorMap?.[column.id] ??
-                                createColumnValueDescriptor(column, runIndex)
-                            return (
-                                <ScenarioColumnValue
-                                    key={column.id}
-                                    runId={runId}
-                                    scenarioId={scenarioId}
-                                    column={column}
-                                    descriptor={descriptor}
-                                />
-                            )
-                        })}
-                    </div>
-                </section>
-            ) : null} */}
         </div>
     )
 }

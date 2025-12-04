@@ -38,7 +38,7 @@ const debugTraceValue = (() => {
             seen.add(options.onceKey)
         }
 
-        // console.debug("[EvalRunDetails2] Trace probe", payload)
+        console.debug(message, payload)
     }
 })()
 
@@ -375,14 +375,6 @@ export const traceValueAtomFamily = atomFamily(
                                 spanData?.data?.attributes?.ag?.data?.outputs,
                             ),
                         }))
-
-                        // console.debug("[EvalRunDetails2] Trace value raw", {
-                        //     traceId: args.traceId,
-                        //     path: args.path,
-                        //     valueKey: args.valueKey,
-                        //     treeSummary: summarizeTraceData(queryState.data),
-                        //     spans,
-                        // })
                     }
                 }
 

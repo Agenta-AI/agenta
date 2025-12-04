@@ -484,9 +484,6 @@ const EvaluatorMetricsChart = ({
                         chartContent()
                     )}
                 </div>
-                {/* <Typography.Text className="text-center text-xs uppercase text-neutral-500">
-                    {metricLabel}
-                </Typography.Text> */}
             </div>
         </Card>
     )
