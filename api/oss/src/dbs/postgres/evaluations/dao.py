@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import not_
+from sqlalchemy import not_, and_
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm.attributes import flag_modified
 
 
@@ -1817,35 +1818,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
     # - EVALUATION METRICS -----------------------------------------------------
 
-    async def _upsert_metrics_batch(
-        self,
-        session: AsyncSession,
-        metrics_batch: List[Dict],
-        constraint_name: str,
-    ) -> None:
-        """Upsert a batch of metrics with the appropriate unique index."""
-        if not metrics_batch:
-            return
-
-        from sqlalchemy.dialects.postgresql import insert as pg_insert
-
-        # Use SQLAlchemy's insert with on_conflict_do_update, referencing index by name
-        stmt = pg_insert(EvaluationMetricsDBE).values(metrics_batch)
-        stmt = stmt.on_conflict_do_update(
-            constraint=constraint_name,
-            set_={
-                EvaluationMetricsDBE.updated_at: stmt.excluded.updated_at,
-                EvaluationMetricsDBE.updated_by_id: stmt.excluded.updated_by_id,
-                EvaluationMetricsDBE.data: stmt.excluded.data,
-                EvaluationMetricsDBE.flags: stmt.excluded.flags,
-                EvaluationMetricsDBE.tags: stmt.excluded.tags,
-                EvaluationMetricsDBE.meta: stmt.excluded.meta,
-                EvaluationMetricsDBE.status: stmt.excluded.status,
-                EvaluationMetricsDBE.version: stmt.excluded.version,
-            },
-        )
-        await session.execute(stmt)
-
     async def create_metrics(
         self,
         *,
@@ -1921,9 +1893,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             # Precompute which metrics belong to each of the 3 index types
             now = datetime.now(timezone.utc)
-            global_metrics = []     # scenario_id IS NULL AND timestamp IS NULL
-            variational_metrics = [] # scenario_id IS NOT NULL AND timestamp IS NULL
-            temporal_metrics = []    # scenario_id IS NULL AND timestamp IS NOT NULL
+            global_metrics = []  # scenario_id IS NULL AND timestamp IS NULL
+            variational_metrics = []  # scenario_id IS NOT NULL AND timestamp IS NULL
+            temporal_metrics = []  # scenario_id IS NULL AND timestamp IS NOT NULL
 
             for value_dict in values_list:
                 scenario_id = value_dict.get("scenario_id")
@@ -1945,16 +1917,74 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         f"timestamp={timestamp}. Skipping upsert."
                     )
 
-            # Upsert each metric type with its corresponding unique index
-            await self._upsert_metrics_batch(
-                session, global_metrics, "ux_evaluation_metrics_global"
-            )
-            await self._upsert_metrics_batch(
-                session, variational_metrics, "ux_evaluation_metrics_variational"
-            )
-            await self._upsert_metrics_batch(
-                session, temporal_metrics, "ux_evaluation_metrics_temporal"
-            )
+            # Upsert each metric type with its corresponding partial unique index
+            # Shared update set for all upserts
+            conflict_update_set = {
+                EvaluationMetricsDBE.updated_at: EvaluationMetricsDBE.updated_at,
+                EvaluationMetricsDBE.updated_by_id: EvaluationMetricsDBE.updated_by_id,
+                EvaluationMetricsDBE.data: EvaluationMetricsDBE.data,
+                EvaluationMetricsDBE.flags: EvaluationMetricsDBE.flags,
+                EvaluationMetricsDBE.tags: EvaluationMetricsDBE.tags,
+                EvaluationMetricsDBE.meta: EvaluationMetricsDBE.meta,
+                EvaluationMetricsDBE.status: EvaluationMetricsDBE.status,
+                EvaluationMetricsDBE.version: EvaluationMetricsDBE.version,
+            }
+
+            # Global: (project_id, run_id) WHERE scenario_id IS NULL AND timestamp IS NULL
+            if global_metrics:
+                stmt = pg_insert(EvaluationMetricsDBE).values(global_metrics)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[
+                        EvaluationMetricsDBE.project_id,
+                        EvaluationMetricsDBE.run_id,
+                    ],
+                    index_where=and_(
+                        EvaluationMetricsDBE.scenario_id.is_(None),
+                        EvaluationMetricsDBE.timestamp.is_(None),
+                    ),
+                    set_=dict(
+                        (k, stmt.excluded[k.name]) for k in conflict_update_set.keys()
+                    ),
+                )
+                await session.execute(stmt)
+
+            # Variational: (project_id, run_id, scenario_id) WHERE timestamp IS NULL AND scenario_id IS NOT NULL
+            if variational_metrics:
+                stmt = pg_insert(EvaluationMetricsDBE).values(variational_metrics)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[
+                        EvaluationMetricsDBE.project_id,
+                        EvaluationMetricsDBE.run_id,
+                        EvaluationMetricsDBE.scenario_id,
+                    ],
+                    index_where=and_(
+                        EvaluationMetricsDBE.scenario_id.isnot(None),
+                        EvaluationMetricsDBE.timestamp.is_(None),
+                    ),
+                    set_=dict(
+                        (k, stmt.excluded[k.name]) for k in conflict_update_set.keys()
+                    ),
+                )
+                await session.execute(stmt)
+
+            # Temporal: (project_id, run_id, timestamp) WHERE scenario_id IS NULL AND timestamp IS NOT NULL
+            if temporal_metrics:
+                stmt = pg_insert(EvaluationMetricsDBE).values(temporal_metrics)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[
+                        EvaluationMetricsDBE.project_id,
+                        EvaluationMetricsDBE.run_id,
+                        EvaluationMetricsDBE.timestamp,
+                    ],
+                    index_where=and_(
+                        EvaluationMetricsDBE.scenario_id.is_(None),
+                        EvaluationMetricsDBE.timestamp.isnot(None),
+                    ),
+                    set_=dict(
+                        (k, stmt.excluded[k.name]) for k in conflict_update_set.keys()
+                    ),
+                )
+                await session.execute(stmt)
 
             await session.commit()
 

@@ -31,7 +31,7 @@ def upgrade() -> None:
         type_="unique",
     )
 
-    # Step 2: Create partial unique constraint for Global Metrics
+    # Step 2: Create partial unique INDEX for Global Metrics
     # Global metric: (project_id, run_id) where scenario_id IS NULL AND timestamp IS NULL
     # Ensures: Only ONE global metric per (project_id, run_id)
     op.execute("""
@@ -40,7 +40,7 @@ def upgrade() -> None:
         WHERE scenario_id IS NULL AND timestamp IS NULL
     """)
 
-    # Step 3: Create partial unique constraint for Variational Metrics
+    # Step 3: Create partial unique INDEX for Variational Metrics
     # Variational metric: (project_id, run_id, scenario_id) where timestamp IS NULL
     # Ensures: Only ONE variational metric per (project_id, run_id, scenario_id)
     op.execute("""
@@ -49,7 +49,7 @@ def upgrade() -> None:
         WHERE timestamp IS NULL AND scenario_id IS NOT NULL
     """)
 
-    # Step 4: Create partial unique constraint for Temporal Metrics
+    # Step 4: Create partial unique INDEX for Temporal Metrics
     # Temporal metric: (project_id, run_id, timestamp) where scenario_id IS NULL
     # Ensures: Only ONE temporal metric per (project_id, run_id, timestamp)
     op.execute("""
