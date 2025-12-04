@@ -121,7 +121,9 @@ class DaytonaRunner(CodeRunner):
                 )
             )
 
-            log.debug(f"Sandbox created: {sandbox.id if hasattr(sandbox, 'id') else sandbox}")
+            log.debug(
+                f"Sandbox created: {sandbox.id if hasattr(sandbox, 'id') else sandbox}"
+            )
             return sandbox
 
         except Exception as e:
