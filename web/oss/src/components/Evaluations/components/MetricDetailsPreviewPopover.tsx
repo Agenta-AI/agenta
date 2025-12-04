@@ -484,6 +484,11 @@ const MetricPopoverContent = ({
     const highlightDisplay = formatScenarioValue(highlightScalar, metricKey)
     const frequencyHighlightValues: (string | number)[] = highlightDisplay ? [highlightDisplay] : []
 
+    // For string metrics without distributions, don't show headline metrics or highlight chip
+    // as they would be redundant with the scenario value section
+    const isStringMetricWithoutDistribution =
+        typeof highlightScalar === "string" && !hasHistogram && !hasFrequencyChart
+
     const headlineMetrics = useMemo(() => {
         const items: {label: string; value: string}[] = []
         if (typeof totalScenarios === "number" && Number.isFinite(totalScenarios)) {
@@ -513,23 +518,25 @@ const MetricPopoverContent = ({
     //     </Section>
     // ) : null
 
-    const headlineMetricsRow = headlineMetrics.length ? (
-        <div className="flex items-center gap-2 border border-neutral-100 py-2">
-            {headlineMetrics.map(({label, value}) => (
-                <div
-                    key={label}
-                    className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] shadow-sm"
-                >
-                    <span className="uppercase tracking-wide text-[10px] text-neutral-400">
-                        {label}
-                    </span>
-                    <span className="text-[12px] font-semibold text-neutral-900 tabular-nums">
-                        {value}
-                    </span>
-                </div>
-            ))}
-        </div>
-    ) : null
+    // For string metrics without distributions, headline metrics (count, etc.) are not relevant
+    const headlineMetricsRow =
+        headlineMetrics.length && !isStringMetricWithoutDistribution ? (
+            <div className="flex items-center gap-2 border border-neutral-100 py-2">
+                {headlineMetrics.map(({label, value}) => (
+                    <div
+                        key={label}
+                        className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] shadow-sm"
+                    >
+                        <span className="uppercase tracking-wide text-[10px] text-neutral-400">
+                            {label}
+                        </span>
+                        <span className="text-[12px] font-semibold text-neutral-900 tabular-nums">
+                            {value}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        ) : null
 
     if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
         console.debug("[MetricPopover] render", {
@@ -571,12 +578,13 @@ const MetricPopoverContent = ({
         )
     }
 
-    const highlightChip = highlightDisplay ? (
-        <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] text-neutral-900 shadow-sm">
-            <span className="uppercase tracking-wide text-[10px] text-neutral-400">Value</span>
-            {highlightDisplay}
-        </span>
-    ) : null
+    const highlightChip =
+        highlightDisplay && !isStringMetricWithoutDistribution ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] text-neutral-900 shadow-sm">
+                <span className="uppercase tracking-wide text-[10px] text-neutral-400">Value</span>
+                {highlightDisplay}
+            </span>
+        ) : null
 
     return (
         <div className="flex w-[320px] max-w-[360px] flex-col gap-4 rounded-2xl bg-white p-4 text-xs text-neutral-700">
