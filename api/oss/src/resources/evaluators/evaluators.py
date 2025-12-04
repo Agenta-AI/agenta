@@ -232,8 +232,6 @@ evaluators = [
                                 "score": {
                                     "type": "boolean",
                                     "description": "The grade results",
-                                    "minimum": 0,
-                                    "maximum": 10,
                                 }
                             },
                             "required": [
@@ -350,8 +348,6 @@ evaluators = [
                             "score": {
                                 "type": "boolean",
                                 "description": "The grade results",
-                                "minimum": 0,
-                                "maximum": 10,
                             }
                         },
                         "required": [
