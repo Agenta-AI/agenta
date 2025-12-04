@@ -1067,6 +1067,19 @@ export const invalidatePreviewRunMetricStatsAtom = atom(null, (_, set, runId?: s
         })
     })
 })
+
+/**
+ * Clear all metric stats caches. Call this when projectId/workspace changes
+ * to prevent stale data from being displayed.
+ */
+export const clearAllMetricStatsCaches = () => {
+    // Clear module-level caches
+    temporalRunFlags.clear()
+    temporalRunSeries.clear()
+
+    // Note: atomFamily doesn't expose a clearAll method, but the atoms will
+    // re-fetch with the new projectId when accessed because projectId is in queryKey
+}
 export const runTemporalMetricKeysAtomFamily = atomFamily((runId: string | null | undefined) =>
     atom((get) => {
         if (!runId) return false
