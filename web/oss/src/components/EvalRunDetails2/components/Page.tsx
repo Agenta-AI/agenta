@@ -7,7 +7,6 @@ import Router from "next/router"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
-import {legacyFocusDrawerEnabledAtom} from "@/oss/state/focusDrawerPreference"
 
 import {activePreviewProjectIdAtom, activePreviewRunIdAtom} from "../atoms/run"
 import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../atoms/runDerived"
@@ -33,7 +32,6 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     const setActiveRunId = useSetAtom(activePreviewRunIdAtom)
     const setEvalType = useSetAtom(previewEvalTypeAtom)
     const setActiveProjectId = useSetAtom(activePreviewProjectIdAtom)
-    const setLegacyFocusDrawerEnabled = useSetAtom(legacyFocusDrawerEnabledAtom)
     const {projectURL} = useURL()
 
     // Get the run display name for breadcrumbs
@@ -84,22 +82,12 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
         setActiveRunId(runId)
         setEvalType(evaluationType)
         setActiveProjectId(projectId)
-        setLegacyFocusDrawerEnabled(false)
         return () => {
             setActiveRunId(null)
             setEvalType(null)
             setActiveProjectId(null)
-            setLegacyFocusDrawerEnabled(true)
         }
-    }, [
-        runId,
-        evaluationType,
-        projectId,
-        setActiveProjectId,
-        setActiveRunId,
-        setEvalType,
-        setLegacyFocusDrawerEnabled,
-    ])
+    }, [runId, evaluationType, projectId, setActiveProjectId, setActiveRunId, setEvalType])
 
     useEffect(() => {
         const handleRouteChange = (url: string) => {

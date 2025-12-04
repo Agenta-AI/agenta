@@ -10,6 +10,34 @@ from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
+# Template for wrapping user code with evaluation context
+EVALUATION_CODE_TEMPLATE = """
+import json
+
+# Parse all parameters from a single dict
+params = json.loads({params_json!r})
+app_params = params['app_params']
+inputs = params['inputs']
+output = params['output']
+correct_answer = params['correct_answer']
+
+# User-provided evaluation code
+{user_code}
+
+# Execute and capture result
+result = evaluate(app_params, inputs, output, correct_answer)
+
+# Ensure result is a float
+if isinstance(result, (float, int, str)):
+    try:
+        result = float(result)
+    except (ValueError, TypeError):
+        result = None
+
+# Print result for capture
+print(json.dumps({{"result": result}}))
+"""
+
 
 class DaytonaRunner(CodeRunner):
     """Remote code runner using Daytona sandbox for execution."""
@@ -30,7 +58,6 @@ class DaytonaRunner(CodeRunner):
 
         self._initialized = True
         self.daytona: Optional[Daytona] = None
-        self.sandbox = None
         self._validate_config()
 
     def _validate_config(self) -> None:
@@ -45,7 +72,7 @@ class DaytonaRunner(CodeRunner):
             )
 
     def _initialize_client(self) -> None:
-        """Lazily initialize Daytona client and sandbox on first use."""
+        """Lazily initialize Daytona client on first use."""
         if self.daytona is not None:
             return
 
@@ -61,11 +88,18 @@ class DaytonaRunner(CodeRunner):
                 target=target,
             )
             self.daytona = Daytona(config)
+            log.debug("Daytona client initialized")
 
-            # Try to reuse existing sandbox via AGENTA_SERVICES_SANDBOX_SNAPSHOT_PYTHON
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize Daytona client: {e}")
+
+    def _create_sandbox(self) -> Any:
+        """Create a new sandbox for this run from snapshot."""
+        try:
+            if self.daytona is None:
+                raise RuntimeError("Daytona client not initialized")
+
             snapshot_id = os.getenv("AGENTA_SERVICES_SANDBOX_SNAPSHOT_PYTHON")
-
-            log.debug("snapshot_id", snapshot_id)
 
             if not snapshot_id:
                 raise RuntimeError(
@@ -73,26 +107,27 @@ class DaytonaRunner(CodeRunner):
                     "Set it to the Daytona sandbox ID or snapshot name you want to use."
                 )
 
-            # Create sandbox from snapshot ID
-            try:
-                from daytona import CreateSandboxFromSnapshotParams
+            log.debug(f"Creating sandbox from snapshot: {snapshot_id}")
 
-                self.sandbox = self.daytona.create(
-                    CreateSandboxFromSnapshotParams(
-                        snapshot=snapshot_id,
-                        ephemeral=True,
-                    )
+            from daytona import CreateSandboxFromSnapshotParams
+
+            sandbox = self.daytona.create(
+                CreateSandboxFromSnapshotParams(
+                    snapshot=snapshot_id,
+                    ephemeral=True,
+                    auto_archive_interval=0,
+                    auto_delete_interval=0,
+                    auto_stop_interval=0,
                 )
+            )
 
-                log.debug("[START]")
+            log.debug(
+                f"Sandbox created: {sandbox.id if hasattr(sandbox, 'id') else sandbox}"
+            )
+            return sandbox
 
-            except Exception as e:
-                raise RuntimeError(f"Failed to create sandbox from snapshot: {e}")
-        except RuntimeError:
-            # Re-raise RuntimeError as-is (already formatted)
-            raise
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize Daytona: {e}")
+            raise RuntimeError(f"Failed to create sandbox from snapshot: {e}")
 
     def run(
         self,
@@ -119,52 +154,98 @@ class DaytonaRunner(CodeRunner):
             Float score between 0 and 1, or None if execution fails
         """
         self._initialize_client()
+        sandbox = self._create_sandbox()
 
         try:
-            # Prepare the evaluation parameters as JSON strings
-            app_params_json = json.dumps(app_params)
-            inputs_json = json.dumps(inputs)
-            output_json = json.dumps(
-                output if isinstance(output, dict) else {"value": output}
-            )
-            correct_answer_json = json.dumps(correct_answer)
+            # Prepare all parameters as a single dict
+            params = {
+                "app_params": app_params,
+                "inputs": inputs,
+                "output": output,
+                "correct_answer": correct_answer,
+            }
+            params_json = json.dumps(params)
 
             # Wrap the user code with the necessary context and evaluation
-            wrapped_code = f"""
-import json
+            wrapped_code = EVALUATION_CODE_TEMPLATE.format(
+                params_json=params_json,
+                user_code=code,
+            )
 
-# Parse input parameters
-app_params = json.loads({repr(app_params_json)})
-inputs = json.loads({repr(inputs_json)})
-output = json.loads({repr(output_json)})
-correct_answer = json.loads({repr(correct_answer_json)})
+            # Log the input parameters for debugging
+            log.debug("Input parameters to evaluation:")
+            print("\n" + "=" * 80)
+            print("INPUT PARAMETERS:")
+            print("=" * 80)
+            print(f"app_params: {app_params}")
+            print(f"inputs: {inputs}")
+            print(f"output: {output}")
+            print(f"correct_answer: {correct_answer}")
+            print("=" * 80 + "\n")
 
-# User-provided evaluation code
-{code}
+            # Log the generated code for debugging
+            log.debug("Generated code to send to Daytona:")
+            print("=" * 80)
+            print("GENERATED CODE TO SEND TO DAYTONA:")
+            print("=" * 80)
+            code_lines = wrapped_code.split("\n")
+            for i, line in enumerate(code_lines, 1):
+                log.debug(f"  {i:3d}: {line}")
+                print(f"  {i:3d}: {line}")
+            print("=" * 80)
+            print(f"Total lines: {len(code_lines)}")
+            print("=" * 80 + "\n")
 
-# Execute and capture result
-result = evaluate(app_params, inputs, output, correct_answer)
+            # Callback functions to capture output and errors
+            stdout_lines = []
+            stderr_lines = []
 
-# Ensure result is a float
-if isinstance(result, (float, int, str)):
-    try:
-        result = float(result)
-    except (ValueError, TypeError):
-        result = None
+            def on_stdout(line: str) -> None:
+                """Capture stdout output."""
+                log.debug(f"[STDOUT] {line}")
+                print(f"[STDOUT] {line}")
+                stdout_lines.append(line)
 
-# Print result for capture
-print(json.dumps({{"result": result}}))
-"""
+            def on_stderr(line: str) -> None:
+                """Capture stderr output."""
+                log.warning(f"[STDERR] {line}")
+                print(f"[STDERR] {line}")
+                stderr_lines.append(line)
+
+            def on_error(error: Exception) -> None:
+                """Capture errors."""
+                log.error(f"[ERROR] {type(error).__name__}: {error}")
+                print(f"[ERROR] {type(error).__name__}: {error}")
 
             # Execute the code in the Daytona sandbox
-            response = self.sandbox.code_interpreter.run_code(wrapped_code)
+            log.debug("Executing code in Daytona sandbox")
+            response = sandbox.code_interpreter.run_code(
+                wrapped_code,
+                on_stdout=on_stdout,
+                on_stderr=on_stderr,
+                on_error=on_error,
+            )
 
-            # Parse the result from the output
-            output_lines = str(response).strip().split("\n")
+            log.debug(f"Raw response: {response}")
+            print(f"Raw response: {response}")
+
+            # Parse the result from the response object
+            # Response has stdout, stderr, and error fields
+            response_stdout = response.stdout if hasattr(response, "stdout") else ""
+            response_error = response.error if hasattr(response, "error") else None
+
+            if response_error:
+                log.error(f"Sandbox execution error: {response_error}")
+                raise RuntimeError(f"Sandbox execution failed: {response_error}")
+
+            # Parse the result from stdout
+            output_lines = response_stdout.strip().split("\n")
             for line in reversed(output_lines):
+                if not line.strip():
+                    continue
                 try:
                     result_obj = json.loads(line)
-                    if "result" in result_obj:
+                    if isinstance(result_obj, dict) and "result" in result_obj:
                         result = result_obj["result"]
                         if isinstance(result, (float, int, type(None))):
                             return float(result) if result is not None else None
@@ -174,13 +255,14 @@ print(json.dumps({{"result": result}}))
             raise ValueError("Could not parse evaluation result from Daytona output")
 
         except Exception as e:
+            log.error(f"Error during Daytona code execution: {e}", exc_info=True)
+            print(f"Exception details: {type(e).__name__}: {e}")
             raise RuntimeError(f"Error during Daytona code execution: {e}")
 
     def cleanup(self) -> None:
         """Clean up Daytona client resources."""
         try:
             self.daytona = None
-            self.sandbox = None
         except Exception as e:
             # Log but don't raise on cleanup failures
             log.error(f"Warning: Failed to cleanup Daytona resources", exc_info=True)

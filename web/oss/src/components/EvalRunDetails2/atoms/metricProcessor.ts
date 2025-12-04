@@ -21,6 +21,10 @@ export const clearBootstrapAttempt = (runId: string) => {
     bootstrapAttemptedRuns.delete(runId)
 }
 
+export const clearAllBootstrapAttempts = () => {
+    bootstrapAttemptedRuns.clear()
+}
+
 const LEGACY_VALUE_ALLOWED_KEYS = new Set([
     "value",
     "count",
@@ -156,14 +160,6 @@ export const createMetricProcessor = ({
         // 2. It has no status at all (null/undefined means not yet executed)
         const isPendingScenario = status ? pendingStatuses.has(status) : true
 
-        console.debug("[MetricProcessor] processMetric", {
-            scope,
-            scenarioId: summary.scenarioId,
-            status,
-            isPendingScenario,
-            hasLegacyShape,
-        })
-
         if (scope === "scenario") {
             // Skip ALL refresh logic for scenarios that haven't been run yet
             // There's no data to refresh if the scenario hasn't been executed
@@ -230,15 +226,44 @@ export const createMetricProcessor = ({
         state.runLevelFlags.push(reason)
     }
 
-    const markScenarioGap = (scenarioId: string, reason: string) => {
-        // Track the gap for informational purposes, but do NOT add to scenarioIds
-        // for refresh. Missing metrics typically means the scenario hasn't been run yet
-        // (pending/waiting), so there's nothing to refresh.
-        // If a scenario has been run but metrics are missing, the processMetric function
-        // will handle it based on the metric's status field.
+    const markScenarioGap = (
+        scenarioId: string,
+        reason: string,
+        scenarioStatus?: string | null,
+    ) => {
+        // Track the gap for informational purposes
         state.scenarioGaps.push({scenarioId, reason})
-        // NOTE: Intentionally NOT adding to state.scenarioIds to prevent refresh
-        // for scenarios that simply don't have metrics yet
+
+        // Terminal statuses indicate the scenario HAS been executed
+        // If metrics are missing for a terminal scenario, we should trigger a refresh
+        const terminalStatuses = new Set([
+            "success",
+            "completed",
+            "finished",
+            "done",
+            "failed",
+            "error",
+            "failure",
+        ])
+
+        const normalizedStatus = scenarioStatus?.toLowerCase?.() ?? null
+        const isTerminalState = normalizedStatus && terminalStatuses.has(normalizedStatus)
+
+        if (isTerminalState && reason === "missing-scenario-metric") {
+            // Scenario is in terminal state but has no metrics - trigger refresh
+            console.debug(
+                "[MetricProcessor] Terminal scenario missing metrics, triggering refresh",
+                {
+                    scenarioId,
+                    reason,
+                    scenarioStatus: normalizedStatus,
+                },
+            )
+            state.scenarioIds.add(scenarioId)
+        }
+        // NOTE: For non-terminal states (pending, waiting, etc.), we intentionally
+        // do NOT add to state.scenarioIds to prevent refresh for scenarios that
+        // simply haven't been executed yet
     }
 
     const getPendingActions = () => {

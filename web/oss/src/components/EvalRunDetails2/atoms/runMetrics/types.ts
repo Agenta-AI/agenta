@@ -113,7 +113,14 @@ export interface MetricProcessorFlushResult {
 export interface MetricProcessor {
     processMetric: (metric: any, scope: MetricScope) => MetricProcessorResult
     markRunLevelGap: (reason: string) => void
-    markScenarioGap: (scenarioId: string, reason: string) => void
+    /**
+     * Mark a scenario as having a gap (e.g., missing metrics).
+     * @param scenarioId - The scenario ID
+     * @param reason - The reason for the gap
+     * @param scenarioStatus - Optional scenario status. If provided and is a terminal state
+     *                         (success, completed, failed, error), will trigger a refresh.
+     */
+    markScenarioGap: (scenarioId: string, reason: string, scenarioStatus?: string | null) => void
     getPendingActions: () => {
         pending: MetricProcessorResult[]
         scenarioIds: string[]
