@@ -1823,15 +1823,14 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         metrics_batch: List[Dict],
         constraint_name: str,
     ) -> None:
-        """Upsert a batch of metrics with the appropriate constraint."""
+        """Upsert a batch of metrics with the appropriate unique index."""
         if not metrics_batch:
             return
 
         from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-        # Use SQLAlchemy's insert with on_conflict_do_update
+        # Use SQLAlchemy's insert with on_conflict_do_update, referencing index by name
         stmt = pg_insert(EvaluationMetricsDBE).values(metrics_batch)
-
         stmt = stmt.on_conflict_do_update(
             constraint=constraint_name,
             set_={
@@ -1845,7 +1844,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationMetricsDBE.version: stmt.excluded.version,
             },
         )
-
         await session.execute(stmt)
 
     async def create_metrics(
@@ -1947,10 +1945,16 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         f"timestamp={timestamp}. Skipping upsert."
                     )
 
-            # Upsert each metric type with its corresponding constraint
-            await self._upsert_metrics_batch(session, global_metrics, "ux_evaluation_metrics_global")
-            await self._upsert_metrics_batch(session, variational_metrics, "ux_evaluation_metrics_variational")
-            await self._upsert_metrics_batch(session, temporal_metrics, "ux_evaluation_metrics_temporal")
+            # Upsert each metric type with its corresponding unique index
+            await self._upsert_metrics_batch(
+                session, global_metrics, "ux_evaluation_metrics_global"
+            )
+            await self._upsert_metrics_batch(
+                session, variational_metrics, "ux_evaluation_metrics_variational"
+            )
+            await self._upsert_metrics_batch(
+                session, temporal_metrics, "ux_evaluation_metrics_temporal"
+            )
 
             await session.commit()
 

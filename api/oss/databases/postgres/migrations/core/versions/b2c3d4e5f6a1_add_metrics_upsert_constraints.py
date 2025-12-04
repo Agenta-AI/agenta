@@ -34,44 +34,38 @@ def upgrade() -> None:
     # Step 2: Create partial unique index for Global Metrics
     # Global metric: (project_id, run_id) where scenario_id IS NULL AND timestamp IS NULL
     # Ensures: Only ONE global metric per (project_id, run_id)
-    op.create_index(
-        "ux_evaluation_metrics_global",
-        "evaluation_metrics",
-        ["project_id", "run_id"],
-        unique=True,
-        postgresql_where="scenario_id IS NULL AND timestamp IS NULL",
-    )
+    op.execute("""
+        CREATE UNIQUE INDEX ux_evaluation_metrics_global
+        ON evaluation_metrics (project_id, run_id)
+        WHERE scenario_id IS NULL AND timestamp IS NULL
+    """)
 
     # Step 3: Create partial unique index for Variational Metrics
     # Variational metric: (project_id, run_id, scenario_id) where timestamp IS NULL
     # Ensures: Only ONE variational metric per (project_id, run_id, scenario_id)
-    op.create_index(
-        "ux_evaluation_metrics_variational",
-        "evaluation_metrics",
-        ["project_id", "run_id", "scenario_id"],
-        unique=True,
-        postgresql_where="timestamp IS NULL",
-    )
+    op.execute("""
+        CREATE UNIQUE INDEX ux_evaluation_metrics_variational
+        ON evaluation_metrics (project_id, run_id, scenario_id)
+        WHERE timestamp IS NULL AND scenario_id IS NOT NULL
+    """)
 
     # Step 4: Create partial unique index for Temporal Metrics
     # Temporal metric: (project_id, run_id, timestamp) where scenario_id IS NULL
     # Ensures: Only ONE temporal metric per (project_id, run_id, timestamp)
-    op.create_index(
-        "ux_evaluation_metrics_temporal",
-        "evaluation_metrics",
-        ["project_id", "run_id", "timestamp"],
-        unique=True,
-        postgresql_where="scenario_id IS NULL",
-    )
+    op.execute("""
+        CREATE UNIQUE INDEX ux_evaluation_metrics_temporal
+        ON evaluation_metrics (project_id, run_id, timestamp)
+        WHERE scenario_id IS NULL AND timestamp IS NOT NULL
+    """)
 
 
 def downgrade() -> None:
     """Rollback to old unique constraint."""
 
     # Remove the three partial unique indexes
-    op.drop_index("ux_evaluation_metrics_global", "evaluation_metrics")
-    op.drop_index("ux_evaluation_metrics_variational", "evaluation_metrics")
-    op.drop_index("ux_evaluation_metrics_temporal", "evaluation_metrics")
+    op.execute("DROP INDEX IF EXISTS ux_evaluation_metrics_global")
+    op.execute("DROP INDEX IF EXISTS ux_evaluation_metrics_variational")
+    op.execute("DROP INDEX IF EXISTS ux_evaluation_metrics_temporal")
 
     # Recreate the old broken unique constraint
     op.create_unique_constraint(
