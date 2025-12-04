@@ -526,6 +526,23 @@ export const createMetricProcessor = ({
                 (!hasRunPending && hasActionableRunFlag) ||
                 (!hasScenarioSignals && !hasRunPending && canAttemptBootstrap)
 
+            console.debug("[MetricProcessor] Run-level refresh decision", {
+                runId,
+                source,
+                triggerRefresh,
+                isTemporalOnly,
+                hasRunPending,
+                hasActionableRunFlag,
+                hasScenarioSignals,
+                hasMissingRunOnly,
+                alreadyAttemptedBootstrap,
+                canAttemptBootstrap,
+                shouldRunRefresh,
+                runLevelFlags,
+                scenarioIdsCount: scenarioIds.length,
+                scenarioGapsCount: scenarioGaps.length,
+            })
+
             if (shouldRunRefresh) {
                 // Mark bootstrap attempt to prevent repeated tries
                 if (canAttemptBootstrap) {

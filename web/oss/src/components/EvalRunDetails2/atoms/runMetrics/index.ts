@@ -312,23 +312,11 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                                 !entry?.timestamp &&
                                 !entry?.interval?.timestamp,
                         )
-                        // If we have temporal entries but no static run-level entry, this is a temporal-only evaluation
-                        // Also treat completed runs with no entries as temporal-only to skip bootstrap
-                        // (completed runs that would have run-level metrics already have them)
-                        const TERMINAL_STATUSES = new Set([
-                            "success",
-                            "completed",
-                            "failure",
-                            "failed",
-                            "errors",
-                            "error",
-                            "cancelled",
-                            "canceled",
-                        ])
-                        const isRunTerminal = runStatus ? TERMINAL_STATUSES.has(runStatus) : false
-                        const isTemporalOnly =
-                            (hasTemporalEntries && !hasStaticRunLevelEntry) ||
-                            (isRunTerminal && !hasStaticRunLevelEntry && entries.length === 0)
+                        // Only skip bootstrap for actual temporal/live evaluations
+                        // A temporal-only evaluation has temporal entries but NO static run-level entry
+                        // Note: We must have actual temporal entries to consider it temporal-only
+                        // Missing run-level metrics (deleted or not yet created) should NOT be treated as temporal-only
+                        const isTemporalOnly = hasTemporalEntries && !hasStaticRunLevelEntry
 
                         const processed = entries.map((entry: any) => {
                             const scope: MetricScope =
