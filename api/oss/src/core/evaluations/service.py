@@ -2,7 +2,7 @@ from typing import List, Optional, Tuple, Dict, Any
 from uuid import UUID
 from asyncio import sleep
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from celery import current_app as celery_dispatch
 
@@ -994,6 +994,10 @@ class EvaluationsService:
 
             try:
                 query = TracingQuery(
+                    windowing=Windowing(
+                        oldest=datetime(1970, 1, 1, tzinfo=timezone.utc),
+                        newest=None,
+                    ),
                     filtering=Filtering(
                         conditions=[
                             Condition(
