@@ -47,6 +47,46 @@ export interface RunLevelMetricData {
 const metricBatcherCache = new Map<string, BatchFetcher<string, ScenarioMetricData | null>>()
 
 /**
+ * Module-level cache for scenario statuses.
+ * This is populated when scenarios are loaded and read by the metric batcher
+ * to determine if a scenario is in a terminal state when metrics are missing.
+ */
+const scenarioStatusCache = new Map<string, string | null>()
+
+/**
+ * Update the scenario status cache with new scenario data.
+ * Call this when scenarios are loaded to make statuses available for metric refresh logic.
+ */
+export const updateScenarioStatusCache = (scenarios: {id: string; status?: string | null}[]) => {
+    scenarios.forEach((scenario) => {
+        if (scenario.id) {
+            scenarioStatusCache.set(scenario.id, scenario.status ?? null)
+        }
+    })
+}
+
+/**
+ * Get scenario statuses for a list of scenario IDs from the cache.
+ */
+export const getScenarioStatuses = (scenarioIds: string[]): Map<string, string | null> => {
+    const result = new Map<string, string | null>()
+    scenarioIds.forEach((id) => {
+        if (scenarioStatusCache.has(id)) {
+            result.set(id, scenarioStatusCache.get(id) ?? null)
+        }
+    })
+    return result
+}
+
+/**
+ * Clear the scenario status cache.
+ * Call this when projectId/workspace changes.
+ */
+export const clearScenarioStatusCache = () => {
+    scenarioStatusCache.clear()
+}
+
+/**
  * Invalidate the metric batcher cache.
  * Call this after updating metrics to force a fresh fetch.
  */
@@ -68,6 +108,7 @@ const buildGroupedMetrics = (
     scenarioIds: string[],
     rawMetrics: any[],
     processor: MetricProcessor,
+    scenarioStatuses?: Map<string, string | null>,
 ): Record<string, ScenarioMetricData | null> => {
     const grouped: Record<string, ScenarioMetricData | null> = Object.create(null)
 
@@ -173,7 +214,8 @@ const buildGroupedMetrics = (
 
     scenarioIds.forEach((scenarioId) => {
         if ((returnedScenarioCounts.get(scenarioId) ?? 0) === 0) {
-            processor.markScenarioGap(scenarioId, "missing-scenario-metric")
+            const scenarioStatus = scenarioStatuses?.get(scenarioId) ?? null
+            processor.markScenarioGap(scenarioId, "missing-scenario-metric", scenarioStatus)
             grouped[scenarioId] = null
         }
     })
@@ -599,7 +641,15 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
                                 source,
                             })
 
-                            const grouped = buildGroupedMetrics(unique, entries, processor)
+                            // Get scenario statuses from cache for terminal state detection
+                            const scenarioStatuses = getScenarioStatuses(unique)
+
+                            const grouped = buildGroupedMetrics(
+                                unique,
+                                entries,
+                                processor,
+                                scenarioStatuses,
+                            )
                             const flushResult = await processor.flush({triggerRefresh})
                             return {grouped, flushResult}
                         }
