@@ -145,7 +145,12 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
 
     return (
         <div className={"h-full overflow-hidden flex flex-col"}>
-            <div className={clsx("flex items-center justify-between h-10 pl-2 pr-2", classes.treeHeader)}>
+            <div
+                className={clsx(
+                    "flex items-center justify-between h-10 pl-2 pr-2",
+                    classes.treeHeader,
+                )}
+            >
                 <Input
                     variant="borderless"
                     placeholder="Search in tree"

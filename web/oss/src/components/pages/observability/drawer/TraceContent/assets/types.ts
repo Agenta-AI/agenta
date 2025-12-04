@@ -1,5 +1,5 @@
-import { TraceSpanNode } from "@/oss/services/tracing/types"
-import { Dispatch, SetStateAction } from "react"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {Dispatch, SetStateAction} from "react"
 
 export interface TraceContentProps {
     activeTrace?: TraceSpanNode

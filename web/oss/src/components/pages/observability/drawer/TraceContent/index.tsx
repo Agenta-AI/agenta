@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {Tabs, TabsProps, Skeleton} from "antd"
+import {Tabs, TabsProps, Skeleton, Splitter} from "antd"
 import clsx from "clsx"
 import {getDefaultStore, useSetAtom} from "jotai"
 
@@ -130,23 +130,29 @@ const TraceContent = ({
                     traces={traces}
                 />
 
-                <div className="flex h-full">
-                    <div className="flex-1 border-0 border-r border-solid border-colorSplit h-full">
-                        <Tabs
-                            defaultActiveKey="overview"
-                            activeKey={tab}
-                            onChange={setTab}
-                            items={items}
-                            className={clsx("flex flex-col h-full", classes.tabs)}
+                <Splitter className="h-[87vh] flex">
+                    <Splitter.Panel min={400} className="w-full flex-1">
+                        <div className="flex-1">
+                            <Tabs
+                                defaultActiveKey="overview"
+                                activeKey={tab}
+                                onChange={setTab}
+                                items={items}
+                                className={clsx(
+                                    "flex flex-col h-full [&_.ant-tabs-nav]:!sticky [&_.ant-tabs-nav]:!top-0 [&_.ant-tabs-nav]:!z-10 [&_.ant-tabs-nav]:!bg-white",
+                                    classes.tabs,
+                                )}
+                            />
+                        </div>
+                    </Splitter.Panel>
+                    <Splitter.Panel min={280} defaultSize={280} collapsible>
+                        <TraceSidePanel
+                            activeTrace={activeTrace as any}
+                            activeTraceId={activeId}
+                            isLoading={isLoading}
                         />
-                    </div>
-
-                    <TraceSidePanel
-                        activeTrace={activeTrace as any}
-                        activeTraceId={activeId}
-                        isLoading={isLoading}
-                    />
-                </div>
+                    </Splitter.Panel>
+                </Splitter>
             </div>
         </div>
     )

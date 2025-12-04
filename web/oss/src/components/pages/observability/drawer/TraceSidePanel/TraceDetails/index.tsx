@@ -47,11 +47,10 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 <ResultTag
                     style={{
                         backgroundColor: bgColor,
-                        border: `1px solid ${color}`,
                         color: color,
                     }}
                     className="font-mono"
-                    bordered
+                    bordered={false}
                     value1={
                         <>
                             {icon} {activeTrace?.span_type}
@@ -65,14 +64,15 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 <StatusRenderer
                     status={activeTrace?.status_code}
                     message={activeTrace?.status_message}
-                />{" "}
+                    tagProps={{bordered: false}}
+                />
             </Space>
 
             <Space direction="vertical" size={4}>
                 <Typography.Text className={classes.title}>Latency</Typography.Text>
                 <ResultTag
                     bordered={false}
-                    className="bg-[rgba(5,23,41,0.06)]"
+                    className="bg-[#0517290F]"
                     value1={
                         <div className={classes.resultTag}>
                             <Timer size={14} /> {formattedLatency}
@@ -87,11 +87,11 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 <ResultTag
                     value1={<div className={classes.resultTag}>Start - {traceStartTime}</div>}
                     bordered={false}
-                    className="bg-[rgba(5,23,41,0.06)]"
+                    className="bg-[#0517290F]"
                 />
                 <ResultTag
                     bordered={false}
-                    className="bg-[rgba(5,23,41,0.06)]"
+                    className="bg-[#0517290F]"
                     value1={
                         <div className={classes.resultTag}>
                             End {"  "}- {traceEndTime}
@@ -103,7 +103,8 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             <Space direction="vertical" size={4}>
                 <Typography.Text className={classes.title}>Tokens & Cost</Typography.Text>
                 <ResultTag
-                    className="bg-[rgba(5,23,41,0.06)]"
+                    bordered={false}
+                    className="bg-[#0517290F]"
                     value1={
                         <div className={classes.resultTag}>
                             <PlusCircle size={14} />
