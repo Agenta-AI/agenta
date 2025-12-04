@@ -28,6 +28,7 @@ interface HistogramChartProps {
     barGap?: number | string
     barCategoryGap?: number | string
     tooltipLabel?: string
+    tooltipFormatter?: (value: number) => string
     series?: {
         key: string
         name: string
@@ -36,6 +37,7 @@ interface HistogramChartProps {
     }[]
     referenceLines?: {value: number; color?: string; label?: string}[]
     showLegend?: boolean
+    reserveLegendSpace?: boolean
     barProps?: Partial<React.ComponentProps<typeof Bar>>
 }
 
@@ -53,9 +55,11 @@ const HistogramChart = ({
     barGap = "10%",
     barCategoryGap = "30%",
     tooltipLabel = "Value",
+    tooltipFormatter,
     series,
     referenceLines,
     showLegend = true,
+    reserveLegendSpace = false,
     barProps,
 }: HistogramChartProps) => {
     const chartBarSize = !barSize ? undefined : barSize
@@ -111,18 +115,39 @@ const HistogramChart = ({
 
                 {tooltipLabel ? (
                     <Tooltip
-                        formatter={(value: any, name: any) => [value as number, name]}
+                        formatter={(value: any, name: any) => {
+                            const formattedValue = tooltipFormatter
+                                ? tooltipFormatter(Number(value))
+                                : value
+                            return [formattedValue, name]
+                        }}
                         cursor={false}
                         contentStyle={{
                             backgroundColor: "white",
                             border: "1px solid #d9d9d9",
                             borderRadius: "4px",
                             padding: "4px 8px",
+                            fontSize: 12,
                         }}
                     />
                 ) : null}
 
-                {showLegend && activeSeries.length > 1 ? <Legend /> : null}
+                {showLegend && activeSeries.length > 1 ? (
+                    <Legend
+                        formatter={(value: string) => {
+                            const maxLen = 20
+                            return value.length > maxLen
+                                ? `${value.slice(0, maxLen - 1)}\u2026`
+                                : value
+                        }}
+                        wrapperStyle={{fontSize: 11, paddingTop: 8}}
+                    />
+                ) : reserveLegendSpace ? (
+                    <Legend
+                        wrapperStyle={{fontSize: 11, paddingTop: 8, visibility: "hidden"}}
+                        content={() => <div style={{height: 20}} />}
+                    />
+                ) : null}
 
                 {referenceLines?.map((line) => (
                     <ReferenceLine

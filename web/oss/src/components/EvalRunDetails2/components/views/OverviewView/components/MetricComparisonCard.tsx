@@ -60,7 +60,7 @@ const buildComparisonChartConfig = (
             data: rows,
             yDomain: [0, 100],
             yFormatter: (value) => `${Math.round(value)}%`,
-            tooltipFormatter: (value) => `${Number(value).toFixed(2)}%`,
+            tooltipFormatter: (value) => `${format3Sig(value)}%`,
         }
     }
 
@@ -192,6 +192,11 @@ interface MetricComparisonCardProps {
     metric: AggregatedMetricChartData
 }
 
+const truncateRunName = (name: string, maxLength = 20): string => {
+    if (name.length <= maxLength) return name
+    return `${name.slice(0, maxLength - 1)}…`
+}
+
 const MetricComparisonCard = ({metric}: MetricComparisonCardProps) => {
     const runMeta = useMemo(
         () =>
@@ -199,6 +204,7 @@ const MetricComparisonCard = ({metric}: MetricComparisonCardProps) => {
                 runKey: entry.runKey,
                 runId: entry.runId,
                 runName: entry.runName,
+                shortName: truncateRunName(entry.runName),
                 color: entry.color,
                 summary: entry.summary,
             })),
@@ -245,19 +251,28 @@ const MetricComparisonCard = ({metric}: MetricComparisonCardProps) => {
                                     const formattedValue = chartConfig.tooltipFormatter(
                                         Number(value ?? 0),
                                     )
-                                    return [formattedValue, meta?.runName ?? ""]
+                                    return [formattedValue, meta?.shortName ?? ""]
                                 }}
                                 contentStyle={{
                                     backgroundColor: "#FFFFFF",
                                     border: "1px solid #E2E8F0",
                                     borderRadius: 8,
                                     padding: "8px 12px",
+                                    fontSize: 12,
+                                    maxWidth: 280,
+                                }}
+                                itemStyle={{
+                                    padding: "2px 0",
                                 }}
                             />
                             <Legend
                                 formatter={(value: string | number) =>
-                                    runMetaMap.get(String(value))?.runName ?? String(value)
+                                    runMetaMap.get(String(value))?.shortName ?? String(value)
                                 }
+                                wrapperStyle={{
+                                    fontSize: 11,
+                                    paddingTop: 8,
+                                }}
                             />
                             {runMeta.map((run) => (
                                 <Bar
@@ -276,31 +291,6 @@ const MetricComparisonCard = ({metric}: MetricComparisonCardProps) => {
                         Distribution data not available for this metric.
                     </div>
                 )}
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-4 text-neutral-600">
-                {runMeta.map((run) => {
-                    const summaryLabel = (() => {
-                        if (!run.summary) return null
-                        if (run.summary.type === "boolean") {
-                            return `True rate ${run.summary.formatted}`
-                        }
-                        return `Avg ${run.summary.formatted}`
-                    })()
-
-                    return (
-                        <div key={run.runKey} className="flex items-center gap-2">
-                            <span
-                                className="inline-block h-2.5 w-2.5 rounded-full"
-                                style={{backgroundColor: run.color}}
-                            />
-                            <span className="font-medium text-neutral-700">{run.runName}</span>
-                            {summaryLabel ? (
-                                <span className="text-neutral-500">{summaryLabel}</span>
-                            ) : null}
-                        </div>
-                    )
-                })}
             </div>
         </Card>
     )

@@ -293,9 +293,12 @@ const EvaluatorMetricsChart = ({
                     xKey="label"
                     yKey={baseSeriesKey}
                     tooltipLabel="Percentage"
+                    tooltipFormatter={(value) => `${format3Sig(value)}%`}
                     yDomain={[0, 100]}
                     series={series}
                     barCategoryGap="20%"
+                    showLegend={stableComparisons.length > 0}
+                    reserveLegendSpace={stableComparisons.length > 0}
                 />
             )
         }
@@ -376,9 +379,12 @@ const EvaluatorMetricsChart = ({
                     xKey="label"
                     yKey={baseSeriesKey}
                     tooltipLabel="Count"
+                    tooltipFormatter={(value) => Math.round(value).toLocaleString()}
                     yDomain={[0, "auto"]}
                     series={series}
                     barCategoryGap="20%"
+                    showLegend={stableComparisons.length > 0}
+                    reserveLegendSpace={stableComparisons.length > 0}
                 />
             )
         }
@@ -418,8 +424,11 @@ const EvaluatorMetricsChart = ({
                     xKey="x"
                     yKey="y"
                     tooltipLabel={metricLabel}
+                    tooltipFormatter={(value) => format3Sig(value)}
                     yDomain={[0, "auto"]}
                     referenceLines={referenceLines}
+                    showLegend={false}
+                    reserveLegendSpace={stableComparisons.length > 0}
                 />
             )
         }
@@ -433,9 +442,9 @@ const EvaluatorMetricsChart = ({
 
     return (
         <Card
-            className={clsx("h-full rounded-lg overflow-hidden !shadow-none", className)}
-            classNames={{header: "!p-0", body: "!p-0 shadow-none"}}
-            variant="borderless"
+            className={clsx("h-full rounded-lg overflow-hidden", className)}
+            classNames={{header: "!p-0", body: "!p-0"}}
+            variant="outlined"
             title={
                 <div className="flex items-center justify-between px-4 py-3">
                     <div className="flex flex-col gap-0.5">
@@ -452,17 +461,19 @@ const EvaluatorMetricsChart = ({
             }
         >
             <div className="flex flex-col gap-4 px-4 pb-4">
-                <div className="flex h-[70px] items-center justify-center">
-                    {summaryValue !== null ? (
-                        <Typography.Text
-                            className="text-xl font-medium"
-                            style={{color: resolvedBaseColor}}
-                        >
-                            {summaryValue}
-                        </Typography.Text>
-                    ) : null}
-                </div>
-                <div className="h-[300px]">
+                {stableComparisons.length === 0 && (
+                    <div className="flex h-[70px] items-center justify-center">
+                        {summaryValue !== null ? (
+                            <Typography.Text
+                                className="text-xl font-medium"
+                                style={{color: resolvedBaseColor}}
+                            >
+                                {summaryValue}
+                            </Typography.Text>
+                        ) : null}
+                    </div>
+                )}
+                <div className={stableComparisons.length > 0 ? "h-[370px]" : "h-[300px]"}>
                     {isLoading ? (
                         <Skeleton active className="w-full h-full" />
                     ) : hasError && !resolvedStats ? (
