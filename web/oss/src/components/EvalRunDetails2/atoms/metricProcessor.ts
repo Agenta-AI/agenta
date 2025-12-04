@@ -21,6 +21,10 @@ export const clearBootstrapAttempt = (runId: string) => {
     bootstrapAttemptedRuns.delete(runId)
 }
 
+export const clearAllBootstrapAttempts = () => {
+    bootstrapAttemptedRuns.clear()
+}
+
 const LEGACY_VALUE_ALLOWED_KEYS = new Set([
     "value",
     "count",
@@ -155,14 +159,6 @@ export const createMetricProcessor = ({
         // 1. It has an explicit pending status, OR
         // 2. It has no status at all (null/undefined means not yet executed)
         const isPendingScenario = status ? pendingStatuses.has(status) : true
-
-        console.debug("[MetricProcessor] processMetric", {
-            scope,
-            scenarioId: summary.scenarioId,
-            status,
-            isPendingScenario,
-            hasLegacyShape,
-        })
 
         if (scope === "scenario") {
             // Skip ALL refresh logic for scenarios that haven't been run yet

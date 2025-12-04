@@ -125,10 +125,6 @@ export const evaluationAnnotationBatcherFamily = atomFamily(
         }),
 )
 
-export const evaluationAnnotationBatcherAtom = atom((get) =>
-    get(evaluationAnnotationBatcherFamily()),
-)
-
 export const evaluationAnnotationQueryAtomFamily = atomFamily(
     ({traceId, runId}: {traceId: string; runId?: string | null}) =>
         atomWithQuery<AnnotationDto[]>((get) => {

@@ -621,25 +621,12 @@ InvocationMetaChips.displayName = "InvocationMetaChips"
 
 export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps) => {
     const {columnResult} = usePreviewTableData({runId})
-    const projectId = useAtomValue(effectiveProjectIdAtom)
     const descriptorMap = useAtomValue(
         useMemo(() => columnValueDescriptorMapAtomFamily(runId ?? null), [runId]),
     )
     const runIndex = useAtomValue(
         useMemo(() => evaluationRunIndexAtomFamily(runId ?? null), [runId]),
     )
-    const invocationRefs = useAtomValue(
-        useMemo(() => runInvocationRefsAtomFamily(runId ?? null), [runId]),
-    )
-    const testsetIds = useAtomValue(useMemo(() => runTestsetIdsAtomFamily(runId ?? null), [runId]))
-    const variantId = useMemo(
-        () => invocationRefs?.variantId ?? invocationRefs?.applicationVariantId ?? null,
-        [invocationRefs],
-    )
-
-    if (!columnResult) {
-        return <Skeleton active paragraph={{rows: 6}} />
-    }
 
     const groups = columnResult.groups ?? []
     const columnMap = useMemo(() => {
@@ -698,6 +685,10 @@ export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps)
             })
             .filter((section): section is FocusDrawerSection => Boolean(section))
     }, [columnMap, descriptorMap, groups, runIndex])
+
+    if (!columnResult) {
+        return <Skeleton active paragraph={{rows: 6}} />
+    }
 
     return (
         <div
