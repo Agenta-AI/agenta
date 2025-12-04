@@ -644,7 +644,7 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
             key: runId,
             width: 160,
             onCell: (record: MetadataRowRecord) => {
-                if (!isComparison || record.key === "query_config" || record.key === "testsets") {
+                if (!isComparison || record.key === "query_config") {
                     return {}
                 }
                 const tone = getComparisonColor(index)
