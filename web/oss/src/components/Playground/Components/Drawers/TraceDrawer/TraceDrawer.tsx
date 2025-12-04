@@ -1,7 +1,5 @@
 import {useCallback, useState} from "react"
 
-import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
-import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
@@ -30,39 +28,29 @@ const TraceDrawer = () => {
         [clearTraceParam, setSpanQueryParam],
     )
 
-    const header = (
-        <div className="flex items-center gap-3">
-            <Button onClick={() => closeDrawer()} type="text" icon={<CloseOutlined />} />
-
-            <Button
-                onClick={() =>
-                    setDrawerWidth((width) => (width === initialWidth ? 1920 : initialWidth))
-                }
-                type="text"
-                icon={
-                    drawerWidth === initialWidth ? (
-                        <FullscreenOutlined />
-                    ) : (
-                        <FullscreenExitOutlined />
-                    )
-                }
-            />
-        </div>
-    )
+    const toggleWidth = useCallback(() => {
+        setDrawerWidth((width) => (width === initialWidth ? 1920 : initialWidth))
+    }, [initialWidth])
 
     return (
         <EnhancedDrawer
             closeIcon={null}
-            title={header}
+            title={null}
             open={open}
             onClose={closeDrawer}
             width={drawerWidth}
             closeOnLayoutClick={false}
             afterOpenChange={handleAfterOpenChange}
-            className="[&_.ant-drawer-body]:p-0"
+            className="[&_.ant-drawer-body]:p-0 [&_.ant-drawer-header]:hidden"
             destroyOnHidden
         >
-            {open && <TraceDrawerContent />}
+            {open && (
+                <TraceDrawerContent
+                    onClose={closeDrawer}
+                    onToggleWidth={toggleWidth}
+                    isExpanded={drawerWidth !== initialWidth}
+                />
+            )}
         </EnhancedDrawer>
     )
 }
