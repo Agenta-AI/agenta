@@ -81,14 +81,9 @@ const EvaluatorMetricsSpiderChart = ({
     const RAD = Math.PI / 180
 
     return (
-        <div className={clsx("border border-solid border-[#EAEFF5] rounded", className)}>
+        <div className={clsx("border border-solid border-[#EAEFF5] rounded p-2", className)}>
             <ResponsiveContainer width="100%" height="100%">
-                <RadarChart
-                    cx="52%"
-                    cy={chartData.length < 4 ? "62%" : "50%"}
-                    outerRadius={150}
-                    data={chartData}
-                >
+                <RadarChart cx="50%" cy="50%" outerRadius="45%" data={chartData}>
                     <PolarGrid stroke="#EAEFF5" />
                     <PolarAngleAxis
                         dataKey="subject"

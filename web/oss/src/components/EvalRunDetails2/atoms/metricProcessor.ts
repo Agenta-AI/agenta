@@ -504,13 +504,19 @@ export const createMetricProcessor = ({
             const hasMissingRunOnly =
                 runLevelFlags.length > 0 &&
                 runLevelFlags.every((f) => f === "missing-run-level-entry")
-            
+
             const shouldRunRefresh =
                 (!hasRunPending && hasActionableRunFlag) ||
                 (!hasScenarioSignals && !hasRunPending && hasMissingRunOnly)
-            
+
             if (shouldRunRefresh) {
-                console.log(runId, hasRunPending, hasActionableRunFlag, hasScenarioSignals, hasMissingRunOnly)
+                console.log(
+                    runId,
+                    hasRunPending,
+                    hasActionableRunFlag,
+                    hasScenarioSignals,
+                    hasMissingRunOnly,
+                )
                 console.log(runLevelFlags)
             }
 
