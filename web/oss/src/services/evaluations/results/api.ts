@@ -137,19 +137,39 @@ export const upsertStepResultWithAnnotation = async ({
     const traceIdUuid = hexToUuid(annotationTraceId)
     const spanIdUuid = spanHexToUuid(annotationSpanId)
 
+    console.log("[upsertStepResultWithAnnotation] Input:", {
+        runId,
+        scenarioId,
+        stepKey,
+        annotationTraceId,
+        annotationSpanId,
+        traceIdUuid,
+        spanIdUuid,
+        status,
+    })
+
     // Query for existing step result
     let existingResult: StepResult | null = null
     try {
         const results = await queryStepResults({runId, scenarioId, stepKeys: [stepKey]})
+        console.log("[upsertStepResultWithAnnotation] Query results:", results)
         existingResult =
             results.find((r) => r.step_key === stepKey || (r as any).stepKey === stepKey) || null
-    } catch {
+        console.log("[upsertStepResultWithAnnotation] Found existing:", existingResult)
+    } catch (err) {
+        console.error("[upsertStepResultWithAnnotation] Query error:", err)
         // Ignore query errors, will create new result
     }
 
     if (existingResult?.id) {
         // Update existing result - only send trace_id and span_id (no references wrapper)
-        await axios.patch(`${RESULTS_ENDPOINT}?project_id=${projectId}`, {
+        console.log("[upsertStepResultWithAnnotation] Updating existing result:", {
+            id: existingResult.id,
+            status,
+            trace_id: traceIdUuid,
+            span_id: spanIdUuid,
+        })
+        const response = await axios.patch(`${RESULTS_ENDPOINT}?project_id=${projectId}`, {
             results: [
                 {
                     id: existingResult.id,
@@ -159,9 +179,18 @@ export const upsertStepResultWithAnnotation = async ({
                 },
             ],
         })
+        console.log("[upsertStepResultWithAnnotation] Update response:", response.data)
     } else {
         // Create new result - only send trace_id and span_id (no references wrapper)
-        await axios.post(`${RESULTS_ENDPOINT}?project_id=${projectId}`, {
+        console.log("[upsertStepResultWithAnnotation] Creating new result:", {
+            run_id: runId,
+            scenario_id: scenarioId,
+            step_key: stepKey,
+            status,
+            trace_id: traceIdUuid,
+            span_id: spanIdUuid,
+        })
+        const response = await axios.post(`${RESULTS_ENDPOINT}?project_id=${projectId}`, {
             results: [
                 {
                     run_id: runId,
@@ -173,5 +202,6 @@ export const upsertStepResultWithAnnotation = async ({
                 },
             ],
         })
+        console.log("[upsertStepResultWithAnnotation] Create response:", response.data)
     }
 }

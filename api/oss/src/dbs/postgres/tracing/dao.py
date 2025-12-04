@@ -924,8 +924,8 @@ class TracingDAO(TracingDAOInterface):
         specs: List[MetricSpec],
     ) -> List[MetricsBucket]:
         # DEBUGGING
-        log.trace(query.model_dump(mode="json", exclude_none=True))
-        log.trace([s.model_dump(mode="json", exclude_none=True) for s in specs])
+        # log.trace(query.model_dump(mode="json", exclude_none=True))
+        # log.trace([s.model_dump(mode="json", exclude_none=True) for s in specs])
         # ---------
 
         if not query.windowing:
@@ -949,11 +949,11 @@ class TracingDAO(TracingDAOInterface):
             if percent == 0:
                 return []
 
-        log.info(f"[TRACING] [analytics] processing {len(specs)} specs")
-        for idx, spec in enumerate(specs):
-            log.info(
-                f"[TRACING] [analytics] spec[{idx}]: type={spec.type}, path={spec.path}"
-            )
+        # log.info(f"[TRACING] [analytics] processing {len(specs)} specs")
+        # for idx, spec in enumerate(specs):
+        #     log.info(
+        #         f"[TRACING] [analytics] spec[{idx}]: type={spec.type}, path={spec.path}"
+        #     )
 
         metric_specs: Dict[int, MetricSpec] = {
             idx: MetricSpec(
@@ -963,9 +963,9 @@ class TracingDAO(TracingDAOInterface):
             for idx, s in enumerate(specs)
         }
 
-        log.info(
-            f"[TRACING] [analytics] metric_specs after prefix removal: {[(idx, spec.path) for idx, spec in metric_specs.items()]}"
-        )
+        # log.info(
+        #     f"[TRACING] [analytics] metric_specs after prefix removal: {[(idx, spec.path) for idx, spec in metric_specs.items()]}"
+        # )
 
         type_flags = build_type_flags(
             metric_specs=list(metric_specs.values()),
@@ -975,7 +975,7 @@ class TracingDAO(TracingDAOInterface):
             log.warning("[TRACING] [analytics] no type flags found from specs")
             return []
 
-        log.info(f"[TRACING] [analytics] type_flags built successfully")
+        # log.info(f"[TRACING] [analytics] type_flags built successfully")
 
         specs_values = build_specs_values(
             metric_specs=list(metric_specs.values()),
@@ -985,7 +985,7 @@ class TracingDAO(TracingDAOInterface):
             log.warning("[TRACING] [analytics] no specs values found from metric specs")
             return []
 
-        log.info(f"[TRACING] [analytics] specs_values: {specs_values}")
+        # log.info(f"[TRACING] [analytics] specs_values: {specs_values}")
 
         base_cte = build_base_cte(
             project_id=project_id,
@@ -1002,7 +1002,7 @@ class TracingDAO(TracingDAOInterface):
             log.warning("[TRACING] [analytics] no base CTE found from filtering")
             return []
 
-        log.info(f"[TRACING] [analytics] base CTE built")
+        # log.info(f"[TRACING] [analytics] base CTE built")
 
         extract_cte = build_extract_cte(
             base_cte=base_cte,
@@ -1013,7 +1013,7 @@ class TracingDAO(TracingDAOInterface):
             log.warning("[TRACING] [analytics] no extract CTE found")
             return []
 
-        log.info(f"[TRACING] [analytics] extract CTE built")
+        # log.info(f"[TRACING] [analytics] extract CTE built")
 
         statistics_stmt = build_statistics_stmt(
             extract_cte=extract_cte,
@@ -1025,7 +1025,7 @@ class TracingDAO(TracingDAOInterface):
             return []
 
         # DEBUGGING
-        log.trace(str(statistics_stmt.compile(**DEBUG_ARGS)).replace("\n", " "))
+        # log.trace(str(statistics_stmt.compile(**DEBUG_ARGS)).replace("\n", " "))
         # ---------
 
         async with engine.tracing_session() as session:
@@ -1133,7 +1133,7 @@ class TracingDAO(TracingDAOInterface):
             buckets.append(bucket)
 
         # DEBUGGING
-        log.trace([b.model_dump(mode="json", exclude_none=True) for b in buckets])
+        # log.trace([b.model_dump(mode="json", exclude_none=True) for b in buckets])
         # ---------
 
         return buckets

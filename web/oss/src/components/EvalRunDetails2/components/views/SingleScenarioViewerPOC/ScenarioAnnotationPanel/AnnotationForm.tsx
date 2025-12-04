@@ -2,31 +2,30 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Alert, Collapse, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
 
 import {transformMetadata} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 
+import type {AnnotationMetrics, EvaluatorDto} from "../types"
+
 import {AnnotationFieldRenderer} from "./AnnotationInputs"
-import {
-    currentErrorsAtom,
-    dismissErrorAtom,
-    effectiveMetricsAtom,
-    evaluatorsAtom,
-    updateMetricAtom,
-} from "./atoms"
 
 interface AnnotationFormProps {
-    scenarioId: string
+    evaluators: EvaluatorDto[]
+    metrics: AnnotationMetrics
+    errors: string[]
     disabled?: boolean
+    onMetricChange: (slug: string, fieldKey: string, value: unknown) => void
+    onDismissError: (index: number) => void
 }
 
-const AnnotationForm = ({scenarioId, disabled = false}: AnnotationFormProps) => {
-    const evaluators = useAtomValue(evaluatorsAtom)
-    const metrics = useAtomValue(effectiveMetricsAtom)
-    const errors = useAtomValue(currentErrorsAtom)
-    const updateMetric = useSetAtom(updateMetricAtom)
-    const dismissError = useSetAtom(dismissErrorAtom)
-
+const AnnotationForm = ({
+    evaluators,
+    metrics,
+    errors,
+    disabled = false,
+    onMetricChange,
+    onDismissError,
+}: AnnotationFormProps) => {
     // Track active collapse panels - compute from evaluators
     const evaluatorSlugs = useMemo(
         () => evaluators.map((e) => e.slug).filter(Boolean),
@@ -44,15 +43,14 @@ const AnnotationForm = ({scenarioId, disabled = false}: AnnotationFormProps) => 
     }, [])
 
     // Handle metric change - adapts the AnnotateCollapseContent onChange signature
-    // Include scenarioId to prevent stale debounced updates from affecting wrong scenario
     const handleMetricChange = useCallback(
         (annSlug: string, metricKey: string, newValue: unknown) => {
-            updateMetric({scenarioId, slug: annSlug, fieldKey: metricKey, value: newValue})
+            onMetricChange(annSlug, metricKey, newValue)
         },
-        [updateMetric, scenarioId],
+        [onMetricChange],
     )
 
-    // Build collapse items from evaluators using the same approach as the original Annotate component
+    // Build collapse items from evaluators
     const items = useMemo(() => {
         return evaluators
             .filter((e) => e.slug)
@@ -60,7 +58,7 @@ const AnnotationForm = ({scenarioId, disabled = false}: AnnotationFormProps) => 
                 const slug = evaluator.slug
                 const metricFields = metrics[slug] ?? {}
 
-                // Use transformMetadata to convert metrics to the format expected by AnnotateCollapseContent
+                // Use transformMetadata to convert metrics to the format expected by AnnotationFieldRenderer
                 const metadata = transformMetadata({data: metricFields})
 
                 return {
@@ -129,7 +127,7 @@ const AnnotationForm = ({scenarioId, disabled = false}: AnnotationFormProps) => 
                     message={err}
                     type="warning"
                     className="!rounded-none"
-                    onClose={() => dismissError(idx)}
+                    onClose={() => onDismissError(idx)}
                 />
             ))}
 

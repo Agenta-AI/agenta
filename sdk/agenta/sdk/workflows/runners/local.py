@@ -92,7 +92,9 @@ class LocalRunner(CodeRunner):
                     raise ValueError(f"Result cannot be converted to float: {e}")
 
             if not isinstance(result, float):
-                raise TypeError(f"Result is not a float after conversion: {type(result)}")
+                raise TypeError(
+                    f"Result is not a float after conversion: {type(result)}"
+                )
 
             return result
 

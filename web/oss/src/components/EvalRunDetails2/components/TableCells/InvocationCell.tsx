@@ -168,7 +168,7 @@ const PreviewEvaluationInvocationCell = ({
                             </span>
                         </div>
                     </div>
-                    <div className="flex-shrink-0 mt-2">
+                    <div className="flex-shrink-0">
                         <InvocationTraceSummary
                             scenarioId={scenarioId}
                             stepKey={column.stepKey}
@@ -199,10 +199,10 @@ const PreviewEvaluationInvocationCell = ({
         return (
             <CellContentPopover content={popoverContent}>
                 <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-                    <div className="flex-1 min-h-0 overflow-hidden">
+                    <div className="scenario-invocation-content flex-1 min-h-0 overflow-hidden">
                         <div className="flex w-full flex-col gap-2">{chatNodes}</div>
                     </div>
-                    <div className="flex-shrink-0 mt-2">
+                    <div className="flex-shrink-0">
                         <InvocationTraceSummary
                             scenarioId={scenarioId}
                             stepKey={column.stepKey}
@@ -217,10 +217,10 @@ const PreviewEvaluationInvocationCell = ({
     return (
         <CellContentPopover content={popoverContent}>
             <div ref={ref} className={clsx(CONTAINER_CLASS, "!justify-between")} style={widthStyle}>
-                <div className="flex-1 min-h-0 overflow-hidden">
+                <div className="scenario-invocation-content flex-1 min-h-0 overflow-hidden">
                     <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
                 </div>
-                <div className="flex-shrink-0 mt-2">
+                <div className="flex-shrink-0">
                     <InvocationTraceSummary
                         scenarioId={scenarioId}
                         stepKey={column.stepKey}

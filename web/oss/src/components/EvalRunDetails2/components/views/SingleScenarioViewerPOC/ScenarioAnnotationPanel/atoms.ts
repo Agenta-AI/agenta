@@ -155,11 +155,6 @@ const currentScenarioStateAtom = atom((get) => {
     const scenarioId = get(currentScenarioIdAtom)
     if (!scenarioId) return createInitialState()
     const state = get(scenarioAnnotationStateFamily(scenarioId))
-    console.log("[currentScenarioStateAtom] Reading state for:", scenarioId, {
-        annotationsCount: state.annotations.length,
-        evaluatorsCount: state.evaluators.length,
-        metricEditsKeys: Object.keys(state.metricEdits),
-    })
     return state
 })
 
@@ -226,27 +221,16 @@ export const baselineMetricsAtom = atom((get) => {
     const evaluatorMap = get(evaluatorMapAtom)
     const baseline: AnnotationMetrics = {}
 
-    console.log("[baselineMetricsAtom] Computing for scenario:", scenarioId, {
-        annotationsCount: annotations.length,
-        unannotatedSlugs,
-        evaluatorMapSize: evaluatorMap.size,
-    })
-
     // Add metrics from existing annotations
     for (const ann of annotations) {
         const slug = ann.references?.evaluator?.slug
-        console.log("[baselineMetricsAtom] Processing annotation:", {
-            slug,
-            hasEvaluator: evaluatorMap.has(slug ?? ""),
-            rawOutputs: ann.data?.outputs,
-        })
+
         if (!slug) continue
 
         const evaluator = evaluatorMap.get(slug)
         if (!evaluator) continue
 
         const metrics = getMetricsFromAnnotation(ann, evaluator)
-        console.log("[baselineMetricsAtom] Extracted metrics for", slug, ":", metrics)
         baseline[slug] = metrics
     }
 
@@ -266,12 +250,6 @@ export const effectiveMetricsAtom = atom((get) => {
     const scenarioId = get(currentScenarioIdAtom)
     const baseline = get(baselineMetricsAtom)
     const edits = get(currentMetricEditsAtom)
-
-    console.log("[effectiveMetricsAtom] Computing for scenario:", scenarioId, {
-        baselineKeys: Object.keys(baseline),
-        editsKeys: Object.keys(edits),
-        baseline,
-    })
 
     if (Object.keys(edits).length === 0) {
         return baseline
@@ -374,6 +352,27 @@ export const allRequiredFieldsFilledAtom = atom((get) => {
     return true
 })
 
+/**
+ * Extract trace ID from a step, checking multiple possible locations
+ */
+const extractTraceIdFromStep = (step: ScenarioStep): string | undefined => {
+    // Direct properties
+    const direct = step.traceId ?? step.trace_id
+    if (direct) return direct
+
+    // Nested in trace object (from invocation results)
+    const trace = (step as any)?.trace
+    if (trace?.tree?.id) return String(trace.tree.id)
+    if (Array.isArray(trace?.trees) && trace.trees[0]?.tree?.id) {
+        return String(trace.trees[0].tree.id)
+    }
+    if (Array.isArray(trace?.nodes) && trace.nodes[0]?.trace_id) {
+        return String(trace.nodes[0].trace_id)
+    }
+
+    return undefined
+}
+
 /** Trace/span IDs for annotation linking */
 export const traceSpanIdsAtom = atom((get) => {
     const invocationSteps = get(invocationStepsAtom)
@@ -381,7 +380,7 @@ export const traceSpanIdsAtom = atom((get) => {
     const annotations = get(scenarioAnnotationsAtom)
 
     for (const step of invocationSteps) {
-        const traceId = step.traceId ?? step.trace_id
+        const traceId = extractTraceIdFromStep(step)
         if (traceId) {
             const spanId = step.spanId ?? step.span_id ?? uuidToSpanId(traceId) ?? ""
             return {traceId, spanId}
@@ -389,7 +388,7 @@ export const traceSpanIdsAtom = atom((get) => {
     }
 
     for (const step of allSteps) {
-        const traceId = step.traceId ?? step.trace_id
+        const traceId = extractTraceIdFromStep(step)
         if (traceId) {
             const spanId = step.spanId ?? step.span_id ?? uuidToSpanId(traceId) ?? ""
             return {traceId, spanId}
@@ -467,24 +466,15 @@ export const setScenarioDataAtom = atom(
 
         // Only update annotations if we have new ones or if the state is empty
         // This prevents overwriting good data with stale/empty data during navigation
+        // IMPORTANT: Never replace existing annotations with empty array - this causes
+        // the UI to flash empty values during refetch after save
         const shouldUpdateAnnotations =
             annotations.length > 0 || currentState.annotations.length === 0
 
         // Reset metricEdits if there are no annotations (nothing to edit)
         // This prevents stale edits from showing up on unannotated scenarios
+        // Only reset if we're certain there are no annotations (both incoming and current are empty)
         const shouldResetEdits = annotations.length === 0 && currentState.annotations.length === 0
-
-        console.log("[setScenarioDataAtom] Setting data for scenario:", scenarioId, {
-            incomingAnnotationsCount: annotations.length,
-            currentAnnotationsCount: currentState.annotations.length,
-            shouldUpdateAnnotations,
-            shouldResetEdits,
-            currentMetricEditsKeys: Object.keys(currentState.metricEdits),
-            incomingAnnotations: annotations.map((a) => ({
-                slug: a.references?.evaluator?.slug,
-                outputs: a.data?.outputs,
-            })),
-        })
 
         // Update with new source data, preserving user edits and errors
         // Only update annotations if we have meaningful data
@@ -516,19 +506,20 @@ export const updateMetricAtom = atom(
     ) => {
         // Use provided scenarioId or fall back to current (for backward compat)
         const scenarioId = targetScenarioId || get(currentScenarioIdAtom)
-        console.log("[updateMetricAtom] Updating metric:", {scenarioId, slug, fieldKey, value})
         if (!scenarioId) return
 
         // Verify we're updating the correct scenario (prevent stale updates)
+        // Only skip if currentId is set AND different from target scenarioId
+        // (empty currentId means useEffect hasn't run yet, which is fine)
         const currentId = get(currentScenarioIdAtom)
-        if (scenarioId !== currentId) {
-            console.log(
-                "[updateMetricAtom] Skipping stale update for:",
-                scenarioId,
-                "current:",
-                currentId,
-            )
+        if (currentId && scenarioId !== currentId) {
             return
+        }
+
+        // If currentId is empty, set it to the target scenarioId
+        // This handles the case where updateMetric is called before setScenarioData
+        if (!currentId) {
+            set(currentScenarioIdAtom, scenarioId)
         }
 
         const state = get(scenarioAnnotationStateFamily(scenarioId))

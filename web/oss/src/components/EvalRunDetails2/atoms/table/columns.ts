@@ -320,18 +320,6 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
             ? runData.camelRun.data.mappings
             : []
 
-        console.debug("[columns.ts] Building columns from mappings", {
-            runId,
-            mappingsCount: mappings.length,
-            mappings: mappings.map((m: any) => ({
-                stepKey: m?.step?.key,
-                stepPath: m?.step?.path,
-                columnKind: m?.column?.kind,
-                columnName: m?.column?.name,
-            })),
-            steps: Object.keys(runData.runIndex.steps ?? {}),
-        })
-
         const counters: Record<"input" | "invocation" | "annotation", number> = {
             input: 0,
             invocation: 0,
