@@ -6,6 +6,10 @@ from daytona import Daytona, DaytonaConfig
 
 from agenta.sdk.workflows.runners.base import CodeRunner
 
+from agenta.sdk.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
 
 class DaytonaRunner(CodeRunner):
     """Remote code runner using Daytona sandbox for execution."""
@@ -61,6 +65,8 @@ class DaytonaRunner(CodeRunner):
             # Try to reuse existing sandbox via AGENTA_SERVICES_SANDBOX_SNAPSHOT_PYTHON
             snapshot_id = os.getenv("AGENTA_SERVICES_SANDBOX_SNAPSHOT_PYTHON")
 
+            log.debug("snapshot_id", snapshot_id)
+
             if not snapshot_id:
                 raise RuntimeError(
                     "AGENTA_SERVICES_SANDBOX_SNAPSHOT_PYTHON environment variable is required. "
@@ -77,6 +83,9 @@ class DaytonaRunner(CodeRunner):
                         ephemeral=True,
                     )
                 )
+
+                log.debug("[START]")
+
             except Exception as e:
                 raise RuntimeError(f"Failed to create sandbox from snapshot: {e}")
         except RuntimeError:
@@ -174,7 +183,7 @@ print(json.dumps({{"result": result}}))
             self.sandbox = None
         except Exception as e:
             # Log but don't raise on cleanup failures
-            print(f"Warning: Failed to cleanup Daytona resources: {e}")
+            log.error(f"Warning: Failed to cleanup Daytona resources", exc_info=True)
 
     def __del__(self):
         """Ensure cleanup on deletion."""
