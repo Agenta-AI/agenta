@@ -26,7 +26,7 @@ def upgrade() -> None:
     # This constraint allowed multiple rows with (run_id, NULL, NULL)
     # because PostgreSQL treats NULL != NULL in unique constraints
     op.drop_constraint(
-        "uq_evaluation_metrics_project_run_scenario_timestamp_interval",
+        "uq_evaluation_metrics_project_run_scenario_timestamp",
         "evaluation_metrics",
         type_="unique",
     )
@@ -69,7 +69,7 @@ def downgrade() -> None:
 
     # Recreate the old broken unique constraint
     op.create_unique_constraint(
-        "evaluation_metrics_project_id_run_id_scenario_id_timestamp_key",
+        "uq_evaluation_metrics_project_run_scenario_timestamp",
         "evaluation_metrics",
         ["project_id", "run_id", "scenario_id", "timestamp"],
     )
