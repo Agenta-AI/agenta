@@ -109,8 +109,6 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
                         setSpanParam={setSpanQueryParam}
                         setTraceDrawerTrace={setTraceDrawerTrace}
                         activeTraceIndex={0}
-                        setIsAnnotationsSectionOpen={setIsAnnotationsSectionOpen}
-                        isAnnotationsSectionOpen={isAnnotationsSectionOpen}
                         setSelected={setSelected}
                     />
                 </div>
@@ -125,23 +123,19 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
                                 setSelected={setSelected}
                             />
                         </Splitter.Panel>
-                        <Splitter.Panel min={400} defaultSize={640}>
+                        <Splitter.Panel min={400}>
                             <TraceContent
                                 activeTrace={activeTrace as any}
                                 traceResponse={traceResponse}
                                 error={error as any}
                                 isLoading={isLoading}
+                                setSelectedTraceId={setGlobalSelectedTraceId}
+                                setIsAnnotationsSectionOpen={setIsAnnotationsSectionOpen}
+                                isAnnotationsSectionOpen={isAnnotationsSectionOpen}
+                                traces={traces as any}
+                                activeId={activeId}
                             />
                         </Splitter.Panel>
-                        {isAnnotationsSectionOpen && (
-                            <Splitter.Panel min={200} defaultSize={320} collapsible>
-                                <TraceSidePanel
-                                    activeTrace={activeTrace as any}
-                                    activeTraceId={activeId}
-                                    isLoading={isLoading}
-                                />
-                            </Splitter.Panel>
-                        )}
                     </Splitter>
                 </div>
             </Spin>

@@ -30,8 +30,6 @@ export interface TraceHeaderProps {
     ) => void
     setTraceDrawerTrace: (payload: {traceId: string; activeSpanId?: string | null}) => void
     activeTraceIndex?: number
-    setIsAnnotationsSectionOpen?: Dispatch<SetStateAction<boolean>>
-    isAnnotationsSectionOpen?: boolean
     setSelected?: Dispatch<SetStateAction<string>>
 }
 

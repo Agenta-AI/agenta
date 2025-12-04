@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {DeleteOutlined} from "@ant-design/icons"
-import {CaretDown, CaretUp, SidebarSimple} from "@phosphor-icons/react"
+import {CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -17,8 +16,6 @@ import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {useObservability} from "@/oss/state/newObservability"
 import buildTraceQueryParams from "@/oss/state/newObservability/utils/buildTraceQueryParams"
-
-import DeleteTraceModal from "../../components/DeleteTraceModal"
 
 import {TraceHeaderProps, NavState, NavSource} from "./assets/types"
 import {getTraceIdFromNode, getSpanIdFromNode, getNodeTimestamp, toISOString} from "./assets/helper"
@@ -38,12 +35,8 @@ const TraceHeader = ({
     setSpanParam,
     setTraceDrawerTrace,
     activeTraceIndex: _activeTraceIndex,
-    setIsAnnotationsSectionOpen,
-    isAnnotationsSectionOpen,
     setSelected,
 }: TraceHeaderProps) => {
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-
     const {traces: tableTracesRaw, hasMoreTraces, fetchMoreTraces} = useObservability()
     const appId = useAtomValue(selectedAppIdAtom)
 
@@ -440,30 +433,7 @@ const TraceHeader = ({
                         </Tag>
                     </TooltipWithCopyAction>
                 </Space>
-
-                <Space>
-                    <Button
-                        icon={<DeleteOutlined />}
-                        onClick={() => setIsDeleteModalOpen(true)}
-                        disabled={!displayTrace}
-                    />
-                    {setIsAnnotationsSectionOpen && (
-                        <Button
-                            icon={<SidebarSimple size={14} />}
-                            type={isAnnotationsSectionOpen ? "default" : "primary"}
-                            className="shrink-0 flex items-center justify-center"
-                            onClick={() => setIsAnnotationsSectionOpen((prev) => !prev)}
-                        />
-                    )}
-                </Space>
             </div>
-
-            <DeleteTraceModal
-                open={isDeleteModalOpen}
-                onCancel={() => setIsDeleteModalOpen(false)}
-                activeTraceId={getTraceIdFromNode(displayTrace) || ""}
-                setSelectedTraceId={setSelectedTraceId}
-            />
         </>
     )
 }

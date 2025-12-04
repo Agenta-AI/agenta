@@ -11,6 +11,7 @@ import useTraceDrawer from "../hooks/useTraceDrawer"
 
 import TraceAnnotations from "./TraceAnnotations"
 import TraceDetails from "./TraceDetails"
+import clsx from "clsx"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -106,7 +107,7 @@ const TraceSidePanel = ({
         <Collapse
             items={items}
             defaultActiveKey={["annotations", "details"]}
-            className={classes.collapseContainer}
+            className={clsx(classes.collapseContainer, "[&_.ant-collapse-header]:!py-[10.5px]")}
         />
     )
 }
