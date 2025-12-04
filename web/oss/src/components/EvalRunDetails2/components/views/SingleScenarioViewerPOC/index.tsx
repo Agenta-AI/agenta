@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useMemo, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {Card, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -222,14 +222,25 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         return columnResult.columns.filter((col) => ids.has(col.id))
     }, [columnResult])
 
-    // Annotations
-    const traceIds = useMemo(
-        () =>
-            annotationSteps
-                .map((step: any) => step?.traceId)
-                .filter((id): id is string => Boolean(id)),
-        [annotationSteps],
-    )
+    // Annotations - collect trace IDs from both annotation steps AND invocation steps
+    // This ensures we can fetch annotations even before annotation steps exist
+    const traceIds = useMemo(() => {
+        const ids = new Set<string>()
+
+        // Add trace IDs from annotation steps
+        annotationSteps.forEach((step: any) => {
+            const traceId = step?.traceId ?? step?.trace_id
+            if (traceId) ids.add(traceId)
+        })
+
+        // Add trace IDs from invocation steps (annotations are linked to these)
+        invocationSteps.forEach((step: any) => {
+            const traceId = step?.traceId ?? step?.trace_id
+            if (traceId) ids.add(traceId)
+        })
+
+        return Array.from(ids)
+    }, [annotationSteps, invocationSteps])
     const traceIdsKey = useMemo(() => traceIds.join("|"), [traceIds])
 
     const annotationsQueryAtom = useMemo(
@@ -245,6 +256,9 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         ),
     )
 
+    // Use ref to preserve previous annotations during refetch
+    const prevAnnotationsRef = useRef<any[]>([])
+
     const existingAnnotations = useMemo(() => {
         const fromQuery = annotationsQuery?.data?.length ? annotationsQuery.data : null
         const fromSteps = annotationSteps
@@ -253,16 +267,15 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
 
         const result = fromQuery ?? fromSteps
 
-        console.log("[SingleScenarioViewerPOC] existingAnnotations computed:", {
-            activeId,
-            fromQueryCount: fromQuery?.length ?? 0,
-            fromStepsCount: fromSteps.length,
-            resultCount: result.length,
-            result: result.map((a: any) => ({
-                slug: a?.references?.evaluator?.slug,
-                outputs: a?.data?.outputs,
-            })),
-        })
+        // If we have new data, update the ref
+        // If result is empty but we had previous data, return previous to prevent flash
+        if (result.length > 0) {
+            prevAnnotationsRef.current = result
+            return result
+        } else if (prevAnnotationsRef.current.length > 0) {
+            // Keep previous annotations during refetch to prevent UI flash
+            return prevAnnotationsRef.current
+        }
 
         return result
     }, [annotationsQuery?.data, annotationSteps, activeId])
@@ -279,6 +292,8 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         setAnnotationMetrics({})
         setLocalAnnotations([])
         _setAnnotationErrors([])
+        // Clear the previous annotations ref when switching scenarios
+        prevAnnotationsRef.current = []
     }, [activeId])
 
     // Combined annotations (existing + local optimistic updates)

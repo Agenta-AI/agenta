@@ -54,6 +54,14 @@ const metricBatcherCache = new Map<string, BatchFetcher<string, ScenarioMetricDa
 const scenarioStatusCache = new Map<string, string | null>()
 
 /**
+ * Track scenarios that have recently had metrics saved.
+ * This prevents triggering a refresh immediately after saving when the
+ * scenario is in terminal state but metrics haven't been persisted yet.
+ */
+const recentlySavedScenarios = new Set<string>()
+const RECENTLY_SAVED_TTL_MS = 10_000 // 10 seconds
+
+/**
  * Update the scenario status cache with new scenario data.
  * Call this when scenarios are loaded to make statuses available for metric refresh logic.
  */
@@ -63,6 +71,26 @@ export const updateScenarioStatusCache = (scenarios: {id: string; status?: strin
             scenarioStatusCache.set(scenario.id, scenario.status ?? null)
         }
     })
+}
+
+/**
+ * Mark a scenario as recently saved to prevent immediate refresh.
+ * Call this after saving annotations/metrics to prevent the refresh logic
+ * from triggering before the new data is persisted.
+ */
+export const markScenarioAsRecentlySaved = (scenarioId: string) => {
+    recentlySavedScenarios.add(scenarioId)
+    // Auto-clear after TTL
+    setTimeout(() => {
+        recentlySavedScenarios.delete(scenarioId)
+    }, RECENTLY_SAVED_TTL_MS)
+}
+
+/**
+ * Check if a scenario was recently saved (within TTL).
+ */
+export const wasScenarioRecentlySaved = (scenarioId: string): boolean => {
+    return recentlySavedScenarios.has(scenarioId)
 }
 
 /**
@@ -84,6 +112,7 @@ export const getScenarioStatuses = (scenarioIds: string[]): Map<string, string |
  */
 export const clearScenarioStatusCache = () => {
     scenarioStatusCache.clear()
+    recentlySavedScenarios.clear()
 }
 
 /**

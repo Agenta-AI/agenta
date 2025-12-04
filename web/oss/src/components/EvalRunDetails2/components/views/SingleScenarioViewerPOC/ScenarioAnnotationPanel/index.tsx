@@ -1,8 +1,8 @@
-import {memo, useCallback, useEffect, useMemo, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Card, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
@@ -17,27 +17,15 @@ import {
 import {upsertScenarioMetricData} from "@/oss/services/runMetrics/api"
 
 import {invalidateAnnotationBatcherCache} from "../../../../atoms/annotations"
-import {invalidateMetricBatcherCache} from "../../../../atoms/metrics"
+import {invalidateMetricBatcherCache, markScenarioAsRecentlySaved} from "../../../../atoms/metrics"
 import {invalidatePreviewRunMetricStatsAtom} from "../../../../atoms/runMetrics"
 import {invalidateScenarioStepsBatcherCache} from "../../../../atoms/scenarioSteps"
 import {buildScenarioMetricDataFromAnnotation} from "../../../../utils/buildAnnotationMetricData"
 import type {ScenarioAnnotationPanelProps} from "../types"
 
 import AnnotationForm from "./AnnotationForm"
-import {
-    allRequiredFieldsFilledAtom,
-    annotationStepKeyBySlugAtom,
-    effectiveMetricsAtom,
-    evaluatorsAtom,
-    hasPendingChangesAtom,
-    invocationStepKeyAtom,
-    resetMetricsAtom,
-    setErrorsAtom,
-    setScenarioDataAtom,
-    traceSpanIdsAtom,
-    unannotatedSlugsAtom,
-} from "./atoms"
 import RunOverlay from "./RunOverlay"
+import {useAnnotationState} from "./useAnnotationState"
 
 const ScenarioAnnotationPanel = ({
     runId,
@@ -54,55 +42,47 @@ const ScenarioAnnotationPanel = ({
 }: ScenarioAnnotationPanelProps) => {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [justSaved, setJustSaved] = useState(false)
+    // Track the expected annotation count after save - used to detect when refetch completes
+    const expectedAnnotationCountRef = useRef<number | null>(null)
     const queryClient = useQueryClient()
     const invalidateRunMetricStats = useSetAtom(invalidatePreviewRunMetricStatsAtom)
     const invalidateRunsTable = useSetAtom(invalidateEvaluationRunsTableAtom)
 
-    // Single action to set all scenario data atomically
-    const setScenarioData = useSetAtom(setScenarioDataAtom)
-    const resetMetrics = useSetAtom(resetMetricsAtom)
+    // Use the new hook for all annotation state management
+    const {
+        metrics,
+        errors,
+        hasPendingChanges,
+        allRequiredFieldsFilled,
+        unannotatedSlugs,
+        traceSpanIds,
+        invocationStepKey,
+        annotationStepKeyBySlug,
+        updateMetric,
+        setErrors,
+        dismissError,
+    } = useAnnotationState({
+        scenarioId,
+        evaluators,
+        annotations,
+        invocationSteps,
+        allSteps,
+    })
 
-    // Read derived state from atoms
-    const metrics = useAtomValue(effectiveMetricsAtom)
-    const hasPendingChanges = useAtomValue(hasPendingChangesAtom)
-    const allRequiredFieldsFilled = useAtomValue(allRequiredFieldsFilledAtom)
-    const unannotatedSlugs = useAtomValue(unannotatedSlugsAtom)
-    const traceSpanIds = useAtomValue(traceSpanIdsAtom)
-    const invocationStepKey = useAtomValue(invocationStepKeyAtom)
-    const annotationStepKeyBySlug = useAtomValue(annotationStepKeyBySlugAtom)
-    const setErrors = useSetAtom(setErrorsAtom)
-    const currentEvaluators = useAtomValue(evaluatorsAtom)
-
-    // Reset justSaved when annotations are updated (refetch completed)
-    // Also reset metricEdits since baseline now has the saved values
+    // Reset justSaved when annotations are refetched after save
+    // We wait for the expected number of annotations to arrive before allowing new edits
     useEffect(() => {
-        if (justSaved && annotations.length > 0) {
+        if (!justSaved) return
+
+        const expectedCount = expectedAnnotationCountRef.current
+        if (expectedCount !== null && annotations.length >= expectedCount) {
+            // Annotations have been refetched - reset justSaved
+            expectedAnnotationCountRef.current = null
             setJustSaved(false)
-            resetMetrics()
         }
-    }, [annotations, justSaved, resetMetrics])
+    }, [justSaved, annotations.length])
 
-    // Sync scenario data to atoms - single atomic update
-    useEffect(() => {
-        setScenarioData({
-            scenarioId,
-            runId,
-            evaluators,
-            annotations,
-            invocationSteps,
-            allSteps,
-        })
-    }, [scenarioId, runId, evaluators, annotations, invocationSteps, allSteps, setScenarioData])
-
-    // Get combined annotations for updates (existing annotations)
-    const combinedAnnotations = annotations
-
-    // Check if we can submit:
-    // - Not just saved (waiting for refetch)
-    // - Has trace ID for linking
-    // - Has invocation output
-    // - Has pending changes (user made edits)
-    // - All required fields are filled
+    // Check if we can submit
     const canSubmit = useMemo(() => {
         if (justSaved) return false
         if (!traceSpanIds.traceId || !hasInvocationOutput) return false
@@ -128,6 +108,14 @@ const ScenarioAnnotationPanel = ({
         primaryInvocation?.testset_id ??
         primaryInvocation?.testset?.id
 
+    // Handle metric change from form
+    const handleMetricChange = useCallback(
+        (slug: string, fieldKey: string, value: unknown) => {
+            updateMetric({slug, fieldKey, value})
+        },
+        [updateMetric],
+    )
+
     // Handle annotation save
     const handleSave = useCallback(async () => {
         if (!canSubmit) return
@@ -150,7 +138,7 @@ const ScenarioAnnotationPanel = ({
             }[] = []
 
             // Process existing annotations (updates)
-            for (const ann of combinedAnnotations) {
+            for (const ann of annotations) {
                 const slug = ann.references?.evaluator?.slug
                 if (!slug) continue
 
@@ -264,7 +252,6 @@ const ScenarioAnnotationPanel = ({
             const allRequests = [...updateRequests, ...createRequests]
             const responses = await Promise.all(allRequests.map((r) => r.promise))
 
-            // Update step results with annotation references
             const stepResultUpdates: Promise<void>[] = []
             responses.forEach((response, index) => {
                 const request = allRequests[index]
@@ -274,31 +261,30 @@ const ScenarioAnnotationPanel = ({
                 let annotationSpanId: string | undefined
 
                 if (request.isNew) {
-                    const respData = response as {
-                        data?: {
-                            annotation?: {
-                                trace_id?: string
-                                span_id?: string
-                                traceId?: string
-                                spanId?: string
-                            }
-                            trace_id?: string
-                            span_id?: string
-                        }
-                    }
-                    const annData = respData?.data?.annotation ?? respData?.data
+                    // Axios response has data in response.data
+                    // The annotation API returns the annotation directly in data
+                    const axiosResp = response as {data?: Record<string, unknown>}
+                    const annData = axiosResp?.data ?? {}
+
+                    // Try multiple possible locations for trace_id/span_id
                     annotationTraceId =
-                        annData?.trace_id ?? (annData as {traceId?: string})?.traceId
-                    annotationSpanId = annData?.span_id ?? (annData as {spanId?: string})?.spanId
+                        (annData.trace_id as string) ??
+                        (annData.traceId as string) ??
+                        ((annData.annotation as Record<string, unknown>)?.trace_id as string)
+                    annotationSpanId =
+                        (annData.span_id as string) ??
+                        (annData.spanId as string) ??
+                        ((annData.annotation as Record<string, unknown>)?.span_id as string)
                 } else {
                     annotationTraceId = request.traceId
                     annotationSpanId = request.spanId
                 }
 
                 if (annotationTraceId && annotationSpanId) {
-                    const existingStepKey = annotationStepKeyBySlug.get(request.slug)
+                    const existingStepKey = annotationStepKeyBySlug[request.slug]
                     const annotationStepKey =
                         existingStepKey ?? `${invocationStepKey}.${request.slug}`
+
                     stepResultUpdates.push(
                         upsertStepResultWithAnnotation({
                             runId,
@@ -309,11 +295,46 @@ const ScenarioAnnotationPanel = ({
                             status: "success",
                         }),
                     )
+                } else {
+                    console.warn("[ScenarioAnnotationPanel] Missing trace/span IDs:", {
+                        slug: request.slug,
+                        annotationTraceId,
+                        annotationSpanId,
+                    })
                 }
             })
 
             if (stepResultUpdates.length > 0) {
                 await Promise.all(stepResultUpdates)
+            }
+
+            // After updating step results, query all results for this scenario
+            // and determine the correct scenario status
+            let scenarioStatus: "success" | "error" = "success"
+            try {
+                const {queryStepResults} = await import("@/oss/services/evaluations/results/api")
+                const allResults = await queryStepResults({runId, scenarioId})
+
+                // Check if any result has an error status
+                const hasError = allResults.some((r) => {
+                    const status = (r.status ?? "").toLowerCase()
+                    return status === "error" || status === "failure" || status === "failed"
+                })
+
+                // Check if all results are successful
+                const allSuccess = allResults.every((r) => {
+                    const status = (r.status ?? "").toLowerCase()
+                    return status === "success" || status === "completed" || status === "done"
+                })
+
+                if (hasError) {
+                    scenarioStatus = "error"
+                } else if (allSuccess) {
+                    scenarioStatus = "success"
+                }
+            } catch (err) {
+                console.error("[ScenarioAnnotationPanel] Error querying results:", err)
+                // Default to success if we can't query results
             }
 
             // Build and save scenario metrics
@@ -347,14 +368,23 @@ const ScenarioAnnotationPanel = ({
 
             message.success("Annotations saved successfully")
 
-            // Update scenario status to success after annotation is saved
-            await updateScenarioStatus(scenarioId, "success")
+            // Update scenario status based on all step results
+            await updateScenarioStatus(scenarioId, scenarioStatus)
 
             // Check if all scenarios in the run are complete and update run status
             await checkAndUpdateRunStatus(runId)
 
+            // Set expected annotation count - we expect at least as many annotations as evaluators
+            // This is used to detect when the refetch completes
+            const currentAnnotationCount = annotations.length
+            const newAnnotationsCount = allRequests.filter((r) => r.isNew).length
+            expectedAnnotationCountRef.current = currentAnnotationCount + newAnnotationsCount
+
             // Mark as just saved - this disables the button until annotations are refetched
             setJustSaved(true)
+
+            // Mark scenario as recently saved to prevent metric refresh from triggering
+            markScenarioAsRecentlySaved(scenarioId)
 
             // Invalidate caches to trigger a refetch of annotations
             invalidateAnnotationBatcherCache()
@@ -373,20 +403,26 @@ const ScenarioAnnotationPanel = ({
                     if (key[0] === "preview" && key[1] === "run-metric-stats") return true
                     if (key[0] === "preview" && key[1] === "evaluation-run") return true
                     if (key[0] === "eval-table" && key[1] === "scenarios") return true
+                    // Invalidate the preview table store to update scenarioRow status
+                    if (key[0] === "evaluation-preview-table") return true
+                    // Refetch scenario steps to get new annotation steps with their trace IDs
+                    if (key[0] === "preview" && key[1] === "scenario-steps") return true
+                    // Refetch annotations (though this may use old traceIds until steps are updated)
+                    if (key[0] === "preview" && key[1] === "scenario-annotations") return true
                     return false
                 },
             })
 
-            // Note: We intentionally do NOT reset metrics here.
-            // The metricEdits will be preserved until the cache invalidation
-            // triggers a refetch of annotations, which will update the baseline.
-            // This prevents the UI from showing empty values between save and refetch.
+            // NOTE: We do NOT reset justSaved here. It will be reset when:
+            // 1. The new annotations arrive and update the baseline
+            // 2. The user makes a new edit (which means they want to change something)
+            // This keeps the button disabled until the save is fully reflected in the UI.
         } finally {
             setIsSubmitting(false)
         }
     }, [
         canSubmit,
-        combinedAnnotations,
+        annotations,
         unannotatedSlugs,
         evaluators,
         metrics,
@@ -418,13 +454,15 @@ const ScenarioAnnotationPanel = ({
                     <RunOverlay isRunning={isRunningInvocation} onRun={onRunInvocation} />
                 )}
 
-                {hasInvocationOutput && currentEvaluators?.length > 0 ? (
+                {hasInvocationOutput && evaluators?.length > 0 ? (
                     <div className="flex flex-col gap-3">
-                        {/* Key forces remount when scenario changes to reset internal state in child components */}
                         <AnnotationForm
-                            key={scenarioId}
-                            scenarioId={scenarioId}
+                            evaluators={evaluators}
+                            metrics={metrics}
+                            errors={errors}
                             disabled={!hasInvocationOutput}
+                            onMetricChange={handleMetricChange}
+                            onDismissError={dismissError}
                         />
                         <Button
                             type="primary"
