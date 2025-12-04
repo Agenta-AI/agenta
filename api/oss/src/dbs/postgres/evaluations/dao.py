@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import not_
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm.attributes import flag_modified
 
 
@@ -1817,7 +1818,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
     # - EVALUATION METRICS -----------------------------------------------------
 
-    @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
     async def create_metrics(
         self,
         *,
@@ -1826,6 +1826,24 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         metrics: List[EvaluationMetricsCreate],
     ) -> List[EvaluationMetrics]:
+        """Create or update metrics (upsert via partial unique indexes).
+
+        Three valid scenarios (enforced by migration):
+        1. Global metrics: (project_id, run_id) where scenario_id IS NULL, timestamp IS NULL
+        2. Variational metrics: (project_id, run_id, scenario_id) where timestamp IS NULL
+        3. Temporal metrics: (project_id, run_id, timestamp) where scenario_id IS NULL
+
+        Fields updated on conflict:
+        - Lifecycle: updated_at, updated_by_id
+        - Data: data, flags, tags, meta, status (user-defined)
+        - Management: version (from user data)
+
+        Fields preserved:
+        - created_at, created_by_id (original)
+        - id, project_id, run_id (identity)
+        - scenario_id, timestamp, interval (unique key)
+        """
+
         for metric in metrics:
             run_flags = await _get_run_flags(
                 project_id=project_id,
@@ -1858,26 +1876,44 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             for _metric in _metrics
         ]
 
-        try:
-            async with engine.core_session() as session:
-                session.add_all(metric_dbes)
+        # Upsert via INSERT ... ON CONFLICT DO UPDATE
+        # PostgreSQL automatically uses correct partial unique index:
+        # - ux_evaluation_metrics_global: for global metrics
+        # - ux_evaluation_metrics_variational: for variational metrics
+        # - ux_evaluation_metrics_temporal: for temporal metrics
+        async with engine.core_session() as session:
+            stmt = pg_insert(EvaluationMetricsDBE).values(
+                [dbe.__dict__ for dbe in metric_dbes]
+            )
 
-                await session.commit()
+            stmt = stmt.on_conflict_do_update(
+                set_={
+                    # Lifecycle fields (always updated on conflict)
+                    EvaluationMetricsDBE.updated_at: datetime.now(timezone.utc),
+                    EvaluationMetricsDBE.updated_by_id: user_id,
+                    # Data fields (user-defined, replaced from insert attempt)
+                    EvaluationMetricsDBE.data: stmt.excluded.data,
+                    EvaluationMetricsDBE.flags: stmt.excluded.flags,
+                    EvaluationMetricsDBE.tags: stmt.excluded.tags,
+                    EvaluationMetricsDBE.meta: stmt.excluded.meta,
+                    EvaluationMetricsDBE.status: stmt.excluded.status,
+                    # Management fields (use version from insert attempt)
+                    EvaluationMetricsDBE.version: stmt.excluded.version,
+                }
+            )
 
-                _metrics = [
-                    create_dto_from_dbe(
-                        DTO=EvaluationMetrics,
-                        dbe=metric_dbe,
-                    )
-                    for metric_dbe in metric_dbes
-                ]
+            await session.execute(stmt)
+            await session.commit()
 
-                return _metrics
+        _metrics = [
+            create_dto_from_dbe(
+                DTO=EvaluationMetrics,
+                dbe=metric_dbe,
+            )
+            for metric_dbe in metric_dbes
+        ]
 
-        except Exception as e:
-            check_entity_creation_conflict(e)
-
-            raise
+        return _metrics
 
     @suppress_exceptions(default=[])
     async def fetch_metrics(
