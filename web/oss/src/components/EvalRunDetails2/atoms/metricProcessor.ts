@@ -506,8 +506,7 @@ export const createMetricProcessor = ({
                 runLevelFlags.every((f) => f === "missing-run-level-entry")
 
             const shouldRunRefresh =
-                hasRunPending ||
-                hasActionableRunFlag ||
+                (!hasRunPending && hasActionableRunFlag) ||
                 (!hasScenarioSignals && !hasRunPending && hasMissingRunOnly)
 
             if (shouldRunRefresh) {
