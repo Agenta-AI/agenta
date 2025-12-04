@@ -86,7 +86,7 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
 
     return (
         <div className="h-full w-full flex flex-col">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--ant-color-border)]">
+            <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-colorSplit">
                 <Button onClick={onClose} type="text" icon={<CloseOutlined />} />
                 <Button
                     onClick={onToggleWidth}

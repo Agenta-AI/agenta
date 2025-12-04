@@ -34,3 +34,11 @@ export interface TraceHeaderProps {
     isAnnotationsSectionOpen?: boolean
     setSelected?: Dispatch<SetStateAction<string>>
 }
+
+export type NavSource = "table" | "remote"
+
+export interface NavState {
+    candidate: TraceSpanNode | null
+    loading: boolean
+    source: NavSource | null
+}
