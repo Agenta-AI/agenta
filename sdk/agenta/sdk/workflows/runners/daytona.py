@@ -88,7 +88,7 @@ class DaytonaRunner(CodeRunner):
                 target=target,
             )
             self.daytona = Daytona(config)
-            log.debug("Daytona client initialized")
+            # log.debug("Daytona client initialized")
 
         except Exception as e:
             raise RuntimeError(f"Failed to initialize Daytona client: {e}")
@@ -107,7 +107,7 @@ class DaytonaRunner(CodeRunner):
                     "Set it to the Daytona sandbox ID or snapshot name you want to use."
                 )
 
-            log.debug(f"Creating sandbox from snapshot: {snapshot_id}")
+            # log.debug(f"Creating sandbox from snapshot: {snapshot_id}")
 
             from daytona import CreateSandboxFromSnapshotParams
 
@@ -121,9 +121,9 @@ class DaytonaRunner(CodeRunner):
                 )
             )
 
-            log.debug(
-                f"Sandbox created: {sandbox.id if hasattr(sandbox, 'id') else sandbox}"
-            )
+            # log.debug(
+            #     f"Sandbox created: {sandbox.id if hasattr(sandbox, 'id') else sandbox}"
+            # )
             return sandbox
 
         except Exception as e:
@@ -173,28 +173,28 @@ class DaytonaRunner(CodeRunner):
             )
 
             # Log the input parameters for debugging
-            log.debug("Input parameters to evaluation:")
-            print("\n" + "=" * 80)
-            print("INPUT PARAMETERS:")
-            print("=" * 80)
-            print(f"app_params: {app_params}")
-            print(f"inputs: {inputs}")
-            print(f"output: {output}")
-            print(f"correct_answer: {correct_answer}")
-            print("=" * 80 + "\n")
+            # log.debug("Input parameters to evaluation:")
+            # print("\n" + "=" * 80)
+            # print("INPUT PARAMETERS:")
+            # print("=" * 80)
+            # print(f"app_params: {app_params}")
+            # print(f"inputs: {inputs}")
+            # print(f"output: {output}")
+            # print(f"correct_answer: {correct_answer}")
+            # print("=" * 80 + "\n")
 
             # Log the generated code for debugging
-            log.debug("Generated code to send to Daytona:")
-            print("=" * 80)
-            print("GENERATED CODE TO SEND TO DAYTONA:")
-            print("=" * 80)
-            code_lines = wrapped_code.split("\n")
-            for i, line in enumerate(code_lines, 1):
-                log.debug(f"  {i:3d}: {line}")
-                print(f"  {i:3d}: {line}")
-            print("=" * 80)
-            print(f"Total lines: {len(code_lines)}")
-            print("=" * 80 + "\n")
+            # log.debug("Generated code to send to Daytona:")
+            # print("=" * 80)
+            # print("GENERATED CODE TO SEND TO DAYTONA:")
+            # print("=" * 80)
+            # code_lines = wrapped_code.split("\n")
+            # for i, line in enumerate(code_lines, 1):
+            #     log.debug(f"  {i:3d}: {line}")
+            #     print(f"  {i:3d}: {line}")
+            # print("=" * 80)
+            # print(f"Total lines: {len(code_lines)}")
+            # print("=" * 80 + "\n")
 
             # Callback functions to capture output and errors
             stdout_lines = []
@@ -202,23 +202,23 @@ class DaytonaRunner(CodeRunner):
 
             def on_stdout(line: str) -> None:
                 """Capture stdout output."""
-                log.debug(f"[STDOUT] {line}")
-                print(f"[STDOUT] {line}")
+                # log.debug(f"[STDOUT] {line}")
+                # print(f"[STDOUT] {line}")
                 stdout_lines.append(line)
 
             def on_stderr(line: str) -> None:
                 """Capture stderr output."""
-                log.warning(f"[STDERR] {line}")
-                print(f"[STDERR] {line}")
+                # log.warning(f"[STDERR] {line}")
+                # print(f"[STDERR] {line}")
                 stderr_lines.append(line)
 
             def on_error(error: Exception) -> None:
                 """Capture errors."""
                 log.error(f"[ERROR] {type(error).__name__}: {error}")
-                print(f"[ERROR] {type(error).__name__}: {error}")
+                # print(f"[ERROR] {type(error).__name__}: {error}")
 
             # Execute the code in the Daytona sandbox
-            log.debug("Executing code in Daytona sandbox")
+            # log.debug("Executing code in Daytona sandbox")
             response = sandbox.code_interpreter.run_code(
                 wrapped_code,
                 on_stdout=on_stdout,
@@ -226,8 +226,8 @@ class DaytonaRunner(CodeRunner):
                 on_error=on_error,
             )
 
-            log.debug(f"Raw response: {response}")
-            print(f"Raw response: {response}")
+            # log.debug(f"Raw response: {response}")
+            # print(f"Raw response: {response}")
 
             # Parse the result from the response object
             # Response has stdout, stderr, and error fields
@@ -256,7 +256,7 @@ class DaytonaRunner(CodeRunner):
 
         except Exception as e:
             log.error(f"Error during Daytona code execution: {e}", exc_info=True)
-            print(f"Exception details: {type(e).__name__}: {e}")
+            # print(f"Exception details: {type(e).__name__}: {e}")
             raise RuntimeError(f"Error during Daytona code execution: {e}")
 
     def cleanup(self) -> None:

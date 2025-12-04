@@ -942,7 +942,7 @@ class EvaluationsService:
             return []
 
         step_keys = list(steps_metrics_keys.keys())
-        log.info(f"[METRICS] Found {len(step_keys)} steps: {step_keys}")
+        # log.info(f"[METRICS] Found {len(step_keys)} steps: {step_keys}")
 
         steps_trace_ids: Dict[str, List[str]] = dict()
 
@@ -958,26 +958,26 @@ class EvaluationsService:
                 ),
             )
 
-            log.info(
-                f"[METRICS] Step '{step_key}': found {len(results) if results else 0} results"
-            )
+            # log.info(
+            #     f"[METRICS] Step '{step_key}': found {len(results) if results else 0} results"
+            # )
 
             if not results:
                 # log.warning("[WARN] No results found")
                 continue
 
             trace_ids = [result.trace_id for result in results if result.trace_id]
-            log.info(
-                f"[METRICS] Step '{step_key}': extracted {len(trace_ids)} trace_ids"
-            )
+            # log.info(
+            #     f"[METRICS] Step '{step_key}': extracted {len(trace_ids)} trace_ids"
+            # )
 
             if trace_ids:
                 steps_trace_ids[step_key] = trace_ids
 
-        log.info(f"[METRICS] steps_trace_ids keys: {list(steps_trace_ids.keys())}")
-        log.info(
-            f"[METRICS] steps_metrics_keys keys: {list(steps_metrics_keys.keys())}"
-        )
+        # log.info(f"[METRICS] steps_trace_ids keys: {list(steps_trace_ids.keys())}")
+        # log.info(
+        #     f"[METRICS] steps_metrics_keys keys: {list(steps_metrics_keys.keys())}"
+        # )
 
         if not steps_trace_ids:
             log.warning("[METRICS] No trace_ids found! Cannot extract metrics.")
@@ -986,7 +986,7 @@ class EvaluationsService:
         steps_specs: Dict[str, List[MetricSpec]] = dict()
 
         intersection = steps_metrics_keys.keys() & steps_trace_ids.keys()
-        log.info(f"[METRICS] Intersection of keys: {intersection}")
+        # log.info(f"[METRICS] Intersection of keys: {intersection}")
 
         if not intersection:
             log.warning(
@@ -998,9 +998,9 @@ class EvaluationsService:
             step_metrics_keys = steps_metrics_keys[step_key]
             step_trace_ids = steps_trace_ids[step_key]
 
-            log.info(
-                f"[METRICS] Processing step '{step_key}' with {len(step_trace_ids)} trace_ids"
-            )
+            # log.info(
+            #     f"[METRICS] Processing step '{step_key}' with {len(step_trace_ids)} trace_ids"
+            # )
 
             try:
                 query = TracingQuery(
@@ -1032,7 +1032,7 @@ class EvaluationsService:
                     )
                 ]
 
-                log.info(f"[METRICS] Step '{step_key}': {len(specs)} metric specs")
+                # log.info(f"[METRICS] Step '{step_key}': {len(specs)} metric specs")
                 steps_specs[step_key] = specs
 
                 buckets = await self.tracing_service.analytics(
@@ -1042,9 +1042,9 @@ class EvaluationsService:
                     specs=specs,
                 )
 
-                log.info(
-                    f"[METRICS] Step '{step_key}': analytics returned {len(buckets)} buckets"
-                )
+                # log.info(
+                #     f"[METRICS] Step '{step_key}': analytics returned {len(buckets)} buckets"
+                # )
 
                 if len(buckets) == 0:
                     log.warning(
@@ -1059,13 +1059,13 @@ class EvaluationsService:
 
                 bucket = buckets[0]
 
-                log.info(
-                    f"[METRICS] Step '{step_key}': bucket has metrics: {bool(bucket.metrics)}"
-                )
-                if bucket.metrics:
-                    log.info(
-                        f"[METRICS] Step '{step_key}': metrics keys: {list(bucket.metrics.keys())}"
-                    )
+                # log.info(
+                #     f"[METRICS] Step '{step_key}': bucket has metrics: {bool(bucket.metrics)}"
+                # )
+                # if bucket.metrics:
+                #     log.info(
+                #         f"[METRICS] Step '{step_key}': metrics keys: {list(bucket.metrics.keys())}"
+                #     )
 
                 if not bucket.metrics:
                     log.warning("[WARN] Bucket metrics should not be empty")
@@ -1073,23 +1073,13 @@ class EvaluationsService:
                     continue
 
                 metrics_data |= {step_key: bucket.metrics}
-                log.info(f"[METRICS] Step '{step_key}': added to metrics_data")
+                # log.info(f"[METRICS] Step '{step_key}': added to metrics_data")
 
             except Exception as e:
                 log.error(
                     f"[METRICS] Step '{step_key}': Exception during analytics",
                     exc_info=True,
                 )
-
-        log.trace("-----------------------------------------------", run_id)
-        log.trace("1. ")
-        log.trace(steps_metrics_keys)
-        log.trace("2. ")
-        log.trace(steps_trace_ids)
-        log.trace("3. ")
-        log.trace(steps_specs)
-        log.trace("4. ")
-        log.trace(metrics_data)
 
         if not metrics_data:
             # log.warning("[WARN] No metrics data: no metrics will be stored")
