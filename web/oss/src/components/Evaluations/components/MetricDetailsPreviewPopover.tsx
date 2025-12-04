@@ -531,24 +531,24 @@ const MetricPopoverContent = ({
         </div>
     ) : null
 
-    // if (typeof window !== "undefined") {
-    //     console.info("[EvalRunDetails2] MetricPopover render", {
-    //         runId,
-    //         metricKey,
-    //         metricPath,
-    //         stepKey,
-    //         highlightValue,
-    //         fallbackValue,
-    //         highlightScalar,
-    //         scenarioDisplay,
-    //         statsAvailable: Boolean(stats),
-    //         loading,
-    //         hasError,
-    //     })
-    //     if (stats) {
-    //         console.info("[EvalRunDetails2] MetricPopover run-level stats", stats)
-    //     }
-    // }
+    if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
+        console.debug("[MetricPopover] render", {
+            runId,
+            metricKey,
+            metricPath,
+            stepKey,
+            evaluationType,
+            statsAvailable: Boolean(stats),
+            hasHistogram,
+            hasFrequencyChart,
+            chartDataLength: chartData.length,
+            loading,
+            hasError,
+        })
+        if (stats) {
+            console.debug("[MetricPopover] stats", stats)
+        }
+    }
 
     if (!shouldLoad && !prefetchedStats) {
         return <span className="text-xs text-neutral-500">Loading statistics…</span>
