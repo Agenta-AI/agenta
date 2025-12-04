@@ -960,6 +960,8 @@ class EvaluationsService:
             if trace_ids:
                 steps_trace_ids[step_key] = trace_ids
 
+        steps_specs: Dict[str, List[MetricSpec]] = dict()
+
         for step_key in steps_metrics_keys.keys() & steps_trace_ids.keys():
             step_metrics_keys = steps_metrics_keys[step_key]
             step_trace_ids = steps_trace_ids[step_key]
@@ -990,6 +992,8 @@ class EvaluationsService:
                     )
                 ]
 
+                steps_specs[step_key] = specs
+
                 buckets = await self.tracing_service.analytics(
                     project_id=project_id,
                     #
@@ -1013,6 +1017,16 @@ class EvaluationsService:
 
             except Exception as e:
                 log.error(e, exc_info=True)
+
+        log.trace("-----------------------------------------------", run_id)
+        log.trace("1. ")
+        log.trace(steps_metrics_keys)
+        log.trace("2. ")
+        log.trace(steps_trace_ids)
+        log.trace("3. ")
+        log.trace(steps_specs)
+        log.trace("4. ")
+        log.trace(metrics_data)
 
         if not metrics_data:
             # log.warning("[WARN] No metrics data: no metrics will be stored")
