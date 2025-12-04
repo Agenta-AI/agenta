@@ -311,8 +311,30 @@ const collectNestedStats = (
 
 export const flattenRunLevelMetricData = (
     data: Record<string, any>,
+    invocationStepKeys?: Set<string>,
 ): Record<string, BasicStats> => {
     const flat: Record<string, BasicStats> = {}
+    // Track which shared analytics keys have been set to avoid merging from multiple evaluators
+    const analyticsKeysSet = new Set<string>()
+
+    // Determine which step has invocation metrics:
+    // 1. If invocationStepKeys is provided (from run.data.steps with type="invocation"), use it
+    // 2. Otherwise, fall back to heuristic: step with tokens/costs metrics
+    let invocationStepKey: string | null = null
+    if (invocationStepKeys?.size) {
+        // Use the first invocation step key from the run definition
+        invocationStepKey = invocationStepKeys.values().next().value ?? null
+    } else {
+        // Fallback heuristic: find step with tokens/costs
+        Object.entries(data || {}).forEach(([stepKey, metrics]) => {
+            const metricKeys = Object.keys(metrics as Record<string, any>)
+            const hasTokens = metricKeys.some((k) => k.includes("tokens"))
+            const hasCosts = metricKeys.some((k) => k.includes("costs"))
+            if (hasTokens || hasCosts) {
+                invocationStepKey = stepKey
+            }
+        })
+    }
 
     Object.entries(data || {}).forEach(([stepKey, metrics]) => {
         Object.entries(metrics as Record<string, any>).forEach(([metricKey, rawValue]) => {
@@ -335,16 +357,33 @@ export const flattenRunLevelMetricData = (
                 }
             }
 
+            // For shared analytics keys (e.g., attributes.ag.metrics.duration.cumulative),
+            // only use stats from the invocation step (the one with tokens/costs) to avoid
+            // incorrectly using evaluator execution durations instead of LLM invocation durations.
+            // If no invocation step is found, use the first evaluator's stats.
             const analyticsIndex = originalKey.indexOf("attributes.ag.")
             if (analyticsIndex >= 0) {
                 const analyticsKey = originalKey.slice(analyticsIndex)
-                flat[analyticsKey] = mergeBasicStats(flat[analyticsKey], normalizedValue)
                 const canonicalAnalyticsKey = canonicalizeMetricKey(analyticsKey)
-                if (canonicalAnalyticsKey !== analyticsKey) {
-                    flat[canonicalAnalyticsKey] = mergeBasicStats(
-                        flat[canonicalAnalyticsKey],
-                        normalizedValue,
-                    )
+
+                // Only set shared key if:
+                // 1. This is the invocation step (has tokens/costs), OR
+                // 2. No invocation step exists and this key hasn't been set yet
+                const isInvocationStep = stepKey === invocationStepKey
+                const shouldSet =
+                    isInvocationStep || (!invocationStepKey && !analyticsKeysSet.has(analyticsKey))
+
+                if (shouldSet && !analyticsKeysSet.has(analyticsKey)) {
+                    analyticsKeysSet.add(analyticsKey)
+                    flat[analyticsKey] = {...normalizedValue}
+                }
+                if (
+                    shouldSet &&
+                    !analyticsKeysSet.has(canonicalAnalyticsKey) &&
+                    canonicalAnalyticsKey !== analyticsKey
+                ) {
+                    analyticsKeysSet.add(canonicalAnalyticsKey)
+                    flat[canonicalAnalyticsKey] = {...normalizedValue}
                 }
             }
 

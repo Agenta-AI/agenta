@@ -37,7 +37,7 @@ const formatNumber = (value: unknown): string => {
 const formatMetricNumber = (metricKey: string | undefined, value: number): string => {
     if (!Number.isFinite(value)) return String(value)
     if (metricKey?.includes("cost")) return formatCurrency(value)
-    if (metricKey?.includes("duration")) return formatLatency(value)
+    if (metricKey?.includes("duration")) return formatLatency(value / 1000)
     return formatNumber(value)
 }
 
@@ -394,18 +394,22 @@ const MetricPopoverContent = ({
     )
     const hasHistogram =
         histogramCandidates.length > 0 && histogramCandidates.length === chartData.length
-    const histogramChartData = hasHistogram
-        ? histogramCandidates.map((entry: any) => ({
-              ...entry,
-              edge: typeof entry.edge === "number" ? entry.edge : Number(entry.edge),
-              value:
-                  typeof entry.value === "number"
-                      ? entry.value
-                      : Number.isFinite(Number(entry.value))
-                        ? Number(entry.value)
-                        : 0,
-          }))
-        : []
+    const histogramChartData = useMemo(
+        () =>
+            hasHistogram
+                ? histogramCandidates.map((entry: any) => ({
+                      ...entry,
+                      edge: typeof entry.edge === "number" ? entry.edge : Number(entry.edge),
+                      value:
+                          typeof entry.value === "number"
+                              ? entry.value
+                              : Number.isFinite(Number(entry.value))
+                                ? Number(entry.value)
+                                : 0,
+                  }))
+                : [],
+        [hasHistogram, histogramCandidates],
+    )
     const binSize =
         typeof (stats as any)?.binSize === "number" && Number.isFinite((stats as any).binSize)
             ? (stats as any).binSize
@@ -538,25 +542,6 @@ const MetricPopoverContent = ({
             </div>
         ) : null
 
-    if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
-        console.debug("[MetricPopover] render", {
-            runId,
-            metricKey,
-            metricPath,
-            stepKey,
-            evaluationType,
-            statsAvailable: Boolean(stats),
-            hasHistogram,
-            hasFrequencyChart,
-            chartDataLength: chartData.length,
-            loading,
-            hasError,
-        })
-        if (stats) {
-            console.debug("[MetricPopover] stats", stats)
-        }
-    }
-
     if (!shouldLoad && !prefetchedStats) {
         return <span className="text-xs text-neutral-500">Loading statistics…</span>
     }
@@ -629,6 +614,9 @@ const MetricPopoverContent = ({
                                             typeof highlightScalar === "number"
                                                 ? (highlightScalar as number)
                                                 : undefined
+                                        }
+                                        formatLabel={(value: number) =>
+                                            formatMetricNumber(metricKey, value)
                                         }
                                     />
                                 ) : (

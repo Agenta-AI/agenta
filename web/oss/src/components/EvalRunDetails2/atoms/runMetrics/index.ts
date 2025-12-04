@@ -68,12 +68,6 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
         const results = new Map<string, any[]>()
 
         for (const [, entry] of groups) {
-            console.debug("[RunMetrics] fetch batch", {
-                projectId: entry.projectId,
-                runIds: Array.from(entry.runIds),
-                needsTemporal: entry.needsTemporal,
-                itemCount: entry.items.length,
-            })
             const basePayload = {
                 metrics: {
                     run_ids: Array.from(entry.runIds),
@@ -104,13 +98,6 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
                     target[bucket].push(metric)
                     if (hasScenario && bucket !== "scenario") {
                         target.scenario.push(metric)
-                        console.debug("[RunMetrics] mirrored scenario metric", {
-                            projectId: entry.projectId,
-                            runId,
-                            bucket,
-                            metricId: metric?.id,
-                            scenarioId: metric?.scenario_id ?? metric?.scenarioId,
-                        })
                     }
                 })
             }

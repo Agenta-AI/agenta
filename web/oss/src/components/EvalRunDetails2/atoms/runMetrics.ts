@@ -343,8 +343,30 @@ const collectNestedStats = (
     })
 }
 
-const flattenRunLevelMetricData = (data: Record<string, any>): Record<string, any> => {
+const flattenRunLevelMetricData = (
+    data: Record<string, any>,
+    invocationStepKeys?: Set<string>,
+): Record<string, any> => {
     const flat: Record<string, any> = {}
+    // Track which shared analytics keys have been set to avoid merging from multiple steps
+    const analyticsKeysSet = new Set<string>()
+
+    // Determine which step has invocation metrics:
+    // 1. If invocationStepKeys is provided (from run.data.steps with type="invocation"), use it
+    // 2. Otherwise, fall back to heuristic: step with tokens/costs metrics
+    let invocationStepKey: string | null = null
+    if (invocationStepKeys?.size) {
+        invocationStepKey = invocationStepKeys.values().next().value ?? null
+    } else {
+        Object.entries(data || {}).forEach(([stepKey, metrics]) => {
+            const metricKeys = Object.keys(metrics as Record<string, any>)
+            const hasTokens = metricKeys.some((k) => k.includes("tokens"))
+            const hasCosts = metricKeys.some((k) => k.includes("costs"))
+            if (hasTokens || hasCosts) {
+                invocationStepKey = stepKey
+            }
+        })
+    }
 
     Object.entries(data || {}).forEach(([stepKey, metrics]) => {
         if (!metrics || typeof metrics !== "object") return
@@ -374,16 +396,30 @@ const flattenRunLevelMetricData = (data: Record<string, any>): Record<string, an
                 }
             }
 
+            // For shared analytics keys (e.g., attributes.ag.metrics.duration.cumulative),
+            // only use stats from the invocation step (type="invocation") to show LLM metrics,
+            // not evaluator execution metrics from annotation steps.
             const analyticsIndex = originalKey.indexOf("attributes.ag.")
             if (analyticsIndex >= 0) {
                 const analyticsKey = originalKey.slice(analyticsIndex)
-                flat[analyticsKey] = mergeBasicStats(flat[analyticsKey], normalizedValue)
                 const canonicalAnalyticsKey = canonicalizeMetricKey(analyticsKey)
-                if (canonicalAnalyticsKey !== analyticsKey) {
-                    flat[canonicalAnalyticsKey] = mergeBasicStats(
-                        flat[canonicalAnalyticsKey],
-                        normalizedValue,
-                    )
+
+                // Only set shared key if this is the invocation step, or no invocation step exists
+                const isInvocationStep = stepKey === invocationStepKey
+                const shouldSet =
+                    isInvocationStep || (!invocationStepKey && !analyticsKeysSet.has(analyticsKey))
+
+                if (shouldSet && !analyticsKeysSet.has(analyticsKey)) {
+                    analyticsKeysSet.add(analyticsKey)
+                    flat[analyticsKey] = {...normalizedValue}
+                }
+                if (
+                    shouldSet &&
+                    !analyticsKeysSet.has(canonicalAnalyticsKey) &&
+                    canonicalAnalyticsKey !== analyticsKey
+                ) {
+                    analyticsKeysSet.add(canonicalAnalyticsKey)
+                    flat[canonicalAnalyticsKey] = {...normalizedValue}
                 }
             }
 
@@ -502,7 +538,6 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
                 ? (response.data.metrics as {run_id: string; name: string; value: any}[])
                 : []
 
-            console.log("runLevelMetrics", runLevelMetrics)
             // addMetrics([runLevelMetrics.pop()], "runLevel")
             addMetrics(runLevelMetrics, "runLevel")
 
@@ -571,6 +606,16 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                       ? runStatusRaw.value.toLowerCase()
                       : undefined
 
+            // Extract invocation step keys from run.data.steps (type="invocation")
+            // These are the steps with actual LLM call metrics (duration, tokens, costs)
+            const runData = runQuery?.data?.rawRun?.data ?? runQuery?.data?.camelRun?.data
+            const steps = Array.isArray(runData?.steps) ? runData.steps : []
+            const invocationStepKeys = new Set<string>(
+                steps
+                    .filter((step: any) => step?.type === "invocation" && step?.key)
+                    .map((step: any) => step.key as string),
+            )
+
             const includeTemporalFlagValue = includeTemporalFlag(includeTemporal)
 
             // Statuses that indicate an evaluation is still in progress
@@ -588,13 +633,6 @@ const previewRunMetricStatsQueryFamily = atomFamily(
             ])
             // If runStatus is undefined (not yet loaded), assume in-progress to prevent premature refresh
             const isRunInProgress = runStatus ? IN_PROGRESS_STATUSES.has(runStatus) : true
-
-            console.debug("[RunMetrics] Query setup", {
-                runId,
-                runStatus,
-                isRunInProgress,
-                projectId,
-            })
 
             const fetchMetrics = async () => {
                 if (!projectId || !runId) return []
@@ -678,17 +716,6 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                         // Note: We must have actual temporal entries to consider it temporal-only
                         // Missing run-level metrics (deleted or not yet created) should NOT be treated as temporal-only
                         const isTemporalOnly = hasTemporalEntries && !hasStaticRunLevelEntry
-
-                        console.debug("[RunMetrics] processMetrics detection", {
-                            runId,
-                            runStatus,
-                            entriesLength: entries.length,
-                            hasRunLevelEntry,
-                            hasTemporalEntries,
-                            hasStaticRunLevelEntry,
-                            isTemporalOnly,
-                            triggerRefresh,
-                        })
 
                         // Process all metrics to track which need refresh, but don't filter them out
                         // Refresh is a background operation that may not succeed, so we should
@@ -775,7 +802,11 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                     const runLevelKeys = new Set<string>()
 
                     if (runLevelEntry) {
-                        const flattened = flattenRunLevelMetricData(runLevelEntry?.data || {})
+                        const flattened = flattenRunLevelMetricData(
+                            runLevelEntry?.data || {},
+                            invocationStepKeys,
+                        )
+
                         Object.entries(flattened).forEach(([key, value]) => {
                             runLevelKeys.add(key)
                             combinedFlat[key] = mergeBasicStats(
@@ -790,7 +821,10 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                     metrics
                         .filter((entry: any) => entry?.scenario_id || entry?.scenarioId)
                         .forEach((entry: any) => {
-                            const flattened = flattenRunLevelMetricData(entry?.data || {})
+                            const flattened = flattenRunLevelMetricData(
+                                entry?.data || {},
+                                invocationStepKeys,
+                            )
                             Object.entries(flattened).forEach(([key, value]) => {
                                 if (hasRunLevelCoverage && runLevelKeys.has(key)) {
                                     return

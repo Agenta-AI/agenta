@@ -40,9 +40,49 @@ const MEAN_BADGE_BG = "rgba(248, 250, 255, 0.98)"
  *
  * The highlighted bin is automatically inferred from highlightValue (if provided).
  */
+// Maximum number of bins to display before aggregating
+const MAX_DISPLAY_BINS = 6
+
+/**
+ * Aggregates bins when there are too many to display clearly.
+ * Combines adjacent bins to reduce total count to MAX_DISPLAY_BINS.
+ */
+const aggregateBins = (
+    data: ChartDatum[],
+    originalBinSize: number,
+): {data: ChartDatum[]; binSize: number} => {
+    if (data.length <= MAX_DISPLAY_BINS) {
+        return {data, binSize: originalBinSize}
+    }
+
+    // Calculate how many original bins to combine
+    const combineFactor = Math.ceil(data.length / MAX_DISPLAY_BINS)
+    const newBinSize = originalBinSize * combineFactor
+    const aggregated: ChartDatum[] = []
+
+    for (let i = 0; i < data.length; i += combineFactor) {
+        const chunk = data.slice(i, i + combineFactor)
+        const totalValue = chunk.reduce((sum, d) => sum + (d.value ?? 0), 0)
+        const firstEdge = chunk[0]?.edge ?? 0
+        const lastEdge = chunk[chunk.length - 1]?.edge ?? firstEdge
+
+        // Create range label for aggregated bin
+        const startLabel = format3Sig(firstEdge)
+        const endLabel = format3Sig(lastEdge + originalBinSize)
+
+        aggregated.push({
+            name: `${startLabel}–${endLabel}`,
+            value: totalValue,
+            edge: firstEdge,
+        })
+    }
+
+    return {data: aggregated, binSize: newBinSize}
+}
+
 const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
     ({
-        chartData,
+        chartData: rawChartData,
         extraDimensions,
         highlightValue,
         labelWidth,
@@ -52,7 +92,14 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
         disableGradient = false,
         binWidthLabel,
     }) => {
-        const binSize = extraDimensions.binSize || 1
+        const originalBinSize = extraDimensions.binSize || 1
+
+        // Aggregate bins if there are too many
+        const {data: chartData, binSize} = useMemo(
+            () => aggregateBins(rawChartData, originalBinSize),
+            [rawChartData, originalBinSize],
+        )
+
         const yMin = Math.min(...(chartData.map((d) => d.edge) as number[]))
         const yMax = Math.max(...(chartData.map((d) => d.edge) as number[])) + binSize
         const xMax = Math.max(...chartData.map((d) => d.value))
