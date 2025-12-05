@@ -164,7 +164,7 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
 
             <div className="w-full flex items-center justify-between">
                 <Typography.Link
-                    href="https://agenta.ai/docs/evaluation/create-testsets#creating-a-testset-using-the-api"
+                    href="https://agenta.ai/docs/evaluation/managing-test-sets/create-programatically"
                     target="_blank"
                     className={classes.subText}
                 >
