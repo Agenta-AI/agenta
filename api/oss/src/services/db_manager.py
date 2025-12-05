@@ -229,7 +229,9 @@ async def fetch_latest_app_variant(app_id: str) -> Optional[AppVariantDB]:
         return app_variant
 
 
-async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]:
+async def fetch_app_variant_by_id(
+    app_variant_id: str, include_hidden: bool = False
+) -> Optional[AppVariantDB]:
     """
     Fetches an app variant by its ID.
 
@@ -251,9 +253,12 @@ async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]
             .load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
         )
 
+        if not include_hidden:
+            query = query.where(AppVariantDB.hidden.is_not(True))
+
         result = await session.execute(
-            query.where(AppVariantDB.hidden.is_not(True)).filter_by(
-                id=uuid.UUID(app_variant_id)
+            query.filter_by(
+                id=uuid.UUID(app_variant_id),
             )
         )
         app_variant = result.scalars().first()

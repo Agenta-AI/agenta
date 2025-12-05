@@ -101,13 +101,13 @@ const extractRequiresLlmApiKeys = (source: unknown): boolean | undefined => {
 export const evaluatorConfigsQueryAtomFamily = atomFamily(
     ({projectId: overrideProjectId, appId: overrideAppId, preview}: EvaluatorConfigsParams = {}) =>
         atomWithQuery<EvaluatorConfig[]>((get) => {
-            const projectId = overrideProjectId ?? get(projectIdAtom)
-            const appId = overrideAppId ?? get(selectedAppIdAtom)
+            const projectId = overrideProjectId || get(projectIdAtom)
+            const appId = overrideAppId || get(selectedAppIdAtom)
             const user = get(userAtom) as {id?: string} | null
 
             const enabled = !preview && Boolean(projectId && user?.id)
-            const projectKey = projectId ?? NO_PROJECT_KEY
-            const appKey = appId ?? NO_APP_KEY
+            const projectKey = projectId || NO_PROJECT_KEY
+            const appKey = appId || NO_APP_KEY
 
             return {
                 queryKey: [

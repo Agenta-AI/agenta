@@ -2,9 +2,9 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Plus} from "@phosphor-icons/react"
 import {Alert, Button, Form, Input, Typography} from "antd"
-import {message} from "@/oss/components/AppMessageContext"
 import {useDebounceValue} from "usehooks-ts"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
@@ -39,6 +39,7 @@ const CreateEvaluator = ({
     const [errorMessage, setErrorMessage] = useState<string[]>([])
     const [slugTouched, setSlugTouched] = useState(false)
 
+    console.log("CreateEvaluator")
     const [form] = Form.useForm()
     const name = Form.useWatch("evaluatorName", form)
     const slugValue = Form.useWatch("evaluatorSlug", form)

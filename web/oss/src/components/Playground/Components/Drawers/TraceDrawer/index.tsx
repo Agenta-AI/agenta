@@ -122,6 +122,10 @@ const TraceDrawerButton = ({
         return hasNodes || Boolean(result?.response?.trace) || Boolean(result?.error)
     }, [result])
 
+    const passthroughProps = {
+        "data-ivt-stop-row-click": true,
+    }
+
     return (
         <>
             {isValidElement(children) ? (
@@ -129,6 +133,7 @@ const TraceDrawerButton = ({
                     children as React.ReactElement<{onClick: () => void; loading?: boolean}>,
                     {
                         onClick: handleOpen,
+                        ...passthroughProps,
                     },
                 )
             ) : (
@@ -136,6 +141,7 @@ const TraceDrawerButton = ({
                     type="text"
                     icon={icon && <TreeView size={14} />}
                     onClick={handleOpen}
+                    {...passthroughProps}
                     {...props}
                     disabled={!hasTrace || !traceId || !!result?.error}
                     className={clsx([props.className])}

@@ -39,7 +39,7 @@ const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.Re
                 {item.icon}
                 <TooltipWithCopyAction
                     title={getUniquePartOfId(item.value)}
-                    copyText={getUniquePartOfId(item.value)}
+                    copyText={item.value}
                     tooltipProps={{placement: "right"}}
                 >
                     <span className="font-mono">

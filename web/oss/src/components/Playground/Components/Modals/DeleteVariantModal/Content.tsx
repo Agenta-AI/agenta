@@ -9,7 +9,7 @@ import {
     variantByRevisionIdAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
 import VariantNameCell from "@/oss/components/VariantNameCell"
-import {checkIfResourceValidForDeletion} from "@/oss/lib/helpers/evaluate"
+import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {parentVariantDisplayNameAtomFamily} from "@/oss/state/variant/selectors/variant"
 
 const {Text} = Typography

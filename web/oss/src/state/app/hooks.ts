@@ -16,12 +16,14 @@ export const useAppsData = () => {
     const currentApp = useAtomValue(currentAppAtom)
     const [recentAppId, setRecentAppId] = useAtom(recentAppIdAtom)
     const queryClient = useQueryClient()
-    const {appId} = useAppState()
+    const {appId, routeLayer} = useAppState()
 
     useEffect(() => {
-        // Only set recent app from URL when it exists in the filtered apps list
-        // This avoids enabling app-sidebar for SDK evaluation apps (filtered out)
+        // Only set recent app when user is actually on an app-level route (routeLayer === "app")
+        // This avoids updating recentAppId when appId comes from query params (e.g., ?app_id=...)
+        // on project-level pages like evaluation results
         if (!appId) return
+        if (routeLayer !== "app") return
         if (Array.isArray(apps)) {
             const exists = (apps as ListAppsItem[]).some((app) => app.app_id === appId)
             if (exists) {
@@ -31,7 +33,7 @@ export const useAppsData = () => {
             }
         }
         // If apps haven't loaded yet, do nothing here; the fallback effect below will enforce validity once loaded
-    }, [appId, apps, recentAppId, setRecentAppId])
+    }, [appId, apps, recentAppId, routeLayer, setRecentAppId])
 
     useEffect(() => {
         if (recentAppId && Array.isArray(apps)) {

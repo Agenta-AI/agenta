@@ -1,10 +1,11 @@
 import {useMemo, useState} from "react"
 
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Input, message, Typography} from "antd"
+import {Button, Input, Typography} from "antd"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
+import {message} from "@/oss/components/AppMessageContext"
 import useURL from "@/oss/hooks/useURL"
 import {JSSTheme, KeyValuePair, testset, TestsetCreationMode} from "@/oss/lib/Types"
 import {createNewTestset, fetchTestset, updateTestset} from "@/oss/services/testsets/api"

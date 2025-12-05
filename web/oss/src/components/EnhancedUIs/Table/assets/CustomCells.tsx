@@ -1,14 +1,18 @@
-import {memo, useEffect, useState} from "react"
+import {memo, useEffect, useMemo, useState} from "react"
 
 import {Skeleton} from "antd"
 import clsx from "clsx"
 import {Resizable} from "react-resizable"
 
 export const ResizableTitle = memo((props: any) => {
-    const {onResize, width, minWidth, ...restProps} = props
+    const {onResize, onResizeStart, onResizeStop, width, minWidth, ...restProps} = props
 
     // Local live width to avoid forcing parent re-renders on every drag frame
     const [liveWidth, setLiveWidth] = useState<number | undefined>(width)
+    const resolvedMinWidth = useMemo(
+        () => (typeof minWidth === "number" ? minWidth : 80),
+        [minWidth],
+    )
 
     useEffect(() => {
         setLiveWidth(width)
@@ -21,6 +25,7 @@ export const ResizableTitle = memo((props: any) => {
         <Resizable
             width={liveWidth ?? width}
             height={0}
+            onResizeStart={(...args) => onResizeStart?.(...args)}
             handle={
                 <span
                     className="react-resizable-handle custom-resize-handle"
@@ -31,6 +36,7 @@ export const ResizableTitle = memo((props: any) => {
                 setLiveWidth(data.size.width)
                 onResize && onResize(e, data)
             }}
+            onResizeStop={(...args) => onResizeStop?.(...args)}
             draggableOpts={{enableUserSelectHack: false}}
         >
             <th
@@ -38,8 +44,8 @@ export const ResizableTitle = memo((props: any) => {
                 style={{
                     ...restProps.style,
                     paddingRight: 8,
-                    minWidth: 80,
-                    width: (liveWidth ?? width) || 160,
+                    minWidth: resolvedMinWidth,
+                    width: (liveWidth ?? width) || resolvedMinWidth || 160,
                 }}
                 className={clsx([restProps.className, {"select-none": onResize}])}
             >

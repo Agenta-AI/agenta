@@ -1,5 +1,5 @@
 import {getDefaultStore} from "jotai"
-import type {Store} from "jotai/vanilla"
+import type {Store} from "jotai/vanilla/store"
 import Router from "next/router"
 
 import {

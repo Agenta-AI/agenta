@@ -1,4 +1,4 @@
-import {canonicalizeMetricKey, getMetricDisplayName} from "../metricUtils"
+import {canonicalizeMetricKey, getMetricDisplayName} from "@/oss/lib/metricUtils"
 
 // Shared helpers for metric key humanisation and sorting
 // ------------------------------------------------------

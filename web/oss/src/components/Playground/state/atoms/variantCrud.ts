@@ -1,21 +1,22 @@
-import {message} from "antd"
 import {produce} from "immer"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {drawerVariantIdAtom} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
-import {duplicateChatHistoryForRevision} from "@/oss/state/generation/utils"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
+import {duplicateChatHistoryForRevision} from "@/oss/state/generation/utils"
 import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
     promptsAtomFamily,
     clearLocalPromptsForRevisionAtomFamily,
     transformedPromptsAtomFamily,
 } from "@/oss/state/newPlayground/core/prompts"
+import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 import {variantsAtom as parentVariantsAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {VariantAPI} from "../../services/api"
@@ -27,14 +28,12 @@ import type {
     EnhancedVariant,
 } from "../types"
 
-import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-
 import {selectedVariantsAtom} from "./core"
 import {parametersOverrideAtomFamily} from "./parametersOverride"
-import {revisionListAtom} from "./variants"
-
 import {variantByRevisionIdAtomFamily} from "./propertySelectors"
 import {invalidatePlaygroundQueriesAtom, waitForNewRevisionAfterMutationAtom} from "./queries"
+import {revisionListAtom} from "./variants"
+
 // Add variant mutation atom
 export const addVariantMutationAtom = atom(
     null,

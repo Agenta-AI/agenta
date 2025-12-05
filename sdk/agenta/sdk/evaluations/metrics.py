@@ -13,15 +13,15 @@ async def arefresh(
     # timestamp: Optional[str] = None,
     # interval: Optional[float] = None,
 ) -> EvaluationMetrics:
-    payload = dict(
+    metrics = dict(
         run_id=str(run_id),
         scenario_id=str(scenario_id) if scenario_id else None,
     )
 
     response = authed_api()(
         method="POST",
-        endpoint=f"/preview/evaluations/metrics/refresh",
-        params=payload,
+        endpoint="/preview/evaluations/metrics/refresh",
+        json=dict(metrics=metrics),
     )
 
     try:

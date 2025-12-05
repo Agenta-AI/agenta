@@ -15,7 +15,6 @@ import {
     Checkbox,
     Divider,
     Input,
-    message,
     Modal,
     Radio,
     Select,
@@ -25,6 +24,7 @@ import {
 import clsx from "clsx"
 import yaml from "js-yaml"
 
+import {message} from "@/oss/components/AppMessageContext"
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import GenericDrawer from "@/oss/components/GenericDrawer"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
@@ -35,9 +35,9 @@ import {KeyValuePair, testset} from "@/oss/lib/Types"
 import {createNewTestset, fetchTestset, updateTestset} from "@/oss/services/testsets/api"
 import {useTestsetsData} from "@/oss/state/testset"
 
+import {getValueAtPath} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import {Mapping, Preview, TestsetColumn, TestsetDrawerProps, TestsetTraceData} from "./assets/types"
-import {getValueAtPath} from "./assets/helpers"
 
 const TestsetDrawer = ({
     onClose,
@@ -416,7 +416,7 @@ const TestsetDrawer = ({
         [mappingData, selectedTestsetColumns, selectedTestsetRows, isNewTestset],
     )
 
-    const onSaveTestset = async () => {
+    const onSaveTestset = useCallback(async () => {
         try {
             setIsLoading(true)
 
@@ -435,16 +435,23 @@ const TestsetDrawer = ({
                 message.success("Testset updated successfully")
             }
 
-            mutate()
-            onClose()
-            setIsConfirmSave(false)
+            await mutate()
+            // onClose()
+            // setIsConfirmSave(false)
         } catch (error) {
             console.error(error)
             message.error("Something went wrong. Please try again later")
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [
+        mappingData,
+        selectedTestsetColumns,
+        newTestsetName,
+        selectedTestsetRows,
+        isNewTestset,
+        mutate,
+    ])
 
     const hasInvalidColumnMappings = useCallback(() => {
         const columnMappings = new Map<string, Set<string>>() // Map of column name to set of paths

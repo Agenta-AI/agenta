@@ -1,4 +1,4 @@
-import {message} from "antd"
+import {message} from "@/oss/components/AppMessageContext"
 
 export const copyToClipboard = async (text: string, showToast = true) => {
     if (!text) return

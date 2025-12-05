@@ -13,6 +13,7 @@ class TestsetOutputResponse(UniversalBaseModel):
     name: str
     created_at: str
     updated_at: str
+    columns: typing.List[str]
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
