@@ -61,6 +61,7 @@ from oss.src.apis.fastapi.annotations.models import (
 )
 
 from oss.src.core.evaluations.types import (
+    EvaluationMetricsRefresh,
     EvaluationStatus,
     EvaluationScenarioCreate,
     EvaluationScenarioEdit,
@@ -806,8 +807,10 @@ def evaluate(
                         project_id=project_id,
                         user_id=user_id,
                         #
-                        run_id=run_id,
-                        scenario_id=scenario_id,
+                        metrics=EvaluationMetricsRefresh(
+                            run_id=run_id,
+                            scenario_id=scenario_id,
+                        ),
                     )
                 )
             # ------------------------------------------------------------------
@@ -817,9 +820,11 @@ def evaluate(
                 project_id=project_id,
                 user_id=user_id,
                 #
-                run_id=run_id,
-                timestamp=timestamp,
-                interval=interval,
+                metrics=EvaluationMetricsRefresh(
+                    run_id=run_id,
+                    timestamp=timestamp,
+                    interval=interval,
+                ),
             )
         )
     except Exception as e:  # pylint: disable=broad-exception-caught

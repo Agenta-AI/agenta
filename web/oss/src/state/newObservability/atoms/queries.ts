@@ -10,7 +10,7 @@ import {
 } from "@/oss/components/pages/observability/assets/filters/referenceUtils"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {formatLatency, formatCurrency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
-import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
+import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {
     attachAnnotationsToTraces,
     groupAnnotationsByReferenceId,

@@ -3,10 +3,17 @@ import {useMemo, useState} from "react"
 import {Coins, MagnifyingGlass, PlusCircle, SlidersHorizontal, Timer} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Space, Tooltip, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
 
 import CustomTreeComponent from "@/oss/components/ui/CustomTreeComponent"
 import {_AgentaRootsResponse} from "@/oss/services/observability/types"
+import {StatusCode, TraceSpanNode} from "@/oss/services/tracing/types"
+import {
+    formattedSpanLatencyAtomFamily,
+    formattedSpanTokensAtomFamily,
+    formattedSpanCostAtomFamily,
+} from "@/oss/state/newObservability"
 
 import {filterTree} from "../../assets/utils"
 import AvatarTreeContent from "../../components/AvatarTreeContent"
@@ -15,13 +22,6 @@ import TraceTreeSettings from "../TraceTreeSettings"
 
 import {useStyles} from "./assets/styles"
 import {TraceTreeProps} from "./assets/types"
-import {StatusCode, TraceSpanNode} from "@/oss/services/tracing/types"
-import {useAtomValue} from "jotai"
-import {
-    formattedSpanLatencyAtomFamily,
-    formattedSpanTokensAtomFamily,
-    formattedSpanCostAtomFamily,
-} from "@/oss/state/newObservability"
 
 export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: any}) => {
     const {span_name, span_id, status_code} = value || {}

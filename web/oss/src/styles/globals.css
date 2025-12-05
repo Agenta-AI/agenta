@@ -1,12 +1,11 @@
-
 @import "./animations.css";
 @import "./editor-theme.css";
 @import "./code-editor-styles.css";
 @import "./human-evals.css";
 @import "./loading.css";
+@import "./evaluations.css";
 
 @layer tailwind-base, antd;
-
 
 /* === Custom styles for Ant Design Segmented Control === */
 .evaluation-filters .ant-segmented-item-selected {
@@ -28,7 +27,6 @@
 }
 @tailwind components;
 @tailwind utilities;
-
 
 html,
 body {
@@ -72,7 +70,6 @@ body {
     margin-top: 4px !important;
     margin-bottom: 4px !important;
 }
-
 
 .hover-button-wrapper {
     opacity: 0;
@@ -187,7 +184,7 @@ body {
             text-transform: uppercase;
             position: absolute;
             color: rgba(0, 0, 0, 0.5);
-          }
+        }
     }
 }
 
@@ -217,7 +214,12 @@ body {
     margin: 0 !important;
 }
 
-.comparison-table .ant-table-tbody > tr.ant-table-expanded-row .ant-table-tbody > tr:last-child > td {
+.comparison-table
+    .ant-table-tbody
+    > tr.ant-table-expanded-row
+    .ant-table-tbody
+    > tr:last-child
+    > td {
     border-bottom: none !important;
 }
 
@@ -248,7 +250,7 @@ body {
     .ant-table-expanded-row-fixed {
         margin: 0 !important;
     }
-    
+
     /* Fix expand button positioning and overflow */
     .ant-table-row-expand-icon-cell {
         width: 120px !important;
@@ -256,12 +258,12 @@ body {
         padding: 8px !important;
         text-align: center !important;
     }
-    
+
     /* Ensure first data column doesn't contain expand icon */
     .ant-table-tbody > tr > td:first-child:not(.ant-table-row-expand-icon-cell) {
         padding-left: 12px !important;
     }
-    
+
     /* Style the expand icon container */
     .ant-table-row-expand-icon {
         display: inline-block !important;
@@ -272,7 +274,7 @@ body {
     .ant-table-expanded-row-fixed {
         padding-left: 0 !important;
         thead {
-            display: none
+            display: none;
         }
     }
 }

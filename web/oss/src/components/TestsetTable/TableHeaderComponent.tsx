@@ -1,9 +1,10 @@
 import {useState, useEffect} from "react"
 
 import {DeleteOutlined, EditOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Input, message} from "antd"
+import {Button, Input} from "antd"
 import {createUseStyles} from "react-jss"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {KeyValuePair} from "@/oss/lib/Types"
 
 import {ADD_BUTTON_COL} from "./TestsetTable"

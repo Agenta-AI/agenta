@@ -85,7 +85,7 @@ const AnnotateDrawer = ({
             (ann) => !isAnnotationCreatedByCurrentUser(ann),
         )
 
-        // 5. Get unique slugs - only from HUMAN annotations (not automatic evaluations)
+        // 5. Get unique slugs - only from HUMAN annotations (not auto evaluations)
         if (filteredAnnForEval.length > 0) {
             const evalSlugs = filteredAnnForEval
                 .filter((ann) => ann.origin === "human" || ann.channel === "web") // Only human annotations from other users

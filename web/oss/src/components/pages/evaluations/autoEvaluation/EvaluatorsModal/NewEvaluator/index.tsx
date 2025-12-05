@@ -5,7 +5,7 @@ import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Divider, Flex, Input, Radio, Space, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
-import {getEvaluatorTags} from "@/oss/lib/helpers/evaluate"
+import {getEvaluatorTags} from "@/oss/lib/evaluations/legacy"
 import {Evaluator, JSSTheme} from "@/oss/lib/Types"
 
 import NewEvaluatorList from "./NewEvaluatorList"

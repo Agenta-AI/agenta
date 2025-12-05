@@ -17,7 +17,7 @@ type EvaluatorConfigsOptions<Preview extends boolean> = {
     appId?: string | null
 } & Pick<SWRConfiguration, "onSuccess" | "onError">
 
-export type UseEvaluatorConfigsReturn<Preview extends boolean> = {
+export interface UseEvaluatorConfigsReturn<Preview extends boolean> {
     data: EvaluatorConfigResult<Preview> | undefined
     error: unknown
     isLoading: boolean
@@ -41,7 +41,7 @@ const useEvaluatorConfigs = <Preview extends boolean = false>(
 
     const atomParams = useMemo(
         () => ({
-            appId: appId ?? null,
+            appId: appId || null,
             preview: Boolean(preview),
         }),
         [appId, preview],

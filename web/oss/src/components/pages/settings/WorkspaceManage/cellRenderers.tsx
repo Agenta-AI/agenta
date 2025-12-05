@@ -2,9 +2,10 @@ import {useState} from "react"
 
 import {EditOutlined, MoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {ArrowClockwise, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Tag, Tooltip, Typography, message} from "antd"
+import {Button, Dropdown, Space, Tag, Tooltip, Typography} from "antd"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {message} from "@/oss/components/AppMessageContext"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
 import {Plan, User} from "@/oss/lib/Types"

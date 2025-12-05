@@ -11,7 +11,7 @@
         "test:e2e:debug": "tsx playwright/scripts/run-tests.ts --debug"
     },
     "devDependencies": {
-        "@playwright/test": "^1.53.1",
+        "@playwright/test": "^1.57.0",
         "@types/node": "^20.8.10",
         "dotenv": "^16.5.0",
         "tsx": "^4.20.3",

@@ -70,6 +70,8 @@ export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {
     handlePanelChange: (key: string | string[]) => void
     preview?: boolean
     selectedVariantRevisionIds: string[]
+    /** Selected variant objects - used to extract input variables for testset compatibility checks */
+    selectedVariants?: EnhancedVariant[]
 }
 
 export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
@@ -91,4 +93,12 @@ export interface AdvancedSettingsProps {
 export interface NewEvaluationModalGenericProps<Preview extends boolean = true>
     extends Omit<NewEvaluationModalProps, "preview"> {
     preview?: Preview
+}
+
+export interface NewEvaluationModalInnerProps {
+    onSuccess?: () => void
+    preview?: boolean
+    evaluationType: "auto" | "human"
+    onSubmitStateChange?: (loading: boolean) => void
+    isOpen?: boolean
 }

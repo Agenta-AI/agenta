@@ -1,4 +1,4 @@
-import {message} from "antd"
+import {message} from "@/oss/components/AppMessageContext"
 
 export const getErrorMessage = (error: any, fallback = "An unknown error occurred!") => {
     let message = fallback

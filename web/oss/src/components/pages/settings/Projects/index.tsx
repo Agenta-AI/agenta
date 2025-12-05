@@ -311,7 +311,7 @@ const ProjectsSettings = () => {
                 }}
                 onOk={() => createForm.submit()}
                 confirmLoading={createMutation.isPending}
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form form={createForm} layout="vertical" onFinish={handleCreate}>
                     <Form.Item
@@ -343,7 +343,7 @@ const ProjectsSettings = () => {
                 }}
                 onOk={() => renameForm.submit()}
                 confirmLoading={renameMutation.isPending}
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form form={renameForm} layout="vertical" onFinish={handleRename}>
                     <Form.Item

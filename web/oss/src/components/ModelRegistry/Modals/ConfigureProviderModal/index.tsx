@@ -1,8 +1,8 @@
 import {useEffect, useState} from "react"
 
-import {message} from "antd"
 import dynamic from "next/dynamic"
 
+import {message} from "@/oss/components/AppMessageContext"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 

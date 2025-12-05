@@ -2,9 +2,10 @@ import {useState} from "react"
 
 import {UploadOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileCsv, Trash} from "@phosphor-icons/react"
-import {Button, Collapse, Form, Input, message, Radio, Typography, Upload, UploadFile} from "antd"
+import {Button, Collapse, Form, Input, Radio, Typography, Upload, UploadFile} from "antd"
 import {createUseStyles} from "react-jss"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
 import {isValidCSVFile, isValidJSONFile} from "@/oss/lib/helpers/fileManipulations"
 import {GenericObject, JSSTheme} from "@/oss/lib/Types"

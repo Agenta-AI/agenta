@@ -1,59 +1,63 @@
+import {useCallback, useRef, useState} from "react"
+import type {MouseEvent} from "react"
+
 import EnhancedModal from "@agenta/oss/src/components/EnhancedUIs/Modal"
 import {DeleteOutlined} from "@ant-design/icons"
-import {Typography} from "antd"
 
+import DeleteEvaluationModalContent from "./DeleteEvaluationModalContent"
 import {DeleteEvaluationModalProps} from "./types"
 
 const DeleteEvaluationModal = ({
     evaluationType,
     isMultiple = false,
+    deletionConfig,
+    confirmLoading,
+    onOk,
     ...props
 }: DeleteEvaluationModalProps) => {
+    const [internalLoading, setInternalLoading] = useState(false)
+    const mergedConfirmLoading = confirmLoading ?? internalLoading
+
+    const contentOkHandlerRef = useRef<(() => Promise<void> | void) | null>(null)
+
+    const handleOk = useCallback(
+        async (event: MouseEvent<HTMLButtonElement>) => {
+            if (onOk) {
+                await onOk(event)
+                return
+            }
+
+            if (contentOkHandlerRef.current) {
+                await contentOkHandlerRef.current()
+            }
+        },
+        [onOk],
+    )
+
     return (
         <EnhancedModal
             {...props}
+            onOk={handleOk}
             okText={"Delete"}
             okType="danger"
             okButtonProps={{icon: <DeleteOutlined />, type: "primary"}}
             centered
             zIndex={2000}
+            confirmLoading={mergedConfirmLoading}
         >
-            <section className="flex flex-col gap-1">
-                <Typography.Text className="text-sm font-semibold mb-2">
-                    Are you sure you want to delete?
-                </Typography.Text>
-
-                <div className="flex flex-col gap-4">
-                    <Typography.Text>
-                        {isMultiple
-                            ? `The selected ${evaluationType.split("|").length} evaluations will be permanently deleted.`
-                            : `A deleted ${evaluationType} cannot be restored.`}
-                    </Typography.Text>
-
-                    <div className="flex flex-col gap-1">
-                        <Typography.Text>
-                            {isMultiple
-                                ? "You are about to delete the following evaluations:"
-                                : "You are about to delete:"}
-                        </Typography.Text>
-                        <Typography.Text
-                            className={`text-sm font-medium ${
-                                isMultiple ? "max-h-40 overflow-y-auto" : ""
-                            }`}
-                        >
-                            {isMultiple
-                                ? evaluationType.split(" | ").map((item, index) => (
-                                      <div key={index} className="py-1">
-                                          • {item.trim()}
-                                      </div>
-                                  ))
-                                : evaluationType}
-                        </Typography.Text>
-                    </div>
-                </div>
-            </section>
+            <DeleteEvaluationModalContent
+                evaluationType={evaluationType}
+                isMultiple={isMultiple}
+                deletionConfig={deletionConfig}
+                onLoadingChange={setInternalLoading}
+                registerOkHandler={(handler) => {
+                    contentOkHandlerRef.current = handler
+                }}
+            />
         </EnhancedModal>
     )
 }
 
 export default DeleteEvaluationModal
+
+export {default as DeleteEvaluationModalButton} from "./DeleteEvaluationModalButton"

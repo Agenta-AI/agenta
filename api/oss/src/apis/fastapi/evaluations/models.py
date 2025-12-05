@@ -27,6 +27,7 @@ from oss.src.core.evaluations.types import (
     EvaluationMetricsCreate,
     EvaluationMetricsEdit,
     EvaluationMetricsQuery,
+    EvaluationMetricsRefresh,
     #
     EvaluationQueue,
     EvaluationQueueCreate,
@@ -107,6 +108,7 @@ class EvaluationRunResponse(BaseModel):
 class EvaluationRunsResponse(BaseModel):
     count: int = 0
     runs: List[EvaluationRun] = []
+    windowing: Optional[Windowing] = None
 
 
 class EvaluationRunIdResponse(BaseModel):
@@ -224,6 +226,10 @@ class EvaluationMetricsQueryRequest(BaseModel):
     metrics: Optional[EvaluationMetricsQuery] = None
     #
     windowing: Optional[Windowing] = None
+
+
+class EvaluationMetricsRefreshRequest(BaseModel):
+    metrics: EvaluationMetricsRefresh
 
 
 class EvaluationMetricsIdsRequest(BaseModel):

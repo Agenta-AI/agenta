@@ -1,11 +1,11 @@
 import {type ReactElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {FloppyDiskBack} from "@phosphor-icons/react"
-import {message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {Resizable} from "react-resizable"
 
+import {message} from "@/oss/components/AppMessageContext"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {
     revisionListAtom,
@@ -13,9 +13,9 @@ import {
     selectedVariantsAtom,
     variantByRevisionIdAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
+import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 import {createVariantMutationAtom} from "../../../state/atoms/variantCrudMutations"
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 import {CommitVariantChangesModalProps, SelectedCommitType} from "./assets/types"
 const CommitVariantChangesModalContent = dynamic(

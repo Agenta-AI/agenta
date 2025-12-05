@@ -135,7 +135,6 @@ const getEnvNameMap = (): Record<string, any> => ({
     ALEPHALPHA_API_KEY: SecretDTOProvider.ALEPHALPHA,
     GROQ_API_KEY: SecretDTOProvider.GROQ,
     MISTRAL_API_KEY: SecretDTOProvider.MISTRALAI,
-    MISTRALAI_API_KEY: SecretDTOProvider.MISTRALAI,
     ANTHROPIC_API_KEY: SecretDTOProvider.ANTHROPIC,
     PERPLEXITYAI_API_KEY: SecretDTOProvider.PERPLEXITYAI,
     TOGETHERAI_API_KEY: SecretDTOProvider.TOGETHERAI,

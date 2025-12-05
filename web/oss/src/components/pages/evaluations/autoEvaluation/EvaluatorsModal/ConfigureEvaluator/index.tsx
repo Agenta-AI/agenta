@@ -1,10 +1,11 @@
 import {useEffect, useMemo, useState} from "react"
 
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Flex, Form, Input, message, Space, Typography, Splitter, Divider} from "antd"
+import {Button, Flex, Form, Input, Space, Typography, Splitter, Divider} from "antd"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {
     EvaluationSettingsTemplate,
@@ -153,7 +154,7 @@ const ConfigureEvaluator = ({
                 })
                 return acc
             },
-            [] as Array<EvaluationSettingsTemplate & {key: string}>,
+            [] as (EvaluationSettingsTemplate & {key: string})[],
         )
     }, [selectedEvaluator, evaluatorVersionNumber])
 
@@ -166,7 +167,7 @@ const ConfigureEvaluator = ({
             if (!selectedEvaluator.key) throw new Error("No selected key")
             const settingsValues = values.settings_values || {}
 
-            const jsonSchemaFieldPath: Array<string | number> = ["settings_values", "json_schema"]
+            const jsonSchemaFieldPath: (string | number)[] = ["settings_values", "json_schema"]
             const hasJsonSchema = Object.prototype.hasOwnProperty.call(
                 settingsValues,
                 "json_schema",

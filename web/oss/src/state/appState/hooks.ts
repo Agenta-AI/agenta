@@ -106,6 +106,7 @@ export const useAppNavigation = () => {
 
 export const useQueryParamState = (
     key: string,
+    defaultValue?: QueryValue,
 ): readonly [
     QueryValue,
     (
@@ -117,7 +118,7 @@ export const useQueryParamState = (
     const setNavigation = useSetAtom(requestNavigationAtom)
     const currentValue = Object.prototype.hasOwnProperty.call(snapshot.query, key)
         ? (snapshot.query[key] as QueryValue)
-        : undefined
+        : defaultValue
 
     const setValue = useCallback(
         (

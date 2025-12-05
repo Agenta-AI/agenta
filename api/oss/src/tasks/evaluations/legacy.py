@@ -85,6 +85,7 @@ from oss.src.core.evaluations.types import (
     EvaluationRunDataStep,
     EvaluationRunData,
     EvaluationRunFlags,
+    EvaluationRunQueryFlags,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
@@ -92,6 +93,7 @@ from oss.src.core.evaluations.types import (
     EvaluationScenarioEdit,
     EvaluationResultCreate,
     EvaluationMetricsCreate,
+    EvaluationMetricsRefresh,
 )
 
 from oss.src.core.shared.dtos import Reference
@@ -257,7 +259,7 @@ async def setup_evaluation(
             #
             flags=(
                 EvaluationRunFlags(
-                    is_closed=None,
+                    is_closed=False,
                     is_live=True,
                     is_active=True,
                 )
@@ -1463,8 +1465,10 @@ def annotate(
                             project_id=project_id,
                             user_id=user_id,
                             #
-                            run_id=run_id,
-                            scenario_id=scenario.id,
+                            metrics=EvaluationMetricsRefresh(
+                                run_id=run_id,
+                                scenario_id=scenario.id,
+                            ),
                         )
                     )
 
@@ -1500,7 +1504,9 @@ def annotate(
                     project_id=project_id,
                     user_id=user_id,
                     #
-                    run_id=run_id,
+                    metrics=EvaluationMetricsRefresh(
+                        run_id=run_id,
+                    ),
                 )
             )
 
