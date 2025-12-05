@@ -1,13 +1,5 @@
 // @ts-nocheck
-import {
-    type FC,
-    type ChangeEvent,
-    ReactNode,
-    useEffect,
-    useState,
-    useMemo,
-    useCallback,
-} from "react"
+import {type FC, type ChangeEvent, ReactNode, useEffect, useState, useCallback} from "react"
 
 import {type IHeaderParams} from "@ag-grid-community/core"
 import {CheckCircleFilled} from "@ant-design/icons"
@@ -15,6 +7,7 @@ import {Link} from "@phosphor-icons/react"
 import {Button, Input, Typography, message, Space, Tag, Tooltip} from "antd"
 import {NoticeType} from "antd/es/message/interface"
 import {AxiosResponse} from "axios"
+import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
@@ -33,6 +26,8 @@ import {useTestsetsData} from "@/oss/state/testset"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
+import TestsetRowDrawer from "./Drawers/TestsetRowDrawer"
+import {openTestsetRowDrawerAtom} from "./Drawers/TestsetRowDrawer/store/testsetRowDrawerStore"
 import EditRowModal from "./EditRowModal"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
 import TableCellsRenderer from "./TableCellsRenderer"
@@ -125,6 +120,8 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
     const {projectURL} = useURL()
 
     const {testset_id} = router.query
+
+    const [, openDrawer] = useAtom(openTestsetRowDrawerAtom)
 
     useBreadcrumbsEffect(
         {
@@ -315,13 +312,37 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
         setIsDataChanged(true)
     }
 
+    const handleRowClick = (event: any) => {
+        const rowIndex = event.rowIndex
+        const rowDataItem = event.data
+        if (rowIndex !== null && rowDataItem) {
+            openDrawer({rowIndex, rowData: rowDataItem})
+        }
+    }
+
+    const handleDrawerSave = (rowIndex: number, updatedRowData: KeyValuePair) => {
+        const newRowData = [...rowData]
+        newRowData[rowIndex] = updatedRowData
+        setRowData(newRowData)
+        setIsDataChanged(true)
+        setUnSavedChanges(true)
+    }
+
+    const handleDrawerNavigate = (currentIndex: number, direction: "prev" | "next") => {
+        const newIndex = direction === "prev" ? currentIndex - 1 : currentIndex + 1
+        if (newIndex >= 0 && newIndex < rowData.length) {
+            openDrawer({rowIndex: newIndex, rowData: rowData[newIndex]})
+        }
+    }
+
     const defaultColDef = {
         flex: 1,
         minWidth: 100,
-        editable: true,
+        editable: false,
         cellRenderer: TableCellsRenderer,
         cellRendererParams: {
             onEdit: (ix: number) => {
+                // This is now unused since we removed the edit icon
                 setFocusedRowData(rowData[ix])
             },
         },
@@ -409,13 +430,11 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
                     rowData={rowData}
                     columnDefs={columnDefs}
                     defaultColDef={defaultColDef}
-                    singleClickEdit={false}
                     rowSelection={"multiple"}
                     suppressRowClickSelection={true}
-                    onCellValueChanged={handleCellValueChanged}
-                    stopEditingWhenCellsLoseFocus={true}
                     onRowSelected={onRowSelectedOrDeselected}
                     onRowDataUpdated={onRowSelectedOrDeselected}
+                    onRowClicked={handleRowClick}
                     className="ph-no-capture"
                     suppressFieldDotNotation={true}
                 />
@@ -437,6 +456,12 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
                 onCancel={() => setFocusedRowData(undefined)}
                 data={focusedRowData}
                 onCellValueChanged={handleCellValueChanged}
+            />
+
+            <TestsetRowDrawer
+                onSave={handleDrawerSave}
+                totalRows={rowData.length}
+                onNavigate={handleDrawerNavigate}
             />
         </div>
     )
