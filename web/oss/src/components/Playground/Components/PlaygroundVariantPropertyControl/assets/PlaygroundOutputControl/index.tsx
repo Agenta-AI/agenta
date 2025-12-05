@@ -254,8 +254,7 @@ const PlaygroundOutputControl = ({
                     onOk={saveChanges}
                 >
                     <Typography.Text>
-                        Define the JSON schema for the structured output of the prompt:{" "}
-                        <b className="capitalize">{promptName || "no name"}</b>
+                        Define the JSON schema for the structured output of the prompt
                     </Typography.Text>
                     <PlaygroundVariantPropertyControlWrapper className="w-full max-w-full overflow-y-auto mt-2 flex [&_>_div]:!w-auto [&_>_div]:!grow">
                         <div className="flex flex-col w-full gap-1 mb-2 [&_.agenta-shared-editor]:box-border">
