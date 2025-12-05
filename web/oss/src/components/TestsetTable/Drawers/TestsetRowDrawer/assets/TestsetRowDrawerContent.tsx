@@ -37,25 +37,23 @@ const TestsetRowDrawerContent: React.FC<TestsetRowDrawerContentProps> = ({rowDat
             try {
                 const parsed = JSON.parse(value)
                 // Replace the entire row data with parsed JSON
-                if (drawerState.rowData) {
-                    // Update all fields at once
-                    const updates: KeyValuePair = {}
-                    for (const key in parsed) {
-                        updates[key] = parsed[key]
-                    }
-                    // Clear old keys that aren't in the new JSON
-                    for (const key in drawerState.rowData) {
-                        if (!(key in parsed)) {
-                            updates[key] = ""
-                        }
-                    }
-                    updateRowData(updates)
+                // Use rowData prop for comparison to ensure we're comparing against the current displayed data
+                const updates: KeyValuePair = {}
+                for (const key in parsed) {
+                    updates[key] = parsed[key]
                 }
+                // Clear old keys that aren't in the new JSON
+                for (const key in rowData) {
+                    if (!(key in parsed)) {
+                        updates[key] = ""
+                    }
+                }
+                updateRowData(updates)
             } catch (error) {
                 // Ignore parse errors - SharedEditor will handle validation
             }
         },
-        [drawerState.rowData, updateRowData],
+        [rowData, updateRowData],
     )
 
     const tabItems = useMemo(() => {
@@ -74,7 +72,7 @@ const TestsetRowDrawerContent: React.FC<TestsetRowDrawerContentProps> = ({rowDat
                                 const messageString = messageFormatToString(value)
                                 return (
                                     <SharedEditor
-                                        key={key}
+                                        key={`${drawerState.selectedRowIndex}-${key}`}
                                         header={
                                             <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
                                                 {key}
@@ -99,7 +97,7 @@ const TestsetRowDrawerContent: React.FC<TestsetRowDrawerContentProps> = ({rowDat
                             // Render as regular text editor
                             return (
                                 <SharedEditor
-                                    key={key}
+                                    key={`${drawerState.selectedRowIndex}-${key}`}
                                     header={
                                         <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
                                             {key}

@@ -40,8 +40,9 @@ const TestsetRowDrawer: React.FC<TestsetRowDrawerProps> = ({onSave, totalRows, o
         if (drawerState.selectedRowIndex !== null && drawerState.rowData) {
             onSave(drawerState.selectedRowIndex, drawerState.rowData)
             resetDirty()
+            closeDrawer()
         }
-    }, [drawerState.selectedRowIndex, drawerState.rowData, onSave, resetDirty])
+    }, [drawerState.selectedRowIndex, drawerState.rowData, onSave, resetDirty, closeDrawer])
 
     const handleNavigate = useCallback(
         (direction: "prev" | "next") => {
