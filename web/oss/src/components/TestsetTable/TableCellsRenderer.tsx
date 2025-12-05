@@ -2,8 +2,6 @@
 import {useMemo} from "react"
 
 import {type ICellRendererParams} from "@ag-grid-community/core"
-import {EditOutlined} from "@ant-design/icons"
-import {Tooltip} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
@@ -54,23 +52,8 @@ const TableCellsRenderer = (props: ICellRendererParams) => {
     }, [])
 
     return props.colDef?.field ? (
-        <span
-            className={classes.cellContainer}
-            onClick={() =>
-                props.api.startEditingCell({
-                    rowIndex: props.node.rowIndex as number,
-                    colKey: props.colDef?.field as string,
-                })
-            }
-        >
+        <span className={classes.cellContainer}>
             <span className={classes.cellValue}>{cellValue || ""}</span>
-            <span className={classes.cellEditIcon}>
-                <Tooltip title="Edit in focused mode">
-                    <EditOutlined
-                        onClick={() => props.colDef?.cellRendererParams?.onEdit(props.rowIndex)}
-                    />
-                </Tooltip>
-            </span>
         </span>
     ) : undefined
 }
