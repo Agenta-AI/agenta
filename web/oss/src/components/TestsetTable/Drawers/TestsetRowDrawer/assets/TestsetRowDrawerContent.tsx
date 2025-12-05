@@ -9,6 +9,8 @@ import {KeyValuePair} from "@/oss/lib/Types"
 
 import {updateTestsetRowDataAtom, testsetRowDrawerAtom} from "../store/testsetRowDrawerStore"
 
+import {isMessageFormat, messageFormatToString} from "./utils/isMessageFormat"
+
 const SharedEditor = dynamic(() => import("@/oss/components/Playground/Components/SharedEditor"), {
     ssr: false,
 })
@@ -64,22 +66,54 @@ const TestsetRowDrawerContent: React.FC<TestsetRowDrawerContentProps> = ({rowDat
                 className: "w-full h-full flex flex-col px-4",
                 children: (
                     <div className="py-4 flex flex-col gap-2">
-                        {Object.entries(rowData).map(([key, value]) => (
-                            <SharedEditor
-                                key={key}
-                                header={
-                                    <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
-                                        {key}
-                                    </Typography>
-                                }
-                                editorType="border"
-                                handleChange={(newValue) => handleFieldChange(key, newValue)}
-                                initialValue={value as string}
-                                placeholder={`Enter ${key}...`}
-                                className="relative flex flex-col gap-1 rounded-[8px]"
-                                editorProps={{enableResize: true, boundWidth: true}}
-                            />
-                        ))}
+                        {Object.entries(rowData).map(([key, value]) => {
+                            const isMessages = isMessageFormat(value)
+
+                            if (isMessages) {
+                                // Render as formatted JSON with syntax highlighting
+                                const messageString = messageFormatToString(value)
+                                return (
+                                    <SharedEditor
+                                        key={key}
+                                        header={
+                                            <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
+                                                {key}
+                                            </Typography>
+                                        }
+                                        editorType="border"
+                                        handleChange={(newValue) =>
+                                            handleFieldChange(key, newValue)
+                                        }
+                                        initialValue={messageString}
+                                        placeholder={`Enter ${key}...`}
+                                        className="relative flex flex-col gap-1 rounded-[8px]"
+                                        editorProps={{
+                                            codeOnly: true,
+                                            enableResize: true,
+                                            boundWidth: true,
+                                        }}
+                                    />
+                                )
+                            }
+
+                            // Render as regular text editor
+                            return (
+                                <SharedEditor
+                                    key={key}
+                                    header={
+                                        <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
+                                            {key}
+                                        </Typography>
+                                    }
+                                    editorType="border"
+                                    handleChange={(newValue) => handleFieldChange(key, newValue)}
+                                    initialValue={value as string}
+                                    placeholder={`Enter ${key}...`}
+                                    className="relative flex flex-col gap-1 rounded-[8px]"
+                                    editorProps={{enableResize: true, boundWidth: true}}
+                                />
+                            )
+                        })}
                     </div>
                 ),
             },
