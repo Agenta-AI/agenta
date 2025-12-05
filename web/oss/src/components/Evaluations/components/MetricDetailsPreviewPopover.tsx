@@ -37,7 +37,7 @@ const formatNumber = (value: unknown): string => {
 const formatMetricNumber = (metricKey: string | undefined, value: number): string => {
     if (!Number.isFinite(value)) return String(value)
     if (metricKey?.includes("cost")) return formatCurrency(value)
-    if (metricKey?.includes("duration")) return formatLatency(value)
+    if (metricKey?.includes("duration")) return formatLatency(value / 1000)
     return formatNumber(value)
 }
 
@@ -394,18 +394,22 @@ const MetricPopoverContent = ({
     )
     const hasHistogram =
         histogramCandidates.length > 0 && histogramCandidates.length === chartData.length
-    const histogramChartData = hasHistogram
-        ? histogramCandidates.map((entry: any) => ({
-              ...entry,
-              edge: typeof entry.edge === "number" ? entry.edge : Number(entry.edge),
-              value:
-                  typeof entry.value === "number"
-                      ? entry.value
-                      : Number.isFinite(Number(entry.value))
-                        ? Number(entry.value)
-                        : 0,
-          }))
-        : []
+    const histogramChartData = useMemo(
+        () =>
+            hasHistogram
+                ? histogramCandidates.map((entry: any) => ({
+                      ...entry,
+                      edge: typeof entry.edge === "number" ? entry.edge : Number(entry.edge),
+                      value:
+                          typeof entry.value === "number"
+                              ? entry.value
+                              : Number.isFinite(Number(entry.value))
+                                ? Number(entry.value)
+                                : 0,
+                  }))
+                : [],
+        [hasHistogram, histogramCandidates],
+    )
     const binSize =
         typeof (stats as any)?.binSize === "number" && Number.isFinite((stats as any).binSize)
             ? (stats as any).binSize
@@ -484,6 +488,11 @@ const MetricPopoverContent = ({
     const highlightDisplay = formatScenarioValue(highlightScalar, metricKey)
     const frequencyHighlightValues: (string | number)[] = highlightDisplay ? [highlightDisplay] : []
 
+    // For string metrics without distributions, don't show headline metrics or highlight chip
+    // as they would be redundant with the scenario value section
+    const isStringMetricWithoutDistribution =
+        typeof highlightScalar === "string" && !hasHistogram && !hasFrequencyChart
+
     const headlineMetrics = useMemo(() => {
         const items: {label: string; value: string}[] = []
         if (typeof totalScenarios === "number" && Number.isFinite(totalScenarios)) {
@@ -513,42 +522,25 @@ const MetricPopoverContent = ({
     //     </Section>
     // ) : null
 
-    const headlineMetricsRow = headlineMetrics.length ? (
-        <div className="flex items-center gap-2 border border-neutral-100 py-2">
-            {headlineMetrics.map(({label, value}) => (
-                <div
-                    key={label}
-                    className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] shadow-sm"
-                >
-                    <span className="uppercase tracking-wide text-[10px] text-neutral-400">
-                        {label}
-                    </span>
-                    <span className="text-[12px] font-semibold text-neutral-900 tabular-nums">
-                        {value}
-                    </span>
-                </div>
-            ))}
-        </div>
-    ) : null
-
-    // if (typeof window !== "undefined") {
-    //     console.info("[EvalRunDetails2] MetricPopover render", {
-    //         runId,
-    //         metricKey,
-    //         metricPath,
-    //         stepKey,
-    //         highlightValue,
-    //         fallbackValue,
-    //         highlightScalar,
-    //         scenarioDisplay,
-    //         statsAvailable: Boolean(stats),
-    //         loading,
-    //         hasError,
-    //     })
-    //     if (stats) {
-    //         console.info("[EvalRunDetails2] MetricPopover run-level stats", stats)
-    //     }
-    // }
+    // For string metrics without distributions, headline metrics (count, etc.) are not relevant
+    const headlineMetricsRow =
+        headlineMetrics.length && !isStringMetricWithoutDistribution ? (
+            <div className="flex items-center gap-2 border border-neutral-100 py-2">
+                {headlineMetrics.map(({label, value}) => (
+                    <div
+                        key={label}
+                        className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] shadow-sm"
+                    >
+                        <span className="uppercase tracking-wide text-[10px] text-neutral-400">
+                            {label}
+                        </span>
+                        <span className="text-[12px] font-semibold text-neutral-900 tabular-nums">
+                            {value}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        ) : null
 
     if (!shouldLoad && !prefetchedStats) {
         return <span className="text-xs text-neutral-500">Loading statistics…</span>
@@ -571,12 +563,13 @@ const MetricPopoverContent = ({
         )
     }
 
-    const highlightChip = highlightDisplay ? (
-        <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] text-neutral-900 shadow-sm">
-            <span className="uppercase tracking-wide text-[10px] text-neutral-400">Value</span>
-            {highlightDisplay}
-        </span>
-    ) : null
+    const highlightChip =
+        highlightDisplay && !isStringMetricWithoutDistribution ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] text-neutral-900 shadow-sm">
+                <span className="uppercase tracking-wide text-[10px] text-neutral-400">Value</span>
+                {highlightDisplay}
+            </span>
+        ) : null
 
     return (
         <div className="flex w-[320px] max-w-[360px] flex-col gap-4 rounded-2xl bg-white p-4 text-xs text-neutral-700">
@@ -621,6 +614,9 @@ const MetricPopoverContent = ({
                                             typeof highlightScalar === "number"
                                                 ? (highlightScalar as number)
                                                 : undefined
+                                        }
+                                        formatLabel={(value: number) =>
+                                            formatMetricNumber(metricKey, value)
                                         }
                                     />
                                 ) : (

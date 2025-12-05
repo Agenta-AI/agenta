@@ -68,12 +68,6 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
         const results = new Map<string, any[]>()
 
         for (const [, entry] of groups) {
-            console.debug("[RunMetrics] fetch batch", {
-                projectId: entry.projectId,
-                runIds: Array.from(entry.runIds),
-                needsTemporal: entry.needsTemporal,
-                itemCount: entry.items.length,
-            })
             const basePayload = {
                 metrics: {
                     run_ids: Array.from(entry.runIds),
@@ -104,13 +98,6 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
                     target[bucket].push(metric)
                     if (hasScenario && bucket !== "scenario") {
                         target.scenario.push(metric)
-                        console.debug("[RunMetrics] mirrored scenario metric", {
-                            projectId: entry.projectId,
-                            runId,
-                            bucket,
-                            metricId: metric?.id,
-                            scenarioId: metric?.scenario_id ?? metric?.scenarioId,
-                        })
                     }
                 })
             }
@@ -312,7 +299,10 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                                 !entry?.timestamp &&
                                 !entry?.interval?.timestamp,
                         )
-                        // If we have temporal entries but no static run-level entry, this is a temporal-only evaluation
+                        // Only skip bootstrap for actual temporal/live evaluations
+                        // A temporal-only evaluation has temporal entries but NO static run-level entry
+                        // Note: We must have actual temporal entries to consider it temporal-only
+                        // Missing run-level metrics (deleted or not yet created) should NOT be treated as temporal-only
                         const isTemporalOnly = hasTemporalEntries && !hasStaticRunLevelEntry
 
                         const processed = entries.map((entry: any) => {

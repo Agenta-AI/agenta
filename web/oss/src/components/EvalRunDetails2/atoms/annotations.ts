@@ -125,10 +125,6 @@ export const evaluationAnnotationBatcherFamily = atomFamily(
         }),
 )
 
-export const evaluationAnnotationBatcherAtom = atom((get) =>
-    get(evaluationAnnotationBatcherFamily()),
-)
-
 export const evaluationAnnotationQueryAtomFamily = atomFamily(
     ({traceId, runId}: {traceId: string; runId?: string | null}) =>
         atomWithQuery<AnnotationDto[]>((get) => {
@@ -180,8 +176,15 @@ export const scenarioAnnotationsQueryAtomFamily = atomFamily(
                 queryFn: async () => {
                     if (!batcher || uniqueTraceIds.length === 0) return []
                     const results = await Promise.all(uniqueTraceIds.map((id) => batcher(id)))
-                    // Flatten arrays of annotations from each trace
-                    return results.flatMap((arr) => arr ?? [])
+                    // Flatten arrays of annotations from each trace and deduplicate by trace_id + span_id
+                    const allAnnotations = results.flatMap((arr) => arr ?? [])
+                    const seen = new Set<string>()
+                    return allAnnotations.filter((ann) => {
+                        const key = `${ann.trace_id ?? ""}:${ann.span_id ?? ""}`
+                        if (seen.has(key)) return false
+                        seen.add(key)
+                        return true
+                    })
                 },
             }
         }),

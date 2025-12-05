@@ -20,6 +20,24 @@ import CellContentPopover from "./CellContentPopover"
 
 const CONTAINER_CLASS = "scenario-table-cell"
 
+// Prefix for annotation/evaluator metric paths to match run-level stats storage
+const ATTRIBUTES_AG_PREFIX = "attributes.ag."
+
+/**
+ * Ensures metric path has the attributes.ag. prefix for annotation/evaluator columns.
+ * Run-level stats are stored with this prefix, so we need to match it for lookups.
+ */
+const ensureAttributesPrefix = (
+    path: string | undefined,
+    stepType?: string,
+): string | undefined => {
+    if (!path) return path
+    if (stepType !== "annotation" && stepType !== "evaluator") return path
+    if (path.startsWith(ATTRIBUTES_AG_PREFIX)) return path
+    const trimmed = path.replace(/^\.+/, "")
+    return `${ATTRIBUTES_AG_PREFIX}${trimmed}`
+}
+
 // Color palette for category tags (same as CategoryTags component)
 const TAG_COLORS = ["green", "blue", "purple", "orange", "cyan", "magenta", "gold", "lime"]
 const getTagColor = (index: number) => TAG_COLORS[index % TAG_COLORS.length]
@@ -286,14 +304,24 @@ const PreviewEvaluationMetricCell = ({
         return <div ref={ref} className="scenario-table-cell--invalid" data-cell-type="metric" />
     }
 
+    // For annotation/evaluator columns, prefix metric paths with attributes.ag.
+    // to match how run-level stats are stored
+    const rawMetricKey = column.metricKey ?? column.valueKey ?? column.path
+    const prefixedMetricKey = ensureAttributesPrefix(rawMetricKey, column.stepType)
+    const prefixedMetricPath = ensureAttributesPrefix(column.path, column.stepType)
+
+    // For "metric" type columns (invocation metrics like cost, duration, tokens),
+    // don't pass stepKey as these are stored at run level without step prefix
+    const effectiveStepKey = column.stepType === "metric" ? undefined : column.stepKey
+
     return (
         <div ref={ref} className={CONTAINER_CLASS} data-cell-type="metric" style={{width: "100%"}}>
             <MetricDetailsPreviewPopover
                 runId={runId}
-                metricKey={column.metricKey ?? column.valueKey ?? column.path}
-                metricPath={column.path}
+                metricKey={prefixedMetricKey}
+                metricPath={prefixedMetricPath}
                 metricLabel={column.displayLabel ?? column.label}
-                stepKey={column.stepKey}
+                stepKey={effectiveStepKey}
                 highlightValue={highlightValue}
                 fallbackValue={fallbackValue}
                 stepType={column.stepType}

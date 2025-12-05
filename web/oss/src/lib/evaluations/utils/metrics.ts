@@ -39,9 +39,4 @@ export const humanizeMetricPath = (metricPath: string) => {
     return words.join(" ")
 }
 
-export const humanizeEvaluatorName = (label: string) =>
-    label
-        .split(/[\s_-]+/)
-        .filter(Boolean)
-        .map(humanizeWord)
-        .join(" ")
+export const humanizeEvaluatorName = (label: string) => label

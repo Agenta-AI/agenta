@@ -9,6 +9,7 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {activePreviewProjectIdAtom} from "@/oss/components/EvalRunDetails2/atoms/run"
+import {clearAllMetricStatsCaches} from "@/oss/components/EvalRunDetails2/atoms/runMetrics"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
@@ -42,6 +43,7 @@ import {
     resolveReferenceExportValue,
 } from "../../hooks/useEvaluationRunsColumns"
 import useEvaluationRunsPolling from "../../hooks/useEvaluationRunsPolling"
+import {clearMetricSelectionCache} from "../../hooks/useRunMetricSelection"
 import type {EvaluationRunTableRow} from "../../types"
 import type {
     EvaluationRunsColumnExportMetadata,
@@ -262,6 +264,16 @@ const EvaluationRunsTableActive = ({
             setActivePreviewProjectId(null)
         }
     }, [contextProjectId, setActivePreviewProjectId])
+
+    // Clear metric caches when projectId changes to prevent stale data
+    const prevProjectIdRef = useRef<string | null>(null)
+    useEffect(() => {
+        if (prevProjectIdRef.current && prevProjectIdRef.current !== contextProjectId) {
+            clearAllMetricStatsCaches()
+            clearMetricSelectionCache()
+        }
+        prevProjectIdRef.current = contextProjectId ?? null
+    }, [contextProjectId])
 
     useEffect(() => {
         setResetCallback(() => resetPages)

@@ -430,7 +430,7 @@ const NewEvaluationModalInner = ({
 
                     router.push({
                         pathname: targetPath,
-                        query: {type: "human"},
+                        query: {type: "human", view: "focus"},
                     })
                 }
             } else {

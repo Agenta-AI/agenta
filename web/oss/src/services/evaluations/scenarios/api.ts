@@ -7,12 +7,27 @@ import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/a
 import {getProjectValues} from "@/oss/state/project"
 
 /**
+ * Validates that an ID is a safe alphanumeric string with allowed special characters.
+ * This prevents SSRF attacks by ensuring IDs don't contain URL manipulation characters.
+ */
+const isValidId = (id: string): boolean => {
+    // Allow alphanumeric, hyphens, and underscores only (typical UUID/ID format)
+    // This prevents path traversal and URL manipulation
+    return /^[a-zA-Z0-9_-]+$/.test(id)
+}
+
+/**
  * Update a scenario's status.
  * This is safe because EvaluationScenarioEdit only has id and status fields,
  * so it won't overwrite any other data.
  */
 export const updateScenarioStatus = async (scenarioId: string, status: string): Promise<void> => {
     const {projectId} = getProjectValues()
+
+    // Validate scenarioId to prevent SSRF attacks
+    if (!isValidId(scenarioId)) {
+        throw new Error("Invalid scenario ID format")
+    }
 
     await axios.patch(`/preview/evaluations/scenarios/?project_id=${projectId}`, {
         scenarios: [{id: scenarioId, status}],
@@ -25,6 +40,11 @@ export const updateScenarioStatus = async (scenarioId: string, status: string): 
  */
 export const checkAndUpdateRunStatus = async (runId: string): Promise<void> => {
     const {projectId} = getProjectValues()
+
+    // Validate runId to prevent SSRF attacks
+    if (!isValidId(runId)) {
+        throw new Error("Invalid run ID format")
+    }
 
     try {
         // Query all scenarios for this run

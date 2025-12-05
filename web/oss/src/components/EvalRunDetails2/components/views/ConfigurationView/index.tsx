@@ -294,8 +294,7 @@ const sectionDefinitions: SectionDefinition[] = [
         title: "General",
         alwaysVisible: true,
         hasData: () => true,
-        // getSubtitle: (summary) => null,
-        // getSubtitle: (summary) => summary?.generalSubtitle,
+        // TODO: Consider adding a subtitle for the General section in the future.
         render: (runId, context) => (
             <GeneralSection runId={runId} showActions={(context?.compareIndex ?? 0) === 0} />
         ),
