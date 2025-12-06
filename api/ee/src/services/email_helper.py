@@ -25,7 +25,7 @@ def add_contact_to_loops(email, max_retries=5, initial_delay=1):
     url = "https://app.loops.so/api/v1/contacts/create"
 
     # Request headers
-    headers = {"Authorization": f"Bearer {env.LOOPS_API_KEY}"}
+    headers = {"Authorization": f"Bearer {env.loops.api_key}"}
 
     # Request payload/body
     data = {"email": email}

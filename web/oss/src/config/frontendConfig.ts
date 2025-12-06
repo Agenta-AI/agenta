@@ -6,19 +6,38 @@ import SessionReact from "supertokens-auth-react/recipe/session"
 import ThirdPartyReact from "supertokens-auth-react/recipe/thirdparty"
 
 import {appInfo} from "./appInfo"
+import {getEnv} from "../lib/helpers/dynamicEnv"
 
 export const frontendConfig = (): SuperTokensConfig => {
-    return {
-        appInfo,
-        // enableDebugLogs: true,
-        termsOfServiceLink: "https://agenta.ai/terms-and-conditions-demo",
-        privacyPolicyLink: "https://agenta.ai/privacy-policy-demo",
-        recipeList: [
+    const authnEmail = getEnv("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL")
+    const googleOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID")
+    const githubOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GITHUB_OAUTH_CLIENT_ID")
+
+    // Build recipe list based on enabled auth methods
+    const recipeList: any[] = []
+
+    // Add OIDC (ThirdParty) if Google or GitHub OAuth is configured
+    const oidcProviders = []
+    if (googleOAuthClientId) {
+        oidcProviders.push(ThirdPartyReact.Google.init())
+    }
+    if (githubOAuthClientId) {
+        oidcProviders.push(ThirdPartyReact.Github.init())
+    }
+
+    if (oidcProviders.length > 0) {
+        recipeList.push(
             ThirdPartyReact.init({
                 signInAndUpFeature: {
-                    providers: [ThirdPartyReact.Github.init(), ThirdPartyReact.Google.init()],
+                    providers: oidcProviders,
                 },
-            }),
+            })
+        )
+    }
+
+    // Add Email-Password if authnEmail is "password"
+    if (authnEmail === "password") {
+        recipeList.push(
             EmailPassword.init({
                 signInAndUpFeature: {
                     signUpForm: {
@@ -36,13 +55,28 @@ export const frontendConfig = (): SuperTokensConfig => {
                         ],
                     },
                 },
-            }),
+            })
+        )
+    }
+
+    // Add Passwordless (OTP) if authnEmail is "otp"
+    if (authnEmail === "otp") {
+        recipeList.push(
             PasswordlessReact.init({
                 contactMethod: "EMAIL",
-            }),
+            })
+        )
+    }
 
-            SessionReact.init(),
-        ],
+    // Session is always required
+    recipeList.push(SessionReact.init())
+
+    return {
+        appInfo,
+        // enableDebugLogs: true,
+        termsOfServiceLink: "https://agenta.ai/terms-and-conditions-demo",
+        privacyPolicyLink: "https://agenta.ai/privacy-policy-demo",
+        recipeList,
 
         windowHandler: (oI: any) => {
             return {

@@ -23,8 +23,8 @@ from oss.src.dbs.postgres.shared.engine import engine
 log = get_module_logger(__name__)
 
 # Set global variables
-OPEN_AI_KEY = env.OPENAI_API_KEY
-BACKEND_API_HOST = env.AGENTA_HOST + "/api"
+OPEN_AI_KEY = env.llm.openai
+BACKEND_API_HOST = env.agenta.api_url
 
 
 @pytest.fixture()
@@ -302,7 +302,7 @@ def evaluators_payload_data(custom_code_snippet):
                 "prompt_template": prompt_template,
                 "correct_answer_key": "correct_answer",
             },
-            "credentials": {"OPENAI_API_KEY": env.OPENAI_API_KEY},
+            "credentials": {"OPENAI_API_KEY": env.llm.openai},
         },
         "auto_starts_with": {
             "inputs": {
@@ -378,6 +378,6 @@ def evaluators_payload_data(custom_code_snippet):
                 "ground_truth": "The correct answer is 42",
                 "prediction": "The answer is 42",
             },
-            "credentials": {"OPENAI_API_KEY": env.OPENAI_API_KEY},
+            "credentials": {"OPENAI_API_KEY": env.llm.openai},
         },
     }

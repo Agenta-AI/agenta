@@ -9,7 +9,7 @@ from oss.src.core.secrets.dtos import CreateSecretDTO, UpdateSecretDTO
 class VaultService:
     def __init__(self, secrets_dao: SecretsDAOInterface):
         self.secrets_dao = secrets_dao
-        self._data_encryption_key = env.AGENTA_CRYPT_KEY
+        self._data_encryption_key = env.agenta.crypt_key
 
     async def create_secret(
         self,

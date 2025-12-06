@@ -93,7 +93,7 @@ async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
         email=user.email,
     )
 
-    if not env.SENDGRID_API_KEY:
+    if not env.sendgrid.api_key:
         return password_reset_link
 
     html_template = email_service.read_email_template("./templates/send_email.html")
@@ -104,11 +104,11 @@ async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
         call_to_action=f"""<p>Click the link below to reset your password:</p><br><a href="{password_reset_link}">Reset Password</a>""",
     )
 
-    if not env.AGENTA_SEND_EMAIL_FROM_ADDRESS:
+    if not env.agenta.send_email_from_address:
         raise ValueError("Sendgrid requires a sender email address to work.")
 
     await email_service.send_email(
-        from_email=env.AGENTA_SEND_EMAIL_FROM_ADDRESS,
+        from_email=env.agenta.send_email_from_address,
         to_email=user.email,
         subject=f"{admin_user.username} requested a password reset for you in their workspace",
         html_content=html_content,

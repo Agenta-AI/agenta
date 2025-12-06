@@ -6,17 +6,23 @@ from json import loads
 import stripe
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
 
 from ee.src.core.entitlements.types import Quota
 from ee.src.core.entitlements.types import Counter, Gauge, REPORTS
 from ee.src.core.meters.types import MeterDTO
 from ee.src.core.meters.interfaces import MetersDAOInterface
 
-AGENTA_PRICING = loads(environ.get("AGENTA_PRICING") or "{}")
+AGENTA_PRICING = loads(env.agenta.pricing or "{}")
 
 log = get_module_logger(__name__)
 
-stripe.api_key = environ.get("STRIPE_API_KEY")
+# Initialize Stripe only if enabled
+if env.stripe.enabled:
+    stripe.api_key = env.stripe.api_key
+    log.info("✓ Stripe enabled in meters service")
+else:
+    log.info("Stripe disabled in meters service")
 
 
 class MetersService:

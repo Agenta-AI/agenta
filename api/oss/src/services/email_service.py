@@ -6,10 +6,17 @@ from sendgrid.helpers.mail import Mail
 from fastapi import HTTPException
 
 from oss.src.utils.env import env
+from oss.src.utils.logging import get_logger
 
+log = get_logger(__name__)
 
-# initialize sendgrid api client
-sg = sendgrid.SendGridAPIClient(api_key=env.SENDGRID_API_KEY)
+# Initialize SendGrid only if enabled
+if env.sendgrid.enabled:
+    sg = sendgrid.SendGridAPIClient(api_key=env.sendgrid.api_key)
+    log.info("✓ SendGrid enabled")
+else:
+    sg = None
+    log.info("SendGrid disabled - emails will be skipped")
 
 
 def read_email_template(template_file_path):
@@ -43,6 +50,11 @@ async def send_email(
     Raises:
         HTTPException: If there is an error sending the email.
     """
+
+    # No-op if SendGrid is disabled
+    if not env.sendgrid.enabled:
+        log.info(f"Email disabled - would send '{subject}' to {to_email}")
+        return True
 
     message = Mail(
         from_email=from_email,

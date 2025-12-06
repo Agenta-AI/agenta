@@ -85,7 +85,7 @@ def parse_url(url: str) -> str:
     if "localhost" not in url and "0.0.0.0" not in url:
         return url
 
-    docker_network_mode = env.DOCKER_NETWORK_MODE
+    docker_network_mode = env.docker.network_mode
 
     if (
         not docker_network_mode

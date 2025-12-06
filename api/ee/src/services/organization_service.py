@@ -61,7 +61,7 @@ async def send_invitation_email(
     project_param = quote(project_id, safe="")
 
     invite_link = (
-        f"{env.AGENTA_WEB_URL}/auth"
+        f"{env.agenta.web_url}/auth"
         f"?token={token_param}"
         f"&email={email_param}"
         f"&organization_id={org_param}"
@@ -105,7 +105,7 @@ async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> b
         username_placeholder=user.username,
         action_placeholder="joined your Workspace",
         workspace_placeholder=f'"{workspace.name}"',
-        call_to_action=f'Click the link below to view your Workspace:</p><br><a href="{env.AGENTA_WEB_URL}/settings?tab=workspace">View Workspace</a>',
+        call_to_action=f'Click the link below to view your Workspace:</p><br><a href="{env.agenta.web_url}/settings?tab=workspace">View Workspace</a>',
     )
 
     workspace_admins = await db_manager_ee.get_workspace_administrators(workspace)

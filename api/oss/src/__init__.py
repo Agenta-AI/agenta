@@ -62,11 +62,11 @@ from oss.src.utils.validators import (
 
 async def _get_blocked_domains() -> Set[str]:
     # 1. If env var is defined and is not empty, always use it
-    if env.AGENTA_BLOCKED_DOMAINS:
-        return env.AGENTA_BLOCKED_DOMAINS
+    if env.agenta.blocked_domains:
+        return env.agenta.blocked_domains
 
-    # 2. Else, try PostHog feature flags if API key is present
-    if env.POSTHOG_API_KEY:
+    # 2. Else, try PostHog feature flags if enabled
+    if env.posthog.enabled:
         feature_flag = "blocked-domains"
         cache_key = {
             "ff": feature_flag,
@@ -110,11 +110,11 @@ async def _get_blocked_domains() -> Set[str]:
 
 async def _get_blocked_emails() -> Set[str]:
     # 1. If env var is defined and is not empty, always use it
-    if env.AGENTA_BLOCKED_EMAILS:
-        return env.AGENTA_BLOCKED_EMAILS
+    if env.agenta.blocked_emails:
+        return env.agenta.blocked_emails
 
-    # 2. Else, try PostHog feature flags if API key is present
-    if env.POSTHOG_API_KEY:
+    # 2. Else, try PostHog feature flags if enabled
+    if env.posthog.enabled:
         feature_flag = "blocked-emails"
         cache_key = {
             "ff": feature_flag,
@@ -159,7 +159,7 @@ async def _get_blocked_emails() -> Set[str]:
 async def _is_blocked(email: str) -> bool:
     email = email.lower()
     domain = email.split("@")[-1] if "@" in email else ""
-    allowed_domains = env.AGENTA_ALLOWED_DOMAINS
+    allowed_domains = env.agenta.allowed_domains
     is_domain_allowed = allowed_domains and domain in allowed_domains
 
     if allowed_domains and not is_domain_allowed:
@@ -396,87 +396,135 @@ def override_password_apis(original: EmailPasswordAPIInterface):
 
 # Parse AGENTA_API_URL to extract domain and path
 try:
-    parsed_api_url = urlparse(env.AGENTA_API_URL)
+    parsed_api_url = urlparse(env.agenta.api_url)
     if not parsed_api_url.scheme or not parsed_api_url.netloc:
         raise ValueError("Invalid AGENTA_API_URL: missing scheme or netloc")
 
     api_domain = f"{parsed_api_url.scheme}://{parsed_api_url.netloc}"
     api_gateway_path = parsed_api_url.path or "/"
 except Exception as e:
-    print(f"[ERROR] Failed to parse AGENTA_API_URL ('{env.AGENTA_API_URL}'): {e}")
+    print(f"[ERROR] Failed to parse AGENTA_API_URL ('{env.agenta.api_url}'): {e}")
     api_domain = ""
     api_gateway_path = "/"
 
 
-init(
-    # debug=True,
-    app_info=InputAppInfo(
-        app_name="agenta",
-        api_domain=api_domain,
-        website_domain=env.AGENTA_WEB_URL,
-        api_gateway_path=api_gateway_path,
-        api_base_path="/auth/",
-        website_base_path="/auth",
-    ),
-    supertokens_config=SupertokensConfig(
-        connection_uri=env.SUPERTOKENS_CONNECTION_URI,
-        api_key=env.SUPERTOKENS_API_KEY,
-    ),
-    framework="fastapi",
-    recipe_list=[
-        thirdparty.init(
-            sign_in_and_up_feature=SignInAndUpFeature(
-                providers=[
-                    ProviderInput(
-                        config=ProviderConfig(
-                            third_party_id="google",
-                            clients=[
-                                ProviderClientConfig(
-                                    client_id=env.GOOGLE_OAUTH_CLIENT_ID,
-                                    client_secret=env.GOOGLE_OAUTH_CLIENT_SECRET,
-                                ),
-                            ],
+def _init_supertokens():
+    """Initialize SuperTokens with only enabled recipes"""
+    from oss.src.utils.logging import get_logger
+
+    logger = get_logger(__name__)
+
+    # Validate auth configuration
+    try:
+        env.auth.validate()
+    except ValueError as e:
+        logger.error(f"[AUTH CONFIG ERROR] {e}")
+        raise
+
+    # Build recipe list based on enabled auth methods
+    recipe_list = []
+
+    # Email Password Authentication
+    if env.auth.email_method == "password":
+        logger.info("✓ Email/Password authentication enabled")
+        recipe_list.append(
+            emailpassword.init(
+                sign_up_feature=InputSignUpFeature(
+                    form_fields=[
+                        InputFormField(
+                            id="email", validate=validate_user_email_or_username
                         ),
-                    ),
-                    ProviderInput(
-                        config=ProviderConfig(
-                            third_party_id="github",
-                            clients=[
-                                ProviderClientConfig(
-                                    client_id=env.GITHUB_OAUTH_CLIENT_ID,
-                                    client_secret=env.GITHUB_OAUTH_CLIENT_SECRET,
-                                )
-                            ],
+                        InputFormField(
+                            id="actualEmail", validate=validate_actual_email, optional=True
                         ),
-                    ),
-                ],
-            ),
-            override=thirdparty.InputOverrideConfig(apis=override_thirdparty_apis),
+                    ]
+                ),
+                override=InputOverrideConfig(
+                    apis=override_password_apis,
+                ),
+            )
+        )
+
+    # Email OTP Authentication
+    if env.auth.email_method == "otp":
+        logger.info("✓ Email/OTP authentication enabled")
+        recipe_list.append(
+            passwordless.init(
+                flow_type="USER_INPUT_CODE",
+                contact_config=ContactEmailOnlyConfig(),
+                override=passwordless.InputOverrideConfig(
+                    functions=override_passwordless_apis
+                ),
+            )
+        )
+
+    # Third-Party OIDC Authentication
+    oidc_providers = []
+    if env.auth.google_enabled:
+        logger.info("✓ Google OAuth enabled")
+        oidc_providers.append(
+            ProviderInput(
+                config=ProviderConfig(
+                    third_party_id="google",
+                    clients=[
+                        ProviderClientConfig(
+                            client_id=env.auth.google_oauth_client_id,
+                            client_secret=env.auth.google_oauth_client_secret,
+                        ),
+                    ],
+                ),
+            )
+        )
+
+    if env.auth.github_enabled:
+        logger.info("✓ GitHub OAuth enabled")
+        oidc_providers.append(
+            ProviderInput(
+                config=ProviderConfig(
+                    third_party_id="github",
+                    clients=[
+                        ProviderClientConfig(
+                            client_id=env.auth.github_oauth_client_id,
+                            client_secret=env.auth.github_oauth_client_secret,
+                        )
+                    ],
+                ),
+            )
+        )
+
+    if oidc_providers:
+        recipe_list.append(
+            thirdparty.init(
+                sign_in_and_up_feature=SignInAndUpFeature(providers=oidc_providers),
+                override=thirdparty.InputOverrideConfig(apis=override_thirdparty_apis),
+            )
+        )
+
+    # Sessions always required if auth is enabled
+    recipe_list.append(session.init(expose_access_token_to_frontend_in_cookie_based_auth=True))
+
+    # Dashboard for admin management
+    recipe_list.append(dashboard.init())
+
+    # Initialize SuperTokens with selected recipes
+    init(
+        app_info=InputAppInfo(
+            app_name="agenta",
+            api_domain=api_domain,
+            website_domain=env.agenta.web_url,
+            api_gateway_path=api_gateway_path,
+            api_base_path="/auth/",
+            website_base_path="/auth",
         ),
-        passwordless.init(
-            flow_type="USER_INPUT_CODE",
-            contact_config=ContactEmailOnlyConfig(),
-            override=passwordless.InputOverrideConfig(
-                functions=override_passwordless_apis
-            ),
+        supertokens_config=SupertokensConfig(
+            connection_uri=env.supertokens.connection_uri,
+            api_key=env.supertokens.api_key,
         ),
-        emailpassword.init(
-            sign_up_feature=InputSignUpFeature(
-                form_fields=[
-                    InputFormField(
-                        id="email", validate=validate_user_email_or_username
-                    ),
-                    InputFormField(
-                        id="actualEmail", validate=validate_actual_email, optional=True
-                    ),
-                ]
-            ),
-            override=InputOverrideConfig(
-                apis=override_password_apis,
-            ),
-        ),
-        session.init(expose_access_token_to_frontend_in_cookie_based_auth=True),
-        dashboard.init(),
-    ],
-    mode="asgi",
-)
+        framework="fastapi",
+        recipe_list=recipe_list,
+        mode="asgi",
+    )
+
+
+# Initialize SuperTokens
+_init_supertokens()

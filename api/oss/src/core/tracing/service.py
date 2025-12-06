@@ -44,7 +44,7 @@ class TracingService:
     ):
         self.tracing_dao = tracing_dao
         self.redis = redis_client or Redis.from_url(
-            env.REDIS_STREAMS_URL, decode_responses=False
+            env.redis.uri_streams, decode_responses=False
         )
 
     async def create(

@@ -18,6 +18,7 @@ from sqlalchemy import Connection, func, insert, select, update
 import stripe
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
 from oss.src.models.db_models import UserDB
 from oss.src.models.db_models import AppDB
 from oss.src.models.db_models import OrganizationDB
@@ -29,7 +30,7 @@ from ee.src.dbs.postgres.meters.dbes import MeterDBE
 from ee.src.core.subscriptions.types import FREE_PLAN
 from ee.src.core.entitlements.types import Gauge
 
-stripe.api_key = environ.get("STRIPE_API_KEY")
+stripe.api_key = env.stripe.api_key
 
 log = get_module_logger(__name__)
 

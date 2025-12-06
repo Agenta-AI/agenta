@@ -48,14 +48,14 @@ log = get_module_logger(__name__)
 # Initialize Agenta SDK for workflow invocation in evaluation tasks
 # Idempotent - safe to call multiple times
 ag.init(
-    api_url=env.AGENTA_API_URL,
+    api_url=env.agenta.api_url,
 )
 
 # BROKER -------------------------------------------------------------------
 # Create broker with durable Redis Streams for task queues
 # Valkey 7+ compatible
 broker = RedisStreamBroker(
-    url=env.REDIS_URI_QUEUES,
+    url=env.redis.uri_queues,
     queue_name="queues:taskiq:evaluations",
     consumer_group_name="taskiq-workers",
 )

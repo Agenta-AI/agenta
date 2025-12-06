@@ -34,7 +34,7 @@ local_cache: TTLCache = TTLCache(maxsize=4096, ttl=AGENTA_CACHE_LOCAL_TTL)
 # Use volatile Redis instance for caching (prefix-based separation)
 # decode_responses=False: orjson operates on bytes for 3x performance vs json
 r = Redis.from_url(
-    url=env.REDIS_URI_CACHES,
+    url=env.redis.uri_caches,
     decode_responses=False,
     socket_timeout=0.5,  # read/write timeout
 )

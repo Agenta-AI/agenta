@@ -14,6 +14,7 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.env import env
 
 from oss.src.services.db_manager import (
     get_user_with_id,
@@ -33,12 +34,17 @@ from ee.src.core.subscriptions.service import (
 
 log = get_module_logger(__name__)
 
-stripe.api_key = environ.get("STRIPE_API_KEY")
+# Initialize Stripe only if enabled
+if env.stripe.enabled:
+    stripe.api_key = env.stripe.api_key
+    log.info("✓ Stripe enabled")
+else:
+    log.info("Stripe disabled - billing features will be skipped")
 
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
-STRIPE_WEBHOOK_SECRET = environ.get("STRIPE_WEBHOOK_SECRET")
-STRIPE_TARGET = environ.get("STRIPE_TARGET") or MAC_ADDRESS
-AGENTA_PRICING = loads(environ.get("AGENTA_PRICING") or "{}")
+STRIPE_WEBHOOK_SECRET = env.stripe.webhook_secret
+STRIPE_TARGET = env.stripe.target or MAC_ADDRESS
+AGENTA_PRICING = loads(env.agenta.pricing or "{}")
 
 FORBIDDEN_RESPONSE = JSONResponse(
     status_code=403,
@@ -161,10 +167,11 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if not stripe.api_key:
+        # No-op if Stripe is disabled
+        if not env.stripe.enabled:
             return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={"status": "error", "message": "Missing Stripe API Key"},
+                status_code=status.HTTP_200_OK,
+                content={"status": "ok", "message": "Stripe not configured"},
             )
 
         payload = await request.body()
@@ -355,10 +362,11 @@ class SubscriptionsRouter:
         self,
         organization_id: str,
     ):
-        if not stripe.api_key:
+        # No-op if Stripe is disabled
+        if not env.stripe.enabled:
             return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={"status": "error", "message": "Missing Stripe API Key"},
+                status_code=status.HTTP_200_OK,
+                content={"status": "ok", "message": "Stripe not configured"},
             )
 
         subscription = await self.subscription_service.read(
@@ -392,10 +400,11 @@ class SubscriptionsRouter:
         plan: Plan,
         success_url: str,
     ):
-        if not stripe.api_key:
+        # No-op if Stripe is disabled
+        if not env.stripe.enabled:
             return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={"status": "error", "message": "Missing Stripe API Key"},
+                status_code=status.HTTP_200_OK,
+                content={"status": "ok", "message": "Stripe not configured"},
             )
 
         if plan.name not in Plan.__members__.keys():
@@ -600,13 +609,11 @@ class SubscriptionsRouter:
                 },
             )
 
-        if not stripe.api_key:
+        # No-op if Stripe is disabled
+        if not env.stripe.enabled:
             return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={
-                    "status": "error",
-                    "message": "Missing Stripe API Key",
-                },
+                status_code=status.HTTP_200_OK,
+                content={"status": "ok", "subscription": None},
             )
 
         try:
