@@ -137,6 +137,7 @@ export interface InfiniteVirtualTableRowSelection<RecordType> {
         indeterminate?: boolean
     }
     columnWidth?: number
+    fixed?: boolean
 }
 
 export interface InfiniteVirtualTableKeyboardSelectionShortcuts {

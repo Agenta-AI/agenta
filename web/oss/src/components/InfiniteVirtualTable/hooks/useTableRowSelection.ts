@@ -19,12 +19,14 @@ const useTableRowSelection = <RecordType>(
             getCheckboxProps,
             columnWidth,
             type = "checkbox",
+            fixed,
         } = rowSelection
 
         return {
             type,
             columnWidth: columnWidth ?? 48,
             selectedRowKeys,
+            fixed,
             onCell: () => ({
                 align: "center" as const,
                 className: "flex flex-col items-center justify-center",
