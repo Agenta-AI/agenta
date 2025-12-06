@@ -39,6 +39,11 @@ class AuthConfig(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
+    def model_post_init(self, _):
+        """Ensure at least one auth method is enabled; fallback to password email."""
+        if not self.authn_email and not self.oidc_enabled:
+            self.authn_email = "password"
+
     @property
     def email_method(self) -> str:
         """Returns email auth method: 'password', 'otp', or '' (disabled)"""
