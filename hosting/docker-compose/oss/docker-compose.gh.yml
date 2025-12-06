@@ -262,6 +262,9 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-username}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
 
         ports:
             - "${POSTGRES_PORT:-5432}:5432"

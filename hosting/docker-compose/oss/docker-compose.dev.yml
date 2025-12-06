@@ -267,6 +267,9 @@ services:
             - agenta-network
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-username}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
         volumes:
             - postgres-data:/var/lib/postgresql/data/
             - ../../../api/oss/databases/postgres/init-db-oss.sql:/docker-entrypoint-initdb.d/init-db.sql
