@@ -154,11 +154,22 @@ class MetersDAO(MetersDAOInterface):
         self,
         *,
         organization_id: str,
+        key: Optional[str] = None,
+        year: Optional[int] = None,
+        month: Optional[int] = None,
     ) -> list[MeterDTO]:
         async with engine.core_session() as session:
             stmt = select(MeterDBE).filter_by(
                 organization_id=organization_id,
             )  # NO RISK OF DEADLOCK
+
+            # Apply optional filters for period-aware querying
+            if key is not None:
+                stmt = stmt.filter_by(key=key)
+            if year is not None:
+                stmt = stmt.filter_by(year=year)
+            if month is not None:
+                stmt = stmt.filter_by(month=month)
 
             result = await session.execute(stmt)
             meters = result.scalars().all()

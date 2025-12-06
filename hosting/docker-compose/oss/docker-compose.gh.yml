@@ -50,7 +50,7 @@ services:
             - SCRIPT_NAME=/api
 
         command: >
-            newrelic-admin run-program gunicorn routers:app
+            newrelic-admin run-program gunicorn routes:app
             --bind 0.0.0.0:8000
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
