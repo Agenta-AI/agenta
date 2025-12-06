@@ -616,7 +616,7 @@ Content-Type: application/json
 Authorization: {{authorization}}
 
 {
-  "app_name": "Chat Application 6",
+  "app_name": "Chat Application",
   "folder_id": "{{apps_folder_id}}",
   "template_key": "SERVICE:completion"
 }
@@ -642,7 +642,7 @@ Content-Type: application/json
 Authorization: {{authorization}}
 
 {
-  "app_name": "Translation Service 2",
+  "app_name": "Translation Service",
   "folder_id": "{{apps_folder_id}}",
   "template_key": "SERVICE:completion"
 }

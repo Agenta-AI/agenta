@@ -124,6 +124,10 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.UniqueConstraint(
+            "id",
+            name="uq_folders_id",
+        ),
+        sa.UniqueConstraint(
             "project_id",
             "path",
             name="uq_folders_project_path",
@@ -156,8 +160,8 @@ def upgrade() -> None:
         "fk_app_db_folder_id_folders",
         "app_db",
         "folders",
-        ["project_id", "folder_id"],
-        ["project_id", "id"],
+        ["folder_id"],
+        ["id"],
         ondelete="SET NULL",
     )
 
@@ -168,6 +172,7 @@ def downgrade() -> None:
 
     op.drop_index("ix_folders_project_path", table_name="folders")
     op.drop_index("ix_folders_project_kind", table_name="folders")
+    op.drop_constraint("uq_folders_id", "folders", type_="unique")
     op.drop_constraint("uq_folders_project_parent_slug", "folders", type_="unique")
     op.drop_constraint("uq_folders_project_path", "folders", type_="unique")
     op.drop_table("folders")
