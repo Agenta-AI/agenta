@@ -49,7 +49,7 @@ class FolderNameInvalidException(HTTPException):
         super().__init__(status_code=400, detail=message)
 
 
-class PathConflictException(HTTPException):
+class FolderPathConflictException(HTTPException):
     """Exception raised when a folder path already exists in the project."""
 
     def __init__(
@@ -57,3 +57,33 @@ class PathConflictException(HTTPException):
         message: str = "A folder with this path already exists in this project.",
     ):
         super().__init__(status_code=409, detail=message)
+
+
+class FolderParentMissingException(HTTPException):
+    """Exception raised when a parent folder is not found."""
+
+    def __init__(
+        self,
+        message: str = "Parent folder not found.",
+    ):
+        super().__init__(status_code=404, detail=message)
+
+
+class FolderPathDepthExceededException(HTTPException):
+    """Exception raised when folder path depth exceeds maximum allowed nesting level."""
+
+    def __init__(
+        self,
+        message: str = "Folder path depth exceeds maximum allowed nesting level (10 levels).",
+    ):
+        super().__init__(status_code=400, detail=message)
+
+
+class FolderPathLengthExceededException(HTTPException):
+    """Exception raised when folder slug/path is too long."""
+
+    def __init__(
+        self,
+        message: str = "Folder slug exceeds maximum length (64 characters).",
+    ):
+        super().__init__(status_code=400, detail=message)

@@ -488,20 +488,21 @@ Authorization: {{authorization}}
 # }
 
 ###
-# Verify folder is soft-deleted (has deleted_at timestamp)
+# Verify folder is hard-deleted (completely removed from database)
 # @name fetch_deleted_folder
 GET {{folders_url}}/{{completion_folder_id}}
 Content-Type: application/json
 Authorization: {{authorization}}
 
-# HTTP/1.1 200 OK (empty response due to soft delete)
+# HTTP/1.1 200 OK (empty response due to hard delete)
 # {
 #   "count": 0,
 #   "folder": null
 # }
 
 ###
-# Delete folder with children (should cascade soft-delete)
+# Delete folder with children (should cascade hard-delete)
+# All descendants are deleted in a single atomic SQL operation
 # @name delete_llm_folder
 DELETE {{folders_url}}/{{llm_folder_id}}
 Content-Type: application/json
@@ -615,17 +616,19 @@ Content-Type: application/json
 Authorization: {{authorization}}
 
 {
-  "app_name": "Chat Application",
+  "app_name": "Chat Application 6",
   "folder_id": "{{apps_folder_id}}",
-  "template_key": "completion"
+  "template_key": "SERVICE:completion"
 }
 
 # HTTP/1.1 200 OK
 # {
 #   "app_id": "<uuid>",
 #   "app_name": "Chat Application",
+#   "app_type": "completion",
 #   "folder_id": "{{apps_folder_id}}",
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }
 
 ###
@@ -639,17 +642,19 @@ Content-Type: application/json
 Authorization: {{authorization}}
 
 {
-  "app_name": "Translation Service",
+  "app_name": "Translation Service 2",
   "folder_id": "{{apps_folder_id}}",
-  "template_key": "completion"
+  "template_key": "SERVICE:completion"
 }
 
 # HTTP/1.1 200 OK
 # {
 #   "app_id": "<uuid>",
 #   "app_name": "Translation Service",
+#   "app_type": "completion",
 #   "folder_id": "{{apps_folder_id}}",
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }
 
 ###
@@ -665,15 +670,17 @@ Authorization: {{authorization}}
 {
   "app_name": "Standalone App",
   "folder_id": null,
-  "template_key": "completion"
+  "template_key": "SERVICE:completion"
 }
 
 # HTTP/1.1 200 OK
 # {
 #   "app_id": "<uuid>",
 #   "app_name": "Standalone App",
+#   "app_type": "completion",
 #   "folder_id": null,
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }
 
 ###
@@ -690,8 +697,10 @@ Authorization: {{authorization}}
 # {
 #   "app_id": "{{app1_id}}",
 #   "app_name": "Chat Application",
+#   "app_type": "completion",
 #   "folder_id": "{{apps_folder_id}}",
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }
 
 ###
@@ -739,8 +748,10 @@ Authorization: {{authorization}}
 # {
 #   "app_id": "{{app1_id}}",
 #   "app_name": "Chat Application",
+#   "app_type": "completion",
 #   "folder_id": "{{archive_folder_id}}",
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }
 
 ###
@@ -753,12 +764,15 @@ Authorization: {{authorization}}
 # HTTP/1.1 200 OK
 # {
 #   "app_id": "{{app1_id}}",
+#   "app_name": "Chat Application",
+#   "app_type": "completion",
 #   "folder_id": "{{archive_folder_id}}",
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }
 
 ###
-# Delete the apps_folder (folder should be soft-deleted)
+# Delete the apps_folder (folder is hard-deleted)
 # This tests the SET NULL constraint: apps should keep their data but folder_id becomes NULL
 # @name delete_apps_folder
 DELETE {{folders_url}}/{{apps_folder_id}}
@@ -783,8 +797,10 @@ Authorization: {{authorization}}
 # {
 #   "app_id": "{{app2_id}}",
 #   "app_name": "Translation Service",
+#   "app_type": "completion",
 #   "folder_id": null,
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }
 
 ###
@@ -797,8 +813,11 @@ Authorization: {{authorization}}
 # HTTP/1.1 200 OK
 # {
 #   "app_id": "{{app1_id}}",
+#   "app_name": "Chat Application",
+#   "app_type": "completion",
 #   "folder_id": "{{archive_folder_id}}",
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }
 
 ###
@@ -812,8 +831,10 @@ Authorization: {{authorization}}
 # {
 #   "app_id": "{{app3_id}}",
 #   "app_name": "Standalone App",
+#   "app_type": "completion",
 #   "folder_id": null,
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }
 
 ###
@@ -831,8 +852,11 @@ Authorization: {{authorization}}
 # HTTP/1.1 200 OK
 # {
 #   "app_id": "{{app2_id}}",
+#   "app_name": "Translation Service",
+#   "app_type": "completion",
 #   "folder_id": "{{archive_folder_id}}",
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }
 
 ###
@@ -850,8 +874,11 @@ Authorization: {{authorization}}
 # HTTP/1.1 200 OK
 # {
 #   "app_id": "{{app1_id}}",
+#   "app_name": "Chat Application",
+#   "app_type": "completion",
 #   "folder_id": null,
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }
 
 ###
@@ -864,8 +891,11 @@ Authorization: {{authorization}}
 # HTTP/1.1 200 OK
 # {
 #   "app_id": "{{app1_id}}",
+#   "app_name": "Chat Application",
+#   "app_type": "completion",
 #   "folder_id": null,
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }
 
 ###
@@ -892,6 +922,9 @@ Authorization: {{authorization}}
 # HTTP/1.1 200 OK
 # {
 #   "app_id": "{{app2_id}}",
+#   "app_name": "Translation Service",
+#   "app_type": "completion",
 #   "folder_id": null,
-#   ...
+#   "created_at": "<timestamp>",
+#   "updated_at": "<timestamp>"
 # }

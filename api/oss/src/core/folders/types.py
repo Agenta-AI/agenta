@@ -70,10 +70,40 @@ class FolderNameInvalid(Exception):
         super().__init__(message)
 
 
-class PathConflict(Exception):
+class FolderPathConflict(Exception):
     def __init__(
         self,
         message: str = "A folder with this path already exists in this project.",
+    ):
+        self.message = message
+
+        super().__init__(message)
+
+
+class FolderParentMissing(Exception):
+    def __init__(
+        self,
+        message: str = "Parent folder not found.",
+    ):
+        self.message = message
+
+        super().__init__(message)
+
+
+class FolderPathDepthExceeded(Exception):
+    def __init__(
+        self,
+        message: str = "Folder path depth exceeds maximum allowed nesting level (10 levels).",
+    ):
+        self.message = message
+
+        super().__init__(message)
+
+
+class FolderPathLengthExceeded(Exception):
+    def __init__(
+        self,
+        message: str = "Folder slug exceeds maximum length (64 characters).",
     ):
         self.message = message
 
