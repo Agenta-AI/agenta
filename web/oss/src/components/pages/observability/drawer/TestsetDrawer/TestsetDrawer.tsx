@@ -15,7 +15,6 @@ import {
     Checkbox,
     Divider,
     Input,
-    message,
     Modal,
     Radio,
     Select,
@@ -25,6 +24,7 @@ import {
 import clsx from "clsx"
 import yaml from "js-yaml"
 
+import {message} from "@/oss/components/AppMessageContext"
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import GenericDrawer from "@/oss/components/GenericDrawer"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"

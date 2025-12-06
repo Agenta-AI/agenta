@@ -90,7 +90,7 @@ export const applyFocusDrawerStateAtom = atom(
 
 export const initialFocusDrawerStateAtom = atom(initialFocusDrawerState)
 
-export type FocusDrawerAtoms = {
+export interface FocusDrawerAtoms {
     focusTarget: FocusTarget | null
     isOpen: boolean
 }

@@ -1,13 +1,15 @@
 import type {Key, MouseEvent} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {Button, Tooltip} from "antd"
+import {useQueryClient} from "@tanstack/react-query"
+import {Button, Grid, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {activePreviewProjectIdAtom} from "@/oss/components/EvalRunDetails2/atoms/run"
+import {clearAllMetricStatsCaches} from "@/oss/components/EvalRunDetails2/atoms/runMetrics"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
@@ -17,6 +19,8 @@ import useTableExport, {
     EXPORT_RESOLVE_SKIP,
     type TableExportColumnContext,
 } from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
+import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
+import {useQueryParamState} from "@/oss/state/appState"
 
 import {shouldIgnoreRowClick} from "../../actions/navigationActions"
 import {evaluationRunsTableFetchEnabledAtom} from "../../atoms/context"
@@ -38,6 +42,8 @@ import {
     useEvaluationRunsColumns,
     resolveReferenceExportValue,
 } from "../../hooks/useEvaluationRunsColumns"
+import useEvaluationRunsPolling from "../../hooks/useEvaluationRunsPolling"
+import {clearMetricSelectionCache} from "../../hooks/useRunMetricSelection"
 import type {EvaluationRunTableRow} from "../../types"
 import type {
     EvaluationRunsColumnExportMetadata,
@@ -178,7 +184,7 @@ const EvaluationRunsTableActive = ({
         createEvaluationType,
         evaluationKind: contextEvaluationKind,
     } = useAtomValue(evaluationRunsTableComponentSliceAtom)
-    const setMetaUpdater = useSetAtom(evaluationRunsMetaUpdaterAtom)
+    const _setMetaUpdater = useSetAtom(evaluationRunsMetaUpdaterAtom)
     const setResetCallback = useSetAtom(evaluationRunsTableResetAtom)
     const setActivePreviewProjectId = useSetAtom(activePreviewProjectIdAtom)
     const [isCreateModalOpen, setIsCreateModalOpen] = useAtom(evaluationRunsCreateModalOpenAtom)
@@ -190,6 +196,12 @@ const EvaluationRunsTableActive = ({
     const setDeleteModalOpen = useSetAtom(evaluationRunsDeleteModalOpenAtom)
     const selectionSnapshot = useAtomValue(evaluationRunsSelectionSnapshotAtom)
     const store = useStore()
+    const queryClient = useQueryClient()
+    const [, setKindParam] = useQueryParamState("kind", "auto")
+
+    // Responsive: use settings dropdown on narrow screens (< lg breakpoint)
+    const screens = Grid.useBreakpoint()
+    const isNarrowScreen = !screens.lg
     const tableExport = useTableExport<EvaluationRunTableRow>()
     const columnsRef = useRef<ReturnType<typeof useEvaluationRunsColumns> | null>(null)
 
@@ -219,6 +231,9 @@ const EvaluationRunsTableActive = ({
         resetOnScopeChange: false,
     })
     const {rows: displayedRows, loadNextPage, resetPages} = pagination
+
+    // Poll for updates when evaluations are running
+    useEvaluationRunsPolling({rows: displayedRows})
 
     const buildRowHandlers = useCallback(
         (record: EvaluationRunTableRow) => {
@@ -250,6 +265,16 @@ const EvaluationRunsTableActive = ({
         }
     }, [contextProjectId, setActivePreviewProjectId])
 
+    // Clear metric caches when projectId changes to prevent stale data
+    const prevProjectIdRef = useRef<string | null>(null)
+    useEffect(() => {
+        if (prevProjectIdRef.current && prevProjectIdRef.current !== contextProjectId) {
+            clearAllMetricStatsCaches()
+            clearMetricSelectionCache()
+        }
+        prevProjectIdRef.current = contextProjectId ?? null
+    }, [contextProjectId])
+
     useEffect(() => {
         setResetCallback(() => resetPages)
         return () => {
@@ -277,11 +302,24 @@ const EvaluationRunsTableActive = ({
         setIsCreateModalOpen(false)
     }, [setIsCreateModalOpen])
 
-    const handleCreateSuccess = useCallback(() => {
+    const handleCreateSuccess = useCallback(async () => {
         setIsCreateModalOpen(false)
-        resetPages()
-        setMetaUpdater((prev) => ({...prev}))
-    }, [resetPages, setIsCreateModalOpen, setMetaUpdater])
+        // Switch to the tab matching the created evaluation type (e.g., human -> Human Evals tab)
+        if (selectedCreateType && selectedCreateType !== "online") {
+            setKindParam(selectedCreateType)
+        }
+        // Clear the local preview runs cache (fetchPreviewRunsShared has its own 10s TTL cache)
+        // This is necessary because React Query's invalidation won't bypass this local cache
+        clearPreviewRunsCache()
+        // Use refetchQueries for a background refresh that keeps existing data visible
+        // instead of invalidateQueries + invalidateRunsTable which causes full skeleton reload
+        await queryClient.refetchQueries({
+            predicate: (query) => {
+                const key = query.queryKey
+                return Array.isArray(key) && key[0] === "evaluation-runs-table"
+            },
+        })
+    }, [queryClient, selectedCreateType, setIsCreateModalOpen, setKindParam])
 
     useEffect(() => {
         if (contextEvaluationKind !== "all") {
@@ -390,7 +428,48 @@ const EvaluationRunsTableActive = ({
         () => (createSupported ? <EvaluationRunsCreateButton /> : null),
         [createSupported],
     )
-    const deleteButton = useMemo(() => <EvaluationRunsDeleteButton />, [])
+    // On wide screens, show delete button in header; on narrow screens, it's in the dropdown
+    const deleteButton = useMemo(
+        () => (isNarrowScreen ? null : <EvaluationRunsDeleteButton />),
+        [isNarrowScreen],
+    )
+
+    // Delete action config for the settings dropdown (narrow screens only)
+    const settingsDropdownDelete = useMemo(
+        () =>
+            isNarrowScreen
+                ? {
+                      onDelete: () => setDeleteModalOpen(true),
+                      disabled: !selectionSnapshot.hasSelection,
+                      label: "Delete selected",
+                  }
+                : undefined,
+        [isNarrowScreen, selectionSnapshot.hasSelection, setDeleteModalOpen],
+    )
+
+    // Export button for wide screens (on narrow screens, export is in the dropdown)
+    const renderExportButton = useCallback(
+        ({onExport, loading}: {onExport: () => void; loading: boolean}) => {
+            if (isNarrowScreen) return null
+            const disabled = !selectionSnapshot.hasSelection
+            const tooltip = disabled ? "Select runs to export" : undefined
+            return (
+                <Tooltip title={tooltip}>
+                    <span>
+                        <Button
+                            className="evaluation-runs-table__export"
+                            disabled={disabled}
+                            onClick={onExport}
+                            loading={loading}
+                        >
+                            Export CSV
+                        </Button>
+                    </span>
+                </Tooltip>
+            )
+        },
+        [isNarrowScreen, selectionSnapshot.hasSelection],
+    )
 
     const fallbackControlsHeight = showFilters ? 96 : headerTitle ? 48 : 24
 
@@ -470,28 +549,6 @@ const EvaluationRunsTableActive = ({
         [handleExportRow, handleOpenRun, handleRequestDelete],
     )
 
-    const renderExportButton = useCallback(
-        ({onExport, loading}: {onExport: () => void; loading: boolean}) => {
-            const disabled = !selectionSnapshot.hasSelection
-            const tooltip = disabled ? "Select runs to export" : undefined
-            return (
-                <Tooltip title={tooltip}>
-                    <span>
-                        <Button
-                            className="evaluation-runs-table__export"
-                            disabled={disabled}
-                            onClick={onExport}
-                            loading={loading}
-                        >
-                            Export CSV
-                        </Button>
-                    </span>
-                </Tooltip>
-            )
-        },
-        [selectionSnapshot.hasSelection],
-    )
-
     const exportOptions = useMemo(
         () => ({
             resolveValue: exportResolveValue,
@@ -519,6 +576,24 @@ const EvaluationRunsTableActive = ({
         columnsRef.current = columns
     }, [columns])
 
+    const rowKeyExtractor = useCallback((record: EvaluationRunTableRow) => record.key, [])
+
+    const columnVisibilityMenuRenderer = useCallback(
+        (
+            ctrls: any,
+            close: () => void,
+            context: {onExport?: () => void; isExporting?: boolean},
+        ) => (
+            <ColumnVisibilityPopoverContent
+                controls={ctrls}
+                onClose={close}
+                onExport={context.onExport}
+                isExporting={context.isExporting}
+            />
+        ),
+        [],
+    )
+
     return (
         <div
             className={clsx("flex flex-col", autoHeight ? "h-full min-h-0" : "min-h-0", className)}
@@ -528,7 +603,7 @@ const EvaluationRunsTableActive = ({
                 datasetStore={evaluationRunsDatasetStore}
                 tableScope={tableScope}
                 columns={columns}
-                rowKey={(record) => record.key}
+                rowKey={rowKeyExtractor}
                 title={headerTitle}
                 filters={filtersNode}
                 primaryActions={createButton}
@@ -541,13 +616,13 @@ const EvaluationRunsTableActive = ({
                 tableProps={tableProps}
                 rowSelection={rowSelectionConfig}
                 className="flex-1 min-h-0"
-                columnVisibilityMenuRenderer={(ctrls, close) => (
-                    <ColumnVisibilityPopoverContent controls={ctrls} onClose={close} />
-                )}
+                columnVisibilityMenuRenderer={columnVisibilityMenuRenderer}
                 pagination={tablePagination}
                 onPaginationStateChange={handlePaginationStateChange}
                 exportOptions={exportOptions}
                 renderExportButton={renderExportButton}
+                useSettingsDropdown={isNarrowScreen}
+                settingsDropdownDelete={settingsDropdownDelete}
                 keyboardShortcuts={infiniteTableKeyboardShortcuts}
             />
 
@@ -560,7 +635,7 @@ const EvaluationRunsTableActive = ({
                     />
                 ) : (
                     <NewEvaluationModal
-                        preview
+                        preview={selectedCreateType === "human"}
                         open={isCreateModalOpen}
                         evaluationType={selectedCreateType}
                         onCancel={closeCreateModal}

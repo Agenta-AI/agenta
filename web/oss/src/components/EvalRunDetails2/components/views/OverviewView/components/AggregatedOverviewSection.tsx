@@ -20,12 +20,12 @@ const AggregatedOverviewSection = ({runIds}: AggregatedOverviewSectionProps) => 
 
     return (
         <Card variant="outlined">
-            <div className="flex flex-col gap-6">
-                <div className="flex flex-col gap-6 lg:flex-row">
-                    <div className="flex-1 lg:max-w-[50%]">
+            <div className="flex flex-col">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-stretch">
+                    <div className="w-7/12">
                         <MetadataSummaryTable runIds={orderedRunIds} projectURL={projectURL} />
                     </div>
-                    <div className="flex-1 min-h-[320px]">
+                    <div className="grow flex items-center justify-center min-h-[320px] w-5/12">
                         <OverviewSpiderChart runIds={orderedRunIds} />
                     </div>
                 </div>

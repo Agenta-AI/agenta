@@ -37,8 +37,8 @@ export const FLAG_LABELS: Record<FlagKey, string> = {
 export const EVALUATION_KIND_LABELS: Record<ConcreteEvaluationRunKind, string> = {
     auto: "Automatic",
     human: "Human",
-    online: "Live",
-    custom: "Custom",
+    online: "Online",
+    custom: "SDK",
 }
 
 export const EVALUATION_KIND_FILTER_OPTIONS: {
@@ -50,14 +50,6 @@ export const EVALUATION_KIND_FILTER_OPTIONS: {
 }))
 
 const AUTO_METRICS: RunMetricDescriptor[] = [
-    {
-        id: "metric-score",
-        label: "Score",
-        metricKey: "score",
-        metricPath: "score",
-        kind: "generic",
-        width: 140,
-    },
     {
         id: "metric-cost",
         label: "Cost (Total)",
@@ -76,54 +68,11 @@ const AUTO_METRICS: RunMetricDescriptor[] = [
     },
 ]
 
-const HUMAN_METRICS: RunMetricDescriptor[] = [
-    {
-        id: "metric-score",
-        label: "Score",
-        metricKey: "score",
-        metricPath: "score",
-        kind: "generic",
-        width: 140,
-    },
-    {
-        id: "metric-votes",
-        label: "Votes",
-        metricKey: "votes",
-        metricPath: "votes",
-        kind: "generic",
-        width: 140,
-    },
-]
+const HUMAN_METRICS: RunMetricDescriptor[] = []
 
-const ONLINE_METRICS: RunMetricDescriptor[] = [
-    {
-        id: "metric-conversion",
-        label: "Conversion",
-        metricKey: "conversion",
-        metricPath: "conversion",
-        kind: "generic",
-        width: 140,
-    },
-    {
-        id: "metric-weighted-score",
-        label: "Score",
-        metricKey: "score",
-        metricPath: "score",
-        kind: "generic",
-        width: 140,
-    },
-]
+const ONLINE_METRICS: RunMetricDescriptor[] = []
 
-const CUSTOM_METRICS: RunMetricDescriptor[] = [
-    {
-        id: "metric-score",
-        label: "Score",
-        metricKey: "score",
-        metricPath: "score",
-        kind: "generic",
-        width: 140,
-    },
-]
+const CUSTOM_METRICS: RunMetricDescriptor[] = []
 
 const mergeUniqueMetrics = (...groups: RunMetricDescriptor[][]): RunMetricDescriptor[] => {
     const registry = new Map<string, RunMetricDescriptor>()

@@ -7,10 +7,11 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {BasicStats, canonicalizeMetricKey, getMetricValueWithAliases} from "@/oss/lib/metricUtils"
 import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
+import {createMetricProcessor} from "../metricProcessor"
 import {effectiveProjectIdAtom} from "../run"
 
 import {
-    MetricScope,
+    type MetricScope,
     PreviewRunMetricStatsQueryArgs,
     PreviewRunMetricStatsSelectorArgs,
     RunLevelMetricSelection,
@@ -67,12 +68,6 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
         const results = new Map<string, any[]>()
 
         for (const [, entry] of groups) {
-            console.debug("[RunMetrics] fetch batch", {
-                projectId: entry.projectId,
-                runIds: Array.from(entry.runIds),
-                needsTemporal: entry.needsTemporal,
-                itemCount: entry.items.length,
-            })
             const basePayload = {
                 metrics: {
                     run_ids: Array.from(entry.runIds),
@@ -103,13 +98,6 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
                     target[bucket].push(metric)
                     if (hasScenario && bucket !== "scenario") {
                         target.scenario.push(metric)
-                        console.debug("[RunMetrics] mirrored scenario metric", {
-                            projectId: entry.projectId,
-                            runId,
-                            bucket,
-                            metricId: metric?.id,
-                            scenarioId: metric?.scenario_id ?? metric?.scenarioId,
-                        })
                     }
                 })
             }
@@ -218,6 +206,22 @@ const previewRunMetricStatsQueryFamily = atomFamily(
 
             const includeTemporalFlagValue = includeTemporalFlag(includeTemporal)
 
+            // Statuses that indicate an evaluation is still in progress
+            // When in progress, we should NOT trigger metric refresh as:
+            // 1. 0 metrics means the evaluation hasn't produced any results yet
+            // 2. Partial metrics means the evaluation is still running
+            // Triggering refresh during in-progress state causes premature run-level metrics creation
+            const IN_PROGRESS_STATUSES = new Set([
+                "evaluation_initialized",
+                "initialized",
+                "evaluation_started",
+                "started",
+                "running",
+                "pending",
+            ])
+            // If runStatus is undefined (not yet loaded), assume in-progress to prevent premature refresh
+            const isRunInProgress = runStatus ? IN_PROGRESS_STATUSES.has(runStatus) : true
+
             const fetchMetrics = async () => {
                 if (!projectId || !runId) return []
                 return runMetricsBatchFetcher({
@@ -234,6 +238,7 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                     projectId,
                     runId,
                     includeTemporalFlagValue,
+                    isRunInProgress, // Include to re-run query when status changes from in-progress to terminal
                 ],
                 enabled: Boolean(projectId && runId),
                 staleTime: 30_000,
@@ -279,6 +284,27 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                             processor.markRunLevelGap("missing-run-level-entry")
                         }
 
+                        // Detect if this is a temporal/live evaluation
+                        // Temporal evaluations have entries with timestamp/interval but no static run-level entry
+                        const hasTemporalEntries = entries.some(
+                            (entry: any) =>
+                                !entry?.scenario_id &&
+                                !entry?.scenarioId &&
+                                (entry?.timestamp || entry?.interval?.timestamp),
+                        )
+                        const hasStaticRunLevelEntry = entries.some(
+                            (entry: any) =>
+                                !entry?.scenario_id &&
+                                !entry?.scenarioId &&
+                                !entry?.timestamp &&
+                                !entry?.interval?.timestamp,
+                        )
+                        // Only skip bootstrap for actual temporal/live evaluations
+                        // A temporal-only evaluation has temporal entries but NO static run-level entry
+                        // Note: We must have actual temporal entries to consider it temporal-only
+                        // Missing run-level metrics (deleted or not yet created) should NOT be treated as temporal-only
+                        const isTemporalOnly = hasTemporalEntries && !hasStaticRunLevelEntry
+
                         const processed = entries.map((entry: any) => {
                             const scope: MetricScope =
                                 entry?.scenario_id || entry?.scenarioId ? "scenario" : "run"
@@ -299,7 +325,7 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                             processor.markRunLevelGap("missing-run-level-entry")
                         }
 
-                        const flushResult = await processor.flush({triggerRefresh})
+                        const flushResult = await processor.flush({triggerRefresh, isTemporalOnly})
 
                         return {metrics: filtered, flushResult}
                     }
@@ -312,10 +338,12 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                         return deleteMetricsByIds({projectId, metricIds: staleMetricIds})
                     }
 
+                    // Do NOT trigger refresh when the run is in progress
+                    // This prevents premature run-level metric creation during polling
                     let {metrics, flushResult} = await processMetrics({
                         entries: fetchedMetrics,
                         source: "run-metric-stats-query",
-                        triggerRefresh: true,
+                        triggerRefresh: !isRunInProgress,
                     })
 
                     let cleanupPerformed = await attemptCleanup(flushResult)
@@ -374,12 +402,6 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                             ).getTime()
                             return ts > latestTs ? entry : latest
                         }, null as any)
-                    }
-
-                    const shouldMarkRunLevelGap =
-                        !runLevelEntry && fetchedMetrics.some((entry: any) => !entry?.scenario_id)
-                    if (shouldMarkRunLevelGap) {
-                        metricProcessor.markRunLevelGap("missing-run-level-entry")
                     }
 
                     const combinedFlat: Record<string, any> = {}

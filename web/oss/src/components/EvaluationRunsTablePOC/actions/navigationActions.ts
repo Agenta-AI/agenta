@@ -1,9 +1,5 @@
 import type {MouseEvent} from "react"
 
-import {
-    buildAppScopedUrl,
-    buildEvaluationNavigationUrl,
-} from "@/agenta-oss-common/components/pages/evaluations/utils"
 import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
@@ -15,6 +11,11 @@ import {urlAtom, waitForValidURL, type URLState} from "@/oss/state/url"
 
 import type {EvaluationRunKind, EvaluationRunTableRow} from "../types"
 import {resolveRowAppId} from "../utils/runHelpers"
+
+import {
+    buildAppScopedUrl,
+    buildEvaluationNavigationUrl,
+} from "@/agenta-oss-common/components/pages/evaluations/utils"
 
 const store = getDefaultStore()
 

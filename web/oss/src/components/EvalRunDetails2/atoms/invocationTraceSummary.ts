@@ -1,7 +1,7 @@
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import type {TraceData, TraceNode} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
+import type {TraceData, TraceNode} from "@/oss/lib/evaluations"
 
 import {resolveInvocationTraceValue} from "../utils/traceValue"
 

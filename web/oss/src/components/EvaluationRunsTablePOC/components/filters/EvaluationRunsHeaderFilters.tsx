@@ -401,7 +401,7 @@ const FiltersSummary = () => {
                                         ? "Loading…"
                                         : chip.closable
                                           ? undefined
-                                          : "Preset by context; change scope to remove"
+                                          : "Preset by context; change view tab to remove"
                                 }
                             >
                                 <span className={toneColors ? "text-inherit" : undefined}>
@@ -438,7 +438,7 @@ const EvaluationRunsHeaderFilters = () => {
                 style={{minWidth: 220}}
             />
             <FiltersPopoverTrigger
-                label={filtersButtonState.label}
+                filterCount={filtersButtonState.filterCount}
                 buttonType={filtersButtonState.buttonType as "default" | "primary"}
                 onOpenChange={handleFiltersOpenChange}
                 popoverProps={{

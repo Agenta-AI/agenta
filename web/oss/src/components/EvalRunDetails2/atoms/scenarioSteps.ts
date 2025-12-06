@@ -3,8 +3,8 @@ import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import type {IStepResponse} from "@/oss/lib/evaluations"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
-import type {IStepResponse} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 import {getProjectValues} from "@/oss/state/project"
 import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
 
@@ -12,6 +12,14 @@ import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
 import type {ScenarioStepsBatchResult} from "./types"
 
 const scenarioStepsBatcherCache = new Map<string, BatchFetcher<string, ScenarioStepsBatchResult>>()
+
+/**
+ * Invalidate the scenario steps batcher cache.
+ * Call this after updating step results to force a fresh fetch.
+ */
+export const invalidateScenarioStepsBatcherCache = () => {
+    scenarioStepsBatcherCache.clear()
+}
 
 const resolveEffectiveRunId = (get: any, runId?: string | null) =>
     runId ?? get(activePreviewRunIdAtom) ?? undefined

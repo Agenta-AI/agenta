@@ -1,4 +1,7 @@
 name: 01 - create release branch
+permissions:
+  contents: write
+  pull-requests: write
 
 on:
   workflow_dispatch:

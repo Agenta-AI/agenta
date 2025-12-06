@@ -337,25 +337,61 @@ export const evaluationRunQueryAtomFamily = atomFamily((runId: string | null) =>
 
                 const camelRun = snakeToCamelCaseKeys(normalizedRun)
                 const runIndex = buildRunIndex(camelRun)
-                // if (
-                //     process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true" &&
-                //     typeof window !== "undefined"
-                // ) {
-                //     console.debug("[EvalRunDetails2] runIndex", {
-                //         runId,
-                //         stepKeys: Object.keys(runIndex.steps),
-                //         columnCounts: Object.fromEntries(
-                //             Object.entries(runIndex.columnsByStep).map(([key, cols]) => [
-                //                 key,
-                //                 cols.length,
-                //             ]),
-                //         ),
-                //     })
-                // }
                 return {rawRun, camelRun, runIndex}
             },
         }
     }),
+)
+
+/**
+ * Atom family that accepts both runId and projectId as parameters.
+ * This is useful when the global projectIdAtom may not be set yet (e.g., in a new browser window).
+ */
+export const evaluationRunWithProjectQueryAtomFamily = atomFamily(
+    ({runId, projectId}: {runId: string | null; projectId: string | null}) =>
+        atomWithQuery<EvaluationRunQueryResult>(() => {
+            return {
+                queryKey: ["preview", "evaluation-run", runId, projectId],
+                enabled: Boolean(runId && projectId),
+                staleTime: 60_000,
+                gcTime: 5 * 60 * 1000,
+                refetchOnWindowFocus: false,
+                refetchOnReconnect: false,
+                queryFn: async () => {
+                    if (!runId) {
+                        throw new Error("evaluationRunWithProjectQueryAtomFamily requires a run id")
+                    }
+                    if (!projectId) {
+                        throw new Error(
+                            "evaluationRunWithProjectQueryAtomFamily requires a project id",
+                        )
+                    }
+
+                    const batcher = getPreviewRunBatcher()
+                    const rawRun = await batcher({projectId, runId})
+                    if (!rawRun) {
+                        throw new Error(
+                            `Preview evaluation run payload missing for run ${runId} (project ${projectId})`,
+                        )
+                    }
+
+                    let normalizedRun = rawRun
+                    if (projectId && runId) {
+                        const {run: ensuredRun} = await ensureEvaluatorRevisions({
+                            runId,
+                            projectId,
+                            rawRun,
+                        })
+                        normalizedRun = ensuredRun
+                    }
+
+                    const camelRun = snakeToCamelCaseKeys(normalizedRun)
+                    const runIndex = buildRunIndex(camelRun)
+                    return {rawRun, camelRun, runIndex}
+                },
+            }
+        }),
+    (a, b) => a.runId === b.runId && a.projectId === b.projectId,
 )
 
 export const evaluationRunIndexAtomFamily = atomFamily((runId: string | null) =>

@@ -1,3 +1,7 @@
+import axios from "@/oss/lib/api/assets/axiosConfig"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {getProjectValues} from "@/oss/state/project"
+
 import {iqrsLevels, PERCENTILE_STOPS} from "./assets/contants"
 import {BasicStats} from "./types"
 
@@ -699,5 +703,109 @@ export const computeMetricDistribution = (
         min: computed.min ?? 0,
         max: computed.max ?? 0,
         binSize,
+    }
+}
+
+// --- Axios-based API functions (for use in components) ---
+
+/**
+ * Query scenario metrics for a specific run and scenario.
+ * Uses axios with automatic project ID injection.
+ */
+export const queryScenarioMetric = async ({
+    runId,
+    scenarioId,
+}: {
+    runId: string
+    scenarioId: string
+}): Promise<{metrics: any[]}> => {
+    const {projectId} = getProjectValues()
+    const apiUrl = getAgentaApiUrl()
+
+    const response = await axios.post(`${apiUrl}${METRICS_ENDPOINT}query?project_id=${projectId}`, {
+        metrics: {
+            run_ids: [runId],
+            scenario_ids: [scenarioId],
+        },
+        windowing: {},
+    })
+
+    return response.data
+}
+
+/**
+ * Create or update scenario-level metrics using axios.
+ * This function queries existing metrics and either creates or updates them.
+ *
+ * @param runId - The evaluation run ID
+ * @param scenarioId - The scenario ID
+ * @param data - The metric data to store (stepKey -> metricKey -> metricData)
+ */
+export const upsertScenarioMetricData = async ({
+    runId,
+    scenarioId,
+    data,
+}: {
+    runId: string
+    scenarioId: string
+    data: Record<string, Record<string, unknown>>
+}): Promise<any> => {
+    const {projectId} = getProjectValues()
+    const apiUrl = getAgentaApiUrl()
+
+    // First, query existing metrics for this scenario
+    let existingMetric: any = null
+    try {
+        const queryResponse = await axios.post(
+            `${apiUrl}${METRICS_ENDPOINT}query?project_id=${projectId}`,
+            {
+                metrics: {
+                    run_ids: [runId],
+                    scenario_ids: [scenarioId],
+                },
+                windowing: {},
+            },
+        )
+
+        const existingMetrics = Array.isArray(queryResponse?.data?.metrics)
+            ? queryResponse.data.metrics
+            : []
+        existingMetric = existingMetrics.find(
+            (m: any) => (m?.scenario_id || m?.scenarioId) === scenarioId,
+        )
+    } catch (error) {
+        console.warn("[upsertScenarioMetricData] Failed to query existing metrics", error)
+    }
+
+    // Merge new data with existing data
+    const mergedData = {
+        ...(existingMetric?.data || {}),
+        ...data,
+    }
+
+    // Update existing or create new
+    if (existingMetric?.id) {
+        // Update existing metric
+        return axios.patch(`${apiUrl}${METRICS_ENDPOINT}?project_id=${projectId}`, {
+            metrics: [
+                {
+                    id: existingMetric.id,
+                    data: mergedData,
+                    status: existingMetric.status || "success",
+                },
+            ],
+        })
+    } else {
+        // Create new metric
+        return axios.post(`${apiUrl}${METRICS_ENDPOINT}?project_id=${projectId}`, {
+            metrics: [
+                {
+                    run_id: runId,
+                    scenario_id: scenarioId,
+                    data: mergedData,
+                    status: "success",
+                },
+            ],
+        })
     }
 }

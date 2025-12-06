@@ -5,21 +5,17 @@ import type {ColumnsType} from "antd/es/table"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
-import {
-    ApplicationReferenceLabel,
-    TestsetTagList,
-    VariantReferenceLabel,
-} from "@/oss/components/References"
+import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
 import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 import {useProjectData} from "@/oss/state/project"
 
-import {buildFrequencyChartData} from "../../../EvaluatorMetricsChart/utils/chartData"
+import {getComparisonColor} from "../../../../atoms/compare"
 import {evaluationQueryRevisionAtomFamily} from "../../../../atoms/query"
 import {
     runCreatedAtAtomFamily,
     runInvocationRefsAtomFamily,
+    runStatusAtomFamily,
     runTestsetIdsAtomFamily,
     runUpdatedAtAtomFamily,
 } from "../../../../atoms/runDerived"
@@ -27,13 +23,15 @@ import {
     evaluationRunIndexAtomFamily,
     evaluationRunQueryAtomFamily,
 } from "../../../../atoms/table/run"
-import {getComparisonColor} from "../../../../atoms/compare"
 import type {
     QueryConditionPayload,
     QueryFilteringPayload,
 } from "../../../../services/onlineEvaluations/api"
+import {buildFrequencyChartData} from "../../../EvaluatorMetricsChart/utils/chartData"
+import {ApplicationReferenceLabel, TestsetTagList, VariantReferenceLabel} from "../../../references"
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import {resolveMetricValue} from "../utils/metrics"
+
 import RunNameTag from "./RunNameTag"
 
 interface MetadataSummaryTableProps {
@@ -83,10 +81,17 @@ const QuerySummaryCell = ({runId}: MetadataCellProps) => {
 
     const formatSampleRate = (rate: unknown): string => {
         if (typeof rate !== "number" || Number.isNaN(rate)) return "—"
-        // Heuristic: if 0<rate<=1 treat as fraction; if 1<rate<=100 treat as percent
-        const pct = rate > 0 && rate <= 1 ? rate * 100 : rate
-        const rounded = Math.round((pct + Number.EPSILON) * 100) / 100
-        return `${rounded}%`
+        // Heuristic: if 0<rate<=1 treat as fraction and convert to %; if rate>1 assume already a percent
+        if (rate > 0 && rate <= 1) {
+            const pct = rate * 100
+            const rounded = Math.round((pct + Number.EPSILON) * 100) / 100
+            return `${rounded}%`
+        } else if (rate > 1 && rate <= 100) {
+            const rounded = Math.round((rate + Number.EPSILON) * 100) / 100
+            return `${rounded}%`
+        } else {
+            return "—"
+        }
     }
 
     if (isLoading) return <Typography.Text type="secondary">…</Typography.Text>
@@ -150,6 +155,54 @@ const UpdatedCell = ({runId}: MetadataCellProps) => {
     const updated = useAtomValueWithSchedule(updatedAtom, {priority: LOW_PRIORITY})
     if (!updated) return <Typography.Text type="secondary">—</Typography.Text>
     return <Typography.Text>{new Date(updated).toLocaleString()}</Typography.Text>
+}
+
+type StatusTone = "success" | "processing" | "default" | "error" | "warning"
+
+const STATUS_COLORS: Record<StatusTone, string> = {
+    success: "#12B76A",
+    processing: "#3B82F6",
+    default: "#98A2B3",
+    error: "#F04438",
+    warning: "#F79009",
+}
+
+const mapStatusTone = (raw: string): StatusTone => {
+    const s = raw.toLowerCase()
+    if (s.includes("success") || s.includes("completed") || s === "finished" || s === "ok")
+        return "success"
+    if (s.includes("fail") || s.includes("error")) return "error"
+    if (s.includes("run") || s.includes("progress") || s.includes("queued") || s.includes("active"))
+        return "processing"
+    if (s.includes("warn") || s.includes("partial") || s.includes("degraded")) return "warning"
+    if (s.includes("cancel") || s.includes("stop") || s.includes("closed")) return "default"
+    return "default"
+}
+
+const humanizeStatus = (value: string) =>
+    value
+        .toString()
+        .replaceAll("_", " ")
+        .replace(/(^|\s)([a-z])/g, (match) => match.toUpperCase())
+
+const StatusCell = ({runId}: MetadataCellProps) => {
+    const statusAtom = useMemo(() => runStatusAtomFamily(runId), [runId])
+    const status = useAtomValueWithSchedule(statusAtom, {priority: LOW_PRIORITY})
+    if (!status) return <Typography.Text type="secondary">—</Typography.Text>
+
+    const tone = mapStatusTone(status)
+    const label = humanizeStatus(status)
+    const dotColor = STATUS_COLORS[tone]
+
+    return (
+        <span className="inline-flex items-center gap-2">
+            <span
+                className="inline-block rounded-full"
+                style={{backgroundColor: dotColor, width: 10, height: 10}}
+            />
+            <Typography.Text>{label}</Typography.Text>
+        </span>
+    )
 }
 
 const ApplicationCell = ({runId, projectURL}: MetadataCellProps) => (
@@ -336,6 +389,7 @@ const InvocationErrorsCell = makeMetricCell("attributes.ag.metrics.errors.cumula
 
 const METADATA_ROWS: MetadataRowRecord[] = [
     {key: "evaluations", label: "Evaluations", Cell: MetadataRunNameCell},
+    {key: "status", label: "Status", Cell: StatusCell},
     {key: "created", label: "Created at", Cell: CreatedCell},
     {key: "updated", label: "Updated at", Cell: UpdatedCell},
     {
@@ -597,7 +651,7 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
             key: runId,
             width: 160,
             onCell: (record: MetadataRowRecord) => {
-                if (!isComparison || record.key === "query_config" || record.key === "testsets") {
+                if (!isComparison || record.key === "query_config") {
                     return {}
                 }
                 const tone = getComparisonColor(index)

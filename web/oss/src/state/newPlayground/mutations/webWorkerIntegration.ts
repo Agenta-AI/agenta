@@ -14,7 +14,10 @@ import {
 import {getAllMetadata, getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {extractInputKeysFromSchema, extractVariables} from "@/oss/lib/shared/variant/inputHelpers"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
-import {extractValueByMetadata} from "@/oss/lib/shared/variant/valueHelpers"
+import {
+    extractValueByMetadata,
+    stripAgentaMetadataDeep,
+} from "@/oss/lib/shared/variant/valueHelpers"
 import {getJWT} from "@/oss/services/api"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {
@@ -421,6 +424,9 @@ export const triggerWebWorkerTestAtom = atom(
                 .filter(Boolean)
         }
 
+        const sanitizedChatHistory = stripAgentaMetadataDeep(chatHistory)
+        const sanitizedPrompts = stripAgentaMetadataDeep(prompts)
+
         inputRow = (() => {
             const rowIds = get(generationInputRowIdsAtom) as string[]
             if (!Array.isArray(rowIds) || rowIds.length === 0) return undefined
@@ -479,10 +485,10 @@ export const triggerWebWorkerTestAtom = atom(
             },
             headers,
             projectId,
-            chatHistory,
+            chatHistory: sanitizedChatHistory,
             spec: getSpecLazy(),
             runId,
-            prompts,
+            prompts: sanitizedPrompts,
             // variables: promptVars,
             variables: allowedKeys.ordered,
             variableValues: computeVariableValues(

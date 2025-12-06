@@ -8,12 +8,13 @@ import {
     MoreOutlined,
 } from "@ant-design/icons"
 import {Database, Lightning, Play} from "@phosphor-icons/react"
-import {Button, Dropdown, Flex, FormInstance, message, Space, Tabs, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Flex, FormInstance, Space, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
+import {message} from "@/oss/components/AppMessageContext"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"

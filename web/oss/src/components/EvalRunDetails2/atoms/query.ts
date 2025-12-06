@@ -404,7 +404,8 @@ const evaluationQueryRevisionBatchFetcher = createBatchFetcher<
 
                     const response = await axios.post("/preview/queries/revisions/query", body, {
                         params: {project_id: projectId},
-                    })
+                        _ignoreError: true,
+                    } as any)
 
                     const payload = response?.data ?? {}
                     const list = Array.isArray(payload?.query_revisions)

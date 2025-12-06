@@ -1,8 +1,8 @@
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
+import type {IStepResponse} from "@/oss/lib/evaluations"
 import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import type {IStepResponse} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 
 import {readInvocationResponse} from "../../../lib/traces/traceUtils"
 import {previewEvalTypeAtom} from "../state/evalType"
@@ -26,6 +26,7 @@ import {
     type ColumnDescriptorInput,
     type ColumnValueDescriptor,
 } from "./table/columnAccess"
+import {evaluationRunIndexAtomFamily} from "./table/run"
 import {testcaseQueryMetaAtomFamily, testcaseValueAtomFamily} from "./table/testcases"
 import {traceQueryMetaAtomFamily, traceValueAtomFamily} from "./traces"
 
@@ -36,12 +37,23 @@ export interface QueryState<T> {
     error?: unknown
 }
 
+export interface StepError {
+    code?: number
+    type?: string
+    message: string
+    stacktrace?: string
+}
+
+export type {StepError as EvaluatorStepError}
+
 export interface ScenarioStepValueResult {
     value: unknown
     displayValue?: unknown
     isLoading: boolean
     isFetching: boolean
     error?: unknown
+    /** Error from the step itself (e.g., evaluator failure) */
+    stepError?: StepError | null
 }
 
 interface ColumnValueConfig {
@@ -193,12 +205,37 @@ const pickStep = (steps: IStepResponse[], stepKey?: string): IStepResponse | und
     return steps[0]
 }
 
-const extractStepsByKind = (steps: IStepResponse[]) => {
+interface RunIndex {
+    inputKeys?: Set<string>
+    invocationKeys?: Set<string>
+    annotationKeys?: Set<string>
+}
+
+const extractStepsByKind = (steps: IStepResponse[], runIndex?: RunIndex | null) => {
     const inputs: IStepResponse[] = []
     const invocations: IStepResponse[] = []
     const annotations: IStepResponse[] = []
 
     steps.forEach((step) => {
+        const stepKey = (step as any)?.stepKey ?? (step as any)?.step_key ?? ""
+
+        // Use runIndex for classification if available (most reliable)
+        if (runIndex) {
+            if (runIndex.inputKeys?.has(stepKey)) {
+                inputs.push(step)
+                return
+            }
+            if (runIndex.invocationKeys?.has(stepKey)) {
+                invocations.push(step)
+                return
+            }
+            if (runIndex.annotationKeys?.has(stepKey)) {
+                annotations.push(step)
+                return
+            }
+        }
+
+        // Fallback to step properties if runIndex doesn't have the key
         const kind = getStepKind(step)
         if (kind === "input") {
             inputs.push(step)
@@ -267,17 +304,104 @@ const toTestcaseId = (step: IStepResponse | undefined) => {
     return (step as any)?.testcaseId || (step as any)?.testcase_id || undefined
 }
 
+/**
+ * Extract step error if the step has status "failure" and an error object.
+ * This is used to display evaluator errors in the UI.
+ */
+const extractStepError = (step: IStepResponse | undefined): StepError | null => {
+    if (!step) return null
+    const status = (step as any)?.status
+    const error = (step as any)?.error
+    if (status === "failure" && error && typeof error === "object") {
+        return {
+            code: error.code,
+            type: error.type,
+            message: error.message ?? "Unknown error",
+            stacktrace: error.stacktrace,
+        }
+    }
+    return null
+}
+
+/**
+ * Find a step by stepKey and check if it has an error.
+ */
+const findStepWithError = (
+    steps: IStepResponse[],
+    stepKey?: string,
+): {step: IStepResponse | undefined; error: StepError | null} => {
+    if (!steps.length) return {step: undefined, error: null}
+    if (stepKey) {
+        const match = steps.find((step) => {
+            const possibleKeys = [
+                (step as any)?.key,
+                (step as any)?.stepKey,
+                (step as any)?.step_key,
+            ]
+            return possibleKeys.includes(stepKey)
+        })
+        if (match) {
+            return {step: match, error: extractStepError(match)}
+        }
+    }
+    // Return first step if no stepKey match
+    const firstStep = steps[0]
+    return {step: firstStep, error: extractStepError(firstStep)}
+}
+
+/**
+ * Detects if a metric value is just a "string type placeholder" without actual data.
+ * String metrics don't store actual values (can't build distribution), so we get
+ * `{"type":"string","count":N}` instead of the real value.
+ * In this case, we should fall back to annotation data.
+ */
+const isStringTypePlaceholder = (value: unknown): boolean => {
+    if (typeof value !== "object" || value === null) return false
+    const obj = value as Record<string, unknown>
+    // Check if it's a string-type metric placeholder: has type="string" and count, but no actual value
+    if (obj.type === "string" && typeof obj.count === "number") {
+        // If it only has type and count (and maybe other metadata), it's a placeholder
+        const hasActualValue =
+            obj.value !== undefined ||
+            obj.freq !== undefined ||
+            obj.frequency !== undefined ||
+            obj.rank !== undefined ||
+            obj.mean !== undefined
+        return !hasActualValue
+    }
+    return false
+}
+
 const resolveAnnotationValue = (
-    annotationData: AnnotationDto | null | undefined,
+    annotationData: AnnotationDto | AnnotationDto[] | null | undefined,
     column: ColumnValueConfig,
     descriptor: ColumnValueDescriptor,
 ) => {
     if (!annotationData) return undefined
 
+    // Handle array of annotations - use the first one (most recent)
+    const annotation = Array.isArray(annotationData) ? annotationData[0] : annotationData
+    if (!annotation) return undefined
+
     const pathSegments = descriptor.pathSegments ?? column.pathSegments ?? splitPath(column.path)
-    const outputs = annotationData?.data?.outputs ?? {}
+    const outputs = annotation?.data?.outputs ?? {}
     const annotationDescriptor = descriptor.annotation
     const metricCandidates = annotationDescriptor?.metricPathCandidates ?? []
+
+    // Extract the valueKey (last segment of the path) for direct lookup
+    const valueKey = column.valueKey ?? pathSegments[pathSegments.length - 1]
+
+    // First, try direct lookup by valueKey in each output category
+    if (valueKey) {
+        const directValue =
+            outputs?.metrics?.[valueKey] ??
+            outputs?.notes?.[valueKey] ??
+            outputs?.extra?.[valueKey] ??
+            outputs?.[valueKey]
+        if (directValue !== undefined) {
+            return directValue
+        }
+    }
 
     for (const segments of metricCandidates) {
         const metricValue =
@@ -293,10 +417,10 @@ const resolveAnnotationValue = (
     const segmentVariants = annotationDescriptor?.segmentVariants ?? [pathSegments]
 
     const candidateSources: unknown[] = [
-        {annotation: annotationData},
-        annotationData,
-        {attributes: {ag: annotationData}},
-        annotationData?.data,
+        {annotation: annotation},
+        annotation,
+        {attributes: {ag: annotation}},
+        annotation?.data,
         outputs,
         outputs?.metrics,
         outputs?.notes,
@@ -350,7 +474,8 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
             const stepsQuery = get(scenarioStepsQueryFamily({scenarioId, runId}))
             const stepsQueryLoading = stepsQuery.isLoading || stepsQuery.isPending
             const baseSteps = stepsQuery.data?.steps ?? []
-            const derivedByKind = extractStepsByKind(baseSteps)
+            const runIndex = get(evaluationRunIndexAtomFamily(runId ?? null))
+            const derivedByKind = extractStepsByKind(baseSteps, runIndex)
             const inputs = derivedByKind.inputs
             const invocations = derivedByKind.invocations
             const annotations = derivedByKind.annotations
@@ -511,10 +636,25 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                         error: undefined,
                     }
                 }
-                const targetStep = pickStep(
+
+                // Use findStepWithError to also check for step-level errors (e.g., invocation failures)
+                const {step: targetStep, error: stepError} = findStepWithError(
                     invocations.length ? invocations : steps,
                     column.stepKey,
                 )
+
+                // If the step has an error (e.g., invocation failed), return early with the error
+                if (stepError) {
+                    return {
+                        value: undefined,
+                        displayValue: undefined,
+                        isLoading: false,
+                        isFetching: false,
+                        error: undefined,
+                        stepError,
+                    }
+                }
+
                 const traceId = toTraceId(targetStep)
                 const pathSegments = descriptor.pathSegments
 
@@ -658,6 +798,29 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     column.columnKind === "metric" ||
                     (column.stepType === "annotation" && Boolean(column.metricKey)))
 
+            // For metric columns, check for step errors before attempting metric lookup
+            // This ensures evaluator errors are displayed in metric cells
+            if (
+                shouldAttemptMetricLookup &&
+                column.stepKey &&
+                (column.stepType === "metric" || column.columnKind === "metric")
+            ) {
+                const {error: stepError} = findStepWithError(
+                    annotations.length ? annotations : steps,
+                    column.stepKey,
+                )
+                if (stepError) {
+                    return {
+                        value: undefined,
+                        displayValue: undefined,
+                        isLoading: false,
+                        isFetching: false,
+                        error: undefined,
+                        stepError,
+                    }
+                }
+            }
+
             let metricCandidate: ScenarioStepValueResult | null = null
 
             if (shouldAttemptMetricLookup) {
@@ -686,7 +849,11 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     possibleKeys.forEach(pushCandidate)
                 })
 
-                if (!candidateStepKeys.includes(null)) {
+                // Only fall back to null stepKey if the column doesn't have a specific stepKey.
+                // This prevents cross-evaluator matching when comparing runs with different
+                // evaluator configurations (e.g., matching "success" from exact-match when
+                // looking for similarity-match's "success").
+                if (!column.stepKey && !candidateStepKeys.includes(null)) {
                     candidateStepKeys.push(null)
                 }
 
@@ -720,23 +887,33 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     metricType: column.metricType,
                 })
 
+                // Check if this is a string-type placeholder (no actual value)
+                // String metrics don't store values, so we need to fall back to annotation data
+                const isPlaceholder = isStringTypePlaceholder(metricValue)
+
                 metricCandidate = {
-                    value: metricValue,
-                    displayValue: metricDisplayValue,
+                    value: isPlaceholder ? undefined : metricValue,
+                    displayValue: isPlaceholder ? undefined : metricDisplayValue,
                     isLoading: metricMeta.isLoading,
                     isFetching: metricMeta.isFetching,
                     error: metricMeta.error,
                     resolvedStepKey: resolvedMetricStepKey,
                 } as ScenarioStepValueResult & {resolvedStepKey?: string | null | undefined}
 
+                // For metric columns, return immediately unless it's a string-type placeholder
+                // String-type placeholders need to fall through to annotation lookup
                 if (column.stepType === "metric" || column.columnKind === "metric") {
-                    return metricCandidate
+                    if (!isPlaceholder) {
+                        return metricCandidate
+                    }
+                    // Fall through to annotation lookup for string-type metrics
                 }
 
                 const isOutputLikeColumn = isOutputsColumn(column)
 
                 if (
                     !isOutputLikeColumn &&
+                    !isPlaceholder &&
                     metricValue !== undefined &&
                     metricValue !== null &&
                     metricCandidate.isLoading === false
@@ -746,6 +923,100 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
 
                 if (metricMeta.isLoading || metricMeta.isFetching) {
                     return metricCandidate
+                }
+
+                // For string-type metrics, fall through to annotation lookup
+                if (isPlaceholder) {
+                    // For string metrics, we need to use the INVOCATION's trace ID to query annotations
+                    // (not the annotation step's trace ID, which is the annotation's own ID)
+                    // The annotation query API looks for annotations by their links.*.trace_id
+                    const invocationStep = invocations[0]
+                    const invocationTraceId = toTraceId(invocationStep)
+
+                    // If steps are still loading, we don't have the invocation trace ID yet
+                    // Return loading state to prevent showing empty value prematurely
+                    if (!invocationTraceId && stepsQueryLoading) {
+                        return {
+                            value: undefined,
+                            displayValue: undefined,
+                            isLoading: true,
+                            isFetching: stepsQuery.isFetching,
+                            error: undefined,
+                        }
+                    }
+
+                    if (invocationTraceId) {
+                        const annotationQuery = get(
+                            evaluationAnnotationQueryAtomFamily({
+                                traceId: invocationTraceId,
+                                runId,
+                            }),
+                        ) as QueryState<AnnotationDto[] | null>
+
+                        // If annotation query is still loading, indicate loading state
+                        // This ensures the cell shows a loading indicator until annotation data is ready
+                        if (annotationQuery.isLoading || annotationQuery.isFetching) {
+                            return {
+                                value: undefined,
+                                displayValue: undefined,
+                                isLoading: true,
+                                isFetching: annotationQuery.isFetching,
+                                error: undefined,
+                            }
+                        }
+
+                        // Filter annotations by evaluator slug to get the right one for this column
+                        const allAnnotations = annotationQuery.data ?? []
+                        const evaluatorSlug = column.stepKey?.split(".").pop() // e.g., "new-human" from "completion_testset-xxx.new-human"
+                        const evaluatorId = column.evaluatorId ?? column.evaluatorSlug ?? null
+
+                        // Try multiple matching strategies for finding the right annotation
+                        const matchingAnnotation = allAnnotations.find((ann: AnnotationDto) => {
+                            const annEvaluatorSlug = ann?.references?.evaluator?.slug
+                            const annEvaluatorId = ann?.references?.evaluator?.id
+
+                            // Match by evaluator slug from step key
+                            if (evaluatorSlug && annEvaluatorSlug === evaluatorSlug) return true
+                            // Match by evaluator ID
+                            if (
+                                evaluatorId &&
+                                (annEvaluatorId === evaluatorId || annEvaluatorSlug === evaluatorId)
+                            )
+                                return true
+                            // Match by column's evaluator slug
+                            if (column.evaluatorSlug && annEvaluatorSlug === column.evaluatorSlug)
+                                return true
+
+                            return false
+                        })
+
+                        // If no specific match found, use the first annotation as fallback
+                        // (for cases where there's only one annotation per trace)
+                        const annotationData =
+                            matchingAnnotation ??
+                            (allAnnotations.length === 1 ? allAnnotations[0] : null)
+                        const valueFromAnnotation = resolveAnnotationValue(
+                            annotationData,
+                            column,
+                            descriptor,
+                        )
+                        if (valueFromAnnotation !== undefined) {
+                            return {
+                                value: valueFromAnnotation,
+                                displayValue: formatMetricDisplay({
+                                    value: valueFromAnnotation,
+                                    metricKey: column.metricKey ?? column.valueKey ?? column.path,
+                                    metricType: column.metricType,
+                                }),
+                                isLoading: false,
+                                isFetching: false,
+                                error: annotationQuery.error,
+                            }
+                        }
+                    }
+                    // If no annotation value found via invocation trace ID,
+                    // fall through to the regular annotation column handling below
+                    // which uses the annotation step's own trace ID
                 }
             }
 
@@ -759,10 +1030,25 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                         error: undefined,
                     }
                 }
-                const targetStep = pickStep(
+
+                // Use findStepWithError to also check for step-level errors (e.g., evaluator failures)
+                const {step: targetStep, error: stepError} = findStepWithError(
                     annotations.length ? annotations : steps,
                     column.stepKey,
                 )
+
+                // If the step has an error (e.g., evaluator failed), return early with the error
+                if (stepError) {
+                    return {
+                        value: undefined,
+                        displayValue: undefined,
+                        isLoading: false,
+                        isFetching: false,
+                        error: undefined,
+                        stepError,
+                    }
+                }
+
                 const traceId = toTraceId(targetStep)
                 const annotationQuery = traceId
                     ? (get(
@@ -875,6 +1161,8 @@ export interface ScenarioColumnValueSelection {
     value: unknown
     displayValue?: unknown
     isLoading: boolean
+    /** Error from the step itself (e.g., evaluator failure) */
+    stepError?: StepError | null
 }
 
 export const scenarioColumnValueSelectionAtomFamily = atomFamily(
@@ -886,6 +1174,7 @@ export const scenarioColumnValueSelectionAtomFamily = atomFamily(
                     value: result.value,
                     displayValue: result.displayValue,
                     isLoading: result.isLoading,
+                    stepError: result.stepError,
                 }
 
                 debugScenarioValue("Column selection snapshot", {
@@ -896,10 +1185,14 @@ export const scenarioColumnValueSelectionAtomFamily = atomFamily(
                     path: column.path,
                     valueShape: summarizeDataShape(selection.value),
                     isLoading: selection.isLoading,
+                    hasStepError: Boolean(selection.stepError),
                 })
 
                 return selection
             },
-            (prev, next) => Object.is(prev.value, next.value) && prev.isLoading === next.isLoading,
+            (prev, next) =>
+                Object.is(prev.value, next.value) &&
+                prev.isLoading === next.isLoading &&
+                prev.stepError === next.stepError,
         ),
 )

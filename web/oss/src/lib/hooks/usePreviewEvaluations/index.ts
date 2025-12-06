@@ -278,45 +278,46 @@ const usePreviewEvaluations = ({
         setProjectVariantReferences(references)
         // prefetchProjectVariantConfigs(references)
     }, [appId, projectId, rawRuns, setProjectVariantReferences])
+
     /**
      * Hook to fetch testsets data.
      */
-    // const {testsets} = useTestsetsData()
-    // const {testsets: previewTestsets} = usePreviewTestsetsData()
+    const {testsets} = useTestsetsData()
+    const {testsets: previewTestsets} = usePreviewTestsetsData()
 
     /**
      * Helper to create scenarios for a given run and testset.
      * Each CSV row becomes its own scenario.
      */
-    // const createScenarios = useCallback(
-    //     async (
-    //         runId: string,
-    //         testset: Testset & {data: {testcaseIds?: string[]; testcases?: {id: string}[]}},
-    //     ): Promise<string[]> => {
-    //         if (!testset?.id) {
-    //             throw new Error(`Testset with id ${testset.id} not found.`)
-    //         }
+    const createScenarios = useCallback(
+        async (
+            runId: string,
+            testset: Testset & {data: {testcaseIds?: string[]; testcases?: {id: string}[]}},
+        ): Promise<string[]> => {
+            if (!testset?.id) {
+                throw new Error(`Testset with id ${testset.id} not found.`)
+            }
 
-    //         // 1. Build payload: each row becomes a scenario
-    //         const payload = {
-    //             scenarios: (
-    //                 testset.data.testcaseIds ??
-    //                 testset.data.testcases?.map((tc) => tc.id) ??
-    //                 []
-    //             ).map((_id, index) => ({
-    //                 run_id: runId,
-    //                 // meta: {index},
-    //             })),
-    //         }
+            // 1. Build payload: each row becomes a scenario
+            const payload = {
+                scenarios: (
+                    testset.data.testcaseIds ??
+                    testset.data.testcases?.map((tc) => tc.id) ??
+                    []
+                ).map((_id, index) => ({
+                    run_id: runId,
+                    // meta: {index},
+                })),
+            }
 
-    //         // 2. Invoke the scenario endpoint
-    //         const response = await axios.post(SCENARIOS_ENDPOINT, payload)
+            // 2. Invoke the scenario endpoint
+            const response = await axios.post(SCENARIOS_ENDPOINT, payload)
 
-    //         // Extract and return new scenario IDs
-    //         return response.data.scenarios.map((s: any) => s.id)
-    //     },
-    //     [testsets, debug],
-    // )
+            // Extract and return new scenario IDs
+            return response.data.scenarios.map((s: any) => s.id)
+        },
+        [testsets, debug],
+    )
 
     /**
      * Helper to compute enriched and sorted runs (lazy) when accessed.
@@ -401,106 +402,105 @@ const usePreviewEvaluations = ({
 
             // 4. Refresh preview runs list and return created run
             await evaluationRunsState.mutate()
-            return {run: response.data}
 
             // Extract the newly created runId
-            // const runId = response.data.runs?.[0]?.id
-            // if (!runId) {
-            //     throw new Error("createNewRun: runId not returned in response.")
-            // }
-            // // Now create scenarios for each row in the specified testset
-            // if (!paramInputs.testset) {
-            //     throw new Error("Testset is required to create scenarios")
-            // }
+            const runId = response.data.runs?.[0]?.id
+            if (!runId) {
+                throw new Error("createNewRun: runId not returned in response.")
+            }
+            // Now create scenarios for each row in the specified testset
+            if (!paramInputs.testset) {
+                throw new Error("Testset is required to create scenarios")
+            }
             // 4. Creates the scenarios
-            // const scenarioIds = await createScenarios(runId, paramInputs.testset)
+            const scenarioIds = await createScenarios(runId, paramInputs.testset)
 
             // Fire off input, invocation, and annotation steps together in one request (non-blocking)
-            // try {
-            //     // const repeatId = uuidv4()
-            //     // const retryId = uuidv4()
-            //     // 5. First generate step keys & IDs per scenario
-            //     const revision = paramInputs.revisions?.[0]
-            //     const evaluators = paramInputs.evaluators || []
-            //     const inputKey = slugify(
-            //         paramInputs.testset.name ?? paramInputs.testset.slug ?? "testset",
-            //         paramInputs.testset.id,
-            //     )
-            //     const invocationKey = revision
-            //         ? slugify(
-            //               (revision as any).name ??
-            //                   (revision as any).variantName ??
-            //                   (revision as any)._parentVariant?.variantName ??
-            //                   "invocation",
-            //               revision.id,
-            //           )
-            //         : "invocation"
+            try {
+                // const repeatId = uuidv4()
+                // const retryId = uuidv4()
+                // 5. First generate step keys & IDs per scenario
+                const revision = paramInputs.revisions?.[0]
+                const evaluators = paramInputs.evaluators || []
+                const inputKey = slugify(
+                    paramInputs.testset.name ?? paramInputs.testset.slug ?? "testset",
+                    paramInputs.testset.id,
+                )
+                const invocationKey = revision
+                    ? slugify(
+                          (revision as any).name ??
+                              (revision as any).variantName ??
+                              (revision as any)._parentVariant?.variantName ??
+                              "invocation",
+                          revision.id,
+                      )
+                    : "invocation"
 
-            //     const scenarioStepsData = scenarioIds.map((scenarioId, index) => {
-            //         const hashId = uuidv4()
-            //         return {
-            //             testcaseId:
-            //                 paramInputs.testset?.data?.testcaseIds?.[index] ??
-            //                 paramInputs.testset?.data?.testcases?.[index]?.id,
-            //             scenarioId,
-            //             hashId,
-            //         }
-            //     })
+                const scenarioStepsData = scenarioIds.map((scenarioId, index) => {
+                    const hashId = uuidv4()
+                    return {
+                        testcaseId:
+                            paramInputs.testset?.data?.testcaseIds?.[index] ??
+                            paramInputs.testset?.data?.testcases?.[index]?.id,
+                        scenarioId,
+                        hashId,
+                    }
+                })
 
-            //     // 6. Build a single steps array combining input, invocation, and evaluator steps
-            //     const allSteps = scenarioStepsData.flatMap(
-            //         ({scenarioId, testcaseId, repeatId, retryIdInput, hashId}) => {
-            //             const base = {
-            //                 testcase_id: testcaseId,
-            //                 scenario_id: scenarioId,
-            //                 run_id: runId,
-            //             }
-            //             const stepsArray: any[] = [
-            //                 {
-            //                     ...base,
-            //                     status: EvaluationStatus.SUCCESS,
-            //                     step_key: inputKey,
-            //                 },
-            //                 {
-            //                     ...base,
-            //                     step_key: invocationKey,
-            //                 },
-            //             ]
+                // 6. Build a single steps array combining input, invocation, and evaluator steps
+                const allSteps = scenarioStepsData.flatMap(
+                    ({scenarioId, testcaseId, repeatId, retryIdInput, hashId}) => {
+                        const base = {
+                            testcase_id: testcaseId,
+                            scenario_id: scenarioId,
+                            run_id: runId,
+                        }
+                        const stepsArray: any[] = [
+                            {
+                                ...base,
+                                status: EvaluationStatus.SUCCESS,
+                                step_key: inputKey,
+                            },
+                            {
+                                ...base,
+                                step_key: invocationKey,
+                            },
+                        ]
 
-            //             evaluators.forEach((ev) => {
-            //                 stepsArray.push({
-            //                     ...base,
-            //                     step_key: `${invocationKey}.${ev.slug}`,
-            //                 })
-            //             })
-            //             return stepsArray
-            //         },
-            //     )
-            //     // 7. Invoke the /results endpoint
-            //     await axios
-            //         .post(`/preview/evaluations/results/?project_id=${projectId}`, {
-            //             results: allSteps,
-            //         })
-            //         .then((res) => {
-            //             // Revalidate scenarios data
-            //             globalMutate(getEvaluationRunScenariosKey(runId))
-            //         })
-            //         .catch((err) => {
-            //             console.error(
-            //                 "[usePreviewEvaluations] createNewRun: failed to create steps",
-            //                 err,
-            //             )
-            //         })
-            // } catch (err) {
-            //     console.error("[usePreviewEvaluations] createNewRun: error scheduling steps", err)
-            // }
+                        evaluators.forEach((ev) => {
+                            stepsArray.push({
+                                ...base,
+                                step_key: `${invocationKey}.${ev.slug}`,
+                            })
+                        })
+                        return stepsArray
+                    },
+                )
+                // 7. Invoke the /results endpoint
+                await axios
+                    .post(`/preview/evaluations/results/?project_id=${projectId}`, {
+                        results: allSteps,
+                    })
+                    // .then((res) => {
+                    //     // Revalidate scenarios data
+                    //     globalMutate(getEvaluationRunScenariosKey(runId))
+                    // })
+                    .catch((err) => {
+                        console.error(
+                            "[usePreviewEvaluations] createNewRun: failed to create steps",
+                            err,
+                        )
+                    })
+            } catch (err) {
+                console.error("[usePreviewEvaluations] createNewRun: error scheduling steps", err)
+            }
             // 8. Refresh SWR data for runs
-            // await evaluationRunsState.mutate()
-            // // Return both run response and scenario IDs
-            // return {
-            //     run: response.data,
-            //     scenarios: scenarioIds,
-            // }
+            await evaluationRunsState.mutate()
+            // Return both run response and scenario IDs
+            return {
+                run: response.data,
+                scenarios: scenarioIds,
+            }
         },
         [debug, globalMutate, evaluationRunsState, projectId, appId],
     )

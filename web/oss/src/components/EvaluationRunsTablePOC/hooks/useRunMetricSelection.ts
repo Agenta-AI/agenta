@@ -4,12 +4,17 @@ import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {
+    latestTemporalMetricStatsSelectorFamily,
     previewRunMetricStatsSelectorFamily,
     type RunLevelMetricSelection,
-} from "@/oss/components/evaluations/atoms/runMetrics"
+} from "@/oss/components/Evaluations/atoms/runMetrics"
+
+import type {ConcreteEvaluationRunKind} from "../types"
 
 const idleMetricSelectionAtom = atom<RunLevelMetricSelection>({
-    state: "loading",
+    state: "hasData",
+    stats: undefined,
+    resolvedKey: undefined,
 })
 
 /**
@@ -24,13 +29,17 @@ const buildCacheKey = (
     metricKey?: string,
     metricPath?: string,
     stepKey?: string,
-): string => `${runId}|${metricKey ?? ""}|${metricPath ?? ""}|${stepKey ?? ""}`
+    evaluationKind?: ConcreteEvaluationRunKind,
+): string =>
+    `${runId}|${metricKey ?? ""}|${metricPath ?? ""}|${stepKey ?? ""}|${evaluationKind ?? ""}`
 
 interface UseRunMetricSelectionArgs {
     runId: string | null | undefined
     metricKey?: string
     metricPath?: string
     stepKey?: string
+    /** For online evaluations, use temporal metrics instead of run-level stats */
+    evaluationKind?: ConcreteEvaluationRunKind
 }
 
 interface UseRunMetricSelectionOptions {
@@ -39,12 +48,14 @@ interface UseRunMetricSelectionOptions {
 }
 
 export const useRunMetricSelection = (
-    {runId, metricKey, metricPath, stepKey}: UseRunMetricSelectionArgs,
+    {runId, metricKey, metricPath, stepKey, evaluationKind}: UseRunMetricSelectionArgs,
     {enabled = true}: UseRunMetricSelectionOptions = {},
 ) => {
+    const isOnlineEvaluation = evaluationKind === "online"
+
     const cacheKey = useMemo(
-        () => (runId ? buildCacheKey(runId, metricKey, metricPath, stepKey) : null),
-        [runId, metricKey, metricPath, stepKey],
+        () => (runId ? buildCacheKey(runId, metricKey, metricPath, stepKey, evaluationKind) : null),
+        [runId, metricKey, metricPath, stepKey, evaluationKind],
     )
 
     // Check cache first for instant display when scrolling back into view
@@ -54,6 +65,18 @@ export const useRunMetricSelection = (
         if (!enabled || !runId) {
             return idleMetricSelectionAtom
         }
+
+        // For online evaluations, use the latest temporal metric stats
+        if (isOnlineEvaluation) {
+            return latestTemporalMetricStatsSelectorFamily({
+                runId,
+                metricKey,
+                metricPath,
+                stepKey,
+            })
+        }
+
+        // For other evaluation types, use run-level stats
         return previewRunMetricStatsSelectorFamily({
             runId,
             metricKey,
@@ -61,7 +84,7 @@ export const useRunMetricSelection = (
             stepKey,
             includeTemporal: false,
         })
-    }, [enabled, runId, metricKey, metricPath, stepKey])
+    }, [enabled, runId, metricKey, metricPath, stepKey, isOnlineEvaluation])
 
     const lastSelectionRef = useRef<RunLevelMetricSelection>(cachedSelection ?? {state: "loading"})
     const selection = useAtomValueWithSchedule(metricAtom, {priority: LOW_PRIORITY})

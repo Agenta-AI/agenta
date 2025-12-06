@@ -46,6 +46,83 @@ export interface RunLevelMetricData {
 
 const metricBatcherCache = new Map<string, BatchFetcher<string, ScenarioMetricData | null>>()
 
+/**
+ * Module-level cache for scenario statuses.
+ * This is populated when scenarios are loaded and read by the metric batcher
+ * to determine if a scenario is in a terminal state when metrics are missing.
+ */
+const scenarioStatusCache = new Map<string, string | null>()
+
+/**
+ * Track scenarios that have recently had metrics saved.
+ * This prevents triggering a refresh immediately after saving when the
+ * scenario is in terminal state but metrics haven't been persisted yet.
+ */
+const recentlySavedScenarios = new Set<string>()
+const RECENTLY_SAVED_TTL_MS = 10_000 // 10 seconds
+
+/**
+ * Update the scenario status cache with new scenario data.
+ * Call this when scenarios are loaded to make statuses available for metric refresh logic.
+ */
+export const updateScenarioStatusCache = (scenarios: {id: string; status?: string | null}[]) => {
+    scenarios.forEach((scenario) => {
+        if (scenario.id) {
+            scenarioStatusCache.set(scenario.id, scenario.status ?? null)
+        }
+    })
+}
+
+/**
+ * Mark a scenario as recently saved to prevent immediate refresh.
+ * Call this after saving annotations/metrics to prevent the refresh logic
+ * from triggering before the new data is persisted.
+ */
+export const markScenarioAsRecentlySaved = (scenarioId: string) => {
+    recentlySavedScenarios.add(scenarioId)
+    // Auto-clear after TTL
+    setTimeout(() => {
+        recentlySavedScenarios.delete(scenarioId)
+    }, RECENTLY_SAVED_TTL_MS)
+}
+
+/**
+ * Check if a scenario was recently saved (within TTL).
+ */
+export const wasScenarioRecentlySaved = (scenarioId: string): boolean => {
+    return recentlySavedScenarios.has(scenarioId)
+}
+
+/**
+ * Get scenario statuses for a list of scenario IDs from the cache.
+ */
+export const getScenarioStatuses = (scenarioIds: string[]): Map<string, string | null> => {
+    const result = new Map<string, string | null>()
+    scenarioIds.forEach((id) => {
+        if (scenarioStatusCache.has(id)) {
+            result.set(id, scenarioStatusCache.get(id) ?? null)
+        }
+    })
+    return result
+}
+
+/**
+ * Clear the scenario status cache.
+ * Call this when projectId/workspace changes.
+ */
+export const clearScenarioStatusCache = () => {
+    scenarioStatusCache.clear()
+    recentlySavedScenarios.clear()
+}
+
+/**
+ * Invalidate the metric batcher cache.
+ * Call this after updating metrics to force a fresh fetch.
+ */
+export const invalidateMetricBatcherCache = () => {
+    metricBatcherCache.clear()
+}
+
 const resolveEffectiveRunId = (get: any, runId?: string | null) =>
     runId ?? get(activePreviewRunIdAtom) ?? undefined
 
@@ -60,6 +137,7 @@ const buildGroupedMetrics = (
     scenarioIds: string[],
     rawMetrics: any[],
     processor: MetricProcessor,
+    scenarioStatuses?: Map<string, string | null>,
 ): Record<string, ScenarioMetricData | null> => {
     const grouped: Record<string, ScenarioMetricData | null> = Object.create(null)
 
@@ -165,7 +243,8 @@ const buildGroupedMetrics = (
 
     scenarioIds.forEach((scenarioId) => {
         if ((returnedScenarioCounts.get(scenarioId) ?? 0) === 0) {
-            processor.markScenarioGap(scenarioId, "missing-scenario-metric")
+            const scenarioStatus = scenarioStatuses?.get(scenarioId) ?? null
+            processor.markScenarioGap(scenarioId, "missing-scenario-metric", scenarioStatus)
             grouped[scenarioId] = null
         }
     })
@@ -458,9 +537,16 @@ const extractMetricValueFromData = (
         })
     }
 
-    const candidates = [...evaluatorCandidates, ...stepCandidates, ...baseCandidates].filter(
-        (candidate, index, array) => candidate && array.indexOf(candidate) === index,
-    )
+    // When stepKey is provided, only use step-prefixed candidates to ensure
+    // we match metrics from the same evaluator. This prevents cross-evaluator
+    // matching when comparing runs with different evaluator configurations.
+    // Prioritize stepCandidates over evaluatorCandidates since online evaluations
+    // use stepKey (e.g., "evaluator-142233c5fdb7") as the primary key in flatMap
+    const candidates = (
+        stepKey && stepCandidates.length > 0
+            ? [...stepCandidates, ...evaluatorCandidates]
+            : [...stepCandidates, ...evaluatorCandidates, ...baseCandidates]
+    ).filter((candidate, index, array) => candidate && array.indexOf(candidate) === index)
 
     for (const candidate of candidates) {
         if (candidate && Object.prototype.hasOwnProperty.call(flatMap, candidate)) {
@@ -479,7 +565,15 @@ const extractMetricValueFromData = (
     })
 
     for (const suffix of suffixes) {
-        const matchingKey = Object.keys(flatMap).find((key) => key.endsWith(suffix))
+        const matchingKey = Object.keys(flatMap).find((key) => {
+            if (!key.endsWith(suffix)) return false
+            // When stepKey is provided, only match keys that start with the stepKey
+            // to prevent cross-evaluator matching
+            if (stepKey && !key.startsWith(`${stepKey}.`) && key !== stepKey) {
+                return false
+            }
+            return true
+        })
         if (matchingKey) {
             logMetricLookupMatch(context, matchingKey, "flat-suffix")
             return flatMap[matchingKey]
@@ -576,7 +670,15 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
                                 source,
                             })
 
-                            const grouped = buildGroupedMetrics(unique, entries, processor)
+                            // Get scenario statuses from cache for terminal state detection
+                            const scenarioStatuses = getScenarioStatuses(unique)
+
+                            const grouped = buildGroupedMetrics(
+                                unique,
+                                entries,
+                                processor,
+                                scenarioStatuses,
+                            )
                             const flushResult = await processor.flush({triggerRefresh})
                             return {grouped, flushResult}
                         }

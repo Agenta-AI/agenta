@@ -100,6 +100,8 @@ const AppDetailsSection = memo(() => {
 
 const OverviewPage = () => {
     const classes = useStyles()
+    const {currentApp} = useAppsData()
+    const appId = currentApp?.app_id ?? null
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =
         useState(false)
 
@@ -111,8 +113,18 @@ const OverviewPage = () => {
                 <DeploymentOverview />
                 <VariantsOverview />
 
-                <LatestEvaluationRunsTable title="Auto Evaluations" evaluationKind="auto" />
-                <LatestEvaluationRunsTable title="Human Evaluations" evaluationKind="human" />
+                <LatestEvaluationRunsTable
+                    title="Auto Evaluations"
+                    evaluationKind="auto"
+                    appId={appId}
+                    appScoped
+                />
+                <LatestEvaluationRunsTable
+                    title="Human Evaluations"
+                    evaluationKind="human"
+                    appId={appId}
+                    appScoped
+                />
             </div>
 
             <CustomWorkflowHistory

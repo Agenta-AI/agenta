@@ -19,6 +19,8 @@ interface ResponsiveMetricChartProps {
     disableGradient?: boolean
     /** Optional label (formatted) describing bin width; displayed in tooltip */
     binWidthLabel?: string
+    /** Optional formatter for Y-axis labels (e.g., to add $ prefix for cost metrics) */
+    formatLabel?: (value: number) => string
 }
 
 const BAR_SOLIDS = Array(6).fill("#1677ff")
@@ -40,9 +42,49 @@ const MEAN_BADGE_BG = "rgba(248, 250, 255, 0.98)"
  *
  * The highlighted bin is automatically inferred from highlightValue (if provided).
  */
+// Maximum number of bins to display before aggregating
+const MAX_DISPLAY_BINS = 6
+
+/**
+ * Aggregates bins when there are too many to display clearly.
+ * Combines adjacent bins to reduce total count to MAX_DISPLAY_BINS.
+ */
+const aggregateBins = (
+    data: ChartDatum[],
+    originalBinSize: number,
+): {data: ChartDatum[]; binSize: number} => {
+    if (data.length <= MAX_DISPLAY_BINS) {
+        return {data, binSize: originalBinSize}
+    }
+
+    // Calculate how many original bins to combine
+    const combineFactor = Math.ceil(data.length / MAX_DISPLAY_BINS)
+    const newBinSize = originalBinSize * combineFactor
+    const aggregated: ChartDatum[] = []
+
+    for (let i = 0; i < data.length; i += combineFactor) {
+        const chunk = data.slice(i, i + combineFactor)
+        const totalValue = chunk.reduce((sum, d) => sum + (d.value ?? 0), 0)
+        const firstEdge = chunk[0]?.edge ?? 0
+        const lastEdge = chunk[chunk.length - 1]?.edge ?? firstEdge
+
+        // Create range label for aggregated bin
+        const startLabel = format3Sig(firstEdge)
+        const endLabel = format3Sig(lastEdge + originalBinSize)
+
+        aggregated.push({
+            name: `${startLabel}–${endLabel}`,
+            value: totalValue,
+            edge: firstEdge,
+        })
+    }
+
+    return {data: aggregated, binSize: newBinSize}
+}
+
 const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
     ({
-        chartData,
+        chartData: rawChartData,
         extraDimensions,
         highlightValue,
         labelWidth,
@@ -51,8 +93,18 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
         barColor,
         disableGradient = false,
         binWidthLabel,
+        formatLabel,
     }) => {
-        const binSize = extraDimensions.binSize || 1
+        const originalBinSize = extraDimensions.binSize || 1
+        // Use custom formatter if provided, otherwise fall back to format3Sig
+        const labelFormatter = formatLabel ?? format3Sig
+
+        // Aggregate bins if there are too many
+        const {data: chartData, binSize} = useMemo(
+            () => aggregateBins(rawChartData, originalBinSize),
+            [rawChartData, originalBinSize],
+        )
+
         const yMin = Math.min(...(chartData.map((d) => d.edge) as number[]))
         const yMax = Math.max(...(chartData.map((d) => d.edge) as number[])) + binSize
         const xMax = Math.max(...chartData.map((d) => d.value))
@@ -106,7 +158,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
         }
 
         // Dynamically calculate left margin for long y-labels
-        const yLabelsFormatted = yTicks.map(format3Sig)
+        const yLabelsFormatted = yTicks.map(labelFormatter)
         const defaultMargin = {top: 16, right: 16, bottom: 32, left: 40}
         let dynamicMargin = defaultMargin
         if (direction === "horizontal") {
@@ -123,7 +175,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                 0,
             )
             const dynamicLeftMargin = Math.max(40, Math.min(120, longestLeft * 7 + 16))
-            const xAxisLabels = yTicks.map(format3Sig)
+            const xAxisLabels = yTicks.map(labelFormatter)
             const longestBottom = xAxisLabels.reduce(
                 (max, label) => Math.max(max, String(label).length),
                 0,
@@ -405,7 +457,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                     {/* Reference lines */}
                                     {typeof extraDimensions.mean === "number" &&
                                         (() => {
-                                            const meanDisplay = format3Sig(extraDimensions.mean)
+                                            const meanDisplay = labelFormatter(extraDimensions.mean)
                                             const labelText = `μ=${meanDisplay}`
                                             const approxCharWidth = 7
                                             const labelWidth = Math.max(
@@ -472,13 +524,18 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                 svgWidth - labelWidth - 4,
                                                 desiredBadgeX,
                                             )
+                                            // Clamp line Y to visible plot area
+                                            const clampedLineY = Math.max(
+                                                margin.top,
+                                                Math.min(margin.top + plotHeight, lineY),
+                                            )
                                             return (
                                                 <g>
                                                     <line
                                                         x1={margin.left}
-                                                        y1={lineY}
+                                                        y1={clampedLineY}
                                                         x2={margin.left + plotWidth}
-                                                        y2={lineY}
+                                                        y2={clampedLineY}
                                                         stroke={MEAN_LINE_COLOR}
                                                         strokeWidth={2}
                                                         strokeDasharray="4 4"
@@ -634,7 +691,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                         margin={margin}
                                         xLabels={
                                             isVertical
-                                                ? yTicks.map(format3Sig)
+                                                ? yTicks.map(labelFormatter)
                                                 : xTicks.map(format3Sig)
                                         }
                                         yTicks={isVertical ? xTicks : yTicks}
@@ -644,7 +701,9 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                 : xScaleHorizontal(xTicks[idx])
                                         }
                                         yScale={isVertical ? yScaleVertical : yScaleHorizontal}
-                                        yLabels={isVertical ? undefined : yTicks.map(format3Sig)}
+                                        yLabels={
+                                            isVertical ? undefined : yTicks.map(labelFormatter)
+                                        }
                                         yLabelScale={
                                             isVertical
                                                 ? undefined

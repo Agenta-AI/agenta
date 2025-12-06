@@ -42,7 +42,6 @@ const RunMetricCellContent = memo(
         descriptor: RunMetricDescriptor
         isVisible?: boolean
     }) => {
-        // console.log("RunMetricCellContent")
         const rawRunId = record.preview?.id ?? record.runId ?? null
         const runId = typeof rawRunId === "string" && rawRunId.trim().length > 0 ? rawRunId : null
         const runScopedMetricPath = runId ? descriptor.metricPathsByRunId?.[runId] : undefined
@@ -66,12 +65,16 @@ const RunMetricCellContent = memo(
                 ? undefined
                 : descriptor.metricKey
 
+        // Get evaluation kind from record - for online evaluations, use temporal metrics
+        const evaluationKind = record.evaluationKind
+
         const selection = useRunMetricSelection(
             {
                 runId,
                 metricKey: metricKeyForSelection,
                 metricPath: metricPathForSelection,
                 stepKey: stepKeyForSelection,
+                evaluationKind,
             },
             {
                 enabled: Boolean(isVisible),
@@ -123,6 +126,18 @@ const RunMetricCellContent = memo(
             return <Typography.Text>—</Typography.Text>
         }
 
+        // Check if metric is unavailable for this run BEFORE checking loading state
+        // This prevents cells from being stuck in loading when the metric simply doesn't exist for this run
+        const isUnavailable =
+            descriptor.kind === "evaluator" &&
+            (descriptor.metricPathsByRunId || descriptor.stepKeysByRunId) &&
+            !metricPathForSelection &&
+            !stepKeyForSelection
+
+        if (isUnavailable) {
+            return <div className="not-available-table-cell" />
+        }
+
         if (selection.state === "loading") {
             return <RunMetricCellSkeleton />
         }
@@ -131,11 +146,6 @@ const RunMetricCellContent = memo(
         }
 
         const stats = selection.stats as BasicStats | undefined
-        const isUnavailable =
-            descriptor.kind === "evaluator" &&
-            (descriptor.metricPathsByRunId || descriptor.stepKeysByRunId) &&
-            !metricPathForSelection &&
-            !stepKeyForSelection
 
         let display =
             descriptor.kind === "invocation"
@@ -149,13 +159,7 @@ const RunMetricCellContent = memo(
         let fallback: ReactNode = stats ?? display
         let customChildren: ReactNode | undefined
 
-        if (isUnavailable) {
-            display = ""
-            highlight = display
-            fallback = undefined
-        }
-
-        if (descriptor.kind === "evaluator" && !isUnavailable) {
+        if (descriptor.kind === "evaluator") {
             const frequencyEntries = buildFrequencyEntries(stats)
             if (frequencyEntries.length > 0) {
                 const total = frequencyEntries.reduce((acc, entry) => acc + entry.count, 0)

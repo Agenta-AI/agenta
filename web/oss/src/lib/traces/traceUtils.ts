@@ -1,5 +1,4 @@
-import {TraceData, TraceTree} from "@agenta/oss/src/lib/hooks/useEvaluationRunScenarioSteps/types"
-
+import type {TraceTree} from "@/oss/lib/evaluations"
 import {uuidToTraceId} from "@/oss/lib/traces/helpers"
 
 export function findTraceForStep(traces: any[] | undefined, traceId?: string): any | undefined {

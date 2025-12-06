@@ -4,7 +4,7 @@ import {TreeView, Timer, PlusCircle} from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
 import {Button, Space, Tag} from "antd"
 import clsx from "clsx"
-import {useSetAtom} from "jotai"
+import {getDefaultStore} from "jotai"
 
 import StatusRenderer from "@/oss/components/pages/observability/components/StatusRenderer"
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
@@ -20,6 +20,10 @@ import {
     openTraceDrawerAtom,
     setTraceDrawerActiveSpanAtom,
 } from "../Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
+
+// Use the global Jotai store to ensure the TraceDrawer (rendered in AppGlobalWrappers)
+// receives the state updates, even when this component is inside an isolated store context
+const globalStore = getDefaultStore()
 
 interface SharedGenerationResultUtilsProps {
     traceId?: string | null
@@ -120,8 +124,6 @@ const SharedGenerationResultUtils = ({
     className,
     showStatus = true,
 }: SharedGenerationResultUtilsProps) => {
-    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
-    const setActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const [, setTraceQueryParam] = useQueryParamState("trace")
     const [, setSpanQueryParam] = useQueryParamState("span")
 
@@ -218,25 +220,26 @@ const SharedGenerationResultUtils = ({
         [primarySpan],
     )
 
-    const handleOpenTrace = useCallback(() => {
-        if (!traceId) return
-        const activeSpanId = primarySpan?.span_id ?? null
-        openTraceDrawer({traceId, activeSpanId})
-        setActiveSpan(activeSpanId)
-        setTraceQueryParam(traceId, {shallow: true})
-        if (activeSpanId) {
-            setSpanQueryParam(activeSpanId, {shallow: true})
-        } else {
-            setSpanQueryParam(undefined, {shallow: true})
-        }
-    }, [
-        primarySpan?.span_id,
-        openTraceDrawer,
-        setActiveSpan,
-        setSpanQueryParam,
-        setTraceQueryParam,
-        traceId,
-    ])
+    const handleOpenTrace = useCallback(
+        (event: React.MouseEvent) => {
+            event.stopPropagation()
+            event.preventDefault()
+            if (!traceId) return
+
+            const activeSpanId = primarySpan?.span_id ?? null
+            // Use the global store directly to ensure the TraceDrawer (in AppGlobalWrappers)
+            // receives the state update, even when this component is inside an isolated store
+            globalStore.set(openTraceDrawerAtom, {traceId, activeSpanId})
+            globalStore.set(setTraceDrawerActiveSpanAtom, activeSpanId)
+            setTraceQueryParam(traceId, {shallow: true})
+            if (activeSpanId) {
+                setSpanQueryParam(activeSpanId, {shallow: true})
+            } else {
+                setSpanQueryParam(undefined, {shallow: true})
+            }
+        },
+        [primarySpan?.span_id, setSpanQueryParam, setTraceQueryParam, traceId],
+    )
 
     const formattedLatency = useMemo(
         () => formatLatency(durationMs !== undefined ? durationMs / 1000 : null),
@@ -255,7 +258,7 @@ const SharedGenerationResultUtils = ({
     return (
         <div className={clsx("flex items-center gap-1", className)}>
             <Button
-                type="text"
+                type="default"
                 size="small"
                 icon={<TreeView size={14} />}
                 loading={isLoading}

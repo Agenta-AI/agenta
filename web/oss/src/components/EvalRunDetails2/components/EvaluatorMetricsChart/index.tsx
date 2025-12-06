@@ -5,7 +5,8 @@ import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
+import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
+import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../atoms/table/evaluators"
@@ -13,14 +14,6 @@ import {buildBooleanHistogram, isBooleanMetricStats} from "../../utils/metricDis
 
 import HistogramChart from "./HistogramChart"
 import {buildFrequencyChartData, buildHistogramChartData} from "./utils/chartData"
-
-const format3Sig = (value: number) => {
-    if (!Number.isFinite(value)) return String(value)
-    const abs = Math.abs(value)
-    if (abs !== 0 && (abs < 0.001 || abs >= 1000)) return value.toExponential(2)
-    const s = value.toPrecision(3)
-    return String(Number(s))
-}
 
 interface ComparisonSeriesEntry {
     runId: string
@@ -300,9 +293,12 @@ const EvaluatorMetricsChart = ({
                     xKey="label"
                     yKey={baseSeriesKey}
                     tooltipLabel="Percentage"
+                    tooltipFormatter={(value) => `${format3Sig(value)}%`}
                     yDomain={[0, 100]}
                     series={series}
                     barCategoryGap="20%"
+                    showLegend={stableComparisons.length > 0}
+                    reserveLegendSpace={stableComparisons.length > 0}
                 />
             )
         }
@@ -383,9 +379,12 @@ const EvaluatorMetricsChart = ({
                     xKey="label"
                     yKey={baseSeriesKey}
                     tooltipLabel="Count"
+                    tooltipFormatter={(value) => Math.round(value).toLocaleString()}
                     yDomain={[0, "auto"]}
                     series={series}
                     barCategoryGap="20%"
+                    showLegend={stableComparisons.length > 0}
+                    reserveLegendSpace={stableComparisons.length > 0}
                 />
             )
         }
@@ -425,8 +424,11 @@ const EvaluatorMetricsChart = ({
                     xKey="x"
                     yKey="y"
                     tooltipLabel={metricLabel}
+                    tooltipFormatter={(value) => format3Sig(value)}
                     yDomain={[0, "auto"]}
                     referenceLines={referenceLines}
+                    showLegend={false}
+                    reserveLegendSpace={stableComparisons.length > 0}
                 />
             )
         }
@@ -440,9 +442,9 @@ const EvaluatorMetricsChart = ({
 
     return (
         <Card
-            className={clsx("h-full rounded-lg overflow-hidden !shadow-none", className)}
-            classNames={{header: "!p-0", body: "!p-0 shadow-none"}}
-            variant="borderless"
+            className={clsx("h-full rounded-lg overflow-hidden", className)}
+            classNames={{header: "!p-0", body: "!p-0"}}
+            variant="outlined"
             title={
                 <div className="flex items-center justify-between px-4 py-3">
                     <div className="flex flex-col gap-0.5">
@@ -459,17 +461,19 @@ const EvaluatorMetricsChart = ({
             }
         >
             <div className="flex flex-col gap-4 px-4 pb-4">
-                <div className="flex h-[70px] items-center justify-center">
-                    {summaryValue !== null ? (
-                        <Typography.Text
-                            className="text-xl font-medium"
-                            style={{color: resolvedBaseColor}}
-                        >
-                            {summaryValue}
-                        </Typography.Text>
-                    ) : null}
-                </div>
-                <div className="h-[300px]">
+                {stableComparisons.length === 0 && (
+                    <div className="flex h-[70px] items-center justify-center">
+                        {summaryValue !== null ? (
+                            <Typography.Text
+                                className="text-xl font-medium"
+                                style={{color: resolvedBaseColor}}
+                            >
+                                {summaryValue}
+                            </Typography.Text>
+                        ) : null}
+                    </div>
+                )}
+                <div className={stableComparisons.length > 0 ? "h-[370px]" : "h-[300px]"}>
                     {isLoading ? (
                         <Skeleton active className="w-full h-full" />
                     ) : hasError && !resolvedStats ? (
@@ -480,9 +484,6 @@ const EvaluatorMetricsChart = ({
                         chartContent()
                     )}
                 </div>
-                {/* <Typography.Text className="text-center text-xs uppercase text-neutral-500">
-                    {metricLabel}
-                </Typography.Text> */}
             </div>
         </Card>
     )

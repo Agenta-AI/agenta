@@ -21,15 +21,22 @@ import {
 } from "./evaluationPreviewTableStore"
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"
-import useResizablePreviewColumns from "./hooks/useResizablePreviewColumns"
+import useRowHeightMenuItems from "./hooks/useRowHeightMenuItems"
 import {openFocusDrawerAtom, setFocusDrawerTargetAtom} from "./state/focusDrawerAtom"
+import {scenarioRowHeightAtom} from "./state/rowHeight"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
 
 type TableRowData = PreviewTableRow
 
+// Alternating background colors for timestamp-based batch grouping
+const TIMESTAMP_GROUP_COLORS = [
+    "rgba(59, 130, 246, 0.06)", // blue
+    "rgba(16, 185, 129, 0.06)", // green
+]
+
 interface EvalRunDetailsTableProps {
     runId: string
-    evaluationType: "auto" | "human"
+    evaluationType: "auto" | "human" | "online"
     skeletonRowCount?: number
     projectId?: string | null
 }
@@ -42,6 +49,8 @@ const EvalRunDetailsTable = ({
 }: EvalRunDetailsTableProps) => {
     const pageSize = skeletonRowCount ?? 50
     const compareRunIds = useAtomValue(compareRunIdsAtom)
+    const rowHeight = useAtomValue(scenarioRowHeightAtom)
+    const rowHeightMenuItems = useRowHeightMenuItems()
     const setFocusDrawerTarget = useSetAtom(setFocusDrawerTargetAtom)
     const openFocusDrawer = useSetAtom(openFocusDrawerAtom)
 
@@ -69,10 +78,6 @@ const EvalRunDetailsTable = ({
     const {columnResult} = usePreviewTableData({runId})
 
     const previewColumns = usePreviewColumns({columnResult, evaluationType})
-
-    const {columns: resizableColumns, components} = useResizablePreviewColumns({
-        baseColumns: previewColumns.columns,
-    })
 
     const mergedRows = useMemo(() => {
         if (!compareSlots.some(Boolean)) {
@@ -223,28 +228,53 @@ const EvalRunDetailsTable = ({
         [handleLoadMore, handleResetPages, mergedRows],
     )
 
+    // Build timestamp color map for row grouping (only for online evaluations)
+    const timestampColorMap = useMemo(() => {
+        const map = new Map<string, string>()
+        if (evaluationType !== "online") return map
+
+        // Process rows in order to assign consistent colors
+        mergedRows.forEach((row) => {
+            if (row.timestamp && !map.has(row.timestamp)) {
+                const colorIndex = map.size % TIMESTAMP_GROUP_COLORS.length
+                map.set(row.timestamp, TIMESTAMP_GROUP_COLORS[colorIndex])
+            }
+        })
+        return map
+    }, [evaluationType, mergedRows])
+
     return (
         <section className="bg-zinc-1 w-full h-full overflow-scroll flex flex-col px-4 pt-2">
             <div className="w-full grow min-h-0 overflow-scroll">
                 <InfiniteVirtualTableFeatureShell<TableRowData>
                     datasetStore={evaluationPreviewDatasetStore}
                     tableScope={tableScope}
-                    columns={resizableColumns}
+                    columns={previewColumns.columns}
                     rowKey={(record) => record.key}
-                    tableClassName="agenta-scenario-table"
-                    resizableColumns={false}
-                    columnVisibilityMenuRenderer={(controls, close, {scopeId}) => (
+                    tableClassName={clsx(
+                        "agenta-scenario-table",
+                        `agenta-scenario-table--row-${rowHeight}`,
+                    )}
+                    resizableColumns
+                    useSettingsDropdown
+                    settingsDropdownMenuItems={rowHeightMenuItems}
+                    columnVisibilityMenuRenderer={(
+                        controls,
+                        close,
+                        {scopeId, onExport, isExporting},
+                    ) => (
                         <ScenarioColumnVisibilityPopoverContent
                             controls={controls}
                             onClose={close}
                             scopeId={scopeId}
                             runId={runId}
                             evaluationType={evaluationType}
+                            onExport={onExport}
+                            isExporting={isExporting}
                         />
                     )}
                     pagination={paginationForShell}
                     tableProps={{
-                        components,
                         rowClassName: (record) =>
                             clsx("scenario-row", {
                                 "scenario-row--comparison": record.isComparisonRow,
@@ -254,21 +284,31 @@ const EvalRunDetailsTable = ({
                         virtual: true,
                         bordered: true,
                         tableLayout: "fixed",
-                        onRow: (record) => ({
-                            onClick: (event) => {
-                                const target = event.target as HTMLElement | null
-                                if (target?.closest("[data-ivt-stop-row-click]")) return
-                                handleRowClick(record as TableRowData)
-                            },
-                            className: clsx({
-                                "comparison-row": record.isComparisonRow,
-                            }),
-                            style: record.compareIndex
-                                ? {
-                                      backgroundColor: getComparisonColor(record.compareIndex),
-                                  }
-                                : undefined,
-                        }),
+                        onRow: (record) => {
+                            // Determine background color: comparison color takes precedence, then timestamp grouping
+                            let backgroundColor: string | undefined
+                            if (record.compareIndex) {
+                                backgroundColor = getComparisonColor(record.compareIndex)
+                            } else if (
+                                evaluationType === "online" &&
+                                record.timestamp &&
+                                timestampColorMap.has(record.timestamp)
+                            ) {
+                                backgroundColor = timestampColorMap.get(record.timestamp)
+                            }
+
+                            return {
+                                onClick: (event) => {
+                                    const target = event.target as HTMLElement | null
+                                    if (target?.closest("[data-ivt-stop-row-click]")) return
+                                    handleRowClick(record as TableRowData)
+                                },
+                                className: clsx({
+                                    "comparison-row": record.isComparisonRow,
+                                }),
+                                style: backgroundColor ? {backgroundColor} : undefined,
+                            }
+                        },
                     }}
                 />
             </div>
