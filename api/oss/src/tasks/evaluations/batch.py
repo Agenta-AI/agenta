@@ -11,7 +11,7 @@ from fastapi import Request
 from oss.src.utils.helpers import parse_url, get_slug_from_name_and_id
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
-from oss.src.services.auth_helper import sign_secret_token
+from oss.src.services.auth_service import sign_secret_token
 from oss.src.services import llm_apps_service
 from oss.src.models.shared_models import InvokationResult
 from oss.src.services.db_manager import (
@@ -114,8 +114,6 @@ from oss.src.core.queries.dtos import (
     QueryVariant,
     Query,
 )
-
-from oss.src.core.workflows.dtos import Tree
 
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 

@@ -6,46 +6,31 @@ from datetime import datetime, timedelta, time
 
 from fastapi import Query, HTTPException
 
-from oss.src.apis.fastapi.observability.opentelemetry.semconv import CODEX
+from oss.src.apis.fastapi.otlp.opentelemetry.semconv import CODEX
 from oss.src.utils.logging import get_module_logger
 
-log = get_module_logger(__name__)
 
-from oss.src.apis.fastapi.observability.utils.serialization import (
-    decode_key,
-    decode_value,
-    encode_key,
-)
-from oss.src.apis.fastapi.observability.utils.marshalling import unmarshall_attributes
+from oss.src.apis.fastapi.otlp.utils.serialization import encode_key
+from oss.src.apis.fastapi.otlp.utils.marshalling import unmarshall_attributes
 
 from oss.src.core.tracing.dtos import OTelFlatSpan
 
-from oss.src.apis.fastapi.observability.models import (
+from oss.src.apis.fastapi.otlp.models import (
     LegacyDataPoint,
     LegacySummary,
 )
 
-from oss.src.core.observability.dtos import (
-    TimeDTO,
-    StatusDTO,
-    RootDTO,
-    TreeDTO,
-    NodeDTO,
-    ParentDTO,
+from oss.src.core.otel.dtos import (
     LinkDTO,
-    ExceptionDTO,
     Attributes,
     SpanDTO,
-    OTelExtraDTO,
     OTelEventDTO,
     OTelSpanDTO,
     OTelContextDTO,
     OTelLinkDTO,
     BucketDTO,
-    NodeType,
-    TreeType,
 )
-from oss.src.core.observability.dtos import (
+from oss.src.core.otel.dtos import (
     GroupingDTO,
     WindowingDTO,
     FilteringDTO,
@@ -54,21 +39,16 @@ from oss.src.core.observability.dtos import (
     AnalyticsDTO,
     ConditionDTO,
 )
-from oss.src.apis.fastapi.observability.extractors.span_processor import SpanProcessor
-from oss.src.apis.fastapi.observability.extractors.span_data_builders import (
-    NodeBuilder,
+from oss.src.apis.fastapi.otlp.extractors.span_processor import SpanProcessor
+from oss.src.apis.fastapi.otlp.extractors.span_data_builders import (
     OTelFlatSpanBuilder,
 )
 
+log = get_module_logger(__name__)
 
-node_builder_instance = NodeBuilder()
+
 otel_flat_span_builder_instance = OTelFlatSpanBuilder()
-span_processor = SpanProcessor(
-    builders=[
-        node_builder_instance,
-        otel_flat_span_builder_instance,
-    ]
-)
+span_processor = SpanProcessor(builders=[otel_flat_span_builder_instance])
 
 
 # --- PARSE QUERY / ANALYTICS DTO ---
@@ -204,41 +184,26 @@ def parse_analytics_dto(
 
 def parse_from_otel_span_dto(
     otel_span_dto: OTelSpanDTO,
-    flag_create_spans_from_nodes: Optional[bool] = False,
-) -> SpanDTO:
+) -> Optional[OTelFlatSpan]:
     """
     Process an OpenTelemetry span into a SpanDTO using the new architecture.
 
     This function maintains the same signature as the original but uses the new
-    SpanProcessor internally (with NodeBuilder) for better handling of different data formats.
+    SpanProcessor internally (with OTelFlatSpanBuilder) for better handling of different data formats.
     The result from the processor is a dictionary, from which the 'node_builder' output is extracted.
     """
-    processed_results = span_processor.process(
-        otel_span_dto,
-        flag_create_spans_from_nodes,
+    processed_results = span_processor.process(otel_span_dto)
+    otel_flat_span: Optional[OTelFlatSpan] = processed_results.get(
+        "otel_flat_span_builder"
     )
-    span_dto = processed_results.get("node_builder")
-    otel_flat_span = processed_results.get("otel_flat_span_builder")
 
-    if not isinstance(span_dto, SpanDTO):
+    if not isinstance(otel_flat_span, OTelFlatSpan):
         log.error(
-            f"NodeBuilder did not produce a valid SpanDTO for trace_id {otel_span_dto.context.trace_id}, "
+            f"OTelFlatSpanBuilder did not produce a valid OTelFlatSpan for trace_id {otel_span_dto.context.trace_id}, "
             f"span_id {otel_span_dto.context.span_id}. Processor results: {processed_results}"
         )
 
-    if flag_create_spans_from_nodes:
-        if not isinstance(otel_flat_span, OTelFlatSpan):
-            log.error(
-                f"OTelFlatSpanBuilder did not produce a valid OTelFlatSpan for trace_id {otel_span_dto.context.trace_id}, "
-                f"span_id {otel_span_dto.context.span_id}. Processor results: {processed_results}"
-            )
-
-    parsed_spans = {
-        "nodes": span_dto,
-        "spans": otel_flat_span,
-    }
-
-    return parsed_spans
+    return otel_flat_span
 
 
 def _parse_to_attributes(

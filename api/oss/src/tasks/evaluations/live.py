@@ -7,7 +7,7 @@ from celery import shared_task
 from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.services.auth_helper import sign_secret_token
+from oss.src.services.auth_service import sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
 from oss.src.core.secrets.utils import get_llm_providers_secrets
 

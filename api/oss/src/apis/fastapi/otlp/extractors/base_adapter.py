@@ -1,5 +1,5 @@
 from typing import Protocol
-from oss.src.apis.fastapi.observability.extractors.canonical_attributes import (
+from oss.src.apis.fastapi.otlp.extractors.canonical_attributes import (
     CanonicalAttributes,
     SpanFeatures,
 )

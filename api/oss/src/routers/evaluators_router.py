@@ -22,7 +22,7 @@ from oss.src.models.api.evaluation_model import (
 )
 from oss.src.core.secrets.utils import get_llm_providers_secrets
 
-from oss.src.services.auth_helper import sign_secret_token
+from oss.src.services.auth_service import sign_secret_token
 from agenta.sdk.contexts.running import RunningContext, running_context_manager
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
 
