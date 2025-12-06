@@ -523,6 +523,19 @@ python-dateutil = ">=2.4.0"
 six = ">=1.9.0"
 
 [[package]]
+name = "cachetools"
+version = "5.5.2"
+description = "Extensible memoizing collections and decorators"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+markers = "python_version >= \"3.12\" or python_version == \"3.11\""
+files = [
+    {file = "cachetools-5.5.2-py3-none-any.whl", hash = "sha256:d26a22bcc62eb95c3beabd9f1ee5e820d3d2704fe2967cbe350e20c8ffcd3f0a"},
+    {file = "cachetools-5.5.2.tar.gz", hash = "sha256:1a661caa9175d26759571b2e19580f9d6393969e5dfca11fdb1f947a23e640d4"},
+]
+
+[[package]]
 name = "celery"
 version = "5.6.0"
 description = "Distributed Task Queue."
@@ -5395,4 +5408,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "6dabd3397d06e4ed94872412f1e78e6eaa7219d0e15083778ad7f4d39620513c"
+content-hash = "6b26fbf89b61489bd15d9a4d1e388e167fb2aef7da5302993b8841cdfb447880"
