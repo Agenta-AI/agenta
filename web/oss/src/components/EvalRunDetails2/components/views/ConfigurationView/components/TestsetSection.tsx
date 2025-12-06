@@ -4,11 +4,10 @@ import {DownOutlined} from "@ant-design/icons"
 import {Button, Form, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import {TestsetTagList} from "@/oss/components/References"
-
 import {testsetReferenceQueryAtomFamily} from "../../../../atoms/references"
 import {runTestsetIdsAtomFamily} from "../../../../atoms/runDerived"
 import {simpleTestsetDetailsAtomFamily} from "../../../../atoms/testsetDetails"
+import {TestsetTagList} from "../../../references"
 
 import {SectionCard, SectionHeaderRow, SectionSkeleton} from "./SectionPrimitives"
 
@@ -27,9 +26,6 @@ const TestsetSection = ({runId}: TestsetSectionProps) => {
 
     return (
         <Form layout="vertical" requiredMark={false}>
-            {/* <Form.Item label="Linked test sets" style={{marginBottom: 16}}>
-                <TestsetTagList ids={testsetIds} runId={runId} />
-            </Form.Item> */}
             <div className="flex flex-col gap-4">
                 {testsetIds.map((id, index) => (
                     <TestsetCard key={id} runId={runId} testsetId={id} index={index} />
@@ -71,10 +67,8 @@ const TestsetCard = ({
     const simpleQuery = useAtomValue(simpleAtom)
 
     const isLoading =
-        referenceQuery.isPending ||
-        referenceQuery.isFetching ||
-        simpleQuery.isPending ||
-        simpleQuery.isFetching
+        ((referenceQuery.isPending || referenceQuery.isFetching) && !referenceQuery.isError) ||
+        ((simpleQuery.isPending || simpleQuery.isFetching) && !simpleQuery.isError)
 
     const simple = simpleQuery.data
 

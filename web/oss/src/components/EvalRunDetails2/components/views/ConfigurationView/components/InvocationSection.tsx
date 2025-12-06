@@ -6,10 +6,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {
-    ApplicationReferenceLabel,
-    VariantReferenceLabel,
-} from "@/oss/components/References/ReferenceLabels"
-import {
     clearProjectVariantReferencesAtom,
     prefetchProjectVariantConfigs,
     setProjectVariantReferencesAtom,
@@ -23,6 +19,7 @@ import {
 import {effectiveProjectIdAtom} from "../../../../atoms/run"
 import {runInvocationRefsAtomFamily} from "../../../../atoms/runDerived"
 import {evaluationVariantConfigAtomFamily} from "../../../../atoms/variantConfig"
+import {ApplicationReferenceLabel, VariantReferenceLabel} from "../../../references"
 import {toIdString} from "../utils"
 
 import {ReadOnlySkeleton} from "./CopyableFields"

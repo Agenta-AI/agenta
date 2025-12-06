@@ -4,9 +4,11 @@ import {useRouter} from "next/router"
 
 import EvalRunPreviewPage from "./components/Page"
 
-type EvalRunKind = "auto" | "human"
+type EvalRunKind = "auto" | "human" | "online" | "custom"
 
 const EvalRunTestPage = ({type = "auto"}: {type?: EvalRunKind}) => {
+    // Normalize "custom" to "auto", but keep "online" as-is
+    const evaluationType = type === "custom" ? "auto" : type
     const router = useRouter()
     const evaluationIdParam = router.query?.evaluation_id
     const projectIdParam = router.query?.project_id
@@ -29,7 +31,11 @@ const EvalRunTestPage = ({type = "auto"}: {type?: EvalRunKind}) => {
 
     return (
         <div className="w-full h-[calc(100dvh-75px-24px)] overflow-hidden -mt-6 -mb-6 flex flex-col">
-            <EvalRunPreviewPage evaluationType={type} runId={runId} projectId={projectId} />
+            <EvalRunPreviewPage
+                evaluationType={evaluationType}
+                runId={runId}
+                projectId={projectId}
+            />
         </div>
     )
 }

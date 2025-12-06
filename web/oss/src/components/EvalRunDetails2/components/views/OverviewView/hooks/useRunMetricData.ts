@@ -11,10 +11,11 @@ import {
     runTemporalMetricKeysAtomFamily,
     runTemporalMetricSeriesAtomFamily,
     TemporalMetricPoint,
-} from "@/oss/components/evaluations/atoms/runMetrics"
+} from "@/oss/components/Evaluations/atoms/runMetrics"
 import {humanizeEvaluatorName, humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
+import {COMPARISON_SOLID_COLORS} from "../../../../atoms/compare"
 import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../../../../atoms/runDerived"
 import {INVOCATION_METRIC_KEYS, INVOCATION_METRIC_LABELS} from "../constants"
 import type {AggregatedMetricChartData} from "../types"
@@ -75,7 +76,8 @@ export interface RunMetricData {
     temporalSeriesByMetric: Record<string, TemporalMetricPoint[]>
 }
 
-const DEFAULT_COLORS = ["#3B82F6", "#2563EB", "#DC2626", "#7C3AED", "#16A34A"]
+/** Use unified comparison colors for consistent run distinction across views */
+const DEFAULT_COLORS = COMPARISON_SOLID_COLORS
 
 export const useRunMetricData = (runIds: string[]): RunMetricData => {
     const orderedRunIds = useMemo(() => runIds.filter((id): id is string => Boolean(id)), [runIds])

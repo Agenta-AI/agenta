@@ -1,6 +1,8 @@
 import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
+import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
+
 import {
     applyFocusDrawerStateAtom,
     closeFocusDrawerAtom,
@@ -11,14 +13,12 @@ import {
     type FocusTarget,
 } from "./focusDrawerAtom"
 
-import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
-
 const isBrowser = typeof window !== "undefined"
 const debugEnabled = process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true"
 
 const logDebug = (...args: any[]) => {
     if (!debugEnabled) return
-    // eslint-disable-next-line no-console
+
     console.info("[EvalRunDetails2][FocusDrawer][urlSync]", ...args)
 }
 

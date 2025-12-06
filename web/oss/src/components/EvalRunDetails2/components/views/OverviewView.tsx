@@ -35,10 +35,6 @@ const OverviewView = ({runId}: OverviewViewProps) => {
     const baseRunId = runIds[0]
     const comparisonRunIds = useMemo(() => runIds.slice(1), [runIds])
 
-    if (!runIds.length) {
-        return null
-    }
-
     return (
         <div className="flex h-full min-h-0 flex-col bg-zinc-1 px-3 pt-2">
             <div className="flex-1 overflow-y-auto">

@@ -22,9 +22,24 @@ const normalizeStats = (value: BasicStats | undefined): any => {
             value: entry?.value,
             count: entry?.count ?? entry?.frequency ?? 0,
         }))
-        next.frequency.sort(
-            (a: any, b: any) => (b?.count ?? 0) - (a?.count ?? 0) || (a?.value === true ? -1 : 1),
-        )
+        // Sort by count descending, then boolean true first, then false, then others by string value
+        next.frequency.sort((a: any, b: any) => {
+            const countDiff = (b?.count ?? 0) - (a?.count ?? 0)
+            if (countDiff !== 0) return countDiff
+            // Explicitly handle boolean values
+            const aIsTrue = a?.value === true
+            const bIsTrue = b?.value === true
+            if (aIsTrue && !bIsTrue) return -1
+            if (!aIsTrue && bIsTrue) return 1
+            const aIsFalse = a?.value === false
+            const bIsFalse = b?.value === false
+            if (aIsFalse && !bIsFalse) return -1
+            if (!aIsFalse && bIsFalse) return 1
+            // Fallback: compare stringified values
+            const aStr = String(a?.value)
+            const bStr = String(b?.value)
+            return aStr.localeCompare(bStr)
+        })
         next.rank = next.frequency
         if (!Array.isArray(next.unique) || !next.unique.length) {
             next.unique = next.frequency.map((entry: any) => entry.value)
@@ -58,10 +73,20 @@ const normalizeStats = (value: BasicStats | undefined): any => {
         }
 
         if (typeof next.binSize !== "number") {
-            const interval = Array.isArray(next.hist[0]?.interval) ? next.hist[0]?.interval : null
-            if (interval && interval.length >= 2) {
-                const width = Number(interval[1]) - Number(interval[0])
-                if (Number.isFinite(width) && width > 0) next.binSize = width
+            // Validate that all intervals have the same width
+            const widths: number[] = []
+            for (const entry of next.hist) {
+                const interval = Array.isArray(entry?.interval) ? entry.interval : null
+                if (interval && interval.length >= 2) {
+                    const width = Number(interval[1]) - Number(interval[0])
+                    if (Number.isFinite(width) && width > 0) {
+                        widths.push(width)
+                    }
+                }
+            }
+            // Check if all widths are the same
+            if (widths.length > 0 && widths.every((w) => w === widths[0])) {
+                next.binSize = widths[0]
             }
         }
 
@@ -82,14 +107,15 @@ const normalizeStats = (value: BasicStats | undefined): any => {
 
 export const buildHistogramChartData = (
     stats: Record<string, any>,
-): {data: Array<{x: string | number; y: number; edge?: number}>; binSize?: number} => {
+): {data: {x: string | number; y: number; edge?: number}[]; binSize?: number} => {
     const normalized = normalizeStats(stats)
 
     const distribution = Array.isArray(normalized?.distribution) ? normalized.distribution : []
     if (!distribution.length) return {data: []}
 
-    const result: {data: Array<{x: string | number; y: number; edge?: number}>; binSize?: number} =
-        {data: []}
+    const result: {data: {x: string | number; y: number; edge?: number}[]; binSize?: number} = {
+        data: [],
+    }
     if (typeof normalized.binSize === "number" && typeof normalized.min === "number") {
         const entries = distribution.map((entry: any, idx: number) => {
             const start = Number(normalized.min) + idx * Number(normalized.binSize)
@@ -127,7 +153,7 @@ export const buildHistogramChartData = (
 
 export const buildFrequencyChartData = (
     stats: Record<string, any>,
-): Array<{label: string | number; value: number}> => {
+): {label: string | number; value: number}[] => {
     const normalized = normalizeStats(stats)
 
     const frequency = Array.isArray(normalized?.frequency) ? normalized.frequency : []

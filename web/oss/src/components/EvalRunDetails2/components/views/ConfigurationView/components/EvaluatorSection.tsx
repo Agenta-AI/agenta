@@ -11,8 +11,9 @@ import {EVALUATOR_CATEGORY_LABEL_MAP} from "@/oss/components/pages/evaluations/o
 import {useEvaluatorDetails} from "@/oss/components/pages/evaluations/onlineEvaluation/hooks/useEvaluatorDetails"
 import {useEvaluatorTypeFromConfigs} from "@/oss/components/pages/evaluations/onlineEvaluation/hooks/useEvaluatorTypeFromConfigs"
 import {useEvaluatorTypeMeta} from "@/oss/components/pages/evaluations/onlineEvaluation/hooks/useEvaluatorTypeMeta"
-import ReferenceTag from "@/oss/components/References/ReferenceTag"
+import {EvaluatorReferenceLabel} from "@/oss/components/References/ReferenceLabels"
 
+import {effectiveProjectIdAtom} from "../../../../atoms/run"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../../../atoms/table/evaluators"
 import type {EvaluatorDefinition} from "../../../../atoms/table/types"
 import useRunScopedUrls from "../../../../hooks/useRunScopedUrls"
@@ -28,10 +29,12 @@ interface EvaluatorSectionProps {
 }
 
 const EvaluatorSection = ({runId}: EvaluatorSectionProps) => {
+    const projectId = useAtomValue(effectiveProjectIdAtom)
     const evaluatorsAtom = useMemo(() => evaluationEvaluatorsByRunQueryAtomFamily(runId), [runId])
     const evaluatorsQuery = useAtomValue(evaluatorsAtom)
     const evaluators = (evaluatorsQuery.data as EvaluatorDefinition[] | undefined) ?? []
-    const isLoading = evaluatorsQuery.isPending || evaluatorsQuery.isFetching
+    const isLoading =
+        (evaluatorsQuery.isPending || evaluatorsQuery.isFetching) && !evaluatorsQuery.isError
     const error = evaluatorsQuery.error
     const evaluatorTypeLookup = useMemo(() => {
         const entries = Object.entries(EVALUATOR_CATEGORY_LABEL_MAP || {})
@@ -65,6 +68,7 @@ const EvaluatorSection = ({runId}: EvaluatorSectionProps) => {
                     evaluator={evaluator}
                     evaluatorTypeLookup={evaluatorTypeLookup}
                     runId={runId}
+                    projectId={projectId}
                     index={index}
                 />
             ))}
@@ -76,11 +80,13 @@ const EvaluatorCard = ({
     evaluator,
     evaluatorTypeLookup,
     runId,
+    projectId,
     index,
 }: {
     evaluator: EvaluatorDefinition
     evaluatorTypeLookup: Map<string, {slug: string; label: string}>
     runId: string
+    projectId: string | null
     index: number
 }) => {
     const rawEvaluator = evaluator.raw
@@ -164,14 +170,11 @@ const EvaluatorCard = ({
                                     {evaluatorDisplayLabel}
                                 </Typography.Title>
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <ReferenceTag
-                                        label={evaluator.name || evaluator.slug || "—"}
-                                        copyValue={evaluator.id}
-                                        tooltip={evaluator.name || evaluator.slug || evaluator.id}
+                                    <EvaluatorReferenceLabel
+                                        evaluatorId={evaluator.id}
+                                        evaluatorSlug={evaluator.slug}
+                                        projectId={projectId}
                                         href={evaluatorHref}
-                                        showIcon={Boolean(evaluatorHref)}
-                                        className="max-w-[220px]"
-                                        tone="evaluator"
                                     />
                                     {finalShowType ? (
                                         <EvaluatorTypeTag

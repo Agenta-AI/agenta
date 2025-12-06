@@ -27,6 +27,8 @@ interface ScenarioColumnVisibilityPopoverContentProps {
     controls?: ColumnVisibilityState<any>
     onClose: () => void
     scopeId?: string | null
+    onExport?: () => void
+    isExporting?: boolean
 }
 
 const selectColumnsForType = (
@@ -83,6 +85,8 @@ const ScenarioColumnVisibilityPopoverContent = ({
     controls,
     onClose,
     scopeId,
+    onExport,
+    isExporting,
 }: ScenarioColumnVisibilityPopoverContentProps) => {
     const {columnResult} = usePreviewTableData({runId})
 
@@ -317,6 +321,8 @@ const ScenarioColumnVisibilityPopoverContent = ({
             controls={controls}
             scopeId={scopeId ?? runId}
             resolveNodeMeta={resolveNodeMeta}
+            onExport={onExport}
+            isExporting={isExporting}
         />
     )
 }

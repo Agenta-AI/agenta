@@ -56,9 +56,9 @@ export const buildBooleanHistogram = (
     }
 
     const rawStats = stats as unknown as {
-        frequency?: Array<{value: unknown; count?: number; frequency?: number}>
-        freq?: Array<{value: unknown; count?: number; frequency?: number}>
-        rank?: Array<{value: unknown; count?: number; frequency?: number}>
+        frequency?: {value: unknown; count?: number; frequency?: number}[]
+        freq?: {value: unknown; count?: number; frequency?: number}[]
+        rank?: {value: unknown; count?: number; frequency?: number}[]
         count?: number
     }
 

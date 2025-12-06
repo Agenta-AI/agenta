@@ -1,0 +1,87 @@
+{
+    "openai": {
+        "function_calling": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get current weather",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {
+                                "type": "string",
+                                "description": "City name"
+                            }
+                        },
+                        "required": ["location"]
+                    }
+                }
+            }
+        ]
+    },
+    "anthropic": {
+        "function_calling": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get current weather",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {
+                                "type": "string",
+                                "description": "City name"
+                            }
+                        },
+                        "required": ["location"]
+                    }
+                }
+            }
+        ],
+        "bash_scripting": [
+            {
+                "type": "bash_20250124",
+                "name": "bash"
+            }
+        ],
+        "web_search": [
+            {
+                "type": "web_search_20250305",
+                "name": "web_search"
+            }
+        ]
+    },
+    "google": {
+        "function_calling": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get current weather",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {
+                                "type": "string",
+                                "description": "City name"
+                            }
+                        },
+                        "required": ["location"]
+                    }
+                }
+            }
+        ],
+        "code_execution": [
+            {
+                "code_execution": {}
+            }
+        ],
+        "web_search": [
+            {
+                "googleSearch": {}
+            }
+        ]
+    }
+}

@@ -154,7 +154,7 @@ const Section = ({title, children}: {title: React.ReactNode; children: React.Rea
 )
 
 const FieldGrid = ({children}: {children: ReactNode}) => (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 w-full">{children}</div>
+    <div className="grid grid-cols-2 gap-3 w-full">{children}</div>
 )
 
 const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersContentProps) => {
@@ -467,7 +467,7 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
     return (
         <>
             <div className="flex flex-col gap-3 min-w-[320px] min-h-[0] text-gray-700 bg-white px-5 py-4 rounded-[20px] shadow-[0_20px_45px_rgba(15,23,42,0.12)]">
-                <div className="grid gap-6 lg:grid-cols-2">
+                <div className="grid grid-cols-2 gap-3">
                     <Section title="Status">
                         <Select
                             mode="multiple"
@@ -482,7 +482,7 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                     </Section>
 
                     {shouldShowEvaluationTypeSection ? (
-                        <Section title="Evaluation Type">
+                        <Section title="Type">
                             <Select
                                 mode="multiple"
                                 allowClear
@@ -505,131 +505,129 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                     ) : null}
                 </div>
 
-                <Section title="Date range & references">
-                    <div className="flex flex-col gap-3">
-                        <QuickDateRangePicker
-                            value={draftDateRange}
-                            onChange={handleDateRangeChange}
-                        />
-                        {hasReferenceControls ? (
-                            <FieldGrid>
-                                {shouldShowTestsetSection ? (
-                                    <Section title="Testsets">
-                                        <Select
-                                            mode="tags"
-                                            className={chipSelectClassName}
-                                            value={draftReferences.testset}
-                                            options={testsetOptions}
-                                            loading={testsetsLoading}
-                                            disabled={!projectId}
-                                            tagRender={referenceTagRenderers.testset}
-                                            onChange={(values) =>
-                                                handleReferenceChange("testset", values as string[])
-                                            }
-                                            optionLabelProp="label"
-                                            optionFilterProp="label"
-                                            placeholder={
-                                                projectId
-                                                    ? "Add testset IDs"
-                                                    : "Select a project first"
-                                            }
-                                        />
-                                    </Section>
-                                ) : null}
-                                {shouldShowEvaluatorSection ? (
-                                    <Section title="Evaluators">
-                                        <Select
-                                            mode="tags"
-                                            className={chipSelectClassName}
-                                            value={draftReferences.evaluator}
-                                            options={filterOptions.evaluatorOptions}
-                                            loading={
-                                                shouldShowEvaluatorSection &&
-                                                filterOptions.evaluatorLoading
-                                            }
-                                            tagRender={referenceTagRenderers.evaluator}
-                                            onChange={(values) =>
-                                                handleReferenceChange(
-                                                    "evaluator",
-                                                    values as string[],
-                                                )
-                                            }
-                                            placeholder="Add evaluator slugs"
-                                        />
-                                    </Section>
-                                ) : null}
-                                {shouldShowAppSection ? (
-                                    <Section title="Applications">
-                                        <Select
-                                            mode="tags"
-                                            className={chipSelectClassName}
-                                            value={draftReferences.app}
-                                            options={filterOptions.appOptions}
-                                            loading={filterOptions.appsLoading}
-                                            tagRender={referenceTagRenderers.app}
-                                            onChange={(values) =>
-                                                handleReferenceChange("app", values as string[])
-                                            }
-                                            placeholder="Add application IDs"
-                                        />
-                                    </Section>
-                                ) : null}
-                                {shouldShowVariantSection ? (
-                                    <Section title="Variants">
-                                        <Select
-                                            mode="tags"
-                                            className={chipSelectClassName}
-                                            value={draftReferences.variant}
-                                            options={variantOptionsState.options}
-                                            loading={variantOptionsState.isLoading}
-                                            disabled={!variantOptionsState.enabled}
-                                            tagRender={referenceTagRenderers.variant}
-                                            onChange={(values) =>
-                                                handleReferenceChange("variant", values as string[])
-                                            }
-                                            placeholder={
-                                                variantOptionsState.enabled
-                                                    ? "Add variant IDs"
-                                                    : "Select an application first"
-                                            }
-                                        />
-                                    </Section>
-                                ) : null}
-                                {shouldShowQuerySection ? (
-                                    <Section title="Queries">
-                                        <Select
-                                            mode="tags"
-                                            className={chipSelectClassName}
-                                            value={draftReferences.query}
-                                            loading={queryOptionsState.isLoading}
-                                            disabled={!queryOptionsState.enabled}
-                                            tagRender={referenceTagRenderers.query}
-                                            onChange={(values) =>
-                                                handleReferenceChange("query", values as string[])
-                                            }
-                                            optionLabelProp="label"
-                                            optionFilterProp="label"
-                                            placeholder={
-                                                queryOptionsState.enabled
-                                                    ? "Add query slugs or IDs"
-                                                    : "Queries unavailable"
-                                            }
-                                        >
-                                            {queryOptionsState.options.map((option) => (
-                                                <Select.Option
-                                                    key={option.value}
-                                                    value={option.value}
-                                                    label={option.label}
-                                                >
-                                                    <QueryFilterOption option={option} />
-                                                </Select.Option>
-                                            ))}
-                                        </Select>
-                                    </Section>
-                                ) : null}
-                            </FieldGrid>
-                        ) : null}
-                    </div>
+                {hasReferenceControls ? (
+                    <>
+                        <Divider className="!my-1" />
+                        <FieldGrid>
+                            {/* Order follows evaluation run graph: Input → Application → Evaluators */}
+                            {/* For auto/human: Testset → App → Variant → Evaluators */}
+                            {/* For online: Query → Evaluators */}
+                            {shouldShowQuerySection ? (
+                                <Section title="Queries">
+                                    <Select
+                                        mode="tags"
+                                        className={chipSelectClassName}
+                                        value={draftReferences.query}
+                                        loading={queryOptionsState.isLoading}
+                                        disabled={!queryOptionsState.enabled}
+                                        tagRender={referenceTagRenderers.query}
+                                        onChange={(values) =>
+                                            handleReferenceChange("query", values as string[])
+                                        }
+                                        optionLabelProp="label"
+                                        optionFilterProp="label"
+                                        placeholder={
+                                            queryOptionsState.enabled
+                                                ? "Add query slugs or IDs"
+                                                : "Queries unavailable"
+                                        }
+                                    >
+                                        {queryOptionsState.options.map((option) => (
+                                            <Select.Option
+                                                key={option.value}
+                                                value={option.value}
+                                                label={option.label}
+                                            >
+                                                <QueryFilterOption option={option} />
+                                            </Select.Option>
+                                        ))}
+                                    </Select>
+                                </Section>
+                            ) : null}
+                            {shouldShowEvaluatorSection ? (
+                                <Section title="Evaluators">
+                                    <Select
+                                        mode="tags"
+                                        className={chipSelectClassName}
+                                        value={draftReferences.evaluator}
+                                        options={filterOptions.evaluatorOptions}
+                                        loading={
+                                            shouldShowEvaluatorSection &&
+                                            filterOptions.evaluatorLoading
+                                        }
+                                        tagRender={referenceTagRenderers.evaluator}
+                                        onChange={(values) =>
+                                            handleReferenceChange("evaluator", values as string[])
+                                        }
+                                        placeholder="Add evaluator slugs"
+                                    />
+                                </Section>
+                            ) : null}
+                            {shouldShowTestsetSection ? (
+                                <Section title="Testsets">
+                                    <Select
+                                        mode="tags"
+                                        className={chipSelectClassName}
+                                        value={draftReferences.testset}
+                                        options={testsetOptions}
+                                        loading={testsetsLoading}
+                                        disabled={!projectId}
+                                        tagRender={referenceTagRenderers.testset}
+                                        onChange={(values) =>
+                                            handleReferenceChange("testset", values as string[])
+                                        }
+                                        optionLabelProp="label"
+                                        optionFilterProp="label"
+                                        placeholder={
+                                            projectId ? "Add testset IDs" : "Select a project first"
+                                        }
+                                    />
+                                </Section>
+                            ) : null}
+                            {shouldShowAppSection ? (
+                                <Section title="Applications">
+                                    <Select
+                                        mode="tags"
+                                        className={chipSelectClassName}
+                                        value={draftReferences.app}
+                                        options={filterOptions.appOptions}
+                                        loading={filterOptions.appsLoading}
+                                        tagRender={referenceTagRenderers.app}
+                                        onChange={(values) =>
+                                            handleReferenceChange("app", values as string[])
+                                        }
+                                        placeholder="Add application IDs"
+                                    />
+                                </Section>
+                            ) : null}
+                            {shouldShowVariantSection ? (
+                                <Section title="Variants">
+                                    <Select
+                                        mode="tags"
+                                        className={chipSelectClassName}
+                                        value={draftReferences.variant}
+                                        options={variantOptionsState.options}
+                                        loading={variantOptionsState.isLoading}
+                                        disabled={!variantOptionsState.enabled}
+                                        tagRender={referenceTagRenderers.variant}
+                                        onChange={(values) =>
+                                            handleReferenceChange("variant", values as string[])
+                                        }
+                                        placeholder={
+                                            variantOptionsState.enabled
+                                                ? "Add variant IDs"
+                                                : "Select an application first"
+                                        }
+                                    />
+                                </Section>
+                            ) : null}
+                        </FieldGrid>
+                        <Divider className="!my-1" />
+                    </>
+                ) : null}
+
+                <Section title="Date range">
+                    <QuickDateRangePicker value={draftDateRange} onChange={handleDateRangeChange} />
                 </Section>
 
                 <Divider style={{margin: "8px 0"}} />

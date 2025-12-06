@@ -2,7 +2,11 @@ import {createContext, useContext} from "react"
 import type {Key} from "react"
 
 import type {VisibilityRegistrationHandler} from "../components/ColumnVisibilityHeader"
-import type {ColumnVisibilityState, ColumnVisibilityMenuRenderer} from "../types"
+import type {
+    ColumnVisibilityState,
+    ColumnVisibilityMenuRenderer,
+    ColumnVisibilityMenuTriggerRenderer,
+} from "../types"
 
 const noop = () => undefined
 
@@ -27,6 +31,7 @@ export interface ColumnVisibilityContextValue<RecordType extends object = any> {
     registerHeader: VisibilityRegistrationHandler | null
     version: number
     renderMenuContent?: ColumnVisibilityMenuRenderer<RecordType>
+    renderMenuTrigger?: ColumnVisibilityMenuTriggerRenderer<RecordType>
     scopeId: string | null
 }
 
@@ -35,6 +40,7 @@ export const defaultColumnVisibilityContextValue: ColumnVisibilityContextValue =
     registerHeader: null,
     version: 0,
     renderMenuContent: undefined,
+    renderMenuTrigger: undefined,
     scopeId: null,
 }
 

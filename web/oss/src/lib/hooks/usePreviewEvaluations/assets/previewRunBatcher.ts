@@ -17,6 +17,15 @@ const resolveRunId = (run: any): string | null => {
 
 const previewRunCache = new Map<string, PreviewRunBatchValue>()
 
+/**
+ * Invalidate the cache for a specific run.
+ * Call this after updating a run to force a fresh fetch.
+ */
+export const invalidatePreviewRunCache = (projectId: string, runId: string) => {
+    const key = `${projectId}:${runId}`
+    previewRunCache.delete(key)
+}
+
 export const primePreviewRunCache = (projectId: string, runs: any[] | undefined | null) => {
     if (!projectId || !Array.isArray(runs)) return
     runs.forEach((run) => {

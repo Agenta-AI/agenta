@@ -3,7 +3,10 @@ import {useEffect, useMemo} from "react"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails2/atoms/table/run"
+import {
+    evaluationRunQueryAtomFamily,
+    evaluationRunWithProjectQueryAtomFamily,
+} from "@/oss/components/EvalRunDetails2/atoms/table/run"
 
 const idleRunQueryAtom = atom({
     data: null,
@@ -19,6 +22,12 @@ const runDetailsCache = new Map<string, {camelRun: unknown; runIndex: unknown}>(
 
 interface UsePreviewRunDetailsOptions {
     enabled?: boolean
+    /**
+     * Optional project ID. When provided, the hook will use this instead of
+     * relying on the global projectIdAtom. This is useful when the global
+     * atom may not be set yet (e.g., in a new browser window).
+     */
+    projectId?: string | null
 }
 
 export const usePreviewRunDetails = (
@@ -26,14 +35,20 @@ export const usePreviewRunDetails = (
     options?: UsePreviewRunDetailsOptions,
 ) => {
     const enabled = options?.enabled ?? true
+    const projectId = options?.projectId
 
     // Check cache first for instant display when scrolling back into view
     const cachedDetails = runId ? runDetailsCache.get(runId) : undefined
 
     const queryAtom = useMemo(() => {
         if (!enabled || !runId) return idleRunQueryAtom
+        // If projectId is explicitly provided, use the atom that accepts both params
+        if (projectId) {
+            return evaluationRunWithProjectQueryAtomFamily({runId, projectId})
+        }
+        // Otherwise fall back to the atom that uses the global projectIdAtom
         return evaluationRunQueryAtomFamily(runId)
-    }, [enabled, runId])
+    }, [enabled, runId, projectId])
 
     const queryResult = useAtomValueWithSchedule(queryAtom, {priority: LOW_PRIORITY})
     const data = enabled && runId ? (queryResult?.data ?? null) : null

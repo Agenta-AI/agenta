@@ -17,6 +17,8 @@ interface LatestEvaluationRunsTableProps {
     className?: string
     title?: string
     viewAllHref?: string
+    /** When true, scopes the table to the provided appId */
+    appScoped?: boolean
 }
 
 const LatestEvaluationRunsTable = ({
@@ -28,6 +30,7 @@ const LatestEvaluationRunsTable = ({
     className,
     title,
     viewAllHref,
+    appScoped = false,
 }: LatestEvaluationRunsTableProps) => {
     const [isActive, setIsActive] = useState(false)
 
@@ -57,6 +60,7 @@ const LatestEvaluationRunsTable = ({
                     appId,
                     projectIdOverride,
                     includePreview,
+                    ...(appScoped && {scope: "app" as const}),
                 }}
                 pageSize={limit}
             >

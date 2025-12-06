@@ -6,7 +6,7 @@ import {useAtomValue} from "jotai"
 
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 
-import {variantReferenceQueryAtomFamily, testsetReferenceQueryAtomFamily} from "./EvalRunReferences"
+import {variantConfigAtomFamily, previewTestsetReferenceAtomFamily} from "./atoms/entityReferences"
 
 type ChipTone = "variant" | "testset"
 
@@ -56,53 +56,83 @@ const ReferenceChip = ({
     )
 }
 
-export const VariantReferenceChip = memo(({variantId}: {variantId: string | null | undefined}) => {
-    const queryAtom = useMemo(() => variantReferenceQueryAtomFamily(variantId ?? null), [variantId])
-    const query = useAtomValue(queryAtom)
+/**
+ * Generic variant reference chip.
+ * Requires projectId to be passed explicitly for reusability across contexts.
+ */
+export const VariantReferenceChip = memo(
+    ({
+        revisionId,
+        projectId,
+    }: {
+        revisionId: string | null | undefined
+        projectId: string | null
+    }) => {
+        const queryAtom = useMemo(
+            () => variantConfigAtomFamily({projectId, revisionId}),
+            [projectId, revisionId],
+        )
+        const query = useAtomValue(queryAtom)
 
-    if (!variantId) {
-        return null
-    }
+        if (!revisionId) {
+            return null
+        }
 
-    const label =
-        query.data?.name ?? query.data?.slug ?? query.data?.id ?? variantId ?? "Unknown variant"
+        const label =
+            query.data?.variantName ?? query.data?.revisionId ?? revisionId ?? "Unknown variant"
 
-    return (
-        <ReferenceChip
-            label={label}
-            copyValue={variantId}
-            tone="variant"
-            loading={query.isPending || query.isFetching}
-        />
-    )
-})
+        return (
+            <ReferenceChip
+                label={label}
+                copyValue={revisionId}
+                tone="variant"
+                loading={query.isPending || query.isFetching}
+            />
+        )
+    },
+)
 
-export const TestsetReferenceChip = memo(({testsetId}: {testsetId: string}) => {
-    const queryAtom = useMemo(() => testsetReferenceQueryAtomFamily(testsetId), [testsetId])
-    const query = useAtomValue(queryAtom)
+/**
+ * Generic testset reference chip.
+ * Requires projectId to be passed explicitly for reusability across contexts.
+ */
+export const TestsetReferenceChip = memo(
+    ({testsetId, projectId}: {testsetId: string; projectId: string | null}) => {
+        const queryAtom = useMemo(
+            () => previewTestsetReferenceAtomFamily({projectId, testsetId}),
+            [projectId, testsetId],
+        )
+        const query = useAtomValue(queryAtom)
 
-    const label = query.data?.name ?? query.data?.id ?? testsetId
+        const label = query.data?.name ?? query.data?.id ?? testsetId
 
-    return (
-        <ReferenceChip
-            label={label}
-            copyValue={testsetId}
-            tone="testset"
-            loading={query.isPending || query.isFetching}
-        />
-    )
-})
+        return (
+            <ReferenceChip
+                label={label}
+                copyValue={testsetId}
+                tone="testset"
+                loading={query.isPending || query.isFetching}
+            />
+        )
+    },
+)
 
-export const TestsetChipList = memo(({ids}: {ids: string[]}) => {
-    if (!ids.length) {
-        return null
-    }
+/**
+ * Generic testset chip list.
+ * Requires projectId to be passed explicitly for reusability across contexts.
+ */
+export const TestsetChipList = memo(
+    ({ids, projectId}: {ids: string[]; projectId: string | null}) => {
+        if (!ids.length) {
+            return null
+        }
 
-    return (
-        <div className="flex flex-wrap items-center gap-2">
-            {ids.map((id) => (
-                <TestsetReferenceChip key={id} testsetId={id} />
-            ))}
-        </div>
-    )
-})
+        return (
+            <div className="flex flex-wrap items-center gap-2">
+                {ids.map((id) => (
+                    <TestsetReferenceChip key={id} testsetId={id} projectId={projectId} />
+                ))}
+            </div>
+        )
+    },
+)

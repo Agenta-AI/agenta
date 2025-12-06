@@ -2,7 +2,7 @@ from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 from uuid import UUID
 from asyncio import sleep
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from oss.src.utils.logging import get_module_logger
 
@@ -808,7 +808,7 @@ class EvaluationsService:
         timestamps = metrics.timestamps
         interval = metrics.interval
 
-        log.debug(
+        log.info(
             "[METRICS] [REFRESH]",
             run_id=run_id,
             run_ids=run_ids,
@@ -819,13 +819,17 @@ class EvaluationsService:
             interval=interval,
         )
 
+        all_metrics = []
+
         if run_ids:
             for _run_id in run_ids:
-                return await self._refresh_metrics(
+                result = await self._refresh_metrics(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=_run_id,
                 )
+                all_metrics.extend(result)
+            return all_metrics
 
         # !run_ids
         elif not run_id:
@@ -834,23 +838,27 @@ class EvaluationsService:
         # !run_ids & run_id
         elif scenario_ids:
             for _scenario_id in scenario_ids:
-                return await self._refresh_metrics(
+                result = await self._refresh_metrics(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run_id,
                     scenario_id=_scenario_id,
                 )
+                all_metrics.extend(result)
+            return all_metrics
 
         # !run_ids & run_id & !scenario_ids
         elif timestamps:
             for _timestamp in timestamps:
-                return await self._refresh_metrics(
+                result = await self._refresh_metrics(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run_id,
                     timestamp=_timestamp,
                     interval=interval,
                 )
+                all_metrics.extend(result)
+            return all_metrics
 
         # !run_ids & run_id & !scenario_ids & !timestamps
         else:
@@ -862,8 +870,6 @@ class EvaluationsService:
                 timestamp=timestamp,
                 interval=interval,
             )
-
-        return list()
 
     async def _refresh_metrics(
         self,
@@ -918,7 +924,8 @@ class EvaluationsService:
 
                     steps_metrics_keys[step.key] += [
                         {
-                            "path": "ag.data.outputs." + metric_key.get("path", ""),
+                            "path": "attributes.ag.data.outputs."
+                            + metric_key.get("path", ""),
                             "type": metric_key.get("type", ""),
                         }
                         for metric_key in metrics_keys
@@ -930,7 +937,7 @@ class EvaluationsService:
 
                     steps_metrics_keys[step.key] += [
                         {
-                            "path": "ag.data." + metric_key.get("path", ""),
+                            "path": "attributes.ag.data." + metric_key.get("path", ""),
                             "type": metric_key.get("type", ""),
                         }
                         for metric_key in metrics_keys
@@ -941,6 +948,7 @@ class EvaluationsService:
             return []
 
         step_keys = list(steps_metrics_keys.keys())
+        # log.info(f"[METRICS] Found {len(step_keys)} steps: {step_keys}")
 
         steps_trace_ids: Dict[str, List[str]] = dict()
 
@@ -956,21 +964,56 @@ class EvaluationsService:
                 ),
             )
 
+            # log.info(
+            #     f"[METRICS] Step '{step_key}': found {len(results) if results else 0} results"
+            # )
+
             if not results:
                 # log.warning("[WARN] No results found")
                 continue
 
             trace_ids = [result.trace_id for result in results if result.trace_id]
+            # log.info(
+            #     f"[METRICS] Step '{step_key}': extracted {len(trace_ids)} trace_ids"
+            # )
 
             if trace_ids:
                 steps_trace_ids[step_key] = trace_ids
 
-        for step_key in steps_metrics_keys.keys() & steps_trace_ids.keys():
+        # log.info(f"[METRICS] steps_trace_ids keys: {list(steps_trace_ids.keys())}")
+        # log.info(
+        #     f"[METRICS] steps_metrics_keys keys: {list(steps_metrics_keys.keys())}"
+        # )
+
+        if not steps_trace_ids:
+            log.warning("[METRICS] No trace_ids found! Cannot extract metrics.")
+            return []
+
+        steps_specs: Dict[str, List[MetricSpec]] = dict()
+
+        intersection = steps_metrics_keys.keys() & steps_trace_ids.keys()
+        # log.info(f"[METRICS] Intersection of keys: {intersection}")
+
+        if not intersection:
+            log.warning(
+                "[METRICS] Empty intersection! No steps match between metrics_keys and trace_ids"
+            )
+            return []
+
+        for step_key in intersection:
             step_metrics_keys = steps_metrics_keys[step_key]
             step_trace_ids = steps_trace_ids[step_key]
 
+            # log.info(
+            #     f"[METRICS] Processing step '{step_key}' with {len(step_trace_ids)} trace_ids"
+            # )
+
             try:
                 query = TracingQuery(
+                    windowing=Windowing(
+                        oldest=datetime(1970, 1, 1, tzinfo=timezone.utc),
+                        newest=None,
+                    ),
                     filtering=Filtering(
                         conditions=[
                             Condition(
@@ -979,7 +1022,7 @@ class EvaluationsService:
                                 value=step_trace_ids,
                             )
                         ]
-                    )
+                    ),
                 )
 
                 specs = [
@@ -991,9 +1034,12 @@ class EvaluationsService:
                 ] + [
                     MetricSpec(
                         type=MetricType.JSON,
-                        path="atttributes.ag",
+                        path="attributes.ag",
                     )
                 ]
+
+                # log.info(f"[METRICS] Step '{step_key}': {len(specs)} metric specs")
+                steps_specs[step_key] = specs
 
                 buckets = await self.tracing_service.analytics(
                     project_id=project_id,
@@ -1002,6 +1048,16 @@ class EvaluationsService:
                     specs=specs,
                 )
 
+                # log.info(
+                #     f"[METRICS] Step '{step_key}': analytics returned {len(buckets)} buckets"
+                # )
+
+                if len(buckets) == 0:
+                    log.warning(
+                        f"[WARN] Step '{step_key}': No metrics from analytics (0 buckets)"
+                    )
+                    continue
+
                 if len(buckets) != 1:
                     log.warning("[WARN] There should be one and only one bucket")
                     log.warning("[WARN] Buckets:", buckets)
@@ -1009,15 +1065,27 @@ class EvaluationsService:
 
                 bucket = buckets[0]
 
+                # log.info(
+                #     f"[METRICS] Step '{step_key}': bucket has metrics: {bool(bucket.metrics)}"
+                # )
+                # if bucket.metrics:
+                #     log.info(
+                #         f"[METRICS] Step '{step_key}': metrics keys: {list(bucket.metrics.keys())}"
+                #     )
+
                 if not bucket.metrics:
                     log.warning("[WARN] Bucket metrics should not be empty")
                     log.warning("[WARN] Bucket:", bucket)
                     continue
 
                 metrics_data |= {step_key: bucket.metrics}
+                # log.info(f"[METRICS] Step '{step_key}': added to metrics_data")
 
             except Exception as e:
-                log.error(e, exc_info=True)
+                log.error(
+                    f"[METRICS] Step '{step_key}': Exception during analytics",
+                    exc_info=True,
+                )
 
         if not metrics_data:
             # log.warning("[WARN] No metrics data: no metrics will be stored")

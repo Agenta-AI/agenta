@@ -41,9 +41,10 @@ const isSupportedCreateType = (value: string): value is SupportedCreateType =>
     SUPPORTED_CREATE_TYPES.includes(value as SupportedCreateType)
 
 const EvaluationRunsCreateButton = () => {
-    const {createEnabled, createTooltip, evaluationKind, defaultCreateType} = useAtomValue(
+    const {createEnabled, createTooltip, evaluationKind, defaultCreateType, scope} = useAtomValue(
         evaluationRunsTableHeaderStateAtom,
     )
+    const isAppScoped = scope === "app"
     const [createOpen, setCreateOpen] = useAtom(evaluationRunsCreateModalOpenAtom)
     const [selectedCreateType, setSelectedCreateType] = useAtom(
         evaluationRunsCreateSelectedTypeAtom,
@@ -102,7 +103,11 @@ const EvaluationRunsCreateButton = () => {
 
     const dropdownMenuItems = useMemo<MenuProps["items"]>(() => {
         if (!isAllTab) return []
-        return SUPPORTED_CREATE_TYPES.map((type) => {
+        // Filter out "online" (Live Evaluation) in app-scoped views
+        const availableTypes = isAppScoped
+            ? SUPPORTED_CREATE_TYPES.filter((type) => type !== "online")
+            : SUPPORTED_CREATE_TYPES
+        return availableTypes.map((type) => {
             const copy = createTypeCopy[type]
             const isActive = selectedCreateType === type
             return {
@@ -120,7 +125,7 @@ const EvaluationRunsCreateButton = () => {
                 ),
             }
         })
-    }, [isAllTab, selectedCreateType])
+    }, [isAllTab, isAppScoped, selectedCreateType])
 
     const buttonLabel = useMemo(() => {
         if (!isAllTab) return "New Evaluation"

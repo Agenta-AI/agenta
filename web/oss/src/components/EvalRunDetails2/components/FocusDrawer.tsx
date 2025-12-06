@@ -4,7 +4,7 @@ import {isValidElement} from "react"
 import {Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
+import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 import GenericDrawer from "@/oss/components/GenericDrawer"
 import {VariantReferenceChip, TestsetChipList} from "@/oss/components/References"
@@ -15,6 +15,7 @@ import {
     testsetReferenceQueryAtomFamily,
     variantReferenceQueryAtomFamily,
 } from "../atoms/references"
+import {effectiveProjectIdAtom} from "../atoms/run"
 import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../atoms/runDerived"
 import type {
     ColumnValueDescriptor,
@@ -44,6 +45,9 @@ import FocusDrawerHeader from "./FocusDrawerHeader"
 import FocusDrawerSidePanel from "./FocusDrawerSidePanel"
 
 const SECTION_CARD_CLASS = "rounded-xl border border-[#EAECF0] bg-white"
+
+// Color palette for category tags (same as MetricCell)
+const TAG_COLORS = ["green", "blue", "purple", "orange", "cyan", "magenta", "gold", "lime"]
 
 const toSectionAnchorId = (value: string) =>
     `focus-section-${value
@@ -306,20 +310,64 @@ const RunMetricValue = memo(
 
 RunMetricValue.displayName = "RunMetricValue"
 
+/**
+ * Strip evaluator/group name prefix from a label to avoid redundancy.
+ * e.g., "New Human IsAwesome" -> "IsAwesome" when groupLabel is "New Human"
+ */
+const stripGroupPrefix = (label: string, groupLabel?: string): string => {
+    if (!groupLabel || !label) return label
+    const normalizedGroup = groupLabel.toLowerCase().replace(/[-_\s]+/g, "")
+    const normalizedLabel = label.toLowerCase().replace(/[-_\s]+/g, "")
+    if (!normalizedLabel.startsWith(normalizedGroup)) return label
+
+    // Find where the prefix ends in the original label
+    let prefixEndIndex = 0
+    let groupIndex = 0
+    while (prefixEndIndex < label.length && groupIndex < groupLabel.length) {
+        const labelChar = label[prefixEndIndex].toLowerCase()
+        const groupChar = groupLabel[groupIndex].toLowerCase()
+        if (labelChar === groupChar) {
+            groupIndex++
+        } else if (/[-_\s]/.test(label[prefixEndIndex])) {
+            // Skip separators in label
+        } else if (/[-_\s]/.test(groupLabel[groupIndex])) {
+            // Skip separators in group
+            groupIndex++
+            continue
+        } else {
+            break
+        }
+        prefixEndIndex++
+    }
+    // Skip any trailing separators after the prefix
+    while (prefixEndIndex < label.length && /[-_\s]/.test(label[prefixEndIndex])) {
+        prefixEndIndex++
+    }
+    return label.slice(prefixEndIndex) || label
+}
+
 const ScenarioColumnValue = memo(
     ({
         runId,
         scenarioId,
         column,
         descriptor,
+        groupLabel,
     }: {
         runId: string
         scenarioId: string
         column: EvaluationTableColumn
         descriptor: ColumnValueDescriptor
+        groupLabel?: string
     }) => {
-        const displayLabel = column.displayLabel ?? column.label ?? column.id
-        const isMetric = column.kind === "metric"
+        const rawLabel = column.displayLabel ?? column.label ?? column.id
+        // Strip group/evaluator name prefix from label to avoid redundancy
+        const displayLabel = groupLabel ? stripGroupPrefix(rawLabel, groupLabel) : rawLabel
+        const isMetric =
+            column.kind === "metric" ||
+            column.kind === "evaluator" ||
+            column.stepType === "metric" ||
+            column.stepType === "annotation"
         const isRunMetric = isRunMetricColumn(column)
 
         // Always call hooks unconditionally at the top level
@@ -356,15 +404,77 @@ const ScenarioColumnValue = memo(
         if (isMetric) {
             const {value, displayValue} = selection
 
-            const formattedValue =
+            // Ensure formattedValue is always a string
+            // displayValue might be a boolean (e.g., true/false for boolean metrics)
+            // which would render as nothing in React if not converted to string
+            const rawFormattedValue =
                 displayValue ??
                 formatMetricDisplay({
                     value,
                     metricKey: descriptor.metricKey ?? descriptor.valueKey ?? descriptor.path,
                     metricType: descriptor.metricType,
                 })
+            const formattedValue =
+                typeof rawFormattedValue === "boolean"
+                    ? String(rawFormattedValue)
+                    : rawFormattedValue
 
             const isPlaceholder = formattedValue === METRIC_EMPTY_PLACEHOLDER
+
+            // Check if this is an array-type metric
+            const isArrayMetric =
+                descriptor.metricType?.toLowerCase?.() === "array" ||
+                Array.isArray(value) ||
+                (typeof value === "string" && value.startsWith("[") && value.endsWith("]"))
+
+            // Parse array values into tags
+            const arrayTags: string[] = (() => {
+                if (!isArrayMetric) return []
+                if (Array.isArray(value)) {
+                    return value.map((v) => String(v)).filter(Boolean)
+                }
+                if (typeof value === "string" && value.startsWith("[")) {
+                    try {
+                        const parsed = JSON.parse(value)
+                        if (Array.isArray(parsed)) {
+                            return parsed.map((v) => String(v)).filter(Boolean)
+                        }
+                    } catch {
+                        // Not valid JSON
+                    }
+                }
+                if (typeof value === "string" && value.includes(",")) {
+                    return value
+                        .split(",")
+                        .map((v) => v.trim())
+                        .filter(Boolean)
+                }
+                return []
+            })()
+
+            // Render array metrics as tags in a vertical stack
+            const renderMetricContent = () => {
+                if (arrayTags.length > 0) {
+                    return (
+                        <div className="flex flex-col gap-1">
+                            {arrayTags.map((tag, index) => (
+                                <Tag
+                                    key={`${tag}-${index}`}
+                                    color={TAG_COLORS[index % TAG_COLORS.length]}
+                                    className="m-0 w-fit"
+                                >
+                                    {tag}
+                                </Tag>
+                            ))}
+                        </div>
+                    )
+                }
+                return (
+                    <span className={`${isPlaceholder ? "text-neutral-500" : "text-neutral-900"}`}>
+                        {formattedValue}
+                    </span>
+                )
+            }
 
             return (
                 <div className="flex flex-col gap-1">
@@ -385,13 +495,7 @@ const ScenarioColumnValue = memo(
                                 fallbackValue={value ?? displayValue ?? formattedValue}
                                 stepType={descriptor.stepType}
                             >
-                                <span
-                                    className={`${
-                                        isPlaceholder ? "text-neutral-500" : "text-neutral-900"
-                                    }`}
-                                >
-                                    {formattedValue}
-                                </span>
+                                {renderMetricContent()}
                             </MetricDetailsPreviewPopover>
                         )}
                     </ReadOnlyBox>
@@ -523,18 +627,6 @@ export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps)
     const runIndex = useAtomValue(
         useMemo(() => evaluationRunIndexAtomFamily(runId ?? null), [runId]),
     )
-    const invocationRefs = useAtomValue(
-        useMemo(() => runInvocationRefsAtomFamily(runId ?? null), [runId]),
-    )
-    const testsetIds = useAtomValue(useMemo(() => runTestsetIdsAtomFamily(runId ?? null), [runId]))
-    const variantId = useMemo(
-        () => invocationRefs?.variantId ?? invocationRefs?.applicationVariantId ?? null,
-        [invocationRefs],
-    )
-
-    if (!columnResult) {
-        return <Skeleton active paragraph={{rows: 6}} />
-    }
 
     const groups = columnResult.groups ?? []
     const columnMap = useMemo(() => {
@@ -594,15 +686,15 @@ export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps)
             .filter((section): section is FocusDrawerSection => Boolean(section))
     }, [columnMap, descriptorMap, groups, runIndex])
 
+    if (!columnResult) {
+        return <Skeleton active paragraph={{rows: 6}} />
+    }
+
     return (
         <div
             className="flex h-full flex-col gap-4 overflow-auto bg-[#F8FAFC] p-4"
             data-focus-drawer-content
         >
-            <div className="flex flex-wrap items-center gap-2">
-                {variantId ? <VariantReferenceChip variantId={variantId} /> : null}
-                <TestsetChipList ids={testsetIds ?? []} />
-            </div>
             {sections.map((section) => (
                 <section
                     key={section.id}
@@ -629,40 +721,12 @@ export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps)
                                 scenarioId={scenarioId}
                                 column={column}
                                 descriptor={descriptor}
+                                groupLabel={section.label}
                             />
                         ))}
                     </div>
                 </section>
             ))}
-
-            {/* {ungroupedColumns.length ? (
-                <section
-                    id={toSectionAnchorId("additional-details")}
-                    className={`${SECTION_CARD_CLASS} flex flex-col gap-3`}
-                >
-                    <div className="border-b border-[#EAECF0] px-4 py-3">
-                        <Title level={5} className="!mb-0 text-[#1D2939]">
-                            Additional Details
-                        </Title>
-                    </div>
-                    <div className="flex flex-col gap-3 px-4 pb-4">
-                        {ungroupedColumns.map((column) => {
-                            const descriptor =
-                                descriptorMap?.[column.id] ??
-                                createColumnValueDescriptor(column, runIndex)
-                            return (
-                                <ScenarioColumnValue
-                                    key={column.id}
-                                    runId={runId}
-                                    scenarioId={scenarioId}
-                                    column={column}
-                                    descriptor={descriptor}
-                                />
-                            )
-                        })}
-                    </div>
-                </section>
-            ) : null} */}
         </div>
     )
 }

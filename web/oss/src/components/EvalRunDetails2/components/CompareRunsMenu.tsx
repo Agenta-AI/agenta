@@ -4,6 +4,7 @@ import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip, Typography}
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
+import ReferenceTag from "@/oss/components/References/ReferenceTag"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {projectIdAtom} from "@/oss/state/project"
@@ -17,8 +18,6 @@ import {
 } from "../atoms/compare"
 import useRunScopedUrls from "../hooks/useRunScopedUrls"
 import {setCompareQueryParams} from "../state/urlCompare"
-
-import ReferenceTag from "@/oss/components/References/ReferenceTag"
 
 import usePreviewEvaluations from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
 
@@ -39,6 +38,7 @@ interface CandidateRun {
         testsetIds: string[]
         hasQueryInput: boolean
         inputStepCount: number
+        evaluatorIds: string[]
     }
 }
 
@@ -61,10 +61,12 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
     }, [compareIds])
 
     useEffect(() => {
-        if (!availability.canCompare && compareIds.length) {
+        // Only clear compare IDs if we're done loading and comparison is not available
+        // Don't clear while still loading to preserve URL-restored state
+        if (!availability.isLoading && !availability.canCompare && compareIds.length) {
             setCompareIds([])
         }
-    }, [availability.canCompare, compareIds, setCompareIds])
+    }, [availability.isLoading, availability.canCompare, compareIds, setCompareIds])
 
     useEffect(() => {
         if (compareIds.length && compareIds.includes(runId)) {
@@ -78,40 +80,46 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
           ? reasonLabelMap[availability.reason]
           : undefined
 
+    const handleButtonClick = useCallback(() => {
+        setOpen((prev) => !prev)
+    }, [])
+
+    const handlePopoverOpenChange = useCallback((newOpen: boolean) => {
+        // Only allow the popover to close itself (e.g., clicking outside)
+        // The button handles its own toggle
+        if (!newOpen) {
+            setOpen(false)
+        }
+    }, [])
+
     const button = (
-        <Button
-            type="primary"
-            onClick={() => setOpen((prev) => !prev)}
-            disabled={!availability.canCompare}
-        >
+        <Button type="primary" onClick={handleButtonClick} disabled={!availability.canCompare}>
             Compare{compareIds.length ? ` (${compareIds.length})` : ""}
         </Button>
     )
 
     return (
-        <div>
+        <Popover
+            open={open && availability.canCompare}
+            onOpenChange={handlePopoverOpenChange}
+            trigger={[]}
+            placement="bottomRight"
+            destroyOnHidden
+            overlayStyle={{minWidth: 360, maxHeight: 440}}
+            content={
+                open && availability.canCompare ? (
+                    <CompareRunsPopoverContent runId={runId} availability={availability} />
+                ) : null
+            }
+        >
             {disabledReason ? (
                 <Tooltip title={disabledReason} placement="bottom">
                     <span>{button}</span>
                 </Tooltip>
             ) : (
-                <>{button}</>
+                button
             )}
-
-            <Popover
-                open={open && availability.canCompare}
-                onOpenChange={setOpen}
-                trigger={["click"]}
-                placement="bottomRight"
-                destroyOnHidden
-                overlayStyle={{minWidth: 360, maxHeight: 440}}
-                content={
-                    open && availability.canCompare ? (
-                        <CompareRunsPopoverContent runId={runId} availability={availability} />
-                    ) : null
-                }
-            />
-        </div>
+        </Popover>
     )
 }
 
@@ -122,6 +130,7 @@ interface CompareRunsPopoverContentProps {
     availability: {
         canCompare: boolean
         testsetIds: string[]
+        evaluatorIds: string[]
         isLoading: boolean
         reason?: keyof typeof reasonLabelMap
     }
@@ -140,6 +149,7 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
     const candidates = useMemo<CandidateRun[]>(() => {
         if (!availability.canCompare || !Array.isArray(runs)) return []
         const baseTestsetIds = new Set(availability.testsetIds)
+        const baseEvaluatorIds = new Set(availability.evaluatorIds)
         return runs
             .filter((run) => run?.id && run.id !== runId)
             .map((run) => {
@@ -160,12 +170,18 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                 if (!candidate.structure.inputStepCount) return false
                 if (candidate.structure.hasQueryInput) return false
                 if (!candidate.structure.testsetIds.length) return false
+                // Must share at least one testset
                 const sharesTestset = candidate.structure.testsetIds.some((id) =>
                     baseTestsetIds.has(id),
                 )
-                return sharesTestset
+                if (!sharesTestset) return false
+                // Must share at least one evaluator for meaningful comparison
+                const sharesEvaluator = candidate.structure.evaluatorIds.some((id) =>
+                    baseEvaluatorIds.has(id),
+                )
+                return sharesEvaluator
             })
-    }, [availability.canCompare, availability.testsetIds, runs, runId])
+    }, [availability.canCompare, availability.testsetIds, availability.evaluatorIds, runs, runId])
 
     const candidateTestsetIds = useMemo(() => {
         const ids = new Set<string>()
@@ -365,28 +381,6 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                                     ) : null}
                                 </Space>
                             </div>
-
-                            {/* {resolvedTestsetNames.length ? (
-                                <Text type="secondary" className="compare-run-row__sub">
-                                    Testsets:
-                                </Text>
-                            ) : null}
-                            {resolvedTestsetNames.length ? (
-                                <div className="compare-run-row__testsets">
-                                    {item.structure.testsetIds.map((id) => {
-                                        const label =
-                                            candidateTestsetNameMap[id] ?? id ?? "Unknown testset"
-                                        return (
-                                            <TestsetReferenceTag
-                                                key={`${item.id}-${id}`}
-                                                label={label}
-                                                copyValue={id}
-                                                href={buildTestsetHref(id) ?? undefined}
-                                            />
-                                        )
-                                    })}
-                                </div>
-                            ) : null} */}
                         </List.Item>
                     )
                 }}
@@ -583,6 +577,8 @@ const useTestsetNameMap = (testsetIds: string[]) => {
             } catch (error) {
                 if (!cancelled) {
                     setNames({})
+                    console.error("Failed to fetch testset names:", error)
+                    message.error("Failed to load testset names. Please try again later.")
                 }
             }
         }

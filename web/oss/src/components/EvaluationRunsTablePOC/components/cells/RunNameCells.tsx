@@ -3,7 +3,6 @@ import {memo} from "react"
 import {Typography} from "antd"
 
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 
 import {useRunRowSummary} from "../../context/RunRowDataContext"
 import type {EvaluationRunTableRow} from "../../types"
@@ -19,18 +18,11 @@ export const PreviewRunNameCellSkeleton = () => (
 
 const PreviewRunNameCellContent = memo(({summary, runId}: {summary: any; runId: string | null}) => {
     const displayName = summary?.name || runId || "Untitled run"
-    const copyTarget = runId ?? summary?.id ?? null
-
-    if (!copyTarget) {
-        return <Typography.Text className="font-medium">{displayName}</Typography.Text>
-    }
 
     return (
-        <TooltipWithCopyAction title="Copy run ID" copyText={copyTarget}>
-            <span className="font-medium text-primary cursor-copy whitespace-nowrap overflow-hidden text-ellipsis">
-                {displayName}
-            </span>
-        </TooltipWithCopyAction>
+        <Typography.Text className="font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+            {displayName}
+        </Typography.Text>
     )
 })
 

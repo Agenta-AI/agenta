@@ -38,10 +38,10 @@ const getTotalFromStats = (stats: BasicStats | undefined): number | undefined =>
 
 const normalizeDash = (value: string): string => (value === "-" ? METRIC_PLACEHOLDER : value)
 
-const METRIC_KEY_PATTERNS: Array<{
+const METRIC_KEY_PATTERNS: {
     regex: RegExp
     format: (stats: BasicStats | undefined) => string
-}> = [
+}[] = [
     {
         regex: /costs?(\.cumulative)?\.total/i,
         format: (stats) => normalizeDash(formatCurrency(getMeanFromStats(stats) ?? null)),
@@ -132,6 +132,10 @@ export const formatEvaluatorMetricValue = (
     }
     const topCategorical = getTopCategoricalValue(stats)
     if (topCategorical !== undefined && topCategorical !== null) {
+        // Handle array of values for multi-category metrics
+        if (Array.isArray(topCategorical)) {
+            return topCategorical.map((v) => String(v)).join(", ")
+        }
         return String(topCategorical)
     }
     const sum = (stats as Record<string, unknown>).sum
@@ -151,13 +155,27 @@ export const formatInvocationMetricValue = (
     return formatEvaluatorMetricValue(stats, metricKey)
 }
 
+const isCategoricalMultiple = (stats: BasicStats | undefined): boolean => {
+    if (!stats) return false
+    const type = (stats as Record<string, any>)?.type
+    return type === "categorical/multiple" || type?.includes?.("categorical")
+}
+
 const getTopCategoricalValue = (stats: BasicStats | undefined): unknown => {
     if (!stats) return undefined
+
+    // Check if this is a multi-category metric
+    const isMultiple = isCategoricalMultiple(stats)
+
     const rank = (stats as Record<string, any>)?.rank
     if (Array.isArray(rank) && rank.length) {
         const sorted = [...rank].sort(
             (a: any, b: any) => (b?.count ?? 0) - (a?.count ?? 0) || (a?.value === true ? -1 : 1),
         )
+        if (isMultiple) {
+            // Return all values for multi-category
+            return sorted.map((entry: any) => entry?.value).filter((v: any) => v !== undefined)
+        }
         return sorted[0]?.value
     }
     const frequency =
@@ -166,10 +184,18 @@ const getTopCategoricalValue = (stats: BasicStats | undefined): unknown => {
         const sorted = [...frequency].sort(
             (a: any, b: any) => (b?.count ?? 0) - (a?.count ?? 0) || (a?.value === true ? -1 : 1),
         )
+        if (isMultiple) {
+            // Return all values for multi-category
+            return sorted.map((entry: any) => entry?.value).filter((v: any) => v !== undefined)
+        }
         return sorted[0]?.value
     }
-    const unique = (stats as Record<string, any>)?.unique
+    const unique = (stats as Record<string, any>)?.unique ?? (stats as Record<string, any>)?.uniq
     if (Array.isArray(unique) && unique.length) {
+        if (isMultiple) {
+            // Return all unique values for multi-category
+            return unique
+        }
         return unique[0]
     }
     return undefined

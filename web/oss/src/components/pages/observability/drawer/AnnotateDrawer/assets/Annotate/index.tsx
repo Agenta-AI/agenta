@@ -78,15 +78,27 @@ const Annotate = ({
             })
 
             setUpdatedMetrics((prev) => {
-                // Only update if metrics actually changed to prevent loops
-                const hasChanges = Object.keys(initialMetrics).some(
-                    (key) => JSON.stringify(prev[key]) !== JSON.stringify(initialMetrics[key]),
-                )
-                if (!hasChanges) return prev
-                return {
-                    ...prev,
-                    ...initialMetrics,
+                // If prev is empty, initialize with all metrics from annotations
+                if (Object.keys(prev).length === 0) {
+                    return initialMetrics
                 }
+
+                // If prev already has values, only add NEW slugs that don't exist yet.
+                // This prevents overwriting user's pending changes during refetch.
+                const newMetrics: Record<string, any> = {...prev}
+                let hasNewKeys = false
+
+                for (const [slug, metrics] of Object.entries(initialMetrics)) {
+                    if (!(slug in prev)) {
+                        // This is a completely new evaluator slug, add it
+                        newMetrics[slug] = metrics
+                        hasNewKeys = true
+                    }
+                    // If the slug already exists in prev, don't overwrite it
+                    // to preserve user's pending changes
+                }
+
+                return hasNewKeys ? newMetrics : prev
             })
         } catch (error) {
             onCaptureError?.(["Invalid evaluator schema"])

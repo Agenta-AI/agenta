@@ -27,11 +27,15 @@ import MetricGroupHeader from "../headers/MetricGroupHeader"
 interface ColumnVisibilityPopoverContentProps {
     onClose: () => void
     controls?: ColumnVisibilityState<EvaluationRunTableRow>
+    onExport?: () => void
+    isExporting?: boolean
 }
 
 const ColumnVisibilityPopoverContent = ({
     onClose,
     controls,
+    onExport,
+    isExporting,
 }: ColumnVisibilityPopoverContentProps) => {
     const columnContext = useAtomValueWithSchedule(evaluationRunsColumnVisibilityContextAtom, {
         priority: LOW_PRIORITY,
@@ -133,6 +137,8 @@ const ColumnVisibilityPopoverContent = ({
             controls={controls}
             scopeId={columnContext.scopeId}
             resolveNodeMeta={resolveNodeMeta}
+            onExport={onExport}
+            isExporting={isExporting}
         />
     )
 }

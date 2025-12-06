@@ -77,11 +77,29 @@ export const simpleTestsetDetailsAtomFamily = atomFamily((testsetId: string | nu
             queryFn: async () => {
                 if (!enabled || !projectId || !testsetId) return null
 
-                const response = await axios.get(`/preview/simple/testsets/${testsetId}`, {
-                    params: {project_id: projectId},
-                })
+                try {
+                    const response = await axios.get(`/preview/simple/testsets/${testsetId}`, {
+                        params: {project_id: projectId},
+                        _ignoreError: true,
+                    } as any)
 
-                return normalizeSimpleTestset(response.data, testsetId)
+                    return normalizeSimpleTestset(response.data, testsetId)
+                } catch (error) {
+                    console.warn("[EvalRunDetails2] Failed to fetch testset details", {
+                        projectId,
+                        testsetId,
+                        error,
+                    })
+                    // Return minimal fallback so UI can show "deleted" state
+                    return {
+                        id: testsetId,
+                        name: null,
+                        slug: null,
+                        description: null,
+                        testcaseCount: null,
+                        columnNames: [],
+                    }
+                }
             },
         }
     }),

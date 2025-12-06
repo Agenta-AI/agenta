@@ -14,5 +14,7 @@ export interface PreviewTableRow {
     updatedAt: string
     createdById?: string
     updatedById?: string
+    /** Timestamp for online evaluation scenarios (batch grouping) */
+    timestamp?: string | null
     __isSkeleton: boolean
 }

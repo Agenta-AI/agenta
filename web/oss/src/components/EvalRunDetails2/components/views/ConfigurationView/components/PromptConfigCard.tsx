@@ -92,14 +92,20 @@ const normalizeMessages = (messages: any, promptKey: string): any[] => {
     })
 }
 
-const normalizePromptNode = (prompt: any, index: number): PromptNode | null => {
-    if (!prompt || typeof prompt !== "object") return null
-    const base = prompt as Record<string, any>
-    const promptKey =
+// Helper function to resolve the prompt key with fallback logic
+const resolvePromptKey = (base: Record<string, any>, index: number) => {
+    return (
         unwrapValue(base.__id) ??
         unwrapValue(base.__name) ??
         unwrapValue(base.id) ??
         `prompt-${index}`
+    )
+}
+
+const normalizePromptNode = (prompt: any, index: number): PromptNode | null => {
+    if (!prompt || typeof prompt !== "object") return null
+    const base = prompt as Record<string, any>
+    const promptKey = resolvePromptKey(base, index)
     const promptName =
         unwrapValue(base.__name) ??
         unwrapValue(base.name) ??
@@ -203,6 +209,9 @@ const PromptConfigCard = ({
         ) {
             return derivedCustomProps
         }
+        // Fallback: extract custom properties directly from parameters if not found in customProperties or derivedCustomProps.
+        // This ensures we always attempt to extract custom properties, even if the atoms are empty or unavailable.
+        // This is not redundant, as customProperties and derivedCustomProps may be sourced differently.
         return extractCustomProps(parameters)
     }, [customProperties, normalizedVariantId, derivedCustomProps, parameters])
 

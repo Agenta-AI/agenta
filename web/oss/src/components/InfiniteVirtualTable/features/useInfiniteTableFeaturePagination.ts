@@ -1,5 +1,6 @@
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
 import type {InfiniteTableRowBase} from "../types"
+
 import type {TableScopeConfig, TableFeaturePagination} from "./InfiniteVirtualTableFeatureShell"
 
 interface UseFeaturePaginationOptions {

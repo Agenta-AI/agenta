@@ -2,9 +2,9 @@ import {useMemo} from "react"
 
 import {useAtomValue} from "jotai"
 
-import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../../../../atoms/runDerived"
 import {TestsetChipList, VariantReferenceChip} from "@/oss/components/References"
 
+import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../../../../atoms/runDerived"
 import {toIdString} from "../utils"
 
 export interface ContextChipListProps {

@@ -63,10 +63,15 @@ const EvaluatorMetricsSpiderChart = ({
         })
     }, [metrics, maxScore, series])
 
-    if (metrics.length === 0) {
+    // Spider/radar charts need at least 3 data points to form a proper polygon
+    if (metrics.length < 3) {
         return (
             <div className={clsx("flex items-center justify-center", className)}>
-                <Typography.Text type="secondary">No metrics available</Typography.Text>
+                <Typography.Text type="secondary">
+                    {metrics.length === 0
+                        ? "No metrics available"
+                        : "At least 3 metrics required for spider chart"}
+                </Typography.Text>
             </div>
         )
     }
@@ -76,14 +81,9 @@ const EvaluatorMetricsSpiderChart = ({
     const RAD = Math.PI / 180
 
     return (
-        <div className={clsx("border border-solid border-[#EAEFF5] rounded", className)}>
+        <div className={clsx("border border-solid border-[#EAEFF5] rounded p-2", className)}>
             <ResponsiveContainer width="100%" height="100%">
-                <RadarChart
-                    cx="52%"
-                    cy={chartData.length < 4 ? "62%" : "50%"}
-                    outerRadius={150}
-                    data={chartData}
-                >
+                <RadarChart cx="50%" cy="50%" outerRadius="45%" data={chartData}>
                     <PolarGrid stroke="#EAEFF5" />
                     <PolarAngleAxis
                         dataKey="subject"

@@ -3,11 +3,6 @@ import {memo, useMemo} from "react"
 import {Popover, Skeleton, Typography} from "antd"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {
-    ApplicationReferenceLabel,
-    TestsetTagList,
-    VariantReferenceLabel,
-} from "@/oss/components/References"
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
 
 import {
@@ -17,6 +12,7 @@ import {
     runUpdatedAtAtomFamily,
 } from "../../../../atoms/runDerived"
 import {evaluationRunQueryAtomFamily} from "../../../../atoms/table/run"
+import {ApplicationReferenceLabel, TestsetTagList, VariantReferenceLabel} from "../../../references"
 
 interface RunNameTagProps {
     runId: string

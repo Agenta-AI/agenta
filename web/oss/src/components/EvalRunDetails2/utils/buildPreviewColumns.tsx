@@ -16,8 +16,9 @@ import PreviewEvaluationInputCell from "../components/TableCells/InputCell"
 import PreviewEvaluationInvocationCell from "../components/TableCells/InvocationCell"
 import PreviewEvaluationMetricCell from "../components/TableCells/MetricCell"
 import StepGroupHeader from "../components/TableHeaders/StepGroupHeader"
-import {humanizeStepKey, resolveGroupLabel} from "./labelHelpers"
 import {COLUMN_WIDTHS} from "../constants/table"
+
+import {humanizeStepKey, resolveGroupLabel} from "./labelHelpers"
 
 const TITLEIZE = (value: string) =>
     value
@@ -146,6 +147,7 @@ const createStaticMetricColumns = <RowType,>(
                 scenarioId={record.scenarioId ?? record.id}
                 runId={record.runId}
                 column={pseudoColumn}
+                scenarioTimestamp={record.timestamp}
             />
         )
 
@@ -290,7 +292,7 @@ export function buildPreviewColumns<RowType>({
                     const tooltipLabel = formatStatusLabel(statusRaw)
 
                     return (
-                        <div className="flex h-full min-h-[54px] w-full items-center justify-start">
+                        <div className="flex h-full min-h-[54px] w-full items-start justify-start pt-4">
                             <Tooltip title={tooltipLabel} placement="topLeft">
                                 <span className="inline-flex items-center gap-2 text-xs font-medium">
                                     <span
@@ -305,6 +307,53 @@ export function buildPreviewColumns<RowType>({
                 return {
                     key: column.id,
                     dataIndex: "scenarioIndex",
+                    title: wrapHeader(
+                        column.id,
+                        titleNode ?? headerLabel ?? column.id,
+                        headerLabel,
+                    ),
+                    columnVisibilityLabel: headerLabel ?? column.id,
+                    width,
+                    minWidth: width,
+                    fixed: column.sticky,
+                    render: wrapRender(column, baseRender),
+                    align: "left",
+                }
+            }
+            if (column.metaRole === "timestamp") {
+                const headerLabel = column.displayLabel ?? column.label ?? "Timestamp"
+                const titleNode = renderEllipsisTitle(headerLabel)
+                const baseRender: ColumnType<RowType>["render"] = (
+                    _value: unknown,
+                    record: any,
+                ) => {
+                    const timestamp = record?.timestamp
+                    if (!timestamp) {
+                        return (
+                            <div className="flex h-full min-h-[54px] w-full items-center justify-start">
+                                <span className="text-xs text-neutral-400">—</span>
+                            </div>
+                        )
+                    }
+                    // Format timestamp for display
+                    const date = new Date(timestamp)
+                    const formatted = date.toLocaleString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    })
+                    return (
+                        <Tooltip title={timestamp} placement="topLeft">
+                            <div className="flex h-full min-h-[54px] w-full items-center justify-start">
+                                <span className="text-xs text-neutral-600">{formatted}</span>
+                            </div>
+                        </Tooltip>
+                    )
+                }
+                return {
+                    key: column.id,
+                    dataIndex: "timestamp",
                     title: wrapHeader(
                         column.id,
                         titleNode ?? headerLabel ?? column.id,
@@ -376,6 +425,7 @@ export function buildPreviewColumns<RowType>({
                         scenarioId={record.scenarioId ?? record.id}
                         runId={record.runId}
                         column={column}
+                        scenarioTimestamp={record.timestamp}
                     />
                 )
             }
@@ -404,8 +454,13 @@ export function buildPreviewColumns<RowType>({
     const builtColumns: ColumnsType<RowType> = []
     const renderedColumnIds = new Set<string>()
 
+    // Include scenarioIndexStatus and timestamp columns as leading meta columns
     const leadingMetaColumns = [...columns]
-        .filter((column) => column.stepType === "meta" && column.metaRole === "scenarioIndexStatus")
+        .filter(
+            (column) =>
+                column.stepType === "meta" &&
+                (column.metaRole === "scenarioIndexStatus" || column.metaRole === "timestamp"),
+        )
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
     leadingMetaColumns.forEach((column) => {

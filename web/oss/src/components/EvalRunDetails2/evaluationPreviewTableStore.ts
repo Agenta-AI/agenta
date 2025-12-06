@@ -13,6 +13,12 @@ import {effectiveProjectIdAtom} from "./atoms/run"
 import type {WindowingState, EvaluationScenarioRow} from "./atoms/table"
 import {fetchEvaluationScenarioWindow} from "./atoms/table/scenarios"
 import type {PreviewTableRow} from "./atoms/tableRows"
+import {previewEvalTypeAtom} from "./state/evalType"
+
+interface EvaluationPreviewMeta {
+    projectId: string | null
+    evaluationType: "auto" | "human" | "online" | null
+}
 
 const createSkeletonRow = ({
     scopeId,
@@ -70,21 +76,27 @@ const mergeRow = ({
         updatedAt: apiRow.updatedAt,
         createdById: apiRow.createdById,
         updatedById: apiRow.updatedById,
+        timestamp: apiRow.timestamp ?? null,
         __isSkeleton: false,
     }
 }
 
 export const evaluationPreviewTableStore = createInfiniteTableStore<
     PreviewTableRow,
-    EvaluationScenarioRow
+    EvaluationScenarioRow,
+    EvaluationPreviewMeta
 >({
     key: "evaluation-preview-table",
     createSkeletonRow,
     mergeRow,
-    getQueryMeta: ({get}) => get(effectiveProjectIdAtom),
-    isEnabled: ({scopeId, meta}) => Boolean(scopeId && meta),
+    getQueryMeta: ({get}) => ({
+        projectId: get(effectiveProjectIdAtom),
+        evaluationType: get(previewEvalTypeAtom),
+    }),
+    isEnabled: ({scopeId, meta}) => Boolean(scopeId && meta?.projectId),
     fetchPage: async ({scopeId, cursor, limit, offset, windowing, meta}) => {
-        const projectId = meta
+        const projectId = meta?.projectId
+        const evaluationType = meta?.evaluationType
 
         if (!scopeId || !projectId) {
             return {
@@ -97,6 +109,10 @@ export const evaluationPreviewTableStore = createInfiniteTableStore<
             }
         }
 
+        // For online evaluations, use descending order (latest first)
+        // For auto and human evaluations, use ascending order (oldest first)
+        const order = evaluationType === "online" ? "descending" : "ascending"
+
         return fetchEvaluationScenarioWindow({
             projectId,
             runId: scopeId,
@@ -104,6 +120,7 @@ export const evaluationPreviewTableStore = createInfiniteTableStore<
             limit,
             offset,
             windowing,
+            order,
         })
     },
 })
@@ -133,18 +150,24 @@ const usePagination = ({
         resetOnScopeChange,
     })
 
+// Atom that combines projectId and evaluationType for the dataset store
+const evaluationPreviewMetaAtom = atom((get) => ({
+    projectId: get(effectiveProjectIdAtom),
+    evaluationType: get(previewEvalTypeAtom),
+}))
+
 export const evaluationPreviewDatasetStore: InfiniteDatasetStore<
     PreviewTableRow,
     EvaluationScenarioRow,
-    string | null
+    EvaluationPreviewMeta
 > = {
     store: evaluationPreviewTableStore,
     config: {
         key: "evaluation-preview-table",
-        metaAtom: effectiveProjectIdAtom,
+        metaAtom: evaluationPreviewMetaAtom,
         createSkeletonRow,
         mergeRow,
-        isEnabled: (meta) => Boolean(meta),
+        isEnabled: (meta) => Boolean(meta?.projectId),
         fetchPage: async () => ({
             rows: [],
             totalCount: 0,

@@ -22,7 +22,6 @@ import {
 import {fetchEvaluationRunsWindow} from "./fetchAutoEvaluationRuns"
 
 import type {RunFlagsFilter} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/index"
-import {evaluatorsQueryAtomFamily} from "@/oss/state/evaluators"
 
 export interface EvaluationRunsTableMeta {
     projectId: string | null
@@ -36,6 +35,8 @@ export interface EvaluationRunsTableMeta {
     referenceFilters?: Record<string, string[]> | null
     evaluationTypeFilters?: ConcreteEvaluationRunKind[] | null
     dateRange?: {from?: string | null; to?: string | null} | null
+    /** Internal refresh trigger - incrementing this forces a refetch */
+    _refreshTrigger?: number
 }
 
 interface EvaluationRunsTableMetaState {
@@ -85,34 +86,6 @@ const arrayEqualsNullable = (a: string[] | null, b: string[] | null) => {
         if (a[i] !== b[i]) return false
     }
     return true
-}
-
-const normalizeEvaluatorFilters = (
-    referenceFilters: Record<string, string[]> | null,
-    evaluatorOptions: {value: string; label: string; slug?: string}[],
-): Record<string, string[]> | null => {
-    if (!referenceFilters) return referenceFilters
-
-    const bySlug = new Map<string, string>()
-    evaluatorOptions.forEach((option) => {
-        const value = typeof option.value === "string" ? option.value.trim() : ""
-        const slug = typeof option.slug === "string" ? option.slug.trim() : ""
-        if (slug && value) {
-            bySlug.set(slug, value)
-        }
-    })
-
-    const evaluators = referenceFilters.evaluator?.map((entry) => {
-        const trimmed = (entry || "").trim()
-        if (!trimmed) return trimmed
-        const mapped = bySlug.get(trimmed)
-        return mapped || trimmed
-    })
-
-    return {
-        ...referenceFilters,
-        evaluator: evaluators ?? referenceFilters.evaluator,
-    }
 }
 
 const shallowEqualReferences = (
@@ -169,6 +142,20 @@ const mergeLockedAppFilters = (
     return Object.keys(base).length ? base : null
 }
 
+/**
+ * Atom to trigger a refresh of the evaluation runs table.
+ * Incrementing this will cause the table to refetch data.
+ */
+export const evaluationRunsRefreshTriggerAtom = atom(0)
+
+/**
+ * Write-only atom to invalidate the evaluation runs table and trigger a refetch.
+ * Call this after updating a run (rename, status change, annotation, etc.)
+ */
+export const invalidateEvaluationRunsTableAtom = atom(null, (get, set) => {
+    set(evaluationRunsRefreshTriggerAtom, (prev) => prev + 1)
+})
+
 export const evaluationRunsTableMetaAtom = atom<
     EvaluationRunsTableMeta,
     [EvaluationRunsTableMeta | ((prev: EvaluationRunsTableMeta) => EvaluationRunsTableMeta)],
@@ -179,6 +166,7 @@ export const evaluationRunsTableMetaAtom = atom<
         const signature = computeContextSignature(context)
         const state = get(evaluationRunsMetaStateAtomFamily(signature))
         const isEnabled = get(evaluationRunsTableFetchEnabledAtom)
+        const refreshTrigger = get(evaluationRunsRefreshTriggerAtom)
 
         const previewFlags = state.previewFlags ?? context.derivedPreviewFlags
 
@@ -189,43 +177,10 @@ export const evaluationRunsTableMetaAtom = atom<
                 : context.activeAppId
                   ? [context.activeAppId]
                   : []
-        const evaluatorOptions = (() => {
-            if (!isEnabled || !context.projectId) return []
-            const queriesKey = JSON.stringify(
-                context.evaluationKind === "human" ? {is_human: true} : null,
-            )
-            const evaluatorsQuery = get(
-                evaluatorsQueryAtomFamily({
-                    projectId: context.projectId,
-                    preview: true,
-                    queriesKey,
-                }),
-            )
-            const data = Array.isArray(evaluatorsQuery?.data)
-                ? (evaluatorsQuery.data as {id?: string; slug?: string; name?: string}[])
-                : []
-            const options = data
-                .map((item) => {
-                    const id = (typeof item.id === "string" && item.id.trim()) || ""
-                    const slug = (typeof item.slug === "string" && item.slug.trim()) || ""
-                    const value = id || slug
-                    if (!value) return null
-                    const label = (typeof item.name === "string" && item.name.trim()) || value
-                    return {label, value, slug: slug || undefined}
-                })
-                .filter(Boolean) as {label: string; value: string; slug?: string}[]
-            const deduped: {label: string; value: string; slug?: string}[] = []
-            options.forEach((opt) => {
-                if (!deduped.find((candidate) => candidate.value === opt.value)) {
-                    deduped.push(opt)
-                }
-            })
-            return deduped
-        })()
-        const referenceFilters = normalizeEvaluatorFilters(
-            mergeLockedAppFilters(state.referenceFilters ?? null, lockedAppIds),
-            evaluatorOptions,
-        )
+
+        // No need to fetch evaluators here - the API accepts both slugs and IDs
+        // via buildReferencePayload which handles the conversion
+        const referenceFilters = mergeLockedAppFilters(state.referenceFilters ?? null, lockedAppIds)
         const previewSearchQuery = state.previewSearchQuery ?? null
         const previewReferences = buildReferencePayload(referenceFilters)
         const evaluationTypeFilters = state.evaluationTypeFilters ?? null
@@ -243,6 +198,7 @@ export const evaluationRunsTableMetaAtom = atom<
             referenceFilters,
             evaluationTypeFilters,
             dateRange,
+            _refreshTrigger: refreshTrigger,
         }
 
         return meta

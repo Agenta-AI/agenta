@@ -1,12 +1,23 @@
 import {memo, useMemo, useState, useCallback} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
-import {Database, Note, Rocket, Trash, DownloadSimple, Play, Stop} from "@phosphor-icons/react"
-import {Button, Dropdown, MenuProps, Tooltip} from "antd"
+import {
+    Database,
+    Note,
+    Rocket,
+    Trash,
+    DownloadSimple,
+    Play,
+    Stop,
+    Copy,
+} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
+import {Button, Dropdown, MenuProps, Tooltip} from "antd"
 
 import {message} from "@/oss/components/AppMessageContext"
+import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {extractPrimaryInvocation} from "@/oss/components/pages/evaluations/utils"
+import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {EvaluationStatus} from "@/oss/lib/Types"
 import {startSimpleEvaluation, stopSimpleEvaluation} from "@/oss/services/onlineEvaluations/api"
 
@@ -16,7 +27,6 @@ import {
     useRunRowReferences,
 } from "../../../context/RunRowDataContext"
 import type {EvaluationRunTableRow} from "../../../types"
-import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 
 const CELL_CLASS =
     "flex h-full w-full min-w-0 items-center justify-center px-2 [&_.ant-btn]:h-8 [&_.ant-btn]:w-8"
@@ -196,6 +206,17 @@ const RunActionsCell = ({
                     event.domEvent.stopPropagation()
                     if (!canOpenDetails) return
                     onOpenDetails(record)
+                },
+            },
+            {
+                key: "copy-run-id",
+                label: "Copy run ID",
+                icon: <Copy size={16} />,
+                disabled: !runId,
+                onClick: (event) => {
+                    event.domEvent.stopPropagation()
+                    if (!runId) return
+                    copyToClipboard(runId)
                 },
             },
         ]

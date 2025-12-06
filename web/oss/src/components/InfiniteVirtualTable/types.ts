@@ -86,10 +86,21 @@ export type ColumnVisibilityNodeMetaResolver = (
     node: ColumnTreeNode,
 ) => ColumnVisibilityNodeMeta | Promise<ColumnVisibilityNodeMeta | undefined>
 
+export interface ColumnVisibilityMenuRendererContext {
+    scopeId: string | null
+    onExport?: () => void
+    isExporting?: boolean
+}
+
 export type ColumnVisibilityMenuRenderer<RecordType> = (
     controls: ColumnVisibilityState<RecordType>,
     close: () => void,
-    context: {scopeId: string | null},
+    context: ColumnVisibilityMenuRendererContext,
+) => ReactNode
+
+export type ColumnVisibilityMenuTriggerRenderer<RecordType> = (
+    controls: ColumnVisibilityState<RecordType>,
+    context: ColumnVisibilityMenuRendererContext,
 ) => ReactNode
 
 export interface ColumnVisibilityConfig<RecordType> {
@@ -108,6 +119,12 @@ export interface ColumnVisibilityConfig<RecordType> {
         version: number
     }) => void
     renderMenuContent?: ColumnVisibilityMenuRenderer<RecordType>
+    /**
+     * Custom renderer for the menu trigger (gear icon).
+     * When provided, replaces the default gear icon popover trigger.
+     * Useful for rendering a dropdown menu instead of a popover.
+     */
+    renderMenuTrigger?: ColumnVisibilityMenuTriggerRenderer<RecordType>
     resolveNodeMeta?: ColumnVisibilityNodeMetaResolver
 }
 

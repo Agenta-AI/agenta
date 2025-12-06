@@ -70,13 +70,13 @@ async def verify_permissions(
             log.warn("Missing required parameters: action, resource_type")
             raise Deny()
 
-        allow = None
-        # allow = await get_cache(
-        #     project_id=request.state.project_id,
-        #     user_id=request.state.user_id,
-        #     namespace="verify_permissions",
-        #     key=cache_key,
-        # )
+        allow = await get_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            namespace="verify_permissions",
+            key=cache_key,
+        )
+        # allow = None
 
         if allow == "allow":
             return Allow(request.state.credentials)
