@@ -3,12 +3,8 @@ import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import type {TraceData, TraceNode, TraceTree} from "@/oss/lib/evaluations"
 import {uuidToTraceId} from "@/oss/lib/traces/helpers"
-import type {
-    TraceData,
-    TraceNode,
-    TraceTree,
-} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 import {transformTracesResponseToTree} from "@/oss/services/tracing/lib/helpers"
 import type {TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
 import {getProjectValues} from "@/oss/state/project"
@@ -19,6 +15,14 @@ import {resolveInvocationTraceValue} from "../utils/traceValue"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
 
 const traceBatcherCache = new Map<string, BatchFetcher<string, TraceData | null>>()
+
+/**
+ * Invalidate the trace batcher cache.
+ * Call this after running an invocation to force a fresh fetch of trace data.
+ */
+export const invalidateTraceBatcherCache = () => {
+    traceBatcherCache.clear()
+}
 
 const resolveEffectiveRunId = (get: any, runId?: string | null) =>
     runId ?? get(activePreviewRunIdAtom) ?? undefined
@@ -34,7 +38,7 @@ const debugTraceValue = (() => {
             seen.add(options.onceKey)
         }
 
-        // console.debug("[EvalRunDetails2] Trace probe", payload)
+        console.debug(message, payload)
     }
 })()
 
@@ -371,14 +375,6 @@ export const traceValueAtomFamily = atomFamily(
                                 spanData?.data?.attributes?.ag?.data?.outputs,
                             ),
                         }))
-
-                        // console.debug("[EvalRunDetails2] Trace value raw", {
-                        //     traceId: args.traceId,
-                        //     path: args.path,
-                        //     valueKey: args.valueKey,
-                        //     treeSummary: summarizeTraceData(queryState.data),
-                        //     spans,
-                        // })
                     }
                 }
 

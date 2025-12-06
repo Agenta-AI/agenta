@@ -3,10 +3,8 @@ import {useCallback} from "react"
 import {useSetAtom} from "jotai"
 
 import {evaluatorConfigsAtom, evaluatorsAtom} from "../../atoms/evaluation"
-import {Evaluator, EvaluatorConfig} from "../../Types"
 import useEvaluatorConfigs, {UseEvaluatorConfigsReturn} from "../useEvaluatorConfigs"
 import useEvaluators, {UseEvaluatorsReturn} from "../useEvaluators"
-import {EvaluatorPreviewDto} from "../useEvaluators/types"
 
 interface EvaluatorsData<Preview extends boolean> {
     isLoadingEvaluators: boolean
@@ -43,7 +41,7 @@ const useFetchEvaluatorsData = <Preview extends boolean = false>(
             setEvaluatorConfigs(data)
         },
         preview,
-        appId,
+        appId: appId || null,
     })
 
     const refetchAll = useCallback(async () => {

@@ -1,4 +1,4 @@
-import type {IStepResponse} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
+import type {IStepResponse} from "@/oss/lib/evaluations"
 import type {PreviewTestCase} from "@/oss/lib/Types"
 
 export const splitPath = (path: string): string[] => {

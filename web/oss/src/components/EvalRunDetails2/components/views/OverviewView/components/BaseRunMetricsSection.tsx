@@ -1,9 +1,9 @@
 import {memo, useMemo} from "react"
 
-import {Alert, Card, Tag, Typography} from "antd"
+import {Alert, Card, Typography} from "antd"
 
 import {isBooleanMetricStats} from "@/oss/components/EvalRunDetails2/utils/metricDistributions"
-import type {TemporalMetricPoint} from "@/oss/components/evaluations/atoms/runMetrics"
+import type {TemporalMetricPoint} from "@/oss/components/Evaluations/atoms/runMetrics"
 
 import EvaluatorMetricsChart from "../../../EvaluatorMetricsChart"
 import {DEFAULT_SPIDER_SERIES_COLOR, SPIDER_SERIES_COLORS} from "../constants"
@@ -51,7 +51,6 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
 
     const baseDescriptor = runDescriptors[0]
     const runDisplayName = baseDescriptor?.displayName ?? baseRunId
-    const runStatus = baseDescriptor?.status ?? null
 
     const baseColor =
         runColorMap.get(baseRunId) ?? SPIDER_SERIES_COLORS[0] ?? DEFAULT_SPIDER_SERIES_COLOR
@@ -235,12 +234,9 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
         }
 
         return (
-            <div className="flex flex-wrap gap-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
                 {temporalCharts.map((entry) => (
-                    <div
-                        key={entry.key}
-                        className="w-full lg:w-[calc(50%-8px)] xl:w-[calc(33.33%-10px)]"
-                    >
+                    <div key={entry.key}>
                         <EvaluatorTemporalMetricsChart
                             name={entry.metricLabel}
                             metricKey={entry.metricKey}
@@ -317,12 +313,9 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
         }
 
         return (
-            <div className="flex flex-wrap gap-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
                 {chartEntries.map((entry) => (
-                    <div
-                        key={entry.key}
-                        className="w-full lg:w-[calc(50%-8px)] xl:w-[calc(33.33%-10px)]"
-                    >
+                    <div key={entry.key}>
                         <EvaluatorMetricsChart
                             runId={baseRunId}
                             runDisplayName={runDisplayName}
@@ -347,10 +340,8 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
             title={
                 <div className="flex items-center gap-2">
                     <Typography.Text strong>{runDisplayName}</Typography.Text>
-                    {/* <Tag color="geekblue">Base run</Tag> */}
                 </div>
             }
-            extra={runStatus ? <Tag color="blue">{runStatus}</Tag> : undefined}
         >
             <div className="flex flex-col gap-6">
                 <div>{renderContent()}</div>

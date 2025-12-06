@@ -1,10 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Typography, message} from "antd"
+import {Typography} from "antd"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
+import {message} from "@/oss/components/AppMessageContext"
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 
 import type {DeleteEvaluationModalDeletionConfig} from "./types"
 
@@ -65,6 +67,9 @@ const DeleteEvaluationModalContent = ({
                 }
                 await deletePreviewRuns(projectId, previewRunIds)
             }
+
+            // Clear the local preview runs cache to ensure fresh data
+            clearPreviewRunsCache()
 
             if (invalidateQueryKeys.length) {
                 await Promise.all(

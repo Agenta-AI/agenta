@@ -1,6 +1,7 @@
+import {useMemo} from "react"
+
 import {Tooltip} from "antd"
 import {atom, useAtomValue} from "jotai"
-import {useMemo} from "react"
 
 import {
     applicationReferenceQueryAtomFamily,
@@ -17,7 +18,7 @@ import {
 
 type StepRole = "input" | "invocation" | "query"
 
-type QueryState<T> = {
+interface QueryState<T> {
     data: T | null
     isLoading: boolean
     isFetching: boolean
@@ -31,7 +32,7 @@ const emptyQueryAtom = atom<QueryState<any>>({
     error: undefined,
 })
 
-const pickString = (...values: Array<unknown>): string | undefined =>
+const pickString = (...values: unknown[]): string | undefined =>
     values
         .map((value) => (typeof value === "string" ? value.trim() : ""))
         .find((value) => Boolean(value.length))

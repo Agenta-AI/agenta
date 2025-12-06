@@ -3,7 +3,6 @@ import {useMemo} from "react"
 import {useAtomValue} from "jotai"
 
 import {
-    isDrawerOpenAtom,
     traceDrawerActiveSpanIdAtom,
     traceDrawerTraceIdAtom,
     traceDrawerQueryAtom,
@@ -19,7 +18,6 @@ import {
 import {TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
 
 export const useTraceDrawer = () => {
-    const open = useAtomValue(isDrawerOpenAtom)
     const traceId = useAtomValue(traceDrawerTraceIdAtom)
     const activeSpanId = useAtomValue(traceDrawerActiveSpanIdAtom)
 
@@ -84,7 +82,7 @@ export const useTraceDrawer = () => {
                 links: annotationLinks,
             },
         },
-        waitUntil: annotationLinks.length === 0,
+        waitUntil: !annotationLinks.length,
     })
 
     const traces = useMemo(() => {
@@ -113,7 +111,6 @@ export const useTraceDrawer = () => {
     const loadingState = Boolean(traceId) && (Boolean(isLoading) || (!traceResponse && !error))
 
     return {
-        open,
         traceId,
         activeSpanId: resolvedActiveSpanId,
         traces,

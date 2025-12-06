@@ -119,21 +119,7 @@ const PreviewVariantCellContent = ({
         sanitizedVariantName && !isUuid(sanitizedVariantName)
             ? stripVariantSuffix(sanitizedVariantName, uniqueSuffix)
             : null
-    console.log("normalizedVariantName", {
-        normalizedVariantName,
-        sanitizedVariantName,
-        descriptor,
-        referenceSequence,
-        invocation,
-        config,
-        projectId,
-        revisionId,
-    })
     const displayName = normalizedVariantName ?? (uniqueSuffix ? `Variant ${uniqueSuffix}` : null)
-    const exportText =
-        displayName && resolvedRevision
-            ? `${displayName} (rev ${resolvedRevision})`
-            : (displayName ?? resolvedRevision ?? "—")
     if (isLoading) {
         return <PreviewVariantCellSkeleton />
     }

@@ -1,6 +1,7 @@
 import {memo, useMemo} from "react"
 
 import clsx from "clsx"
+import {AlertCircle} from "lucide-react"
 
 import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
@@ -9,7 +10,7 @@ import {renderScenarioChatMessages} from "../../utils/chatMessages"
 import CellContentPopover from "./CellContentPopover"
 import InvocationTraceSummary from "./InvocationTraceSummary"
 
-const CONTAINER_CLASS = "scenario-table-cell min-h-[96px] h-full gap-2"
+const CONTAINER_CLASS = "scenario-table-cell"
 
 const extractAssistantContent = (entry: any): string | undefined => {
     if (!entry) return undefined
@@ -100,7 +101,7 @@ const PreviewEvaluationInvocationCell = ({
     column: EvaluationTableColumn
 }) => {
     const {ref, selection, showSkeleton} = useScenarioCellValue({scenarioId, runId, column})
-    const {value} = selection
+    const {value, stepError} = selection
 
     const widthStyle = {width: "100%"}
     const chatNodes = useMemo(
@@ -130,6 +131,55 @@ const PreviewEvaluationInvocationCell = ({
         )
     }
 
+    // Show error state when invocation has failed - display error message in cell with red styling
+    if (stepError) {
+        const errorPopoverContent = (
+            <div className="flex flex-col gap-2 text-red-600">
+                <div className="flex items-center gap-1.5 text-red-500">
+                    <AlertCircle size={14} className="flex-shrink-0" />
+                    <span className="text-xs font-medium">Invocation Error</span>
+                </div>
+                <span className="whitespace-pre-wrap break-words text-xs font-medium">
+                    {stepError.message}
+                </span>
+                {stepError.stacktrace ? (
+                    <span className="whitespace-pre-wrap break-words text-xs text-red-500/80 border-t border-red-200 pt-2 mt-1">
+                        {stepError.stacktrace}
+                    </span>
+                ) : null}
+            </div>
+        )
+
+        return (
+            <CellContentPopover content={errorPopoverContent}>
+                <div
+                    ref={ref}
+                    className={clsx(CONTAINER_CLASS, "!justify-between")}
+                    style={widthStyle}
+                >
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5 text-red-500">
+                                <AlertCircle size={14} className="flex-shrink-0" />
+                                <span className="text-xs font-medium">Error</span>
+                            </div>
+                            <span className="scenario-table-text whitespace-pre-wrap text-red-600 text-xs">
+                                {stepError.message}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex-shrink-0">
+                        <InvocationTraceSummary
+                            scenarioId={scenarioId}
+                            stepKey={column.stepKey}
+                            runId={runId}
+                        />
+                    </div>
+                </div>
+            </CellContentPopover>
+        )
+    }
+
     if (value === undefined || value === null) {
         return (
             <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
@@ -149,12 +199,16 @@ const PreviewEvaluationInvocationCell = ({
         return (
             <CellContentPopover content={popoverContent}>
                 <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-                    <div className="flex w-full flex-col gap-2">{chatNodes}</div>
-                    <InvocationTraceSummary
-                        scenarioId={scenarioId}
-                        stepKey={column.stepKey}
-                        runId={runId}
-                    />
+                    <div className="scenario-invocation-content flex-1 min-h-0 overflow-hidden">
+                        <div className="flex w-full flex-col gap-2">{chatNodes}</div>
+                    </div>
+                    <div className="flex-shrink-0">
+                        <InvocationTraceSummary
+                            scenarioId={scenarioId}
+                            stepKey={column.stepKey}
+                            runId={runId}
+                        />
+                    </div>
                 </div>
             </CellContentPopover>
         )
@@ -163,12 +217,16 @@ const PreviewEvaluationInvocationCell = ({
     return (
         <CellContentPopover content={popoverContent}>
             <div ref={ref} className={clsx(CONTAINER_CLASS, "!justify-between")} style={widthStyle}>
-                <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
-                <InvocationTraceSummary
-                    scenarioId={scenarioId}
-                    stepKey={column.stepKey}
-                    runId={runId}
-                />
+                <div className="scenario-invocation-content flex-1 min-h-0 overflow-hidden">
+                    <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
+                </div>
+                <div className="flex-shrink-0">
+                    <InvocationTraceSummary
+                        scenarioId={scenarioId}
+                        stepKey={column.stepKey}
+                        runId={runId}
+                    />
+                </div>
             </div>
         </CellContentPopover>
     )

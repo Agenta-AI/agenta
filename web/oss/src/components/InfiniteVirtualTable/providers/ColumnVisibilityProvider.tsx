@@ -5,13 +5,18 @@ import ColumnVisibilityContext, {
     defaultColumnVisibilityContextValue,
     type ColumnVisibilityContextValue,
 } from "../context/ColumnVisibilityContext"
-import type {ColumnVisibilityState, ColumnVisibilityMenuRenderer} from "../types"
+import type {
+    ColumnVisibilityState,
+    ColumnVisibilityMenuRenderer,
+    ColumnVisibilityMenuTriggerRenderer,
+} from "../types"
 
 interface ColumnVisibilityProviderProps<RecordType extends object = any> extends PropsWithChildren {
     controls: ColumnVisibilityState<RecordType> | null
     registerHeader?: VisibilityRegistrationHandler | null
     version?: number
     renderMenuContent?: ColumnVisibilityMenuRenderer<RecordType>
+    renderMenuTrigger?: ColumnVisibilityMenuTriggerRenderer<RecordType>
     scopeId?: string | null
 }
 
@@ -20,6 +25,7 @@ const ColumnVisibilityProvider = <RecordType extends object = any>({
     registerHeader = null,
     version = 0,
     renderMenuContent,
+    renderMenuTrigger,
     scopeId = null,
     children,
 }: ColumnVisibilityProviderProps<RecordType>) => {
@@ -31,9 +37,10 @@ const ColumnVisibilityProvider = <RecordType extends object = any>({
             registerHeader,
             version,
             renderMenuContent,
+            renderMenuTrigger,
             scopeId,
         }),
-        [controls, registerHeader, renderMenuContent, scopeId, version],
+        [controls, registerHeader, renderMenuContent, renderMenuTrigger, scopeId, version],
     )
 
     return (

@@ -1,5 +1,5 @@
+import type {TraceData} from "@/oss/lib/evaluations"
 import {resolvePath as resolveTracePath} from "@/oss/lib/traces/traceUtils"
-import type {TraceData} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 
 import {resolveValueBySegments, splitPath} from "./valueAccess"
 

@@ -60,6 +60,12 @@ export interface MetricProcessorOptions {
     source: string
 }
 
+export interface MetricProcessorFlushOptions {
+    triggerRefresh?: boolean
+    /** If true, this is a temporal/live evaluation that doesn't produce run-level metrics */
+    isTemporalOnly?: boolean
+}
+
 export interface MetricProcessorResult {
     metricId: string | null
     scenarioId: string | null
@@ -107,7 +113,14 @@ export interface MetricProcessorFlushResult {
 export interface MetricProcessor {
     processMetric: (metric: any, scope: MetricScope) => MetricProcessorResult
     markRunLevelGap: (reason: string) => void
-    markScenarioGap: (scenarioId: string, reason: string) => void
+    /**
+     * Mark a scenario as having a gap (e.g., missing metrics).
+     * @param scenarioId - The scenario ID
+     * @param reason - The reason for the gap
+     * @param scenarioStatus - Optional scenario status. If provided and is a terminal state
+     *                         (success, completed, failed, error), will trigger a refresh.
+     */
+    markScenarioGap: (scenarioId: string, reason: string, scenarioStatus?: string | null) => void
     getPendingActions: () => {
         pending: MetricProcessorResult[]
         scenarioIds: string[]
@@ -115,5 +128,5 @@ export interface MetricProcessor {
         runLevelFlags: string[]
         scenarioGaps: {scenarioId: string; reason: string}[]
     }
-    flush: (options?: {triggerRefresh?: boolean}) => Promise<MetricProcessorFlushResult>
+    flush: (options?: MetricProcessorFlushOptions) => Promise<MetricProcessorFlushResult>
 }

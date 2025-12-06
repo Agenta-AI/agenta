@@ -6,10 +6,10 @@ export const INVOCATION_METRIC_KEYS = [
 ] as const
 
 export const INVOCATION_METRIC_LABELS: Record<(typeof INVOCATION_METRIC_KEYS)[number], string> = {
-    "attributes.ag.metrics.costs.cumulative.total": "Invocation cost",
-    "attributes.ag.metrics.duration.cumulative": "Invocation duration",
-    "attributes.ag.metrics.tokens.cumulative.total": "Invocation tokens",
-    "attributes.ag.metrics.errors.cumulative": "Invocation errors",
+    "attributes.ag.metrics.costs.cumulative.total": "Cost",
+    "attributes.ag.metrics.duration.cumulative": "Duration",
+    "attributes.ag.metrics.tokens.cumulative.total": "Tokens",
+    "attributes.ag.metrics.errors.cumulative": "Errors",
 }
 
 export const DEFAULT_SPIDER_SERIES_COLOR = "#3B82F6"

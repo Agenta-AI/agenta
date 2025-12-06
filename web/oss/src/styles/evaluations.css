@@ -173,18 +173,53 @@
 
 .scenario-table-cell {
     width: 100%;
-    min-height: 96px;
-    max-height: 160px;
-    padding: 12px;
+    height: var(--scenario-row-height, 160px);
+    min-height: var(--scenario-row-height, 160px);
+    max-height: var(--scenario-row-height, 160px);
+    padding: var(--scenario-cell-padding, 12px);
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
-    gap: 8px;
+    gap: var(--scenario-cell-gap, 8px);
     overflow: hidden;
     position: relative;
 }
 
+/* Gradient fade for invocation cell text content using mask */
+.scenario-invocation-content {
+    position: relative;
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        black calc(100% - var(--scenario-fade-height, 32px)),
+        transparent 100%
+    );
+    mask-image: linear-gradient(
+        to bottom,
+        black calc(100% - var(--scenario-fade-height, 32px)),
+        transparent 100%
+    );
+}
+
+/* Row height variants */
+.agenta-scenario-table--row-small {
+    --scenario-row-height: 80px;
+    --scenario-cell-padding: 8px;
+    --scenario-cell-gap: 4px;
+    --scenario-fade-height: 24px;
+}
+
+.agenta-scenario-table--row-small .scenario-table-cell {
+    justify-content: flex-start !important;
+}
+
+.agenta-scenario-table--row-medium {
+    --scenario-row-height: 160px;
+}
+
+.agenta-scenario-table--row-large {
+    --scenario-row-height: 280px;
+}
 
 .scenario-table-text {
     font-size: 13px;
@@ -203,6 +238,22 @@
 
 .scenario-table-cell .ant-tag {
     border-radius: 999px;
+}
+
+/* Invalid metric cell state - no invocation present */
+.scenario-table-cell--invalid {
+    width: calc(100% + 24px);
+    height: calc(100% + 24px);
+    min-height: var(--scenario-row-height, 160px);
+    padding: 0 !important;
+    margin: -12px;
+    background: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 4px,
+        rgba(0, 0, 0, 0.03) 4px,
+        rgba(0, 0, 0, 0.03) 8px
+    );
 }
 
 /* Scenario cell hover popover styles */

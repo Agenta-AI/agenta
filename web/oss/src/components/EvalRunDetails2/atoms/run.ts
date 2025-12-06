@@ -1,5 +1,6 @@
 import {atom} from "jotai"
-import {projectIdAtom} from "@/oss/state/project"
+
+import {getProjectValues} from "@/oss/state/project"
 
 export const activePreviewRunIdAtom = atom<string | null>(null)
 export const activePreviewProjectIdAtom = atom<string | null>(null)
@@ -9,5 +10,6 @@ export const effectiveProjectIdAtom = atom((get) => {
     if (previewProjectId) {
         return previewProjectId
     }
-    return get(projectIdAtom)
+    const {projectId: globalProjectId} = getProjectValues()
+    return globalProjectId
 })

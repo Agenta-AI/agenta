@@ -4,11 +4,11 @@ import {LeftOutlined, RightOutlined} from "@ant-design/icons"
 import {Button, Select, SelectProps, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
+
 import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
 import {previewEvalTypeAtom} from "../state/evalType"
 import {patchFocusDrawerQueryParams} from "../state/urlFocusDrawer"
-
-import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
 interface FocusDrawerHeaderProps {
     runId: string

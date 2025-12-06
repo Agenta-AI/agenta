@@ -27,6 +27,15 @@ const resolvedCache = new Map<string, {timestamp: number; data: PreviewRunsRespo
 
 const CACHE_TTL = 10_000 // 10 seconds aligns with table polling rhythm
 
+/**
+ * Clears the preview runs cache to force fresh data on next fetch.
+ * Call this after creating/updating/deleting evaluation runs.
+ */
+export const clearPreviewRunsCache = () => {
+    resolvedCache.clear()
+    inflightCache.clear()
+}
+
 const normalizeParams = ({
     projectId,
     appId,

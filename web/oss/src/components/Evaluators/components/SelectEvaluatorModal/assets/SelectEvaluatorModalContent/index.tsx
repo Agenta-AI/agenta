@@ -2,10 +2,11 @@ import {memo, useCallback, useMemo, useState} from "react"
 
 import {ArrowRight} from "@phosphor-icons/react"
 import type {TabsProps} from "antd"
-import {Empty, Skeleton, Tabs, Tag, Typography, message} from "antd"
+import {Empty, Skeleton, Tabs, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
 
+import {message} from "@/oss/components/AppMessageContext"
 import type {EvaluatorPreview} from "@/oss/components/Evaluators/assets/types"
 import useURL from "@/oss/hooks/useURL"
 import {getEvaluatorTags} from "@/oss/lib/evaluations/legacy"

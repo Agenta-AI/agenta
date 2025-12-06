@@ -6,8 +6,9 @@ import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {
     previewRunMetricStatsSelectorFamily,
+    temporalMetricStatsAtTimestampSelectorFamily,
     type RunLevelMetricSelection,
-} from "@/oss/components/evaluations/atoms/runMetrics"
+} from "@/oss/components/Evaluations/atoms/runMetrics"
 import {
     ResponsiveFrequencyChart,
     ResponsiveMetricChart,
@@ -36,7 +37,7 @@ const formatNumber = (value: unknown): string => {
 const formatMetricNumber = (metricKey: string | undefined, value: number): string => {
     if (!Number.isFinite(value)) return String(value)
     if (metricKey?.includes("cost")) return formatCurrency(value)
-    if (metricKey?.includes("duration")) return formatLatency(value)
+    if (metricKey?.includes("duration")) return formatLatency(value / 1000)
     return formatNumber(value)
 }
 
@@ -194,21 +195,34 @@ const formatScenarioValue = (value: unknown, metricKey?: string): string | null 
     }
     if (typeof value === "string") return value
     if (Array.isArray(value)) {
-        try {
-            return JSON.stringify(value)
-        } catch {
-            return String(value)
-        }
+        // Format each item and join with comma
+        const formatted = value
+            .map((v) => formatScenarioValue(v, metricKey))
+            .filter((v) => v !== null)
+        return formatted.length ? formatted.join(", ") : null
     }
     if (typeof value === "object") {
         const normalized = normalizeStatShape(value)
+        // Check if this is a categorical/multiple type - return ALL values
+        const isCategoricalMultiple =
+            normalized?.type === "categorical/multiple" ||
+            normalized?.type?.includes?.("categorical")
         const frequency = normalized?.frequency
         if (Array.isArray(frequency) && frequency.length) {
-            const best = [...frequency].sort(
-                (a: any, b: any) => (b?.count ?? 0) - (a?.count ?? 0),
-            )[0]
-            if (best && best.value !== undefined) {
-                return formatScenarioValue(best.value)
+            if (isCategoricalMultiple) {
+                // For multi-category, return all values
+                const allValues = frequency
+                    .map((entry: any) => formatScenarioValue(entry?.value))
+                    .filter((v: string | null) => v !== null)
+                if (allValues.length) return allValues.join(", ")
+            } else {
+                // For single category, return top value
+                const best = [...frequency].sort(
+                    (a: any, b: any) => (b?.count ?? 0) - (a?.count ?? 0),
+                )[0]
+                if (best && best.value !== undefined) {
+                    return formatScenarioValue(best.value)
+                }
             }
         }
         const mean = normalized?.mean
@@ -216,7 +230,16 @@ const formatScenarioValue = (value: unknown, metricKey?: string): string | null 
         const nestedValue = normalized?.value
         if (nestedValue !== undefined) return formatScenarioValue(nestedValue)
         const unique = normalized?.unique
-        if (Array.isArray(unique) && unique.length) return formatScenarioValue(unique[0])
+        if (Array.isArray(unique) && unique.length) {
+            if (isCategoricalMultiple) {
+                // For multi-category, return all unique values
+                const allValues = unique
+                    .map((v: any) => formatScenarioValue(v))
+                    .filter((v: string | null) => v !== null)
+                if (allValues.length) return allValues.join(", ")
+            }
+            return formatScenarioValue(unique[0])
+        }
         try {
             return JSON.stringify(normalized, null, 2)
         } catch {
@@ -246,6 +269,8 @@ const MetricPopoverContent = ({
     shouldLoad,
     showScenarioValue = true,
     prefetchedStats,
+    evaluationType,
+    scenarioTimestamp,
 }: {
     runId?: string
     metricKey?: string
@@ -258,7 +283,13 @@ const MetricPopoverContent = ({
     shouldLoad: boolean
     showScenarioValue?: boolean
     prefetchedStats?: BasicStats
+    /** For online evaluations, use temporal metrics instead of run-level stats */
+    evaluationType?: "auto" | "human" | "online" | "custom"
+    /** Timestamp for the scenario row (used for online evaluations to get temporal stats) */
+    scenarioTimestamp?: string | number | null
 }) => {
+    const isOnlineEvaluation = evaluationType === "online"
+
     const prefetchedSelectionAtom = useMemo(
         () =>
             prefetchedStats
@@ -271,20 +302,40 @@ const MetricPopoverContent = ({
         [prefetchedStats, metricKey, metricPath],
     )
     const effectiveShouldLoad = shouldLoad || Boolean(prefetchedStats)
-    const selectionAtom = useMemo(
-        () =>
-            prefetchedSelectionAtom
-                ? prefetchedSelectionAtom
-                : runId && effectiveShouldLoad
-                  ? previewRunMetricStatsSelectorFamily({
-                        runId,
-                        metricKey,
-                        metricPath,
-                        stepKey,
-                    })
-                  : idleRunMetricSelectionAtom,
-        [prefetchedSelectionAtom, runId, metricKey, metricPath, stepKey, effectiveShouldLoad],
-    )
+    const selectionAtom = useMemo(() => {
+        if (prefetchedSelectionAtom) {
+            return prefetchedSelectionAtom
+        }
+        if (!runId || !effectiveShouldLoad) {
+            return idleRunMetricSelectionAtom
+        }
+        // For online evaluations, use temporal stats at the scenario's timestamp
+        if (isOnlineEvaluation) {
+            return temporalMetricStatsAtTimestampSelectorFamily({
+                runId,
+                metricKey,
+                metricPath,
+                stepKey,
+                timestamp: scenarioTimestamp,
+            })
+        }
+        // For other evaluation types, use run-level stats
+        return previewRunMetricStatsSelectorFamily({
+            runId,
+            metricKey,
+            metricPath,
+            stepKey,
+        })
+    }, [
+        prefetchedSelectionAtom,
+        runId,
+        metricKey,
+        metricPath,
+        stepKey,
+        effectiveShouldLoad,
+        isOnlineEvaluation,
+        scenarioTimestamp,
+    ])
 
     const selection = useAtomValueWithSchedule(selectionAtom, {priority: LOW_PRIORITY})
     const loading = selection.state === "loading"
@@ -343,18 +394,22 @@ const MetricPopoverContent = ({
     )
     const hasHistogram =
         histogramCandidates.length > 0 && histogramCandidates.length === chartData.length
-    const histogramChartData = hasHistogram
-        ? histogramCandidates.map((entry: any) => ({
-              ...entry,
-              edge: typeof entry.edge === "number" ? entry.edge : Number(entry.edge),
-              value:
-                  typeof entry.value === "number"
-                      ? entry.value
-                      : Number.isFinite(Number(entry.value))
-                        ? Number(entry.value)
-                        : 0,
-          }))
-        : []
+    const histogramChartData = useMemo(
+        () =>
+            hasHistogram
+                ? histogramCandidates.map((entry: any) => ({
+                      ...entry,
+                      edge: typeof entry.edge === "number" ? entry.edge : Number(entry.edge),
+                      value:
+                          typeof entry.value === "number"
+                              ? entry.value
+                              : Number.isFinite(Number(entry.value))
+                                ? Number(entry.value)
+                                : 0,
+                  }))
+                : [],
+        [hasHistogram, histogramCandidates],
+    )
     const binSize =
         typeof (stats as any)?.binSize === "number" && Number.isFinite((stats as any).binSize)
             ? (stats as any).binSize
@@ -379,11 +434,22 @@ const MetricPopoverContent = ({
               })
               .filter((entry): entry is {label: string | number; count: number} => Boolean(entry))
     const hasFrequencyChart = frequencyChartData.length > 0
+    const isCategoricalMultiple = (source: unknown): boolean => {
+        if (!source || typeof source !== "object") return false
+        const normalized = normalizeStatShape(source)
+        return (
+            normalized?.type === "categorical/multiple" ||
+            normalized?.type?.includes?.("categorical")
+        )
+    }
+
     const toScalar = (source: unknown): unknown => {
         if (source === undefined || source === null) return source
         if (typeof source === "boolean" || typeof source === "number" || typeof source === "string")
             return source
         if (typeof source === "object") {
+            // For categorical/multiple, return the full object so formatScenarioValue can handle it
+            if (isCategoricalMultiple(source)) return source
             const normalized = normalizeStatShape(source)
             const maybeMean = normalized?.mean
             if (typeof maybeMean === "number") return maybeMean
@@ -422,6 +488,11 @@ const MetricPopoverContent = ({
     const highlightDisplay = formatScenarioValue(highlightScalar, metricKey)
     const frequencyHighlightValues: (string | number)[] = highlightDisplay ? [highlightDisplay] : []
 
+    // For string metrics without distributions, don't show headline metrics or highlight chip
+    // as they would be redundant with the scenario value section
+    const isStringMetricWithoutDistribution =
+        typeof highlightScalar === "string" && !hasHistogram && !hasFrequencyChart
+
     const headlineMetrics = useMemo(() => {
         const items: {label: string; value: string}[] = []
         if (typeof totalScenarios === "number" && Number.isFinite(totalScenarios)) {
@@ -451,42 +522,25 @@ const MetricPopoverContent = ({
     //     </Section>
     // ) : null
 
-    const headlineMetricsRow = headlineMetrics.length ? (
-        <div className="flex items-center gap-2 border border-neutral-100 py-2">
-            {headlineMetrics.map(({label, value}) => (
-                <div
-                    key={label}
-                    className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] shadow-sm"
-                >
-                    <span className="uppercase tracking-wide text-[10px] text-neutral-400">
-                        {label}
-                    </span>
-                    <span className="text-[12px] font-semibold text-neutral-900 tabular-nums">
-                        {value}
-                    </span>
-                </div>
-            ))}
-        </div>
-    ) : null
-
-    // if (typeof window !== "undefined") {
-    //     console.info("[EvalRunDetails2] MetricPopover render", {
-    //         runId,
-    //         metricKey,
-    //         metricPath,
-    //         stepKey,
-    //         highlightValue,
-    //         fallbackValue,
-    //         highlightScalar,
-    //         scenarioDisplay,
-    //         statsAvailable: Boolean(stats),
-    //         loading,
-    //         hasError,
-    //     })
-    //     if (stats) {
-    //         console.info("[EvalRunDetails2] MetricPopover run-level stats", stats)
-    //     }
-    // }
+    // For string metrics without distributions, headline metrics (count, etc.) are not relevant
+    const headlineMetricsRow =
+        headlineMetrics.length && !isStringMetricWithoutDistribution ? (
+            <div className="flex items-center gap-2 border border-neutral-100 py-2">
+                {headlineMetrics.map(({label, value}) => (
+                    <div
+                        key={label}
+                        className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] shadow-sm"
+                    >
+                        <span className="uppercase tracking-wide text-[10px] text-neutral-400">
+                            {label}
+                        </span>
+                        <span className="text-[12px] font-semibold text-neutral-900 tabular-nums">
+                            {value}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        ) : null
 
     if (!shouldLoad && !prefetchedStats) {
         return <span className="text-xs text-neutral-500">Loading statistics…</span>
@@ -509,12 +563,13 @@ const MetricPopoverContent = ({
         )
     }
 
-    const highlightChip = highlightDisplay ? (
-        <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] text-neutral-900 shadow-sm">
-            <span className="uppercase tracking-wide text-[10px] text-neutral-400">Value</span>
-            {highlightDisplay}
-        </span>
-    ) : null
+    const highlightChip =
+        highlightDisplay && !isStringMetricWithoutDistribution ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] text-neutral-900 shadow-sm">
+                <span className="uppercase tracking-wide text-[10px] text-neutral-400">Value</span>
+                {highlightDisplay}
+            </span>
+        ) : null
 
     return (
         <div className="flex w-[320px] max-w-[360px] flex-col gap-4 rounded-2xl bg-white p-4 text-xs text-neutral-700">
@@ -559,6 +614,9 @@ const MetricPopoverContent = ({
                                             typeof highlightScalar === "number"
                                                 ? (highlightScalar as number)
                                                 : undefined
+                                        }
+                                        formatLabel={(value: number) =>
+                                            formatMetricNumber(metricKey, value)
                                         }
                                     />
                                 ) : (
@@ -608,6 +666,8 @@ const MetricDetailsPreviewPopover = memo(
         stepKey,
         showScenarioValue,
         prefetchedStats,
+        evaluationType,
+        scenarioTimestamp,
         children,
     }: {
         runId?: string
@@ -620,6 +680,10 @@ const MetricDetailsPreviewPopover = memo(
         stepKey?: string
         showScenarioValue?: boolean
         prefetchedStats?: BasicStats
+        /** For online evaluations, use temporal metrics instead of run-level stats */
+        evaluationType?: "auto" | "human" | "online" | "custom"
+        /** Timestamp for the scenario row (used for online evaluations to get temporal stats) */
+        scenarioTimestamp?: string | number | null
         children: React.ReactNode
     }) => {
         const [shouldLoad, setShouldLoad] = useState(false)
@@ -647,10 +711,12 @@ const MetricDetailsPreviewPopover = memo(
                         shouldLoad={shouldLoad}
                         showScenarioValue={showScenarioValue}
                         prefetchedStats={prefetchedStats}
+                        evaluationType={evaluationType}
+                        scenarioTimestamp={scenarioTimestamp}
                     />
                 }
             >
-                <div className="flex w-full h-full">{children}</div>
+                <div className="flex w-full">{children}</div>
             </Popover>
         )
     },

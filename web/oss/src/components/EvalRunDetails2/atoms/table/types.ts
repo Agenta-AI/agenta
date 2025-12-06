@@ -34,7 +34,7 @@ export interface EvaluationTableColumn {
     /** Sticky placement hints */
     sticky?: "left" | "right"
     /** Evaluation types the column should be visible for */
-    visibleFor?: Array<"auto" | "human">
+    visibleFor?: ("auto" | "human" | "online")[]
     /** Last segment of the path used for quick lookups */
     valueKey?: string
     /** Metric key (for annotation columns) */
@@ -46,7 +46,7 @@ export interface EvaluationTableColumn {
     evaluatorSlug?: string
     evaluatorName?: string
     /** Meta column semantic role */
-    metaRole?: "scenarioIndexStatus" | "action" | "other"
+    metaRole?: "scenarioIndexStatus" | "timestamp" | "action" | "other"
     /** Sorting and UX helpers */
     isSortable?: boolean
     description?: string
@@ -106,6 +106,8 @@ export interface EvaluationScenarioRow {
     createdById?: string
     updatedById?: string
     testcaseId?: string | null
+    /** Timestamp for online evaluation scenarios (batch grouping) */
+    timestamp?: string | null
 }
 
 export interface WindowingState {

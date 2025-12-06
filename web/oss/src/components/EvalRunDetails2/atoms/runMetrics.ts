@@ -343,8 +343,30 @@ const collectNestedStats = (
     })
 }
 
-const flattenRunLevelMetricData = (data: Record<string, any>): Record<string, any> => {
+const flattenRunLevelMetricData = (
+    data: Record<string, any>,
+    invocationStepKeys?: Set<string>,
+): Record<string, any> => {
     const flat: Record<string, any> = {}
+    // Track which shared analytics keys have been set to avoid merging from multiple steps
+    const analyticsKeysSet = new Set<string>()
+
+    // Determine which step has invocation metrics:
+    // 1. If invocationStepKeys is provided (from run.data.steps with type="invocation"), use it
+    // 2. Otherwise, fall back to heuristic: step with tokens/costs metrics
+    let invocationStepKey: string | null = null
+    if (invocationStepKeys?.size) {
+        invocationStepKey = invocationStepKeys.values().next().value ?? null
+    } else {
+        Object.entries(data || {}).forEach(([stepKey, metrics]) => {
+            const metricKeys = Object.keys(metrics as Record<string, any>)
+            const hasTokens = metricKeys.some((k) => k.includes("tokens"))
+            const hasCosts = metricKeys.some((k) => k.includes("costs"))
+            if (hasTokens || hasCosts) {
+                invocationStepKey = stepKey
+            }
+        })
+    }
 
     Object.entries(data || {}).forEach(([stepKey, metrics]) => {
         if (!metrics || typeof metrics !== "object") return
@@ -374,16 +396,30 @@ const flattenRunLevelMetricData = (data: Record<string, any>): Record<string, an
                 }
             }
 
+            // For shared analytics keys (e.g., attributes.ag.metrics.duration.cumulative),
+            // only use stats from the invocation step (type="invocation") to show LLM metrics,
+            // not evaluator execution metrics from annotation steps.
             const analyticsIndex = originalKey.indexOf("attributes.ag.")
             if (analyticsIndex >= 0) {
                 const analyticsKey = originalKey.slice(analyticsIndex)
-                flat[analyticsKey] = mergeBasicStats(flat[analyticsKey], normalizedValue)
                 const canonicalAnalyticsKey = canonicalizeMetricKey(analyticsKey)
-                if (canonicalAnalyticsKey !== analyticsKey) {
-                    flat[canonicalAnalyticsKey] = mergeBasicStats(
-                        flat[canonicalAnalyticsKey],
-                        normalizedValue,
-                    )
+
+                // Only set shared key if this is the invocation step, or no invocation step exists
+                const isInvocationStep = stepKey === invocationStepKey
+                const shouldSet =
+                    isInvocationStep || (!invocationStepKey && !analyticsKeysSet.has(analyticsKey))
+
+                if (shouldSet && !analyticsKeysSet.has(analyticsKey)) {
+                    analyticsKeysSet.add(analyticsKey)
+                    flat[analyticsKey] = {...normalizedValue}
+                }
+                if (
+                    shouldSet &&
+                    !analyticsKeysSet.has(canonicalAnalyticsKey) &&
+                    canonicalAnalyticsKey !== analyticsKey
+                ) {
+                    analyticsKeysSet.add(canonicalAnalyticsKey)
+                    flat[canonicalAnalyticsKey] = {...normalizedValue}
                 }
             }
 
@@ -472,8 +508,8 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
             const basePayload = {
                 metrics: {
                     run_ids: Array.from(entry.runIds),
-                    // scenario_ids: false,
-                    // timestamps: false,
+                    scenario_ids: false,
+                    timestamps: false,
                 },
                 // windowing: {
                 //     limit: 1,
@@ -499,8 +535,10 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
             }
 
             const runLevelMetrics = Array.isArray(response.data?.metrics)
-                ? response.data.metrics
+                ? (response.data.metrics as {run_id: string; name: string; value: any}[])
                 : []
+
+            // addMetrics([runLevelMetrics.pop()], "runLevel")
             addMetrics(runLevelMetrics, "runLevel")
 
             if (entry.needsTemporal) {
@@ -568,7 +606,33 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                       ? runStatusRaw.value.toLowerCase()
                       : undefined
 
+            // Extract invocation step keys from run.data.steps (type="invocation")
+            // These are the steps with actual LLM call metrics (duration, tokens, costs)
+            const runData = runQuery?.data?.rawRun?.data ?? runQuery?.data?.camelRun?.data
+            const steps = Array.isArray(runData?.steps) ? runData.steps : []
+            const invocationStepKeys = new Set<string>(
+                steps
+                    .filter((step: any) => step?.type === "invocation" && step?.key)
+                    .map((step: any) => step.key as string),
+            )
+
             const includeTemporalFlagValue = includeTemporalFlag(includeTemporal)
+
+            // Statuses that indicate an evaluation is still in progress
+            // When in progress, we should NOT trigger metric refresh as:
+            // 1. 0 metrics means the evaluation hasn't produced any results yet
+            // 2. Partial metrics means the evaluation is still running
+            // Triggering refresh during in-progress state causes premature run-level metrics creation
+            const IN_PROGRESS_STATUSES = new Set([
+                "evaluation_initialized",
+                "initialized",
+                "evaluation_started",
+                "started",
+                "running",
+                "pending",
+            ])
+            // If runStatus is undefined (not yet loaded), assume in-progress to prevent premature refresh
+            const isRunInProgress = runStatus ? IN_PROGRESS_STATUSES.has(runStatus) : true
 
             const fetchMetrics = async () => {
                 if (!projectId || !runId) return []
@@ -586,6 +650,7 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                     projectId,
                     runId,
                     includeTemporalFlagValue,
+                    isRunInProgress, // Include to re-run query when status changes from in-progress to terminal
                 ],
                 enabled: Boolean(projectId && runId),
                 staleTime: 30_000,
@@ -631,6 +696,27 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                             processor.markRunLevelGap("missing-run-level-entry")
                         }
 
+                        // Detect if this is a temporal/live evaluation
+                        // Temporal evaluations have entries with timestamp/interval but no static run-level entry
+                        const hasTemporalEntries = entries.some(
+                            (entry: any) =>
+                                !entry?.scenario_id &&
+                                !entry?.scenarioId &&
+                                (entry?.timestamp || entry?.interval?.timestamp),
+                        )
+                        const hasStaticRunLevelEntry = entries.some(
+                            (entry: any) =>
+                                !entry?.scenario_id &&
+                                !entry?.scenarioId &&
+                                !entry?.timestamp &&
+                                !entry?.interval?.timestamp,
+                        )
+                        // Only skip bootstrap for actual temporal/live evaluations
+                        // A temporal-only evaluation has temporal entries but NO static run-level entry
+                        // Note: We must have actual temporal entries to consider it temporal-only
+                        // Missing run-level metrics (deleted or not yet created) should NOT be treated as temporal-only
+                        const isTemporalOnly = hasTemporalEntries && !hasStaticRunLevelEntry
+
                         // Process all metrics to track which need refresh, but don't filter them out
                         // Refresh is a background operation that may not succeed, so we should
                         // still display existing data
@@ -640,15 +726,17 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                             processor.processMetric(entry, scope)
                         })
 
-                        const flushResult = await processor.flush({triggerRefresh})
+                        const flushResult = await processor.flush({triggerRefresh, isTemporalOnly})
 
                         return {metrics: entries, flushResult}
                     }
 
+                    // Do NOT trigger refresh when the run is in progress
+                    // This prevents premature run-level metric creation during polling
                     let {metrics, flushResult} = await processMetrics({
                         entries: fetchedMetrics,
                         source: "run-metric-stats-query",
-                        triggerRefresh: true,
+                        triggerRefresh: !isRunInProgress,
                     })
 
                     // Re-fetch after refresh to get updated metrics
@@ -714,7 +802,11 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                     const runLevelKeys = new Set<string>()
 
                     if (runLevelEntry) {
-                        const flattened = flattenRunLevelMetricData(runLevelEntry?.data || {})
+                        const flattened = flattenRunLevelMetricData(
+                            runLevelEntry?.data || {},
+                            invocationStepKeys,
+                        )
+
                         Object.entries(flattened).forEach(([key, value]) => {
                             runLevelKeys.add(key)
                             combinedFlat[key] = mergeBasicStats(
@@ -729,7 +821,10 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                     metrics
                         .filter((entry: any) => entry?.scenario_id || entry?.scenarioId)
                         .forEach((entry: any) => {
-                            const flattened = flattenRunLevelMetricData(entry?.data || {})
+                            const flattened = flattenRunLevelMetricData(
+                                entry?.data || {},
+                                invocationStepKeys,
+                            )
                             Object.entries(flattened).forEach(([key, value]) => {
                                 if (hasRunLevelCoverage && runLevelKeys.has(key)) {
                                     return
@@ -894,9 +989,14 @@ export const previewRunMetricStatsSelectorFamily = atomFamily(
                 })
             }
 
-            const candidates = [...stepCandidates, ...baseCandidates].filter(
-                (candidate, index, array) => array.indexOf(candidate) === index,
-            )
+            // When stepKey is provided, only use step-prefixed candidates to ensure
+            // we match metrics from the same evaluator. This prevents cross-evaluator
+            // matching when comparing runs with different evaluator configurations.
+            const candidates = (
+                stepKey && stepCandidates.length > 0
+                    ? stepCandidates
+                    : [...stepCandidates, ...baseCandidates]
+            ).filter((candidate, index, array) => array.indexOf(candidate) === index)
 
             const statsKeys = Object.keys(statsMap || {})
 
@@ -1007,6 +1107,19 @@ export const invalidatePreviewRunMetricStatsAtom = atom(null, (_, set, runId?: s
         })
     })
 })
+
+/**
+ * Clear all metric stats caches. Call this when projectId/workspace changes
+ * to prevent stale data from being displayed.
+ */
+export const clearAllMetricStatsCaches = () => {
+    // Clear module-level caches
+    temporalRunFlags.clear()
+    temporalRunSeries.clear()
+
+    // Note: atomFamily doesn't expose a clearAll method, but the atoms will
+    // re-fetch with the new projectId when accessed because projectId is in queryKey
+}
 export const runTemporalMetricKeysAtomFamily = atomFamily((runId: string | null | undefined) =>
     atom((get) => {
         if (!runId) return false
@@ -1030,7 +1143,7 @@ export const runTemporalMetricKeysAtomFamily = atomFamily((runId: string | null 
     }),
 )
 
-const emptyTemporalSeriesAtom = atom<Record<string, TemporalMetricPoint[]>>({})
+const _emptyTemporalSeriesAtom = atom<Record<string, TemporalMetricPoint[]>>({})
 
 export const runTemporalMetricSeriesAtomFamily = atomFamily((runId: string | null | undefined) => {
     return atom((get) => {
@@ -1039,3 +1152,242 @@ export const runTemporalMetricSeriesAtomFamily = atomFamily((runId: string | nul
         return temporalRunSeries.get(runId) ?? {}
     })
 })
+
+/**
+ * Selector for getting the latest temporal metric stats for a given metric.
+ * Used for online evaluations where we want to show the most recent temporal data
+ * instead of run-level aggregated stats.
+ */
+interface LatestTemporalMetricStatsSelectorArgs {
+    runId: string
+    metricKey?: string
+    metricPath?: string
+    stepKey?: string
+}
+
+/**
+ * Helper function to build series key candidates for temporal metric lookup
+ */
+const buildTemporalSeriesKeyCandidates = (
+    temporalSeries: Record<string, TemporalMetricPoint[]>,
+    metricKey?: string,
+    metricPath?: string,
+    stepKey?: string,
+): string[] => {
+    const primaryKey = canonicalizeMetricKey(metricKey ?? metricPath ?? "")
+    const baseCandidates = Array.from(
+        new Set(
+            [primaryKey, metricKey, metricPath]
+                .filter((candidate): candidate is string => Boolean(candidate && candidate.length))
+                .map((candidate) => canonicalizeMetricKey(candidate)),
+        ),
+    )
+
+    const seriesKeyCandidates: string[] = []
+    if (stepKey) {
+        baseCandidates.forEach((base) => {
+            seriesKeyCandidates.push(`${stepKey}:${base}`)
+        })
+    }
+    baseCandidates.forEach((base) => {
+        Object.keys(temporalSeries).forEach((seriesKey) => {
+            if (seriesKey.endsWith(`:${base}`) || seriesKey === base) {
+                if (!seriesKeyCandidates.includes(seriesKey)) {
+                    seriesKeyCandidates.push(seriesKey)
+                }
+            }
+        })
+    })
+
+    return seriesKeyCandidates
+}
+
+export const latestTemporalMetricStatsSelectorFamily = atomFamily(
+    ({
+        runId,
+        metricKey,
+        metricPath,
+        stepKey,
+    }: LatestTemporalMetricStatsSelectorArgs): Atom<RunLevelMetricSelection> => {
+        return atom((get) => {
+            if (!runId) {
+                return {state: "hasData", stats: undefined, resolvedKey: undefined}
+            }
+
+            // First ensure the metrics are loaded
+            const loadableResult = get(
+                previewRunMetricStatsLoadableFamily({runId, includeTemporal: true}),
+            )
+
+            if (loadableResult.state === "loading") {
+                return {state: "loading"}
+            }
+            if (loadableResult.state === "hasError") {
+                return {state: "hasError", error: loadableResult.error}
+            }
+
+            // Get temporal series for this run
+            const temporalSeries = temporalRunSeries.get(runId) ?? {}
+
+            // Try temporal series first if available
+            if (Object.keys(temporalSeries).length) {
+                const seriesKeyCandidates = buildTemporalSeriesKeyCandidates(
+                    temporalSeries,
+                    metricKey,
+                    metricPath,
+                    stepKey,
+                )
+
+                // Find matching series and get the latest point
+                for (const seriesKey of seriesKeyCandidates) {
+                    const series = temporalSeries[seriesKey]
+                    if (series && series.length > 0) {
+                        // Series is sorted by timestamp ascending, so last element is latest
+                        const latestPoint = series[series.length - 1]
+                        if (latestPoint?.stats) {
+                            return {
+                                state: "hasData",
+                                stats: latestPoint.stats,
+                                resolvedKey: seriesKey,
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Fallback to run-level stats if temporal series is empty or doesn't have matching data
+            // This is important for online evaluations where metrics might not have timestamps
+            if (loadableResult.state === "hasData" && loadableResult.data) {
+                const runLevelStats = loadableResult.data as Record<string, BasicStats>
+                // Run-level stats use dot separator (stepKey.metricKey), not colon
+                const candidates = [
+                    stepKey && metricPath ? `${stepKey}.${metricPath}` : null,
+                    stepKey && metricKey ? `${stepKey}.${metricKey}` : null,
+                    metricPath,
+                    metricKey,
+                ].filter((c): c is string => Boolean(c))
+
+                for (const candidate of candidates) {
+                    const stats = runLevelStats[candidate]
+                    if (stats) {
+                        return {
+                            state: "hasData",
+                            stats,
+                            resolvedKey: candidate,
+                        }
+                    }
+                }
+            }
+
+            return {state: "hasData", stats: undefined, resolvedKey: undefined}
+        })
+    },
+    (a, b) =>
+        a.runId === b.runId &&
+        a.metricKey === b.metricKey &&
+        a.metricPath === b.metricPath &&
+        a.stepKey === b.stepKey,
+)
+
+/**
+ * Selector for getting temporal metric stats at a specific timestamp.
+ * Used for online evaluation scenario popovers where we want to show
+ * the temporal distribution at the time of that scenario.
+ */
+interface TemporalMetricStatsAtTimestampArgs {
+    runId: string
+    metricKey?: string
+    metricPath?: string
+    stepKey?: string
+    /** ISO timestamp string or epoch milliseconds */
+    timestamp?: string | number | null
+}
+
+export const temporalMetricStatsAtTimestampSelectorFamily = atomFamily(
+    ({
+        runId,
+        metricKey,
+        metricPath,
+        stepKey,
+        timestamp,
+    }: TemporalMetricStatsAtTimestampArgs): Atom<RunLevelMetricSelection> => {
+        return atom((get) => {
+            if (!runId) {
+                return {state: "hasData", stats: undefined, resolvedKey: undefined}
+            }
+
+            // First ensure the metrics are loaded
+            const loadableResult = get(
+                previewRunMetricStatsLoadableFamily({runId, includeTemporal: true}),
+            )
+
+            if (loadableResult.state === "loading") {
+                return {state: "loading"}
+            }
+            if (loadableResult.state === "hasError") {
+                return {state: "hasError", error: loadableResult.error}
+            }
+
+            // Get temporal series for this run
+            const temporalSeries = temporalRunSeries.get(runId) ?? {}
+            if (!Object.keys(temporalSeries).length) {
+                return {state: "hasData", stats: undefined, resolvedKey: undefined}
+            }
+
+            const seriesKeyCandidates = buildTemporalSeriesKeyCandidates(
+                temporalSeries,
+                metricKey,
+                metricPath,
+                stepKey,
+            )
+
+            // Parse target timestamp
+            const targetTimestamp = timestamp
+                ? typeof timestamp === "number"
+                    ? timestamp
+                    : new Date(timestamp).getTime()
+                : null
+
+            // Find matching series and get the point at or before the target timestamp
+            for (const seriesKey of seriesKeyCandidates) {
+                const series = temporalSeries[seriesKey]
+                if (series && series.length > 0) {
+                    let matchingPoint: TemporalMetricPoint | null = null
+
+                    if (targetTimestamp && Number.isFinite(targetTimestamp)) {
+                        // Find the point at or closest before the target timestamp
+                        for (let i = series.length - 1; i >= 0; i--) {
+                            if (series[i].timestamp <= targetTimestamp) {
+                                matchingPoint = series[i]
+                                break
+                            }
+                        }
+                        // If no point before, use the first point
+                        if (!matchingPoint && series.length > 0) {
+                            matchingPoint = series[0]
+                        }
+                    } else {
+                        // No timestamp specified, use the latest point
+                        matchingPoint = series[series.length - 1]
+                    }
+
+                    if (matchingPoint?.stats) {
+                        return {
+                            state: "hasData",
+                            stats: matchingPoint.stats,
+                            resolvedKey: seriesKey,
+                        }
+                    }
+                }
+            }
+
+            return {state: "hasData", stats: undefined, resolvedKey: undefined}
+        })
+    },
+    (a, b) =>
+        a.runId === b.runId &&
+        a.metricKey === b.metricKey &&
+        a.metricPath === b.metricPath &&
+        a.stepKey === b.stepKey &&
+        a.timestamp === b.timestamp,
+)

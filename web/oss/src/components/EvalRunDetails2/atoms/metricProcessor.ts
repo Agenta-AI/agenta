@@ -1,8 +1,10 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
+import {wasScenarioRecentlySaved} from "./metrics"
 import {
     MetricProcessor,
+    MetricProcessorFlushOptions,
     MetricProcessorFlushResult,
     MetricProcessorOptions,
     MetricProcessorResult,
@@ -11,6 +13,38 @@ import {
     RunRefreshDetailResult,
     ScenarioRefreshDetailResult,
 } from "./runMetrics/types"
+
+// Debug logger that only logs in development environments
+const isDev = process.env.NODE_ENV === "development"
+const metricProcessorDebug = {
+    log: (...args: Parameters<typeof console.log>) => {
+        if (isDev) console.log("[MetricProcessor]", ...args)
+    },
+    debug: (...args: Parameters<typeof console.debug>) => {
+        if (isDev) console.debug("[MetricProcessor]", ...args)
+    },
+    info: (...args: Parameters<typeof console.info>) => {
+        if (isDev) console.info("[MetricProcessor]", ...args)
+    },
+    warn: (...args: Parameters<typeof console.warn>) => {
+        if (isDev) console.warn("[MetricProcessor]", ...args)
+    },
+    error: (...args: Parameters<typeof console.error>) => {
+        if (isDev) console.error("[MetricProcessor]", ...args)
+    },
+}
+
+// Track which runIds have already attempted bootstrap refresh
+// This prevents repeated refresh attempts when backend returns empty results
+const bootstrapAttemptedRuns = new Set<string>()
+
+export const clearBootstrapAttempt = (runId: string) => {
+    bootstrapAttemptedRuns.delete(runId)
+}
+
+export const clearAllBootstrapAttempts = () => {
+    bootstrapAttemptedRuns.clear()
+}
 
 const LEGACY_VALUE_ALLOWED_KEYS = new Set([
     "value",
@@ -130,18 +164,47 @@ export const createMetricProcessor = ({
         const status = summary.status?.toLowerCase?.() ?? null
         const hasLegacyShape = containsLegacyValueLeaf(metric?.data)
 
+        // Statuses that indicate a scenario has NOT been executed yet
+        // These should NOT trigger a metric refresh - there's nothing to refresh
+        const pendingStatuses = new Set([
+            "pending",
+            "waiting",
+            "created",
+            "queued",
+            "scheduled",
+            "initializing",
+            "not_started",
+            "not-started",
+        ])
+        // A scenario is considered "pending" (not yet run) if:
+        // 1. It has an explicit pending status, OR
+        // 2. It has no status at all (null/undefined means not yet executed)
+        const isPendingScenario = status ? pendingStatuses.has(status) : true
+
         if (scope === "scenario") {
-            if (status && status !== "success") {
-                reasons.push(`status:${status}`)
-            }
-            if (hasLegacyShape) {
-                reasons.push("legacy-value-leaf")
+            // Skip ALL refresh logic for scenarios that haven't been run yet
+            // There's no data to refresh if the scenario hasn't been executed
+            if (isPendingScenario) {
+                metricProcessorDebug.debug("Skipping pending scenario", {
+                    scenarioId: summary.scenarioId,
+                    status,
+                })
+                // Return early - don't add any reasons for pending scenarios
+            } else {
+                // Only trigger refresh for scenarios that have been executed
+                if (status && status !== "success") {
+                    reasons.push(`status:${status}`)
+                }
+                if (hasLegacyShape) {
+                    reasons.push("legacy-value-leaf")
+                }
             }
         } else if (hasLegacyShape) {
             reasons.push("legacy-run-value-leaf")
         }
 
         const shouldRefresh = reasons.length > 0
+
         const shouldDelete = shouldRefresh && scope === "scenario" && Boolean(summary.id)
 
         if (shouldRefresh) {
@@ -182,24 +245,53 @@ export const createMetricProcessor = ({
 
     const markRunLevelGap = (reason: string) => {
         state.runLevelFlags.push(reason)
-        // console.info("[EvalRunDetails2] Metric processor run-level gap (debug mode)", {
-        //     projectId,
-        //     runId,
-        //     source,
-        //     reason,
-        // })
     }
 
-    const markScenarioGap = (scenarioId: string, reason: string) => {
+    const markScenarioGap = (
+        scenarioId: string,
+        reason: string,
+        scenarioStatus?: string | null,
+    ) => {
+        // Track the gap for informational purposes
         state.scenarioGaps.push({scenarioId, reason})
-        state.scenarioIds.add(scenarioId)
-        // console.info("[EvalRunDetails2] Metric processor scenario gap (debug mode)", {
-        //     projectId,
-        //     runId,
-        //     source,
-        //     scenarioId,
-        //     reason,
-        // })
+
+        // Skip refresh for scenarios that were recently saved
+        // This prevents triggering refresh before new metrics are persisted
+        if (wasScenarioRecentlySaved(scenarioId)) {
+            metricProcessorDebug.debug("Skipping refresh for recently saved scenario", {
+                scenarioId,
+                reason,
+            })
+            return
+        }
+
+        // Terminal statuses indicate the scenario HAS been executed
+        // If metrics are missing for a terminal scenario, we should trigger a refresh
+        const terminalStatuses = new Set([
+            "success",
+            "completed",
+            "finished",
+            "done",
+            "failed",
+            "error",
+            "failure",
+        ])
+
+        const normalizedStatus = scenarioStatus?.toLowerCase?.() ?? null
+        const isTerminalState = normalizedStatus && terminalStatuses.has(normalizedStatus)
+
+        if (isTerminalState && reason === "missing-scenario-metric") {
+            // Scenario is in terminal state but has no metrics - trigger refresh
+            metricProcessorDebug.debug("Terminal scenario missing metrics, triggering refresh", {
+                scenarioId,
+                reason,
+                scenarioStatus: normalizedStatus,
+            })
+            state.scenarioIds.add(scenarioId)
+        }
+        // NOTE: For non-terminal states (pending, waiting, etc.), we intentionally
+        // do NOT add to state.scenarioIds to prevent refresh for scenarios that
+        // simply haven't been executed yet
     }
 
     const getPendingActions = () => {
@@ -226,10 +318,25 @@ export const createMetricProcessor = ({
 
     const flush = async ({
         triggerRefresh = true,
-    }: {triggerRefresh?: boolean} = {}): Promise<MetricProcessorFlushResult> => {
+        isTemporalOnly = false,
+    }: MetricProcessorFlushOptions = {}): Promise<MetricProcessorFlushResult> => {
         const {pending, scenarioIds, runLevelFlags, scenarioGaps} = getPendingActions()
 
+        // console.debug("[MetricProcessor] flush called", {
+        //     triggerRefresh,
+        //     pendingCount: pending.length,
+        //     scenarioIdsCount: scenarioIds.length,
+        //     scenarioIds,
+        //     runLevelFlagsCount: runLevelFlags.length,
+        //     scenarioGapsCount: scenarioGaps.length,
+        //     scenarioGaps,
+        //     projectId,
+        //     runId,
+        //     source,
+        // })
+
         if (!pending.length && !runLevelFlags.length && !scenarioGaps.length) {
+            metricProcessorDebug.debug("flush: nothing to do, returning empty result")
             return makeEmptyFlushResult()
         }
 
@@ -244,6 +351,9 @@ export const createMetricProcessor = ({
         if (triggerRefresh) {
             const uniqueScenarioIds = Array.from(new Set(scenarioIds.filter(Boolean)))
             if (uniqueScenarioIds.length) {
+                metricProcessorDebug.debug("flush: will trigger refresh for scenarios", {
+                    uniqueScenarioIds,
+                })
                 const pendingByScenario = new Map<string, MetricProcessorResult[]>()
                 pending.forEach((result) => {
                     if (!result.scenarioId) return
@@ -433,108 +543,139 @@ export const createMetricProcessor = ({
                 )
                 unexpectedScenarioMetricIds = Array.from(unexpectedScenarioMetricIdsSet)
 
-                console.info("[EvalRunDetails2] Scenario metrics refresh triggered", {
-                    projectId,
-                    runId,
-                    source,
-                    scenarioIds: uniqueScenarioIds,
-                    details: scenarioRefreshDetails,
-                    runLevelMetricIdsFromScenarioRefresh,
-                    runLevelMetricIdsFromScenarioFallback,
-                    unexpectedScenarioMetricIds,
-                    missingScenarioIdsAfterAttempts,
-                })
+                // console.info("[EvalRunDetails2] Scenario metrics refresh triggered", {
+                //     projectId,
+                //     runId,
+                //     source,
+                //     scenarioIds: uniqueScenarioIds,
+                //     details: scenarioRefreshDetails,
+                //     runLevelMetricIdsFromScenarioRefresh,
+                //     runLevelMetricIdsFromScenarioFallback,
+                //     unexpectedScenarioMetricIds,
+                //     missingScenarioIdsAfterAttempts,
+                // })
             }
-        }
 
-        // Only attempt run-level refresh when there are actionable signals.
-        // Allow a bootstrap attempt when the ONLY flag is "missing-run-level-entry"
-        // and there are no scenario or run pending signals (prevents total suppression).
-        const hasRunPending = pending.some((entry) => entry.scope === "run" && entry.shouldRefresh)
-        const hasActionableRunFlag = runLevelFlags.some((f) => f !== "missing-run-level-entry")
-        const hasScenarioSignals = scenarioIds.length > 0 || scenarioGaps.length > 0
-        const hasMissingRunOnly =
-            runLevelFlags.length > 0 && runLevelFlags.every((f) => f === "missing-run-level-entry")
+            // Only attempt run-level refresh when there are actionable signals.
+            // Allow a bootstrap attempt when the ONLY flag is "missing-run-level-entry"
+            // and there are no scenario or run pending signals (prevents total suppression).
+            const hasRunPending = pending.some(
+                (entry) => entry.scope === "run" && entry.shouldRefresh,
+            )
+            const hasActionableRunFlag = runLevelFlags.some((f) => f !== "missing-run-level-entry")
+            const hasScenarioSignals = scenarioIds.length > 0 || scenarioGaps.length > 0
+            const hasMissingRunOnly =
+                runLevelFlags.length > 0 &&
+                runLevelFlags.every((f) => f === "missing-run-level-entry")
 
-        const shouldRunRefresh =
-            hasRunPending ||
-            hasActionableRunFlag ||
-            (!hasScenarioSignals && !hasRunPending && hasMissingRunOnly)
+            // Option A: Track bootstrap attempts to prevent repeated refresh when backend returns empty
+            const alreadyAttemptedBootstrap = bootstrapAttemptedRuns.has(runId)
 
-        if (shouldRunRefresh) {
-            try {
-                const params = new URLSearchParams()
-                params.set("project_id", projectId)
-                const response = await axios.post(
-                    `/preview/evaluations/metrics/refresh`,
-                    {
-                        metrics: {
-                            run_id: runId,
+            // Option C: Skip bootstrap for temporal/live evaluations that don't produce run-level metrics
+            const canAttemptBootstrap =
+                !isTemporalOnly && !alreadyAttemptedBootstrap && hasMissingRunOnly
+
+            const shouldRunRefresh =
+                (!hasRunPending && hasActionableRunFlag) ||
+                (!hasScenarioSignals && !hasRunPending && canAttemptBootstrap)
+
+            metricProcessorDebug.debug("Run-level refresh decision", {
+                runId,
+                source,
+                triggerRefresh,
+                isTemporalOnly,
+                hasRunPending,
+                hasActionableRunFlag,
+                hasScenarioSignals,
+                hasMissingRunOnly,
+                alreadyAttemptedBootstrap,
+                canAttemptBootstrap,
+                shouldRunRefresh,
+                runLevelFlags,
+                scenarioIdsCount: scenarioIds.length,
+                scenarioGapsCount: scenarioGaps.length,
+            })
+
+            if (shouldRunRefresh) {
+                // Mark bootstrap attempt to prevent repeated tries
+                if (canAttemptBootstrap) {
+                    bootstrapAttemptedRuns.add(runId)
+                }
+
+                try {
+                    const params = new URLSearchParams()
+                    params.set("project_id", projectId)
+                    const response = await axios.post(
+                        `/preview/evaluations/metrics/refresh`,
+                        {
+                            metrics: {
+                                run_id: runId,
+                            },
                         },
-                    },
-                    {
-                        params,
-                    },
-                )
-                const refreshedMetrics = Array.isArray(response.data?.metrics)
-                    ? response.data.metrics
-                    : []
-                const runMetrics = refreshedMetrics.filter(
-                    (metric: any) => !metric?.scenario_id && !metric?.scenarioId,
-                )
-                const newMetricIds = runMetrics
-                    .map((metric: any) => metric?.id)
-                    .filter((id): id is string => Boolean(id))
-                const runReasons = new Set<string>()
-                const runOldMetricIds = new Set<string>()
-                pending
-                    .filter((entry) => entry.scope === "run")
-                    .forEach((entry) => {
-                        entry.reasons.forEach((reason) => runReasons.add(reason))
-                        if (entry.metricId) runOldMetricIds.add(entry.metricId)
-                    })
+                        {
+                            params,
+                        },
+                    )
+                    const refreshedMetrics = Array.isArray(response.data?.metrics)
+                        ? response.data.metrics
+                        : []
+                    const runMetrics = refreshedMetrics.filter(
+                        (metric: any) => !metric?.scenario_id && !metric?.scenarioId,
+                    )
+                    const newMetricIds = runMetrics
+                        .map((metric: any) => metric?.id)
+                        .filter((id): id is string => Boolean(id))
+                    const runReasons = new Set<string>()
+                    const runOldMetricIds = new Set<string>()
+                    pending
+                        .filter((entry) => entry.scope === "run")
+                        .forEach((entry) => {
+                            entry.reasons.forEach((reason) => runReasons.add(reason))
+                            if (entry.metricId) runOldMetricIds.add(entry.metricId)
+                        })
 
-                const oldMetricIdsArray = Array.from(runOldMetricIds)
-                const reusedRunMetricIds = newMetricIds.filter((id) => runOldMetricIds.has(id))
-                const staleRunMetricIds = oldMetricIdsArray.filter(
-                    (id) => !reusedRunMetricIds.includes(id),
-                )
+                    const oldMetricIdsArray = Array.from(runOldMetricIds)
+                    const reusedRunMetricIds = newMetricIds.filter((id) => runOldMetricIds.has(id))
+                    const staleRunMetricIds = oldMetricIdsArray.filter(
+                        (id) => !reusedRunMetricIds.includes(id),
+                    )
 
-                runRefreshDetails = {
-                    reasons: Array.from(runReasons),
-                    oldMetricIds: oldMetricIdsArray,
-                    newMetricIds,
-                    reusedMetricIds: reusedRunMetricIds,
-                    staleMetricIds: staleRunMetricIds,
-                    returnedCount: runMetrics.length,
-                }
+                    runRefreshDetails = {
+                        reasons: Array.from(runReasons),
+                        oldMetricIds: oldMetricIdsArray,
+                        newMetricIds,
+                        reusedMetricIds: reusedRunMetricIds,
+                        staleMetricIds: staleRunMetricIds,
+                        returnedCount: runMetrics.length,
+                    }
 
-                refreshed = refreshed || runMetrics.length > 0
+                    refreshed = refreshed || runMetrics.length > 0
 
-                if (runMetrics.length > 0) {
-                    console.info("[EvalRunDetails2] Run-level metrics refresh triggered", {
+                    if (runMetrics.length > 0) {
+                        console.info("[EvalRunDetails2] Run-level metrics refresh triggered", {
+                            projectId,
+                            runId,
+                            source,
+                            runLevelFlags,
+                            details: runRefreshDetails,
+                        })
+                    } else {
+                        console.debug("[EvalRunDetails2] Run-level metrics refresh returned 0", {
+                            projectId,
+                            runId,
+                            source,
+                            runLevelFlags,
+                        })
+                    }
+                } catch (error) {
+                    console.warn("[EvalRunDetails2] Run-level metrics refresh failed", {
                         projectId,
                         runId,
                         source,
                         runLevelFlags,
-                        details: runRefreshDetails,
-                    })
-                } else {
-                    console.debug("[EvalRunDetails2] Run-level metrics refresh returned 0", {
-                        projectId,
-                        runId,
-                        source,
-                        runLevelFlags,
+                        error,
                     })
                 }
-            } catch (error) {
-                console.warn("[EvalRunDetails2] Run-level metrics refresh failed", {
-                    projectId,
-                    runId,
-                    source,
-                    runLevelFlags,
-                    error,
-                })
             }
         }
 

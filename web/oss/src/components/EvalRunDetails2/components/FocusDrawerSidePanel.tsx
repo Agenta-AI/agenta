@@ -49,6 +49,10 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
         const map = new Map<string, string>()
         columnResult?.groups?.forEach((group) => {
             map.set(group.id, toSectionAnchorId(group.id))
+            // Also map by kind for easier lookup (e.g., "input" -> first input group's anchor)
+            if (group.kind && !map.has(group.kind)) {
+                map.set(group.kind, toSectionAnchorId(group.id))
+            }
         })
         return map
     }, [columnResult?.groups])
@@ -86,13 +90,19 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
                 title: "Input",
                 key: "input",
                 icon: <Download size={14} className="text-[#1677FF]" />,
-                anchorId: groupAnchorMap.get("inputs") ?? toSectionAnchorId("inputs"),
+                anchorId:
+                    groupAnchorMap.get("inputs") ??
+                    groupAnchorMap.get("input") ??
+                    toSectionAnchorId("inputs"),
             },
             {
                 title: "Output",
                 key: "output",
                 icon: <Sparkle size={14} className="text-[#13C2C2]" />,
-                anchorId: groupAnchorMap.get("outputs") ?? toSectionAnchorId("outputs"),
+                anchorId:
+                    groupAnchorMap.get("outputs") ??
+                    groupAnchorMap.get("invocation") ??
+                    toSectionAnchorId("outputs"),
             },
         ]
 
@@ -102,7 +112,10 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
                 key: "evaluator",
                 icon: <Speedometer size={14} className="text-[#758391]" />,
                 children: evaluatorNodes,
-                anchorId: groupAnchorMap.get("annotations"),
+                anchorId:
+                    groupAnchorMap.get("annotations") ??
+                    groupAnchorMap.get("annotation") ??
+                    toSectionAnchorId("annotations"),
             })
         }
 
@@ -112,7 +125,10 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
                 key: "metrics",
                 icon: <Speedometer size={14} className="text-[#1677FF]" />,
                 children: metricNodes,
-                anchorId: groupAnchorMap.get("metrics:auto") ?? toSectionAnchorId("metrics:auto"),
+                anchorId:
+                    groupAnchorMap.get("metrics:auto") ??
+                    groupAnchorMap.get("metric") ??
+                    toSectionAnchorId("metrics-auto"),
             })
         }
 

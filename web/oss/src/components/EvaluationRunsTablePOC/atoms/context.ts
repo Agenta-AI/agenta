@@ -1,7 +1,7 @@
 import {atom} from "jotai"
 import {loadable, selectAtom} from "jotai/utils"
 
-import {appsQueryAtom, routerAppIdAtom} from "@/oss/state/app"
+import {appsQueryAtom} from "@/oss/state/app"
 import {appIdentifiersAtom, routeLayerAtom} from "@/oss/state/appState"
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -64,7 +64,6 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
     const overrides = get(evaluationRunsTableOverridesAtom)
     const routeLayer = get(routeLayerAtom)
     const identifiers = get(appIdentifiersAtom)
-    const routerAppId = get(routerAppIdAtom)
     const availableAppIds = get(availableAppIdsAtom)
     const fallbackProjectId = get(projectIdAtom)
 
@@ -77,7 +76,7 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
         overrides.projectIdOverride ?? identifiers.projectId ?? fallbackProjectId ?? null
 
     const explicitAppId = overrides.appId ?? null
-    const scopedAppId = scope === "app" ? (routerAppId ?? explicitAppId ?? null) : null
+    const scopedAppId = scope === "app" ? explicitAppId : null
     const effectiveAppIds = deriveAppIds(explicitAppId, scopedAppId, availableAppIds)
 
     let derivedPreviewFlags: RunFlagsFilter | undefined
@@ -107,8 +106,7 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
         evaluationKind === "custom"
 
     const projectSegment = projectId ?? "no-project"
-    const appSegment =
-        scope === "app" ? (routerAppId ?? explicitAppId ?? "app") : (explicitAppId ?? "all-apps")
+    const appSegment = scope === "app" ? (explicitAppId ?? "app") : (explicitAppId ?? "all-apps")
     const scopeId = `${projectSegment}::${appSegment}::${evaluationKind}`
     const storageKey = `evaluation-runs:columns:${scopeId}`
     const standardCreateSupported = isAutoOrHuman || evaluationKind === "online"
@@ -126,7 +124,7 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
         derivedPreviewFlags,
         isAutoOrHuman,
         supportsPreviewMetrics,
-        activeAppId: scope === "app" ? (routerAppId ?? explicitAppId ?? null) : null,
+        activeAppId: scope === "app" ? explicitAppId : null,
         storageKey,
         createSupported,
         createEvaluationType,

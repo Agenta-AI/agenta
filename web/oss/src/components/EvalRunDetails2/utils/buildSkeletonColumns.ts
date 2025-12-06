@@ -8,24 +8,49 @@ import {GeneralAutoEvalMetricColumns, GeneralHumanEvalMetricColumns} from "../co
 
 const SKELETON_COLUMNS_PER_GROUP = 2
 
-const createMetaSkeletonColumns = (): EvaluationTableColumn[] => [
-    {
-        id: "skeleton:meta:scenario-index-status",
-        label: "#",
-        displayLabel: "#",
-        kind: "meta" as EvaluationColumnKind,
-        path: "scenarioIndex",
-        pathSegments: ["scenarioIndex"],
-        stepType: "meta",
-        order: 0,
-        width: 72,
-        minWidth: 72,
-        sticky: "left",
-        visibleFor: ["auto", "human"],
-        metaRole: "scenarioIndexStatus",
-        isSortable: false,
-    },
-]
+const createMetaSkeletonColumns = (options?: {
+    includeTimestamp?: boolean
+}): EvaluationTableColumn[] => {
+    const columns: EvaluationTableColumn[] = [
+        {
+            id: "skeleton:meta:scenario-index-status",
+            label: "#",
+            displayLabel: "#",
+            kind: "meta" as EvaluationColumnKind,
+            path: "scenarioIndex",
+            pathSegments: ["scenarioIndex"],
+            stepType: "meta",
+            order: 0,
+            width: 72,
+            minWidth: 72,
+            sticky: "left",
+            visibleFor: ["auto", "human"],
+            metaRole: "scenarioIndexStatus",
+            isSortable: false,
+        },
+    ]
+
+    // Add timestamp column for online evaluations
+    if (options?.includeTimestamp) {
+        columns.push({
+            id: "skeleton:meta:timestamp",
+            label: "Timestamp",
+            displayLabel: "Timestamp",
+            kind: "meta" as EvaluationColumnKind,
+            path: "timestamp",
+            pathSegments: ["timestamp"],
+            stepType: "meta",
+            order: 1,
+            width: 140,
+            minWidth: 140,
+            visibleFor: ["online"],
+            metaRole: "timestamp",
+            isSortable: true,
+        })
+    }
+
+    return columns
+}
 
 const createSkeletonGroupColumns = (
     groupId: string,
@@ -66,9 +91,11 @@ const createSkeletonGroupColumns = (
 }
 
 export const buildSkeletonColumnResult = (
-    evaluationType: "auto" | "human",
+    evaluationType: "auto" | "human" | "online",
 ): EvaluationTableColumnsResult => {
-    const metaColumns = createMetaSkeletonColumns()
+    const metaColumns = createMetaSkeletonColumns({
+        includeTimestamp: evaluationType === "online",
+    })
 
     const inputGroup = createSkeletonGroupColumns(
         "inputs",

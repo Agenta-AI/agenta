@@ -4,11 +4,12 @@ import {Typography} from "antd"
 
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
-import {useRunMetricData} from "../hooks/useRunMetricData"
-import {resolveMetricValue} from "../utils/metrics"
-import MetricComparisonCard from "./MetricComparisonCard"
 import {DEFAULT_SPIDER_SERIES_COLOR, SPIDER_SERIES_COLORS} from "../constants"
+import {useRunMetricData} from "../hooks/useRunMetricData"
 import type {AggregatedMetricChartData} from "../types"
+import {resolveMetricValue} from "../utils/metrics"
+
+import MetricComparisonCard from "./MetricComparisonCard"
 
 interface OverviewMetricComparisonProps {
     runIds: string[]

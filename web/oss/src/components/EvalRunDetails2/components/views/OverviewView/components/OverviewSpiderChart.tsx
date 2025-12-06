@@ -226,17 +226,25 @@ const OverviewSpiderChart = ({runIds}: OverviewSpiderChartProps) => {
         )
     }
 
+    // Spider/radar charts need at least 3 data points to form a proper polygon
+    if (chartState.metrics.length < 3) {
+        return (
+            <OverviewLoadingPlaceholder
+                variant="chart"
+                minHeight={320}
+                title="Insufficient metrics for spider chart"
+                description="At least 3 metrics are required to display the radar chart. Add more evaluators or wait for invocation metrics."
+            />
+        )
+    }
+
     return (
-        <div className="flex h-full w-full items-center justify-end">
-            <div className="w-full max-w-[520px]" style={{minHeight: 320, aspectRatio: "1 / 1"}}>
-                <EvaluatorMetricsSpiderChart
-                    className="h-full w-full"
-                    metrics={chartState.metrics as any}
-                    series={chartState.series as any}
-                    maxScore={chartState.maxScore}
-                />
-            </div>
-        </div>
+        <EvaluatorMetricsSpiderChart
+            className="h-full w-full"
+            metrics={chartState.metrics as any}
+            series={chartState.series as any}
+            maxScore={chartState.maxScore}
+        />
     )
 }
 
