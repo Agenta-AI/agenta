@@ -16,11 +16,20 @@ from oss.src.apis.fastapi.folders.models import (
     FoldersResponse,
     FolderIdResponse,
     FolderNameInvalidException,
-    PathConflictException,
+    FolderPathConflictException,
+    FolderParentMissingException,
+    FolderPathDepthExceededException,
+    FolderPathLengthExceededException,
 )
 
 from oss.src.core.folders.service import FoldersService
-from oss.src.core.folders.types import FolderNameInvalid, PathConflict
+from oss.src.core.folders.types import (
+    FolderNameInvalid,
+    FolderPathConflict,
+    FolderParentMissing,
+    FolderPathDepthExceeded,
+    FolderPathLengthExceeded,
+)
 
 
 log = get_module_logger(__name__)
@@ -36,8 +45,20 @@ def handle_folder_exceptions():
                 raise FolderNameInvalidException(
                     message=e.message,
                 ) from e
-            except PathConflict as e:
-                raise PathConflictException(
+            except FolderPathConflict as e:
+                raise FolderPathConflictException(
+                    message=e.message,
+                ) from e
+            except FolderParentMissing as e:
+                raise FolderParentMissingException(
+                    message=e.message,
+                ) from e
+            except FolderPathDepthExceeded as e:
+                raise FolderPathDepthExceededException(
+                    message=e.message,
+                ) from e
+            except FolderPathLengthExceeded as e:
+                raise FolderPathLengthExceededException(
                     message=e.message,
                 ) from e
             except Exception as e:

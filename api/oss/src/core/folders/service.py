@@ -9,6 +9,7 @@ from oss.src.core.folders.types import (
     FolderEdit,
     FolderQuery,
     FolderNameInvalid,
+    FolderPathLengthExceeded,
 )
 
 
@@ -16,6 +17,12 @@ def _validate_folder_name(name: Optional[str]) -> None:
     """Allow unicode word chars, spaces, and hyphens."""
     if not name or not fullmatch(r"[\w -]+", name):
         raise FolderNameInvalid()
+
+
+def _validate_slug(slug: Optional[str]) -> None:
+    """Validate slug length (max 64 characters)."""
+    if slug and len(slug) > 64:
+        raise FolderPathLengthExceeded()
 
 
 class FoldersService:
@@ -35,6 +42,7 @@ class FoldersService:
         folder_create: FolderCreate,
     ) -> Optional[Folder]:
         _validate_folder_name(folder_create.name)
+        _validate_slug(folder_create.slug)
 
         return await self.folders_dao.create(
             project_id=project_id,
@@ -65,6 +73,7 @@ class FoldersService:
         folder_edit: FolderEdit,
     ) -> Optional[Folder]:
         _validate_folder_name(folder_edit.name)
+        _validate_slug(folder_edit.slug)
 
         return await self.folders_dao.edit(
             project_id=project_id,

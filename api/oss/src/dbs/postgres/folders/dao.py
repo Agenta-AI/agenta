@@ -15,7 +15,10 @@ from oss.src.core.folders.types import (
     FolderCreate,
     FolderEdit,
     FolderQuery,
-    PathConflict,
+    FolderPathConflict,
+    FolderParentMissing,
+    FolderPathDepthExceeded,
+    FolderPathLengthExceeded,
 )
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.folders.dbes import FolderDBE
@@ -53,7 +56,12 @@ async def _update_folder_path(
     current_path,
     new_prefix,
 ) -> None:
-    """Update folder paths using ltree operations."""
+    """Update folder paths using ltree operations.
+
+    Correctly handles path updates by:
+    1. For the exact folder: use new_prefix
+    2. For descendants: append their suffix to new_prefix
+    """
     await session.execute(
         text(
             """
@@ -61,8 +69,10 @@ async def _update_folder_path(
             SET path = CASE
                 -- Exact folder being renamed: just use the new prefix
                 WHEN path = CAST(:old_path AS ltree) THEN CAST(:new_prefix AS ltree)
-                -- Descendants: keep the suffix relative to old_path
-                ELSE CAST(:new_prefix AS ltree)
+                -- Descendants: calculate suffix and append to new prefix
+                -- Only apply subpath if path actually starts with (is descendant of) old_path
+                WHEN path <@ CAST(:old_path AS ltree) AND path != CAST(:old_path AS ltree)
+                THEN CAST(:new_prefix AS ltree)
                      || subpath(path, nlevel(CAST(:old_path AS ltree)))
             END
             WHERE project_id = :project_id
@@ -83,25 +93,28 @@ async def _delete_folder_tree(
     project_id: UUID,
     folder_path: str,
 ) -> None:
-    """Delete folder and all descendants using ltree."""
+    """Delete folder and all descendants using ltree with single SQL DELETE."""
     escaped_path = folder_path.replace("'", "''")
-    stmt = (
-        select(FolderDBE)
-        .filter(FolderDBE.project_id == project_id)
-        .filter(FolderDBE.path.op("<@")(text(f"'{escaped_path}'::ltree")))
+    await session.execute(
+        text(
+            """
+            DELETE FROM folders
+            WHERE project_id = :project_id
+              AND path <@ CAST(:folder_path AS ltree)
+            """
+        ),
+        {
+            "project_id": str(project_id),
+            "folder_path": escaped_path,
+        },
     )
-    result = await session.execute(stmt)
-    folder_dbes = result.scalars().all()
-
-    for folder_dbe in folder_dbes:
-        await session.delete(folder_dbe)
 
 
 class FoldersDAO(FoldersDAOInterface):
     def __init__(self):
         pass
 
-    @suppress_exceptions(exclude=[PathConflict])
+    @suppress_exceptions(exclude=[FolderPathConflict, FolderParentMissing, FolderPathDepthExceeded, FolderPathLengthExceeded])
     async def create(
         self,
         *,
@@ -121,7 +134,7 @@ class FoldersDAO(FoldersDAOInterface):
                     kind=folder_create.kind or FolderKind.APPLICATIONS,
                 )
                 if not parent:
-                    raise ValueError("parent folder not found")
+                    raise FolderParentMissing()
 
                 parent_path = str(parent.path)
 
@@ -132,6 +145,12 @@ class FoldersDAO(FoldersDAOInterface):
             parent_path=parent_path,
         )
         folder_dbe.created_by_id = user_id
+
+        # Validate path depth after construction
+        path_str = str(folder_dbe.path)
+        path_depth = len(path_str.split('.'))
+        if path_depth > 10:
+            raise FolderPathDepthExceeded()
 
         async with engine.core_session() as session:
             try:
@@ -145,7 +164,7 @@ class FoldersDAO(FoldersDAOInterface):
                 )
             except IntegrityError as e:
                 if "uq_folders_project_path" in str(e):
-                    raise PathConflict()
+                    raise FolderPathConflict()
                 raise
 
     @suppress_exceptions()
@@ -170,7 +189,7 @@ class FoldersDAO(FoldersDAOInterface):
                 dbe=folder,
             )
 
-    @suppress_exceptions(exclude=[PathConflict])
+    @suppress_exceptions(exclude=[FolderPathConflict, FolderParentMissing, FolderPathDepthExceeded, FolderPathLengthExceeded])
     async def edit(
         self,
         *,
@@ -205,7 +224,7 @@ class FoldersDAO(FoldersDAOInterface):
                         kind=kind,
                     )
                     if not parent:
-                        raise ValueError("parent folder not found")
+                        raise FolderParentMissing()
                     new_parent_path = str(parent.path)
                 else:
                     new_parent_path = None
@@ -222,6 +241,11 @@ class FoldersDAO(FoldersDAOInterface):
             new_prefix = (
                 new_slug if not new_parent_path else f"{new_parent_path}.{new_slug}"
             )
+
+            # Validate path depth before updating
+            path_depth = len(new_prefix.split('.'))
+            if path_depth > 10:
+                raise FolderPathDepthExceeded()
 
             try:
                 await _update_folder_path(
@@ -247,7 +271,7 @@ class FoldersDAO(FoldersDAOInterface):
                 )
             except IntegrityError as e:
                 if "uq_folders_project_path" in str(e):
-                    raise PathConflict()
+                    raise FolderPathConflict()
                 raise
 
     @suppress_exceptions()
