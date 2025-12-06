@@ -435,7 +435,9 @@ def _init_supertokens():
                             id="email", validate=validate_user_email_or_username
                         ),
                         InputFormField(
-                            id="actualEmail", validate=validate_actual_email, optional=True
+                            id="actualEmail",
+                            validate=validate_actual_email,
+                            optional=True,
                         ),
                     ]
                 ),
@@ -501,7 +503,9 @@ def _init_supertokens():
         )
 
     # Sessions always required if auth is enabled
-    recipe_list.append(session.init(expose_access_token_to_frontend_in_cookie_based_auth=True))
+    recipe_list.append(
+        session.init(expose_access_token_to_frontend_in_cookie_based_auth=True)
+    )
 
     # Dashboard for admin management
     recipe_list.append(dashboard.init())

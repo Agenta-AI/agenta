@@ -18,7 +18,7 @@ class SuperTokensConfig(BaseModel):
         """SuperTokens enabled if both connection URI and API key present"""
         return bool(self.connection_uri and self.api_key)
 
-    def validate_config(self) -> None:
+    def validate(self) -> None:
         """Validate SuperTokens configuration"""
         if not self.enabled:
             raise ValueError(
@@ -71,7 +71,7 @@ class AuthConfig(BaseModel):
         """At least one auth method enabled"""
         return self.email_enabled or self.oidc_enabled
 
-    def validate_config(self) -> None:
+    def validate(self) -> None:
         """Validate auth configuration"""
         # At least one auth method must be enabled
         if not self.any_enabled:
