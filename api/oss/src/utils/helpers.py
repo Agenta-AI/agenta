@@ -174,23 +174,29 @@ def warn_deprecated_env_vars():
 
 
 def validate_required_env_vars():
-    missing = []
-    REQUIRED_ENV_VARS = [
-        "AGENTA_API_URL",
-        "AGENTA_AUTH_KEY",
-        "AGENTA_CRYPT_KEY",
-        "SUPERTOKENS_CONNECTION_URI",
-        "POSTGRES_URI_CORE",
-        "POSTGRES_URI_TRACING",
-        "POSTGRES_URI_SUPERTOKENS",
-        "ALEMBIC_CFG_PATH_CORE",
-        "ALEMBIC_CFG_PATH_TRACING",
-    ]
+    """
+    Ensure required configuration values are present.
 
-    for var in REQUIRED_ENV_VARS:
-        value = getattr(env, var, None)
-        if value is None or (isinstance(value, str) and value.strip() == ""):
-            missing.append(var)
+    Uses the resolved values from the structured env object (not raw os.getenv),
+    so defaults/fallbacks defined in config classes are honored.
+    """
+    required = {
+        "AGENTA_API_URL": env.agenta.api_url,
+        "AGENTA_AUTH_KEY": env.agenta.auth_key,
+        "AGENTA_CRYPT_KEY": env.agenta.crypt_key,
+        "SUPERTOKENS_CONNECTION_URI": env.supertokens.connection_uri,
+        "POSTGRES_URI_CORE": env.postgres.uri_core,
+        "POSTGRES_URI_TRACING": env.postgres.uri_tracing,
+        "POSTGRES_URI_SUPERTOKENS": env.postgres.uri_supertokens,
+        "ALEMBIC_CFG_PATH_CORE": env.alembic.cfg_path_core,
+        "ALEMBIC_CFG_PATH_TRACING": env.alembic.cfg_path_tracing,
+    }
+
+    missing = [
+        name
+        for name, value in required.items()
+        if value is None or (isinstance(value, str) and value.strip() == "")
+    ]
 
     if missing:
         click.echo(

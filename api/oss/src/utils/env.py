@@ -3,12 +3,17 @@ from pydantic import BaseModel, ConfigDict
 
 
 _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+_LICENSE = "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
 
 
 class SuperTokensConfig(BaseModel):
     """SuperTokens provider configuration"""
 
-    connection_uri: str = os.getenv("SUPERTOKENS_CONNECTION_URI", "")
+    connection_uri: str = (
+        os.getenv("SUPERTOKENS_URI_CORE")
+        or os.getenv("SUPERTOKENS_CONNECTION_URI")
+        or "http://supertokens:3567"
+    )
     api_key: str = os.getenv("SUPERTOKENS_API_KEY", "")
 
     model_config = ConfigDict(extra="ignore")
@@ -334,7 +339,7 @@ class RedisConfig(BaseModel):
 class AgentaConfig(BaseModel):
     """Agenta core configuration"""
 
-    license: str = "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
+    license: str = _LICENSE
     api_url: str = os.getenv("AGENTA_API_URL") or "http://localhost/api"
     web_url: str = os.getenv("AGENTA_WEB_URL") or ""
     services_url: str = os.getenv("AGENTA_SERVICES_URL") or ""
@@ -369,9 +374,27 @@ class AgentaConfig(BaseModel):
 class PostgresConfig(BaseModel):
     """PostgreSQL database configuration"""
 
-    uri_core: str = os.getenv("POSTGRES_URI_CORE") or ""
-    uri_tracing: str = os.getenv("POSTGRES_URI_TRACING") or ""
-    uri_supertokens: str = os.getenv("POSTGRES_URI_SUPERTOKENS") or ""
+    uri_core: str = os.getenv("POSTGRES_URI_CORE") or (
+        f"postgresql+asyncpg://username:password@postgres:5432/agenta_{_LICENSE}_core"
+    )
+    uri_tracing: str = os.getenv("POSTGRES_URI_TRACING") or (
+        f"postgresql+asyncpg://username:password@postgres:5432/agenta_{_LICENSE}_tracing"
+    )
+    uri_supertokens: str = os.getenv("POSTGRES_URI_SUPERTOKENS") or (
+        f"postgresql://username:password@postgres:5432/agenta_{_LICENSE}_supertokens"
+    )
+    user: str = (
+        os.getenv("POSTGRES_USER")
+        or os.getenv("POSTGRES_USERNAME")
+        or "username"
+    )
+    user_admin: str = (
+        os.getenv("POSTGRES_USER_ADMIN")
+        or os.getenv("POSTGRES_USERNAME_ADMIN")
+        or "username"
+    )
+    password: str = os.getenv("POSTGRES_PASSWORD") or "password"
+    password_admin: str = os.getenv("POSTGRES_PASSWORD_ADMIN") or "password"
 
     model_config = ConfigDict(extra="ignore")
 
@@ -379,8 +402,12 @@ class PostgresConfig(BaseModel):
 class AlembicConfig(BaseModel):
     """Database migration configuration"""
 
-    cfg_path_core: str = os.getenv("ALEMBIC_CFG_PATH_CORE") or ""
-    cfg_path_tracing: str = os.getenv("ALEMBIC_CFG_PATH_TRACING") or ""
+    cfg_path_core: str = os.getenv("ALEMBIC_CFG_PATH_CORE") or (
+        f"/app/{_LICENSE}/databases/postgres/migrations/core/alembic.ini"
+    )
+    cfg_path_tracing: str = os.getenv("ALEMBIC_CFG_PATH_TRACING") or (
+        f"/app/{_LICENSE}/databases/postgres/migrations/tracing/alembic.ini"
+    )
 
     model_config = ConfigDict(extra="ignore")
 

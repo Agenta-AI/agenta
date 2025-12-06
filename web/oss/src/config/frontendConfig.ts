@@ -9,7 +9,7 @@ import {appInfo} from "./appInfo"
 import {getEnv} from "../lib/helpers/dynamicEnv"
 
 export const frontendConfig = (): SuperTokensConfig => {
-    const authnEmail = getEnv("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL")
+    const authnEmail = getEnv("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL") || "password"
     const googleOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID")
     const githubOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GITHUB_OAUTH_CLIENT_ID")
 
