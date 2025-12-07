@@ -1,8 +1,13 @@
-import {useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {PlusOutlined} from "@ant-design/icons"
-import {Copy, Note, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {
+    MinusCircleOutlined,
+    PlusCircleOutlined,
+    PlusOutlined,
+    LoadingOutlined,
+} from "@ant-design/icons"
+import {Copy, GitBranch, Note, PencilSimple, Trash} from "@phosphor-icons/react"
+import {Button, Tag, Typography} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -12,6 +17,10 @@ import {
     useTableActions,
     createStandardColumns,
 } from "@/oss/components/InfiniteVirtualTable"
+import {
+    fetchTestsetVariants,
+    fetchTestsetRevisions,
+} from "@/oss/components/TestsetsTable/atoms/fetchTestsetVariants"
 import {
     testsetsDatasetStore,
     testsetsRefreshTriggerAtom,
@@ -86,11 +95,205 @@ const Testset = () => {
         deleteDisabledTooltip: "Select testsets to delete",
     })
 
-    // Columns - simplified with standard definitions
+    // Track expanded rows and their loaded children
+    const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([])
+    const [loadingRows, setLoadingRows] = useState<Set<string>>(new Set())
+    const [childrenCache, setChildrenCache] = useState<Map<string, TestsetTableRow[]>>(new Map())
+
+    // Transform variants to TestsetTableRow shape for tree data
+    const transformVariantToRow = useCallback(
+        (variant: any, parentId: string): TestsetTableRow => ({
+            key: `${parentId}-${variant.id}`,
+            id: variant.id,
+            name: variant.name || "default",
+            created_at: variant.created_at,
+            updated_at: variant.updated_at || variant.created_at,
+            created_by_id: variant.created_by_id,
+            __isSkeleton: false,
+            __isVariant: true, // Mark as variant for different rendering
+            __parentId: parentId,
+            __testsetId: parentId, // Store testset ID for revision fetching
+        }),
+        [],
+    )
+
+    // Transform revisions to TestsetTableRow shape for tree data
+    const transformRevisionToRow = useCallback(
+        (
+            revision: any,
+            variantId: string,
+            testsetId: string,
+            variantName: string,
+        ): TestsetTableRow => ({
+            key: `${variantId}-${revision.id}`,
+            id: revision.id,
+            name: variantName, // Use variant name for display
+            created_at: revision.created_at,
+            updated_at: revision.updated_at || revision.created_at,
+            created_by_id: revision.created_by_id,
+            __isSkeleton: false,
+            __isRevision: true, // Mark as revision for different rendering
+            __isVariant: false,
+            __parentId: variantId,
+            __testsetId: testsetId,
+            __version: revision.version, // Store version for display
+        }),
+        [],
+    )
+
+    // Handle row expand - fetch variants or revisions and add as children
+    const handleExpand = useCallback(
+        async (expanded: boolean, record: TestsetTableRow) => {
+            // Use record.key for expandedRowKeys (matches rowKey extractor)
+            const rowKey = String(record.key)
+            const isVariant = (record as any).__isVariant
+            const isRevision = (record as any).__isRevision
+
+            // Revisions cannot be expanded
+            if (isRevision) return
+
+            if (expanded) {
+                setExpandedRowKeys((prev) => [...prev, rowKey])
+
+                // If already cached, no need to fetch
+                if (childrenCache.has(rowKey)) return
+
+                setLoadingRows((prev) => new Set(prev).add(rowKey))
+                try {
+                    if (isVariant) {
+                        // Fetch revisions for this variant
+                        const testsetId = (record as any).__testsetId || (record as any).__parentId
+                        const variantName = record.name
+                        const revisions = await fetchTestsetRevisions({
+                            testsetId,
+                            variantId: record.id,
+                        })
+                        const childRows = revisions.map((r) =>
+                            transformRevisionToRow(r, record.id, testsetId, variantName),
+                        )
+                        setChildrenCache((prev) => new Map(prev).set(rowKey, childRows))
+                    } else {
+                        // Fetch variants for this testset
+                        const variants = await fetchTestsetVariants({testsetId: record.id})
+                        const childRows = variants.map((v) => transformVariantToRow(v, record.id))
+                        setChildrenCache((prev) => new Map(prev).set(rowKey, childRows))
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch children:", error)
+                } finally {
+                    setLoadingRows((prev) => {
+                        const next = new Set(prev)
+                        next.delete(rowKey)
+                        return next
+                    })
+                }
+            } else {
+                setExpandedRowKeys((prev) => prev.filter((k) => k !== rowKey))
+            }
+        },
+        [childrenCache, transformVariantToRow, transformRevisionToRow],
+    )
+
+    // Build rows with children for tree data (supports nested children)
+    const rowsWithChildren = useMemo(() => {
+        // Helper to recursively add children from cache
+        const addChildren = (row: TestsetTableRow): TestsetTableRow => {
+            // Use row.key for cache lookup (matches expandedRowKeys)
+            const children = childrenCache.get(row.key)
+            if (children && children.length > 0) {
+                // Recursively add children to each child row
+                const childrenWithNested = children.map(addChildren)
+                return {...row, children: childrenWithNested}
+            }
+            return row
+        }
+
+        return table.rows.map(addChildren)
+    }, [table.rows, childrenCache])
+
+    // Columns with expand icon integrated into Name column
     const columns = useMemo(
         () =>
             createStandardColumns<TestsetTableRow>([
-                {type: "text", key: "name", title: "Name", width: 300, fixed: "left"},
+                {
+                    type: "text",
+                    key: "name",
+                    title: "Name",
+                    width: 300,
+                    fixed: "left",
+                    render: (_value, record) => {
+                        const isVariant = (record as any).__isVariant
+                        const isRevision = (record as any).__isRevision
+                        // Use record.key for state checks (matches rowKey extractor)
+                        const isExpanded = expandedRowKeys.includes(record.key)
+                        const isLoading = loadingRows.has(record.key)
+                        const isSkeleton = record.__isSkeleton
+
+                        // Revision rows - show name + version tag (like app variant revisions)
+                        if (isRevision) {
+                            const version = (record as any).__version
+                            return (
+                                <div className="flex items-center gap-2 pl-10">
+                                    <span>{record.name}</span>
+                                    {version && (
+                                        <Tag className="bg-[rgba(5,23,41,0.06)]" bordered={false}>
+                                            v{version}
+                                        </Tag>
+                                    )}
+                                </div>
+                            )
+                        }
+
+                        // Variant rows - show with indent and expand icon for revisions
+                        if (isVariant) {
+                            return (
+                                <div className="flex items-center gap-2 pl-4">
+                                    <span
+                                        className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleExpand(!isExpanded, record)
+                                        }}
+                                    >
+                                        {isLoading ? (
+                                            <LoadingOutlined style={{fontSize: 14}} />
+                                        ) : isExpanded ? (
+                                            <MinusCircleOutlined style={{fontSize: 14}} />
+                                        ) : (
+                                            <PlusCircleOutlined style={{fontSize: 14}} />
+                                        )}
+                                    </span>
+                                    <GitBranch size={14} className="text-gray-400" />
+                                    <span>{record.name}</span>
+                                </div>
+                            )
+                        }
+
+                        // Testset rows (parent) - show expand icon
+                        return (
+                            <div className="flex items-center gap-2">
+                                {!isSkeleton && (
+                                    <span
+                                        className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleExpand(!isExpanded, record)
+                                        }}
+                                    >
+                                        {isLoading ? (
+                                            <LoadingOutlined style={{fontSize: 14}} />
+                                        ) : isExpanded ? (
+                                            <MinusCircleOutlined style={{fontSize: 14}} />
+                                        ) : (
+                                            <PlusCircleOutlined style={{fontSize: 14}} />
+                                        )}
+                                    </span>
+                                )}
+                                <span>{record.name}</span>
+                            </div>
+                        )
+                    },
+                },
                 {type: "date", key: "created_at", title: "Date Created"},
                 {type: "user", key: "created_by_id", title: "Created by"},
                 {
@@ -101,18 +304,24 @@ const Testset = () => {
                             label: "View details",
                             icon: <Note size={16} />,
                             onClick: actions.handleView,
+                            hidden: (record) =>
+                                (record as any).__isVariant || (record as any).__isRevision,
                         },
                         {
                             key: "clone",
                             label: "Clone",
                             icon: <Copy size={16} />,
                             onClick: actions.handleClone,
+                            hidden: (record) =>
+                                (record as any).__isVariant || (record as any).__isRevision,
                         },
                         {
                             key: "rename",
                             label: "Rename",
                             icon: <PencilSimple size={16} />,
                             onClick: actions.handleRename,
+                            hidden: (record) =>
+                                (record as any).__isVariant || (record as any).__isRevision,
                         },
                         {type: "divider"},
                         {
@@ -121,6 +330,8 @@ const Testset = () => {
                             icon: <Trash size={16} />,
                             danger: true,
                             onClick: actions.handleDelete,
+                            hidden: (record) =>
+                                (record as any).__isVariant || (record as any).__isRevision,
                         },
                     ],
                     onExportRow: table.handleExportRow,
@@ -128,7 +339,14 @@ const Testset = () => {
                     getRecordId: (record) => record.id,
                 },
             ]),
-        [actions, table.handleExportRow, table.rowExportingKey],
+        [
+            actions,
+            table.handleExportRow,
+            table.rowExportingKey,
+            expandedRowKeys,
+            loadingRows,
+            handleExpand,
+        ],
     )
 
     // Update columns ref for export
@@ -165,14 +383,30 @@ const Testset = () => {
         [actions.handleCreate],
     )
 
+    // Tree data expandable config - Ant Design handles children rendering
+    const treeExpandable = useMemo(
+        () => ({
+            expandedRowKeys,
+            onExpand: handleExpand,
+            // Hide default expand column - we render icon in Name cell
+            expandIcon: () => null,
+        }),
+        [expandedRowKeys, handleExpand],
+    )
+
     return (
         <div className="flex flex-col h-full min-h-0 grow w-full">
             <InfiniteVirtualTableFeatureShell<TestsetTableRow>
                 {...table.shellProps}
+                dataSource={rowsWithChildren}
                 columns={columns}
                 title={headerTitle}
                 filters={filtersNode}
                 primaryActions={createButton}
+                tableProps={{
+                    ...table.shellProps.tableProps,
+                    expandable: treeExpandable,
+                }}
                 tableClassName="agenta-testsets-table"
                 className="flex-1 min-h-0"
                 exportFilename="testsets.csv"
