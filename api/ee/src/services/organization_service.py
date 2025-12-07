@@ -69,6 +69,10 @@ async def send_invitation_email(
         f"&project_id={project_param}"
     )
 
+    # If Sendgrid is not configured, return the link for manual sharing (URL-based invitation)
+    if not env.sendgrid.enabled:
+        return invite_link
+
     html_content = html_template.format(
         username_placeholder=user.username,
         action_placeholder="invited you to join",

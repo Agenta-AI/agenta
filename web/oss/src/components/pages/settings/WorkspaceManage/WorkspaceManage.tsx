@@ -8,6 +8,7 @@ import dynamic from "next/dynamic"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {getUsernameFromEmail, isDemo} from "@/oss/lib/helpers/utils"
+import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -131,7 +132,7 @@ const WorkspaceManage: FC = () => {
                                     organizationId={organizationId!}
                                     workspaceId={workspaceId!}
                                     onResendInvite={(data: any) => {
-                                        if (!isDemo() && data.uri) {
+                                        if (!isEmailInvitationsEnabled() && data.uri) {
                                             setInvitedUserData(data)
                                             setIsInvitedUserLinkModalOpen(true)
                                         }
@@ -233,13 +234,13 @@ const WorkspaceManage: FC = () => {
                 onCancel={() => setIsInviteModalOpen(false)}
                 workspaceId={workspaceId!}
                 onSuccess={(data) => {
-                    if (!isDemo() && data?.uri) {
+                    if (!isEmailInvitationsEnabled() && data?.uri) {
                         setInvitedUserData(data)
                         setIsInvitedUserLinkModalOpen(true)
                     }
                 }}
             />
-            {!isDemo() && (
+            {!isEmailInvitationsEnabled() && (
                 <InvitedUserLinkModal
                     open={isInvitedUserLinkModalOpen}
                     onCancel={() => {

@@ -7,3 +7,13 @@ export const isEE = () => {
 
     return license === "ee" || license.startsWith("cloud")
 }
+
+export const isEmailAuthEnabled = () => {
+    const authnEmail = getEnv("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL") || "password"
+    return authnEmail === "password" || authnEmail === "otp"
+}
+
+export const isEmailInvitationsEnabled = () => {
+    const sendgridEnabled = getEnv("NEXT_PUBLIC_AGENTA_SENDGRID_ENABLED")
+    return sendgridEnabled === "true"
+}

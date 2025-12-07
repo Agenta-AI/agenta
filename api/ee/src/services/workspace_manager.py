@@ -192,7 +192,13 @@ async def invite_user_to_workspace(
                     user_performing_action,
                 )
 
-                if not send_email:
+                # send_email is either True (email sent) or a string (URL for manual sharing)
+                if isinstance(send_email, str):
+                    # Sendgrid not configured - return URL for manual sharing
+                    return JSONResponse(
+                        {"url": send_email}, status_code=200
+                    )
+                elif not send_email:
                     return JSONResponse(
                         {"detail": "Failed to invite user to organization"},
                         status_code=400,
@@ -268,7 +274,13 @@ async def resend_user_workspace_invite(
             user_performing_action,
         )
 
-        if send_email:
+        # send_email is either True (email sent) or a string (URL for manual sharing)
+        if isinstance(send_email, str):
+            # Sendgrid not configured - return URL for manual sharing
+            return JSONResponse(
+                {"url": send_email}, status_code=200
+            )
+        elif send_email:
             return JSONResponse(
                 {"message": "Invited user to organization"}, status_code=200
             )

@@ -109,7 +109,9 @@ async def send_invitation_email(
         f"&workspace_id={workspace_param}"
         f"&project_id={project_param}"
     )
-    if not env.sendgrid.api_key:
+
+    # If Sendgrid is not configured, return the link for manual sharing (URL-based invitation)
+    if not env.sendgrid.enabled:
         return invite_link
 
     html_template = email_service.read_email_template("./templates/send_email.html")
