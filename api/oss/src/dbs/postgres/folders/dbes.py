@@ -53,6 +53,10 @@ class FolderDBE(
             ondelete="CASCADE",
         ),
         UniqueConstraint(
+            "id",
+            name="uq_folders_id",
+        ),
+        UniqueConstraint(
             "project_id",
             "slug",
             name="uq_folders_project_slug",
