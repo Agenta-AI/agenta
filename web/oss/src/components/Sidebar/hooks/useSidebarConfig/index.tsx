@@ -15,6 +15,7 @@ import {
     CloudArrowUp,
     ChatCircle,
     Gauge,
+    SquaresFourIcon,
 } from "@phosphor-icons/react"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
@@ -41,6 +42,13 @@ export const useSidebarConfig = () => {
             title: "App Management",
             link: baseAppURL,
             icon: <AppstoreOutlined size={16} />,
+            disabled: !hasProjectURL,
+        },
+        {
+            key: "project-prompts-link",
+            title: "Prompts",
+            link: `${projectURL}/prompts`,
+            icon: <SquaresFourIcon size={16} />,
             disabled: !hasProjectURL,
         },
         {
