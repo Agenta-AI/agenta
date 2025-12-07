@@ -120,10 +120,12 @@ function createTextColumn<T>(def: TextColumnDef): ColumnType<T> {
         width: def.width,
         fixed: def.fixed,
         render: def.render,
+        // Lock fixed columns from being toggled in visibility menu
+        columnVisibilityLocked: Boolean(def.fixed),
         onHeaderCell: () => ({
             style: {minWidth: def.width || 220},
         }),
-    }
+    } as ColumnType<T>
 }
 
 const formatDateCell = (value?: string | null) => {
@@ -175,6 +177,8 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
         width,
         fixed: "right",
         align: "center",
+        // Lock actions column from being toggled in visibility menu
+        columnVisibilityLocked: true,
         render: (_, record) => {
             if (record.__isSkeleton) return null
 

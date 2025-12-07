@@ -176,7 +176,81 @@ export interface ResizableColumnsConfig {
     minWidth?: number
 }
 
-export interface InfiniteVirtualTableProps<RecordType> {
+/**
+ * Expand icon render props passed to custom renderers
+ */
+export interface ExpandIconRenderProps<RecordType> {
+    expanded: boolean
+    onExpand: () => void
+    record: RecordType
+    loading: boolean
+}
+
+/**
+ * Configuration for expandable rows in InfiniteVirtualTable.
+ * Provides a minimal API for consumers to define how rows expand.
+ */
+export interface ExpandableRowConfig<RecordType, ChildType = unknown> {
+    /**
+     * Function to fetch child data when a row is expanded.
+     * Should return a promise that resolves to an array of child items.
+     */
+    fetchChildren: (record: RecordType) => Promise<ChildType[]>
+
+    /**
+     * Render function for the expanded content.
+     * Receives the parent record and its fetched children.
+     */
+    renderExpanded: (
+        record: RecordType,
+        children: ChildType[],
+        loading: boolean,
+        error: Error | null,
+    ) => ReactNode
+
+    /**
+     * Optional: Determine if a row is expandable.
+     * Defaults to true for all rows if not provided.
+     */
+    isExpandable?: (record: RecordType) => boolean
+
+    /**
+     * Optional: Custom expand icon renderer.
+     */
+    expandIcon?: (props: ExpandIconRenderProps<RecordType>) => ReactNode
+
+    /**
+     * Optional: Width of the expand column (default: 48)
+     * Set to 0 when using showExpandIconInCell to hide the column.
+     */
+    columnWidth?: number
+
+    /**
+     * Optional: Fixed position of expand column (default: undefined)
+     */
+    fixed?: "left" | "right"
+
+    /**
+     * Optional: Cache fetched children to avoid re-fetching on collapse/expand.
+     * Default: true
+     */
+    cacheChildren?: boolean
+
+    /**
+     * Optional: Accordion mode - only one row can be expanded at a time.
+     * Default: false
+     */
+    accordion?: boolean
+
+    /**
+     * When true, the expand icon column is hidden and consumers should
+     * render the expand icon within their own cell using renderExpandIcon.
+     * Default: false
+     */
+    showExpandIconInCell?: boolean
+}
+
+export interface InfiniteVirtualTableProps<RecordType, ExpandedChildType = unknown> {
     columns: ColumnsType<RecordType>
     dataSource: RecordType[]
     loadMore: () => void
@@ -201,4 +275,9 @@ export interface InfiniteVirtualTableProps<RecordType> {
     bodyHeight?: number | null
     onHeaderHeightChange?: (height: number | null) => void
     keyboardShortcuts?: InfiniteVirtualTableKeyboardShortcuts<RecordType>
+    /**
+     * Configuration for expandable rows.
+     * When provided, rows can be expanded to show child content.
+     */
+    expandable?: ExpandableRowConfig<RecordType, ExpandedChildType>
 }
