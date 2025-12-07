@@ -143,8 +143,6 @@ const AppWithVariants = memo(
                                     className={clsx(classes.content, {
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                             isPlayground || isEvaluator,
-                                        "flex flex-col min-h-0 grow":
-                                            isHumanEval || isEvaluator || isTestsets,
                                     })}
                                 >
                                     <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -156,7 +154,14 @@ const AppWithVariants = memo(
                                                         : theme.defaultAlgorithm,
                                             }}
                                         >
-                                            {children}
+                                            <div
+                                                className={clsx({
+                                                    "w-full flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px-24px-30px)] overflow-hidden":
+                                                        isHumanEval || isEvaluator || isTestsets,
+                                                })}
+                                            >
+                                                {children}
+                                            </div>
                                         </ConfigProvider>
                                     </ErrorBoundary>
                                 </Content>
@@ -247,8 +252,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 //  || pathname.includes("/evaluations/results"),
                 isEvaluator: pathname.includes("/evaluators/configure"),
                 isHumanEval:
-                    pathname.includes("/evaluations/") || selectedEvaluation === "human_annotation",
-                isTestsets: pathname.endsWith("/testsets"),
+                    pathname.includes("/evaluations") || selectedEvaluation === "human_annotation",
+                isTestsets: pathname.includes("/testsets"),
             }
         }, [appState.asPath, appState.pathname, baseAppURL, query.selectedEvaluation])
 
