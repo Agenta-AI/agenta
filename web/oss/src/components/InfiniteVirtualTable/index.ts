@@ -69,5 +69,7 @@ export type {
 export {default as ColumnVisibilityHeader} from "./components/ColumnVisibilityHeader"
 export {default as ColumnVisibilityProvider} from "./providers/ColumnVisibilityProvider"
 export {useColumnVisibilityContext} from "./context/ColumnVisibilityContext"
+export {useExpandableRows} from "./hooks/useExpandableRows"
 export * from "./types"
+export type {ExpandableRowConfig, ExpandIconRenderProps} from "./types"
 export type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"

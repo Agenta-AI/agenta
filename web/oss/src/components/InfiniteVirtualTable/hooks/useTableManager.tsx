@@ -98,6 +98,9 @@ export interface UseTableManagerReturn<T extends InfiniteTableRowBase> {
     /** Pagination state and controls */
     pagination: ReturnType<InfiniteDatasetStore<T, any, any>["hooks"]["usePagination"]>
 
+    /** Current rows from pagination */
+    rows: T[]
+
     /** Selected row keys */
     selectedRowKeys: Key[]
 
@@ -407,6 +410,7 @@ export function useTableManager<T extends InfiniteTableRowBase>({
 
     return {
         pagination,
+        rows,
         selectedRowKeys,
         setSelectedRowKeys,
         rowSelection,

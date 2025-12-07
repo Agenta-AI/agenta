@@ -153,6 +153,16 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      */
     settingsDropdownMenuItems?: MenuProps["items"]
     keyboardShortcuts?: InfiniteVirtualTableProps<Row>["keyboardShortcuts"]
+    /**
+     * Configuration for expandable rows.
+     * When provided, rows can be expanded to show child content (e.g., variants, revisions).
+     */
+    expandable?: InfiniteVirtualTableProps<Row>["expandable"]
+    /**
+     * Override the dataSource from pagination.
+     * Useful when you need to transform rows (e.g., add children for tree data).
+     */
+    dataSource?: Row[]
 }
 
 const DEFAULT_ROW_HEIGHT = 48
@@ -226,6 +236,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         settingsDropdownDelete,
         settingsDropdownMenuItems,
         keyboardShortcuts,
+        expandable,
+        dataSource,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
 
@@ -511,7 +523,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                 <InfiniteVirtualTable<Row>
                     useIsolatedStore
                     columns={columns}
-                    dataSource={pagination.rows}
+                    dataSource={dataSource ?? pagination.rows}
                     loadMore={handleLoadMore}
                     rowKey={rowKey}
                     rowSelection={rowSelection}
@@ -523,6 +535,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                     tableClassName={tableClassName}
                     tableProps={tableProps}
                     keyboardShortcuts={keyboardShortcuts}
+                    expandable={expandable}
                     onHeaderHeightChange={setTableHeaderHeight}
                 />
                 {afterTable}

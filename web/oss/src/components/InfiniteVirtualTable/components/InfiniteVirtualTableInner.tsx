@@ -24,6 +24,7 @@ import VirtualTableScrollContainerContext from "../context/VirtualTableScrollCon
 import useColumnVisibility from "../hooks/useColumnVisibility"
 import useColumnVisibilityControlsBuilder from "../hooks/useColumnVisibilityControls"
 import useContainerResize from "../hooks/useContainerResize"
+import useExpandableRows from "../hooks/useExpandableRows"
 import useHeaderViewportVisibility from "../hooks/useHeaderViewportVisibility"
 import useInfiniteScroll from "../hooks/useInfiniteScroll"
 import useResizableColumns from "../hooks/useResizableColumns"
@@ -65,6 +66,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     bodyHeight = null,
     onHeaderHeightChange,
     keyboardShortcuts,
+    expandable,
 }: InfiniteVirtualTableInnerProps<RecordType>) => {
     const generatedScopeId = useId()
     const resolvedScopeId = useMemo(
@@ -456,6 +458,26 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
 
     const tableRowSelection = useTableRowSelection(rowSelection)
 
+    // Expandable rows support
+    const expandableConfig = useExpandableRows({
+        config: expandable,
+        rowKey,
+    })
+
+    // Build expandable prop for Ant Design Table
+    const tableExpandable = useMemo(() => {
+        if (!expandable) return undefined
+        return {
+            expandedRowKeys: expandableConfig.expandedRowKeys,
+            onExpand: expandableConfig.onExpand,
+            expandedRowRender: expandableConfig.expandedRowRender,
+            expandIcon: expandableConfig.expandIcon,
+            rowExpandable: expandableConfig.rowExpandable,
+            columnWidth: expandableConfig.expandColumnWidth,
+            fixed: expandableConfig.expandFixed,
+        }
+    }, [expandable, expandableConfig])
+
     const columnVisibilityVersion = version
 
     useEffect(() => {
@@ -499,6 +521,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                             pagination={false}
                             onScroll={handleScroll}
                             rowSelection={tableRowSelection}
+                            expandable={tableExpandable}
                             {...tablePropsWithShortcuts}
                             scroll={{
                                 x: scrollConfig.x,
