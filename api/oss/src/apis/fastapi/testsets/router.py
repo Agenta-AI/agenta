@@ -679,6 +679,9 @@ class TestsetsRouter:
             #
             testset_variant_query=testset_variant_query_request.testset_variant,
             #
+            testset_refs=testset_variant_query_request.testset_refs,
+            testset_variant_refs=testset_variant_query_request.testset_variant_refs,
+            #
             include_archived=testset_variant_query_request.include_archived,
             #
             windowing=testset_variant_query_request.windowing,
@@ -910,6 +913,14 @@ class TestsetsRouter:
             project_id=UUID(request.state.project_id),
             #
             testset_revision_query=testset_revision_query_request.testset_revision,
+            #
+            testset_refs=testset_revision_query_request.testset_refs,
+            testset_variant_refs=testset_revision_query_request.testset_variant_refs,
+            testset_revision_refs=testset_revision_query_request.testset_revision_refs,
+            #
+            include_archived=testset_revision_query_request.include_archived,
+            #
+            windowing=testset_revision_query_request.windowing,
         )
 
         testset_revisions_response = TestsetRevisionsResponse(

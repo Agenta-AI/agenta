@@ -420,6 +420,9 @@ class TestsetsService:
         #
         testset_variant_query: Optional[TestsetVariantQuery] = None,
         #
+        testset_refs: Optional[List[Reference]] = None,
+        testset_variant_refs: Optional[List[Reference]] = None,
+        #
         include_archived: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
@@ -438,6 +441,9 @@ class TestsetsService:
             project_id=project_id,
             #
             variant_query=variant_query,
+            #
+            artifact_refs=testset_refs,
+            variant_refs=testset_variant_refs,
             #
             include_archived=include_archived,
             #
@@ -666,7 +672,15 @@ class TestsetsService:
         *,
         project_id: UUID,
         #
-        testset_revision_query: Optional[TestsetRevisionQuery],
+        testset_revision_query: Optional[TestsetRevisionQuery] = None,
+        #
+        testset_refs: Optional[List[Reference]] = None,
+        testset_variant_refs: Optional[List[Reference]] = None,
+        testset_revision_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> List[TestsetRevision]:
         revision_query = (
             RevisionQuery(
@@ -682,6 +696,14 @@ class TestsetsService:
             project_id=project_id,
             #
             revision_query=revision_query,
+            #
+            artifact_refs=testset_refs,
+            variant_refs=testset_variant_refs,
+            revision_refs=testset_revision_refs,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
         )
 
         if not revisions:
