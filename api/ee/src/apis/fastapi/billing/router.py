@@ -776,7 +776,10 @@ class SubscriptionsRouter:
 
         plan = subscription.plan
         anchor_day = subscription.anchor
-        anchor_month = (now.month + (1 if now.day >= anchor_day else 0)) % 12
+        if not anchor_day or now.day < anchor_day:
+            anchor_month = now.month
+        else:
+            anchor_month = ((now.month % 12) + 1)
 
         entitlements = ENTITLEMENTS.get(plan)
 
