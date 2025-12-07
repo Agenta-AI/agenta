@@ -50,8 +50,6 @@ from oss.src.utils.common import is_ee
 from oss.src.services.exceptions import UnauthorizedException
 from oss.src.services.db_manager import (
     get_user_with_email,
-    check_if_user_invitation_exists,
-    check_if_user_exists_and_create_organization,
 )
 from oss.src.utils.validators import (
     validate_user_email_or_username,
@@ -180,6 +178,66 @@ else:
     from oss.src.services.db_manager import create_accounts
 
 
+# ============================================================================
+# Helper Functions for Auth Method Overrides
+# ============================================================================
+
+
+async def _create_account(email: str, uid: str) -> None:
+    """
+    Create an application account for a newly authenticated user.
+
+    This is the unified account creation logic used by all auth methods
+    (email/password, passwordless, third-party). It handles:
+    - Email blocking checks (EE only)
+    - Organization assignment (OSS only)
+    - Account creation
+
+    Args:
+        email: The user's normalized email address
+        uid: The SuperTokens user ID
+
+    Raises:
+        UnauthorizedException: If email is blocked or user not invited (OSS only)
+    """
+    # Check email blocking (EE only)
+    if is_ee() and await _is_blocked(email):
+        raise UnauthorizedException(detail="This email is not allowed.")
+
+    payload = {
+        "uid": uid,
+        "email": email,
+    }
+
+    # For OSS: compute organization before calling create_accounts
+    # For EE: organization is created inside create_accounts
+    if is_ee():
+        await create_accounts(payload)
+    else:
+        # OSS: Compute or get the single organization
+        from oss.src.services.db_manager import (
+            check_if_user_exists_and_create_organization,
+            check_if_user_invitation_exists,
+        )
+
+        organization_db = await check_if_user_exists_and_create_organization(
+            user_email=email
+        )
+
+        # Verify user can join (invitation check)
+        user_invitation_exists = await check_if_user_invitation_exists(
+            email=email,
+            organization_id=str(organization_db.id),
+        )
+        if not user_invitation_exists:
+            raise UnauthorizedException(
+                detail="You need to be invited by the organization owner to gain access."
+            )
+
+        payload["organization_id"] = str(organization_db.id)
+        await create_accounts(payload)
+
+
 def override_passwordless_apis(
     original_implementation: PasswordlessRecipeInterface,
 ):
@@ -209,18 +267,8 @@ def override_passwordless_apis(
 
         # Post sign up response, we check if it was successful
         if isinstance(response, ConsumeCodeOkResult):
-            if is_ee() and await _is_blocked(response.user.emails[0]):
-                raise UnauthorizedException(detail="This email is not allowed.")
-            payload = {
-                "uid": response.user.id,
-                "email": response.user.emails[0],
-            }
-            if is_ee():
-                await create_accounts(payload)
-            else:
-                raise Exception(
-                    "passwordless account creation is not available in OSS."
-                )
+            email = response.user.emails[0].lower()
+            await _create_account(email, response.user.id)
 
         return response
 
@@ -254,18 +302,8 @@ def override_thirdparty_apis(original_implementation: ThirdPartyAPIInterface):
         )
 
         if isinstance(response, SignInUpPostOkResult):
-            if is_ee() and await _is_blocked(response.user.emails[0]):
-                raise UnauthorizedException(detail="This email is not allowed.")
-            payload = {
-                "uid": response.user.id,
-                "email": response.user.emails[0],
-            }
-            if is_ee():
-                await create_accounts(payload)
-            else:
-                raise Exception(
-                    "third-party-api account creation is not available in OSS."
-                )
+            email = response.user.emails[0].lower()
+            await _create_account(email, response.user.id)
 
         return response
 
@@ -287,9 +325,10 @@ def override_password_apis(original: EmailPasswordAPIInterface):
         user_context: Dict[str, Any],
     ):
         if form_fields[0].id == "email" and is_input_email(form_fields[0].value):
-            if is_ee() and await _is_blocked(form_fields[0].value):
+            email = form_fields[0].value.lower()
+            if is_ee() and await _is_blocked(email):
                 raise UnauthorizedException(detail="This email is not allowed.")
-            user_id = await get_user_with_email(form_fields[0].value)
+            user_id = await get_user_with_email(email)
             if user_id is not None:
                 supertokens_user = await get_user_from_supertokens(user_id)
                 if supertokens_user is not None:
@@ -322,8 +361,8 @@ def override_password_apis(original: EmailPasswordAPIInterface):
         api_options: EmailPasswordAPIOptions,
         user_context: Dict[str, Any],
     ):
-        # FLOW 1: Sign in
-        email = form_fields[0].value
+        # FLOW 1: Sign in (redirect existing users)
+        email = form_fields[0].value.lower()
         if is_ee() and await _is_blocked(email):
             raise UnauthorizedException(detail="This email is not allowed.")
         user_info_from_st = await list_users_by_account_info(
@@ -339,21 +378,7 @@ def override_password_apis(original: EmailPasswordAPIInterface):
                 user_context,
             )
 
-        # FLOW 2: Sign up (as organization & workspace owner)
-        organization_db = await check_if_user_exists_and_create_organization(
-            user_email=email
-        )
-
-        # FLOW 3: Sign up (as a regular user after accepting invitation)
-        user_invitation_exists = await check_if_user_invitation_exists(
-            email=email,
-            organization_id=str(organization_db.id),
-        )
-        if not user_invitation_exists:
-            raise UnauthorizedException(
-                detail="You need to be invited by the organization owner to gain access."
-            )
-
+        # FLOW 2: Create SuperTokens user
         response = await og_sign_up_post(
             form_fields,
             tenant_id,
@@ -362,6 +387,8 @@ def override_password_apis(original: EmailPasswordAPIInterface):
             api_options,
             user_context,
         )
+
+        # FLOW 3: Create application user (organization assignment is handled in create_accounts)
         if isinstance(response, EmailPasswordSignUpPostOkResult):
             # sign up successful
             actual_email = ""
@@ -379,13 +406,9 @@ def override_password_apis(original: EmailPasswordAPIInterface):
                     actual_email
                     if "@" in actual_email
                     else f"{actual_email}@localhost.com"
-                )
-                payload = {
-                    "uid": response.user.id,
-                    "email": email,
-                    "organization_id": str(organization_db.id),
-                }
-                await create_accounts(payload)
+                ).lower()
+
+                await _create_account(email, response.user.id)
 
         return response
 

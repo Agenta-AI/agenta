@@ -1180,23 +1180,61 @@ async def delete_accounts() -> None:
 async def create_accounts(payload: dict) -> UserDB:
     """Create a new account in the database.
 
+    This unified function handles user creation and delegates organization/workspace
+    assignment to implementation-specific logic (OSS vs EE).
+
     Args:
-        payload (dict): The payload to create the user
+        payload (dict): The payload containing 'uid' and 'email' for user creation.
+                       In OSS, payload may contain 'organization_id' (pre-computed).
+                       In EE, 'organization_id' is not expected.
 
     Returns:
         UserDB: instance of user
     """
 
-    # pop required fields for organization & workspace creation
-    organization_id = payload.pop("organization_id")
-
-    # create user
+    # Create user
     user_info = {**payload, "username": payload["email"].split("@")[0]}
+    # Remove OSS-specific fields that shouldn't go to UserDB
+    user_info.pop("organization_id", None)
+
     user_db = await user_service.create_new_user(payload=user_info)
 
-    # only update organization to have user_db as its "owner" if it does not yet have one
-    # ---> updating the organization only happens in the first-user scenario
-    #   where the first-user becomes the organization/workspace owner.
+    # Delegate organization/workspace assignment to implementation-specific function
+    from oss.src.utils.common import is_ee
+    if is_ee():
+        # EE implementation: handled by ee.src.services.commoners.create_accounts
+        # This function should NOT be called for EE - see __init__.py imports
+        pass
+    else:
+        # OSS implementation: assign user to pre-created single organization
+        organization_id = payload.get("organization_id")
+        if organization_id:
+            await _assign_user_to_organization_oss(
+                user_db=user_db,
+                organization_id=organization_id,
+                email=payload["email"],
+            )
+
+    return user_db
+
+
+async def _assign_user_to_organization_oss(
+    user_db: UserDB,
+    organization_id: str,
+    email: str,
+) -> None:
+    """
+    OSS-specific logic to assign a user to the single organization.
+
+    In OSS, all users are assigned to the same organization created at first sign-up.
+
+    Args:
+        user_db: The created user
+        organization_id: The single organization ID (pre-created)
+        email: User's email
+    """
+    # Only update organization to have user_db as its "owner" if it does not yet have one
+    # This only happens in the first-user scenario
     try:
         await get_organization_owner(organization_id=organization_id)
     except (NoResultFound, ValueError):
@@ -1204,12 +1242,12 @@ async def create_accounts(payload: dict) -> UserDB:
             organization_id=organization_id, values_to_update={"owner": str(user_db.id)}
         )
 
-    # get project belonging to organization
+    # Get project belonging to organization
     project_db = await get_project_by_organization_id(organization_id=organization_id)
 
-    # update user invitation in the case the user was invited
+    # Update user invitation if the user was invited
     invitation = await get_project_invitation_by_email(
-        project_id=str(project_db.id), email=payload["email"]
+        project_id=str(project_db.id), email=email
     )
     if invitation is not None:
         await update_invitation(
@@ -1217,7 +1255,27 @@ async def create_accounts(payload: dict) -> UserDB:
             values_to_update={"user_id": str(user_db.id), "used": True},
         )
 
-    return user_db
+
+async def get_default_workspace_id_oss() -> str:
+    """
+    Get the default (and only) workspace ID in OSS.
+
+    OSS enforces a single-workspace constraint. This function retrieves that
+    single workspace that was created at first sign-up.
+
+    Returns:
+        str: The workspace ID
+
+    Raises:
+        AssertionError: If more than one workspace exists (should never happen in OSS)
+    """
+    workspaces = await get_workspaces()
+
+    assert len(workspaces) == 1, (
+        "You can only have a single workspace in OSS."
+    )
+
+    return str(workspaces[0].id)
 
 
 async def create_organization(name: str):
