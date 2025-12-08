@@ -60,6 +60,9 @@ def edit_dbe_from_dto(
     if dto.meta is not None:
         dbe.meta = dto.meta
 
+    if dto.parent_id is not None:
+        dbe.parent_id = dto.parent_id
+
     if dto.kind is not None:
         dbe.kind = dto.kind.value
 
