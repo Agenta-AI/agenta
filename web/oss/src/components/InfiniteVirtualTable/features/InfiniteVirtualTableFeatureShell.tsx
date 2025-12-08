@@ -163,6 +163,11 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      * Useful when you need to transform rows (e.g., add children for tree data).
      */
     dataSource?: Row[]
+    /**
+     * Ref to access the underlying Ant Design Table instance.
+     * Useful for programmatic scrolling via `tableRef.current?.scrollTo({ index })`.
+     */
+    tableRef?: InfiniteVirtualTableProps<Row>["tableRef"]
 }
 
 const DEFAULT_ROW_HEIGHT = 48
@@ -238,6 +243,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         keyboardShortcuts,
         expandable,
         dataSource,
+        tableRef,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
 
@@ -537,6 +543,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                     keyboardShortcuts={keyboardShortcuts}
                     expandable={expandable}
                     onHeaderHeightChange={setTableHeaderHeight}
+                    tableRef={tableRef}
                 />
                 {afterTable}
             </TableShell>

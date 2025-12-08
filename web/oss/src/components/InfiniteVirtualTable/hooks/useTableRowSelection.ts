@@ -20,6 +20,7 @@ const useTableRowSelection = <RecordType>(
             columnWidth,
             type = "checkbox",
             fixed,
+            renderCell,
         } = rowSelection
 
         return {
@@ -33,6 +34,7 @@ const useTableRowSelection = <RecordType>(
             }),
             onChange,
             getCheckboxProps,
+            renderCell,
         }
     }, [rowSelection])
 }

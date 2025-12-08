@@ -67,6 +67,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     onHeaderHeightChange,
     keyboardShortcuts,
     expandable,
+    tableRef,
 }: InfiniteVirtualTableInnerProps<RecordType>) => {
     const generatedScopeId = useId()
     const resolvedScopeId = useMemo(
@@ -514,6 +515,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                     {beforeTable}
                     <div ref={containerRef} className={clsx(containerClassName)}>
                         <Table<RecordType>
+                            ref={tableRef as React.Ref<any>}
                             className={tableClassName}
                             columns={finalColumns}
                             dataSource={dataSource}

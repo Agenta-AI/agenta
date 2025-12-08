@@ -138,6 +138,13 @@ export interface InfiniteVirtualTableRowSelection<RecordType> {
     }
     columnWidth?: number
     fixed?: boolean
+    /** Custom render for the selection cell */
+    renderCell?: (
+        value: boolean,
+        record: RecordType,
+        index: number,
+        originNode: React.ReactNode,
+    ) => React.ReactNode
 }
 
 export interface InfiniteVirtualTableKeyboardSelectionShortcuts {
@@ -280,4 +287,11 @@ export interface InfiniteVirtualTableProps<RecordType, ExpandedChildType = unkno
      * When provided, rows can be expanded to show child content.
      */
     expandable?: ExpandableRowConfig<RecordType, ExpandedChildType>
+    /**
+     * Ref to access the underlying Ant Design Table instance.
+     * Useful for programmatic scrolling via `tableRef.current?.scrollTo({ index })`.
+     */
+    tableRef?: React.RefObject<{
+        scrollTo: (config: {index: number; align?: "top" | "bottom" | "auto"}) => void
+    } | null>
 }
