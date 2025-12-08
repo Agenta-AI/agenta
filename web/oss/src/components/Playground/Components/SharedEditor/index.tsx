@@ -81,6 +81,7 @@ const SharedEditor = ({
                 "[&_.agenta-rich-text-editor]:w-full",
                 "[&_.agenta-editor-wrapper]:w-full",
                 "p-[11px]",
+                "[&_.ant-dropdown-trigger]:pl-0",
                 {
                     "border-[#BDC7D1]": editorType === "border",
                     "hover:border-[#394857] focus:border-[#BDC7D1]": editorType === "border",
