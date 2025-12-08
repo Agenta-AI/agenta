@@ -1,6 +1,6 @@
 import {useMemo, useState} from "react"
 
-import {Button, Dropdown, Input, Space, Table, Typography} from "antd"
+import {Button, Dropdown, Input, Space, Table, Typography, message} from "antd"
 import {ColumnsType} from "antd/es/table"
 import useSWR from "swr"
 
@@ -17,7 +17,7 @@ import {
 
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useProjectData} from "@/oss/state/project"
-import {queryFolders} from "@/oss/services/folders"
+import {createFolder, editFolder, queryFolders} from "@/oss/services/folders"
 import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
 import {buildFolderTree, FolderTreeNode} from "./assets/utils"
 import {MoreOutlined} from "@ant-design/icons"
@@ -25,6 +25,7 @@ import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {DataNode} from "antd/es/tree"
 import MoveFolderModal from "./modals/MoveFolderModal"
 import DeleteFolderModal from "./modals/DeleteFolderModal"
+import NewFolderModal from "./modals/NewFolderModal"
 
 const {Title} = Typography
 
@@ -40,13 +41,18 @@ const PromptsPage = () => {
     const [deleteModalOpen, setDeleteModalOpen] = useState(false)
     const [renameValue, setRenameValue] = useState("")
     const [moveSelection, setMoveSelection] = useState<string | null>(null)
+    const [moveFolderId, setMoveFolderId] = useState<string | null>(null)
     const [newFolderName, setNewFolderName] = useState("")
+    const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+    const [isMovingFolder, setIsMovingFolder] = useState(false)
 
     useBreadcrumbsEffect({breadcrumbs: {prompts: {label: "prompts"}}}, [])
 
-    const {data: foldersData, isLoading} = useSWR(projectId ? ["folders", projectId] : null, () =>
-        queryFolders({folder: {}}),
-    )
+    const {
+        data: foldersData,
+        isLoading,
+        mutate,
+    } = useSWR(projectId ? ["folders", projectId] : null, () => queryFolders({folder: {}}))
 
     const {roots, foldersById} = useMemo(() => {
         const folders = foldersData?.folders ?? []
@@ -64,17 +70,20 @@ const PromptsPage = () => {
                 key: node.id!,
                 title: node.name,
                 children: buildNodes(node.children || []),
-                disableCheckbox: node.id === currentFolderId,
-                selectable: node.id !== currentFolderId,
             }))
 
         return buildNodes(roots)
-    }, [currentFolderId, roots])
+    }, [roots])
 
-    const moveDestinationName = useMemo(
-        () => (moveSelection ? (foldersById[moveSelection]?.name ?? moveSelection) : null),
-        [moveSelection, foldersById],
-    )
+    const moveDestinationName = useMemo(() => {
+        if (!moveSelection) return null
+        return foldersById[moveSelection]?.name ?? moveSelection
+    }, [moveSelection, foldersById])
+
+    const moveFolderName = useMemo(() => {
+        if (!moveFolderId) return null
+        return foldersById[moveFolderId]?.name ?? moveFolderId
+    }, [foldersById, moveFolderId])
 
     // what we show in the table
     const visibleRows: FolderTreeNode[] = useMemo(() => {
@@ -90,6 +99,74 @@ const PromptsPage = () => {
 
     const handleBreadcrumbFolderChange = (folderId: string | null) => {
         setCurrentFolderId(folderId)
+    }
+
+    const openNewFolderModal = () => {
+        setNewFolderName("Untitled folder")
+        setNewFolderModalOpen(true)
+    }
+
+    const handleCreateFolder = async () => {
+        const name = newFolderName.trim() || "Untitled folder"
+
+        setIsCreatingFolder(true)
+        try {
+            await createFolder({
+                folder: {
+                    name,
+                    parent_id: currentFolderId ?? null,
+                },
+            })
+
+            await mutate()
+            setNewFolderModalOpen(false)
+            message.success("Folder created")
+        } catch (error) {
+            message.error("Failed to create folder")
+        } finally {
+            setIsCreatingFolder(false)
+        }
+    }
+
+    const handleOpenMoveModal = (folderId: string | null) => {
+        if (!folderId) return
+
+        setMoveFolderId(folderId)
+        setMoveSelection(folderId)
+        setMoveModalOpen(true)
+    }
+
+    const handleCloseMoveModal = () => {
+        setMoveModalOpen(false)
+        setMoveFolderId(null)
+        setMoveSelection(null)
+    }
+
+    const handleMoveFolder = async () => {
+        if (!moveFolderId || !moveSelection || moveSelection === moveFolderId) {
+            message.warning("Select a destination folder")
+            return
+        }
+
+        setIsMovingFolder(true)
+        try {
+            await editFolder(moveFolderId, {
+                folder: {
+                    id: moveFolderId,
+                    parent_id: moveSelection,
+                },
+            })
+
+            await mutate()
+            setMoveModalOpen(false)
+            setMoveFolderId(null)
+            setMoveSelection(null)
+            message.success("Folder moved")
+        } catch (error) {
+            message.error("Failed to move folder")
+        } finally {
+            setIsMovingFolder(false)
+        }
     }
 
     const columns: ColumnsType<FolderTreeNode> = [
@@ -144,7 +221,7 @@ const PromptsPage = () => {
                                     icon: <FolderDashedIcon size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        setMoveModalOpen(true)
+                                        handleOpenMoveModal(record.id as string)
                                     },
                                 },
                                 {
@@ -185,6 +262,8 @@ const PromptsPage = () => {
                 foldersById={foldersById}
                 currentFolderId={currentFolderId}
                 onFolderChange={handleBreadcrumbFolderChange}
+                onNewFolder={openNewFolderModal}
+                onMoveFolder={handleOpenMoveModal}
             />
 
             <div className="flex flex-col gap-2">
@@ -225,7 +304,7 @@ const PromptsPage = () => {
                                         label: "New folder",
                                         onClick: (event) => {
                                             event.domEvent.stopPropagation()
-                                            // onNewFolder?.()
+                                            openNewFolderModal()
                                         },
                                     },
                                     {
@@ -279,19 +358,34 @@ const PromptsPage = () => {
             </div>
 
             <MoveFolderModal
-                foldername={currentFolder?.name}
+                folderName={moveFolderName}
                 moveDestinationName={moveDestinationName}
-                moveModalOpen={moveModalOpen}
-                setMoveModalOpen={setMoveModalOpen}
+                open={moveModalOpen}
+                onCancel={handleCloseMoveModal}
+                onMove={handleMoveFolder}
                 treeData={treeData}
                 moveSelection={moveSelection}
                 setMoveSelection={setMoveSelection}
+                isMoving={isMovingFolder}
+                disabledConfirm={!moveFolderId || !moveSelection || moveSelection === moveFolderId}
             />
 
             <DeleteFolderModal
                 deleteModalOpen={deleteModalOpen}
                 setDeleteModalOpen={setDeleteModalOpen}
                 folderName={currentFolder?.name}
+            />
+
+            <NewFolderModal
+                open={newFolderModalOpen}
+                folderName={newFolderName}
+                setFolderName={setNewFolderName}
+                onCreate={handleCreateFolder}
+                onCancel={() => {
+                    setNewFolderModalOpen(false)
+                    setNewFolderName("")
+                }}
+                confirmLoading={isCreatingFolder}
             />
         </div>
     )

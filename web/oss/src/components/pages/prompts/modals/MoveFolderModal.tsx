@@ -1,33 +1,40 @@
 import {Modal, Tree} from "antd"
 import {DataNode} from "antd/es/tree"
-import React, {SetStateAction} from "react"
+import React from "react"
 
 interface MoveFolderModalProps {
-    foldername?: string | null | undefined
-    moveModalOpen: boolean
-    setMoveModalOpen: (value: SetStateAction<boolean>) => void
+    folderName?: string | null
+    open: boolean
+    onCancel: () => void
+    onMove: () => void
     moveDestinationName: string | null
     treeData: DataNode[]
     moveSelection: string | null
-    setMoveSelection: (value: SetStateAction<string | null>) => void
+    setMoveSelection: (value: string | null) => void
+    isMoving?: boolean
+    disabledConfirm?: boolean
 }
 
 const MoveFolderModal = ({
-    foldername,
-    moveModalOpen,
-    setMoveModalOpen,
+    folderName,
+    open,
+    onCancel,
+    onMove,
     moveDestinationName,
     treeData,
     moveSelection,
     setMoveSelection,
+    isMoving,
+    disabledConfirm,
 }: MoveFolderModalProps) => {
     return (
         <Modal
-            title={`Move ${foldername || "folder"}`}
-            open={moveModalOpen}
-            onOk={() => setMoveModalOpen(false)}
-            onCancel={() => setMoveModalOpen(false)}
-            okText={moveDestinationName ? `Move to ${moveDestinationName}` : "Move"}
+            title={`Move ${folderName || "folder"}`}
+            open={open}
+            onOk={onMove}
+            onCancel={onCancel}
+            okText={moveDestinationName ? `Move to ${moveDestinationName}` : "Move folder"}
+            okButtonProps={{disabled: disabledConfirm, loading: isMoving}}
             destroyOnClose
         >
             <div className="flex flex-col gap-2">

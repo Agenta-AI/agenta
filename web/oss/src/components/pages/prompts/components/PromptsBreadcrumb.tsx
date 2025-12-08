@@ -16,6 +16,8 @@ interface PromptsBreadcrumbProps {
     foldersById: Record<string, FolderTreeNode>
     currentFolderId: string | null
     onFolderChange?: (folderId: string | null) => void
+    onNewFolder?: () => void
+    onMoveFolder?: (folderId: string | null) => void
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -46,6 +48,8 @@ const PromptsBreadcrumb = ({
     foldersById,
     currentFolderId,
     onFolderChange,
+    onNewFolder,
+    onMoveFolder,
 }: PromptsBreadcrumbProps) => {
     const classes = useStyles()
     const {project} = useProjectData()
@@ -87,7 +91,7 @@ const PromptsBreadcrumb = ({
                 key: "move_folder",
                 icon: <FolderDashedIcon size={16} />,
                 label: "Move",
-                onClick: () => {},
+                onClick: () => onMoveFolder?.(currentFolderId),
                 // disabled: disableFolderActions,
             },
             {
@@ -103,7 +107,7 @@ const PromptsBreadcrumb = ({
                 key: "new_folder",
                 icon: <FolderIcon size={16} />,
                 label: "New folder",
-                onClick: () => {},
+                onClick: () => onNewFolder?.(),
             },
             {
                 type: "divider",
@@ -155,7 +159,7 @@ const PromptsBreadcrumb = ({
         })
 
         return base
-    }, [project, folderChain, onFolderChange])
+    }, [project, folderChain, onFolderChange, onNewFolder, onMoveFolder])
 
     return <Breadcrumb items={items} className={classes.container} />
 }
