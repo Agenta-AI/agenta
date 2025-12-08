@@ -19,7 +19,7 @@ export const getAnnotationTableColumns = (
             title: null,
             key: "trace",
             width: 60,
-            fixed: 'left',
+            fixed: "left",
             onHeaderCell: () => ({
                 style: {minWidth: 60},
             }),

@@ -14,7 +14,7 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "@/oss/services/tracing/lib/helpers"
-import {SpanLink, TracesResponse} from "@/oss/services/tracing/types"
+import {SpanLink, TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
 import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
 
 export type TraceDrawerSpanLink = SpanLink & {key?: string}
@@ -307,6 +307,124 @@ export const linksAndReferencesAtom = atom<{
         links,
         references,
     }
+})
+
+type LinkedSpanTarget = {
+    trace_id: string
+    span_id: string
+    key?: string
+    type?: string
+    source?: string
+}
+
+export const linkedSpansTabActiveAtom = atom(false)
+
+export const linkedSpanTargetsAtom = atom<LinkedSpanTarget[]>((get) => {
+    const payload = get(linksAndReferencesAtom)
+    const links = Array.isArray(payload?.links) ? payload.links : []
+
+    const unique = new Map<string, LinkedSpanTarget>()
+
+    links.forEach((link) => {
+        const traceId = (link as any)?.trace_id || (link as any)?.context?.trace_id
+        const spanId = (link as any)?.span_id || (link as any)?.context?.span_id
+
+        if (!traceId || !spanId) return
+
+        const id = `${traceId}:${spanId}`
+
+        if (unique.has(id)) return
+
+        unique.set(id, {
+            trace_id: traceId,
+            span_id: spanId,
+            key: link.key,
+            type: link.type,
+            source: (link as any)?.attributes?.source,
+        })
+    })
+
+    return Array.from(unique.values())
+})
+
+export type LinkedSpanRow = TraceSpanNode & {linkKey?: string; linkSource?: string}
+
+export const linkedSpansQueryAtom = atomWithQuery<LinkedSpanRow[]>((get) => {
+    const isTabActive = get(linkedSpansTabActiveAtom)
+    const targets = get(linkedSpanTargetsAtom)
+
+    return {
+        queryKey: ["trace-drawer-linked-spans", targets],
+        enabled: isTabActive && Array.isArray(targets) && targets.length > 0,
+        refetchOnWindowFocus: false,
+        queryFn: async () => {
+            const uniqueTraceIds = Array.from(new Set(targets.map((t) => t.trace_id)))
+
+            const traceResponses = await Promise.all(
+                uniqueTraceIds.map(async (traceId) => {
+                    const response = await fetchPreviewTrace(traceId)
+                    const tree = response?.response?.tree as AgentaTreeDTO | undefined
+
+                    if (tree) {
+                        return {
+                            traceId,
+                            nodes: observabilityTransformer(tree) as TracesWithAnnotations[],
+                        }
+                    }
+
+                    const fallback = normalizeTracesResponse(response)
+                    if (!fallback) return {traceId, nodes: [] as TracesWithAnnotations[]}
+
+                    return {
+                        traceId,
+                        nodes: transformTracingResponse(
+                            transformTracesResponseToTree(fallback),
+                        ) as unknown as TracesWithAnnotations[],
+                    }
+                }),
+            )
+
+            const traceMap = new Map<string, TracesWithAnnotations[]>(
+                traceResponses.map(({traceId, nodes}) => [traceId, nodes]),
+            )
+
+            const flattenedCache = new Map<string, TracesWithAnnotations[]>()
+
+            const rows: LinkedSpanRow[] = []
+
+            targets.forEach((target) => {
+                const nodes = traceMap.get(target.trace_id) || []
+                const flattened = flattenedCache.get(target.trace_id) || flattenTraces(nodes)
+                if (!flattenedCache.has(target.trace_id)) {
+                    flattenedCache.set(target.trace_id, flattened)
+                }
+
+                const spanNode =
+                    (getNodeById(nodes as any, target.span_id) as TracesWithAnnotations | null) ||
+                    (flattened.find((item) => item.span_id === target.span_id) as
+                        | TracesWithAnnotations
+                        | undefined)
+
+                if (!spanNode) return
+
+                rows.push({
+                    ...spanNode,
+                    trace_id: spanNode.trace_id || target.trace_id,
+                    span_id: spanNode.span_id || target.span_id,
+                    key: `${target.trace_id}-${target.span_id}`,
+                    linkKey: target.key,
+                    linkSource: target.source || target.type || target.key,
+                })
+            })
+
+            return rows
+        },
+    }
+})
+
+export const linkedSpansAtom = atom<LinkedSpanRow[]>((get) => {
+    const query = get(linkedSpansQueryAtom)
+    return query.data ?? []
 })
 
 // Persisted toggle for the trace side panel (annotations/details) visibility

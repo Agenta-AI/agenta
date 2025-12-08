@@ -96,8 +96,8 @@ const TraceContent = ({
             },
             {
                 key: "linked-span",
-                label: "Linked Span",
-                children: <LinkedSpansTabItem />,
+                label: "Linked Spans",
+                children: <LinkedSpansTabItem isActive={tab === "linked-span"} />,
             },
             {
                 key: "annotations",
@@ -105,7 +105,7 @@ const TraceContent = ({
                 children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
             },
         ]
-    }, [activeTrace, filteredTrace, isLoading, traceResponse, error])
+    }, [activeTrace, filteredTrace, isLoading, traceResponse, error, tab])
 
     // Ensure active tab exists in items; if not, switch to first tab
     const itemKeys = useMemo(() => (items || []).map((it) => String(it?.key)), [items])
