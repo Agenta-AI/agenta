@@ -55,6 +55,8 @@ export {default as ColumnVisibilityPopoverContent} from "./components/columnVisi
 export {default as TableSettingsDropdown} from "./components/columnVisibility/TableSettingsDropdown"
 export {default as FiltersPopoverTrigger} from "./components/filters/FiltersPopoverTrigger"
 export {default as TableShell} from "./components/TableShell"
+export {default as TableDescription} from "./components/TableDescription"
+export type {TableDescriptionProps} from "./components/TableDescription"
 export {InfiniteVirtualTableFeatureShell, useInfiniteTableFeaturePagination} from "./features"
 export type {
     TableScopeConfig,
@@ -70,6 +72,13 @@ export {default as ColumnVisibilityHeader} from "./components/ColumnVisibilityHe
 export {default as ColumnVisibilityProvider} from "./providers/ColumnVisibilityProvider"
 export {useColumnVisibilityContext} from "./context/ColumnVisibilityContext"
 export {useExpandableRows} from "./hooks/useExpandableRows"
+export {useEditableTable} from "./hooks/useEditableTable"
+export type {
+    EditableTableColumn,
+    EditableTableConfig,
+    EditableTableState,
+    EditableTableActions,
+} from "./hooks/useEditableTable"
 export * from "./types"
 export type {ExpandableRowConfig, ExpandIconRenderProps} from "./types"
 export type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"
