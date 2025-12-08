@@ -37,15 +37,11 @@ import NewFolderModal, {FolderModalState} from "./modals/NewFolderModal"
 import {Folder, FolderKind} from "@/oss/services/folders/types"
 import SetupWorkflowIcon from "./components/SetupWorkflowIcon"
 import {Template} from "@/oss/lib/Types"
-import {
-    ServiceType,
-    createAndStartTemplate,
-    deleteApp,
-    waitForAppToStart,
-} from "@/oss/services/app-selector/api"
+import {ServiceType, createAndStartTemplate, deleteApp} from "@/oss/services/app-selector/api"
 import {getTemplateKey, timeout} from "@/oss/components/pages/app-management/assets/helpers"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {waitForAppToStart} from "@/oss/services/api"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -119,11 +115,6 @@ const PromptsPage = () => {
     const appNameExist = useMemo(
         () => apps.some((app: any) => (app.app_name || "").toLowerCase() === newApp.toLowerCase()),
         [apps, newApp],
-    )
-
-    const currentFolder = useMemo(
-        () => (currentFolderId ? foldersById[currentFolderId] : null),
-        [currentFolderId, foldersById],
     )
 
     const treeData: DataNode[] = useMemo(() => {
@@ -592,59 +583,52 @@ const PromptsPage = () => {
                         />
                     </Space>
 
-                    <Space>
-                        <Button icon={<TrashIcon />} danger disabled>
-                            Delete
+                    <Dropdown
+                        trigger={["click"]}
+                        overlayStyle={{width: 200}}
+                        placement="bottomLeft"
+                        menu={{
+                            items: [
+                                {
+                                    key: "new_prompt",
+                                    icon: <SquaresFourIcon size={16} />,
+                                    label: "New prompt",
+                                    onClick: (event) => {
+                                        event.domEvent.stopPropagation()
+                                        handleOpenNewPromptModal()
+                                    },
+                                },
+                                {
+                                    key: "new_folder",
+                                    icon: <FolderIcon size={16} />,
+                                    label: "New folder",
+                                    onClick: (event) => {
+                                        event.domEvent.stopPropagation()
+                                        openNewFolderModal()
+                                    },
+                                },
+                                {
+                                    type: "divider",
+                                },
+                                {
+                                    key: "setup_workflow",
+                                    icon: <SetupWorkflowIcon />,
+                                    label: "Set up workflow",
+                                    onClick: (event) => {
+                                        event.domEvent.stopPropagation()
+                                        handleSetupWorkflow()
+                                    },
+                                },
+                            ],
+                        }}
+                    >
+                        <Button icon={<PlusIcon />} type="primary">
+                            Create new
                         </Button>
-
-                        <Dropdown
-                            trigger={["click"]}
-                            overlayStyle={{width: 200}}
-                            placement="bottomLeft"
-                            menu={{
-                                items: [
-                                    {
-                                        key: "new_prompt",
-                                        icon: <SquaresFourIcon size={16} />,
-                                        label: "New prompt",
-                                        onClick: (event) => {
-                                            event.domEvent.stopPropagation()
-                                            handleOpenNewPromptModal()
-                                        },
-                                    },
-                                    {
-                                        key: "new_folder",
-                                        icon: <FolderIcon size={16} />,
-                                        label: "New folder",
-                                        onClick: (event) => {
-                                            event.domEvent.stopPropagation()
-                                            openNewFolderModal()
-                                        },
-                                    },
-                                    {
-                                        type: "divider",
-                                    },
-                                    {
-                                        key: "setup_workflow",
-                                        icon: <SetupWorkflowIcon />,
-                                        label: "Set up workflow",
-                                        onClick: (event) => {
-                                            event.domEvent.stopPropagation()
-                                            handleSetupWorkflow()
-                                        },
-                                    },
-                                ],
-                            }}
-                        >
-                            <Button icon={<PlusIcon />} type="primary">
-                                Create new
-                            </Button>
-                        </Dropdown>
-                    </Space>
+                    </Dropdown>
                 </div>
 
                 <Table<FolderTreeNode>
-                    rowSelection={{type: "checkbox"}}
                     columns={columns}
                     dataSource={visibleRows}
                     loading={isLoading}

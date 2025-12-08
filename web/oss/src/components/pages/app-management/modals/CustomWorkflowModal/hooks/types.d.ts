@@ -1,6 +1,7 @@
 export interface useCustomWorkflowConfigProps {
     configureWorkflow?: boolean
     folderId?: string | null
+    appId?: string | null
     afterConfigSave?: (appConfig: {
         appName: string
         appUrl: string
