@@ -7,18 +7,18 @@ import {getDefaultStore, useAtom, useSetAtom} from "jotai"
 import {
     isDrawerOpenAtom,
     resetTraceDrawerAtom,
+    traceSidePanelOpenAtom,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 
 import AccordionTreePanel from "../../components/AccordionTreePanel"
 
 import {useStyles} from "./assets/styles"
 import AnnotationTabItem from "./components/AnnotationTabItem"
-import ConfigurationTabItem from "./components/ConfigurationTabItem"
 import OverviewTabItem from "./components/OverviewTabItem"
 import {TraceContentProps} from "./assets/types"
 import TraceTypeHeader from "./components/TraceTypeHeader"
 import TraceSidePanel from "../TraceSidePanel"
-import {traceSidePanelOpenAtom} from "./assets/traceAtom"
+import LinkedSpansTabItem from "./components/LinkedSpansTabItem"
 
 const store = getDefaultStore()
 
@@ -95,14 +95,9 @@ const TraceContent = ({
                 ),
             },
             {
-                key: "configuration",
-                label: "Configuration",
-                children: <ConfigurationTabItem activeTrace={activeTrace} />,
-            },
-            {
                 key: "linked-span",
                 label: "Linked Span",
-                children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
+                children: <LinkedSpansTabItem />,
             },
             {
                 key: "annotations",

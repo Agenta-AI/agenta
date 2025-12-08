@@ -1,8 +1,23 @@
 import {atom} from "jotai"
 import {atomWithImmer} from "jotai-immer"
 import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithStorage} from "jotai/utils"
 
+import {getNodeById, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
+import {attachAnnotationsToTraces} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
+import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
+import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {getOrgValues} from "@/oss/state/org"
+import {queryAllAnnotations} from "@/oss/services/annotations/api"
 import {fetchPreviewTrace} from "@/oss/services/tracing/api"
+import {
+    transformTracesResponseToTree,
+    transformTracingResponse,
+} from "@/oss/services/tracing/lib/helpers"
+import {SpanLink, TracesResponse} from "@/oss/services/tracing/types"
+import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
+
+export type TraceDrawerSpanLink = SpanLink & {key?: string}
 
 export interface TraceDrawerState {
     open: boolean
@@ -17,6 +32,7 @@ export const initialTraceDrawerState: TraceDrawerState = {
 }
 
 export const traceDrawerAtom = atomWithImmer<TraceDrawerState>(initialTraceDrawerState)
+export const traceDrawerSpanLinksAtom = atom<TraceDrawerSpanLink[]>([])
 
 export const isDrawerOpenAtom = atom((get) => get(traceDrawerAtom).open)
 export const traceDrawerTraceIdAtom = atom((get) => get(traceDrawerAtom).traceId)
@@ -24,6 +40,7 @@ export const traceDrawerActiveSpanIdAtom = atom((get) => get(traceDrawerAtom).ac
 
 export const resetTraceDrawerAtom = atom(null, (_get, set) => {
     set(traceDrawerAtom, initialTraceDrawerState)
+    set(traceDrawerSpanLinksAtom, [])
 })
 
 export const closeTraceDrawerAtom = atom(null, (_get, set) => {
@@ -61,6 +78,13 @@ export const setTraceDrawerTraceAtom = atom(
     },
 )
 
+export const setTraceDrawerSpanLinksAtom = atom(
+    null,
+    (_get, set, links: TraceDrawerSpanLink[] | null | undefined) => {
+        set(traceDrawerSpanLinksAtom, links ?? [])
+    },
+)
+
 export const traceDrawerQueryAtom = atomWithQuery((get) => {
     const traceId = get(traceDrawerTraceIdAtom)
 
@@ -74,3 +98,219 @@ export const traceDrawerQueryAtom = atomWithQuery((get) => {
         },
     }
 })
+
+const normalizeTracesResponse = (raw: any): TracesResponse | null => {
+    if (!raw) return null
+    if ((raw as TracesResponse).traces) return raw as TracesResponse
+    if ((raw as any).trace) {
+        return {traces: {current: (raw as any).trace}} as unknown as TracesResponse
+    }
+    if ((raw as any).response?.trace) {
+        return {traces: {current: (raw as any).response.trace}} as unknown as TracesResponse
+    }
+    return null
+}
+
+const flattenTraces = (nodes: TracesWithAnnotations[]): TracesWithAnnotations[] => {
+    const stack = [...nodes]
+    const result: TracesWithAnnotations[] = []
+
+    while (stack.length) {
+        const node = stack.shift()
+        if (!node) continue
+        result.push(node)
+        if (Array.isArray(node.children)) {
+            stack.unshift(...(node.children as unknown as TracesWithAnnotations[]))
+        }
+    }
+
+    return result
+}
+
+export const traceDrawerBaseTracesAtom = atom<TracesWithAnnotations[]>((get) => {
+    const {data: traceResponse} = get(traceDrawerQueryAtom)
+    const tree = traceResponse?.response?.tree as AgentaTreeDTO | undefined
+
+    if (tree) {
+        return observabilityTransformer(tree) as TracesWithAnnotations[]
+    }
+
+    const fallback = normalizeTracesResponse(traceResponse)
+    if (!fallback) return []
+
+    return transformTracingResponse(
+        transformTracesResponseToTree(fallback),
+    ) as unknown as TracesWithAnnotations[]
+})
+
+export const traceDrawerFlatBaseTracesAtom = atom<TracesWithAnnotations[]>((get) =>
+    flattenTraces(get(traceDrawerBaseTracesAtom)),
+)
+
+export const traceDrawerAnnotationLinksAtom = atom<{trace_id: string; span_id: string}[]>((get) =>
+    get(traceDrawerFlatBaseTracesAtom).map((node) => ({
+        trace_id: node?.invocationIds?.trace_id || (node as any)?.trace_id,
+        span_id: node?.invocationIds?.span_id || (node as any)?.span_id,
+    })),
+)
+
+export const traceDrawerAnnotationsQueryAtom = atomWithQuery((get) => {
+    const links = get(traceDrawerAnnotationLinksAtom)
+    const {selectedOrg} = getOrgValues()
+    const members = selectedOrg?.default_workspace?.members || []
+
+    return {
+        queryKey: ["trace-drawer-annotations", links],
+        enabled: Array.isArray(links) && links.length > 0,
+        refetchOnWindowFocus: false,
+        queryFn: async () => {
+            if (!Array.isArray(links) || !links.length) return [] as AnnotationDto[]
+            const res = await queryAllAnnotations({annotation: {links}})
+            return (
+                res.annotations?.map((a) => transformApiData<AnnotationDto>({data: a, members})) ||
+                []
+            )
+        },
+    }
+})
+
+export const traceDrawerAnnotationsAtom = atom((get) => {
+    const query = get(traceDrawerAnnotationsQueryAtom)
+    return (query.data as AnnotationDto[]) ?? []
+})
+
+export const senitizedTracesAtom = atom<TracesWithAnnotations[]>((get) => {
+    const base = get(traceDrawerBaseTracesAtom)
+    const annotations = get(traceDrawerAnnotationsAtom)
+    if (!base.length) return [] as TracesWithAnnotations[]
+    if (annotations === undefined) return base
+    return attachAnnotationsToTraces(base, annotations) as TracesWithAnnotations[]
+})
+
+export const traceDrawerFlatAnnotatedTracesAtom = atom<TracesWithAnnotations[]>((get) =>
+    flattenTraces(get(senitizedTracesAtom)),
+)
+
+export const traceDrawerResolvedActiveSpanIdAtom = atom<string | null>((get) => {
+    const flatTraces = get(traceDrawerFlatAnnotatedTracesAtom)
+    const requestedActive = get(traceDrawerActiveSpanIdAtom)
+    if (!flatTraces.length) return null
+    if (requestedActive && flatTraces.some((t) => t.span_id === requestedActive)) {
+        return requestedActive
+    }
+    return flatTraces[0]?.span_id || null
+})
+
+export const traceDrawerGetTraceByIdAtom = atom((get) => {
+    const traces = get(senitizedTracesAtom)
+    return (id?: string) => {
+        if (!id) return undefined
+        const found = getNodeById(traces as any, id)
+        return (found as TracesWithAnnotations) || undefined
+    }
+})
+
+// ------------------------------------------------------------------
+
+const getLinks = (trace: TracesWithAnnotations) => {
+    const allLinks = {}
+
+    const traverseObject = (obj, path = "") => {
+        if (!obj || typeof obj !== "object") return
+
+        for (const key in obj) {
+            if (key === "links" && typeof obj[key] === "object") {
+                // Found a links object, merge its contents into allLinks
+                Object.assign(allLinks, obj[key])
+            } else if (typeof obj[key] === "object" && obj[key] !== null) {
+                // Continue traversing nested objects
+                traverseObject(obj[key], path ? `${path}.${key}` : key)
+            }
+        }
+    }
+
+    traverseObject(trace)
+
+    if (!allLinks) return []
+    const formattedLinks = new Set([])
+    Object.entries(allLinks || {})?.forEach(([key, value]) => {
+        formattedLinks.add({
+            ...value,
+            key,
+            type: "link",
+        })
+    })
+
+    return Array.from(formattedLinks)
+}
+
+const getReferences = (trace: TracesWithAnnotations) => {
+    const allReferences = {}
+
+    const traverseObject = (obj, path = "") => {
+        if (!obj || typeof obj !== "object") return
+
+        for (const key in obj) {
+            if (key === "references") {
+                const references = obj[key]
+
+                if (Array.isArray(references)) {
+                    // Handle array references
+                    references.forEach((ref) => {
+                        if (ref.attributes && ref.attributes.key) {
+                            const refKey = ref.attributes.key
+                            const {attributes, ...refData} = ref
+                            allReferences[refKey] = refData
+                        }
+                    })
+                } else if (typeof references === "object" && references !== null) {
+                    // Handle object references
+                    Object.assign(allReferences, references)
+                }
+            } else if (typeof obj[key] === "object" && obj[key] !== null) {
+                // Continue traversing nested objects
+                traverseObject(obj[key], path ? `${path}.${key}` : key)
+            }
+        }
+    }
+
+    traverseObject(trace)
+    if (!allReferences) return []
+    const formattedReferences = new Set([])
+    Object.entries(allReferences || {})?.forEach(([key, value]) => {
+        formattedReferences.add({
+            ...value,
+            key,
+            type: "reference",
+        })
+    })
+
+    return Array.from(formattedReferences)
+}
+
+export const linksAndReferencesAtom = atom<{
+    links: Record<string, any>[]
+    references: Record<string, any>[]
+}>((get) => {
+    const activeSpanId = get(traceDrawerActiveSpanIdAtom)
+    if (!activeSpanId) return {}
+
+    const traces = get(traceDrawerFlatAnnotatedTracesAtom)
+    const activeTrace = getNodeById(traces as any, activeSpanId)
+    // extract links
+    const links = getLinks(activeTrace || undefined)
+
+    // extract references
+    const references = getReferences(activeTrace || undefined)
+
+    return {
+        links,
+        references,
+    }
+})
+
+// Persisted toggle for the trace side panel (annotations/details) visibility
+export const traceSidePanelOpenAtom = atomWithStorage<boolean>(
+    "observability-trace-side-panel-open",
+    true,
+)
