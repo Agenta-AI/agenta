@@ -24,6 +24,7 @@ import {INITIAL_CONTENT_COMMAND, InitialContentPayload} from "../../commands/Ini
 
 export const store = createStore()
 
+import {$createBase64Node, isBase64String, parseBase64String} from "./nodes/Base64Node"
 import {$createCodeBlockNode, $isCodeBlockNode} from "./nodes/CodeBlockNode"
 import {$createCodeHighlightNode} from "./nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode, $isCodeLineNode} from "./nodes/CodeLineNode"
@@ -123,18 +124,29 @@ export function createHighlightedNodes(text: string, language: "json" | "yaml"):
                 }
                 const tokens = tokenizeCodeLine(content, language)
                 tokens.forEach((token) => {
-                    const {shouldHaveError, expectedMessage} = getTokenValidation(
-                        token.content.trim(),
-                        token.type,
-                        language,
-                    )
-                    const highlightNode = $createCodeHighlightNode(
-                        token.content,
-                        token.type,
-                        shouldHaveError,
-                        expectedMessage,
-                    )
-                    codeLine.append(highlightNode)
+                    // Check if this is a base64 string token
+                    if (token.type === "string" && isBase64String(token.content)) {
+                        const parsed = parseBase64String(token.content)
+                        const base64Node = $createBase64Node(
+                            parsed.fullValue,
+                            parsed.mimeType,
+                            token.type,
+                        )
+                        codeLine.append(base64Node)
+                    } else {
+                        const {shouldHaveError, expectedMessage} = getTokenValidation(
+                            token.content.trim(),
+                            token.type,
+                            language,
+                        )
+                        const highlightNode = $createCodeHighlightNode(
+                            token.content,
+                            token.type,
+                            shouldHaveError,
+                            expectedMessage,
+                        )
+                        codeLine.append(highlightNode)
+                    }
                 })
                 codeLineNodes.push(codeLine)
             })
@@ -156,18 +168,25 @@ export function createHighlightedNodes(text: string, language: "json" | "yaml"):
         }
         const tokens = tokenizeCodeLine(content, language)
         tokens.forEach((token) => {
-            const {shouldHaveError, expectedMessage} = getTokenValidation(
-                token.content.trim(),
-                token.type,
-                language,
-            )
-            const highlightNode = $createCodeHighlightNode(
-                token.content,
-                token.type,
-                shouldHaveError,
-                expectedMessage,
-            )
-            codeLine.append(highlightNode)
+            // Check if this is a base64 string token
+            if (token.type === "string" && isBase64String(token.content)) {
+                const parsed = parseBase64String(token.content)
+                const base64Node = $createBase64Node(parsed.fullValue, parsed.mimeType, token.type)
+                codeLine.append(base64Node)
+            } else {
+                const {shouldHaveError, expectedMessage} = getTokenValidation(
+                    token.content.trim(),
+                    token.type,
+                    language,
+                )
+                const highlightNode = $createCodeHighlightNode(
+                    token.content,
+                    token.type,
+                    shouldHaveError,
+                    expectedMessage,
+                )
+                codeLine.append(highlightNode)
+            }
         })
         codeLineNodes.push(codeLine)
     })
