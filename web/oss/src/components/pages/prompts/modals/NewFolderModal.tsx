@@ -1,22 +1,26 @@
 import {Input, Modal} from "antd"
 import React, {Dispatch, SetStateAction} from "react"
 
+export interface FolderModalState {
+    name: string
+    description: string
+    modalOpen: boolean
+    mode: "create" | "rename"
+    folderId: string | null
+}
+
 interface NewFolderModalProps {
     open: boolean
     folderName: string
     folderSlug: string
     folderPath: string
     description: string
-    setNewFolderState: Dispatch<
-        SetStateAction<{
-            name: string
-            description: string
-            modalOpen: boolean
-        }>
-    >
+    setNewFolderState: Dispatch<SetStateAction<FolderModalState>>
     onCreate: () => Promise<void> | void
     onCancel: () => void
     confirmLoading?: boolean
+    title?: string
+    okText?: string
 }
 
 const {TextArea} = Input
@@ -31,15 +35,17 @@ const NewFolderModal = ({
     onCreate,
     onCancel,
     confirmLoading,
+    title = "New folder",
+    okText = "Create",
 }: NewFolderModalProps) => {
     return (
         <Modal
-            title="New folder"
+            title={title}
             open={open}
             onCancel={onCancel}
             onOk={onCreate}
-            okText="Create"
-            okButtonProps={{loading: confirmLoading, disabled: !folderName}}
+            okText={okText}
+            okButtonProps={{loading: confirmLoading, disabled: !folderName.trim()}}
             destroyOnClose
         >
             <div className="flex flex-col gap-3">

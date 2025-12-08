@@ -25,29 +25,33 @@ import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {DataNode} from "antd/es/tree"
 import MoveFolderModal from "./modals/MoveFolderModal"
 import DeleteFolderModal from "./modals/DeleteFolderModal"
-import NewFolderModal from "./modals/NewFolderModal"
+import NewFolderModal, {FolderModalState} from "./modals/NewFolderModal"
 import {FolderKind} from "@/oss/services/folders/types"
 
 const {Title} = Typography
+
+const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
+    name: "",
+    description: "",
+    modalOpen: false,
+    mode: "create",
+    folderId: null,
+}
 
 const PromptsPage = () => {
     const {project, projectId} = useProjectData()
     const [searchTerm, setSearchTerm] = useState("")
     const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
-    const [renameModalOpen, setRenameModalOpen] = useState(false)
     const [moveModalOpen, setMoveModalOpen] = useState(false)
     const [newPromptModalOpen, setNewPromptModalOpen] = useState(false)
     const [setupWorkflowModalOpen, setSetupWorkflowModalOpen] = useState(false)
     const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-    const [renameValue, setRenameValue] = useState("")
     const [moveSelection, setMoveSelection] = useState<string | null>(null)
     const [moveFolderId, setMoveFolderId] = useState<string | null>(null)
-    const [newFolderState, setNewFolderState] = useState({
-        name: "",
-        description: "",
-        modalOpen: false,
+    const [newFolderState, setNewFolderState] = useState<FolderModalState>({
+        ...INITIAL_FOLDER_MODAL_STATE,
     })
-    const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+    const [isSavingFolder, setIsSavingFolder] = useState(false)
     const [isMovingFolder, setIsMovingFolder] = useState(false)
 
     useBreadcrumbsEffect({breadcrumbs: {prompts: {label: "prompts"}}}, [])
@@ -105,13 +109,45 @@ const PromptsPage = () => {
         setCurrentFolderId(folderId)
     }
 
+    const resetFolderModalState = () => {
+        setNewFolderState({...INITIAL_FOLDER_MODAL_STATE})
+    }
+
     const openNewFolderModal = () => {
         setNewFolderState({
-            name: "",
-            description: "",
+            ...INITIAL_FOLDER_MODAL_STATE,
             modalOpen: true,
+            mode: "create",
         })
     }
+
+    const handleOpenRenameModal = (folderId: string | null) => {
+        if (!folderId) return
+
+        const folder = foldersById[folderId]
+        if (!folder) return
+
+        setNewFolderState({
+            name: folder.name ?? "",
+            description: folder.description ?? "",
+            modalOpen: true,
+            mode: "rename",
+            folderId,
+        })
+    }
+
+    const parentFolderIdForModal = useMemo(() => {
+        if (newFolderState.mode === "rename" && newFolderState.folderId) {
+            const folder = foldersById[newFolderState.folderId]
+            if (folder) {
+                return ((folder as any).parent_id as string | null) ?? null
+            }
+        }
+
+        return currentFolderId
+    }, [currentFolderId, foldersById, newFolderState.folderId, newFolderState.mode])
+
+    const isRenameMode = newFolderState.mode === "rename"
 
     const newFolderSlug = useMemo(() => {
         const name = newFolderState.name.trim()
@@ -122,7 +158,7 @@ const PromptsPage = () => {
         const segments: string[] = []
 
         // build path from current folder upwards
-        let currentId = currentFolderId
+        let currentId = parentFolderIdForModal
         while (currentId) {
             const folder = foldersById[currentId]
             if (!folder) break
@@ -134,10 +170,13 @@ const PromptsPage = () => {
 
         segments.reverse()
         const leafName = newFolderState.name.trim()
-        segments.push(slugify(leafName || ""))
+        const leafSlug = slugify(leafName || "")
+        if (leafSlug) {
+            segments.push(leafSlug)
+        }
 
         return `${segments.join("/")}`
-    }, [currentFolderId, foldersById, newFolderState.name])
+    }, [foldersById, newFolderState.name, parentFolderIdForModal])
 
     const handleCreateFolder = async () => {
         const name = newFolderState.name.trim()
@@ -146,29 +185,42 @@ const PromptsPage = () => {
         const slug = slugify(name)
         const description = newFolderState.description.trim() || undefined
 
-        setIsCreatingFolder(true)
+        if (isRenameMode && !newFolderState.folderId) {
+            message.error("Select a folder to rename")
+            return
+        }
+
+        setIsSavingFolder(true)
         try {
-            await createFolder({
-                folder: {
-                    name,
-                    slug,
-                    description,
-                    kind: FolderKind.Applications,
-                    parent_id: currentFolderId ?? null,
-                },
-            })
+            if (isRenameMode && newFolderState.folderId) {
+                await editFolder(newFolderState.folderId, {
+                    folder: {
+                        id: newFolderState.folderId,
+                        name,
+                        slug,
+                        description,
+                    },
+                })
+                message.success("Folder renamed")
+            } else {
+                await createFolder({
+                    folder: {
+                        name,
+                        slug,
+                        description,
+                        kind: FolderKind.Applications,
+                        parent_id: currentFolderId ?? null,
+                    },
+                })
+                message.success("Folder created")
+            }
 
             await mutate()
-            setNewFolderState({
-                name: "",
-                description: "",
-                modalOpen: false,
-            })
-            message.success("Folder created")
+            resetFolderModalState()
         } catch (error) {
-            message.error("Failed to create folder")
+            message.error(isRenameMode ? "Failed to rename folder" : "Failed to create folder")
         } finally {
-            setIsCreatingFolder(false)
+            setIsSavingFolder(false)
         }
     }
 
@@ -257,6 +309,7 @@ const PromptsPage = () => {
                                     icon: <PencilSimpleIcon size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
+                                        handleOpenRenameModal(record.id as string)
                                     },
                                 },
                                 {
@@ -308,6 +361,7 @@ const PromptsPage = () => {
                 onFolderChange={handleBreadcrumbFolderChange}
                 onNewFolder={openNewFolderModal}
                 onMoveFolder={handleOpenMoveModal}
+                onRenameFolder={handleOpenRenameModal}
             />
 
             <div className="flex flex-col gap-2">
@@ -428,14 +482,10 @@ const PromptsPage = () => {
                 description={newFolderState.description}
                 setNewFolderState={setNewFolderState}
                 onCreate={handleCreateFolder}
-                onCancel={() => {
-                    setNewFolderState({
-                        name: "",
-                        description: "",
-                        modalOpen: false,
-                    })
-                }}
-                confirmLoading={isCreatingFolder}
+                onCancel={resetFolderModalState}
+                confirmLoading={isSavingFolder}
+                title={isRenameMode ? "Rename folder" : "New folder"}
+                okText={isRenameMode ? "Save" : "Create"}
             />
         </div>
     )
