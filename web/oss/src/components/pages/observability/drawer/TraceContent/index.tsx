@@ -2,7 +2,7 @@ import {useEffect, useMemo, useState} from "react"
 
 import {Tabs, TabsProps, Skeleton, Splitter} from "antd"
 import clsx from "clsx"
-import {getDefaultStore, useSetAtom} from "jotai"
+import {getDefaultStore, useAtom, useSetAtom} from "jotai"
 
 import {
     isDrawerOpenAtom,
@@ -13,10 +13,12 @@ import AccordionTreePanel from "../../components/AccordionTreePanel"
 
 import {useStyles} from "./assets/styles"
 import AnnotationTabItem from "./components/AnnotationTabItem"
+import ConfigurationTabItem from "./components/ConfigurationTabItem"
 import OverviewTabItem from "./components/OverviewTabItem"
 import {TraceContentProps} from "./assets/types"
 import TraceTypeHeader from "./components/TraceTypeHeader"
 import TraceSidePanel from "../TraceSidePanel"
+import {traceSidePanelOpenAtom} from "./assets/traceAtom"
 
 const store = getDefaultStore()
 
@@ -33,11 +35,10 @@ const TraceContent = ({
     traces,
     isLoading,
     setSelectedTraceId,
-    setIsAnnotationsSectionOpen,
-    isAnnotationsSectionOpen,
     activeId,
 }: TraceContentProps) => {
     const resetDrawer = useSetAtom(resetTraceDrawerAtom)
+    const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(traceSidePanelOpenAtom)
     const activeTrace = active
     const {key, children, spans, invocationIds, ...filteredTrace} = activeTrace || {}
     const classes = useStyles()
@@ -94,6 +95,16 @@ const TraceContent = ({
                 ),
             },
             {
+                key: "configuration",
+                label: "Configuration",
+                children: <ConfigurationTabItem activeTrace={activeTrace} />,
+            },
+            {
+                key: "linked-span",
+                label: "Linked Span",
+                children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
+            },
+            {
                 key: "annotations",
                 label: "Annotations",
                 children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
@@ -145,13 +156,15 @@ const TraceContent = ({
                             />
                         </div>
                     </Splitter.Panel>
-                    <Splitter.Panel min={280} defaultSize={280} collapsible>
-                        <TraceSidePanel
-                            activeTrace={activeTrace as any}
-                            activeTraceId={activeId}
-                            isLoading={isLoading}
-                        />
-                    </Splitter.Panel>
+                    {isAnnotationsSectionOpen && (
+                        <Splitter.Panel min={280} defaultSize={280} collapsible>
+                            <TraceSidePanel
+                                activeTrace={activeTrace as any}
+                                activeTraceId={activeId}
+                                isLoading={isLoading}
+                            />
+                        </Splitter.Panel>
+                    )}
                 </Splitter>
             </div>
         </div>

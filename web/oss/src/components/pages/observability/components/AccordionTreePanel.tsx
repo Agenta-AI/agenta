@@ -224,13 +224,14 @@ const AccordionTreePanel = ({
                         </div>
                     ),
                     extra: (
-                        <Space size={12} onClick={(e) => e.stopPropagation()}>
+                        <Space size={8} onClick={(e) => e.stopPropagation()}>
                             {enableFormatSwitcher && !isStringValue && (
                                 <Radio.Group
                                     value={segmentedValue}
                                     onChange={(e) =>
                                         setSegmentedValue(e.target.value as "json" | "yaml")
                                     }
+                                    size="small"
                                 >
                                     <Radio.Button value="json">JSON</Radio.Button>
                                     <Radio.Button value="yaml">YAML</Radio.Button>
@@ -246,6 +247,7 @@ const AccordionTreePanel = ({
                                 icon={true}
                                 buttonText={null}
                                 stopPropagation
+                                size="small"
                             />
                         </Space>
                     ),

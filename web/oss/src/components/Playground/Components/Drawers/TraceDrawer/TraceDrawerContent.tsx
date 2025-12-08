@@ -6,7 +6,6 @@ import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import useTraceDrawer from "@/oss/components/pages/observability/drawer/hooks/useTraceDrawer"
-import TraceSidePanel from "@/oss/components/pages/observability/drawer/TraceSidePanel"
 import {useQueryParamState} from "@/oss/state/appState"
 import {useObservability} from "@/oss/state/newObservability"
 
@@ -28,8 +27,6 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
     const [selected, setSelected] = useState("")
     const {traces, activeSpanId, getTraceById, traceResponse, error, isLoading, traceId} =
         useTraceDrawer()
-
-    const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useState(true)
     const {
         traceTabs,
         filters,
@@ -130,8 +127,6 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
                                 error={error as any}
                                 isLoading={isLoading}
                                 setSelectedTraceId={setGlobalSelectedTraceId}
-                                setIsAnnotationsSectionOpen={setIsAnnotationsSectionOpen}
-                                isAnnotationsSectionOpen={isAnnotationsSectionOpen}
                                 traces={traces as any}
                                 activeId={activeId}
                             />
