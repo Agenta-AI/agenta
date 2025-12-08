@@ -51,6 +51,7 @@ const PromptsPage = () => {
     const [newFolderState, setNewFolderState] = useState<FolderModalState>({
         ...INITIAL_FOLDER_MODAL_STATE,
     })
+    const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null)
     const [isSavingFolder, setIsSavingFolder] = useState(false)
     const [isMovingFolder, setIsMovingFolder] = useState(false)
 
@@ -238,24 +239,33 @@ const PromptsPage = () => {
         setMoveSelection(null)
     }
 
-    const handleMoveFolder = async () => {
-        if (!moveFolderId || !moveSelection || moveSelection === moveFolderId) {
+    const moveFolder = async (
+        folderId: string | null,
+        destinationId: string | null,
+        onSuccess?: () => void,
+    ) => {
+        if (!folderId || !destinationId) {
             message.warning("Select a destination folder")
-            return
+            return false
         }
 
-        const folderToMove = foldersById[moveFolderId]
+        if (folderId === destinationId) {
+            message.warning("Cannot move a folder into itself")
+            return false
+        }
+
+        const folderToMove = foldersById[folderId]
         if (!folderToMove) {
             message.error("Folder not found")
-            return
+            return false
         }
 
         // Optional safety: prevent moving folder into one of its own descendants
-        let currentId: string | null = moveSelection
+        let currentId: string | null = destinationId
         while (currentId) {
-            if (currentId === moveFolderId) {
+            if (currentId === folderId) {
                 message.warning("Cannot move a folder into itself")
-                return
+                return false
             }
             const currentFolder = foldersById[currentId] as Folder
             if (!currentFolder) break
@@ -269,27 +279,46 @@ const PromptsPage = () => {
 
         setIsMovingFolder(true)
         try {
-            await editFolder(moveFolderId, {
+            await editFolder(folderId, {
                 folder: {
-                    id: moveFolderId,
+                    id: folderId,
                     name,
                     slug,
                     description,
                     kind,
-                    parent_id: moveSelection, // <- new parent
+                    parent_id: destinationId, // <- new parent
                 },
             })
 
             await mutate()
-            setMoveModalOpen(false)
-            setMoveFolderId(null)
-            setMoveSelection(null)
+            onSuccess?.()
             message.success("Folder moved")
+            return true
         } catch (error) {
             message.error("Failed to move folder")
+            return false
         } finally {
             setIsMovingFolder(false)
         }
+    }
+
+    const handleMoveFolder = async () => {
+        const moveSuccess = await moveFolder(moveFolderId, moveSelection, () => {
+            setMoveModalOpen(false)
+            setMoveFolderId(null)
+            setMoveSelection(null)
+        })
+
+        if (!moveSuccess) return
+    }
+
+    const handleDropOnFolder = async (destinationId: string | null) => {
+        if (!draggingFolderId) return
+
+        await moveFolder(draggingFolderId, destinationId, () => {
+            setMoveFolderId(null)
+            setMoveSelection(null)
+        })
     }
 
     const columns: ColumnsType<FolderTreeNode> = [
@@ -478,6 +507,20 @@ const PromptsPage = () => {
                     onRow={(record) => ({
                         onClick: () => handleRowClick(record as any),
                         className: "cursor-pointer",
+                        draggable: true,
+                        onDragStart: (event) => {
+                            event.stopPropagation()
+                            setDraggingFolderId(record.id as string)
+                        },
+                        onDragEnd: () => setDraggingFolderId(null),
+                        onDragOver: (event) => {
+                            event.preventDefault()
+                        },
+                        onDrop: async (event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            await handleDropOnFolder(record.id as string)
+                        },
                     })}
                 />
             </div>
