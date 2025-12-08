@@ -16,6 +16,7 @@ import {
     useTableManager,
     useTableActions,
     createStandardColumns,
+    TableDescription,
 } from "@/oss/components/InfiniteVirtualTable"
 import {
     fetchTestsetVariants,
@@ -360,9 +361,7 @@ const Testset = () => {
                 <Typography.Title level={3} style={{margin: 0}}>
                     Testsets
                 </Typography.Title>
-                <Typography.Paragraph type="secondary" style={{marginBottom: 0}}>
-                    Manage your testsets for evaluations.
-                </Typography.Paragraph>
+                <TableDescription>Manage your testsets for evaluations.</TableDescription>
             </div>
         ),
         [],
@@ -413,7 +412,7 @@ const Testset = () => {
                 autoHeight
             />
 
-            {/* {selectedTestsetToDelete.length > 0 && (
+            {selectedTestsetToDelete.length > 0 && (
                 <DeleteTestsetModal
                     selectedTestsetToDelete={selectedTestsetToDelete}
                     mutate={mutate}
@@ -437,7 +436,7 @@ const Testset = () => {
                 onCancel={() => {
                     setIsCreateTestsetModalOpen(false)
                 }}
-            /> */}
+            />
         </div>
     )
 }
