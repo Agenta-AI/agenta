@@ -29,7 +29,7 @@ const MoveFolderModal = ({
 }: MoveFolderModalProps) => {
     return (
         <Modal
-            title={`Move ${folderName || "folder"}`}
+            title="Move to folder"
             open={open}
             onOk={onMove}
             onCancel={onCancel}
@@ -38,7 +38,12 @@ const MoveFolderModal = ({
             destroyOnClose
         >
             <div className="flex flex-col gap-2">
-                <div className="text-gray-500">Select the destination folder.</div>
+                <div className="text-gray-500">
+                    Moving <span className="font-medium">{folderName || "folder"}</span>
+                </div>
+
+                <div className="text-gray-500">Select folder</div>
+
                 <Tree
                     selectable
                     treeData={treeData}

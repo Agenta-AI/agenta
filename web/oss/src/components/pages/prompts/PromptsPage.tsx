@@ -26,7 +26,7 @@ import {DataNode} from "antd/es/tree"
 import MoveFolderModal from "./modals/MoveFolderModal"
 import DeleteFolderModal from "./modals/DeleteFolderModal"
 import NewFolderModal, {FolderModalState} from "./modals/NewFolderModal"
-import {FolderKind} from "@/oss/services/folders/types"
+import {Folder, FolderKind} from "@/oss/services/folders/types"
 
 const {Title} = Typography
 
@@ -244,12 +244,39 @@ const PromptsPage = () => {
             return
         }
 
+        const folderToMove = foldersById[moveFolderId]
+        if (!folderToMove) {
+            message.error("Folder not found")
+            return
+        }
+
+        // Optional safety: prevent moving folder into one of its own descendants
+        let currentId: string | null = moveSelection
+        while (currentId) {
+            if (currentId === moveFolderId) {
+                message.warning("Cannot move a folder into itself")
+                return
+            }
+            const currentFolder = foldersById[currentId] as Folder
+            if (!currentFolder) break
+            currentId = currentFolder.parent_id ?? null
+        }
+
+        const name = folderToMove.name ?? ""
+        const slug = folderToMove.slug ?? slugify(name)
+        const description = folderToMove.description
+        const kind = (folderToMove as any).kind ?? FolderKind.Applications
+
         setIsMovingFolder(true)
         try {
             await editFolder(moveFolderId, {
                 folder: {
                     id: moveFolderId,
-                    parent_id: moveSelection,
+                    name,
+                    slug,
+                    description,
+                    kind,
+                    parent_id: moveSelection, // <- new parent
                 },
             })
 
@@ -377,7 +404,7 @@ const PromptsPage = () => {
                     </Space>
 
                     <Space>
-                        <Button icon={<TrashIcon />} danger>
+                        <Button icon={<TrashIcon />} danger disabled>
                             Delete
                         </Button>
 
