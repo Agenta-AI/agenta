@@ -236,6 +236,7 @@ class TestsetOutput(BaseModel):
     csvdata: List[Dict[str, Any]]
     created_at: str
     updated_at: str
+    columns: List[str] = Field(default_factory=list)
 
 
 class PostVariantConfigPayload(BaseModel):

@@ -214,6 +214,9 @@ importers:
       jotai-immer:
         specifier: ^0.4.1
         version: 0.4.1(immer@10.1.3)(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0))
+      jotai-scheduler:
+        specifier: ^0.0.5
+        version: 0.0.5(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
       jotai-tanstack-query:
         specifier: ^0.11.0
         version: 0.11.0(@tanstack/query-core@5.87.1)(@tanstack/react-query@5.87.1(react@19.0.0))(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
@@ -524,6 +527,9 @@ importers:
       jotai-immer:
         specifier: ^0.4.1
         version: 0.4.1(immer@10.1.3)(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0))
+      jotai-scheduler:
+        specifier: ^0.0.5
+        version: 0.0.5(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
       jotai-tanstack-query:
         specifier: ^0.11.0
         version: 0.11.0(@tanstack/query-core@5.87.1)(@tanstack/react-query@5.87.1(react@19.0.0))(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
@@ -3942,6 +3948,12 @@ packages:
     peerDependencies:
       immer: '>=9.0.0'
       jotai: '>=2.0.0'
+
+  jotai-scheduler@0.0.5:
+    resolution: {integrity: sha512-1Qcav1nsnwynoiqS6rLithQ/DgVHc40XbGDBau27/IeiN0EyvpujlI9UbA8cfEuc2OS7kLMplGi9d4VQRFvDNg==}
+    peerDependencies:
+      jotai: '>=2.9.2'
+      react: '>=17.0.0'
 
   jotai-tanstack-query@0.11.0:
     resolution: {integrity: sha512-Ys0u0IuuS6/okUJOulFTdCVfVaeKbm1+lKVSN9zHhIxtrAXl9FM4yu7fNvxM6fSz/NCE9tZOKR0MQ3hvplaH8A==}
@@ -9590,6 +9602,11 @@ snapshots:
     dependencies:
       immer: 10.1.3
       jotai: 2.13.1(@types/react@19.0.10)(react@19.0.0)
+
+  jotai-scheduler@0.0.5(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0))(react@19.0.0):
+    dependencies:
+      jotai: 2.13.1(@types/react@19.0.10)(react@19.0.0)
+      react: 19.0.0
 
   jotai-tanstack-query@0.11.0(@tanstack/query-core@5.87.1)(@tanstack/react-query@5.87.1(react@19.0.0))(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0))(react@19.0.0):
     dependencies:
