@@ -63,16 +63,24 @@ export async function fetchTestset<T extends boolean = false>(
         return null as any
     }
     const {projectId} = getProjectValues()
-    const url = preview
-        ? `${getAgentaApiUrl()}/preview/simple/testsets/${testsetId}?project_id=${projectId}`
-        : `${getAgentaApiUrl()}/testsets/${testsetId}?project_id=${projectId}`
-    const response = await axios.get(url)
 
-    if (!preview) {
-        return response?.data as T extends true ? PreviewTestset : Testset
-    } else {
-        return response?.data?.testset as T extends true ? PreviewTestset : Testset
+    if (preview) {
+        // Use the query endpoint for preview
+        const response = await axios.post(
+            `${getAgentaApiUrl()}/preview/testsets/query?project_id=${projectId}`,
+            {
+                testset_ids: [testsetId],
+                windowing: {limit: 1},
+            },
+        )
+        const testsets = response?.data?.testsets ?? []
+        return testsets[0] as T extends true ? PreviewTestset : Testset
     }
+
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/testsets/${testsetId}?project_id=${projectId}`,
+    )
+    return response?.data as T extends true ? PreviewTestset : Testset
 }
 
 export const uploadTestsets = async (formData: FormData) => {

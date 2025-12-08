@@ -7,6 +7,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
+from oss.src.apis.fastapi.shared.utils import compute_next_windowing
+
 from oss.src.core.testcases.service import (
     TestcasesService,
 )
@@ -129,9 +131,16 @@ class TestcasesRouter:
             windowing=testcases_query_request.windowing,
         )
 
+        next_windowing = compute_next_windowing(
+            entities=testcases,
+            attribute="id",  # UUID7 - use id for cursor-based pagination
+            windowing=testcases_query_request.windowing,
+        )
+
         testcase_response = TestcasesResponse(
             count=len(testcases),
             testcases=testcases if testcases else [],
+            windowing=next_windowing,
         )
 
         return testcase_response

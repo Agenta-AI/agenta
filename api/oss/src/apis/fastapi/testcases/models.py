@@ -30,3 +30,4 @@ class TestcaseResponse(BaseModel):
 class TestcasesResponse(BaseModel):
     count: int = 0
     testcases: List[Testcase] = []
+    windowing: Optional[Windowing] = None

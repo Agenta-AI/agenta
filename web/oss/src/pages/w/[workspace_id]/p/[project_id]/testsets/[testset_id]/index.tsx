@@ -1,7 +1,7 @@
-import TestsetTable from "@/oss/components/TestsetTable/TestsetTable"
+import {TestcasesTable} from "@/oss/components/TestcasesTable"
 
-const testsetDisplay = () => {
-    return <TestsetTable mode="edit" />
+const TestsetDisplay = () => {
+    return <TestcasesTable mode="edit" />
 }
 
-export default testsetDisplay
+export default TestsetDisplay
