@@ -19,13 +19,14 @@ import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useProjectData} from "@/oss/state/project"
 import {createFolder, editFolder, queryFolders} from "@/oss/services/folders"
 import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
-import {buildFolderTree, FolderTreeNode} from "./assets/utils"
+import {buildFolderTree, FolderTreeNode, slugify} from "./assets/utils"
 import {MoreOutlined} from "@ant-design/icons"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {DataNode} from "antd/es/tree"
 import MoveFolderModal from "./modals/MoveFolderModal"
 import DeleteFolderModal from "./modals/DeleteFolderModal"
 import NewFolderModal from "./modals/NewFolderModal"
+import {FolderKind} from "@/oss/services/folders/types"
 
 const {Title} = Typography
 
@@ -36,13 +37,16 @@ const PromptsPage = () => {
     const [renameModalOpen, setRenameModalOpen] = useState(false)
     const [moveModalOpen, setMoveModalOpen] = useState(false)
     const [newPromptModalOpen, setNewPromptModalOpen] = useState(false)
-    const [newFolderModalOpen, setNewFolderModalOpen] = useState(false)
     const [setupWorkflowModalOpen, setSetupWorkflowModalOpen] = useState(false)
     const [deleteModalOpen, setDeleteModalOpen] = useState(false)
     const [renameValue, setRenameValue] = useState("")
     const [moveSelection, setMoveSelection] = useState<string | null>(null)
     const [moveFolderId, setMoveFolderId] = useState<string | null>(null)
-    const [newFolderName, setNewFolderName] = useState("")
+    const [newFolderState, setNewFolderState] = useState({
+        name: "",
+        description: "",
+        modalOpen: false,
+    })
     const [isCreatingFolder, setIsCreatingFolder] = useState(false)
     const [isMovingFolder, setIsMovingFolder] = useState(false)
 
@@ -102,24 +106,64 @@ const PromptsPage = () => {
     }
 
     const openNewFolderModal = () => {
-        setNewFolderName("Untitled folder")
-        setNewFolderModalOpen(true)
+        setNewFolderState({
+            name: "",
+            description: "",
+            modalOpen: true,
+        })
     }
 
+    const newFolderSlug = useMemo(() => {
+        const name = newFolderState.name.trim()
+        return slugify(name)
+    }, [newFolderState.name])
+
+    const newFolderPath = useMemo(() => {
+        const segments: string[] = []
+
+        // build path from current folder upwards
+        let currentId = currentFolderId
+        while (currentId) {
+            const folder = foldersById[currentId]
+            if (!folder) break
+            segments.push(slugify(folder.name || ""))
+            // assume backend provides parent_id on the folder
+            // adjust if your FolderTreeNode uses another field
+            currentId = (folder as any).parent_id ?? null
+        }
+
+        segments.reverse()
+        const leafName = newFolderState.name.trim()
+        segments.push(slugify(leafName || ""))
+
+        return `${segments.join("/")}`
+    }, [currentFolderId, foldersById, newFolderState.name])
+
     const handleCreateFolder = async () => {
-        const name = newFolderName.trim() || "Untitled folder"
+        const name = newFolderState.name.trim()
+        if (!name) return
+
+        const slug = slugify(name)
+        const description = newFolderState.description.trim() || undefined
 
         setIsCreatingFolder(true)
         try {
             await createFolder({
                 folder: {
                     name,
+                    slug,
+                    description,
+                    kind: FolderKind.Applications,
                     parent_id: currentFolderId ?? null,
                 },
             })
 
             await mutate()
-            setNewFolderModalOpen(false)
+            setNewFolderState({
+                name: "",
+                description: "",
+                modalOpen: false,
+            })
             message.success("Folder created")
         } catch (error) {
             message.error("Failed to create folder")
@@ -377,13 +421,19 @@ const PromptsPage = () => {
             />
 
             <NewFolderModal
-                open={newFolderModalOpen}
-                folderName={newFolderName}
-                setFolderName={setNewFolderName}
+                open={newFolderState.modalOpen}
+                folderName={newFolderState.name}
+                folderSlug={newFolderSlug}
+                folderPath={newFolderPath}
+                description={newFolderState.description}
+                setNewFolderState={setNewFolderState}
                 onCreate={handleCreateFolder}
                 onCancel={() => {
-                    setNewFolderModalOpen(false)
-                    setNewFolderName("")
+                    setNewFolderState({
+                        name: "",
+                        description: "",
+                        modalOpen: false,
+                    })
                 }}
                 confirmLoading={isCreatingFolder}
             />
