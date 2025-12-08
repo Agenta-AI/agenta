@@ -2,7 +2,9 @@ import {useMemo, useState} from "react"
 
 import {Button, Dropdown, Input, Space, Table, Typography, message} from "antd"
 import {ColumnsType} from "antd/es/table"
+import dynamic from "next/dynamic"
 import useSWR from "swr"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {
     FolderDashedIcon,
@@ -16,7 +18,13 @@ import {
 } from "@phosphor-icons/react"
 
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
+import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {useProjectData} from "@/oss/state/project"
+import {useTemplates, useAppsData} from "@/oss/state/app"
+import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
+import {useProfileData} from "@/oss/state/profile"
 import {createFolder, deleteFolder, editFolder, queryFolders} from "@/oss/services/folders"
 import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
 import {buildFolderTree, FolderTreeNode, slugify} from "./assets/utils"
@@ -28,6 +36,24 @@ import DeleteFolderModal from "./modals/DeleteFolderModal"
 import NewFolderModal, {FolderModalState} from "./modals/NewFolderModal"
 import {Folder, FolderKind} from "@/oss/services/folders/types"
 import SetupWorkflowIcon from "./components/SetupWorkflowIcon"
+import {Template} from "@/oss/lib/Types"
+import {
+    ServiceType,
+    createAndStartTemplate,
+    deleteApp,
+    waitForAppToStart,
+} from "@/oss/services/app-selector/api"
+import {getTemplateKey, timeout} from "@/oss/components/pages/app-management/assets/helpers"
+import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
+import {isDemo} from "@/oss/lib/helpers/utils"
+
+const CreateAppStatusModal: any = dynamic(
+    () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
+)
+
+const AddAppFromTemplatedModal: any = dynamic(
+    () => import("@/oss/components/pages/app-management/modals/AddAppFromTemplateModal"),
+)
 
 const {Title} = Typography
 
@@ -41,15 +67,26 @@ const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
 
 const PromptsPage = () => {
     const {project, projectId} = useProjectData()
+    const {secrets} = useVaultSecret()
+    const posthog = usePostHogAg()
+    const {user} = useProfileData()
+    const {apps, mutate: mutateApps} = useAppsData()
+    const [{data: templates = [], isLoading: fetchingTemplate}, noTemplateMessage] = useTemplates()
+    const statusData = useAtomValue(appCreationStatusAtom)
+    const setStatusData = useSetAtom(appCreationStatusAtom)
+    const resetAppCreation = useSetAtom(resetAppCreationAtom)
     const [searchTerm, setSearchTerm] = useState("")
     const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
     const [moveModalOpen, setMoveModalOpen] = useState(false)
-    const [newPromptModalOpen, setNewPromptModalOpen] = useState(false)
-    const [setupWorkflowModalOpen, setSetupWorkflowModalOpen] = useState(false)
+    const [statusModalOpen, setStatusModalOpen] = useState(false)
+    const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
     const [deleteModalOpen, setDeleteModalOpen] = useState(false)
     const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null)
     const [moveSelection, setMoveSelection] = useState<string | null>(null)
     const [moveFolderId, setMoveFolderId] = useState<string | null>(null)
+    const [templateKey, setTemplateKey] = useState<ServiceType | undefined>(undefined)
+    const [newApp, setNewApp] = useState("")
+    const [fetchingCustomWorkflow, setFetchingCustomWorkflow] = useState(false)
     const [newFolderState, setNewFolderState] = useState<FolderModalState>({
         ...INITIAL_FOLDER_MODAL_STATE,
     })
@@ -57,6 +94,14 @@ const PromptsPage = () => {
     const [isSavingFolder, setIsSavingFolder] = useState(false)
     const [isMovingFolder, setIsMovingFolder] = useState(false)
     const [isDeletingFolder, setIsDeletingFolder] = useState(false)
+
+    const {openModal: openCustomWorkflowModal} = useCustomWorkflowConfig({
+        setStatusModalOpen,
+        setFetchingTemplate: setFetchingCustomWorkflow,
+        appId: "",
+        folderId: currentFolderId,
+        afterConfigSave: async () => mutateApps(),
+    })
 
     useBreadcrumbsEffect({breadcrumbs: {prompts: {label: "prompts"}}}, [])
 
@@ -70,6 +115,11 @@ const PromptsPage = () => {
         const folders = foldersData?.folders ?? []
         return buildFolderTree(folders)
     }, [foldersData])
+
+    const appNameExist = useMemo(
+        () => apps.some((app: any) => (app.app_name || "").toLowerCase() === newApp.toLowerCase()),
+        [apps, newApp],
+    )
 
     const currentFolder = useMemo(
         () => (currentFolderId ? foldersById[currentFolderId] : null),
@@ -230,6 +280,71 @@ const PromptsPage = () => {
         } finally {
             setIsSavingFolder(false)
         }
+    }
+
+    const handleTemplateCardClick = async (template_id: string) => {
+        setIsAddAppFromTemplatedModal(false)
+        setStatusModalOpen(true)
+        resetAppCreation()
+
+        const apiKeys = secrets
+
+        await createAndStartTemplate({
+            appName: newApp,
+            templateKey: template_id as ServiceType,
+            folderId: currentFolderId ?? null,
+            providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
+            onStatusChange: async (status, details, appId) => {
+                if (["error", "bad_request", "timeout", "success"].includes(status))
+                    if (status === "success") {
+                        await mutateApps()
+                        posthog?.capture?.("app_deployment", {
+                            properties: {
+                                app_id: appId,
+                                environment: "UI",
+                                deployed_by: user?.id,
+                            },
+                        })
+                    }
+
+                setStatusData((prev) => ({...prev, status, details, appId: appId || prev.appId}))
+            },
+        })
+    }
+
+    const onErrorRetry = async () => {
+        if (statusData.appId) {
+            setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
+            await deleteApp(statusData.appId).catch(console.error)
+            mutateApps()
+        }
+        if (templateKey) {
+            await handleTemplateCardClick(templateKey as string)
+        }
+    }
+
+    const onTimeoutRetry = async () => {
+        if (!statusData.appId) return
+        setStatusData((prev) => ({...prev, status: "starting_app", details: undefined}))
+        try {
+            await waitForAppToStart({appId: statusData.appId, timeout})
+        } catch (error: any) {
+            if (error.message === "timeout") {
+                setStatusData((prev) => ({...prev, status: "timeout", details: undefined}))
+            } else {
+                setStatusData((prev) => ({...prev, status: "error", details: error}))
+            }
+        }
+        setStatusData((prev) => ({...prev, status: "success", details: undefined}))
+        mutateApps()
+    }
+
+    const handleOpenNewPromptModal = () => {
+        setIsAddAppFromTemplatedModal(true)
+    }
+
+    const handleSetupWorkflow = () => {
+        openCustomWorkflowModal()
     }
 
     const handleOpenMoveModal = (folderId: string | null) => {
@@ -457,6 +572,8 @@ const PromptsPage = () => {
                 foldersById={foldersById}
                 currentFolderId={currentFolderId}
                 onFolderChange={handleBreadcrumbFolderChange}
+                onNewPrompt={handleOpenNewPromptModal}
+                onSetupWorkflow={handleSetupWorkflow}
                 onNewFolder={openNewFolderModal}
                 onMoveFolder={handleOpenMoveModal}
                 onRenameFolder={handleOpenRenameModal}
@@ -492,7 +609,7 @@ const PromptsPage = () => {
                                         label: "New prompt",
                                         onClick: (event) => {
                                             event.domEvent.stopPropagation()
-                                            // onNewPrompt?.()
+                                            handleOpenNewPromptModal()
                                         },
                                     },
                                     {
@@ -513,7 +630,7 @@ const PromptsPage = () => {
                                         label: "Set up workflow",
                                         onClick: (event) => {
                                             event.domEvent.stopPropagation()
-                                            // onSetupWorkflow?.()
+                                            handleSetupWorkflow()
                                         },
                                     },
                                 ],
@@ -588,6 +705,43 @@ const PromptsPage = () => {
                 confirmLoading={isSavingFolder}
                 title={isRenameMode ? "Rename folder" : "New folder"}
                 okText={isRenameMode ? "Save" : "Create"}
+            />
+
+            <AddAppFromTemplatedModal
+                open={isAddAppFromTemplatedModal}
+                onCancel={() => setIsAddAppFromTemplatedModal(false)}
+                newApp={newApp}
+                templates={templates}
+                noTemplateMessage={noTemplateMessage}
+                templateKey={templateKey as ServiceType}
+                appNameExist={appNameExist}
+                setNewApp={setNewApp}
+                onCardClick={(template: Template) => {
+                    const selectedTemplateKey = getTemplateKey(template)
+
+                    if (selectedTemplateKey) {
+                        setTemplateKey(selectedTemplateKey)
+                    }
+                }}
+                handleTemplateCardClick={handleTemplateCardClick}
+                fetchingTemplate={!!fetchingTemplate}
+                afterClose={() => {
+                    setTemplateKey(undefined)
+                    setNewApp("")
+                }}
+            />
+
+            <CreateAppStatusModal
+                open={statusModalOpen}
+                loading={fetchingTemplate || fetchingCustomWorkflow}
+                onErrorRetry={onErrorRetry}
+                onTimeoutRetry={onTimeoutRetry}
+                onCancel={() => {
+                    setStatusModalOpen(false)
+                    resetAppCreation()
+                }}
+                statusData={statusData}
+                appName={newApp}
             />
         </div>
     )

@@ -170,6 +170,7 @@ export const createAndStartTemplate = async ({
     providerKey,
     templateKey,
     serviceUrl,
+    folderId,
     isCustomWorkflow = false,
     onStatusChange,
 }: {
@@ -177,6 +178,7 @@ export const createAndStartTemplate = async ({
     templateKey: ServiceType
     serviceUrl?: string
     providerKey: LlmProvider[]
+    folderId?: string | null
     isCustomWorkflow?: boolean
     onStatusChange?: (
         status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
@@ -196,6 +198,7 @@ export const createAndStartTemplate = async ({
             templateKey,
             serviceUrl,
             providerKey,
+            folderId,
             isCustomWorkflow,
             onStatusChange,
         })
