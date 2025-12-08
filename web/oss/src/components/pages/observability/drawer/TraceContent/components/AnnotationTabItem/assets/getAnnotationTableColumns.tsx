@@ -34,6 +34,7 @@ export const getAnnotationTableColumns = (
                                     store.set(setTraceDrawerTraceAtom, {
                                         traceId: record.trace_id,
                                         activeSpanId: record.span_id,
+                                        source: "linked",
                                     })
                                 }}
                             />

@@ -1,10 +1,15 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {CaretDown, CaretUp} from "@phosphor-icons/react"
+import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
+import {
+    traceDrawerBackTargetAtom,
+    traceDrawerIsLinkedViewAtom,
+    setTraceDrawerTraceAtom,
+} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
 import {
     isSpansResponse,
@@ -39,6 +44,9 @@ const TraceHeader = ({
 }: TraceHeaderProps) => {
     const {traces: tableTracesRaw, hasMoreTraces, fetchMoreTraces} = useObservability()
     const appId = useAtomValue(selectedAppIdAtom)
+    const backTarget = useAtomValue(traceDrawerBackTargetAtom)
+    const isLinkedView = useAtomValue(traceDrawerIsLinkedViewAtom)
+    const internalSetTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
 
     const tableTraces = useMemo(() => tableTracesRaw as TraceSpanNode[], [tableTracesRaw])
 
@@ -402,26 +410,68 @@ const TraceHeader = ({
     const isPrevDisabled = prevNav.loading || !prevNav.candidate || !activeFocusKey
     const isNextDisabled = nextNav.loading || !nextNav.candidate || !activeFocusKey
 
+    const handleBackToOrigin = useCallback(() => {
+        if (!backTarget) return
+
+        internalSetTraceDrawerTrace({source: "back"})
+
+        setTraceParam(backTarget.traceId ?? undefined, {shallow: true})
+        setSelectedTraceId(backTarget.traceId)
+
+        if (backTarget.spanId) {
+            setSelectedNode?.(backTarget.spanId)
+            setSelected?.(backTarget.spanId)
+        } else {
+            setSelectedNode?.("")
+            setSelected?.("")
+        }
+
+        if (traceTabs === "span") {
+            setSpanParam(backTarget.spanId ?? undefined, {shallow: true})
+        } else {
+            setSpanParam(undefined, {shallow: true})
+        }
+    }, [
+        backTarget,
+        internalSetTraceDrawerTrace,
+        setSelectedTraceId,
+        setSelectedNode,
+        setSelected,
+        setTraceParam,
+        setSpanParam,
+        traceTabs,
+    ])
+
     const displayTrace = propActiveTrace || drawerTraces?.[0]
 
     return (
         <>
             <div className="flex items-center justify-between">
                 <Space>
-                    <div>
+                    {backTarget && (
                         <Button
-                            onClick={handlePrevTrace}
-                            type="text"
-                            disabled={isPrevDisabled}
-                            icon={<CaretUp size={16} />}
+                            type="default"
+                            size="small"
+                            onClick={handleBackToOrigin}
+                            icon={<ArrowLeft size={14} />}
                         />
-                        <Button
-                            onClick={handleNextTrace}
-                            type="text"
-                            disabled={isNextDisabled}
-                            icon={<CaretDown size={16} />}
-                        />
-                    </div>
+                    )}
+                    {!isLinkedView && (
+                        <div>
+                            <Button
+                                onClick={handlePrevTrace}
+                                type="text"
+                                disabled={isPrevDisabled}
+                                icon={<CaretUp size={16} />}
+                            />
+                            <Button
+                                onClick={handleNextTrace}
+                                type="text"
+                                disabled={isNextDisabled}
+                                icon={<CaretDown size={16} />}
+                            />
+                        </div>
+                    )}
 
                     <Typography.Text className="text-sm font-medium">Trace</Typography.Text>
                     <TooltipWithCopyAction

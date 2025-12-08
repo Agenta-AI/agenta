@@ -123,6 +123,7 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
                     setTraceDrawerTrace({
                         traceId: record.trace_id,
                         activeSpanId: record.span_id,
+                        source: "linked",
                     })
                     setTraceParam(record.trace_id, {shallow: true})
                     setSpanParam(record.span_id, {shallow: true})

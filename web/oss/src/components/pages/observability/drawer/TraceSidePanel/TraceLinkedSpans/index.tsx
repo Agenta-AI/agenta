@@ -26,7 +26,11 @@ const TraceLinkedSpans = () => {
         if (!link?.trace_id || !link?.span_id) return
 
         if (link.trace_id !== currentTraceId) {
-            setTraceDrawerTrace({traceId: link.trace_id, activeSpanId: link.span_id})
+            setTraceDrawerTrace({
+                traceId: link.trace_id,
+                activeSpanId: link.span_id,
+                source: "linked",
+            })
             setTraceParam(link.trace_id, {shallow: true})
             return
         }

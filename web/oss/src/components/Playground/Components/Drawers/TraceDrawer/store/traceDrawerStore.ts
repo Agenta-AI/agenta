@@ -23,12 +23,16 @@ export interface TraceDrawerState {
     open: boolean
     traceId: string | null
     activeSpanId: string | null
+    originTraceId: string | null
+    history: {traceId: string; spanId: string | null}[]
 }
 
 export const initialTraceDrawerState: TraceDrawerState = {
     open: false,
     traceId: null,
     activeSpanId: null,
+    originTraceId: null,
+    history: [],
 }
 
 export const traceDrawerAtom = atomWithImmer<TraceDrawerState>(initialTraceDrawerState)
@@ -56,6 +60,8 @@ export const openTraceDrawerAtom = atom(
             draft.open = true
             draft.traceId = payload.traceId
             draft.activeSpanId = payload.activeSpanId ?? null
+            draft.originTraceId = payload.traceId
+            draft.history = []
         })
     },
 )
@@ -68,11 +74,45 @@ export const setTraceDrawerActiveSpanAtom = atom(null, (_get, set, activeSpanId:
 
 export const setTraceDrawerTraceAtom = atom(
     null,
-    (_get, set, payload: {traceId: string; activeSpanId?: string | null}) => {
+    (
+        get,
+        set,
+        payload: {
+            traceId?: string
+            activeSpanId?: string | null
+            source?: "external" | "linked" | "back"
+        } | null,
+    ) => {
+        const {traceId: targetId, activeSpanId, source = "external"} = payload || {}
+
+        if (source === "back") {
+            set(traceDrawerAtom, (draft) => {
+                const previous = draft.history.pop()
+                if (!previous) return
+                draft.traceId = previous.traceId
+                draft.activeSpanId = previous.spanId ?? null
+            })
+            return
+        }
+
+        if (!targetId) return
+
         set(traceDrawerAtom, (draft) => {
-            draft.traceId = payload.traceId
-            if (payload.activeSpanId !== undefined) {
-                draft.activeSpanId = payload.activeSpanId
+            if (source === "linked" && draft.traceId && targetId !== draft.traceId) {
+                draft.history.push({traceId: draft.traceId, spanId: draft.activeSpanId})
+                if (!draft.originTraceId) {
+                    draft.originTraceId = draft.traceId
+                }
+            } else if (source === "external") {
+                draft.originTraceId = targetId
+                draft.history = []
+            }
+
+            draft.traceId = targetId
+            if (activeSpanId !== undefined) {
+                draft.activeSpanId = activeSpanId
+            } else if (source === "external" && targetId !== draft.traceId) {
+                draft.activeSpanId = null
             }
         })
     },
@@ -208,6 +248,24 @@ export const traceDrawerGetTraceByIdAtom = atom((get) => {
         const found = getNodeById(traces as any, id)
         return (found as TracesWithAnnotations) || undefined
     }
+})
+
+export const traceDrawerBackTargetAtom = atom<{traceId: string; spanId: string | null} | null>(
+    (get) => {
+        const state = get(traceDrawerAtom)
+        if (!state.history.length) return null
+        return state.history[state.history.length - 1] || null
+    },
+)
+
+export const traceDrawerIsLinkedViewAtom = atom((get) => {
+    const state = get(traceDrawerAtom)
+    return Boolean(
+        state.originTraceId &&
+            state.traceId &&
+            state.originTraceId !== state.traceId &&
+            state.history.length >= 0,
+    )
 })
 
 // ------------------------------------------------------------------
