@@ -10,7 +10,7 @@ import {
 } from "@/oss/components/EvaluationRunsTablePOC"
 import {evaluationRunsTableContextSetterAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/context"
 import {evaluationRunsTypeFiltersAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/view"
-import type {TableTabsConfig} from "@/oss/components/InfiniteVirtualTable"
+import {TableDescription, type TableTabsConfig} from "@/oss/components/InfiniteVirtualTable"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useQueryParamState} from "@/oss/state/appState"
 import {projectIdAtom} from "@/oss/state/project"
@@ -157,9 +157,7 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
                 <Typography.Title level={3} style={{margin: 0}}>
                     Evaluations
                 </Typography.Title>
-                <Typography.Paragraph type="secondary" style={{marginBottom: 0}}>
-                    Manage all your evaluations in one place.
-                </Typography.Paragraph>
+                <TableDescription>Manage all your evaluations in one place.</TableDescription>
             </div>
         ),
         [],
