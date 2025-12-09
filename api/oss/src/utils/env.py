@@ -145,9 +145,7 @@ class StripeConfig(BaseModel):
         super().__init__(**data)
         try:
             self.pricing = loads(
-                os.getenv("STRIPE_PRICING")
-                or os.getenv("AGENTA_PRICING")
-                or "{}"
+                os.getenv("STRIPE_PRICING") or os.getenv("AGENTA_PRICING") or "{}"
             )
         except Exception:
             self.pricing = {}

@@ -1201,6 +1201,7 @@ async def create_accounts(payload: dict) -> UserDB:
 
     # Delegate organization/workspace assignment to implementation-specific function
     from oss.src.utils.common import is_ee
+
     if is_ee():
         # EE implementation: handled by ee.src.services.commoners.create_accounts
         # This function should NOT be called for EE - see __init__.py imports
@@ -1271,9 +1272,7 @@ async def get_default_workspace_id_oss() -> str:
     """
     workspaces = await get_workspaces()
 
-    assert len(workspaces) == 1, (
-        "You can only have a single workspace in OSS."
-    )
+    assert len(workspaces) == 1, "You can only have a single workspace in OSS."
 
     return str(workspaces[0].id)
 
