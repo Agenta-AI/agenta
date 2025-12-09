@@ -1,8 +1,9 @@
 import {memo, useCallback, useMemo} from "react"
 import {isValidElement} from "react"
 
-import {Skeleton, Tag, Typography} from "antd"
+import {Popover, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import {AlertCircle} from "lucide-react"
 
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
@@ -505,10 +506,54 @@ const ScenarioColumnValue = memo(
 
         // For non-metric columns (input, invocation, annotation, etc.)
         const resolvedValue = selection.displayValue ?? selection.value
+        const stepError = selection.stepError
 
         const renderValue = () => {
             if (showSkeleton && resolvedValue === undefined) {
                 return <Skeleton active paragraph={{rows: 1}} />
+            }
+
+            // Display step error if present (e.g., invocation failure)
+            if (stepError) {
+                const errorPopoverContent = (
+                    <div className="flex flex-col gap-2 text-red-600">
+                        <div className="flex items-center gap-1.5 text-red-500">
+                            <AlertCircle size={14} className="flex-shrink-0" />
+                            <span className="text-xs font-medium">Invocation Error</span>
+                        </div>
+                        <span className="whitespace-pre-wrap break-words text-xs font-medium">
+                            {stepError.message}
+                        </span>
+                        {stepError.stacktrace ? (
+                            <span className="whitespace-pre-wrap break-words text-xs text-red-500/80 border-t border-red-200 pt-2 mt-1">
+                                {stepError.stacktrace}
+                            </span>
+                        ) : null}
+                    </div>
+                )
+
+                return (
+                    <Popover
+                        content={
+                            <div className="max-w-[400px] max-h-[300px] overflow-auto text-xs">
+                                {errorPopoverContent}
+                            </div>
+                        }
+                        trigger="hover"
+                        mouseEnterDelay={0.3}
+                        mouseLeaveDelay={0.1}
+                        placement="top"
+                        arrow={false}
+                    >
+                        <div className="flex flex-col gap-1 text-red-500 cursor-help">
+                            <div className="flex items-center gap-1">
+                                <AlertCircle size={14} className="flex-shrink-0" />
+                                <span className="font-medium">Error</span>
+                            </div>
+                            <Text type="danger">{stepError.message}</Text>
+                        </div>
+                    </Popover>
+                )
             }
 
             if (chatNodes && chatNodes.length) {
