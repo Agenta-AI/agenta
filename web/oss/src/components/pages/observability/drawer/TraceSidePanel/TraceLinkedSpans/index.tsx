@@ -1,3 +1,5 @@
+import {useMemo} from "react"
+
 import {Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -8,20 +10,25 @@ import {
     linksAndReferencesAtom,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import {useQueryParamState} from "@/oss/state/appState"
+import {projectIdAtom} from "@/oss/state/project"
 import {
     ApplicationReferenceLabel,
     EvaluatorReferenceLabel,
-    QueryReferenceLabel,
     TestsetTag,
-    VariantReferenceLabel,
 } from "@/oss/components/References"
+import useURL from "@/oss/hooks/useURL"
+import useEvaluatorNavigation from "@/oss/components/pages/observability/drawer/hooks/useEvaluatorNavigation"
+import React from "react"
 
 const TraceLinkedSpans = () => {
+    const {projectURL} = useURL()
     const currentTraceId = useAtomValue(traceDrawerTraceIdAtom)
+    const projectId = useAtomValue(projectIdAtom)
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
     const linksAndReferences = useAtomValue(linksAndReferencesAtom)
     const [, setTraceParam] = useQueryParamState("trace")
-
+    const {buildEvaluatorTarget} = useEvaluatorNavigation()
+console.log("linksAndReferences", linksAndReferences)
     const handleNavigate = (link: TraceDrawerSpanLink) => {
         if (!link?.trace_id || !link?.span_id) return
 
@@ -41,38 +48,50 @@ const TraceLinkedSpans = () => {
     const renderReferenceTags = ({key, id, slug}: {key: string; id: string; slug?: string}) => {
         switch (key) {
             case "application":
-                return <ApplicationReferenceLabel applicationId={id} projectId={currentTraceId} />
+                return (
+                    <ApplicationReferenceLabel
+                        applicationId={id}
+                        projectId={projectId}
+                        projectURL={projectURL}
+                    />
+                )
             case "testset":
-                return <TestsetTag testsetId={id} projectId={currentTraceId} />
+                return <TestsetTag testsetId={id} projectId={projectId} projectURL={projectURL} />
             case "evaluator":
                 return (
                     <EvaluatorReferenceLabel
                         evaluatorId={id}
                         evaluatorSlug={slug}
-                        projectId={currentTraceId}
+                        projectId={projectId}
+                        href={buildEvaluatorTarget({id, slug})?.href ?? undefined}
                     />
                 )
             default:
-                return (
-                    <Tag bordered={false} className="cursor-pointer self-start bg-[#0517290F]">
-                        {key}
-                    </Tag>
-                )
+                return null
         }
     }
 
-    if (!linksAndReferences.links?.length && !linksAndReferences.references?.length) {
+    const validLinks = useMemo(
+        () =>
+            (linksAndReferences?.links || [])?.filter(
+                (link) => link?.trace_id && link?.span_id,
+            ) as TraceDrawerSpanLink[],
+        [linksAndReferences?.links],
+    )
+
+    if (!validLinks.length && !linksAndReferences.references?.length) {
         return <Typography.Text type="secondary">No linked spans found.</Typography.Text>
     }
-    console.log("linksAndReferences", linksAndReferences)
+
     return (
         <section className="flex flex-col gap-2">
-            {linksAndReferences.links?.length ? (
+            {validLinks.length ? (
                 <div className="flex flex-col gap-2">
                     <Typography.Text type="secondary">Links</Typography.Text>
-                    {linksAndReferences.links?.map((link) => {
+                    {validLinks.map((link) => {
                         return (
                             <Tag
+                                key={`${link.trace_id}-${link.span_id}-${link.key || ""}`}
                                 bordered={false}
                                 className="cursor-pointer self-start bg-[#0517290F]"
                                 onClick={() => handleNavigate(link)}
@@ -87,7 +106,11 @@ const TraceLinkedSpans = () => {
                 <div className="flex flex-col gap-2">
                     <Typography.Text type="secondary">References</Typography.Text>
                     {linksAndReferences.references?.map((link) => {
-                        return renderReferenceTags({key: link.key, id: link.id, slug: link.slug})
+                        return (
+                            <React.Fragment key={`${link.key}-${link.id}-${link.slug || ""}`}>
+                                {renderReferenceTags({key: link.key, id: link.id, slug: link.slug})}
+                            </React.Fragment>
+                        )
                     })}
                 </div>
             ) : null}

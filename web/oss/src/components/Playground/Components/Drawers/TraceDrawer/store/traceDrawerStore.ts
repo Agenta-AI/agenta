@@ -3,19 +3,19 @@ import {atomWithImmer} from "jotai-immer"
 import {atomWithQuery} from "jotai-tanstack-query"
 import {atomWithStorage} from "jotai/utils"
 
-import {getNodeById, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {attachAnnotationsToTraces} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {getOrgValues} from "@/oss/state/org"
+import {getNodeById, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
+import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
 import {fetchPreviewTrace} from "@/oss/services/tracing/api"
 import {
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "@/oss/services/tracing/lib/helpers"
 import {SpanLink, TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
-import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
+import {getOrgValues} from "@/oss/state/org"
 
 export type TraceDrawerSpanLink = SpanLink & {key?: string}
 
@@ -273,7 +273,7 @@ export const traceDrawerIsLinkedViewAtom = atom((get) => {
 const getLinks = (trace: TracesWithAnnotations) => {
     const allLinks = {}
 
-    const traverseObject = (obj, path = "") => {
+    const traverseObject = (obj: Record<string, any>, path = "") => {
         if (!obj || typeof obj !== "object") return
 
         for (const key in obj) {
@@ -303,9 +303,9 @@ const getLinks = (trace: TracesWithAnnotations) => {
 }
 
 const getReferences = (trace: TracesWithAnnotations) => {
-    const allReferences = {}
+    const allReferences: Array<{key?: string; value: Record<string, any>}> = []
 
-    const traverseObject = (obj, path = "") => {
+    const traverseObject = (obj: Record<string, any>, path = "") => {
         if (!obj || typeof obj !== "object") return
 
         for (const key in obj) {
@@ -318,12 +318,20 @@ const getReferences = (trace: TracesWithAnnotations) => {
                         if (ref.attributes && ref.attributes.key) {
                             const refKey = ref.attributes.key
                             const {attributes, ...refData} = ref
-                            allReferences[refKey] = refData
+                            allReferences.push({
+                                key: refKey,
+                                value: refData,
+                            })
                         }
                     })
                 } else if (typeof references === "object" && references !== null) {
                     // Handle object references
-                    Object.assign(allReferences, references)
+                    Object.entries(references).forEach(([refKey, refValue]) => {
+                        allReferences.push({
+                            key: refKey,
+                            value: refValue as Record<string, any>,
+                        })
+                    })
                 }
             } else if (typeof obj[key] === "object" && obj[key] !== null) {
                 // Continue traversing nested objects
@@ -333,17 +341,27 @@ const getReferences = (trace: TracesWithAnnotations) => {
     }
 
     traverseObject(trace)
-    if (!allReferences) return []
-    const formattedReferences = new Set([])
-    Object.entries(allReferences || {})?.forEach(([key, value]) => {
-        formattedReferences.add({
+    if (!allReferences.length) return []
+
+    const unique = new Map<string, Record<string, any>>()
+    const seen = new Set<string>()
+
+    allReferences.forEach(({key, value}) => {
+        const identifier = value?.id || value?.slug
+        if (identifier) {
+            if (seen.has(identifier)) return
+            seen.add(identifier)
+        }
+
+        const compositeKey = identifier ?? `${key ?? "__no_key__"}-${unique.size}`
+        unique.set(compositeKey, {
             ...value,
             key,
             type: "reference",
         })
     })
 
-    return Array.from(formattedReferences)
+    return Array.from(unique.values())
 }
 
 export const linksAndReferencesAtom = atom<{

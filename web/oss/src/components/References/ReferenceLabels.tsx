@@ -52,7 +52,7 @@ export const TestsetTag = memo(
                 href={href ?? undefined}
                 tooltip={isDeleted ? `Testset ${testsetId} was deleted` : label}
                 copyValue={testsetId}
-                className="max-w-[220px]"
+                className="max-w-[220px] w-fit"
                 tone="testset"
             />
         )
@@ -140,7 +140,7 @@ export const ApplicationReferenceLabel = memo(
                 href={href ?? undefined}
                 tooltip={isDeleted ? `Application ${applicationId} was deleted` : label}
                 copyValue={applicationId ?? undefined}
-                className="max-w-[220px]"
+                className="max-w-[220px] w-fit"
                 tone="app"
             />
         )
@@ -295,7 +295,7 @@ export const EvaluatorReferenceLabel = memo(
                 href={href ?? undefined}
                 tooltip={isDeleted ? `Evaluator ${displayId} was deleted` : label}
                 copyValue={displayId}
-                className="max-w-[220px]"
+                className="max-w-[220px] w-fit"
                 tone="evaluator"
             />
         )
