@@ -32,10 +32,9 @@ export const runningInvocationsAtom = atom<Set<string>>(new Set<string>())
 
 /**
  * Prepare the request body for an invocation.
- * This follows the legacy prepareRequest logic:
- * - messages go to top-level for chat variants
- * - other inputs go under `inputs` for non-custom variants
- * - custom variants get all inputs at top level
+ * The request body should have:
+ * - ag_config: contains the prompt configuration (from precomputedParameters)
+ * - inputs: contains the input values (from inputParametersDict, excluding non-input keys)
  */
 const prepareRequestBody = ({
     inputParametersDict,
@@ -46,51 +45,39 @@ const prepareRequestBody = ({
     precomputedParameters?: Record<string, any>
     appType?: string
 }): Record<string, any> => {
-    const isChatVariant = Object.prototype.hasOwnProperty.call(
-        inputParametersDict || {},
-        "messages",
-    )
     const isCustomVariant = !!appType && appType === "custom"
 
-    const mainInputParams: Record<string, any> = {}
-    const secondaryInputParams: Record<string, string> = {}
+    // Build the inputs object from inputParametersDict
+    // Filter out non-input keys like testcase_dedup_id, correct_answer, etc.
+    const inputKeys = precomputedParameters?.prompt?.input_keys ?? []
+    const inputs: Record<string, any> = {}
 
-    // Split inputs: messages => top-level, everything else => under `inputs`
+    // Only include keys that are in input_keys (if defined) or all keys (if not defined)
     Object.keys(inputParametersDict).forEach((key) => {
-        const val = inputParametersDict[key]
-        if (key === "messages") {
-            mainInputParams[key] = val
-        } else {
-            secondaryInputParams[key] = val
+        // Skip internal/metadata keys
+        if (key === "testcase_dedup_id" || key === "correct_answer") {
+            return
         }
+        // If input_keys is defined, only include those keys
+        if (inputKeys.length > 0 && !inputKeys.includes(key)) {
+            return
+        }
+        inputs[key] = inputParametersDict[key]
     })
 
-    // Start from stable precomputed parameters (main-thread transformed prompts)
-    const baseParams = precomputedParameters || {}
-    const requestBody: Record<string, any> = {
-        ...baseParams,
-        ...mainInputParams,
-    }
-
+    // For custom variants, inputs go at top level
     if (isCustomVariant) {
-        for (const key of Object.keys(inputParametersDict)) {
-            if (key !== "inputs") requestBody[key] = inputParametersDict[key]
-        }
-    } else {
-        requestBody["inputs"] = {...(requestBody["inputs"] || {}), ...secondaryInputParams}
-    }
-
-    if (isChatVariant) {
-        if (typeof requestBody["messages"] === "string") {
-            try {
-                requestBody["messages"] = JSON.parse(requestBody["messages"])
-            } catch {
-                throw new Error("content not valid for messages")
-            }
+        return {
+            ag_config: precomputedParameters || {},
+            ...inputs,
         }
     }
 
-    return requestBody
+    // For standard variants, wrap config in ag_config and inputs under inputs key
+    return {
+        ag_config: precomputedParameters || {},
+        inputs,
+    }
 }
 
 /** Action atom to run an invocation */
@@ -269,7 +256,7 @@ export const triggerRunInvocationAtom = atom(
             })
 
             if (result.success) {
-                message.success("Invocation completed successfully")
+                message.success("Invocation completed")
 
                 // Invalidate all relevant caches to force fresh data
                 invalidateScenarioStepsBatcherCache()
@@ -322,7 +309,11 @@ export const triggerRunInvocationAtom = atom(
 
                 console.log("[runInvocationAction] Caches invalidated and data refetched")
             } else {
-                message.error(`Invocation failed: ${result.error}`)
+                // Show error with more details - use longer duration for readability
+                message.error({
+                    content: result.error || "Invocation failed",
+                    duration: 8,
+                })
 
                 // Still need to refetch the runs table since scenario/run status may have been updated
                 clearPreviewRunsCache()
@@ -345,7 +336,20 @@ export const triggerRunInvocationAtom = atom(
             return result
         } catch (error: any) {
             console.error("[runInvocationAction] Error:", error)
-            message.error(`Failed to run invocation: ${error?.message || "Unknown error"}`)
+            // Extract error message from various response formats
+            const detail = error?.response?.data?.detail
+            let errorMsg = "Unknown error"
+            if (detail && typeof detail === "object" && detail.message) {
+                errorMsg = detail.message
+            } else if (typeof detail === "string") {
+                errorMsg = detail
+            } else if (error?.message) {
+                errorMsg = error.message
+            }
+            message.error({
+                content: errorMsg,
+                duration: 8,
+            })
             return {success: false, error: error?.message || "Unknown error"}
         } finally {
             // Mark as not running
