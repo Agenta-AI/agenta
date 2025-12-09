@@ -114,7 +114,7 @@ class Tracing(metaclass=Singleton):
 
         # TRACE PROCESSORS -- OTLP
         try:
-            log.info("Agenta - OLTP URL: %s", self.otlp_url)
+            log.info("Agenta -    OTLP URL: %s", self.otlp_url)
 
             _otlp = TraceProcessor(
                 OTLPExporter(
@@ -127,7 +127,7 @@ class Tracing(metaclass=Singleton):
 
             self.tracer_provider.add_span_processor(_otlp)
         except:  # pylint: disable=bare-except
-            log.warning("Agenta - OLTP unreachable, skipping exports.")
+            log.warning("Agenta - OTLP unreachable, skipping exports.")
 
         # GLOBAL TRACER PROVIDER -- INSTRUMENTATION LIBRARIES
         set_tracer_provider(self.tracer_provider)
