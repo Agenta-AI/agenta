@@ -1,5 +1,6 @@
 import dayjs from "dayjs"
-import {sortSpansByStartTime} from "@/oss/lib/helpers/tracing"
+
+import {sortSpansByStartTime} from "@/oss/lib/traces/tracing"
 
 import {
     TraceSpanNode,

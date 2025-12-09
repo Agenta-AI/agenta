@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useState, useMemo} from "react"
-import {useAtomValue} from "jotai"
-import {queryClientAtom} from "jotai-tanstack-query"
 
 import {ArrowClockwise, Database, Export} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 import dynamic from "next/dynamic"
 
 import {SortResult} from "@/oss/components/Filters/Sort"
@@ -13,7 +13,7 @@ import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
-import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
+import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
 import {useObservability} from "@/oss/state/newObservability"
@@ -26,8 +26,8 @@ import {
     getTokens,
 } from "@/oss/state/newObservability/selectors/tracing"
 
-import getFilterColumns from "../getFilterColumns"
 import {buildAttributeKeyTreeOptions} from "../filters/attributeKeyOptions"
+import getFilterColumns from "../getFilterColumns"
 import {ObservabilityHeaderProps} from "../types"
 
 const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})

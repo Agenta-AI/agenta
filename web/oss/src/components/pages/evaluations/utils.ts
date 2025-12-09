@@ -1,4 +1,4 @@
-import {EvaluationRow} from "@/oss/components/HumanEvaluations/types"
+import {EvaluationRow} from "@/oss/components/SaveTestsetModal/types"
 
 type Nullable<T> = T | null | undefined
 

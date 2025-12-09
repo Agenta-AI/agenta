@@ -1,15 +1,15 @@
 import {useMemo} from "react"
 
 import {useAtomValue} from "jotai"
+
 import {
-    isDrawerOpenAtom,
     traceDrawerActiveSpanIdAtom,
     traceDrawerTraceIdAtom,
     traceDrawerQueryAtom,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
-import {observabilityTransformer, getNodeById} from "@/oss/lib/helpers/observability_helpers"
 import useAnnotations from "@/oss/lib/hooks/useAnnotations"
 import {attachAnnotationsToTraces} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
+import {getNodeById, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
 import {
     transformTracesResponseToTree,
@@ -18,7 +18,6 @@ import {
 import {TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
 
 export const useTraceDrawer = () => {
-    const open = useAtomValue(isDrawerOpenAtom)
     const traceId = useAtomValue(traceDrawerTraceIdAtom)
     const activeSpanId = useAtomValue(traceDrawerActiveSpanIdAtom)
 
@@ -83,7 +82,7 @@ export const useTraceDrawer = () => {
                 links: annotationLinks,
             },
         },
-        waitUntil: annotationLinks.length === 0,
+        waitUntil: !annotationLinks.length,
     })
 
     const traces = useMemo(() => {
@@ -112,7 +111,6 @@ export const useTraceDrawer = () => {
     const loadingState = Boolean(traceId) && (Boolean(isLoading) || (!traceResponse && !error))
 
     return {
-        open,
         traceId,
         activeSpanId: resolvedActiveSpanId,
         traces,

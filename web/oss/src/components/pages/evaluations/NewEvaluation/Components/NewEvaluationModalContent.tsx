@@ -12,7 +12,7 @@ import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
 
-import SelectAppSection from "./SelectAppSection"
+const SelectAppSection = dynamic(() => import("./SelectAppSection"), {ssr: false})
 
 const SelectEvaluatorSection = dynamic(
     () => import("./SelectEvaluatorSection/SelectEvaluatorSection"),
@@ -197,6 +197,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         setSelectedTestsetId={setSelectedTestsetId}
                         testsets={testsets}
                         selectedVariantRevisionIds={selectedVariantRevisionIds}
+                        selectedVariants={selectedVariants}
                         className="pt-2"
                     />
                 ) : (

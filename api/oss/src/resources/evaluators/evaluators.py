@@ -234,9 +234,12 @@ evaluators = [
                                     "description": "The grade results",
                                 }
                             },
-                            "required": ["score"],
-                            "strict": True,
+                            "required": [
+                                "score",
+                            ],
+                            "additionalProperties": False,
                         },
+                        "strict": True,
                     },
                     "version": "4",
                 },
@@ -269,9 +272,12 @@ evaluators = [
                                     "description": "The hallucination detection result",
                                 }
                             },
-                            "required": ["score"],
-                            "strict": True,
+                            "required": [
+                                "score",
+                            ],
+                            "additionalProperties": False,
                         },
+                        "strict": True,
                     },
                     "version": "4",
                 },
@@ -344,9 +350,12 @@ evaluators = [
                                 "description": "The grade results",
                             }
                         },
-                        "required": ["score"],
-                        "strict": True,
+                        "required": [
+                            "score",
+                        ],
+                        "additionalProperties": False,
                     },
+                    "strict": True,
                 },
                 "type": "llm_response_schema",
                 "advanced": False,
