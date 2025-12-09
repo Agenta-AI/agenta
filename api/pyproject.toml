@@ -51,7 +51,8 @@ gunicorn = "^23"
 python-jsonpath = "^2"
 bson = "^0.5"
 python-multipart = "^0.0.20"
-daytona = "^0.121.0"
+daytona = "^0.121"
+cachetools = "^6"
 
 # BLOCKED BY NEW RELIC INCOMPATIBILITY
 # opentelemetry-api = "^1"
