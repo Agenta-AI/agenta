@@ -209,7 +209,18 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
     ])
 
     const [collapsed, setCollapsed] = useState(false)
-    const [view, setView] = useState<"details" | "json">("details")
+
+    // When the app/variant is deleted, the URL (openapi schema endpoint) won't be available.
+    // In this case, we cannot render the component view and should default to JSON view.
+    const hasSchemaAvailable = Boolean(variantConfig?.url)
+    const [view, setView] = useState<"details" | "json">(hasSchemaAvailable ? "details" : "json")
+
+    // Sync view state when schema availability changes (e.g., after data loads)
+    useEffect(() => {
+        if (!hasSchemaAvailable && view === "details") {
+            setView("json")
+        }
+    }, [hasSchemaAvailable, view])
 
     if (!rawRefs || Object.keys(rawRefs).length === 0) return null
     if (isVariantLoading || variantLoading) {
@@ -245,7 +256,11 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
                     {variantConfig ? (
                         <Segmented
                             options={[
-                                {label: "Details", value: "details"},
+                                {
+                                    label: "Details",
+                                    value: "details",
+                                    disabled: !hasSchemaAvailable,
+                                },
                                 {label: "JSON", value: "json"},
                             ]}
                             size="small"
