@@ -173,7 +173,7 @@ export interface TableExportOptions<Row extends InfiniteTableRowBase> {
     getValue?: (args: TableExportValueArgs<Row>) => unknown
     formatValue?: (value: unknown, args: TableExportValueArgs<Row>) => string | undefined
     includeSkeletonRows?: boolean
-    beforeExport?: (rows: Row[]) => void | Promise<void>
+    beforeExport?: (rows: Row[]) => void | Row[] | Promise<void | Row[]>
     resolveValue?: (args: TableExportResolveArgs<Row>) => unknown | Promise<unknown>
     resolveColumnLabel?: (context: TableExportColumnContext<Row>) => string | undefined
 }
@@ -193,99 +193,152 @@ export interface TableExportResolveArgs<Row extends InfiniteTableRowBase>
 }
 
 export const useTableExport = <Row extends InfiniteTableRowBase>() => {
-    const debugEnabled = true
-    // typeof window !== "undefined" && process.env.NEXT_PUBLIC_IVT_DEBUG === "true"
+    return useCallback(async (params: TableExportParams<Row>) => {
+        const {
+            columns,
+            rows,
+            filename = "table-export.csv",
+            isColumnExportable,
+            getValue,
+            formatValue,
+            includeSkeletonRows,
+            beforeExport,
+            resolveValue,
+            resolveColumnLabel,
+        } = params
 
-    return useCallback(
-        async (params: TableExportParams<Row>) => {
-            const {
-                columns,
-                rows,
-                filename = "table-export.csv",
-                isColumnExportable,
-                getValue,
-                formatValue,
-                includeSkeletonRows,
-                beforeExport,
-                resolveValue,
-                resolveColumnLabel,
-            } = params
+        if (!columns.length || !rows.length) return
 
-            if (!columns.length || !rows.length) return
+        let filteredRows = filterSkeletonRows(rows, includeSkeletonRows)
+        if (!filteredRows.length) return
 
-            let filteredRows = filterSkeletonRows(rows, includeSkeletonRows)
-            if (!filteredRows.length) return
+        if (beforeExport) {
+            const result = await beforeExport(filteredRows)
+            // If beforeExport returns rows, use those (allows beforeExport to load more data)
+            if (result && Array.isArray(result)) {
+                filteredRows = filterSkeletonRows(result as Row[], includeSkeletonRows)
+                if (!filteredRows.length) return
+            }
+        }
 
-            if (beforeExport) {
-                const result = await beforeExport(filteredRows)
-                // If beforeExport returns rows, use those (allows beforeExport to load more data)
-                if (result && Array.isArray(result)) {
-                    filteredRows = filterSkeletonRows(result as Row[], includeSkeletonRows)
-                    if (!filteredRows.length) return
+        const flatColumns = flattenColumns(columns).filter((column, index) => {
+            if (columnIsHidden<Row>(column)) return false
+            const anyColumn = column as any
+            if (anyColumn?.exportEnabled === false) return false
+            if (isColumnExportable) {
+                return isColumnExportable({column, columnIndex: index})
+            }
+            return true
+        })
+        if (!flatColumns.length) return
+
+        const headers = flatColumns.map((column, index) => {
+            const override = resolveColumnLabel?.({column, columnIndex: index})
+            return override ?? getColumnLabel(column, index)
+        })
+        const csvRows = [createCsvRow(headers)]
+
+        // Build cell metadata for all cells
+        interface CellMeta {
+            rowIndex: number
+            columnIndex: number
+            column: (typeof flatColumns)[number]
+            row: Row
+            columnKey: string
+            columnIdentifier: string
+            initialValue: unknown
+        }
+        const cellMetas: CellMeta[] = []
+
+        for (let rowIndex = 0; rowIndex < filteredRows.length; rowIndex += 1) {
+            const row = filteredRows[rowIndex]
+            for (let columnIndex = 0; columnIndex < flatColumns.length; columnIndex += 1) {
+                const column = flatColumns[columnIndex]
+                const columnKey = getColumnKey(column, columnIndex)
+                const columnIdentifier = getColumnIdentifier(column, columnIndex)
+                const context: TableExportValueArgs<Row> = {column, columnIndex, row}
+                const override = getValue !== undefined ? getValue(context) : undefined
+                const initialValue =
+                    override !== undefined ? override : getColumnValueFromMetadata<Row>(context)
+
+                cellMetas.push({
+                    rowIndex,
+                    columnIndex,
+                    column,
+                    row,
+                    columnKey,
+                    columnIdentifier,
+                    initialValue,
+                })
+            }
+        }
+
+        // Resolve all cell values at once - the underlying batchers handle API batching
+        const resolvedValues: unknown[] = new Array(cellMetas.length)
+
+        if (resolveValue) {
+            const allPromises = cellMetas.map((meta, i) => {
+                const context: TableExportValueArgs<Row> = {
+                    column: meta.column,
+                    columnIndex: meta.columnIndex,
+                    row: meta.row,
+                }
+                return Promise.resolve(
+                    resolveValue({
+                        ...context,
+                        rowIndex: meta.rowIndex,
+                        columnKey: meta.columnKey,
+                        columnIdentifier: meta.columnIdentifier,
+                        currentValue: meta.initialValue,
+                    }),
+                ).then((resolved: unknown) => ({index: i, value: resolved}))
+            })
+
+            const allResults = await Promise.all(allPromises)
+            for (const {index, value} of allResults) {
+                if (value === EXPORT_RESOLVE_SKIP) {
+                    resolvedValues[index] = cellMetas[index].initialValue
+                } else if (value !== undefined) {
+                    resolvedValues[index] = value
+                } else {
+                    resolvedValues[index] = cellMetas[index].initialValue
                 }
             }
-
-            const flatColumns = flattenColumns(columns).filter((column, index) => {
-                if (columnIsHidden<Row>(column)) return false
-                const anyColumn = column as any
-                if (anyColumn?.exportEnabled === false) return false
-                if (isColumnExportable) {
-                    return isColumnExportable({column, columnIndex: index})
-                }
-                return true
-            })
-            if (!flatColumns.length) return
-
-            const headers = flatColumns.map((column, index) => {
-                const override = resolveColumnLabel?.({column, columnIndex: index})
-                return override ?? getColumnLabel(column, index)
-            })
-            const csvRows = [createCsvRow(headers)]
-
-            for (let rowIndex = 0; rowIndex < filteredRows.length; rowIndex += 1) {
-                const row = filteredRows[rowIndex]
-                const values: string[] = []
-                for (let columnIndex = 0; columnIndex < flatColumns.length; columnIndex += 1) {
-                    const column = flatColumns[columnIndex]
-                    const columnKey = getColumnKey(column, columnIndex)
-                    const columnIdentifier = getColumnIdentifier(column, columnIndex)
-                    const context: TableExportValueArgs<Row> = {column, columnIndex, row}
-                    const override = getValue !== undefined ? getValue(context) : undefined
-                    let rawValue =
-                        override !== undefined ? override : getColumnValueFromMetadata<Row>(context)
-
-                    if (resolveValue) {
-                        const resolved = await resolveValue({
-                            ...context,
-                            rowIndex,
-                            columnKey,
-                            columnIdentifier,
-                            currentValue: rawValue,
-                        })
-                        if (resolved === EXPORT_RESOLVE_SKIP) {
-                            // no-op
-                        } else if (resolved !== undefined) {
-                            rawValue = resolved
-                        }
-                    }
-
-                    values.push(formatExportValue(rawValue, context, formatValue))
-                }
-                csvRows.push(createCsvRow(values))
+        } else {
+            // No resolver, use initial values
+            for (let i = 0; i < cellMetas.length; i++) {
+                resolvedValues[i] = cellMetas[i].initialValue
             }
+        }
 
-            const blob = new Blob([csvRows.join("\n")], {type: "text/csv;charset=utf-8;"})
-            const url = URL.createObjectURL(blob)
-            const link = document.createElement("a")
-            link.href = url
-            link.setAttribute("download", filename)
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-            setTimeout(() => URL.revokeObjectURL(url), 500)
-        },
-        [debugEnabled],
-    )
+        // Build CSV rows from resolved values
+        const numColumns = flatColumns.length
+        for (let rowIndex = 0; rowIndex < filteredRows.length; rowIndex += 1) {
+            const values: string[] = []
+            for (let columnIndex = 0; columnIndex < numColumns; columnIndex += 1) {
+                const cellIndex = rowIndex * numColumns + columnIndex
+                const meta = cellMetas[cellIndex]
+                const rawValue = resolvedValues[cellIndex]
+                const context: TableExportValueArgs<Row> = {
+                    column: meta.column,
+                    columnIndex: meta.columnIndex,
+                    row: meta.row,
+                }
+                values.push(formatExportValue(rawValue, context, formatValue))
+            }
+            csvRows.push(createCsvRow(values))
+        }
+
+        const blob = new Blob([csvRows.join("\n")], {type: "text/csv;charset=utf-8;"})
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.setAttribute("download", filename)
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        setTimeout(() => URL.revokeObjectURL(url), 500)
+    }, [])
 }
 
 export default useTableExport

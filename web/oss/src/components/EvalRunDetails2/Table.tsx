@@ -611,18 +611,7 @@ const EvalRunDetailsTable = ({
                 }
 
                 // Load all pages for the base run
-                const initialBaseScenarios = basePagination.rows.filter(
-                    (r) => !r.__isSkeleton,
-                ).length
-                console.info(
-                    `[EvalRunDetails2][Export] Loading base run pages (starting with ${initialBaseScenarios} scenarios)`,
-                )
-
                 const baseResult = await loadAllPagesDirectly(runId)
-
-                console.info(
-                    `[EvalRunDetails2][Export] Base run complete - ${baseResult.scenarioCount} scenarios loaded (${baseResult.pageLoadCount} pages)`,
-                )
 
                 // Load all pages for comparison runs
                 if (compareSlots.some((slot) => slot)) {
@@ -631,32 +620,12 @@ const EvalRunDetailsTable = ({
                     )
                 }
 
-                for (let i = 0; i < compareSlots.length; i++) {
-                    const compareRunId = compareSlots[i]
+                for (const compareRunId of compareSlots) {
                     if (!compareRunId) continue
-
-                    const comparePagination = comparePaginations[i]
-                    const initialCompareScenarios = comparePagination.rows.filter(
-                        (r) => !r.__isSkeleton,
-                    ).length
-                    console.info(
-                        `[EvalRunDetails2][Export] Loading comparison run ${i + 1} (starting with ${initialCompareScenarios} scenarios)`,
-                    )
-
-                    const compareResult = await loadAllPagesDirectly(compareRunId)
-
-                    console.info(
-                        `[EvalRunDetails2][Export] Comparison run ${i + 1} complete - ${compareResult.scenarioCount} scenarios loaded (${compareResult.pageLoadCount} pages)`,
-                    )
+                    await loadAllPagesDirectly(compareRunId)
                 }
 
-                console.info(
-                    `[EvalRunDetails2][Export] All pages loaded - ${baseResult.scenarioCount} scenarios ready for export`,
-                )
-
                 message.info(`Generating CSV file with ${baseResult.scenarioCount} scenarios...`)
-
-                console.info("[EvalRunDetails2][Export] Starting CSV generation")
 
                 // Return the updated merged rows from the store
                 const baseRowsAtom = evaluationPreviewTableStore.atoms.combinedRowsAtomFamily({

@@ -167,7 +167,7 @@ const resolveInvocationValue = async (
 
         // If data is loading, use Jotai's subscription API to wait for completion
         if (selection.isLoading) {
-            selection = await new Promise((resolve, reject) => {
+            selection = await new Promise((resolve) => {
                 const timeout = setTimeout(() => {
                     unsubscribe()
                     resolve(store.get(selectionAtom))
@@ -311,13 +311,6 @@ export const resolveScenarioColumnValue = async (
 
     let rawValue: unknown
 
-    // logExportAction("Resolving column value", {
-    //     columnId: column?.id,
-    //     metadataType: metadata.type,
-    //     rowScenarioId: row.scenarioId ?? row.id,
-    //     rowRunId: row.runId,
-    // })
-
     switch (metadata.type) {
         case "meta":
             rawValue = resolveMetaValue(row, column)
@@ -334,15 +327,6 @@ export const resolveScenarioColumnValue = async (
         default:
             rawValue = undefined
     }
-
-    // logExportAction("Resolved column value", {
-    //     columnId: column?.id,
-    //     rawValue:
-    //         typeof rawValue === "string" && rawValue.length > 100
-    //             ? rawValue.substring(0, 100) + "..."
-    //             : rawValue,
-    //     valueType: typeof rawValue,
-    // })
 
     return formatExportValue(rawValue)
 }
