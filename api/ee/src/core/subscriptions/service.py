@@ -27,9 +27,9 @@ log = get_module_logger(__name__)
 # Initialize Stripe only if enabled
 if env.stripe.enabled:
     stripe.api_key = env.stripe.api_key
-    log.info("✓ Stripe enabled in subscriptions service")
+    log.info("✓ Stripe enabled")
 else:
-    log.info("Stripe disabled in subscriptions service")
+    log.info("✗ Stripe disabled")
 
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
 STRIPE_WEBHOOK_TARGET = env.stripe.webhook_target or MAC_ADDRESS
@@ -102,8 +102,8 @@ class SubscriptionsService:
         if not subscription:
             return None
 
-        if not stripe.api_key:
-            log.warn("Missing Stripe API Key.")
+        if not env.stripe.enabled:
+            log.warn("✗ Stripe disabled")
             return None
 
         customer = stripe.Customer.create(
@@ -202,8 +202,8 @@ class SubscriptionsService:
             subscription = await self.update(subscription=subscription)
 
         elif subscription.plan != FREE_PLAN and event == Event.SUBSCRIPTION_SWITCHED:
-            if not stripe.api_key:
-                log.warn("Missing Stripe API Key.")
+            if not env.stripe.enabled:
+                log.warn("✗ Stripe disabled")
                 return None
 
             if subscription.plan == plan:

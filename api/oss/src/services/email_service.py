@@ -16,7 +16,7 @@ if env.sendgrid.enabled:
     log.info("✓ SendGrid enabled")
 else:
     sg = None
-    log.info("SendGrid disabled - emails will be skipped")
+    log.warn("✗ SendGrid disabled")
 
 
 def read_email_template(template_file_path):

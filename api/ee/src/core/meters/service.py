@@ -20,9 +20,9 @@ log = get_module_logger(__name__)
 # Initialize Stripe only if enabled
 if env.stripe.enabled:
     stripe.api_key = env.stripe.api_key
-    log.info("✓ Stripe enabled in meters service")
+    log.info("✓ Stripe enabled")
 else:
-    log.info("Stripe disabled in meters service")
+    log.info("✗ Stripe disabled")
 
 
 class MetersService:
@@ -79,8 +79,8 @@ class MetersService:
         return await self.meters_dao.adjust(meter=meter, quota=quota, anchor=anchor)
 
     async def report(self):
-        if not stripe.api_key:
-            log.warn("[report] Missing Stripe API Key.")
+        if not env.stripe.enabled:
+            log.warn("✗ Stripe disabled")
             return
 
         log.info("[report] ============================================")

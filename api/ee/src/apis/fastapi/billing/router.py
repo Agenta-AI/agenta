@@ -37,7 +37,7 @@ if env.stripe.enabled:
     stripe.api_key = env.stripe.api_key
     log.info("✓ Stripe enabled")
 else:
-    log.info("Stripe disabled - billing features will be skipped")
+    log.info("✗ Stripe disabled")
 
 
 AGENTA_PRICING = env.stripe.pricing

@@ -47,9 +47,9 @@ ACTIVATION_EVENTS = {
 if env.posthog.enabled:
     posthog.api_key = env.posthog.api_key
     posthog.host = env.posthog.api_url
-    log.info(f"✓ PostHog enabled - {env.posthog.api_url}")
+    log.info("✓ PostHog enabled")
 else:
-    log.info("PostHog disabled - analytics will be skipped")
+    log.warn("✗ PostHog disabled")
 
 
 async def _set_activation_property(
