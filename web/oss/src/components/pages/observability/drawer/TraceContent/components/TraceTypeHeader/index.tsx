@@ -1,6 +1,6 @@
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import dynamic from "next/dynamic"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Tag, Tooltip, Typography} from "antd"
 import {Database} from "lucide-react"
 import AnnotateDrawerButton from "../../../AnnotateDrawer/assets/AnnotateDrawerButton"
 
@@ -10,7 +10,7 @@ import {useMemo, useState} from "react"
 import {useAtomValue} from "jotai"
 import {KeyValuePair} from "@/oss/lib/Types"
 import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
-import {Rocket, SidebarSimple} from "@phosphor-icons/react"
+import {SidebarSimple} from "@phosphor-icons/react"
 import {DeleteOutlined} from "@ant-design/icons"
 
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
@@ -60,15 +60,15 @@ const TraceTypeHeader = ({
             </Tooltip>
 
             <div className="flex gap-2">
-                <Button
-                    className="flex items-center"
-                    onClick={() => setIsTestsetDrawerOpen(true)}
-                    disabled={!activeTrace?.key}
-                    size="small"
+                <TooltipWithCopyAction
+                    copyText={activeTrace?.span_id || ""}
+                    title="Copy span id"
+                    tooltipProps={{placement: "bottom", arrow: true}}
                 >
-                    <Rocket size={14} />
-                    Open in playground
-                </Button>
+                    <Tag className="font-mono truncate bg-[#0517290F]" bordered={false}>
+                        # {activeTrace?.span_id || "-"}
+                    </Tag>
+                </TooltipWithCopyAction>
                 <Button
                     className="flex items-center"
                     onClick={() => setIsTestsetDrawerOpen(true)}
@@ -105,13 +105,6 @@ const TraceTypeHeader = ({
                     />
                 )}
             </div>
-            {/* <TooltipWithCopyAction
-                  copyText={activeTrace?.span_id || ""}
-                  title="Copy span id"
-                  tooltipProps={{placement: "bottom", arrow: true}}
-              >
-                  <Tag className="font-mono truncate">{activeTrace?.span_id || "-"}</Tag>
-              </TooltipWithCopyAction> */}
 
             <TestsetDrawer
                 open={isTestsetDrawerOpen && !!activeTrace?.key}

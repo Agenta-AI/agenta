@@ -1,11 +1,8 @@
-import React from "react"
-
 import {Flex, Space, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import {PlusCircle, Timer} from "lucide-react"
 
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
-import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
     formattedSpanLatencyAtomFamily,
@@ -36,11 +33,6 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     const traceEndTime = useAtomValue(spanEndTimeAtomFamily(activeTrace))
     return (
         <Flex vertical gap={12}>
-            {/* TODO: Display variant */}
-            {/* <Space direction="vertical" size={4}>
-                <Typography.Text className={classes.title}>Variant</Typography.Text>
-            </Space> */}
-
             <Space direction="vertical" size={4}>
                 <Typography.Text className={classes.title}>Type</Typography.Text>
 

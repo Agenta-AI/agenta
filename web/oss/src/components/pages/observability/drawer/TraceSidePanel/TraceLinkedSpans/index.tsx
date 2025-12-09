@@ -67,26 +67,30 @@ const TraceLinkedSpans = () => {
     console.log("linksAndReferences", linksAndReferences)
     return (
         <section className="flex flex-col gap-2">
-            <div className="flex flex-col gap-2">
-                <Typography.Text type="secondary">Links</Typography.Text>
-                {linksAndReferences.links?.map((link) => {
-                    return (
-                        <Tag
-                            bordered={false}
-                            className="cursor-pointer self-start bg-[#0517290F]"
-                            onClick={() => handleNavigate(link)}
-                        >
-                            {link.key ? `${link.key}` : link.span_id}
-                        </Tag>
-                    )
-                })}
-            </div>
-            <div className="flex flex-col gap-2">
-                <Typography.Text type="secondary">References</Typography.Text>
-                {linksAndReferences.references?.map((link) => {
-                    return renderReferenceTags({key: link.key, id: link.id, slug: link.slug})
-                })}
-            </div>
+            {linksAndReferences.links?.length ? (
+                <div className="flex flex-col gap-2">
+                    <Typography.Text type="secondary">Links</Typography.Text>
+                    {linksAndReferences.links?.map((link) => {
+                        return (
+                            <Tag
+                                bordered={false}
+                                className="cursor-pointer self-start bg-[#0517290F]"
+                                onClick={() => handleNavigate(link)}
+                            >
+                                {link.key ? `${link.key}` : link.span_id}
+                            </Tag>
+                        )
+                    })}
+                </div>
+            ) : null}
+            {linksAndReferences.references?.length ? (
+                <div className="flex flex-col gap-2">
+                    <Typography.Text type="secondary">References</Typography.Text>
+                    {linksAndReferences.references?.map((link) => {
+                        return renderReferenceTags({key: link.key, id: link.id, slug: link.slug})
+                    })}
+                </div>
+            ) : null}
         </section>
     )
 }
