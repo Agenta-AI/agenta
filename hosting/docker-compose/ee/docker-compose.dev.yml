@@ -76,7 +76,7 @@ services:
         command:
             [
                 "uvicorn",
-                "routers:app",
+                "entrypoints.routers:app",
                 "--host",
                 "0.0.0.0",
                 "--port",
@@ -119,9 +119,9 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python queues.py
+            python entrypoints/evals.py
 
-    streams:
+    ingest:
         image: agenta-ee-dev-api:latest
 
         volumes:
@@ -146,7 +146,7 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python streams.py
+            python entrypoints/ingest.py
 
     cron:
         image: agenta-ee-dev-api:latest

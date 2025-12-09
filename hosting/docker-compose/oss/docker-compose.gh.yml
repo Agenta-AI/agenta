@@ -50,7 +50,7 @@ services:
             - SCRIPT_NAME=/api
 
         command: >
-            newrelic-admin run-program gunicorn routers:app
+            newrelic-admin run-program gunicorn entrypoints.routers:app
             --bind 0.0.0.0:8000
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
@@ -69,7 +69,7 @@ services:
                 condition: service_completed_successfully
         restart: always
 
-    queues:
+    evals:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -89,7 +89,7 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "queues.py"
+                "entrypoints/evals.py"
             ]
 
         depends_on:
@@ -98,7 +98,7 @@ services:
             - redis-durable
         restart: always
 
-    streams:
+    ingest:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -118,7 +118,7 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "streams.py"
+                "entrypoints/ingest.py"
             ]
 
         depends_on:
