@@ -94,7 +94,7 @@ services:
             supertokens:
                 condition: service_healthy
 
-    queues:
+    evals:
         image: agenta-ee-dev-api:latest
 
         volumes:
