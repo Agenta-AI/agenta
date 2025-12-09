@@ -1,6 +1,7 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
+import {wasScenarioRecentlySaved} from "./metrics"
 import {
     MetricProcessor,
     MetricProcessorFlushOptions,
@@ -13,12 +14,36 @@ import {
     ScenarioRefreshDetailResult,
 } from "./runMetrics/types"
 
+// Debug logger that only logs in development environments
+const isDev = process.env.NODE_ENV === "development"
+const metricProcessorDebug = {
+    log: (...args: Parameters<typeof console.log>) => {
+        if (isDev) console.log("[MetricProcessor]", ...args)
+    },
+    debug: (...args: Parameters<typeof console.debug>) => {
+        if (isDev) console.debug("[MetricProcessor]", ...args)
+    },
+    info: (...args: Parameters<typeof console.info>) => {
+        if (isDev) console.info("[MetricProcessor]", ...args)
+    },
+    warn: (...args: Parameters<typeof console.warn>) => {
+        if (isDev) console.warn("[MetricProcessor]", ...args)
+    },
+    error: (...args: Parameters<typeof console.error>) => {
+        if (isDev) console.error("[MetricProcessor]", ...args)
+    },
+}
+
 // Track which runIds have already attempted bootstrap refresh
 // This prevents repeated refresh attempts when backend returns empty results
 const bootstrapAttemptedRuns = new Set<string>()
 
 export const clearBootstrapAttempt = (runId: string) => {
     bootstrapAttemptedRuns.delete(runId)
+}
+
+export const clearAllBootstrapAttempts = () => {
+    bootstrapAttemptedRuns.clear()
 }
 
 const LEGACY_VALUE_ALLOWED_KEYS = new Set([
@@ -156,19 +181,11 @@ export const createMetricProcessor = ({
         // 2. It has no status at all (null/undefined means not yet executed)
         const isPendingScenario = status ? pendingStatuses.has(status) : true
 
-        console.debug("[MetricProcessor] processMetric", {
-            scope,
-            scenarioId: summary.scenarioId,
-            status,
-            isPendingScenario,
-            hasLegacyShape,
-        })
-
         if (scope === "scenario") {
             // Skip ALL refresh logic for scenarios that haven't been run yet
             // There's no data to refresh if the scenario hasn't been executed
             if (isPendingScenario) {
-                console.debug("[MetricProcessor] Skipping pending scenario", {
+                metricProcessorDebug.debug("Skipping pending scenario", {
                     scenarioId: summary.scenarioId,
                     status,
                 })
@@ -230,15 +247,51 @@ export const createMetricProcessor = ({
         state.runLevelFlags.push(reason)
     }
 
-    const markScenarioGap = (scenarioId: string, reason: string) => {
-        // Track the gap for informational purposes, but do NOT add to scenarioIds
-        // for refresh. Missing metrics typically means the scenario hasn't been run yet
-        // (pending/waiting), so there's nothing to refresh.
-        // If a scenario has been run but metrics are missing, the processMetric function
-        // will handle it based on the metric's status field.
+    const markScenarioGap = (
+        scenarioId: string,
+        reason: string,
+        scenarioStatus?: string | null,
+    ) => {
+        // Track the gap for informational purposes
         state.scenarioGaps.push({scenarioId, reason})
-        // NOTE: Intentionally NOT adding to state.scenarioIds to prevent refresh
-        // for scenarios that simply don't have metrics yet
+
+        // Skip refresh for scenarios that were recently saved
+        // This prevents triggering refresh before new metrics are persisted
+        if (wasScenarioRecentlySaved(scenarioId)) {
+            metricProcessorDebug.debug("Skipping refresh for recently saved scenario", {
+                scenarioId,
+                reason,
+            })
+            return
+        }
+
+        // Terminal statuses indicate the scenario HAS been executed
+        // If metrics are missing for a terminal scenario, we should trigger a refresh
+        const terminalStatuses = new Set([
+            "success",
+            "completed",
+            "finished",
+            "done",
+            "failed",
+            "error",
+            "failure",
+        ])
+
+        const normalizedStatus = scenarioStatus?.toLowerCase?.() ?? null
+        const isTerminalState = normalizedStatus && terminalStatuses.has(normalizedStatus)
+
+        if (isTerminalState && reason === "missing-scenario-metric") {
+            // Scenario is in terminal state but has no metrics - trigger refresh
+            metricProcessorDebug.debug("Terminal scenario missing metrics, triggering refresh", {
+                scenarioId,
+                reason,
+                scenarioStatus: normalizedStatus,
+            })
+            state.scenarioIds.add(scenarioId)
+        }
+        // NOTE: For non-terminal states (pending, waiting, etc.), we intentionally
+        // do NOT add to state.scenarioIds to prevent refresh for scenarios that
+        // simply haven't been executed yet
     }
 
     const getPendingActions = () => {
@@ -283,7 +336,7 @@ export const createMetricProcessor = ({
         // })
 
         if (!pending.length && !runLevelFlags.length && !scenarioGaps.length) {
-            console.debug("[MetricProcessor] flush: nothing to do, returning empty result")
+            metricProcessorDebug.debug("flush: nothing to do, returning empty result")
             return makeEmptyFlushResult()
         }
 
@@ -297,10 +350,10 @@ export const createMetricProcessor = ({
 
         if (triggerRefresh) {
             const uniqueScenarioIds = Array.from(new Set(scenarioIds.filter(Boolean)))
-            console.debug("[MetricProcessor] flush: will trigger refresh for scenarios", {
-                uniqueScenarioIds,
-            })
             if (uniqueScenarioIds.length) {
+                metricProcessorDebug.debug("flush: will trigger refresh for scenarios", {
+                    uniqueScenarioIds,
+                })
                 const pendingByScenario = new Map<string, MetricProcessorResult[]>()
                 pending.forEach((result) => {
                     if (!result.scenarioId) return
@@ -525,6 +578,23 @@ export const createMetricProcessor = ({
             const shouldRunRefresh =
                 (!hasRunPending && hasActionableRunFlag) ||
                 (!hasScenarioSignals && !hasRunPending && canAttemptBootstrap)
+
+            metricProcessorDebug.debug("Run-level refresh decision", {
+                runId,
+                source,
+                triggerRefresh,
+                isTemporalOnly,
+                hasRunPending,
+                hasActionableRunFlag,
+                hasScenarioSignals,
+                hasMissingRunOnly,
+                alreadyAttemptedBootstrap,
+                canAttemptBootstrap,
+                shouldRunRefresh,
+                runLevelFlags,
+                scenarioIdsCount: scenarioIds.length,
+                scenarioGapsCount: scenarioGaps.length,
+            })
 
             if (shouldRunRefresh) {
                 // Mark bootstrap attempt to prevent repeated tries

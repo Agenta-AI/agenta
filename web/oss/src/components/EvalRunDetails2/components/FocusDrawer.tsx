@@ -621,25 +621,12 @@ InvocationMetaChips.displayName = "InvocationMetaChips"
 
 export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps) => {
     const {columnResult} = usePreviewTableData({runId})
-    const projectId = useAtomValue(effectiveProjectIdAtom)
     const descriptorMap = useAtomValue(
         useMemo(() => columnValueDescriptorMapAtomFamily(runId ?? null), [runId]),
     )
     const runIndex = useAtomValue(
         useMemo(() => evaluationRunIndexAtomFamily(runId ?? null), [runId]),
     )
-    const invocationRefs = useAtomValue(
-        useMemo(() => runInvocationRefsAtomFamily(runId ?? null), [runId]),
-    )
-    const testsetIds = useAtomValue(useMemo(() => runTestsetIdsAtomFamily(runId ?? null), [runId]))
-    const variantId = useMemo(
-        () => invocationRefs?.variantId ?? invocationRefs?.applicationVariantId ?? null,
-        [invocationRefs],
-    )
-
-    if (!columnResult) {
-        return <Skeleton active paragraph={{rows: 6}} />
-    }
 
     const groups = columnResult.groups ?? []
     const columnMap = useMemo(() => {
@@ -699,6 +686,10 @@ export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps)
             .filter((section): section is FocusDrawerSection => Boolean(section))
     }, [columnMap, descriptorMap, groups, runIndex])
 
+    if (!columnResult) {
+        return <Skeleton active paragraph={{rows: 6}} />
+    }
+
     return (
         <div
             className="flex h-full flex-col gap-4 overflow-auto bg-[#F8FAFC] p-4"
@@ -736,35 +727,6 @@ export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps)
                     </div>
                 </section>
             ))}
-
-            {/* {ungroupedColumns.length ? (
-                <section
-                    id={toSectionAnchorId("additional-details")}
-                    className={`${SECTION_CARD_CLASS} flex flex-col gap-3`}
-                >
-                    <div className="border-b border-[#EAECF0] px-4 py-3">
-                        <Title level={5} className="!mb-0 text-[#1D2939]">
-                            Additional Details
-                        </Title>
-                    </div>
-                    <div className="flex flex-col gap-3 px-4 pb-4">
-                        {ungroupedColumns.map((column) => {
-                            const descriptor =
-                                descriptorMap?.[column.id] ??
-                                createColumnValueDescriptor(column, runIndex)
-                            return (
-                                <ScenarioColumnValue
-                                    key={column.id}
-                                    runId={runId}
-                                    scenarioId={scenarioId}
-                                    column={column}
-                                    descriptor={descriptor}
-                                />
-                            )
-                        })}
-                    </div>
-                </section>
-            ) : null} */}
         </div>
     )
 }

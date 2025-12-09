@@ -9,7 +9,7 @@ import CreateTestsetFromApi from "./CreateTestsetFromApi"
 import CreateTestsetFromScratch from "./CreateTestsetFromScratch"
 import UploadTestset from "./UploadTestset"
 
-const useStyles = createUseStyles(() => ({
+const useStyles = createUseStyles({
     modal: {
         transition: "width 0.3s ease",
         "& .ant-modal-content": {
@@ -20,7 +20,7 @@ const useStyles = createUseStyles(() => ({
             },
         },
     },
-}))
+})
 
 interface Props extends ModalProps {
     testsetCreationMode: TestsetCreationMode

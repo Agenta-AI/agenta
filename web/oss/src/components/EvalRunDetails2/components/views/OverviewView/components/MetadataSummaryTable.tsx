@@ -81,10 +81,17 @@ const QuerySummaryCell = ({runId}: MetadataCellProps) => {
 
     const formatSampleRate = (rate: unknown): string => {
         if (typeof rate !== "number" || Number.isNaN(rate)) return "—"
-        // Heuristic: if 0<rate<=1 treat as fraction; if 1<rate<=100 treat as percent
-        const pct = rate > 0 && rate <= 1 ? rate * 100 : rate
-        const rounded = Math.round((pct + Number.EPSILON) * 100) / 100
-        return `${rounded}%`
+        // Heuristic: if 0<rate<=1 treat as fraction and convert to %; if rate>1 assume already a percent
+        if (rate > 0 && rate <= 1) {
+            const pct = rate * 100
+            const rounded = Math.round((pct + Number.EPSILON) * 100) / 100
+            return `${rounded}%`
+        } else if (rate > 1 && rate <= 100) {
+            const rounded = Math.round((rate + Number.EPSILON) * 100) / 100
+            return `${rounded}%`
+        } else {
+            return "—"
+        }
     }
 
     if (isLoading) return <Typography.Text type="secondary">…</Typography.Text>
@@ -644,7 +651,7 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
             key: runId,
             width: 160,
             onCell: (record: MetadataRowRecord) => {
-                if (!isComparison || record.key === "query_config" || record.key === "testsets") {
+                if (!isComparison || record.key === "query_config") {
                     return {}
                 }
                 const tone = getComparisonColor(index)

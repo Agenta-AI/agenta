@@ -149,6 +149,9 @@ export const toIdString = (value: unknown): string | null => {
     return null
 }
 
+// Maximum depth for prompt structure traversal. A depth of 5 is chosen as a reasonable limit to prevent
+// infinite recursion in the case of circular object structures. If this depth is exceeded, further
+// recursion is stopped to avoid stack overflows and performance issues.
 const MAX_PROMPT_DEPTH = 5
 
 const isPlainObject = (value: unknown): value is Record<string, any> =>
@@ -186,7 +189,7 @@ const normalizePromptText = (
         if (Array.isArray(value)) {
             const parts = value
                 .map((entry) => {
-                    if (typeof entry === "string") return entry.trim()
+                    if (typeof entry === "string" && entry) return entry.trim()
                     if (entry && typeof entry === "object") {
                         extractAttachments(entry)
                         if (typeof entry.text === "string") return entry.text.trim()
@@ -517,8 +520,4 @@ export const extractResponseFormatFromVariantParams = (
     }
 
     return walk(params, 0)
-}
-
-export interface TestsetRefMeta {
-    id: string
 }

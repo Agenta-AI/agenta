@@ -82,17 +82,17 @@ Agenta is a platform for building production-grade LLM applications. It helps **
 
 ## Core Features
 
-### 🧪 Prompt Engineering & Management
+### 🧪 Prompt Management & Prompt Engineering
 Collaborate with Subject Matter Experts (SMEs) on prompt engineering and make sure nothing breaks in production.
 
-- **Interactive Playground**: Compare prompts side by side against your test cases
+- **Interactive LLM Playground**: Compare prompts side by side against your test cases
 - **Multi-Model Support**: Experiment with 50+ LLM models or [bring-your-own models](https://agenta.ai/docs/prompt-engineering/playground/custom-providers?utm_source=github&utm_medium=referral&utm_campaign=readme)
 - **Version Control**: Version prompts and configurations with branching and environments
 - **Complex Configurations**: Enable SMEs to collaborate on [complex configuration schemas](https://agenta.ai/docs/custom-workflows/overview?utm_source=github&utm_medium=referral&utm_campaign=readme) beyond simple prompts
 
 [Explore prompt management →](https://agenta.ai/docs/prompt-engineering/concepts?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
-### 📊 Evaluation & Testing
+### 📊 LLM Evaluation
 Evaluate your LLM applications systematically with both human and automated feedback.
 - **Flexible Testsets**: Create testcases from production data, playground experiments, or upload CSVs
 - **Pre-built and Custom Evaluators**: Use LLM-as-judge, one of our 20+ pre-built evaluators, or you custom evaluators
@@ -101,10 +101,10 @@ Evaluate your LLM applications systematically with both human and automated feed
 
 [Explore evaluation frameworks →](https://agenta.ai/docs/evaluation/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
-### 📡 Observability & Monitoring
+### 📡 LLM Observability
 Get visibility into your LLM applications in production.
 - **Cost & Performance Tracking**: Monitor spending, latency, and usage patterns
-- **Tracing**: Debug complex workflows with detailed traces
+- **LLM Tracing**: Debug complex workflows with detailed traces
 - **Open Standards**: OpenTelemetry native tracing compatible with OpenLLMetry, and OpenInference
 - **Integrations**: Comes with pre-built integrations for most models and frameworks
 

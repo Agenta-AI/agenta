@@ -51,8 +51,6 @@ const FiltersPopoverTrigger = ({
         [renderContent, isOpen],
     )
 
-    console.log("buttonProps", {buttonProps})
-
     return (
         <Popover
             trigger="click"

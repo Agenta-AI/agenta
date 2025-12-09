@@ -5,6 +5,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 
+import {updateScenarioStatusCache} from "../metrics"
 import {effectiveProjectIdAtom} from "../run"
 
 import type {EvaluationScenarioRow, ScenarioRowsQueryResult, WindowingState} from "./types"
@@ -194,6 +195,12 @@ export const fetchEvaluationScenarioWindow = async ({
             timestamp,
         }
     })
+
+    // Populate scenario status cache for metric refresh logic
+    // This allows the metric batcher to detect terminal state scenarios with missing metrics
+    if (rows.length > 0) {
+        updateScenarioStatusCache(rows)
+    }
 
     const responseWindowing = response.data?.windowing ?? {}
     const lastRowId = rows.length ? (rows[rows.length - 1]?.id ?? null) : null

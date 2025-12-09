@@ -25,7 +25,21 @@ export const shippedFeatures: ShippedFeature[] = [
   // Observability: DE74FF
   // Evaluation: 86B7FF
   // Integration: FFA500
-    {
+  {
+    id: "projects-within-organizations",
+    title: "Projects within Organizations",
+    description:
+      "Create projects within organizations to divide work between different AI products. Each project scopes its prompts, traces, and evaluations independently.",
+    changelogPath: "/docs/changelog/projects-within-organizations",
+    shippedAt: "2025-12-04",
+    labels: [
+      {
+        name: "Misc",
+        color: "000000",
+      },
+    ],
+  },
+  {
     id: "jinja2-playground",
     title: "Jinja2 Template Support in the Playground",
     description:
@@ -293,19 +307,6 @@ export const inProgressFeatures: PlannedFeature[] = [
       {
         name: "Playground",
         color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "projects-workspaces",
-    title: "Projects and Workspaces",
-    description:
-      "Improve organization structure by adding projects. Create projects for different products and scope resources to specific projects.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2860",
-    labels: [
-      {
-        name: "Misc",
-        color: "000000",
       },
     ],
   },

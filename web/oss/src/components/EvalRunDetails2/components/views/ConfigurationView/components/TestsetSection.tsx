@@ -26,9 +26,6 @@ const TestsetSection = ({runId}: TestsetSectionProps) => {
 
     return (
         <Form layout="vertical" requiredMark={false}>
-            {/* <Form.Item label="Linked test sets" style={{marginBottom: 16}}>
-                <TestsetTagList ids={testsetIds} runId={runId} />
-            </Form.Item> */}
             <div className="flex flex-col gap-4">
                 {testsetIds.map((id, index) => (
                     <TestsetCard key={id} runId={runId} testsetId={id} index={index} />

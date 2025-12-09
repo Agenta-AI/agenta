@@ -113,7 +113,10 @@ export const OverviewLoadingPlaceholder = ({
 
         const data = frames[idx]
         const t = (idx / totalFrames) * Math.PI * 2
-        const pulse = 0.12 + 0.02 * (0.5 + 0.5 * Math.sin(t))
+        const BASE_OPACITY = 0.12
+        const PULSE_AMPLITUDE = 0.02
+        const PULSE_CENTER = 0.5
+        const pulse = BASE_OPACITY + PULSE_AMPLITUDE * (PULSE_CENTER + PULSE_CENTER * Math.sin(t))
         return (
             <div className="opacity-80 h-full w-full">
                 <ResponsiveContainer width="100%" height="100%">
