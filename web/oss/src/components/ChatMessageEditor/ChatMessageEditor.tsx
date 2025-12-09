@@ -45,13 +45,36 @@ export interface FileContentPart {
 export type MessageContentPart = TextContentPart | ImageContentPart | FileContentPart
 
 /** Message content can be a string or an array of content parts */
-export type MessageContent = string | MessageContentPart[]
+export type MessageContent = string | MessageContentPart[] | null
+
+/** Tool call structure for function calling */
+export interface ToolCall {
+    id: string
+    type: "function"
+    function: {
+        name: string
+        arguments: string
+    }
+}
 
 /** Simple message type for the editor - uses string role for flexibility */
 export interface SimpleChatMessage {
     role: string
-    content: MessageContent
+    content?: MessageContent
     id?: string
+    // Tool calling fields
+    name?: string // Function/tool name for tool responses
+    tool_call_id?: string // ID of the tool call this message responds to
+    tool_calls?: ToolCall[] // Tool calls made by assistant
+    // Provider-specific fields (preserved but not edited)
+    provider_specific_fields?: Record<string, unknown>
+    annotations?: unknown[]
+    refusal?: string | null
+    // Legacy function calling
+    function_call?: {
+        name: string
+        arguments: string
+    }
 }
 
 /**
@@ -59,6 +82,9 @@ export interface SimpleChatMessage {
  * Handles both string content and array content with text parts.
  */
 export function extractTextFromContent(content: MessageContent): string {
+    if (content === null || content === undefined) {
+        return ""
+    }
     if (typeof content === "string") {
         return content
     }
@@ -66,6 +92,33 @@ export function extractTextFromContent(content: MessageContent): string {
         const textParts = content.filter((part): part is TextContentPart => part.type === "text")
         return textParts.map((part) => part.text).join("\n")
     }
+    return ""
+}
+
+/**
+ * Extract display text from a message, including tool call info if present.
+ * For assistant messages with tool_calls, shows the function calls.
+ * For tool messages, shows the response content.
+ */
+export function extractDisplayTextFromMessage(message: SimpleChatMessage): string {
+    // If message has content, use it
+    const contentText = extractTextFromContent(message.content ?? null)
+    if (contentText) {
+        return contentText
+    }
+
+    // For assistant messages with tool_calls but no content, show tool call info
+    if (message.tool_calls && message.tool_calls.length > 0) {
+        return message.tool_calls
+            .map((tc) => `${tc.function.name}(${tc.function.arguments})`)
+            .join("\n")
+    }
+
+    // For legacy function_call
+    if (message.function_call) {
+        return `${message.function_call.name}(${message.function_call.arguments})`
+    }
+
     return ""
 }
 
@@ -188,6 +241,188 @@ export function getAttachments(content: MessageContent): (ImageContentPart | Fil
     )
 }
 
+// ============================================================================
+// ToolMessageHeader - Header for tool response messages showing name and call ID
+// ============================================================================
+
+interface ToolMessageHeaderProps {
+    /** Function/tool name */
+    name?: string
+    /** Tool call ID this message responds to */
+    toolCallId?: string
+    /** Additional class name */
+    className?: string
+}
+
+/**
+ * Header component for tool response messages, showing the function name and call ID.
+ * Similar to the playground's ToolCallViewHeader.
+ */
+export const ToolMessageHeader: React.FC<ToolMessageHeaderProps> = ({
+    name,
+    toolCallId,
+    className,
+}) => {
+    if (!name && !toolCallId) return null
+
+    return (
+        <div
+            className={clsx(
+                "w-full flex items-center justify-between text-xs text-gray-500 px-1 py-1",
+                className,
+            )}
+        >
+            {name && (
+                <Tooltip title="Function name">
+                    <span className="font-medium text-gray-600">{name}</span>
+                </Tooltip>
+            )}
+            {toolCallId && (
+                <Tooltip title="Tool call ID">
+                    <span className="font-mono text-gray-400 truncate max-w-[200px]">
+                        {toolCallId}
+                    </span>
+                </Tooltip>
+            )}
+        </div>
+    )
+}
+
+/**
+ * JSON Schema for message content - supports string or array of content parts.
+ */
+const MESSAGE_CONTENT_SCHEMA = {
+    anyOf: [
+        // Simple string content
+        {type: "string"},
+        // Array of content parts
+        {
+            type: "array",
+            items: {
+                anyOf: [
+                    // Text content part
+                    {
+                        type: "object",
+                        properties: {
+                            type: {type: "string", const: "text"},
+                            text: {type: "string"},
+                        },
+                        required: ["type", "text"],
+                    },
+                    // Image URL content part
+                    {
+                        type: "object",
+                        properties: {
+                            type: {type: "string", const: "image_url"},
+                            image_url: {
+                                type: "object",
+                                properties: {
+                                    url: {type: "string"},
+                                    detail: {type: "string", enum: ["auto", "low", "high"]},
+                                },
+                                required: ["url"],
+                            },
+                        },
+                        required: ["type", "image_url"],
+                    },
+                    // File content part
+                    {
+                        type: "object",
+                        properties: {
+                            type: {type: "string", const: "file"},
+                            file: {
+                                type: "object",
+                                properties: {
+                                    file_data: {type: "string"},
+                                    file_id: {type: "string"},
+                                    filename: {type: "string"},
+                                    format: {type: "string"},
+                                    name: {type: "string"},
+                                    mime_type: {type: "string"},
+                                },
+                            },
+                        },
+                        required: ["type", "file"],
+                    },
+                ],
+            },
+        },
+    ],
+}
+
+/**
+ * JSON Schema for validating a full chat message in JSON mode.
+ * Includes role, content, and optional fields like name, tool_call_id, tool_calls, etc.
+ *
+ * Supports:
+ * - User/System messages: { role, content }
+ * - Assistant messages: { role, content? } or { role, tool_calls } (content optional when tool_calls present)
+ * - Tool messages: { role, content, name, tool_call_id }
+ * - Provider-specific fields: provider_specific_fields, annotations, refusal, etc.
+ */
+const CHAT_MESSAGE_SCHEMA = {
+    type: "object",
+    properties: {
+        role: {
+            type: "string",
+            enum: ["system", "user", "assistant", "tool", "function"],
+        },
+        content: {
+            anyOf: [
+                MESSAGE_CONTENT_SCHEMA,
+                {type: "null"}, // content can be null for assistant messages with tool_calls
+            ],
+        },
+        name: {type: "string"}, // Function/tool name
+        tool_call_id: {type: "string"}, // For tool response messages
+        tool_calls: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    id: {type: "string"},
+                    type: {type: "string", const: "function"},
+                    function: {
+                        type: "object",
+                        properties: {
+                            name: {type: "string"},
+                            arguments: {type: "string"},
+                        },
+                        required: ["name", "arguments"],
+                    },
+                },
+                required: ["id", "type", "function"],
+            },
+        },
+        // Provider-specific fields (OpenAI, Anthropic, etc.)
+        provider_specific_fields: {type: "object"},
+        annotations: {type: "array"},
+        refusal: {anyOf: [{type: "string"}, {type: "null"}]},
+        // Function calling (legacy)
+        function_call: {
+            type: "object",
+            properties: {
+                name: {type: "string"},
+                arguments: {type: "string"},
+            },
+        },
+    },
+    required: ["role"], // Only role is always required; content is optional for assistant with tool_calls
+}
+
+/**
+ * JSON Schema for validating an array of chat messages.
+ */
+export const CHAT_MESSAGES_ARRAY_SCHEMA = {
+    type: "array",
+    items: CHAT_MESSAGE_SCHEMA,
+}
+
+/**
+ * JSON Schema for validating a single chat message.
+ */
+export {CHAT_MESSAGE_SCHEMA}
+
 export interface ChatMessageEditorProps {
     /** Unique ID for the editor instance */
     id?: string
@@ -227,6 +462,8 @@ export interface ChatMessageEditorProps {
     state?: "filled" | "readOnly"
     /** Editor type: border, borderless */
     editorType?: "border" | "borderless"
+    /** Custom validation schema for JSON content */
+    validationSchema?: unknown
 }
 
 /**
@@ -252,6 +489,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
     enableTokens,
     state = "filled",
     editorType = "border",
+    validationSchema,
     ...props
 }) => {
     const selectOptions = useMemo(
@@ -264,6 +502,14 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             ],
         [roleOptions],
     )
+
+    // Use provided schema or default MESSAGE_CONTENT_SCHEMA for JSON mode
+    const effectiveSchema = useMemo(() => {
+        if (validationSchema !== undefined) {
+            return validationSchema
+        }
+        return isJSON ? MESSAGE_CONTENT_SCHEMA : undefined
+    }, [validationSchema, isJSON])
 
     return (
         <SharedEditor
@@ -303,6 +549,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
                 noProvider: true,
                 enableTokens: Boolean(enableTokens),
                 showToolbar: false,
+                validationSchema: effectiveSchema,
             }}
             noProvider={true}
         />
@@ -556,7 +803,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
     const handleTextChange = (index: number, newText: string) => {
         const updated = [...messages]
-        const currentContent = updated[index].content
+        const currentContent = updated[index].content ?? ""
         // Preserve attachments when updating text
         updated[index] = {
             ...updated[index],
@@ -578,7 +825,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         const updated = [...messages]
         updated[index] = {
             ...updated[index],
-            content: addImageToContent(updated[index].content, imageUrl),
+            content: addImageToContent(updated[index].content ?? "", imageUrl),
         }
         onChange(updated)
     }
@@ -587,7 +834,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         const updated = [...messages]
         updated[index] = {
             ...updated[index],
-            content: addFileToContent(updated[index].content, fileData, filename, format),
+            content: addFileToContent(updated[index].content ?? "", fileData, filename, format),
         }
         onChange(updated)
     }
@@ -596,7 +843,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         const updated = [...messages]
         updated[msgIndex] = {
             ...updated[msgIndex],
-            content: removeAttachmentFromContent(updated[msgIndex].content, attachmentIndex),
+            content: removeAttachmentFromContent(updated[msgIndex].content ?? "", attachmentIndex),
         }
         onChange(updated)
     }
@@ -604,8 +851,16 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
             {messages.map((msg, index) => {
-                const textContent = extractTextFromContent(msg.content)
-                const attachments = getAttachments(msg.content)
+                // Check message type
+                const isToolResponse = msg.role === "tool"
+                const hasToolCalls = Boolean(msg.tool_calls && msg.tool_calls.length > 0)
+
+                // Get text content - for assistant with tool_calls, show formatted tool calls
+                const textContent = hasToolCalls
+                    ? extractDisplayTextFromMessage(msg)
+                    : extractTextFromContent(msg.content ?? null)
+
+                const attachments = getAttachments(msg.content ?? null)
                 const hasAttachmentsFlag = attachments.length > 0
 
                 return (
@@ -619,6 +874,15 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                             placeholder={placeholder}
                             onChangeRole={(role) => handleRoleChange(index, role)}
                             onChangeText={(text) => handleTextChange(index, text)}
+                            headerBottom={
+                                // Show tool info header for tool response messages
+                                isToolResponse && (msg.name || msg.tool_call_id) ? (
+                                    <ToolMessageHeader
+                                        name={msg.name}
+                                        toolCallId={msg.tool_call_id}
+                                    />
+                                ) : undefined
+                            }
                             headerRight={
                                 <div className="flex items-center gap-1">
                                     {allowFileUpload && !disabled && (

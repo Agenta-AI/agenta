@@ -2,6 +2,7 @@ export {
     default as ChatMessageEditor,
     ChatMessageList,
     extractTextFromContent,
+    extractDisplayTextFromMessage,
     hasAttachments,
     getAttachmentInfo,
     getAttachments,
@@ -9,6 +10,9 @@ export {
     addImageToContent,
     addFileToContent,
     removeAttachmentFromContent,
+    CHAT_MESSAGE_SCHEMA,
+    CHAT_MESSAGES_ARRAY_SCHEMA,
+    ToolMessageHeader,
 } from "./ChatMessageEditor"
 export type {
     ChatMessageEditorProps,
@@ -19,4 +23,5 @@ export type {
     TextContentPart,
     ImageContentPart,
     FileContentPart,
+    ToolCall,
 } from "./ChatMessageEditor"
