@@ -213,11 +213,16 @@ export const useTableExport = <Row extends InfiniteTableRowBase>() => {
 
             if (!columns.length || !rows.length) return
 
-            const filteredRows = filterSkeletonRows(rows, includeSkeletonRows)
+            let filteredRows = filterSkeletonRows(rows, includeSkeletonRows)
             if (!filteredRows.length) return
 
             if (beforeExport) {
-                await beforeExport(filteredRows)
+                const result = await beforeExport(filteredRows)
+                // If beforeExport returns rows, use those (allows beforeExport to load more data)
+                if (result && Array.isArray(result)) {
+                    filteredRows = filterSkeletonRows(result as Row[], includeSkeletonRows)
+                    if (!filteredRows.length) return
+                }
             }
 
             const flatColumns = flattenColumns(columns).filter((column, index) => {

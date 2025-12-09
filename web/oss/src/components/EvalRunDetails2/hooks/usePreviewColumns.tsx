@@ -353,6 +353,7 @@ const usePreviewColumns = ({
             columnVisibilityLocked: true,
             dataIndex: "__column_visibility__",
             render: () => null,
+            exportEnabled: false,
         }
         return [...baseColumnsResult.columns, triggerColumn]
     }, [baseColumnsResult.columns, resolveNodeMeta, visibilityVersion])
