@@ -13,7 +13,7 @@ from ee.src.core.entitlements.types import Counter, Gauge, REPORTS
 from ee.src.core.meters.types import MeterDTO
 from ee.src.core.meters.interfaces import MetersDAOInterface
 
-AGENTA_PRICING = loads(env.agenta.pricing or "{}")
+AGENTA_PRICING = env.stripe.pricing
 
 log = get_module_logger(__name__)
 

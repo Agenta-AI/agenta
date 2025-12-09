@@ -1,7 +1,5 @@
 from typing import Any, Dict
-from os import environ
 from json import loads, decoder
-from uuid import getnode
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 
@@ -41,10 +39,8 @@ if env.stripe.enabled:
 else:
     log.info("Stripe disabled - billing features will be skipped")
 
-MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
-STRIPE_WEBHOOK_SECRET = env.stripe.webhook_secret
-STRIPE_TARGET = env.stripe.target or MAC_ADDRESS
-AGENTA_PRICING = loads(env.agenta.pricing or "{}")
+
+AGENTA_PRICING = env.stripe.pricing
 
 FORBIDDEN_RESPONSE = JSONResponse(
     status_code=403,
@@ -64,7 +60,7 @@ class SubscriptionsRouter:
         # ROUTER
         self.router = APIRouter()
 
-        # USES 'STRIPE_WEBHOOK_SECRET', SHOULD BE IN A DIFFERENT ROUTER
+        # USES 'env.stripe.webhook_secret', SHOULD BE IN A DIFFERENT ROUTER
         self.router.add_api_route(
             "/stripe/events/",
             self.handle_events,
@@ -197,11 +193,11 @@ class SubscriptionsRouter:
         try:
             sig_header = request.headers.get("stripe-signature")
 
-            if STRIPE_WEBHOOK_SECRET:
+            if env.stripe.webhook_secret:
                 stripe_event = stripe.Webhook.construct_event(
                     payload,
                     sig_header,
-                    STRIPE_WEBHOOK_SECRET,
+                    env.stripe.webhook_secret,
                 )
         except stripe.error.SignatureVerificationError as e:
             log.error("Webhook signature verification failed: %s", e)
@@ -246,7 +242,7 @@ class SubscriptionsRouter:
 
         target = metadata.get("target")
 
-        if target != STRIPE_TARGET:
+        if target != env.stripe.webhook_target:
             log.warn(
                 "Skipping stripe event: %s (wrong target: %s)",
                 stripe_event.type,
@@ -464,7 +460,7 @@ class SubscriptionsRouter:
                 email=user.email,
                 metadata={
                     "organization_id": organization_id,
-                    "target": STRIPE_TARGET,
+                    "target": env.stripe.webhook_target,
                 },
             )
 
@@ -491,7 +487,7 @@ class SubscriptionsRouter:
                 "metadata": {
                     "organization_id": organization_id,
                     "plan": plan.value,
-                    "target": STRIPE_TARGET,
+                    "target": env.stripe.webhook_target,
                 },
             },
             #
@@ -779,7 +775,7 @@ class SubscriptionsRouter:
         if not anchor_day or now.day < anchor_day:
             anchor_month = now.month
         else:
-            anchor_month = ((now.month % 12) + 1)
+            anchor_month = (now.month % 12) + 1
 
         entitlements = ENTITLEMENTS.get(plan)
 

@@ -544,7 +544,7 @@ def _init_supertokens():
             website_base_path="/auth",
         ),
         supertokens_config=SupertokensConfig(
-            connection_uri=env.supertokens.connection_uri,
+            uri_core=env.supertokens.uri_core,
             api_key=env.supertokens.api_key,
         ),
         framework="fastapi",

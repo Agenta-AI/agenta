@@ -122,11 +122,11 @@ async def send_invitation_email(
         call_to_action=f"""Click the link below to accept the invitation:</p><br><a href="{env.agenta.web_url}/auth?token={token}&organization_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}">Accept Invitation</a>""",
     )
 
-    if not env.agenta.send_email_from_address:
+    if not env.sendgrid.from_address:
         raise ValueError("Sendgrid requires a sender email address to work.")
 
     await email_service.send_email(
-        from_email=env.agenta.send_email_from_address,
+        from_email=env.sendgrid.from_address,
         to_email=email,
         subject=f"{user.username} invited you to join their organization",
         html_content=html_content,

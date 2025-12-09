@@ -184,7 +184,7 @@ def validate_required_env_vars():
         "AGENTA_API_URL": env.agenta.api_url,
         "AGENTA_AUTH_KEY": env.agenta.auth_key,
         "AGENTA_CRYPT_KEY": env.agenta.crypt_key,
-        "SUPERTOKENS_CONNECTION_URI": env.supertokens.connection_uri,
+        "SUPERTOKENS_CONNECTION_URI": env.supertokens.uri_core,
         "POSTGRES_URI_CORE": env.postgres.uri_core,
         "POSTGRES_URI_TRACING": env.postgres.uri_tracing,
         "POSTGRES_URI_SUPERTOKENS": env.postgres.uri_supertokens,

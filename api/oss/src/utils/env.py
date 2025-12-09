@@ -133,17 +133,24 @@ class StripeConfig(BaseModel):
     api_key: str | None = os.getenv("STRIPE_API_KEY")
     webhook_target: str | None = (
         os.getenv("STRIPE_WEBHOOK_TARGET")
-        or os.getenv("STRIPE_WEBHOOK_TARGET")
+        #
+        or os.getenv("STRIPE_TARGET")
         or MAC_ADDRESS
     )
     webhook_secret: str | None = os.getenv("STRIPE_WEBHOOK_SECRET")
 
-    pricing: str | None = loads(
-        os.getenv("STRIPE_PRICING")
-        #
-        or os.getenv("AGENTA_PRICING")
-        or "{}"
-    )
+    pricing: dict | None = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        try:
+            self.pricing = loads(
+                os.getenv("STRIPE_PRICING")
+                or os.getenv("AGENTA_PRICING")
+                or "{}"
+            )
+        except Exception:
+            self.pricing = {}
 
     model_config = ConfigDict(extra="ignore")
 
@@ -205,32 +212,24 @@ class LLMConfig(BaseModel):
     @property
     def enabled_providers(self) -> list[str]:
         """Return list of enabled LLM providers"""
-        providers = []
-        if self.alephalpha:
-            providers.append("alephalpha")
-        if self.anthropic:
-            providers.append("anthropic")
-        if self.anyscale:
-            providers.append("anyscale")
-        if self.cohere:
-            providers.append("cohere")
-        if self.deepinfra:
-            providers.append("deepinfra")
-        if self.gemini:
-            providers.append("gemini")
-        if self.groq:
-            providers.append("groq")
-        if self.mistral:
-            providers.append("mistral")
-        if self.openai:
-            providers.append("openai")
-        if self.openrouter:
-            providers.append("openrouter")
-        if self.perplexityai:
-            providers.append("perplexityai")
-        if self.togetherai:
-            providers.append("togetherai")
-        return providers
+        return [
+            name
+            for name in [
+                "alephalpha",
+                "anthropic",
+                "anyscale",
+                "cohere",
+                "deepinfra",
+                "gemini",
+                "groq",
+                "mistral",
+                "openai",
+                "openrouter",
+                "perplexityai",
+                "togetherai",
+            ]
+            if getattr(self, name)
+        ]
 
 
 class NewRelicConfig(BaseModel):
@@ -319,6 +318,11 @@ class RedisConfig(BaseModel):
     )
 
     model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        """Redis enabled if URIs are configured"""
+        return bool(self.uri_volatile or self.uri_durable)
 
 
 class AgentaConfig(BaseModel):

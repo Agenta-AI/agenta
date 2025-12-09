@@ -32,8 +32,8 @@ else:
     log.info("Stripe disabled in subscriptions service")
 
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
-STRIPE_TARGET = env.stripe.target or MAC_ADDRESS
-AGENTA_PRICING = loads(env.agenta.pricing or "{}")
+STRIPE_WEBHOOK_TARGET = env.stripe.webhook_target or MAC_ADDRESS
+AGENTA_PRICING = env.stripe.pricing
 
 
 class SwitchException(Exception):
@@ -111,7 +111,7 @@ class SubscriptionsService:
             email=organization_email,
             metadata={
                 "organization_id": organization_id,
-                "target": STRIPE_TARGET,
+                "target": STRIPE_WEBHOOK_TARGET,
             },
         )
 
@@ -133,7 +133,7 @@ class SubscriptionsService:
             metadata={
                 "organization_id": organization_id,
                 "plan": REVERSE_TRIAL_PLAN.value,
-                "target": STRIPE_TARGET,
+                "target": STRIPE_WEBHOOK_TARGET,
             },
             #
             trial_period_days=REVERSE_TRIAL_DAYS,
