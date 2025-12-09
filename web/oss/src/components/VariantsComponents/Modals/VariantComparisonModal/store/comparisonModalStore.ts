@@ -37,6 +37,18 @@ export const openComparisonModalAtom = atom(
                   allVariants?: Variant[]
               },
     ) => {
+        const currentState = get(comparisonModalAtom)
+
+        // Toggle: if already open, close it
+        if (currentState.open) {
+            set(comparisonModalAtom, {
+                open: false,
+                compareListAtom: undefined,
+                allVariantsAtom: undefined,
+            })
+            return
+        }
+
         let compareListAtom: VariantAtom | undefined
         let allVariantsAtom: VariantAtom | undefined
 

@@ -19,7 +19,6 @@ import {getProjectValues, useProjectData} from "@/oss/state/project"
 
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflowBanner"
-import ProductHuntModal from "../ProductHuntModal/ProductHuntModal"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
 
 import BreadcrumbContainer from "./assets/Breadcrumbs"
@@ -117,7 +116,7 @@ const AppWithVariants = memo(
                                             "flex flex-col min-h-0 grow":
                                                 isHumanEval || isEvaluator,
                                             "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                isPlayground || isEvaluator,
+                                                isPlayground,
                                         })}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -237,12 +236,11 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 pathname.includes("/post-signup") ||
                 pathname.includes("/workspaces"),
             isAppRoute: baseAppURL ? asPath.startsWith(baseAppURL) : false,
-            isPlayground:
-                pathname.includes("/playground") || pathname.includes("/evaluations/results"),
+            isPlayground: pathname.includes("/playground"),
+            //  || pathname.includes("/evaluations/results"),
             isEvaluator: pathname.includes("/evaluators/configure"),
             isHumanEval:
-                pathname.includes("/evaluations/single_model_test") ||
-                selectedEvaluation === "human_annotation",
+                pathname.includes("/evaluations/") || selectedEvaluation === "human_annotation",
         }
     }, [appState.asPath, appState.pathname, baseAppURL, query.selectedEvaluation])
 
@@ -267,7 +265,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     >
                         {children}
                         {contextHolder}
-                        <ProductHuntModal />
                     </AppWithVariants>
                 </ProtectedRoute>
             )}

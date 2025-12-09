@@ -18,18 +18,11 @@ from oss.src.models.db_models import UserDB
 from oss.src.services.api_key_service import create_api_key
 
 
-if is_ee():
-    from ee.src.models.db_models import (
-        OrganizationDB,
-        WorkspaceDB,
-        ProjectDB,
-    )
-else:
-    from oss.src.models.db_models import (
-        OrganizationDB,
-        WorkspaceDB,
-        ProjectDB,
-    )
+from oss.src.models.db_models import (
+    OrganizationDB,
+    WorkspaceDB,
+    ProjectDB,
+)
 
 
 log = get_module_logger(__name__)
@@ -82,7 +75,6 @@ Tier = str
 class OrganizationRequest(BaseModel):
     name: str
     description: str
-    is_paying: bool
 
 
 class WorkspaceRequest(BaseModel):
@@ -308,9 +300,6 @@ async def create_organization(
             owner="",  # move 'owner' from here to membership 'role'
             # type=...  # remove 'type'
         )
-
-        if is_ee():
-            organization_db.is_paying = request.is_paying
 
         session.add(organization_db)
 

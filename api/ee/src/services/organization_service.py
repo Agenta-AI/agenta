@@ -3,7 +3,7 @@ from urllib.parse import quote
 from ee.src.services import db_manager_ee
 from oss.src.services import email_service
 from oss.src.models.db_models import UserDB
-from ee.src.models.db_models import (
+from oss.src.models.db_models import (
     WorkspaceDB,
     OrganizationDB,
 )

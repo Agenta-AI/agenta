@@ -1,7 +1,7 @@
 import {MouseEvent, useMemo, useState} from "react"
 
 import {CloseOutlined, PythonOutlined} from "@ant-design/icons"
-import {CodeBlock, FileTs, Play} from "@phosphor-icons/react"
+import {Book, CodeBlock, FileTs, Play} from "@phosphor-icons/react"
 import {Button, ModalProps, Space, Tabs, TabsProps, Typography} from "antd"
 import dynamic from "next/dynamic"
 
@@ -10,6 +10,9 @@ import {isDemo} from "@/oss/lib/helpers/utils"
 
 import {generateCodeBlocks} from "./assets/generateCodeBlocks"
 import {useStyles} from "./assets/styles"
+import clsx from "clsx"
+
+export {useStyles}
 
 const TracingTabContent = dynamic(
     () => import("./components/TracingTabContent").then((m) => m.TracingTabContent),
@@ -20,12 +23,16 @@ const TracingTabContent = dynamic(
 
 const {Text, Title} = Typography
 
-const SetupTracingModalContent = ({
+export const SetupTracingModalContent = ({
     classes,
+    isModal = true,
+    isPostLogin = false,
     ...props
 }: {
     classes: any
+    isModal?: boolean
     onCancel: ModalProps["onCancel"]
+    isPostLogin?: boolean
 }) => {
     const [apiKeyValue, setApiKeyValue] = useState("")
     const codeBlocks = useMemo(() => generateCodeBlocks(apiKeyValue, isDemo()), [apiKeyValue])
@@ -106,28 +113,60 @@ const SetupTracingModalContent = ({
 
     return (
         <div className="h-full flex flex-col">
-            <div className={classes.modalHeader}>
-                <Button
-                    onClick={() => props.onCancel?.({} as any)}
-                    type="text"
-                    icon={<CloseOutlined />}
-                />
-                <Text>Set up tracing</Text>
-                <Button
-                    target="_blank"
-                    href="https://agenta.ai/docs/observability/observability-sdk"
-                >
-                    <Play />
-                    Tutorial
-                </Button>
-            </div>
+            {isModal && (
+                <div className={classes.modalHeader}>
+                    <Button
+                        onClick={() => props.onCancel?.({} as any)}
+                        type="text"
+                        icon={<CloseOutlined />}
+                    />
+                    <Text>Set up tracing</Text>
+
+                    <div className="flex gap-2 items-center">
+                        <Button
+                            icon={<Play size={16} className="mt-1" />}
+                            href="https://colab.research.google.com/github/Agenta-AI/agenta/blob/main/examples/jupyter/observability/quickstart.ipynb"
+                            target="_blank"
+                        >
+                            Run in colab
+                        </Button>
+                        <Button
+                            target="_blank"
+                            href="https://agenta.ai/docs/observability/observability-sdk"
+                            icon={<Book size={16} className="mt-1" />}
+                        >
+                            Read the docs
+                        </Button>
+                    </div>
+                </div>
+            )}
             <div className={classes.modalBody}>
-                <Space direction="vertical">
-                    <Title>Tracing</Title>
+                <div className={clsx("flex flex-col gap-1", isPostLogin && "mb-8")}>
+                    <div className="flex justify-between items-center">
+                        <Title style={{margin: 0}}>Setup Tracing</Title>
+                        {isPostLogin && (
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    icon={<Play size={16} className="mt-1" />}
+                                    href="https://colab.research.google.com/github/Agenta-AI/agenta/blob/main/examples/jupyter/observability/quickstart.ipynb"
+                                    target="_blank"
+                                >
+                                    Run in colab
+                                </Button>
+                                <Button
+                                    icon={<Book size={16} className="mt-1" />}
+                                    href="https://agenta.ai/docs/observability/quickstart-python"
+                                    target="_blank"
+                                >
+                                    Read the docs
+                                </Button>
+                            </div>
+                        )}
+                    </div>
                     <Text>
                         Debug effectively, bootstrap testsets, monitor and compare app versions
                     </Text>
-                </Space>
+                </div>
                 <Tabs defaultActiveKey="openai" items={items} className={classes.tabs} />
             </div>
         </div>

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.63.1"
+version = "0.66.0"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = [
@@ -24,45 +24,39 @@ exclude = [
 
 [tool.poetry.dependencies]
 python = "^3.11"
-starlette = "^0.47.0"
-fastapi = "^0.116.0"
+#
+fastapi = "^0.122"
 pydantic = "^2"
-python-dotenv = "^1.0.0"
-importlib-metadata = ">=8.0.0,<9.0"
-httpx = "^0.28.0"
-pyyaml = "^6.0.2"
-toml = "^0.10.2"
-litellm = "==1.78.7"
-jinja2 = "^3.1.6"
-python-jsonpath = "^2.0.0"
-opentelemetry-api = "^1.27.0"
-opentelemetry-sdk = "^1.27.0"
-opentelemetry-instrumentation = ">=0.56b0"
-opentelemetry-exporter-otlp-proto-http ="^1.27.0"
-structlog = "^25.2.0"
-huggingface-hub = "<0.31.0"
-restrictedpython =  { version = "^8.0", python = ">=3.11,<3.14" }
-
-# audit fixes
-h11 = "^0.16.0"
-decorator = "^5.2.1"
-openai = ">=1.106.0"
-tiktoken = "0.11.0"
-google-auth = ">=2.23,<3"
+python-dotenv = "^1"
+importlib-metadata = "^8"
+httpx = "^0.28"
+pyyaml = "^6"
+toml = "^0.10"
+litellm = "^1"
+jinja2 = "^3"
+python-jsonpath = "^2"
+opentelemetry-api = "^1"
+opentelemetry-sdk = "^1"
+opentelemetry-instrumentation = "^0.59b0"
+opentelemetry-exporter-otlp-proto-http ="^1"
+structlog = "^25"
+restrictedpython =  { version = "^8", python = ">=3.11, <3.14" }
+openai = "^2"
+daytona = "^0.121.0"
 
 
 [tool.poetry.group.dev.dependencies]
-posthog = "^3.1.0"
-questionary = ">=1.10,<3.0"
-pytest = "^8.4.2"
-setuptools = ">=71.1,<79.0"
-pytest-asyncio = "^0.24.0"
-mypy = "^1.13.0"
-pytest-xdist = "^3.6.1"
-uvicorn = "^0.34.0"
-requests = "^2.32.3"
-pexpect = "^4.9.0"
-boto3 = "^1.40.25"
+posthog = "^7"
+questionary = "^2"
+pytest = "^9"
+setuptools = "^80"
+pytest-asyncio = "^1"
+mypy = "^1"
+pytest-xdist = "^3"
+uvicorn = "^0.38"
+requests = "^2"
+pexpect = "^4"
+boto3 = "^1"
 
 [build-system]
 requires = ["poetry-core"]

@@ -14,10 +14,7 @@ import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/moda
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
-import useURL from "@/oss/hooks/useURL"
 import type {JSSTheme} from "@/oss/lib/Types"
-import {deleteApp} from "@/oss/services/app-selector/api"
-import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useAppsData} from "@/oss/state/app"
 
 const CustomWorkflowHistory: any = dynamic(
@@ -26,20 +23,8 @@ const CustomWorkflowHistory: any = dynamic(
 const ObservabilityOverview: any = dynamic(
     () => import("@/oss/components/pages/overview/observability/ObservabilityOverview"),
 )
-
-const AutoEvaluation = dynamic(
-    () => import("@/oss/components/pages/evaluations/autoEvaluation/AutoEvaluation"),
-    {ssr: false},
-)
-
-const AbTestingEvaluation = dynamic(
-    () => import("@/oss/components/HumanEvaluations/AbTestingEvaluation"),
-    {ssr: false},
-)
-
-const SingleModelEvaluation = dynamic(
-    () => import("@/oss/components/HumanEvaluations/SingleModelEvaluation"),
-    {ssr: false},
+const LatestEvaluationRunsTable: any = dynamic(() =>
+    import("@/oss/components/EvaluationRunsTablePOC").then((m) => m.LatestEvaluationRunsTable),
 )
 
 const {Title, Text} = Typography
@@ -115,6 +100,8 @@ const AppDetailsSection = memo(() => {
 
 const OverviewPage = () => {
     const classes = useStyles()
+    const {currentApp} = useAppsData()
+    const appId = currentApp?.app_id ?? null
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =
         useState(false)
 
@@ -126,9 +113,18 @@ const OverviewPage = () => {
                 <DeploymentOverview />
                 <VariantsOverview />
 
-                <AutoEvaluation viewType="overview" />
-                <AbTestingEvaluation viewType="overview" />
-                <SingleModelEvaluation viewType="overview" />
+                <LatestEvaluationRunsTable
+                    title="Auto Evaluations"
+                    evaluationKind="auto"
+                    appId={appId}
+                    appScoped
+                />
+                <LatestEvaluationRunsTable
+                    title="Human Evaluations"
+                    evaluationKind="human"
+                    appId={appId}
+                    appScoped
+                />
             </div>
 
             <CustomWorkflowHistory
