@@ -575,9 +575,12 @@ export const createMetricProcessor = ({
             const canAttemptBootstrap =
                 !isTemporalOnly && !alreadyAttemptedBootstrap && hasMissingRunOnly
 
+            // Allow run-level refresh when:
+            // 1. There's an actionable run flag (not just missing-run-level-entry)
+            // 2. Can attempt bootstrap (only missing-run-level-entry flag, not temporal, not already attempted)
+            //    even if there are scenario signals (scenarios with terminal status but missing metrics)
             const shouldRunRefresh =
-                (!hasRunPending && hasActionableRunFlag) ||
-                (!hasScenarioSignals && !hasRunPending && canAttemptBootstrap)
+                (!hasRunPending && hasActionableRunFlag) || (!hasRunPending && canAttemptBootstrap)
 
             metricProcessorDebug.debug("Run-level refresh decision", {
                 runId,
