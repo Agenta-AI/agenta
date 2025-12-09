@@ -315,10 +315,10 @@ services:
             --save ""
             --maxmemory 512mb
             --maxmemory-policy noeviction
-            --port 6380
+            --port 6381
 
         ports:
-            - "6380:6380"
+            - "6381:6381"
 
         networks:
             - agenta-network
@@ -329,7 +329,7 @@ services:
         restart: always
 
         healthcheck:
-            test: ["CMD", "redis-cli", "-p", "6380", "ping"]
+            test: ["CMD", "redis-cli", "-p", "6381", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
