@@ -165,7 +165,7 @@ class TracingWorker:
                         consumername=self.consumer_name,
                         streams={self.stream_name: ">"},
                         count=self.max_batch_size,
-                        block=int(remaining_ms),  # Block for remaining time
+                        block=max(10, int(remaining_ms)),  # Block for remaining time
                     )
 
                     if accumulated_messages:
