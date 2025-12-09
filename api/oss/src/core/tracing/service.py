@@ -376,11 +376,11 @@ class TracingService:
         try:
             cached = dumps(meter_data)
             await self.redis.setex(cache_key, ttl, cached)
-            log.debug(
-                f"[TracingService] Cached TRACES meter",
-                org_id=str(organization_id),
-                ttl=ttl,
-            )
+            # log.debug(
+            #     f"[TracingService] Cached TRACES meter",
+            #     org_id=str(organization_id),
+            #     ttl=ttl,
+            # )
         except Exception as e:
             log.error(
                 f"[TracingService] Failed to set meter cache: {e}",
@@ -429,11 +429,11 @@ class TracingService:
 
             count += 1
 
-        log.debug(
-            f"[TracingService] Published {count} spans to {stream_name}",
-            org_id=str(organization_id),
-            project_id=str(project_id),
-            user_id=str(user_id),
-        )
+        # log.debug(
+        #     f"[TracingService] Published {count} spans to {stream_name}",
+        #     org_id=str(organization_id),
+        #     project_id=str(project_id),
+        #     user_id=str(user_id),
+        # )
 
         return count

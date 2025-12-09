@@ -112,26 +112,28 @@ class EnvironSettings(BaseModel):
     )
 
     # REDIS - Split into volatile (caches/channels) and durable (queues/streams)
-    REDIS_URI: str | None = os.getenv("REDIS_URI") or "redis://redis-volatile:6379/0"
+    REDIS_URI: str | None = os.getenv("REDIS_URI")
     REDIS_URI_VOLATILE: str | None = os.getenv("REDIS_URI_VOLATILE")
     REDIS_URI_DURABLE: str | None = os.getenv("REDIS_URI_DURABLE")
 
     # REDIS - Legacy
-    REDIS_URL: str | None = os.getenv("REDIS_URL")
-    REDIS_CACHE_HOST: str = os.getenv("REDIS_CACHE_HOST") or "redis-volatile"
-    REDIS_CACHE_PORT: int = int(os.getenv("REDIS_CACHE_PORT") or "6379")
+    # REDIS_URL: str | None = os.getenv("REDIS_URL")
+    # REDIS_CACHE_HOST: str = os.getenv("REDIS_CACHE_HOST") or "redis-volatile"
+    # REDIS_CACHE_PORT: int = int(os.getenv("REDIS_CACHE_PORT") or "6379")
 
     @model_validator(mode="after")
     def build_redis_uris(self):
         self.REDIS_URI_VOLATILE = (
             self.REDIS_URI_VOLATILE
-            or f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"  # legacy
+            or self.REDIS_URI
+            # or f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"  # legacy
             or "redis://redis-volatile:6379/0"
         )
 
         self.REDIS_URI_DURABLE = (
             self.REDIS_URI_DURABLE
-            or self.REDIS_URL  # legacy
+            or self.REDIS_URI
+            # or self.REDIS_URL  # legacy
             or "redis://redis-durable:6381/0"
         )
 

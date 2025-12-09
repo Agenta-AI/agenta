@@ -276,7 +276,7 @@ async def check_entitlements(
 
     # TODO: remove this line
     log.info(
-        f"adjusting: {organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'allow' if check else 'deny '} | {meter.key}: {meter.value-meter.synced} [{meter.value}]"
+        f"adjusting: {organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'allow' if check else 'deny '} | {meter.key}: {meter.value - meter.synced} [{meter.value}]"
     )
 
     return check is True, meter, _

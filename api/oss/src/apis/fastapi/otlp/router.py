@@ -97,11 +97,11 @@ class OTLPRouter:
             )
 
             if allowed:
-                log.debug(
-                    "[OTLP] Soft meter check passed",
-                    org_id=str(organization_id),
-                    delta=delta,
-                )
+                # log.debug(
+                #     "[OTLP] Soft meter check passed",
+                #     org_id=str(organization_id),
+                #     delta=delta,
+                # )
                 return True, ""
             else:
                 log.warning(
@@ -147,12 +147,12 @@ class OTLPRouter:
                 span_dtos=spans,
             )
 
-            log.debug(
-                f"[OTLP] Wrote {len(spans)} spans to Redis Stream",
-                organization_id=str(organization_id),
-                project_id=str(project_id),
-                user_id=str(user_id),
-            )
+            # log.debug(
+            #     f"[OTLP] Wrote {len(spans)} spans to Redis Stream",
+            #     organization_id=str(organization_id),
+            #     project_id=str(project_id),
+            #     user_id=str(user_id),
+            # )
 
         except Exception as e:
             log.error(
