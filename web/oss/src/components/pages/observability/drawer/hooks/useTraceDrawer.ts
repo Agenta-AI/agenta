@@ -1,21 +1,14 @@
-import {useEffect, useMemo} from "react"
-
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 
 import {
     senitizedTracesAtom,
-    setTraceDrawerSpanLinksAtom,
     traceDrawerAnnotationsQueryAtom,
     traceDrawerFlatAnnotatedTracesAtom,
     traceDrawerGetTraceByIdAtom,
     traceDrawerQueryAtom,
     traceDrawerResolvedActiveSpanIdAtom,
     traceDrawerTraceIdAtom,
-    TraceDrawerSpanLink,
-    linksAndReferencesAtom,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
-import {TracesWithAnnotations} from "@/oss/services/observability/types"
-import {SpanLink} from "@/oss/services/tracing/types"
 
 export const useTraceDrawer = () => {
     const traceId = useAtomValue(traceDrawerTraceIdAtom)

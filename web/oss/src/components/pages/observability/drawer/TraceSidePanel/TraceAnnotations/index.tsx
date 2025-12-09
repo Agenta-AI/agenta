@@ -244,7 +244,10 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                                                             <UserAvatarTag
                                                                 modifiedBy={annotation.user || ""}
                                                             />
-                                                            <Typography.Text type="secondary" className="px-1">
+                                                            <Typography.Text
+                                                                type="secondary"
+                                                                className="px-1"
+                                                            >
                                                                 {getStringOrJson(annotation.value)}
                                                             </Typography.Text>
                                                         </div>

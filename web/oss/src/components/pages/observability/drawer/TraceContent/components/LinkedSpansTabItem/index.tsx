@@ -1,4 +1,4 @@
-import {useEffect, useMemo} from "react"
+import {useMemo} from "react"
 
 import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -9,8 +9,7 @@ import {
     LinkedSpanRow,
     linkedSpanTargetsAtom,
     linkedSpansAtom,
-    linkedSpansQueryAtom,
-    linkedSpansTabActiveAtom,
+    linkedSpanTracesQueryAtom,
     setTraceDrawerTraceAtom,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
@@ -49,18 +48,12 @@ const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
 }
 
 const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
-    const setTabActive = useSetAtom(linkedSpansTabActiveAtom)
-    const linkedSpans = useAtomValue(linkedSpansAtom)
-    const linkedSpansQuery = useAtomValue(linkedSpansQueryAtom)
     const linkTargets = useAtomValue(linkedSpanTargetsAtom)
+    const linkedSpans = useAtomValue(linkedSpansAtom)
+    const linkedSpansQuery = useAtomValue(linkedSpanTracesQueryAtom)
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
     const [, setTraceParam] = useQueryParamState("trace")
     const [, setSpanParam] = useQueryParamState("span")
-
-    useEffect(() => {
-        setTabActive(isActive)
-        return () => setTabActive(false)
-    }, [isActive, setTabActive])
 
     const evaluatorSlugs = useMemo(
         () => collectEvaluatorSlugsFromTraces(linkedSpans),

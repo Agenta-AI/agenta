@@ -2,13 +2,9 @@ import {useEffect, useMemo, useState} from "react"
 
 import {Tabs, TabsProps, Skeleton, Splitter} from "antd"
 import clsx from "clsx"
-import {getDefaultStore, useAtom, useSetAtom} from "jotai"
+import {useAtom} from "jotai"
 
-import {
-    isDrawerOpenAtom,
-    resetTraceDrawerAtom,
-    traceSidePanelOpenAtom,
-} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
+import {traceSidePanelOpenAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 
 import AccordionTreePanel from "../../components/AccordionTreePanel"
 
@@ -19,8 +15,6 @@ import {TraceContentProps} from "./assets/types"
 import TraceTypeHeader from "./components/TraceTypeHeader"
 import TraceSidePanel from "../TraceSidePanel"
 import LinkedSpansTabItem from "./components/LinkedSpansTabItem"
-
-const store = getDefaultStore()
 
 const loadingContent = (
     <div className="px-4 py-6">
@@ -37,7 +31,6 @@ const TraceContent = ({
     setSelectedTraceId,
     activeId,
 }: TraceContentProps) => {
-    const resetDrawer = useSetAtom(resetTraceDrawerAtom)
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(traceSidePanelOpenAtom)
     const activeTrace = active
     const {key, children, spans, invocationIds, ...filteredTrace} = activeTrace || {}
@@ -114,15 +107,6 @@ const TraceContent = ({
             setTab(itemKeys[0])
         }
     }, [itemKeys.join("|"), tab])
-
-    useEffect(() => {
-        return () => {
-            const isOpen = store.get(isDrawerOpenAtom)
-            if (!isOpen) {
-                resetDrawer()
-            }
-        }
-    }, [])
 
     return (
         <div className={clsx("flex w-full h-full flex-1", classes.container)}>

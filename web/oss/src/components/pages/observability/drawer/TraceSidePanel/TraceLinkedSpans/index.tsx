@@ -5,11 +5,9 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {
     setTraceDrawerTraceAtom,
-    traceDrawerTraceIdAtom,
     TraceDrawerSpanLink,
     linksAndReferencesAtom,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
-import {useQueryParamState} from "@/oss/state/appState"
 import {projectIdAtom} from "@/oss/state/project"
 import {
     ApplicationReferenceLabel,
@@ -19,30 +17,22 @@ import {
 import useURL from "@/oss/hooks/useURL"
 import useEvaluatorNavigation from "@/oss/components/pages/observability/drawer/hooks/useEvaluatorNavigation"
 import React from "react"
+import {TreeStructureIcon} from "@phosphor-icons/react"
 
 const TraceLinkedSpans = () => {
     const {projectURL} = useURL()
-    const currentTraceId = useAtomValue(traceDrawerTraceIdAtom)
     const projectId = useAtomValue(projectIdAtom)
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
     const linksAndReferences = useAtomValue(linksAndReferencesAtom)
-    const [, setTraceParam] = useQueryParamState("trace")
     const {buildEvaluatorTarget} = useEvaluatorNavigation()
-console.log("linksAndReferences", linksAndReferences)
     const handleNavigate = (link: TraceDrawerSpanLink) => {
         if (!link?.trace_id || !link?.span_id) return
 
-        if (link.trace_id !== currentTraceId) {
-            setTraceDrawerTrace({
-                traceId: link.trace_id,
-                activeSpanId: link.span_id,
-                source: "linked",
-            })
-            setTraceParam(link.trace_id, {shallow: true})
-            return
-        }
-
-        // setActiveSpan(link.span_id)
+        setTraceDrawerTrace({
+            traceId: link.trace_id,
+            activeSpanId: link.span_id,
+            source: "linked",
+        })
     }
 
     const renderReferenceTags = ({key, id, slug}: {key: string; id: string; slug?: string}) => {
@@ -93,10 +83,11 @@ console.log("linksAndReferences", linksAndReferences)
                             <Tag
                                 key={`${link.trace_id}-${link.span_id}-${link.key || ""}`}
                                 bordered={false}
-                                className="cursor-pointer self-start bg-[#0517290F]"
+                                className="cursor-pointer self-start bg-[#0517290F] flex gap-1 items-center"
                                 onClick={() => handleNavigate(link)}
                             >
-                                {link.key ? `${link.key}` : link.span_id}
+                                <TreeStructureIcon size={14} />{" "}
+                                {link?.trace?.[0]?.span_name || link?.key}
                             </Tag>
                         )
                     })}

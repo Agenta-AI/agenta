@@ -48,8 +48,7 @@ const EvaluatorDetailsPopover = ({
         (evaluator as any)?.created_by_id
     const createdBy = typeof createdByRaw === "string" ? createdByRaw : ""
     const isHuman =
-        Boolean((evaluator as any)?.flags?.is_human) ||
-        Boolean((evaluator as any)?.meta?.is_human)
+        Boolean((evaluator as any)?.flags?.is_human) || Boolean((evaluator as any)?.meta?.is_human)
 
     const target = useMemo(() => buildEvaluatorTarget(evaluator), [buildEvaluatorTarget, evaluator])
 
