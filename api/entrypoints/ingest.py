@@ -3,7 +3,7 @@ Redis Streams workers for OTLP tracing ingestion.
 
 Consumes from: streams:otlp (durable Redis instance)
 
-See /sandbox/architecture/redis.split.specs.md for architecture details.
+THIS IS A PLACEHOLDER WORKER, IT IS NOT IN USE YET.
 """
 
 import sys
