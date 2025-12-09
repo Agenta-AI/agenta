@@ -6,7 +6,7 @@ import {
     PlusOutlined,
     LoadingOutlined,
 } from "@ant-design/icons"
-import {Copy, GitBranch, Note, PencilSimple, Trash} from "@phosphor-icons/react"
+import {Copy, Note, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -18,10 +18,7 @@ import {
     createStandardColumns,
     TableDescription,
 } from "@/oss/components/InfiniteVirtualTable"
-import {
-    fetchTestsetVariants,
-    fetchTestsetRevisions,
-} from "@/oss/components/TestsetsTable/atoms/fetchTestsetVariants"
+import {fetchTestsetRevisions} from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
 import {
     testsetsDatasetStore,
     testsetsRefreshTriggerAtom,
@@ -101,53 +98,30 @@ const Testset = () => {
     const [loadingRows, setLoadingRows] = useState<Set<string>>(new Set())
     const [childrenCache, setChildrenCache] = useState<Map<string, TestsetTableRow[]>>(new Map())
 
-    // Transform variants to TestsetTableRow shape for tree data
-    const transformVariantToRow = useCallback(
-        (variant: any, parentId: string): TestsetTableRow => ({
-            key: `${parentId}-${variant.id}`,
-            id: variant.id,
-            name: variant.name || "default",
-            created_at: variant.created_at,
-            updated_at: variant.updated_at || variant.created_at,
-            created_by_id: variant.created_by_id,
-            __isSkeleton: false,
-            __isVariant: true, // Mark as variant for different rendering
-            __parentId: parentId,
-            __testsetId: parentId, // Store testset ID for revision fetching
-        }),
-        [],
-    )
-
     // Transform revisions to TestsetTableRow shape for tree data
+    // Note: We skip variants entirely - testsets expand directly to revisions
     const transformRevisionToRow = useCallback(
-        (
-            revision: any,
-            variantId: string,
-            testsetId: string,
-            variantName: string,
-        ): TestsetTableRow => ({
-            key: `${variantId}-${revision.id}`,
+        (revision: any, testsetId: string, testsetName: string): TestsetTableRow => ({
+            key: `${testsetId}-${revision.id}`,
             id: revision.id,
-            name: variantName, // Use variant name for display
+            name: testsetName, // Use testset name for display
             created_at: revision.created_at,
             updated_at: revision.updated_at || revision.created_at,
             created_by_id: revision.created_by_id,
             __isSkeleton: false,
             __isRevision: true, // Mark as revision for different rendering
-            __isVariant: false,
-            __parentId: variantId,
+            __parentId: testsetId,
             __testsetId: testsetId,
             __version: revision.version, // Store version for display
         }),
         [],
     )
 
-    // Handle row expand - fetch variants or revisions and add as children
+    // Handle row expand - fetch revisions directly from testset (no variants)
     const handleExpand = useCallback(
         async (expanded: boolean, record: TestsetTableRow) => {
             // Use record.key for expandedRowKeys (matches rowKey extractor)
             const rowKey = String(record.key)
-            const isVariant = (record as any).__isVariant
             const isRevision = (record as any).__isRevision
 
             // Revisions cannot be expanded
@@ -161,26 +135,14 @@ const Testset = () => {
 
                 setLoadingRows((prev) => new Set(prev).add(rowKey))
                 try {
-                    if (isVariant) {
-                        // Fetch revisions for this variant
-                        const testsetId = (record as any).__testsetId || (record as any).__parentId
-                        const variantName = record.name
-                        const revisions = await fetchTestsetRevisions({
-                            testsetId,
-                            variantId: record.id,
-                        })
-                        const childRows = revisions.map((r) =>
-                            transformRevisionToRow(r, record.id, testsetId, variantName),
-                        )
-                        setChildrenCache((prev) => new Map(prev).set(rowKey, childRows))
-                    } else {
-                        // Fetch variants for this testset
-                        const variants = await fetchTestsetVariants({testsetId: record.id})
-                        const childRows = variants.map((v) => transformVariantToRow(v, record.id))
-                        setChildrenCache((prev) => new Map(prev).set(rowKey, childRows))
-                    }
+                    // Fetch revisions directly for this testset (skip variants)
+                    const revisions = await fetchTestsetRevisions({testsetId: record.id})
+                    const childRows = revisions.map((r) =>
+                        transformRevisionToRow(r, record.id, record.name),
+                    )
+                    setChildrenCache((prev) => new Map(prev).set(rowKey, childRows))
                 } catch (error) {
-                    console.error("Failed to fetch children:", error)
+                    console.error("Failed to fetch revisions:", error)
                 } finally {
                     setLoadingRows((prev) => {
                         const next = new Set(prev)
@@ -192,7 +154,7 @@ const Testset = () => {
                 setExpandedRowKeys((prev) => prev.filter((k) => k !== rowKey))
             }
         },
-        [childrenCache, transformVariantToRow, transformRevisionToRow],
+        [childrenCache, transformRevisionToRow],
     )
 
     // Build rows with children for tree data (supports nested children)
@@ -213,6 +175,7 @@ const Testset = () => {
     }, [table.rows, childrenCache])
 
     // Columns with expand icon integrated into Name column
+    // Note: 2-level hierarchy only (Testset → Revision), no variants
     const columns = useMemo(
         () =>
             createStandardColumns<TestsetTableRow>([
@@ -223,49 +186,23 @@ const Testset = () => {
                     width: 300,
                     fixed: "left",
                     render: (_value, record) => {
-                        const isVariant = (record as any).__isVariant
                         const isRevision = (record as any).__isRevision
                         // Use record.key for state checks (matches rowKey extractor)
                         const isExpanded = expandedRowKeys.includes(record.key)
                         const isLoading = loadingRows.has(record.key)
                         const isSkeleton = record.__isSkeleton
 
-                        // Revision rows - show name + version tag (like app variant revisions)
+                        // Revision rows - show name + version tag with indent
                         if (isRevision) {
                             const version = (record as any).__version
                             return (
-                                <div className="flex items-center gap-2 pl-10">
+                                <div className="flex items-center gap-2 pl-6">
                                     <span>{record.name}</span>
                                     {version && (
                                         <Tag className="bg-[rgba(5,23,41,0.06)]" bordered={false}>
                                             v{version}
                                         </Tag>
                                     )}
-                                </div>
-                            )
-                        }
-
-                        // Variant rows - show with indent and expand icon for revisions
-                        if (isVariant) {
-                            return (
-                                <div className="flex items-center gap-2 pl-4">
-                                    <span
-                                        className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors"
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleExpand(!isExpanded, record)
-                                        }}
-                                    >
-                                        {isLoading ? (
-                                            <LoadingOutlined style={{fontSize: 14}} />
-                                        ) : isExpanded ? (
-                                            <MinusCircleOutlined style={{fontSize: 14}} />
-                                        ) : (
-                                            <PlusCircleOutlined style={{fontSize: 14}} />
-                                        )}
-                                    </span>
-                                    <GitBranch size={14} className="text-gray-400" />
-                                    <span>{record.name}</span>
                                 </div>
                             )
                         }
@@ -305,24 +242,21 @@ const Testset = () => {
                             label: "View details",
                             icon: <Note size={16} />,
                             onClick: actions.handleView,
-                            hidden: (record) =>
-                                (record as any).__isVariant || (record as any).__isRevision,
+                            hidden: (record) => (record as any).__isRevision,
                         },
                         {
                             key: "clone",
                             label: "Clone",
                             icon: <Copy size={16} />,
                             onClick: actions.handleClone,
-                            hidden: (record) =>
-                                (record as any).__isVariant || (record as any).__isRevision,
+                            hidden: (record) => (record as any).__isRevision,
                         },
                         {
                             key: "rename",
                             label: "Rename",
                             icon: <PencilSimple size={16} />,
                             onClick: actions.handleRename,
-                            hidden: (record) =>
-                                (record as any).__isVariant || (record as any).__isRevision,
+                            hidden: (record) => (record as any).__isRevision,
                         },
                         {type: "divider"},
                         {
@@ -331,8 +265,7 @@ const Testset = () => {
                             icon: <Trash size={16} />,
                             danger: true,
                             onClick: actions.handleDelete,
-                            hidden: (record) =>
-                                (record as any).__isVariant || (record as any).__isRevision,
+                            hidden: (record) => (record as any).__isRevision,
                         },
                     ],
                     onExportRow: table.handleExportRow,
