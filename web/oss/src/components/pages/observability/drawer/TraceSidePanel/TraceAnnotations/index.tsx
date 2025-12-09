@@ -17,6 +17,7 @@ import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 
 import {useStyles} from "./assets/styles"
 import NoTraceAnnotations from "./components/NoTraceAnnotations"
+import EvaluatorDetailsPopover from "@/oss/components/pages/observability/drawer/components/EvaluatorDetailsPopover"
 
 interface TraceAnnotationsProps {
     annotations: AnnotationDto[]
@@ -170,9 +171,14 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                 return (
                     <div key={group.refId} className="flex flex-col gap-[6px]">
                         <div className="flex items-center gap-2">
-                            <Typography.Text type="secondary" className="text-[10px]">
-                                {group?.evaluator?.name || group.refId}
-                            </Typography.Text>
+                            <EvaluatorDetailsPopover
+                                evaluator={group.evaluator}
+                                fallbackLabel={group.refId}
+                            >
+                                <Typography.Text type="secondary" className="text-[10px]">
+                                    {group?.evaluator?.name || group.refId}
+                                </Typography.Text>
+                            </EvaluatorDetailsPopover>
                         </div>
 
                         {filteredMetrics.map(([key, metric]) => {

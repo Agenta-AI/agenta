@@ -7,6 +7,7 @@ import type {TableProps} from "antd/es/table"
 import clsx from "clsx"
 import {createUseStyles} from "react-jss"
 
+import EvaluatorDetailsPopover from "@/oss/components/pages/observability/drawer/components/EvaluatorDetailsPopover"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {JSSTheme} from "@/oss/lib/Types"
@@ -182,15 +183,16 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
             {Object.entries(groupedByReference).length > 0 ? (
                 Object.entries(groupedByReference).map(([key, annotations]) => {
                     const [slug, kind] = key.split("::")
+                    const evaluator = annotations?.[0]?.evaluator
+                    const evaluatorName = evaluator?.name || slug
                     return (
                         <Space direction="vertical" key={key} className="w-full @container">
                             <div className="w-full flex items-center justify-between">
-                                <div className="flex items-center gap-2">
+                                <EvaluatorDetailsPopover evaluator={evaluator} fallbackLabel={slug}>
                                     <Typography.Text className="font-medium">
-                                        {annotations?.[0].evaluator.name || slug}
+                                        {evaluatorName}
                                     </Typography.Text>
-                                    <Button size="small">View evaluator</Button>
-                                </div>
+                                </EvaluatorDetailsPopover>
 
                                 <Typography.Text type="secondary" className="capitalize">
                                     {kind} evaluator
