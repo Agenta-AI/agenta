@@ -53,24 +53,11 @@ ag.init(
 
 # BROKER -------------------------------------------------------------------
 # Create broker with durable Redis Streams for task queues
-# Valkey 7+ compatible
 broker = RedisStreamBroker(
-    url=env.REDIS_URI_QUEUES,
+    url=env.REDIS_URI_DURABLE,
     queue_name="queues:taskiq:evaluations",
     consumer_group_name="taskiq-workers",
 )
-
-
-@broker.on_event(TaskiqEvents.WORKER_STARTUP)
-async def on_startup(state: dict) -> None:
-    """Initialize worker on startup."""
-    log.info("[TASKIQ] Worker starting up")
-
-
-@broker.on_event(TaskiqEvents.WORKER_SHUTDOWN)
-async def on_shutdown(state: dict) -> None:
-    """Cleanup on worker shutdown."""
-    log.info("[TASKIQ] Worker shutting down")
 
 
 # WORKERS ------------------------------------------------------------------
@@ -186,7 +173,7 @@ def main() -> int:
         # Run Taskiq worker
         # Broker and workers are instantiated above (like routes.py does for FastAPI)
         args = WorkerArgs(
-            broker="queues:broker",  # Reference broker from this module
+            broker="entrypoints.evals:broker",  # Reference broker from this module
             modules=[],  # Workers already registered, no auto-discovery needed
             fs_discover=False,
             workers=1,  # Number of worker processes

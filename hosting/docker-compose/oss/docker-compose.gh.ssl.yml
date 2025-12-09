@@ -49,7 +49,7 @@ services:
         environment:
             - SCRIPT_NAME=/api
         command: >
-            newrelic-admin run-program gunicorn routes:app
+            newrelic-admin run-program gunicorn entrypoints.routers:app
             --bind 0.0.0.0:8000
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
@@ -68,7 +68,7 @@ services:
                 condition: service_completed_successfully
         restart: always
 
-    queues:
+    evals:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -88,7 +88,7 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "queues.py"
+                "entrypoints/evals.py"
             ]
         depends_on:
             postgres:
@@ -99,7 +99,7 @@ services:
                 condition: service_healthy
         restart: always
 
-    streams:
+    ingest:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -119,7 +119,7 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "streams.py"
+                "entrypoints/ingest.py"
             ]
         depends_on:
             postgres:
@@ -320,10 +320,10 @@ services:
             --save ""
             --maxmemory 512mb
             --maxmemory-policy noeviction
-            --port 6380
+            --port 6381
 
         ports:
-            - "6380:6380"
+            - "6381:6381"
 
         volumes:
             - redis-durable-data:/data
@@ -337,7 +337,7 @@ services:
         restart: always
 
         healthcheck:
-            test: ["CMD", "redis-cli", "-p", "6380", "ping"]
+            test: ["CMD", "redis-cli", "-p", "6381", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
