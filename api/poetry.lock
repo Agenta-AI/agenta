@@ -2,18 +2,19 @@
 
 [[package]]
 name = "agenta"
-version = "0.65.0"
+version = "0.66.0"
 description = "The SDK for agenta is an open-source LLMOps platform."
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["main"]
 markers = "python_version >= \"3.12\" or python_version == \"3.11\""
 files = [
-    {file = "agenta-0.65.0-py3-none-any.whl", hash = "sha256:739ef985fbc10a9cd0370f4f08dd4cac6b0bbafd7de8ae86624cb866361bcfdc"},
-    {file = "agenta-0.65.0.tar.gz", hash = "sha256:d2f8a4d41feff2e3f942618b553b83f83ba08f7140fda65247429882d330db5a"},
+    {file = "agenta-0.66.0-py3-none-any.whl", hash = "sha256:7f575ecf2ea5392a04f66210a42b08306bea9171ccbd30d560fbe9abfaab8414"},
+    {file = "agenta-0.66.0.tar.gz", hash = "sha256:d218145e37186a06880783752b053e3867bdc0dcf4c9c987f55a20dfb97a452a"},
 ]
 
 [package.dependencies]
+daytona = ">=0.121.0,<0.122.0"
 fastapi = ">=0.122,<0.123"
 httpx = ">=0.28,<0.29"
 importlib-metadata = ">=8,<9"
@@ -495,15 +496,15 @@ six = ">=1.9.0"
 
 [[package]]
 name = "cachetools"
-version = "5.5.2"
+version = "6.2.2"
 description = "Extensible memoizing collections and decorators"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.9"
 groups = ["main"]
 markers = "python_version >= \"3.12\" or python_version == \"3.11\""
 files = [
-    {file = "cachetools-5.5.2-py3-none-any.whl", hash = "sha256:d26a22bcc62eb95c3beabd9f1ee5e820d3d2704fe2967cbe350e20c8ffcd3f0a"},
-    {file = "cachetools-5.5.2.tar.gz", hash = "sha256:1a661caa9175d26759571b2e19580f9d6393969e5dfca11fdb1f947a23e640d4"},
+    {file = "cachetools-6.2.2-py3-none-any.whl", hash = "sha256:6c09c98183bf58560c97b2abfcedcbaf6a896a490f534b031b661d3723b45ace"},
+    {file = "cachetools-6.2.2.tar.gz", hash = "sha256:8e6d266b25e539df852251cfd6f990b4bc3a141db73b939058d809ebd2590fc6"},
 ]
 
 [[package]]
@@ -2025,15 +2026,15 @@ rapidfuzz = ">=3.9.0,<4.0.0"
 
 [[package]]
 name = "litellm"
-version = "1.80.7"
+version = "1.80.9"
 description = "Library to easily interface with LLM API providers"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 markers = "python_version >= \"3.12\" or python_version == \"3.11\""
 files = [
-    {file = "litellm-1.80.7-py3-none-any.whl", hash = "sha256:f7d993f78c1e0e4e1202b2a925cc6540b55b6e5fb055dd342d88b145ab3102ed"},
-    {file = "litellm-1.80.7.tar.gz", hash = "sha256:3977a8d195aef842d01c18bf9e22984829363c6a4b54daf9a43c9dd9f190b42c"},
+    {file = "litellm-1.80.9-py3-none-any.whl", hash = "sha256:bad02b96ee3d83702639553ffc5961c605f4f937be8167181bc4c80394a1cdd1"},
+    {file = "litellm-1.80.9.tar.gz", hash = "sha256:768b62f26086efbaed40f4dfd353ff66302474bbfb0adf5862066acdb0727df6"},
 ]
 
 [package.dependencies]
@@ -2055,7 +2056,7 @@ tokenizers = "*"
 caching = ["diskcache (>=5.6.1,<6.0.0)"]
 extra-proxy = ["azure-identity (>=1.15.0,<2.0.0)", "azure-keyvault-secrets (>=4.8.0,<5.0.0)", "google-cloud-iam (>=2.19.1,<3.0.0)", "google-cloud-kms (>=2.21.3,<3.0.0)", "prisma (==0.11.0)", "redisvl (>=0.4.1,<0.5.0)", "resend (>=0.8.0)"]
 mlflow = ["mlflow (>3.1.4)"]
-proxy = ["PyJWT (>=2.10.1,<3.0.0)", "apscheduler (>=3.10.4,<4.0.0)", "azure-identity (>=1.15.0,<2.0.0)", "azure-storage-blob (>=12.25.1,<13.0.0)", "backoff", "boto3 (==1.36.0)", "cryptography", "fastapi (>=0.120.1)", "fastapi-sso (>=0.16.0,<0.17.0)", "gunicorn (>=23.0.0,<24.0.0)", "litellm-enterprise (==0.1.22)", "litellm-proxy-extras (==0.4.9)", "mcp (>=1.21.2,<2.0.0)", "orjson (>=3.9.7,<4.0.0)", "polars (>=1.31.0,<2.0.0)", "pynacl (>=1.5.0,<2.0.0)", "python-multipart (>=0.0.18,<0.0.19)", "pyyaml (>=6.0.1,<7.0.0)", "rich (==13.7.1)", "rq", "soundfile (>=0.12.1,<0.13.0)", "uvicorn (>=0.31.1,<0.32.0)", "uvloop (>=0.21.0,<0.22.0)", "websockets (>=15.0.1,<16.0.0)"]
+proxy = ["PyJWT (>=2.10.1,<3.0.0)", "apscheduler (>=3.10.4,<4.0.0)", "azure-identity (>=1.15.0,<2.0.0)", "azure-storage-blob (>=12.25.1,<13.0.0)", "backoff", "boto3 (==1.36.0)", "cryptography", "fastapi (>=0.120.1)", "fastapi-sso (>=0.16.0,<0.17.0)", "gunicorn (>=23.0.0,<24.0.0)", "litellm-enterprise (==0.1.23)", "litellm-proxy-extras (==0.4.11)", "mcp (>=1.21.2,<2.0.0)", "orjson (>=3.9.7,<4.0.0)", "polars (>=1.31.0,<2.0.0)", "pynacl (>=1.5.0,<2.0.0)", "python-multipart (>=0.0.18,<0.0.19)", "pyyaml (>=6.0.1,<7.0.0)", "rich (==13.7.1)", "rq", "soundfile (>=0.12.1,<0.13.0)", "uvicorn (>=0.31.1,<0.32.0)", "uvloop (>=0.21.0,<0.22.0)", "websockets (>=15.0.1,<16.0.0)"]
 semantic-router = ["semantic-router (>=0.1.12)"]
 utils = ["numpydoc"]
 
@@ -2374,42 +2375,42 @@ docs = ["sphinx (>=8,<9)", "sphinx-autobuild"]
 
 [[package]]
 name = "newrelic"
-version = "11.1.0"
+version = "11.2.0"
 description = "New Relic Python Agent"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 markers = "python_version >= \"3.12\" or python_version == \"3.11\""
 files = [
-    {file = "newrelic-11.1.0-cp310-cp310-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:e65d8ab63a89d0c66fb7ba515e6aba29b1de133af3bf27ee16f6623483680eee"},
-    {file = "newrelic-11.1.0-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:b12d3965377f0d430a6eceba4aa1c5143bda7322acdc13672d4dbbc3019e5ff0"},
-    {file = "newrelic-11.1.0-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:fd97cd46df6d9864d1cf652f1ee3705f550d798abb7475bd0d04ccfa75bcc79a"},
-    {file = "newrelic-11.1.0-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:1c0a9729542733840e291fa9dfdc1814888f0768e8a092d3378194bb7a491651"},
-    {file = "newrelic-11.1.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:0271886de734dc09d545189255a44604afeaf232a2330cb2eefdf2d85b09f5f2"},
-    {file = "newrelic-11.1.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:ab65d4d7e392688ea2f64c974bfd79c58db6d3f9c1b1f92b573d9791b106e097"},
-    {file = "newrelic-11.1.0-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:49c1da29c1fd779f9d23c8ab3e3fc680c9d12a671b9ad815b5c870e05de149e8"},
-    {file = "newrelic-11.1.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:f647859a3a69c44b3d00b44ef71bff3651d74cc9d7c0a49996ede5de14beeef9"},
-    {file = "newrelic-11.1.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:f6ec6c5f1767f306b484b13742464c98a5e1aacb54b399f6aca639a50656c587"},
-    {file = "newrelic-11.1.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:384388783b78bb09afc594fa9f27338b6d322356a4fc1347e605eebad60a0928"},
-    {file = "newrelic-11.1.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:569019b274f26f34e146fc52392fd4a8cc9750108242e0d5b6f2fbb09dd0b1c6"},
-    {file = "newrelic-11.1.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:77c47efaba50c22461c85ee4d899028d56d97085ced660e84456bc45451805fa"},
-    {file = "newrelic-11.1.0-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:9479467720159f1e8032e8ec46ec8428424bd2ad1e595a112bd321b541ab2ac3"},
-    {file = "newrelic-11.1.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:726a7648db224fbac08fc781532864c01e05f5b8581212f8192acb7376ecb337"},
-    {file = "newrelic-11.1.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:e58d9859b7f978340987fc788b25498297f2537836a07544579ab146f891bd4b"},
-    {file = "newrelic-11.1.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:831a72e1693ad08e9baf98762ab5f01c264beb11935e3739d2152ae6fd4120c5"},
-    {file = "newrelic-11.1.0-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:be47fba30bd9486e1679a0a505c29a78c1f58c2e20ccdf1d38217e6292be9ff9"},
-    {file = "newrelic-11.1.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:91d1d4cbc79b76c4258ce0c38a14c649f270728c9d02e1a128612a0fdb9ac26e"},
-    {file = "newrelic-11.1.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:569192559dd912023e7b0e77b295a42895ebd402596730976441a717ef8d414e"},
-    {file = "newrelic-11.1.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:9aeafc4c95ed513c5a3ae6b1ccf8fe5f6453f04125682b3b5bb2f59065278e36"},
-    {file = "newrelic-11.1.0-cp38-cp38-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:99f934032b6a734e0c9d12b0fc71c11388ac705bd97e20ae62a67d6e5855ecaf"},
-    {file = "newrelic-11.1.0-cp38-cp38-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:af82348e85cd147efc74c50a2ffff9067deab1c158d5a4197ece8ec7355b3918"},
-    {file = "newrelic-11.1.0-cp38-cp38-musllinux_1_2_aarch64.whl", hash = "sha256:3e6081cf06af6062bab4c8109f46e392f2fe5daf2eb9e7976be0048dfaede9b3"},
-    {file = "newrelic-11.1.0-cp38-cp38-musllinux_1_2_x86_64.whl", hash = "sha256:1fc5c5c58b47fa6e7c943531df9dc8df2d385ca8df5198608109c138be8cf8d2"},
-    {file = "newrelic-11.1.0-cp39-cp39-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:bff1501a7a592b50665b5517c02333429324eff819dd6edf547f090244b2ec3e"},
-    {file = "newrelic-11.1.0-cp39-cp39-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:bafd47efceda58c2d04aa2c2c6f835f8af7b8efb5a9313b4abffcf09b04bdd06"},
-    {file = "newrelic-11.1.0-cp39-cp39-musllinux_1_2_aarch64.whl", hash = "sha256:0d703780167d28f4bb55297155d4f79dd925c99499aa30ab4a864981504c1f04"},
-    {file = "newrelic-11.1.0-cp39-cp39-musllinux_1_2_x86_64.whl", hash = "sha256:20a4c86edbf3835240efbc0d3f5d26d1db05eb675a8178fa21f0217843aa8ebd"},
-    {file = "newrelic-11.1.0.tar.gz", hash = "sha256:11b0c4f916f81c7ed0c2f4cd282215634d09882761ad0c8e9866f07c4b58e015"},
+    {file = "newrelic-11.2.0-cp310-cp310-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:1a5aeeb6d5de56dc28b06a9f811ac622ab6a01ab82ed4d9df4cda14b0fea56cc"},
+    {file = "newrelic-11.2.0-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:e3575f36aa9b9c35d50560c2fdcba4a6a0da859afd934d0bf210825c0248dae7"},
+    {file = "newrelic-11.2.0-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:34ca6f3bfa32df362787a46c892c5cca394b3692a0e7d00a3743f5cd1c641b3f"},
+    {file = "newrelic-11.2.0-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:c448ed9e09d5cac18efd0342082ad2b6d7ff4aac001fcc5dc8a97bbc894b19a2"},
+    {file = "newrelic-11.2.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:5e47f0a950873b3eaf694fc0c8ea2a078d99478511dd766f55a363928df5ff6e"},
+    {file = "newrelic-11.2.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:76bb15a634dabbd0dc685a2ae8d1d11079c2cca5fa35c1466d8039840077f77d"},
+    {file = "newrelic-11.2.0-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:5883d18b90efa00ddf75962ff0b90a5541f9e88e8604080253d088c9ddd39d6a"},
+    {file = "newrelic-11.2.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:f322124acf37f0d5cf0b521404b979e6af304bc7355fcff9eaa17a4adb86491c"},
+    {file = "newrelic-11.2.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:5ad8110d9622b21db6103640a5754d2c8b7d03eba5fe7ee9abbc5c5637160e08"},
+    {file = "newrelic-11.2.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:092660d17d21b53ea12659f9ef56f8e44075eb980ee4a1b7340651295f89f016"},
+    {file = "newrelic-11.2.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:cded013ccad26decf430cc66401adbdcdff036389325dc3b3451723e097bd5e5"},
+    {file = "newrelic-11.2.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:eb1551edbad5faa58845b57e48c54468c5d3ce7aa193869c56cfe57b68c05267"},
+    {file = "newrelic-11.2.0-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:0a273a69456fc63bd2ceac8a16c44cce297bc78b37e73aa44ac58eeea0c6c1e6"},
+    {file = "newrelic-11.2.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:486e012dd4bec702df218dba2c77c14a01c4cfa03bd67a8993a002f088c51c82"},
+    {file = "newrelic-11.2.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:77fd587c18438546ab62b13a6f602ec95d92bf15caa95f27b0f368453f99c8e1"},
+    {file = "newrelic-11.2.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:90010f1e1355b5225803470f5fab01910f865c66bbbb4e896493c0b508592838"},
+    {file = "newrelic-11.2.0-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:f34d750cd1f87a7d31172eaadb61418e729e3fe739b3a99b3720c0cc8cfacb85"},
+    {file = "newrelic-11.2.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:745fdcc449c8d3f6041b4a56e9c03693710e6620b35790a0cb0f9641e248a2b2"},
+    {file = "newrelic-11.2.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:2bc8f821c94e1f4beb899a2421d062a9739da519e58cd5429fc70a88a8c74bf6"},
+    {file = "newrelic-11.2.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:2a024bef9c0bdf72556f6f35e9fd9aaf1e9b8d7640cf2fa2c105b7ad3deccb9c"},
+    {file = "newrelic-11.2.0-cp38-cp38-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:e10348bb06e7b9ad052c735e2d2a70c31c11deaed8426e487eecd5852cdc88d4"},
+    {file = "newrelic-11.2.0-cp38-cp38-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:d05cd766074cebd609615196b80a1a08d8586c9cf52c49662eee708caf9b5cf4"},
+    {file = "newrelic-11.2.0-cp38-cp38-musllinux_1_2_aarch64.whl", hash = "sha256:d4311540c687d70597f1ee4394547909889e2aaa46a65eb014626b3016ada539"},
+    {file = "newrelic-11.2.0-cp38-cp38-musllinux_1_2_x86_64.whl", hash = "sha256:d2ee5450b40bf087dddc7953c3c875b7a481930a174472c958b275a8f9f7c3fa"},
+    {file = "newrelic-11.2.0-cp39-cp39-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:63c46064e9ff002ad0ce060c2b2f4b6fb914606e24f28f3d4c65513eb70ecedf"},
+    {file = "newrelic-11.2.0-cp39-cp39-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c74a895adc464c74660eac9f6d11880159aed8036e771c4045afcef5888d4dbf"},
+    {file = "newrelic-11.2.0-cp39-cp39-musllinux_1_2_aarch64.whl", hash = "sha256:a8be7b9df56279e2ca8ffc63eb7c373c7d696e0778800c4d71f32ab3fcbcc655"},
+    {file = "newrelic-11.2.0-cp39-cp39-musllinux_1_2_x86_64.whl", hash = "sha256:47d57e4077e88d6cc5b6f187e1c603a06c5c3658fdbcc86d27f79ad5aeeee4c5"},
+    {file = "newrelic-11.2.0.tar.gz", hash = "sha256:6dd9f303904220700ba8b25af2f622cd23a4b5071cc53b4309e90bf3dcdb7221"},
 ]
 
 [package.extras]
@@ -3836,21 +3837,22 @@ all = ["numpy"]
 
 [[package]]
 name = "redis"
-version = "6.4.0"
+version = "7.0.1"
 description = "Python client for Redis database and key-value store"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 markers = "python_version >= \"3.12\" or python_version == \"3.11\""
 files = [
-    {file = "redis-6.4.0-py3-none-any.whl", hash = "sha256:f0544fa9604264e9464cdf4814e7d4830f74b165d52f2a330a760a88dd248b7f"},
-    {file = "redis-6.4.0.tar.gz", hash = "sha256:b01bc7282b8444e28ec36b261df5375183bb47a07eb9c603f284e89cbc5ef010"},
+    {file = "redis-7.0.1-py3-none-any.whl", hash = "sha256:4977af3c7d67f8f0eb8b6fec0dafc9605db9343142f634041fb0235f67c0588a"},
+    {file = "redis-7.0.1.tar.gz", hash = "sha256:c949df947dca995dc68fdf5a7863950bf6df24f8d6022394585acc98e81624f1"},
 ]
 
 [package.dependencies]
 async-timeout = {version = ">=4.0.3", markers = "python_full_version < \"3.11.3\""}
 
 [package.extras]
+circuit-breaker = ["pybreaker (>=1.4.0)"]
 hiredis = ["hiredis (>=3.2.0)"]
 jwt = ["pyjwt (>=2.9.0)"]
 ocsp = ["cryptography (>=36.0.1)", "pyopenssl (>=20.0.1)", "requests (>=2.31.0)"]
@@ -4447,15 +4449,15 @@ flask = ["flask", "flask-cors", "python-dotenv (==1.0.1)"]
 
 [[package]]
 name = "taskiq"
-version = "0.12.0"
+version = "0.12.1"
 description = "Distributed task queue with full async support"
 optional = false
 python-versions = "<4,>=3.10"
 groups = ["main"]
 markers = "python_version >= \"3.12\" or python_version == \"3.11\""
 files = [
-    {file = "taskiq-0.12.0-py3-none-any.whl", hash = "sha256:8fea577bbf72ceabd77338f643510c64787521f43e7907e605ebeead660c1a74"},
-    {file = "taskiq-0.12.0.tar.gz", hash = "sha256:722d64b8176affb146635c7ac356d3e44efa446a3dc7a373694c0eb8852672b6"},
+    {file = "taskiq-0.12.1-py3-none-any.whl", hash = "sha256:a8ade45e2e23edbadb972a88dec44e68c7daef83383d01fa3af48594a24a712a"},
+    {file = "taskiq-0.12.1.tar.gz", hash = "sha256:338dcf58eaca327e511a9380b2185bfa6a415dd79a5cf144546a2dbb95459298"},
 ]
 
 [package.dependencies]
@@ -4492,20 +4494,20 @@ files = [
 
 [[package]]
 name = "taskiq-redis"
-version = "1.1.2"
+version = "1.2.0"
 description = "Redis integration for taskiq"
 optional = false
-python-versions = "<4.0,>=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 markers = "python_version >= \"3.12\" or python_version == \"3.11\""
 files = [
-    {file = "taskiq_redis-1.1.2-py3-none-any.whl", hash = "sha256:3b69468ff99da33243314c84acfa137a4a014abad10dd44e62195bc5e4ae9947"},
-    {file = "taskiq_redis-1.1.2.tar.gz", hash = "sha256:f878a047abc1a0fa0ddda6e4b063d742f030858d5a4409de96261a00a992c9c9"},
+    {file = "taskiq_redis-1.2.0-py3-none-any.whl", hash = "sha256:871045d5d834b6fcd1f80c6392ae09d122eeba12a2c134f0207dd0721f3e1af9"},
+    {file = "taskiq_redis-1.2.0.tar.gz", hash = "sha256:048b274f22ee33b1e1d952727ebb7814b1dd89e32b4c1a11e5606f7b6792e949"},
 ]
 
 [package.dependencies]
-redis = ">=6,<7"
-taskiq = ">=0.11.12,<1"
+redis = ">=7.0.0,<7.1.0"
+taskiq = ">=0.12.0"
 
 [[package]]
 name = "tiktoken"
@@ -4758,15 +4760,15 @@ files = [
 
 [[package]]
 name = "urllib3"
-version = "2.6.0"
+version = "2.6.1"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 markers = "python_version >= \"3.12\" or python_version == \"3.11\""
 files = [
-    {file = "urllib3-2.6.0-py3-none-any.whl", hash = "sha256:c90f7a39f716c572c4e3e58509581ebd83f9b59cced005b7db7ad2d22b0db99f"},
-    {file = "urllib3-2.6.0.tar.gz", hash = "sha256:cb9bcef5a4b345d5da5d145dc3e30834f58e8018828cbc724d30b4cb7d4d49f1"},
+    {file = "urllib3-2.6.1-py3-none-any.whl", hash = "sha256:e67d06fe947c36a7ca39f4994b08d73922d40e6cca949907be05efa6fd75110b"},
+    {file = "urllib3-2.6.1.tar.gz", hash = "sha256:5379eb6e1aba4088bae84f8242960017ec8d8e3decf30480b3a1abdaa9671a3f"},
 ]
 
 [package.extras]
@@ -5238,4 +5240,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "5500dccc9c408e72bd9de8885860128c26e92f733f0fbf6856388bfe9ba25872"
+content-hash = "9053f1fd56fd1845c211950dd635409a31fc735ee98159acbc039017d37aa68e"

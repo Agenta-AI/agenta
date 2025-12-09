@@ -23,7 +23,7 @@ fastapi = "^0.122"
 pydantic = "^2"
 python-dotenv = "^1"
 uvicorn = "^0.38"
-redis = "^6"
+redis = "^7"
 sendgrid = "^6"
 restrictedpython =  { version = "^8", python = ">=3.11,<3.14" }
 taskiq = "^0.12"
@@ -52,7 +52,7 @@ python-jsonpath = "^2"
 bson = "^0.5"
 python-multipart = "^0.0.20"
 daytona = "^0.121"
-cachetools = "^5"
+cachetools = "^6"
 
 # BLOCKED BY NEW RELIC INCOMPATIBILITY
 # opentelemetry-api = "^1"

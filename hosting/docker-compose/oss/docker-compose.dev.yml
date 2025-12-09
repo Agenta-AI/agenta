@@ -35,7 +35,7 @@ services:
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/routes.py:/app/routes.py
+            - ../../../api/entrypoints/routers.py:/app/entrypoints/routers.py
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -59,7 +59,7 @@ services:
         command:
             [
                 "uvicorn",
-                "routes:app",
+                "entrypoints.routers:app",
                 "--host",
                 "0.0.0.0",
                 "--port",
@@ -76,13 +76,13 @@ services:
                 condition: service_completed_successfully
         restart: always
 
-    queues:
+    evals:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/queues.py:/app/queues.py
+            - ../../../api/entrypoints/evals.py:/app/entrypoints/evals.py
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -102,15 +102,15 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python queues.py
+            python entrypoints/evals.py
 
-    streams:
+    ingest:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/streams.py:/app/streams.py
+            - ../../../api/entrypoints/ingest.py:/app/entrypoints/ingest.py
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -130,7 +130,7 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python streams.py
+            python entrypoints/ingest.py
 
     cron:
         image: agenta-oss-dev-api:latest
@@ -318,10 +318,10 @@ services:
             --save ""
             --maxmemory 512mb
             --maxmemory-policy noeviction
-            --port 6380
+            --port 6381
 
         ports:
-            - "6380:6380"
+            - "6381:6381"
 
         networks:
             - agenta-network
@@ -332,7 +332,7 @@ services:
         restart: always
 
         healthcheck:
-            test: ["CMD", "redis-cli", "-p", "6380", "ping"]
+            test: ["CMD", "redis-cli", "-p", "6381", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5

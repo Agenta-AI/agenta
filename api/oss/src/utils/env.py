@@ -1,34 +1,41 @@
 import os
+from uuid import getnode
+from json import loads
+
 from pydantic import BaseModel, ConfigDict
 
 
 _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 _LICENSE = "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
+MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
 
 
 class SuperTokensConfig(BaseModel):
     """SuperTokens provider configuration"""
 
-    connection_uri: str = (
+    uri_core: str = (
         os.getenv("SUPERTOKENS_URI_CORE")
         or os.getenv("SUPERTOKENS_CONNECTION_URI")
         or "http://supertokens:3567"
     )
-    api_key: str = os.getenv("SUPERTOKENS_API_KEY", "")
+    api_key: str | None = os.getenv("SUPERTOKENS_API_KEY")
+
+    application: str = os.getenv("SUPERTOKENS_APPLICATION") or "default"
+    tenant: str = os.getenv("SUPERTOKENS_TENANT") or "tenant"
 
     model_config = ConfigDict(extra="ignore")
 
     @property
     def enabled(self) -> bool:
         """SuperTokens enabled if both connection URI and API key present"""
-        return bool(self.connection_uri and self.api_key)
+        return bool(self.uri_core and self.api_key)
 
-    def validate(self) -> None:
+    def validate_config(self) -> None:
         """Validate SuperTokens configuration"""
         if not self.enabled:
             raise ValueError(
                 "SuperTokens configuration required:\n"
-                "  - SUPERTOKENS_CONNECTION_URI\n"
+                "  - SUPERTOKENS_URI_CORE\n"
                 "  - SUPERTOKENS_API_KEY\n"
             )
 
@@ -36,11 +43,13 @@ class SuperTokensConfig(BaseModel):
 class AuthConfig(BaseModel):
     """Authentication configuration - auto-detects enabled methods from env vars"""
 
-    authn_email: str = os.getenv("AGENTA_AUTHN_EMAIL", "")
-    google_oauth_client_id: str = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
-    google_oauth_client_secret: str = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
-    github_oauth_client_id: str = os.getenv("GITHUB_OAUTH_CLIENT_ID", "")
-    github_oauth_client_secret: str = os.getenv("GITHUB_OAUTH_CLIENT_SECRET", "")
+    authn_email: str | None = os.getenv("AGENTA_AUTHN_EMAIL")
+
+    google_oauth_client_id: str | None = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+    google_oauth_client_secret: str | None = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+
+    github_oauth_client_id: str | None = os.getenv("GITHUB_OAUTH_CLIENT_ID")
+    github_oauth_client_secret: str | None = os.getenv("GITHUB_OAUTH_CLIENT_SECRET")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -81,7 +90,7 @@ class AuthConfig(BaseModel):
         """At least one auth method enabled"""
         return self.email_enabled or self.oidc_enabled
 
-    def validate(self) -> None:
+    def validate_config(self) -> None:
         """Validate auth configuration"""
         # At least one auth method must be enabled
         if not self.any_enabled:
@@ -103,16 +112,14 @@ class AuthConfig(BaseModel):
 class PostHogConfig(BaseModel):
     """PostHog Analytics configuration"""
 
-    api_key: str = os.getenv("POSTHOG_API_KEY", "")
-    api_url: str = os.getenv("POSTHOG_API_URL", "")
-    host: str = os.getenv("POSTHOG_HOST", "https://alef.agenta.ai")
+    api_url: str = (
+        os.getenv("POSTHOG_API_URL")
+        or os.getenv("POSTHOG_HOST")
+        or "https://alef.agenta.ai"
+    )
+    api_key: str | None = os.getenv("POSTHOG_API_KEY")
 
     model_config = ConfigDict(extra="ignore")
-
-    def model_post_init(self, _):
-        """Set api_url to host value if api_url not provided (legacy support)"""
-        if not self.api_url and self.host:
-            self.api_url = self.host
 
     @property
     def enabled(self) -> bool:
@@ -123,9 +130,20 @@ class PostHogConfig(BaseModel):
 class StripeConfig(BaseModel):
     """Stripe Billing configuration"""
 
-    api_key: str = os.getenv("STRIPE_API_KEY", "")
-    webhook_secret: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-    target: str = os.getenv("STRIPE_TARGET", "")
+    api_key: str | None = os.getenv("STRIPE_API_KEY")
+    webhook_target: str | None = (
+        os.getenv("STRIPE_WEBHOOK_TARGET")
+        or os.getenv("STRIPE_WEBHOOK_TARGET")
+        or MAC_ADDRESS
+    )
+    webhook_secret: str | None = os.getenv("STRIPE_WEBHOOK_SECRET")
+
+    pricing: str | None = loads(
+        os.getenv("STRIPE_PRICING")
+        #
+        or os.getenv("AGENTA_PRICING")
+        or "{}"
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -138,8 +156,12 @@ class StripeConfig(BaseModel):
 class SendgridConfig(BaseModel):
     """SendGrid Email configuration"""
 
-    api_key: str = os.getenv("SENDGRID_API_KEY", "")
-    from_address: str = os.getenv("SENDGRID_FROM_ADDRESS", "")
+    api_key: str | None = os.getenv("SENDGRID_API_KEY")
+    from_address: str | None = (
+        os.getenv("SENDGRID_FROM_ADDRESS")
+        #
+        or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -152,7 +174,7 @@ class SendgridConfig(BaseModel):
 class CrispConfig(BaseModel):
     """Crisp Chat configuration"""
 
-    website_id: str = os.getenv("CRISP_WEBSITE_ID", "")
+    website_id: str | None = os.getenv("CRISP_WEBSITE_ID")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -214,21 +236,24 @@ class LLMConfig(BaseModel):
 class NewRelicConfig(BaseModel):
     """New Relic monitoring configuration"""
 
-    license_key: str = os.getenv("NEW_RELIC_LICENSE_KEY", "")
-    nria_license_key: str = os.getenv("NRIA_LICENSE_KEY", "")
+    api_key: str | None = (
+        os.getenv("NEW_RELIC_LICENSE_KEY")
+        #
+        or os.getenv("NRIA_LICENSE_KEY")
+    )
 
     model_config = ConfigDict(extra="ignore")
 
     @property
     def enabled(self) -> bool:
         """New Relic enabled if license key present"""
-        return bool(self.license_key or self.nria_license_key)
+        return bool(self.api_key)
 
 
 class LoopsConfig(BaseModel):
     """Loops email marketing configuration"""
 
-    api_key: str = os.getenv("LOOPS_API_KEY", "")
+    api_key: str | None = os.getenv("LOOPS_API_KEY")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -241,7 +266,7 @@ class LoopsConfig(BaseModel):
 class DockerConfig(BaseModel):
     """Docker runtime configuration"""
 
-    network_mode: str = os.getenv("DOCKER_NETWORK_MODE", "bridge")
+    network_mode: str = os.getenv("DOCKER_NETWORK_MODE") or "bridge"
 
     model_config = ConfigDict(extra="ignore")
 
@@ -253,10 +278,12 @@ class LoggingConfig(BaseModel):
         os.getenv("AGENTA_LOG_CONSOLE_ENABLED") or "true"
     ).lower() in _TRUTHY
     console_level: str = (os.getenv("AGENTA_LOG_CONSOLE_LEVEL") or "TRACE").upper()
+
     otlp_enabled: bool = (
         os.getenv("AGENTA_LOG_OTLP_ENABLED") or "false"
     ).lower() in _TRUTHY
     otlp_level: str = (os.getenv("AGENTA_LOG_OTLP_LEVEL") or "INFO").upper()
+
     file_enabled: bool = (
         os.getenv("AGENTA_LOG_FILE_ENABLED") or "true"
     ).lower() in _TRUTHY
@@ -280,78 +307,40 @@ class RedisConfig(BaseModel):
     """Redis/Valkey configuration with precedence-based URI resolution"""
 
     # Global fallback
-    uri: str = os.getenv("REDIS_URI") or "redis://redis-volatile:6379/0"
-
-    # Class-level URLs (volatile for caches/channels, durable for queues/streams)
-    uri_volatile: str = os.getenv("REDIS_URI_VOLATILE") or ""
-    uri_durable: str = os.getenv("REDIS_URI_DURABLE") or ""
-
-    # Per-kind URLs (highest precedence)
-    uri_caches: str = os.getenv("REDIS_URI_CACHES") or ""
-    uri_channels: str = os.getenv("REDIS_URI_CHANNELS") or ""
-    uri_queues: str = os.getenv("REDIS_URI_QUEUES") or ""
-    uri_streams: str = os.getenv("REDIS_URI_STREAMS") or ""
-
-    # Legacy host/port config
-    cache_host: str = os.getenv("REDIS_CACHE_HOST", "redis-volatile")
-    cache_port: int = int(os.getenv("REDIS_CACHE_PORT", "6379"))
+    uri_volatile: str | None = (
+        os.getenv("REDIS_URI_VOLATILE")
+        or os.getenv("REDIS_URI")
+        or "redis://redis-volatile:6379/0"
+    )
+    uri_durable: str | None = (
+        os.getenv("REDIS_URI_DURABLE")
+        or os.getenv("REDIS_URI")
+        or "redis://redis-durable:6381/0"
+    )
 
     model_config = ConfigDict(extra="ignore")
-
-    def model_post_init(self, _):
-        """Resolve Redis URIs with proper precedence after initialization"""
-        # Set class-level defaults if not provided
-        if not self.uri_volatile:
-            self.uri_volatile = f"redis://{self.cache_host}:{self.cache_port}/0"
-        if not self.uri_durable:
-            self.uri_durable = "redis://redis-durable:6380/0"
-
-        # Build per-kind URLs with precedence rules
-        # CACHES: REDIS_URI_CACHES → REDIS_URI_VOLATILE → REDIS_URI → default
-        if not self.uri_caches:
-            self.uri_caches = (
-                self.uri_volatile
-                or self.uri
-                or f"redis://{self.cache_host}:{self.cache_port}/0"
-            )
-
-        # CHANNELS: REDIS_URI_CHANNELS → REDIS_URI_VOLATILE → REDIS_URI → default
-        if not self.uri_channels:
-            self.uri_channels = (
-                self.uri_volatile
-                or self.uri
-                or f"redis://{self.cache_host}:{self.cache_port}/0"
-            )
-
-        # QUEUES: REDIS_URI_QUEUES → REDIS_URI_DURABLE → REDIS_URI → default
-        if not self.uri_queues:
-            self.uri_queues = (
-                self.uri_durable or self.uri or "redis://redis-durable:6380/0"
-            )
-
-        # STREAMS: REDIS_URI_STREAMS → REDIS_URI_DURABLE → REDIS_URI → default
-        if not self.uri_streams:
-            self.uri_streams = (
-                self.uri_durable or self.uri or "redis://redis-durable:6380/0"
-            )
 
 
 class AgentaConfig(BaseModel):
     """Agenta core configuration"""
 
     license: str = _LICENSE
+
     api_url: str = os.getenv("AGENTA_API_URL") or "http://localhost/api"
-    web_url: str = os.getenv("AGENTA_WEB_URL") or ""
-    services_url: str = os.getenv("AGENTA_SERVICES_URL") or ""
+    web_url: str = os.getenv("AGENTA_WEB_URL") or "http://localhost"
+    services_url: str = os.getenv("AGENTA_SERVICES_URL") or "http://localhost/services"
+
     auth_key: str = os.getenv("AGENTA_AUTH_KEY") or ""
     crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or ""
+
+    runtime_prefix: str = os.getenv("AGENTA_RUNTIME_PREFIX") or ""
+
     auto_migrations: bool = (
         os.getenv("AGENTA_AUTO_MIGRATIONS") or "true"
     ).lower() in _TRUTHY
-    pricing: str = os.getenv("AGENTA_PRICING") or "{}"
+
     demos: str = os.getenv("AGENTA_DEMOS") or ""
-    runtime_prefix: str = os.getenv("AGENTA_RUNTIME_PREFIX") or ""
-    send_email_from_address: str = os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS") or ""
+
     blocked_emails: set = {
         e.strip().lower()
         for e in (os.getenv("AGENTA_BLOCKED_EMAILS") or "").split(",")
@@ -383,17 +372,21 @@ class PostgresConfig(BaseModel):
     uri_supertokens: str = os.getenv("POSTGRES_URI_SUPERTOKENS") or (
         f"postgresql://username:password@postgres:5432/agenta_{_LICENSE}_supertokens"
     )
-    user: str = (
-        os.getenv("POSTGRES_USER")
-        or os.getenv("POSTGRES_USERNAME")
-        or "username"
-    )
-    user_admin: str = (
-        os.getenv("POSTGRES_USER_ADMIN")
-        or os.getenv("POSTGRES_USERNAME_ADMIN")
+
+    username: str = (
+        os.getenv("POSTGRES_USERNAME")
+        #
+        or os.getenv("POSTGRES_USER")
         or "username"
     )
     password: str = os.getenv("POSTGRES_PASSWORD") or "password"
+
+    username_admin: str = (
+        os.getenv("POSTGRES_USERNAME_ADMIN")
+        #
+        or os.getenv("POSTGRES_USER_ADMIN")
+        or "username"
+    )
     password_admin: str = os.getenv("POSTGRES_PASSWORD_ADMIN") or "password"
 
     model_config = ConfigDict(extra="ignore")
@@ -428,14 +421,14 @@ class EnvironSettings(BaseModel):
 
         # Access SuperTokens provider
         if env.supertokens.enabled:
-            uri = env.supertokens.connection_uri
+            uri = env.supertokens.uri_core
 
         # Access service availability
         if env.stripe.enabled:
             process_billing()
 
         if env.redis.enabled:
-            connect_to_redis(env.redis.uri_queues)
+            connect_to_redis(env.redis.uri_durable)
     """
 
     auth: AuthConfig = AuthConfig()
