@@ -51,8 +51,13 @@ const TestcaseEditDrawerContent = forwardRef<
             typeof obj.role === "string" ||
             typeof obj.sender === "string" ||
             typeof obj.author === "string"
+        // Content can be present, or tool_calls for assistant messages, or function_call for legacy
         const hasContent =
-            obj.content !== undefined || obj.text !== undefined || obj.message !== undefined
+            obj.content !== undefined ||
+            obj.text !== undefined ||
+            obj.message !== undefined ||
+            Array.isArray(obj.tool_calls) ||
+            obj.function_call !== undefined
         return hasRole && hasContent
     }, [])
 
@@ -167,17 +172,42 @@ const TestcaseEditDrawerContent = forwardRef<
     const parseMessageObject = useCallback((msg: Record<string, unknown>): SimpleChatMessage => {
         const role = (msg.role || msg.sender || msg.author || "user") as string
         // Preserve the original content structure (string or array with text/images/files)
-        let content = msg.content ?? msg.text ?? msg.message ?? ""
+        // Content can be null for assistant messages with tool_calls
+        let content = msg.content ?? msg.text ?? msg.message
         // If content is already an array (complex content), keep it as-is
-        // If it's a string, keep it as a string
-        if (typeof content !== "string" && !Array.isArray(content)) {
+        // If it's a string or null, keep it as-is
+        if (
+            content !== null &&
+            content !== undefined &&
+            typeof content !== "string" &&
+            !Array.isArray(content)
+        ) {
             content = ""
         }
-        return {
+
+        const result: SimpleChatMessage = {
             role,
-            content: content as string | SimpleChatMessage["content"],
-            id: msg.id as string,
+            content: content as SimpleChatMessage["content"],
+            id: msg.id as string | undefined,
         }
+
+        // Preserve tool calling fields
+        if (msg.name) result.name = msg.name as string
+        if (msg.tool_call_id) result.tool_call_id = msg.tool_call_id as string
+        if (msg.tool_calls) result.tool_calls = msg.tool_calls as SimpleChatMessage["tool_calls"]
+        if (msg.function_call)
+            result.function_call = msg.function_call as SimpleChatMessage["function_call"]
+
+        // Preserve provider-specific fields
+        if (msg.provider_specific_fields)
+            result.provider_specific_fields = msg.provider_specific_fields as Record<
+                string,
+                unknown
+            >
+        if (msg.annotations) result.annotations = msg.annotations as unknown[]
+        if (msg.refusal !== undefined) result.refusal = msg.refusal as string | null
+
+        return result
     }, [])
 
     // Parse messages from string value - handles both arrays and single objects
