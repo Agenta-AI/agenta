@@ -103,14 +103,6 @@ const PromptsPage = () => {
     const openEditAppModal = useSetAtom(openEditAppModalAtom)
     const setPromptsTableMeta = useSetAtom(promptsTableMetaAtom)
 
-    const {openModal: openCustomWorkflowModal} = useCustomWorkflowConfig({
-        setStatusModalOpen,
-        setFetchingTemplate: setFetchingCustomWorkflow,
-        appId: "",
-        folderId: currentFolderId,
-        afterConfigSave: async () => mutateApps(),
-    })
-
     useBreadcrumbsEffect({breadcrumbs: {prompts: {label: "prompts"}}}, [])
 
     const {
@@ -139,6 +131,14 @@ const PromptsPage = () => {
         apps,
         isLoadingFolders,
         isLoadingApps,
+    })
+
+    const {openModal: openCustomWorkflowModal} = useCustomWorkflowConfig({
+        setStatusModalOpen,
+        setFetchingTemplate: setFetchingCustomWorkflow,
+        appId: "",
+        folderId: currentFolderId,
+        afterConfigSave: async () => mutateApps(),
     })
 
     const {selectedRowKeys, setSelectedRowKeys, selectedRow, setSelectedRow, rowSelection} =
@@ -668,7 +668,7 @@ const PromptsPage = () => {
                         : undefined,
                 className: record.type === "folder" ? "cursor-pointer" : "",
                 draggable: true,
-                onDragStart: (event) => {
+                onDragStart: (event: any) => {
                     event.stopPropagation()
                     setDraggingItem({
                         type: record.type,
@@ -678,13 +678,13 @@ const PromptsPage = () => {
                 onDragEnd: () => setDraggingItem(null),
                 onDragOver:
                     record.type === "folder"
-                        ? (event) => {
+                        ? (event: any) => {
                               event.preventDefault()
                           }
                         : undefined,
                 onDrop:
                     record.type === "folder"
-                        ? async (event) => {
+                        ? async (event: any) => {
                               event.preventDefault()
                               event.stopPropagation()
                               await handleDropOnFolder(record.id as string)

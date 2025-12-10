@@ -4,21 +4,23 @@ import {ColumnsType, TableProps} from "antd/es/table"
 import {FolderIcon, PlusIcon, SquaresFourIcon, TrashIcon} from "@phosphor-icons/react"
 
 import {
-    InfiniteDatasetStore,
     InfiniteVirtualTableFeatureShell,
     InfiniteVirtualTableRowSelection,
     TableFeaturePagination,
     TableScopeConfig,
 } from "@/oss/components/InfiniteVirtualTable"
 
-import {SetupWorkflowIcon} from "./SetupWorkflowIcon"
 import {PromptsTableRow} from "../types"
+import {FolderTreeItem} from "../assets/utils"
+import SetupWorkflowIcon from "./SetupWorkflowIcon"
+import {InfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable/createInfiniteDatasetStore"
+import {Key} from "react"
 
 interface PromptsTableSectionProps {
     columns: ColumnsType<PromptsTableRow>
     datasetStore: InfiniteDatasetStore<PromptsTableRow, PromptsTableRow, {projectId: string | null}>
     tableRows: PromptsTableRow[]
-    rowKeyExtractor: (row: PromptsTableRow) => string
+    rowKeyExtractor: (record: PromptsTableRow) => Key
     tableScope: TableScopeConfig
     tablePagination: TableFeaturePagination<PromptsTableRow>
     rowSelection: InfiniteVirtualTableRowSelection<PromptsTableRow>
@@ -26,11 +28,11 @@ interface PromptsTableSectionProps {
     tableProps?: TableProps<PromptsTableRow>
     searchTerm: string
     onSearchChange: (value: string) => void
-    selectedRow: PromptsTableRow | null
     onDeleteSelected: () => void
     onOpenNewPrompt: () => void
     onOpenNewFolder: () => void
     onSetupWorkflow: () => void
+    selectedRow: FolderTreeItem | null
 }
 
 export const PromptsTableSection = ({
