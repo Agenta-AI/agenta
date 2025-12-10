@@ -21,8 +21,7 @@ const hexToUuid = (hex: string): string => {
 }
 
 /**
- * Convert a hex span ID (16 chars) to UUID format by doubling it.
- * e.g., "912e71fb57cb9c62" -> "912e71fb-57cb-9c62-912e-71fb57cb9c62"
+ * Convert a hex span ID (16 chars) to UUID format by doubling it
  */
 const spanHexToUuid = (hex: string): string => {
     // If already in UUID format (contains dashes), return as-is
