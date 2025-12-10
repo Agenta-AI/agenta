@@ -35,7 +35,7 @@ const MoveFolderModal = ({
             onCancel={onCancel}
             okText={moveDestinationName ? `Move to ${moveDestinationName}` : "Move folder"}
             okButtonProps={{disabled: disabledConfirm, loading: isMoving}}
-            destroyOnClose
+            destroyOnHidden
         >
             <div className="flex flex-col gap-2">
                 <div className="text-gray-500">
