@@ -61,14 +61,24 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
     const applicationRef = rawRefs.application ?? rawRefs.application_ref ?? {}
     const applicationRevisionRef = rawRefs.applicationRevision ?? rawRefs.application_revision ?? {}
     const applicationVariantRef = rawRefs.applicationVariant ?? rawRefs.application_variant ?? {}
+    const variantRef = rawRefs.variant ?? rawRefs.variant_ref ?? {}
 
+    // Use variant ID (not revision ID) for the reference label query
+    // Priority: variant.id > applicationVariant.id > variantConfig.variant_ref.id
     const variantId = toIdString(
-        applicationRevisionRef?.id ??
-            applicationRevisionRef?.revision_id ??
+        variantRef?.id ??
             applicationVariantRef?.id ??
             variantConfig?.variant_ref?.id ??
             variantConfig?.variant_ref?.variant_id ??
             variantConfig?.variant_ref?.variantId,
+    )
+
+    // Revision ID is used for the prompt config card (to get the specific revision's params)
+    const revisionId = toIdString(
+        applicationRevisionRef?.id ??
+            applicationRevisionRef?.revision_id ??
+            variantRef?.id ??
+            applicationVariantRef?.id,
     )
 
     const applicationId = toIdString(
@@ -117,7 +127,9 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
     console.log("[InvocationSection] applicationRef:", applicationRef)
     console.log("[InvocationSection] applicationRevisionRef:", applicationRevisionRef)
     console.log("[InvocationSection] applicationVariantRef:", applicationVariantRef)
+    console.log("[InvocationSection] variantRef:", variantRef)
     console.log("[InvocationSection] variantId:", variantId)
+    console.log("[InvocationSection] revisionId:", revisionId)
     console.log("[InvocationSection] applicationId:", applicationId)
     console.log("[InvocationSection] hasParamsSnapshot:", hasParamsSnapshot)
     console.log("[InvocationSection] variantConfig?.params:", variantConfig?.params)
@@ -145,14 +157,18 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             : variantDisplayId) ??
         null
 
+    // Use revisionId for the prompt config card (specific revision's params)
     const promptVariantKey = useMemo(() => {
-        const variantRef = variantConfig?.variant_ref ?? {}
+        const configVariantRef = variantConfig?.variant_ref ?? {}
         const refId = toIdString(
-            variantRef?.id ?? variantRef?.variant_id ?? variantRef?.variantId ?? null,
+            configVariantRef?.id ??
+                configVariantRef?.variant_id ??
+                configVariantRef?.variantId ??
+                null,
         )
         if (refId) return refId
-        return variantId
-    }, [variantConfig?.variant_ref, variantId])
+        return revisionId ?? variantId
+    }, [variantConfig?.variant_ref, revisionId, variantId])
 
     const projectId = useAtomValue(effectiveProjectIdAtom)
     const setProjectVariantReferences = useSetAtom(setProjectVariantReferencesAtom)

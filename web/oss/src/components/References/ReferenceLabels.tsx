@@ -183,10 +183,9 @@ export const VariantReferenceLabel = memo(
         }
 
         const ref = query.data
-        // If we have a revisionId but no variantName and no revision, or query errored, the variant was likely deleted
-        const isDeleted = Boolean(
-            query.isError || (ref?.revisionId && !ref?.variantName && ref?.revision == null),
-        )
+        const hasResolvedData = ref?.variantName || ref?.revision != null || fallbackLabel
+        const isDeleted =
+            Boolean(query.isError && !fallbackLabel) || (!hasResolvedData && !fallbackLabel)
         const label = isDeleted
             ? "Deleted"
             : (ref?.variantName ?? fallbackLabel ?? ref?.revisionId ?? revisionId)
