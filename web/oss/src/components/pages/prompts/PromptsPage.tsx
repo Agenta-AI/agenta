@@ -4,7 +4,7 @@ import {Button, Dropdown, Input, Space, Spin, Table, Typography, message} from "
 import {ColumnsType} from "antd/es/table"
 import dynamic from "next/dynamic"
 import useSWR from "swr"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {
@@ -53,6 +53,14 @@ import DeleteAppModal from "@/oss/components/pages/app-management/modals/DeleteA
 import EditAppModal from "@/oss/components/pages/app-management/modals/EditAppModal"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
+import {
+    createInfiniteDatasetStore,
+    InfiniteTableRowBase,
+    InfiniteVirtualTableFeatureShell,
+    InfiniteVirtualTableRowSelection,
+    TableFeaturePagination,
+    TableScopeConfig,
+} from "@/oss/components/InfiniteVirtualTable"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -71,6 +79,44 @@ const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
     mode: "create",
     folderId: null,
 }
+
+type PromptsTableRow = (FolderTreeItem & InfiniteTableRowBase) & {
+    children?: PromptsTableRow[]
+}
+
+const promptsTableMetaAtom = atom({projectId: null as string | null})
+
+const promptsDatasetStore = createInfiniteDatasetStore<
+    PromptsTableRow,
+    PromptsTableRow,
+    {projectId: string | null}
+>({
+    key: "prompts-table",
+    metaAtom: promptsTableMetaAtom,
+    createSkeletonRow: ({rowKey}) => ({
+        key: rowKey,
+        __isSkeleton: true,
+        type: "folder",
+        id: rowKey,
+        name: "",
+        description: "",
+        children: [],
+    }),
+    mergeRow: ({skeleton, apiRow}) => ({
+        ...skeleton,
+        ...(apiRow ?? {}),
+        __isSkeleton: apiRow?.__isSkeleton ?? skeleton.__isSkeleton,
+    }),
+    isEnabled: () => false,
+    fetchPage: async () => ({
+        rows: [],
+        totalCount: 0,
+        hasMore: false,
+        nextOffset: null,
+        nextCursor: null,
+        nextWindowing: null,
+    }),
+})
 
 const PromptsPage = () => {
     const {project, projectId} = useProjectData()
@@ -251,42 +297,45 @@ const PromptsPage = () => {
         return expanded
     }, [filteredRows, searchTerm])
 
-    const tableRows: FolderTreeItem[] = useMemo(() => {
-        if (isLoadingInitialData) return []
-
-        const sanitizeNode = (item: FolderTreeItem): FolderTreeItem => {
-            if (item.type !== "folder") {
-                return item
-            }
-
-            // Recursively sanitize children first
-            const childItems = (item.children ?? []).map(sanitizeNode)
-
-            if (childItems.length === 0) {
-                // Leaf folder → remove children so AntD doesn’t show expand icon
-                const {children, ...rest} = item
-                return rest as FolderTreeItem
-            }
-
-            // Non-leaf folder → keep children
-            return {
-                ...item,
-                children: childItems,
-            }
-        }
-
-        return filteredRows.map(sanitizeNode)
-    }, [filteredRows, isLoadingInitialData])
-
     const getRowKey = useCallback(
         (item: FolderTreeItem) => (item.type === "folder" ? (item.id as string) : item.app_id),
         [],
     )
 
-    const flattenedTableRows = useMemo(() => {
-        const items: FolderTreeItem[] = []
+    const tableRows: PromptsTableRow[] = useMemo(() => {
+        if (isLoadingInitialData) return []
 
-        const traverse = (nodes: FolderTreeItem[]) => {
+        const sanitizeNode = (item: FolderTreeItem): PromptsTableRow => {
+            const baseNode: PromptsTableRow = {
+                ...item,
+                key: getRowKey(item),
+                __isSkeleton: false,
+            }
+
+            if (item.type !== "folder") {
+                return baseNode
+            }
+
+            const childItems = (item.children ?? []).map(sanitizeNode)
+
+            if (childItems.length === 0) {
+                const {children, ...rest} = baseNode
+                return rest as PromptsTableRow
+            }
+
+            return {
+                ...baseNode,
+                children: childItems,
+            }
+        }
+
+        return filteredRows.map(sanitizeNode)
+    }, [filteredRows, getRowKey, isLoadingInitialData])
+
+    const flattenedTableRows = useMemo(() => {
+        const items: PromptsTableRow[] = []
+
+        const traverse = (nodes: PromptsTableRow[]) => {
             nodes.forEach((node) => {
                 items.push(node)
                 if (node.children?.length) {
@@ -299,6 +348,8 @@ const PromptsPage = () => {
 
         return items
     }, [tableRows])
+
+    const rowKeyExtractor = useCallback((record: PromptsTableRow) => record.key, [])
 
     const handleRowClick = (record: FolderTreeItem) => {
         if (record.type !== "folder") return
@@ -750,11 +801,11 @@ const PromptsPage = () => {
         openDeleteAppModal(selectedRow as ListAppsItem)
     }
 
-    const rowSelection = useMemo(
+    const rowSelection = useMemo<InfiniteVirtualTableRowSelection<PromptsTableRow>>(
         () => ({
-            type: "radio" as const,
+            type: "radio",
             selectedRowKeys,
-            onChange: (keys: Key[], selectedRows: FolderTreeItem[]) => {
+            onChange: (keys: Key[], selectedRows: PromptsTableRow[]) => {
                 setSelectedRowKeys(keys as string[])
                 setSelectedRow(selectedRows[0] ?? null)
             },
@@ -782,18 +833,85 @@ const PromptsPage = () => {
 
     const isLoadingTable = isLoadingInitialData
 
-    const columns: ColumnsType<FolderTreeItem> = [
+    const tableScope = useMemo<TableScopeConfig>(
+        () => ({
+            scopeId: projectId ? `prompts-${projectId}` : "prompts",
+            pageSize: Math.max(tableRows.length, 1),
+            enableInfiniteScroll: false,
+        }),
+        [projectId, tableRows.length],
+    )
+
+    const tablePagination = useMemo<TableFeaturePagination<PromptsTableRow>>(
+        () => ({
+            rows: tableRows,
+            loadNextPage: () => undefined,
+            resetPages: () => undefined,
+        }),
+        [tableRows],
+    )
+
+    const expandableConfig = useMemo(
+        () => (searchTerm ? {expandedRowKeys: searchExpandedRowKeys} : undefined),
+        [searchExpandedRowKeys, searchTerm],
+    )
+
+    const tableProps = useMemo(
+        () => ({
+            bordered: true,
+            size: "small" as const,
+            virtual: true,
+            sticky: true,
+            tableLayout: "fixed" as const,
+            scroll: {x: "max-content" as const},
+            onRow: (record: PromptsTableRow) => ({
+                onClick:
+                    record.type === "folder"
+                        ? () => handleRowClick(record as FolderTreeNode)
+                        : undefined,
+                className: record.type === "folder" ? "cursor-pointer" : "",
+                draggable: true,
+                onDragStart: (event) => {
+                    event.stopPropagation()
+                    setDraggingItem({
+                        type: record.type,
+                        id: record.type === "folder" ? (record.id as string) : record.app_id,
+                    })
+                },
+                onDragEnd: () => setDraggingItem(null),
+                onDragOver:
+                    record.type === "folder"
+                        ? (event) => {
+                              event.preventDefault()
+                          }
+                        : undefined,
+                onDrop:
+                    record.type === "folder"
+                        ? async (event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              await handleDropOnFolder(record.id as string)
+                          }
+                        : undefined,
+            }),
+        }),
+        [handleDropOnFolder, handleRowClick],
+    )
+
+    const columns: ColumnsType<PromptsTableRow> = [
         {
             title: "Name",
             key: "name",
+            width: 420,
+            ellipsis: true,
             render: (_, record) => {
                 const isFolder = record.type === "folder"
                 const name = isFolder ? record.name : record.app_name
 
                 return (
-                    <Space size={8}>
+                    <Space size={8} className="truncate">
                         {isFolder ? <FolderIcon size={16} /> : <NoteIcon size={16} />}
-                        <span>{name}</span>
+                        <span className="truncate">{name}</span>
                     </Space>
                 )
             },
@@ -801,6 +919,8 @@ const PromptsPage = () => {
         {
             title: "Date modified",
             key: "dateModified",
+            dataIndex: "updated_at",
+            width: 200,
             render: (_, record) => {
                 return <div>{formatDay({date: record.updated_at})}</div>
             },
@@ -808,6 +928,7 @@ const PromptsPage = () => {
         {
             title: "Type",
             key: "type",
+            width: 160,
             render: (_, record) => (record.type === "folder" ? "Folder" : record.app_type || "App"),
         },
         {
@@ -924,7 +1045,7 @@ const PromptsPage = () => {
     ]
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 grow w-full">
             <Title className="!m-0" level={2}>
                 Prompts
             </Title>
@@ -941,7 +1062,7 @@ const PromptsPage = () => {
                 onDeleteFolder={handleOpenDeleteModal}
             />
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 grow">
                 <div className="flex items-center justify-between">
                     <Space>
                         <Input.Search
@@ -1009,56 +1130,17 @@ const PromptsPage = () => {
                     </Space>
                 </div>
 
-                <Spin spinning={isLoadingTable}>
-                    <Table<FolderTreeItem>
-                        rowSelection={rowSelection}
-                        columns={columns}
-                        dataSource={tableRows}
-                        pagination={false}
-                        expandable={
-                            searchTerm
-                                ? {
-                                      expandedRowKeys: searchExpandedRowKeys,
-                                  }
-                                : undefined
-                        }
-                        bordered
-                        rowKey={getRowKey}
-                        onRow={(record) => ({
-                            onClick:
-                                record.type === "folder"
-                                    ? () => handleRowClick(record as FolderTreeNode)
-                                    : undefined,
-                            className: record.type === "folder" ? "cursor-pointer" : "",
-                            draggable: true,
-                            onDragStart: (event) => {
-                                event.stopPropagation()
-                                setDraggingItem({
-                                    type: record.type,
-                                    id:
-                                        record.type === "folder"
-                                            ? (record.id as string)
-                                            : record.app_id,
-                                })
-                            },
-                            onDragEnd: () => setDraggingItem(null),
-                            onDragOver:
-                                record.type === "folder"
-                                    ? (event) => {
-                                          event.preventDefault()
-                                      }
-                                    : undefined,
-                            onDrop:
-                                record.type === "folder"
-                                    ? async (event) => {
-                                          event.preventDefault()
-                                          event.stopPropagation()
-                                          await handleDropOnFolder(record.id as string)
-                                      }
-                                    : undefined,
-                        })}
-                    />
-                </Spin>
+                <InfiniteVirtualTableFeatureShell<PromptsTableRow>
+                    datasetStore={promptsDatasetStore}
+                    tableScope={tableScope}
+                    columns={columns}
+                    rowKey={rowKeyExtractor}
+                    dataSource={tableRows}
+                    pagination={tablePagination}
+                    rowSelection={rowSelection}
+                    expandable={expandableConfig}
+                    tableProps={tableProps}
+                />
             </div>
 
             <MoveFolderModal
