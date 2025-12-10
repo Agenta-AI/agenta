@@ -1,6 +1,8 @@
 import {Key, useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Dropdown, Input, Space, Spin, Table, Typography, message} from "antd"
+import {atom} from "jotai"
+
+import {Button, Dropdown, Input, Space, Spin, Typography, message} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dynamic from "next/dynamic"
 import useSWR from "swr"
@@ -53,6 +55,14 @@ import DeleteAppModal from "@/oss/components/pages/app-management/modals/DeleteA
 import EditAppModal from "@/oss/components/pages/app-management/modals/EditAppModal"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
+import {InfiniteVirtualTableFeatureShell} from "@/oss/components/InfiniteVirtualTable"
+import {createInfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable/createInfiniteDatasetStore"
+import type {InfiniteTableRowBase} from "@/oss/components/InfiniteVirtualTable/types"
+import type {
+    InfiniteVirtualTableRowSelection,
+    TableFeaturePagination,
+    TableScopeConfig,
+} from "@/oss/components/InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -71,6 +81,44 @@ const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
     mode: "create",
     folderId: null,
 }
+
+type PromptsTableRow = (FolderTreeItem & InfiniteTableRowBase) & {
+    children?: PromptsTableRow[]
+}
+
+const promptsTableMetaAtom = atom({projectId: null as string | null})
+
+const promptsDatasetStore = createInfiniteDatasetStore<
+    PromptsTableRow,
+    PromptsTableRow,
+    {projectId: string | null}
+>({
+    key: "prompts-table",
+    metaAtom: promptsTableMetaAtom,
+    createSkeletonRow: ({rowKey}) => ({
+        key: rowKey,
+        __isSkeleton: true,
+        type: "folder",
+        id: rowKey,
+        name: "",
+        description: "",
+        children: [],
+    }),
+    mergeRow: ({skeleton, apiRow}) => ({
+        ...skeleton,
+        ...(apiRow ?? {}),
+        __isSkeleton: apiRow?.__isSkeleton ?? skeleton.__isSkeleton,
+    }),
+    isEnabled: () => false,
+    fetchPage: async () => ({
+        rows: [],
+        totalCount: 0,
+        hasMore: false,
+        nextOffset: null,
+        nextCursor: null,
+        nextWindowing: null,
+    }),
+})
 
 const PromptsPage = () => {
     const {project, projectId} = useProjectData()
@@ -146,6 +194,11 @@ const PromptsPage = () => {
 
         return buildFolderTree(folders, apps)
     }, [apps, foldersData])
+
+    const getRowKey = useCallback(
+        (item: FolderTreeItem) => (item.type === "folder" ? (item.id as string) : item.app_id),
+        [],
+    )
 
     const treeData: DataNode[] = useMemo(() => {
         const buildNodes = (nodes: FolderTreeItem[]): DataNode[] =>
@@ -251,42 +304,40 @@ const PromptsPage = () => {
         return expanded
     }, [filteredRows, searchTerm])
 
-    const tableRows: FolderTreeItem[] = useMemo(() => {
+    const tableRows: PromptsTableRow[] = useMemo(() => {
         if (isLoadingInitialData) return []
 
-        const sanitizeNode = (item: FolderTreeItem): FolderTreeItem => {
-            if (item.type !== "folder") {
-                return item
+        const sanitizeNode = (item: FolderTreeItem): PromptsTableRow => {
+            const baseNode: PromptsTableRow = {
+                ...item,
+                key: getRowKey(item),
+                __isSkeleton: false,
             }
 
-            // Recursively sanitize children first
+            if (item.type !== "folder") {
+                return baseNode
+            }
+
             const childItems = (item.children ?? []).map(sanitizeNode)
 
             if (childItems.length === 0) {
-                // Leaf folder → remove children so AntD doesn’t show expand icon
-                const {children, ...rest} = item
-                return rest as FolderTreeItem
+                const {children, ...rest} = baseNode
+                return rest as PromptsTableRow
             }
 
-            // Non-leaf folder → keep children
             return {
-                ...item,
+                ...baseNode,
                 children: childItems,
             }
         }
 
         return filteredRows.map(sanitizeNode)
-    }, [filteredRows, isLoadingInitialData])
-
-    const getRowKey = useCallback(
-        (item: FolderTreeItem) => (item.type === "folder" ? (item.id as string) : item.app_id),
-        [],
-    )
+    }, [filteredRows, getRowKey, isLoadingInitialData])
 
     const flattenedTableRows = useMemo(() => {
-        const items: FolderTreeItem[] = []
+        const items: PromptsTableRow[] = []
 
-        const traverse = (nodes: FolderTreeItem[]) => {
+        const traverse = (nodes: PromptsTableRow[]) => {
             nodes.forEach((node) => {
                 items.push(node)
                 if (node.children?.length) {
@@ -299,6 +350,8 @@ const PromptsPage = () => {
 
         return items
     }, [tableRows])
+
+    const rowKeyExtractor = useCallback((record: PromptsTableRow) => record.key, [])
 
     const handleRowClick = (record: FolderTreeItem) => {
         if (record.type !== "folder") return
@@ -750,11 +803,12 @@ const PromptsPage = () => {
         openDeleteAppModal(selectedRow as ListAppsItem)
     }
 
-    const rowSelection = useMemo(
+    const rowSelection = useMemo<InfiniteVirtualTableRowSelection<PromptsTableRow>>(
         () => ({
-            type: "radio" as const,
+            type: "radio",
+            columnWidth: 48,
             selectedRowKeys,
-            onChange: (keys: Key[], selectedRows: FolderTreeItem[]) => {
+            onChange: (keys: Key[], selectedRows: PromptsTableRow[]) => {
                 setSelectedRowKeys(keys as string[])
                 setSelectedRow(selectedRows[0] ?? null)
             },
@@ -782,146 +836,253 @@ const PromptsPage = () => {
 
     const isLoadingTable = isLoadingInitialData
 
-    const columns: ColumnsType<FolderTreeItem> = [
-        {
-            title: "Name",
-            key: "name",
-            render: (_, record) => {
-                const isFolder = record.type === "folder"
-                const name = isFolder ? record.name : record.app_name
+    const tableScope = useMemo<TableScopeConfig>(
+        () => ({
+            scopeId: projectId ? `prompts-${projectId}` : "prompts",
+            pageSize: Math.max(flattenedTableRows.length, 1),
+            enableInfiniteScroll: false,
+        }),
+        [flattenedTableRows.length, projectId],
+    )
 
-                return (
-                    <Space size={8}>
-                        {isFolder ? <FolderIcon size={16} /> : <NoteIcon size={16} />}
-                        <span>{name}</span>
-                    </Space>
-                )
+    const tablePagination = useMemo<TableFeaturePagination<PromptsTableRow>>(
+        () => ({
+            rows: tableRows,
+            loadNextPage: () => undefined,
+            resetPages: () => undefined,
+        }),
+        [tableRows],
+    )
+
+    const [expandedRowKeys, setExpandedRowKeys] = useState<Key[]>([])
+
+    useEffect(() => {
+        if (searchTerm) {
+            setExpandedRowKeys(searchExpandedRowKeys)
+            return
+        }
+
+        setExpandedRowKeys((previousKeys) => {
+            if (previousKeys.length === 0) return previousKeys
+            const validKeys = new Set(flattenedTableRows.map((row) => row.key))
+            return previousKeys.filter((key) => validKeys.has(key))
+        })
+    }, [flattenedTableRows, searchExpandedRowKeys, searchTerm])
+
+    const handleExpandedRowsChange = useCallback((keys: Key[]) => {
+        setExpandedRowKeys(keys)
+    }, [])
+
+    const expandableConfig = useMemo(
+        () => ({
+            expandedRowKeys,
+            onExpandedRowsChange: handleExpandedRowsChange,
+            expandRowByClick: true,
+            indentSize: 16,
+            expandIconColumnWidth: 48,
+        }),
+        [expandedRowKeys, handleExpandedRowsChange],
+    )
+
+    const tableProps = useMemo(
+        () => ({
+            bordered: true,
+            size: "small" as const,
+            virtual: true,
+            sticky: true,
+            tableLayout: "fixed" as const,
+            scroll: {x: "max-content" as const},
+            onRow: (record: PromptsTableRow) => ({
+                onClick:
+                    record.type === "folder"
+                        ? () => handleRowClick(record as FolderTreeNode)
+                        : undefined,
+                className: record.type === "folder" ? "cursor-pointer" : "",
+                draggable: true,
+                onDragStart: (event) => {
+                    event.stopPropagation()
+                    setDraggingItem({
+                        type: record.type,
+                        id: record.type === "folder" ? (record.id as string) : record.app_id,
+                    })
+                },
+                onDragEnd: () => setDraggingItem(null),
+                onDragOver:
+                    record.type === "folder"
+                        ? (event) => {
+                              event.preventDefault()
+                          }
+                        : undefined,
+                onDrop:
+                    record.type === "folder"
+                        ? async (event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              await handleDropOnFolder(record.id as string)
+                          }
+                        : undefined,
+            }),
+        }),
+        [handleDropOnFolder, handleRowClick],
+    )
+
+    const columns: ColumnsType<PromptsTableRow> = useMemo(
+        () => [
+            {
+                title: "Name",
+                key: "name",
+                width: 420,
+                ellipsis: true,
+                render: (_, record) => {
+                    const isFolder = record.type === "folder"
+                    const name = isFolder ? record.name : record.app_name
+
+                    return (
+                        <Space size={8} className="truncate">
+                            {isFolder ? <FolderIcon size={16} /> : <NoteIcon size={16} />}
+                            <span className="truncate">{name}</span>
+                        </Space>
+                    )
+                },
             },
-        },
-        {
-            title: "Date modified",
-            key: "dateModified",
-            render: (_, record) => {
-                return <div>{formatDay({date: record.updated_at})}</div>
+            {
+                title: "Date modified",
+                key: "dateModified",
+                dataIndex: "updated_at",
+                width: 200,
+                render: (_, record) => {
+                    return <div>{formatDay({date: record.updated_at})}</div>
+                },
             },
-        },
-        {
-            title: "Type",
-            key: "type",
-            render: (_, record) => (record.type === "folder" ? "Folder" : record.app_type || "App"),
-        },
-        {
-            title: <GearSixIcon size={16} />,
-            key: "actions",
-            width: 56,
-            fixed: "right",
-            align: "center",
-            render: (_, record) => {
-                const isFolder = record.type === "folder"
-
-                const folderActions = [
-                    {
-                        key: "open_folder",
-                        label: "Open",
-                        icon: <NoteIcon size={16} />,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            handleRowClick(record as FolderTreeNode)
-                        },
-                    },
-                    {
-                        key: "rename_folder",
-                        label: "Rename",
-                        icon: <PencilSimpleIcon size={16} />,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            handleOpenRenameModal(record.id as string)
-                        },
-                    },
-                    {
-                        key: "move_folder",
-                        label: "Move",
-                        icon: <FolderDashedIcon size={16} />,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            handleOpenMoveModal(record)
-                        },
-                    },
-                    {
-                        type: "divider",
-                    },
-                    {
-                        key: "delete_folder",
-                        label: "Delete",
-                        icon: <TrashIcon size={16} />,
-                        danger: true,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            handleOpenDeleteModal(record.id as string)
-                        },
-                    },
-                ]
-
-                const appActions = [
-                    {
-                        key: "open_app",
-                        label: "Open",
-                        icon: <NoteIcon size={16} />,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            handleOpenAppOverview(record.app_id)
-                        },
-                    },
-                    {
-                        key: "rename_app",
-                        label: "Rename",
-                        icon: <PencilSimpleIcon size={16} />,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            openEditAppModal(record as ListAppsItem)
-                        },
-                    },
-                    {
-                        key: "move_app",
-                        label: "Move",
-                        icon: <FolderDashedIcon size={16} />,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            handleOpenMoveModal(record)
-                        },
-                    },
-                    {
-                        type: "divider",
-                    },
-                    {
-                        key: "delete_app",
-                        label: "Delete",
-                        icon: <TrashIcon size={16} />,
-                        danger: true,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            openDeleteAppModal(record as ListAppsItem)
-                        },
-                    },
-                ]
-
-                return (
-                    <Dropdown
-                        trigger={["click"]}
-                        overlayStyle={{width: 180}}
-                        menu={{items: isFolder ? folderActions : appActions}}
-                    >
-                        <Button
-                            type="text"
-                            onClick={(e) => e.stopPropagation()}
-                            icon={<MoreOutlined />}
-                            size="small"
-                        />
-                    </Dropdown>
-                )
+            {
+                title: "Type",
+                key: "type",
+                width: 160,
+                render: (_, record) =>
+                    record.type === "folder" ? "Folder" : record.app_type || "App",
             },
-        },
-    ]
+            {
+                title: <GearSixIcon size={16} />,
+                key: "actions",
+                width: 72,
+                fixed: "right",
+                align: "center",
+                render: (_, record) => {
+                    const isFolder = record.type === "folder"
+
+                    const folderActions = [
+                        {
+                            key: "open_folder",
+                            label: "Open",
+                            icon: <NoteIcon size={16} />,
+                            onClick: (e: any) => {
+                                e.domEvent.stopPropagation()
+                                handleRowClick(record as FolderTreeNode)
+                            },
+                        },
+                        {
+                            key: "rename_folder",
+                            label: "Rename",
+                            icon: <PencilSimpleIcon size={16} />,
+                            onClick: (e: any) => {
+                                e.domEvent.stopPropagation()
+                                handleOpenRenameModal(record.id as string)
+                            },
+                        },
+                        {
+                            key: "move_folder",
+                            label: "Move",
+                            icon: <FolderDashedIcon size={16} />,
+                            onClick: (e: any) => {
+                                e.domEvent.stopPropagation()
+                                handleOpenMoveModal(record)
+                            },
+                        },
+                        {
+                            type: "divider",
+                        },
+                        {
+                            key: "delete_folder",
+                            label: "Delete",
+                            icon: <TrashIcon size={16} />,
+                            danger: true,
+                            onClick: (e: any) => {
+                                e.domEvent.stopPropagation()
+                                handleOpenDeleteModal(record.id as string)
+                            },
+                        },
+                    ]
+
+                    const appActions = [
+                        {
+                            key: "open_app",
+                            label: "Open",
+                            icon: <NoteIcon size={16} />,
+                            onClick: (e: any) => {
+                                e.domEvent.stopPropagation()
+                                handleOpenAppOverview(record.app_id)
+                            },
+                        },
+                        {
+                            key: "rename_app",
+                            label: "Rename",
+                            icon: <PencilSimpleIcon size={16} />,
+                            onClick: (e: any) => {
+                                e.domEvent.stopPropagation()
+                                openEditAppModal(record as ListAppsItem)
+                            },
+                        },
+                        {
+                            key: "move_app",
+                            label: "Move",
+                            icon: <FolderDashedIcon size={16} />,
+                            onClick: (e: any) => {
+                                e.domEvent.stopPropagation()
+                                handleOpenMoveModal(record)
+                            },
+                        },
+                        {
+                            type: "divider",
+                        },
+                        {
+                            key: "delete_app",
+                            label: "Delete",
+                            icon: <TrashIcon size={16} />,
+                            danger: true,
+                            onClick: (e: any) => {
+                                e.domEvent.stopPropagation()
+                                openDeleteAppModal(record as ListAppsItem)
+                            },
+                        },
+                    ]
+
+                    return (
+                        <Dropdown
+                            trigger={["click"]}
+                            overlayStyle={{width: 180}}
+                            menu={{items: isFolder ? folderActions : appActions}}
+                        >
+                            <Button
+                                type="text"
+                                onClick={(e) => e.stopPropagation()}
+                                icon={<MoreOutlined />}
+                                size="small"
+                            />
+                        </Dropdown>
+                    )
+                },
+            },
+        ],
+        [
+            handleOpenDeleteModal,
+            handleOpenMoveModal,
+            handleOpenRenameModal,
+            handleOpenAppOverview,
+            handleRowClick,
+            openDeleteAppModal,
+            openEditAppModal,
+        ],
+    )
 
     return (
         <div className="flex flex-col gap-4">
@@ -1010,53 +1171,16 @@ const PromptsPage = () => {
                 </div>
 
                 <Spin spinning={isLoadingTable}>
-                    <Table<FolderTreeItem>
-                        rowSelection={rowSelection}
+                    <InfiniteVirtualTableFeatureShell<PromptsTableRow>
+                        datasetStore={promptsDatasetStore}
+                        tableScope={tableScope}
                         columns={columns}
+                        rowKey={rowKeyExtractor}
                         dataSource={tableRows}
-                        pagination={false}
-                        expandable={
-                            searchTerm
-                                ? {
-                                      expandedRowKeys: searchExpandedRowKeys,
-                                  }
-                                : undefined
-                        }
-                        bordered
-                        rowKey={getRowKey}
-                        onRow={(record) => ({
-                            onClick:
-                                record.type === "folder"
-                                    ? () => handleRowClick(record as FolderTreeNode)
-                                    : undefined,
-                            className: record.type === "folder" ? "cursor-pointer" : "",
-                            draggable: true,
-                            onDragStart: (event) => {
-                                event.stopPropagation()
-                                setDraggingItem({
-                                    type: record.type,
-                                    id:
-                                        record.type === "folder"
-                                            ? (record.id as string)
-                                            : record.app_id,
-                                })
-                            },
-                            onDragEnd: () => setDraggingItem(null),
-                            onDragOver:
-                                record.type === "folder"
-                                    ? (event) => {
-                                          event.preventDefault()
-                                      }
-                                    : undefined,
-                            onDrop:
-                                record.type === "folder"
-                                    ? async (event) => {
-                                          event.preventDefault()
-                                          event.stopPropagation()
-                                          await handleDropOnFolder(record.id as string)
-                                      }
-                                    : undefined,
-                        })}
+                        pagination={tablePagination}
+                        rowSelection={rowSelection}
+                        expandable={expandableConfig}
+                        tableProps={tableProps}
                     />
                 </Spin>
             </div>
