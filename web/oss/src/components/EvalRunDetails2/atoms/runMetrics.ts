@@ -661,6 +661,27 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                   !isHumanEvalPending
                 : true
 
+            // [HUMAN_EVAL_REFRESH_LOG] Log run-level refresh decision factors
+            if (evaluationType === "human") {
+                console.log("[RunMetrics:HumanEval] Run-level refresh decision factors", {
+                    runId,
+                    evaluationType,
+                    runStatus,
+                    isHumanEvalPending,
+                    isRunInProgress,
+                    inProgressStatusCheck: runStatus
+                        ? IN_PROGRESS_STATUSES.has(runStatus)
+                        : "no-status",
+                    terminalStatusCheck: runStatus ? TERMINAL_STATUSES.has(runStatus) : "no-status",
+                    willAllowRefresh: !isRunInProgress,
+                    reason: isHumanEvalPending
+                        ? "Human eval with pending status - ALLOW refresh (invocations have run)"
+                        : isRunInProgress
+                          ? "Run is in progress - BLOCK refresh"
+                          : "Run is terminal or ready - ALLOW refresh",
+                })
+            }
+
             const fetchMetrics = async () => {
                 if (!projectId || !runId) return []
                 return runMetricsBatchFetcher({
@@ -706,6 +727,26 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                     // Override isRunInProgress if we detect pending with executed scenarios
                     const effectiveIsRunInProgress =
                         isRunInProgress && !isPendingWithExecutedScenarios
+
+                    // [HUMAN_EVAL_REFRESH_LOG] Log queryFn refresh decision for human eval
+                    if (evaluationType === "human") {
+                        console.log("[RunMetrics:HumanEval] queryFn refresh decision", {
+                            runId,
+                            evaluationType,
+                            runStatus,
+                            fetchedMetricsCount: fetchedMetrics.length,
+                            hasScenarioMetrics,
+                            isPendingWithExecutedScenarios,
+                            isRunInProgress,
+                            effectiveIsRunInProgress,
+                            willTriggerRefresh: !effectiveIsRunInProgress,
+                            reason: !effectiveIsRunInProgress
+                                ? isPendingWithExecutedScenarios
+                                    ? "ALLOW: pending with executed scenarios (invocations have run)"
+                                    : "ALLOW: run is not in progress"
+                                : "BLOCK: run is in progress",
+                        })
+                    }
 
                     if (!fetchedMetrics.length) {
                         temporalRunFlags.set(runId, false)

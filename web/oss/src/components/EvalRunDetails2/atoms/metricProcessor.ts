@@ -142,7 +142,9 @@ export const createMetricProcessor = ({
     runId,
     source,
     evaluationType,
-}: MetricProcessorOptions & {evaluationType?: "auto" | "human" | "online" | null}): MetricProcessor => {
+}: MetricProcessorOptions & {
+    evaluationType?: "auto" | "human" | "online" | null
+}): MetricProcessor => {
     const state: MetricProcessorState = {
         pending: [],
         scenarioIds: new Set<string>(),
@@ -185,9 +187,25 @@ export const createMetricProcessor = ({
         // 1. It has an explicit pending status, OR
         // 2. It has no status at all (null/undefined means not yet executed)
         // Exception: For human evals, null status doesn't mean not-yet-executed
-        const isPendingScenario = status
-            ? pendingStatuses.has(status)
-            : evaluationType !== "human"
+        const isPendingScenario = status ? pendingStatuses.has(status) : evaluationType !== "human"
+
+        // [HUMAN_EVAL_REFRESH_LOG] Log decision factors for human eval type
+        if (evaluationType === "human") {
+            console.log("[MetricProcessor:HumanEval] processMetric decision", {
+                scope,
+                metricId: summary.id,
+                scenarioId: summary.scenarioId,
+                status,
+                evaluationType,
+                isPendingScenario,
+                pendingStatusesIncludesPending: pendingStatuses.has("pending"),
+                hasLegacyShape,
+                keyCount: summary.keyCount,
+                reason: isPendingScenario
+                    ? "SKIP: scenario is pending (not yet executed)"
+                    : "PROCESS: scenario has been executed, will check for refresh",
+            })
+        }
 
         if (scope === "scenario") {
             // Skip ALL refresh logic for scenarios that haven't been run yet
