@@ -1,6 +1,7 @@
 import {Modal, Button} from "antd"
 import {TrashIcon} from "@phosphor-icons/react"
 import React from "react"
+import {FolderFilled} from "@ant-design/icons"
 
 interface DeleteFolderModalProps {
     open: boolean
@@ -27,10 +28,7 @@ const DeleteFolderModal = ({
                 <div className="text-gray-500">
                     <div>You are about to delete:</div>
                     <div className="mt-2 flex items-center gap-2">
-                        <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100">
-                            {/* simple folder glyph; you can swap for your actual icon */}
-                            <span className="text-xs">📁</span>
-                        </span>
+                        <FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />
                         <span className="font-medium">{folderName || "this folder"}</span>
                     </div>
                 </div>

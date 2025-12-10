@@ -1,8 +1,8 @@
-import {useMemo} from "react"
+import {JSX, useMemo} from "react"
 
-import {Dropdown, Button, Space, MenuProps} from "antd"
+import {Dropdown, Button, MenuProps} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {MoreOutlined} from "@ant-design/icons"
+import {FolderFilled, MoreOutlined} from "@ant-design/icons"
 
 import {
     FolderDashedIcon,
@@ -27,6 +27,7 @@ interface UsePromptsColumnsProps {
     onOpenAppOverview: (appId: string) => void
     onOpenEditAppModal: (app: ListAppsItem) => void
     onOpenDeleteAppModal: (app: ListAppsItem) => void
+    getAppTypeIcon: (appType?: string | undefined) => JSX.Element
 }
 
 export const usePromptsColumns = ({
@@ -37,6 +38,7 @@ export const usePromptsColumns = ({
     onOpenAppOverview,
     onOpenEditAppModal,
     onOpenDeleteAppModal,
+    getAppTypeIcon,
 }: UsePromptsColumnsProps) =>
     useMemo<ColumnsType<PromptsTableRow>>(
         () => [
@@ -50,10 +52,14 @@ export const usePromptsColumns = ({
                     const name = isFolder ? record.name : record.app_name
 
                     return (
-                        <Space size={8} className="truncate">
-                            {isFolder ? <FolderIcon size={16} /> : <NoteIcon size={16} />}
+                        <div className="truncate flex items-center gap-2">
+                            {isFolder ? (
+                                <FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />
+                            ) : (
+                                getAppTypeIcon(record.app_type)
+                            )}
                             <span className="truncate">{name}</span>
-                        </Space>
+                        </div>
                     )
                 },
             },
