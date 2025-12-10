@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {Key, useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button, Dropdown, Input, Space, Spin, Table, Typography, message} from "antd"
 import {ColumnsType} from "antd/es/table"
@@ -110,6 +110,8 @@ const PromptsPage = () => {
     const [isSavingFolder, setIsSavingFolder] = useState(false)
     const [isMovingItem, setIsMovingItem] = useState(false)
     const [isDeletingFolder, setIsDeletingFolder] = useState(false)
+    const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
+    const [selectedRow, setSelectedRow] = useState<FolderTreeItem | null>(null)
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
     const openEditAppModal = useSetAtom(openEditAppModalAtom)
 
@@ -275,6 +277,28 @@ const PromptsPage = () => {
 
         return filteredRows.map(sanitizeNode)
     }, [filteredRows, isLoadingInitialData])
+
+    const getRowKey = useCallback(
+        (item: FolderTreeItem) => (item.type === "folder" ? (item.id as string) : item.app_id),
+        [],
+    )
+
+    const flattenedTableRows = useMemo(() => {
+        const items: FolderTreeItem[] = []
+
+        const traverse = (nodes: FolderTreeItem[]) => {
+            nodes.forEach((node) => {
+                items.push(node)
+                if (node.children?.length) {
+                    traverse(node.children)
+                }
+            })
+        }
+
+        traverse(tableRows)
+
+        return items
+    }, [tableRows])
 
     const handleRowClick = (record: FolderTreeItem) => {
         if (record.type !== "folder") return
@@ -705,6 +729,8 @@ const PromptsPage = () => {
             }
 
             message.success("Folder deleted")
+            setSelectedRowKeys([])
+            setSelectedRow(null)
             handleCloseDeleteModal()
         } catch (error) {
             message.error("Failed to delete folder")
@@ -712,6 +738,47 @@ const PromptsPage = () => {
             setIsDeletingFolder(false)
         }
     }
+
+    const handleDeleteSelected = () => {
+        if (!selectedRow) return
+
+        if (selectedRow.type === "folder") {
+            handleOpenDeleteModal(selectedRow.id as string)
+            return
+        }
+
+        openDeleteAppModal(selectedRow as ListAppsItem)
+    }
+
+    const rowSelection = useMemo(
+        () => ({
+            type: "radio" as const,
+            selectedRowKeys,
+            onChange: (keys: Key[], selectedRows: FolderTreeItem[]) => {
+                setSelectedRowKeys(keys as string[])
+                setSelectedRow(selectedRows[0] ?? null)
+            },
+        }),
+        [selectedRowKeys],
+    )
+
+    useEffect(() => {
+        if (!selectedRowKeys.length) {
+            setSelectedRow(null)
+            return
+        }
+
+        const currentKey = selectedRowKeys[0]
+        const currentRow = flattenedTableRows.find((item) => getRowKey(item) === currentKey) ?? null
+
+        if (!currentRow) {
+            setSelectedRowKeys([])
+            setSelectedRow(null)
+            return
+        }
+
+        setSelectedRow(currentRow)
+    }, [flattenedTableRows, getRowKey, selectedRowKeys])
 
     const isLoadingTable = isLoadingInitialData
 
@@ -887,7 +954,12 @@ const PromptsPage = () => {
                     </Space>
 
                     <Space>
-                        <Button icon={<TrashIcon />} danger disabled>
+                        <Button
+                            icon={<TrashIcon />}
+                            danger
+                            disabled={!selectedRow}
+                            onClick={handleDeleteSelected}
+                        >
                             Delete
                         </Button>
 
@@ -939,7 +1011,7 @@ const PromptsPage = () => {
 
                 <Spin spinning={isLoadingTable}>
                     <Table<FolderTreeItem>
-                        rowSelection={{type: "checkbox"}}
+                        rowSelection={rowSelection}
                         columns={columns}
                         dataSource={tableRows}
                         pagination={false}
@@ -951,9 +1023,7 @@ const PromptsPage = () => {
                                 : undefined
                         }
                         bordered
-                        rowKey={(record) =>
-                            record.type === "folder" ? (record.id as string) : record.app_id
-                        }
+                        rowKey={getRowKey}
                         onRow={(record) => ({
                             onClick:
                                 record.type === "folder"
