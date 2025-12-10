@@ -4,6 +4,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails2/atoms/table/run"
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {BasicStats, canonicalizeMetricKey, getMetricValueWithAliases} from "@/oss/lib/metricUtils"
 import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
@@ -606,11 +607,10 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                       ? runStatusRaw.value.toLowerCase()
                       : undefined
 
-            // Try to get evaluation type from run data if not set in atom
-            const evalTypeFromRun = runQuery?.data?.rawRun?.meta?.evaluation_kind
-            // runQuery?.data?.camelRun?.meta?.evaluationType ??
-            // runQuery?.data?.rawRun?.evaluationType ??
-            // runQuery?.data?.camelRun?.evaluation_type
+            // Derive evaluation type from run.data.steps - this is the reliable source of truth
+            // Do NOT use meta.evaluation_kind as it's flaky and unreliable
+            const rawRun = runQuery?.data?.rawRun
+            const evalTypeFromRun = rawRun ? deriveEvaluationKind(rawRun) : null
             const evaluationType = evalTypeFromAtom || evalTypeFromRun || null
 
             // Check if run query has loaded (needed for evaluationType resolution)
