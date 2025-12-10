@@ -158,6 +158,11 @@ class AppDB(Base):
         ForeignKey("folders.id", ondelete="SET NULL"),
         nullable=True,
     )
+    folder_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("folders.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
