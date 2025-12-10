@@ -1,9 +1,9 @@
-from oss.src.apis.fastapi.observability.extractors.base_adapter import BaseAdapter
-from oss.src.apis.fastapi.observability.extractors.canonical_attributes import (
+from oss.src.apis.fastapi.otlp.extractors.base_adapter import BaseAdapter
+from oss.src.apis.fastapi.otlp.extractors.canonical_attributes import (
     CanonicalAttributes,
     SpanFeatures,
 )
-from oss.src.apis.fastapi.observability.utils.serialization import (
+from oss.src.apis.fastapi.otlp.utils.serialization import (
     decode_value,
     process_attribute,
     NAMESPACE_PREFIX_FEATURE_MAPPING,
