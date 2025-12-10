@@ -99,7 +99,7 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
         null
 
     const hasParamsSnapshot = Boolean(variantConfig?.params)
-    const applicationLabel =
+    const _applicationLabel =
         applicationQuery.data?.name ??
         applicationQuery.data?.slug ??
         applicationRef?.name ??
@@ -212,15 +212,18 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
 
     // When the app/variant is deleted, the URL (openapi schema endpoint) won't be available.
     // In this case, we cannot render the component view and should default to JSON view.
+    // We only know the schema is unavailable after loading completes.
     const hasSchemaAvailable = Boolean(variantConfig?.url)
-    const [view, setView] = useState<"details" | "json">(hasSchemaAvailable ? "details" : "json")
+    const schemaDefinitelyUnavailable =
+        !isVariantLoading && !variantLoading && variantConfig && !variantConfig.url
+    const [view, setView] = useState<"details" | "json">("details")
 
-    // Sync view state when schema availability changes (e.g., after data loads)
+    // Sync view state when we definitively know schema is unavailable (after loading completes)
     useEffect(() => {
-        if (!hasSchemaAvailable && view === "details") {
+        if (schemaDefinitelyUnavailable && view === "details") {
             setView("json")
         }
-    }, [hasSchemaAvailable, view])
+    }, [schemaDefinitelyUnavailable, view])
 
     if (!rawRefs || Object.keys(rawRefs).length === 0) return null
     if (isVariantLoading || variantLoading) {
@@ -253,14 +256,10 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             <div className="flex items-start justify-between gap-3">
                 {headerContent}
                 <div className="flex items-center gap-2">
-                    {variantConfig ? (
+                    {variantConfig && hasSchemaAvailable ? (
                         <Segmented
                             options={[
-                                {
-                                    label: "Details",
-                                    value: "details",
-                                    disabled: !hasSchemaAvailable,
-                                },
+                                {label: "Details", value: "details"},
                                 {label: "JSON", value: "json"},
                             ]}
                             size="small"
