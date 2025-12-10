@@ -33,7 +33,7 @@ import {AppTreeNode, buildFolderTree, FolderTreeItem, FolderTreeNode, slugify} f
 import {MoreOutlined} from "@ant-design/icons"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {DataNode} from "antd/es/tree"
-import MoveFolderModal from "./modals/MoveFolderModal"
+import MoveItemModal from "./modals/MoveItemModal"
 import DeleteFolderModal from "./modals/DeleteFolderModal"
 import NewFolderModal, {FolderModalState} from "./modals/NewFolderModal"
 import {Folder, FolderKind} from "@/oss/services/folders/types"
@@ -49,7 +49,6 @@ import {getTemplateKey, timeout} from "@/oss/components/pages/app-management/ass
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {waitForAppToStart} from "@/oss/services/api"
-import MoveAppModal from "./modals/MoveAppModal"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 
@@ -104,6 +103,7 @@ const PromptsPage = () => {
         ...INITIAL_FOLDER_MODAL_STATE,
     })
     const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null)
+    const [draggingAppId, setDraggingAppId] = useState<string | null>(null)
     const [isSavingFolder, setIsSavingFolder] = useState(false)
     const [isMovingFolder, setIsMovingFolder] = useState(false)
     const [isMovingApp, setIsMovingApp] = useState(false)
@@ -624,15 +624,33 @@ const PromptsPage = () => {
     }
 
     const handleDropOnFolder = async (destinationId: string | null) => {
-        if (!draggingFolderId) return
-
         const destinationFolder = destinationId ? foldersById[destinationId] : null
         if (destinationId && !destinationFolder) return
 
-        await moveFolder(draggingFolderId, destinationId, () => {
-            setMoveFolderId(null)
-            setMoveSelection(null)
-        })
+        if (draggingFolderId) {
+            const folderMoveSuccess = await moveFolder(draggingFolderId, destinationId, () => {
+                setMoveFolderId(null)
+                setMoveSelection(null)
+                setDraggingFolderId(null)
+            })
+
+            if (!folderMoveSuccess) {
+                setDraggingFolderId(null)
+            }
+            return
+        }
+
+        if (draggingAppId) {
+            const appMoveSuccess = await moveApp(draggingAppId, destinationId, () => {
+                setMoveAppId(null)
+                setAppMoveSelection(null)
+                setDraggingAppId(null)
+            })
+
+            if (!appMoveSuccess) {
+                setDraggingAppId(null)
+            }
+        }
     }
 
     const folderHasApps = useCallback(
@@ -965,45 +983,53 @@ const PromptsPage = () => {
                         rowKey={(record) =>
                             record.type === "folder" ? (record.id as string) : record.app_id
                         }
-                        onRow={(record) => ({
-                            onClick:
-                                record.type === "folder"
+                        onRow={(record) => {
+                            const isFolder = record.type === "folder"
+                            const isApp = record.type === "app"
+
+                            return {
+                                onClick: isFolder
                                     ? () => handleRowClick(record as FolderTreeNode)
                                     : undefined,
-                            className: record.type === "folder" ? "cursor-pointer" : "",
-                            draggable: record.type === "folder",
-                            onDragStart:
-                                record.type === "folder"
+                                className: isFolder ? "cursor-pointer" : "",
+                                draggable: isFolder || isApp,
+                                onDragStart: isFolder
                                     ? (event) => {
                                           event.stopPropagation()
                                           setDraggingFolderId(record.id as string)
                                       }
-                                    : undefined,
-                            onDragEnd:
-                                record.type === "folder"
+                                    : isApp
+                                      ? (event) => {
+                                            event.stopPropagation()
+                                            setDraggingAppId((record as AppTreeNode).app_id)
+                                        }
+                                      : undefined,
+                                onDragEnd: isFolder
                                     ? () => setDraggingFolderId(null)
-                                    : undefined,
-                            onDragOver:
-                                record.type === "folder"
+                                    : isApp
+                                      ? () => setDraggingAppId(null)
+                                      : undefined,
+                                onDragOver: isFolder
                                     ? (event) => {
                                           event.preventDefault()
                                       }
                                     : undefined,
-                            onDrop:
-                                record.type === "folder"
+                                onDrop: isFolder
                                     ? async (event) => {
                                           event.preventDefault()
                                           event.stopPropagation()
                                           await handleDropOnFolder(record.id as string)
                                       }
                                     : undefined,
-                        })}
+                            }
+                        }}
                     />
                 </Spin>
             </div>
 
-            <MoveAppModal
-                appName={moveAppName}
+            <MoveItemModal
+                itemLabel="app"
+                itemName={moveAppName}
                 moveDestinationName={moveAppDestinationName}
                 open={moveAppModalOpen}
                 onCancel={handleCloseMoveAppModal}
@@ -1015,8 +1041,9 @@ const PromptsPage = () => {
                 disabledConfirm={!moveAppId || !appMoveSelection}
             />
 
-            <MoveFolderModal
-                folderName={moveFolderName}
+            <MoveItemModal
+                itemLabel="folder"
+                itemName={moveFolderName}
                 moveDestinationName={moveDestinationName}
                 open={moveModalOpen}
                 onCancel={handleCloseMoveModal}
