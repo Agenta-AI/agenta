@@ -3,7 +3,6 @@ import React, {Dispatch, SetStateAction} from "react"
 
 export interface FolderModalState {
     name: string
-    description: string
     modalOpen: boolean
     mode: "create" | "rename"
     folderId: string | null
@@ -14,7 +13,6 @@ interface NewFolderModalProps {
     folderName: string
     folderSlug: string
     folderPath: string
-    description: string
     setNewFolderState: Dispatch<SetStateAction<FolderModalState>>
     onCreate: () => Promise<void> | void
     onCancel: () => void
@@ -23,14 +21,11 @@ interface NewFolderModalProps {
     okText?: string
 }
 
-const {TextArea} = Input
-
 const NewFolderModal = ({
     open,
     folderName,
     folderSlug,
     folderPath,
-    description,
     setNewFolderState,
     onCreate,
     onCancel,
@@ -67,16 +62,6 @@ const NewFolderModal = ({
                 <div className="text-xs text-gray-400">
                     <span className="font-medium">Folder path:</span> {folderPath}
                 </div>
-
-                <div className="mt-2 text-gray-500">Description (optional)</div>
-                <TextArea
-                    value={description}
-                    onChange={(event) =>
-                        setNewFolderState((state) => ({...state, description: event.target.value}))
-                    }
-                    placeholder="Short description of this folder"
-                    rows={3}
-                />
             </div>
         </Modal>
     )

@@ -58,7 +58,6 @@ const {Title} = Typography
 
 const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
     name: "",
-    description: "",
     modalOpen: false,
     mode: "create",
     folderId: null,
@@ -210,7 +209,6 @@ const PromptsPage = () => {
 
         setNewFolderState({
             name: folder.name ?? "",
-            description: folder.description ?? "",
             modalOpen: true,
             mode: "rename",
             folderId,
@@ -263,7 +261,6 @@ const PromptsPage = () => {
         if (!name) return
 
         const slug = slugify(name)
-        const description = newFolderState.description.trim() || undefined
 
         if (isRenameMode && !newFolderState.folderId) {
             message.error("Select a folder to rename")
@@ -278,7 +275,6 @@ const PromptsPage = () => {
                         id: newFolderState.folderId,
                         name,
                         slug,
-                        description,
                     },
                 })
                 message.success("Folder renamed")
@@ -287,7 +283,6 @@ const PromptsPage = () => {
                     folder: {
                         name,
                         slug,
-                        description,
                         kind: FolderKind.Applications,
                         parent_id: currentFolderId ?? null,
                     },
@@ -445,7 +440,6 @@ const PromptsPage = () => {
 
         const name = folderToMove.name ?? ""
         const slug = folderToMove.slug ?? slugify(name)
-        const description = folderToMove.description
         const kind = (folderToMove as any).kind ?? FolderKind.Applications
 
         setIsMovingItem(true)
@@ -455,7 +449,6 @@ const PromptsPage = () => {
                     id: folderId,
                     name,
                     slug,
-                    description,
                     kind,
                     parent_id: destinationId, // new parent
                 },
@@ -772,7 +765,6 @@ const PromptsPage = () => {
                 folderName={newFolderState.name}
                 folderSlug={newFolderSlug}
                 folderPath={newFolderPath}
-                description={newFolderState.description}
                 setNewFolderState={setNewFolderState}
                 onCreate={handleCreateFolder}
                 onCancel={resetFolderModalState}
