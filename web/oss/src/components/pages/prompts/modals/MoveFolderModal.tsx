@@ -3,7 +3,7 @@ import {DataNode} from "antd/es/tree"
 import React from "react"
 
 interface MoveFolderModalProps {
-    folderName?: string | null
+    itemName?: string | null
     open: boolean
     onCancel: () => void
     onMove: () => void
@@ -16,7 +16,7 @@ interface MoveFolderModalProps {
 }
 
 const MoveFolderModal = ({
-    folderName,
+    itemName,
     open,
     onCancel,
     onMove,
@@ -39,13 +39,14 @@ const MoveFolderModal = ({
         >
             <div className="flex flex-col gap-2">
                 <div className="text-gray-500">
-                    Moving <span className="font-medium">{folderName || "folder"}</span>
+                    Moving <span className="font-medium">{itemName || "folder"}</span>
                 </div>
 
                 <div className="text-gray-500">Select folder</div>
 
                 <Tree
                     selectable
+                    showIcon
                     treeData={treeData}
                     selectedKeys={moveSelection ? [moveSelection] : []}
                     onSelect={(keys) => setMoveSelection((keys[0] as string) || null)}
