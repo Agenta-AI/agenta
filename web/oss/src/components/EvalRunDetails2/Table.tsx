@@ -90,6 +90,59 @@ const EvalRunDetailsTable = ({
 
     const previewColumns = usePreviewColumns({columnResult, evaluationType})
 
+    // Inject synthetic "Run" column for exports only (filtered out from table display)
+    const columnsWithRunColumn = useMemo(() => {
+        const hasCompareRuns = compareSlots.some(Boolean)
+        if (!hasCompareRuns) {
+            return previewColumns.columns
+        }
+
+        // Create synthetic "Run" column for export only (completely hidden in table)
+        const runColumn = {
+            key: "__run_type__",
+            title: () => null,
+            dataIndex: "__run_type__",
+            width: 0,
+            minWidth: 0,
+            maxWidth: 0,
+            render: () => null,
+            exportEnabled: true,
+            exportLabel: "Run",
+            className: "export-only-column",
+            // Aggressively hide in table
+            onHeaderCell: () => ({
+                style: {
+                    display: 'none',
+                    width: 0,
+                    minWidth: 0,
+                    maxWidth: 0,
+                    padding: 0,
+                    margin: 0,
+                    border: 'none',
+                    visibility: 'hidden',
+                    position: 'absolute',
+                    left: '-9999px',
+                },
+            }),
+            onCell: () => ({
+                style: {
+                    display: 'none',
+                    width: 0,
+                    minWidth: 0,
+                    maxWidth: 0,
+                    padding: 0,
+                    margin: 0,
+                    border: 'none',
+                    visibility: 'hidden',
+                    position: 'absolute',
+                    left: '-9999px',
+                },
+            }),
+        }
+
+        return [runColumn, ...previewColumns.columns]
+    }, [previewColumns.columns, compareSlots])
+
     const mergedRows = useMemo(() => {
         if (!compareSlots.some(Boolean)) {
             return basePagination.rows.map((row) => ({
@@ -340,11 +393,57 @@ const EvalRunDetailsTable = ({
             rowIndex: number
             columnIndex: number
         }): Promise<unknown> => {
-            // Track first column to log row progress
-            if (columnIndex === 0) {
+            const hasCompareRuns = compareSlots.some(Boolean)
+
+            // The column from the table is an Ant Design column with a 'key' property
+            const columnKey = (column as any)?.key
+            if (!columnKey) {
+                return EXPORT_RESOLVE_SKIP
+            }
+
+            const columnKeyStr = String(columnKey)
+
+            // Handle synthetic "__run_type__" column for comparison exports
+            if (columnKeyStr === "__run_type__") {
+                // Track progress on the synthetic Run column
+                if (columnIndex === 0) {
+                    exportProgressRef.current.processedRows++
+
+                    if (rowIndex === totalExportRowsRef.current - 1) {
+                        const elapsed = Date.now() - exportProgressRef.current.startTime
+                        const exportedCount =
+                            exportProgressRef.current.processedRows -
+                            exportProgressRef.current.skippedRows
+                        console.info(
+                            `[EvalRunDetails2][Export] ✓ Export complete - ${exportedCount} scenarios exported in ${(elapsed / 1000).toFixed(1)}s`,
+                        )
+                        console.info(
+                            `[EvalRunDetails2][Export] Summary: ${exportProgressRef.current.processedRows} rows processed, ${exportProgressRef.current.skippedRows} skipped`,
+                        )
+                    } else if (exportProgressRef.current.processedRows % 10 === 0) {
+                        const elapsed = Date.now() - exportProgressRef.current.startTime
+                        const rate = exportProgressRef.current.processedRows / (elapsed / 1000)
+                        console.info(
+                            `[EvalRunDetails2][Export] Progress: ${exportProgressRef.current.processedRows} rows processed (${rate.toFixed(1)} rows/sec)`,
+                        )
+                    }
+                }
+
+                if (!row || row.__isSkeleton) {
+                    if (columnIndex === 0) {
+                        exportProgressRef.current.skippedRows++
+                    }
+                    return EXPORT_RESOLVE_SKIP
+                }
+
+                // Return the run type value
+                return row.isComparisonRow ? `Compare ${row.compareIndex}` : "Main"
+            }
+
+            // Track first real data column for progress (if not already tracked by __run_type__)
+            if (!hasCompareRuns && columnIndex === 0) {
                 exportProgressRef.current.processedRows++
 
-                // Check if this is the last row to log summary
                 if (rowIndex === totalExportRowsRef.current - 1) {
                     const elapsed = Date.now() - exportProgressRef.current.startTime
                     const exportedCount =
@@ -356,9 +455,7 @@ const EvalRunDetailsTable = ({
                     console.info(
                         `[EvalRunDetails2][Export] Summary: ${exportProgressRef.current.processedRows} rows processed, ${exportProgressRef.current.skippedRows} skipped`,
                     )
-                }
-                // Log progress every 10 rows
-                else if (exportProgressRef.current.processedRows % 10 === 0) {
+                } else if (exportProgressRef.current.processedRows % 10 === 0) {
                     const elapsed = Date.now() - exportProgressRef.current.startTime
                     const rate = exportProgressRef.current.processedRows / (elapsed / 1000)
                     console.info(
@@ -368,28 +465,13 @@ const EvalRunDetailsTable = ({
             }
 
             if (!row || row.__isSkeleton) {
-                if (columnIndex === 0) {
+                if (!hasCompareRuns && columnIndex === 0) {
                     exportProgressRef.current.skippedRows++
                 }
                 return EXPORT_RESOLVE_SKIP
             }
 
-            // Skip comparison rows - only export base run data
-            if (row.isComparisonRow) {
-                if (columnIndex === 0) {
-                    exportProgressRef.current.skippedRows++
-                }
-                return EXPORT_RESOLVE_SKIP
-            }
-
-            // The column from the table is an Ant Design column with a 'key' property
-            const columnKey = (column as any)?.key
-            if (!columnKey) {
-                return EXPORT_RESOLVE_SKIP
-            }
-
-            // Skip internal columns (column visibility, selection, etc.)
-            const columnKeyStr = String(columnKey)
+            // Skip other internal columns (column visibility, selection, etc.)
             if (columnKeyStr.startsWith("__")) {
                 return EXPORT_RESOLVE_SKIP
             }
@@ -397,6 +479,11 @@ const EvalRunDetailsTable = ({
             // Look up the actual EvaluationTableColumn from our map
             const tableColumn = columnLookupMap.get(columnKeyStr)
             if (!tableColumn) {
+                console.warn(`[EvalRunDetails2][Export] Column not found in lookup map:`, {
+                    columnKey: columnKeyStr,
+                    hasCompareRuns,
+                    columnIndex,
+                })
                 return EXPORT_RESOLVE_SKIP
             }
 
@@ -413,24 +500,32 @@ const EvalRunDetailsTable = ({
 
             return resolvedValue
         },
-        [store, columnLookupMap],
+        [store, columnLookupMap, compareSlots],
     )
 
     // Export column label resolver - formats column headers for CSV
     const resolveColumnLabel = useCallback(
-        ({column}: TableExportColumnContext<PreviewTableRow>) => {
+        ({column, columnIndex}: TableExportColumnContext<PreviewTableRow>) => {
             // The column from the table is an Ant Design column with a 'key' property
             const columnKey = (column as any)?.key
+
             if (!columnKey) {
                 console.warn("[EvalRunDetails2][Export] Column label: no key", {column})
                 return undefined
             }
 
+            const columnKeyStr = String(columnKey)
+
+            // Handle synthetic "__run_type__" column
+            if (columnKeyStr === "__run_type__") {
+                return "Run"
+            }
+
             // Look up the actual EvaluationTableColumn from our map
-            const tableColumn = columnLookupMap.get(String(columnKey))
+            const tableColumn = columnLookupMap.get(columnKeyStr)
             if (!tableColumn) {
                 console.warn("[EvalRunDetails2][Export] Column label: not found in lookup map", {
-                    columnKey: String(columnKey),
+                    columnKey: columnKeyStr,
                 })
                 return undefined
             }
@@ -749,7 +844,7 @@ const EvalRunDetailsTable = ({
                 <InfiniteVirtualTableFeatureShell<TableRowData>
                     datasetStore={evaluationPreviewDatasetStore}
                     tableScope={tableScope}
-                    columns={previewColumns.columns}
+                    columns={columnsWithRunColumn}
                     rowKey={(record) => record.key}
                     tableClassName={clsx(
                         "agenta-scenario-table",
