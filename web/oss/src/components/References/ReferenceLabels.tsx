@@ -7,6 +7,7 @@ import {useAtomValue} from "jotai"
 import {
     appReferenceAtomFamily,
     evaluatorReferenceAtomFamily,
+    environmentReferenceAtomFamily,
     previewTestsetReferenceAtomFamily,
     queryReferenceAtomFamily,
     variantConfigAtomFamily,
@@ -54,6 +55,87 @@ export const TestsetTag = memo(
                 copyValue={testsetId}
                 className="max-w-[220px] w-fit"
                 tone="testset"
+            />
+        )
+    },
+)
+
+/**
+ * Generic environment reference label that fetches and displays an environment reference.
+ * Requires projectId to be passed explicitly for reusability across contexts.
+ */
+export const EnvironmentReferenceLabel = memo(
+    ({
+        environmentId,
+        environmentSlug,
+        projectId,
+        applicationId,
+        projectURL,
+        href: explicitHref,
+    }: {
+        environmentId?: string | null
+        environmentSlug?: string | null
+        projectId: string | null
+        applicationId?: string | null
+        projectURL?: string | null
+        href?: string | null
+    }) => {
+        const queryAtom = useMemo(
+            () =>
+                environmentReferenceAtomFamily({
+                    projectId,
+                    applicationId,
+                    environmentId,
+                    environmentSlug,
+                }),
+            [projectId, applicationId, environmentId, environmentSlug],
+        )
+        const query = useAtomValue(queryAtom)
+
+        if (!environmentId && !environmentSlug) {
+            return <Text type="secondary">—</Text>
+        }
+
+        if ((query.isPending || query.isFetching) && !query.isError) {
+            return <Skeleton.Input active size="small" style={{width: 140}} />
+        }
+
+        const ref = query.data
+        const isDeleted = Boolean(
+            query.isError ||
+                ((environmentId || environmentSlug) && !ref?.name && !ref?.slug && !ref?.id),
+        )
+        const label = isDeleted
+            ? "Deleted"
+            : (ref?.name ??
+              ref?.slug ??
+              ref?.id ??
+              environmentSlug ??
+              environmentId ??
+              "Environment")
+        const resolvedSlug = ref?.slug ?? ref?.name ?? environmentSlug ?? null
+        const targetAppId = ref?.appId ?? applicationId ?? null
+        const href = isDeleted
+            ? null
+            : (explicitHref ??
+              (projectURL && targetAppId && resolvedSlug
+                  ? `${projectURL}/apps/${targetAppId}/deployments?selectedEnvName=${encodeURIComponent(
+                        resolvedSlug,
+                    )}`
+                  : null))
+
+        return (
+            <ReferenceTag
+                label={label}
+                href={href ?? undefined}
+                tooltip={
+                    isDeleted
+                        ? `Environment ${environmentSlug ?? environmentId ?? ""} was deleted`
+                        : `Deployed to ${label}`
+                }
+                copyValue={resolvedSlug ?? ref?.id ?? environmentId ?? undefined}
+                className="max-w-[220px] w-fit"
+                tone="environment"
             />
         )
     },

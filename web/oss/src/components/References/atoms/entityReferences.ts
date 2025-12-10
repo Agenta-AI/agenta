@@ -666,6 +666,230 @@ export const evaluatorReferenceAtomFamily = atomFamily(
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Environment Reference
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface EnvironmentReference {
+    id?: string | null
+    slug?: string | null
+    name?: string | null
+    appId?: string | null
+    deployedAppVariantId?: string | null
+    deployedVariantName?: string | null
+    deployedAppVariantRevisionId?: string | null
+    revision?: string | number | null
+}
+
+interface EnvironmentReferenceRequest {
+    projectId: string
+    applicationId?: string | null
+    environmentId?: string | null
+    environmentSlug?: string | null
+}
+
+const environmentReferenceBatchFetcher = createBatchFetcher<
+    EnvironmentReferenceRequest,
+    EnvironmentReference | null,
+    Map<string, EnvironmentReference | null>
+>({
+    serializeKey: ({projectId, applicationId, environmentId, environmentSlug}) =>
+        [
+            projectId ?? "none",
+            applicationId ?? "none",
+            environmentId ?? "none",
+            environmentSlug ?? "none",
+        ].join(":"),
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, EnvironmentReference | null>()
+        const grouped = new Map<
+            string,
+            {
+                projectId: string
+                appId: string
+                entries: {
+                    key: string
+                    environmentId?: string | null
+                    environmentSlug?: string | null
+                }[]
+            }
+        >()
+
+        requests.forEach((request, index) => {
+            const serializedKey = serializedKeys[index]
+            const {projectId, applicationId, environmentId, environmentSlug} = request
+            if (!projectId || !applicationId || (!environmentId && !environmentSlug)) {
+                results.set(serializedKey, null)
+                return
+            }
+            const groupKey = `${projectId}:${applicationId}`
+            const existing = grouped.get(groupKey)
+            const entry = {key: serializedKey, environmentId, environmentSlug}
+            if (existing) {
+                existing.entries.push(entry)
+            } else {
+                grouped.set(groupKey, {
+                    projectId,
+                    appId: applicationId,
+                    entries: [entry],
+                })
+            }
+        })
+
+        await Promise.all(
+            Array.from(grouped.values()).map(async ({projectId, appId, entries}) => {
+                try {
+                    const response = await axios.get(
+                        `/apps/${encodeURIComponent(appId)}/environments`,
+                        {params: {project_id: projectId}, _ignoreError: true} as any,
+                    )
+                    const list: any[] = Array.isArray(response?.data) ? response.data : []
+                    const normalized = list.map((item: any) => {
+                        const slug =
+                            typeof item?.slug === "string" && item.slug.trim().length
+                                ? item.slug
+                                : item?.name ?? null
+                        const name =
+                            typeof item?.name === "string" && item.name.trim().length
+                                ? item.name
+                                : slug
+                        return {
+                            id: item?.id ?? null,
+                            slug,
+                            name,
+                            appId: item?.app_id ?? appId ?? null,
+                            deployedAppVariantId: item?.deployed_app_variant_id ?? null,
+                            deployedVariantName: item?.deployed_variant_name ?? null,
+                            deployedAppVariantRevisionId:
+                                item?.deployed_app_variant_revision_id ?? null,
+                            revision: item?.revision ?? null,
+                        } satisfies EnvironmentReference
+                    })
+
+                    entries.forEach(({key, environmentId, environmentSlug}) => {
+                        const match =
+                            normalized.find(
+                                (env) =>
+                                    (environmentId && env.id === environmentId) ||
+                                    (environmentSlug &&
+                                        (env.slug === environmentSlug || env.name === environmentSlug)),
+                            ) ??
+                            (environmentId
+                                ? normalized.find((env) => env.id === environmentId)
+                                : undefined)
+
+                        results.set(
+                            key,
+                            match ?? {
+                                id: environmentId ?? null,
+                                slug: environmentSlug ?? null,
+                                name: environmentSlug ?? environmentId ?? null,
+                                appId: appId ?? null,
+                                deployedAppVariantId: null,
+                                deployedVariantName: null,
+                                deployedAppVariantRevisionId: null,
+                                revision: null,
+                            },
+                        )
+                    })
+                } catch (error) {
+                    console.warn("[References] failed to batch fetch environment references", {
+                        projectId,
+                        appId,
+                        error,
+                    })
+                    entries.forEach(({key, environmentId, environmentSlug}) => {
+                        results.set(key, {
+                            id: environmentId ?? null,
+                            slug: environmentSlug ?? null,
+                            name: environmentSlug ?? environmentId ?? null,
+                            appId,
+                            deployedAppVariantId: null,
+                            deployedVariantName: null,
+                            deployedAppVariantRevisionId: null,
+                            revision: null,
+                        })
+                    })
+                }
+            }),
+        )
+
+        return results
+    },
+    resolveResult: (response, request, serializedKey) => {
+        if (response.has(serializedKey)) {
+            return response.get(serializedKey) ?? null
+        }
+        return {
+            id: request.environmentId ?? null,
+            slug: request.environmentSlug ?? null,
+            name: request.environmentSlug ?? request.environmentId ?? null,
+            appId: request.applicationId ?? null,
+            deployedAppVariantId: null,
+            deployedVariantName: null,
+            deployedAppVariantRevisionId: null,
+            revision: null,
+        }
+    },
+})
+
+export const environmentReferenceAtomFamily = atomFamily(
+    ({
+        projectId,
+        applicationId,
+        environmentId,
+        environmentSlug,
+    }: {
+        projectId: string | null
+        applicationId?: string | null
+        environmentId?: string | null
+        environmentSlug?: string | null
+    }) =>
+        atomWithQuery<EnvironmentReference | null>(() => {
+            return {
+                queryKey: [
+                    "references",
+                    "environment-ref",
+                    projectId ?? "none",
+                    applicationId ?? "none",
+                    environmentId ?? "none",
+                    environmentSlug ?? "none",
+                ],
+                enabled: Boolean(projectId && (environmentId || environmentSlug)),
+                staleTime: 60_000,
+                gcTime: 5 * 60 * 1000,
+                refetchOnWindowFocus: false,
+                refetchOnReconnect: false,
+                queryFn: async () => {
+                    if (!projectId || (!environmentId && !environmentSlug)) return null
+                    if (!applicationId) {
+                        return {
+                            id: environmentId ?? null,
+                            slug: environmentSlug ?? null,
+                            name: environmentSlug ?? environmentId ?? null,
+                            appId: null,
+                            deployedAppVariantId: null,
+                            deployedVariantName: null,
+                            deployedAppVariantRevisionId: null,
+                            revision: null,
+                        } satisfies EnvironmentReference
+                    }
+                    return environmentReferenceBatchFetcher({
+                        projectId,
+                        applicationId,
+                        environmentId: environmentId ?? null,
+                        environmentSlug: environmentSlug ?? null,
+                    })
+                },
+            }
+        }),
+    (a, b) =>
+        a.projectId === b.projectId &&
+        a.applicationId === b.applicationId &&
+        a.environmentId === b.environmentId &&
+        a.environmentSlug === b.environmentSlug,
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Query Reference
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -12,6 +12,7 @@ import {projectIdAtom} from "@/oss/state/project"
 import {
     ApplicationReferenceLabel,
     EvaluatorReferenceLabel,
+    EnvironmentReferenceLabel,
     TestsetTag,
 } from "@/oss/components/References"
 import useURL from "@/oss/hooks/useURL"
@@ -25,6 +26,10 @@ const TraceLinkedSpans = () => {
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
     const linksAndReferences = useAtomValue(linksAndReferencesAtom)
     const {buildEvaluatorTarget} = useEvaluatorNavigation()
+    const applicationReference = useMemo(
+        () => (linksAndReferences?.references || []).find((ref) => ref?.key === "application"),
+        [linksAndReferences?.references],
+    )
     const handleNavigate = (link: TraceDrawerSpanLink) => {
         if (!link?.trace_id || !link?.span_id) return
 
@@ -34,19 +39,26 @@ const TraceLinkedSpans = () => {
             source: "linked",
         })
     }
-
-    const renderReferenceTags = ({key, id, slug}: {key: string; id: string; slug?: string}) => {
+    const renderReferenceTags = ({
+        key,
+        id,
+        slug,
+    }: {
+        key: string
+        id?: string
+        slug?: string
+    }) => {
         switch (key) {
             case "application":
                 return (
                     <ApplicationReferenceLabel
-                        applicationId={id}
+                        applicationId={id ?? null}
                         projectId={projectId}
                         projectURL={projectURL}
                     />
                 )
             case "testset":
-                return <TestsetTag testsetId={id} projectId={projectId} projectURL={projectURL} />
+                return <TestsetTag testsetId={id ?? ""} projectId={projectId} projectURL={projectURL} />
             case "evaluator":
                 return (
                     <EvaluatorReferenceLabel
@@ -54,6 +66,16 @@ const TraceLinkedSpans = () => {
                         evaluatorSlug={slug}
                         projectId={projectId}
                         href={buildEvaluatorTarget({id, slug})?.href ?? undefined}
+                    />
+                )
+            case "environment":
+                return (
+                    <EnvironmentReferenceLabel
+                        environmentId={id}
+                        environmentSlug={slug}
+                        applicationId={applicationReference?.id}
+                        projectId={projectId}
+                        projectURL={projectURL}
                     />
                 )
             default:
@@ -96,9 +118,10 @@ const TraceLinkedSpans = () => {
             {linksAndReferences.references?.length ? (
                 <div className="flex flex-col gap-2">
                     <Typography.Text type="secondary">References</Typography.Text>
-                    {linksAndReferences.references?.map((link) => {
+                    {linksAndReferences.references?.map((link, index) => {
+                        const refKey = `${link.key}-${link.id ?? link.slug ?? index}`
                         return (
-                            <React.Fragment key={`${link.key}-${link.id}-${link.slug || ""}`}>
+                            <React.Fragment key={refKey}>
                                 {renderReferenceTags({key: link.key, id: link.id, slug: link.slug})}
                             </React.Fragment>
                         )

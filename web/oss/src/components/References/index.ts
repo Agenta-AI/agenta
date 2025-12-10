@@ -2,6 +2,7 @@ export {default as ReferenceTag} from "./ReferenceTag"
 export {
     ApplicationReferenceLabel,
     EvaluatorReferenceLabel,
+    EnvironmentReferenceLabel,
     QueryReferenceLabel,
     TestsetTag,
     TestsetTagList,
@@ -16,6 +17,7 @@ export type {
     AppReference,
     EvaluatorReference,
     EvaluatorReferenceMetric,
+    EnvironmentReference,
     QueryReference,
     TestsetReference,
     VariantConfigReference,
@@ -23,6 +25,7 @@ export type {
 export {
     appReferenceAtomFamily,
     evaluatorReferenceAtomFamily,
+    environmentReferenceAtomFamily,
     previewTestsetReferenceAtomFamily,
     queryReferenceAtomFamily,
     variantConfigAtomFamily,

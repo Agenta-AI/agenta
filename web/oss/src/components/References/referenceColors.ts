@@ -1,4 +1,10 @@
-export type ReferenceTone = "app" | "variant" | "testset" | "query" | "evaluator"
+export type ReferenceTone =
+    | "app"
+    | "variant"
+    | "testset"
+    | "query"
+    | "evaluator"
+    | "environment"
 
 export interface ReferenceToneColors {
     text: string
@@ -31,6 +37,11 @@ const REFERENCE_TONE_COLORS: Record<ReferenceTone, ReferenceToneColors> = {
         text: "#C01048",
         background: "#FFF1F3",
         border: "#FCCEEE",
+    },
+    environment: {
+        text: "#0F766E",
+        background: "#ECFDF3",
+        border: "#99F6E4",
     },
 }
 
