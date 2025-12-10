@@ -236,6 +236,7 @@ export const useTableExport = <Row extends InfiniteTableRowBase>() => {
             const override = resolveColumnLabel?.({column, columnIndex: index})
             return override ?? getColumnLabel(column, index)
         })
+
         const csvRows = [createCsvRow(headers)]
 
         // Build cell metadata for all cells

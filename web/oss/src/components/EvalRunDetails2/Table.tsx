@@ -90,12 +90,25 @@ const EvalRunDetailsTable = ({
 
     const previewColumns = usePreviewColumns({columnResult, evaluationType})
 
-    // Inject synthetic "Run" column for exports only (filtered out from table display)
-    const columnsWithRunColumn = useMemo(() => {
+    // Inject synthetic columns for comparison exports (hidden in table display)
+    const columnsWithSyntheticColumns = useMemo(() => {
         const hasCompareRuns = compareSlots.some(Boolean)
         if (!hasCompareRuns) {
             return previewColumns.columns
         }
+
+        const hiddenColumnStyle = {
+            display: "none",
+            width: 0,
+            minWidth: 0,
+            maxWidth: 0,
+            padding: 0,
+            margin: 0,
+            border: "none",
+            visibility: "hidden",
+            position: "absolute",
+            left: "-9999px",
+        } as const
 
         // Create synthetic "Run" column for export only (completely hidden in table)
         const runColumn = {
@@ -108,39 +121,26 @@ const EvalRunDetailsTable = ({
             render: () => null,
             exportEnabled: true,
             exportLabel: "Run",
-            className: "export-only-column",
-            // Aggressively hide in table
-            onHeaderCell: () => ({
-                style: {
-                    display: 'none',
-                    width: 0,
-                    minWidth: 0,
-                    maxWidth: 0,
-                    padding: 0,
-                    margin: 0,
-                    border: 'none',
-                    visibility: 'hidden',
-                    position: 'absolute',
-                    left: '-9999px',
-                },
-            }),
-            onCell: () => ({
-                style: {
-                    display: 'none',
-                    width: 0,
-                    minWidth: 0,
-                    maxWidth: 0,
-                    padding: 0,
-                    margin: 0,
-                    border: 'none',
-                    visibility: 'hidden',
-                    position: 'absolute',
-                    left: '-9999px',
-                },
-            }),
+            onHeaderCell: () => ({style: hiddenColumnStyle}),
+            onCell: () => ({style: hiddenColumnStyle}),
         }
 
-        return [runColumn, ...previewColumns.columns]
+        // Create synthetic "Run ID" column for export only (completely hidden in table)
+        const runIdColumn = {
+            key: "__run_id__",
+            title: () => null,
+            dataIndex: "__run_id__",
+            width: 0,
+            minWidth: 0,
+            maxWidth: 0,
+            render: () => null,
+            exportEnabled: true,
+            exportLabel: "Run ID",
+            onHeaderCell: () => ({style: hiddenColumnStyle}),
+            onCell: () => ({style: hiddenColumnStyle}),
+        }
+
+        return [runColumn, runIdColumn, ...previewColumns.columns]
     }, [previewColumns.columns, compareSlots])
 
     const mergedRows = useMemo(() => {
@@ -440,6 +440,15 @@ const EvalRunDetailsTable = ({
                 return row.isComparisonRow ? `Compare ${row.compareIndex}` : "Main"
             }
 
+            // Handle synthetic "__run_id__" column for comparison exports
+            if (columnKeyStr === "__run_id__") {
+                if (!row || row.__isSkeleton) {
+                    return EXPORT_RESOLVE_SKIP
+                }
+                // Return the run ID
+                return row.runId ?? ""
+            }
+
             // Track first real data column for progress (if not already tracked by __run_type__)
             if (!hasCompareRuns && columnIndex === 0) {
                 exportProgressRef.current.processedRows++
@@ -519,6 +528,11 @@ const EvalRunDetailsTable = ({
             // Handle synthetic "__run_type__" column
             if (columnKeyStr === "__run_type__") {
                 return "Run"
+            }
+
+            // Handle synthetic "__run_id__" column
+            if (columnKeyStr === "__run_id__") {
+                return "Run ID"
             }
 
             // Look up the actual EvaluationTableColumn from our map
@@ -844,7 +858,7 @@ const EvalRunDetailsTable = ({
                 <InfiniteVirtualTableFeatureShell<TableRowData>
                     datasetStore={evaluationPreviewDatasetStore}
                     tableScope={tableScope}
-                    columns={columnsWithRunColumn}
+                    columns={columnsWithSyntheticColumns}
                     rowKey={(record) => record.key}
                     tableClassName={clsx(
                         "agenta-scenario-table",
