@@ -1,4 +1,4 @@
-import {Modal, Tree} from "antd"
+import {Modal, Space, Tree} from "antd"
 import {DataNode} from "antd/es/tree"
 import React from "react"
 
@@ -30,6 +30,7 @@ const MoveFolderModal = ({
     return (
         <Modal
             title="Move to folder"
+            width={600}
             open={open}
             onOk={onMove}
             onCancel={onCancel}
@@ -37,21 +38,22 @@ const MoveFolderModal = ({
             okButtonProps={{disabled: disabledConfirm, loading: isMoving}}
             destroyOnHidden
         >
-            <div className="flex flex-col gap-2">
-                <div className="text-gray-500">
-                    Moving <span className="font-medium">{itemName || "folder"}</span>
-                </div>
+            <div className="flex flex-col gap-4 pt-2 pb-4">
+                <div className="font-medium">Moving {itemName || "folder"}</div>
 
-                <div className="text-gray-500">Select folder</div>
+                <Space direction="vertical" size={4}>
+                    <div className="font-medium">Select folder</div>
 
-                <Tree
-                    selectable
-                    showIcon
-                    treeData={treeData}
-                    selectedKeys={moveSelection ? [moveSelection] : []}
-                    onSelect={(keys) => setMoveSelection((keys[0] as string) || null)}
-                    defaultExpandAll
-                />
+                    <Tree
+                        selectable
+                        showIcon
+                        treeData={treeData}
+                        selectedKeys={moveSelection ? [moveSelection] : []}
+                        onSelect={(keys) => setMoveSelection((keys[0] as string) || null)}
+                        defaultExpandAll
+                        className="p-2 border border-solid border-gray-200 rounded"
+                    />
+                </Space>
             </div>
         </Modal>
     )

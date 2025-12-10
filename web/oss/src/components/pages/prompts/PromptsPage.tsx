@@ -44,15 +44,7 @@ import {usePromptsColumns} from "./hooks/usePromptsColumns"
 import {PromptsTableSection} from "./components/PromptsTableSection"
 import {promptsDatasetStore, promptsTableMetaAtom} from "./store"
 import {PromptsTableRow} from "./types"
-import {
-    ChatCircleTextIcon,
-    ChatDotsIcon,
-    CursorTextIcon,
-    NoteIcon,
-    SquaresFourIcon,
-} from "@phosphor-icons/react"
-import SetupWorkflowIcon from "./components/SetupWorkflowIcon"
-import CompletionAppIcon from "./components/CompletionAppIcon"
+import {getAppTypeIcon} from "./assets/iconHelpers"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -704,15 +696,7 @@ const PromptsPage = () => {
         [handleDropOnFolder, handleRowClick],
     )
 
-    const getAppTypeIcon = useCallback((appType?: string) => {
-        const normalizedType = appType?.toLowerCase()
-
-        if (normalizedType?.includes("completion")) return <CompletionAppIcon />
-        if (normalizedType?.includes("chat")) return <ChatDotsIcon size={16} />
-        if (normalizedType?.includes("custom")) return <SetupWorkflowIcon className="" />
-
-        return <NoteIcon size={16} />
-    }, [])
+    const renderAppTypeIcon = useCallback((appType?: string) => getAppTypeIcon(appType), [])
 
     const columns = usePromptsColumns({
         onFolderClick: handleRowClick,
@@ -722,7 +706,7 @@ const PromptsPage = () => {
         onOpenAppOverview: handleOpenAppOverview,
         onOpenEditAppModal: openEditAppModal,
         onOpenDeleteAppModal: openDeleteAppModal,
-        getAppTypeIcon: getAppTypeIcon,
+        getAppTypeIcon: renderAppTypeIcon,
     })
 
     return (

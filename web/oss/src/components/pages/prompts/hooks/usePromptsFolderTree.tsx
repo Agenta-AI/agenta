@@ -3,10 +3,11 @@ import {DataNode} from "antd/es/tree"
 
 import {ListAppsItem} from "@/oss/lib/Types"
 import {Folder} from "@/oss/services/folders/types"
-import {FolderIcon, NoteIcon} from "@phosphor-icons/react"
 
 import {FolderTreeItem, buildFolderTree} from "../assets/utils"
 import {PromptsTableRow} from "../types"
+import {getAppTypeIcon} from "../assets/iconHelpers"
+import {FolderFilled} from "@ant-design/icons"
 
 interface UsePromptsFolderTreeProps {
     foldersData?: {folders?: Folder[]} | null
@@ -49,7 +50,11 @@ export const usePromptsFolderTree = ({
                     selectable: isFolder,
                     disableCheckbox: !isFolder,
                     disabled: !isFolder,
-                    icon: isFolder ? <FolderIcon size={16} /> : <NoteIcon size={16} />,
+                    icon: isFolder ? (
+                        <FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />
+                    ) : (
+                        getAppTypeIcon(node.app_type)
+                    ),
                 }
             })
 
