@@ -49,7 +49,7 @@ from oss.src.utils.env import env
 
 
 # Initialize sendgrid api client
-sg = sendgrid.SendGridAPIClient(api_key=env.SENDGRID_API_KEY)
+sg = sendgrid.SendGridAPIClient(api_key=env.sendgrid.api_key)
 
 log = get_module_logger(__name__)
 

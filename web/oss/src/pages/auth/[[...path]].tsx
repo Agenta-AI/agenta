@@ -11,6 +11,7 @@ import {useLocalStorage} from "usehooks-ts"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
 
@@ -29,6 +30,8 @@ const Auth = () => {
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
     const [invite, setInvite] = useLocalStorage("invite", {})
     const router = useRouter()
+    const authnEmail = getEnv("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL") || "password"
+    const isPasswordlessDemo = isDemo() && authnEmail === "otp"
 
     const firstString = (value: string | string[] | undefined): string | undefined => {
         if (Array.isArray(value)) return value[0]
@@ -86,6 +89,7 @@ const Auth = () => {
     }
 
     const hasInitialOTPBeenSent = async () => {
+        if (!isPasswordlessDemo) return
         const hasEmailSended = (await getLoginAttemptInfo()) !== undefined
         if (hasEmailSended) {
             setIsLoginCodeVisible(true)
@@ -95,7 +99,7 @@ const Auth = () => {
     }
 
     useEffect(() => {
-        if (isDemo()) {
+        if (isPasswordlessDemo) {
             hasInitialOTPBeenSent()
         }
     }, [])
@@ -164,7 +168,7 @@ const Auth = () => {
                         />
                     )}
 
-                    {!isDemo() ? (
+                    {!isPasswordlessDemo ? (
                         <EmailPasswordAuth
                             message={message}
                             setMessage={setMessage}

@@ -8,6 +8,7 @@ from os import environ
 import stripe
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
 
 from ee.src.core.subscriptions.types import (
     SubscriptionDTO,
@@ -23,11 +24,16 @@ from ee.src.core.meters.service import MetersService
 
 log = get_module_logger(__name__)
 
-stripe.api_key = environ.get("STRIPE_SECRET_KEY")
+# Initialize Stripe only if enabled
+if env.stripe.enabled:
+    stripe.api_key = env.stripe.api_key
+    log.info("✓ Stripe enabled")
+else:
+    log.info("✗ Stripe disabled")
 
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
-STRIPE_TARGET = environ.get("STRIPE_TARGET") or MAC_ADDRESS
-AGENTA_PRICING = loads(environ.get("AGENTA_PRICING") or "{}")
+STRIPE_WEBHOOK_TARGET = env.stripe.webhook_target or MAC_ADDRESS
+AGENTA_PRICING = env.stripe.pricing
 
 
 class SwitchException(Exception):
@@ -96,8 +102,8 @@ class SubscriptionsService:
         if not subscription:
             return None
 
-        if not stripe.api_key:
-            log.warn("Missing Stripe API Key.")
+        if not env.stripe.enabled:
+            log.warn("✗ Stripe disabled")
             return None
 
         customer = stripe.Customer.create(
@@ -105,7 +111,7 @@ class SubscriptionsService:
             email=organization_email,
             metadata={
                 "organization_id": organization_id,
-                "target": STRIPE_TARGET,
+                "target": STRIPE_WEBHOOK_TARGET,
             },
         )
 
@@ -127,7 +133,7 @@ class SubscriptionsService:
             metadata={
                 "organization_id": organization_id,
                 "plan": REVERSE_TRIAL_PLAN.value,
-                "target": STRIPE_TARGET,
+                "target": STRIPE_WEBHOOK_TARGET,
             },
             #
             trial_period_days=REVERSE_TRIAL_DAYS,
@@ -196,8 +202,8 @@ class SubscriptionsService:
             subscription = await self.update(subscription=subscription)
 
         elif subscription.plan != FREE_PLAN and event == Event.SUBSCRIPTION_SWITCHED:
-            if not stripe.api_key:
-                log.warn("Missing Stripe API Key.")
+            if not env.stripe.enabled:
+                log.warn("✗ Stripe disabled")
                 return None
 
             if subscription.plan == plan:

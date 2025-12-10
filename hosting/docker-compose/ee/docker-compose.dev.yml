@@ -280,6 +280,9 @@ services:
         
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-username}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
             
         ports:
             - "5432:5432"

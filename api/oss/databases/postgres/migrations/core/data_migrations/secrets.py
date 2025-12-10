@@ -27,7 +27,7 @@ def rename_and_update_secrets_data_schema(session: Connection):
         TOTAL_SECRETS = result or 0
         print(f"Total rows in {SecretsDBE.__tablename__}: {TOTAL_SECRETS}")
 
-        encryption_key = env.AGENTA_CRYPT_KEY
+        encryption_key = env.agenta.crypt_key
         if not encryption_key:
             raise RuntimeError(
                 "Encryption key not found. Stopping migration to rename and update secrets data column."
@@ -113,7 +113,7 @@ def revert_rename_and_update_secrets_data_schema(session: Connection):
         TOTAL_SECRETS = session.execute(total_query).scalar() or 0
         print(f"Total rows in {SecretsDBE.__tablename__}: {TOTAL_SECRETS}")
 
-        encryption_key = env.AGENTA_CRYPT_KEY
+        encryption_key = env.agenta.crypt_key
         if not encryption_key:
             raise RuntimeError(
                 "Encryption key not found. Stopping migration to revert rename and update secrets data column."

@@ -23,7 +23,7 @@ if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
 
 
-MAX_OTLP_BATCH_SIZE = env.AGENTA_OTLP_MAX_BATCH_BYTES
+MAX_OTLP_BATCH_SIZE = env.otlp.max_batch_bytes
 MAX_OTLP_BATCH_SIZE_MB = MAX_OTLP_BATCH_SIZE // (1024 * 1024)
 
 
