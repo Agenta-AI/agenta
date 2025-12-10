@@ -4,6 +4,8 @@
 
 import {useStore} from "jotai"
 
+import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
+
 import {
     buildColumnValueConfig,
     scenarioColumnValueSelectionAtomFamily,
@@ -274,7 +276,44 @@ const resolveMetricValue = async (
 
         const {value} = selection
 
-        // Format metric values consistently with the table display
+        // Format metric values with appropriate units for CSV export
+        if (typeof value === "number" && column.metricKey) {
+            const metricKey = column.metricKey
+
+            // Duration metrics: use appropriate units (s, ms, μs)
+            if (
+                metricKey === "latency" ||
+                metricKey === "duration" ||
+                metricKey === "duration.total" ||
+                metricKey.includes("duration.cumulative")
+            ) {
+                const seconds = value * 0.001 // Convert from ms to seconds
+
+                if (seconds >= 1) {
+                    // Use seconds for values >= 1s
+                    return `${format3Sig(seconds)}s`
+                } else if (seconds >= 0.001) {
+                    // Use milliseconds for values >= 1ms
+                    return `${format3Sig(seconds * 1000)}ms`
+                } else {
+                    // Use microseconds for very small values
+                    return `${format3Sig(seconds * 1000000)}μs`
+                }
+            }
+
+            // Cost metrics: use format3Sig with $ prefix
+            if (
+                metricKey === "cost" ||
+                metricKey === "costs" ||
+                metricKey === "price" ||
+                metricKey === "totalCost" ||
+                metricKey.includes("costs.cumulative")
+            ) {
+                return `$${format3Sig(value)}`
+            }
+        }
+
+        // For other metrics, use standard formatter
         if (column.metricType) {
             const formatted = formatMetricDisplay({
                 value,
