@@ -9,6 +9,7 @@ import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 import {getProjectValues} from "@/oss/state/project"
 import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
 
+import {previewEvalTypeAtom} from "../state/evalType"
 import {resolveValueBySegments, splitPath} from "../utils/valueAccess"
 
 import {
@@ -19,6 +20,7 @@ import {
     type MetricScope,
 } from "./metricProcessor"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
+import {evaluationRunQueryAtomFamily} from "./table/run"
 
 interface EvaluationMetricEntry {
     id?: string
@@ -648,9 +650,20 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
     atom((get) => {
         const projectId = resolveProjectId(get)
         const effectiveRunId = resolveEffectiveRunId(get, runId)
+        const evalTypeFromAtom = get(previewEvalTypeAtom)
+
+        // Try to get evaluation type from run data if not set in atom
+        const runQuery = effectiveRunId ? get(evaluationRunQueryAtomFamily(effectiveRunId)) : undefined
+        const evalTypeFromRun =
+            runQuery?.data?.rawRun?.evaluation_type ??
+            runQuery?.data?.camelRun?.evaluationType ??
+            runQuery?.data?.rawRun?.evaluationType ??
+            runQuery?.data?.camelRun?.evaluation_type
+        const evaluationType = evalTypeFromAtom || evalTypeFromRun
+
         if (!projectId || !effectiveRunId) return null
 
-        const cacheKey = `${projectId}:${effectiveRunId}`
+        const cacheKey = `${projectId}:${effectiveRunId}:${evaluationType || "auto"}`
         let batcher = metricBatcherCache.get(cacheKey)
         if (!batcher) {
             metricBatcherCache.clear()
@@ -703,6 +716,7 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
                                 projectId,
                                 runId: effectiveRunId,
                                 source,
+                                evaluationType,
                             })
 
                             // Get scenario statuses from cache for terminal state detection
