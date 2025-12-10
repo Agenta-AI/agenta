@@ -75,9 +75,10 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
             dataIndex: ["linkSource"],
             width: 100,
             render: (_, record) => {
+                if (!record.linkSource && !record.linkKey) return null
                 return (
                     <Typography.Text className="capitalize">
-                        {record.linkSource || record.linkKey || "Unknown"}
+                        {record.linkSource || record.linkKey}
                     </Typography.Text>
                 )
             },

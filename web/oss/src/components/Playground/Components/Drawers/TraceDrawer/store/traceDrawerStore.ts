@@ -278,7 +278,7 @@ export const annotationLinkTargetsAtom = atom<AnnotationLinkTarget[]>((get) => {
             trace_id: targetTraceId,
             span_id: targetSpanId,
             key: annotation?.meta?.name || annotation?.id,
-            type: "annotation-link",
+            type: annotation?.origin || "",
         })
     })
 

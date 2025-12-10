@@ -59,9 +59,6 @@ const EvaluatorDetailsPopover = ({
                     <Typography.Text strong className="truncate">
                         {evaluatorName}
                     </Typography.Text>
-                    <Typography.Text type="secondary" className="text-[10px] text-nowrap">
-                        {isHuman ? "Human evaluator" : "Automatic evaluator"}
-                    </Typography.Text>
                 </div>
                 <div className="flex flex-col gap-2 *:text-nowrap">
                     <div className="flex items-center justify-between gap-3">
@@ -91,6 +88,13 @@ const EvaluatorDetailsPopover = ({
                         />
                     </div>
                     <div className="flex items-center justify-between gap-3">
+                        <Typography.Text type="secondary">Evaluator Type</Typography.Text>
+                        <Typography.Text>
+                            {" "}
+                            {isHuman ? "Human evaluator" : "Automatic evaluator"}
+                        </Typography.Text>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
                         <Typography.Text type="secondary">Created at</Typography.Text>
                         <Typography.Text>{formatDateTime(createdAt)}</Typography.Text>
                     </div>
@@ -101,7 +105,7 @@ const EvaluatorDetailsPopover = ({
                 </div>
                 {target ? (
                     <Button
-                        type="primary"
+                        type="default"
                         size="small"
                         block
                         onClick={(event) => {
