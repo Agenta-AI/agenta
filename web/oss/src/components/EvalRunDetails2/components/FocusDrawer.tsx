@@ -4,6 +4,7 @@ import {isValidElement} from "react"
 import {Popover, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AlertCircle} from "lucide-react"
+import dynamic from "next/dynamic"
 
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
@@ -48,6 +49,8 @@ import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../utils/metricForm
 
 import FocusDrawerHeader from "./FocusDrawerHeader"
 import FocusDrawerSidePanel from "./FocusDrawerSidePanel"
+
+const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
 
 const SECTION_CARD_CLASS = "rounded-xl border border-[#EAECF0] bg-white"
 
@@ -645,19 +648,59 @@ const ScenarioColumnValue = memo(
                 return <Text type="secondary">—</Text>
             }
 
-            if (
-                typeof resolvedValue === "string" ||
-                typeof resolvedValue === "number" ||
-                typeof resolvedValue === "boolean"
-            ) {
+            // Check if it's a JSON string that should be parsed
+            if (typeof resolvedValue === "string") {
+                const trimmed = resolvedValue.trim()
+                if (
+                    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+                    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+                ) {
+                    try {
+                        const parsed = JSON.parse(trimmed)
+                        const jsonString = JSON.stringify(parsed, null, 2)
+                        return (
+                            <div className="overflow-hidden [&_.editor-inner]:!border-0 [&_.editor-inner]:!bg-transparent [&_.editor-container]:!bg-transparent [&_.editor-code]:!bg-transparent">
+                                <JsonEditor
+                                    initialValue={jsonString}
+                                    language="json"
+                                    codeOnly
+                                    showToolbar={false}
+                                    disabled
+                                    enableResize={false}
+                                    boundWidth
+                                    showLineNumbers={false}
+                                    dimensions={{width: "100%", height: "auto"}}
+                                />
+                            </div>
+                        )
+                    } catch {
+                        // Not valid JSON, render as text
+                    }
+                }
+                return <Text>{resolvedValue}</Text>
+            }
+
+            if (typeof resolvedValue === "number" || typeof resolvedValue === "boolean") {
                 return <Text>{String(resolvedValue)}</Text>
             }
 
+            // For objects/arrays, use JSON editor
             try {
+                const jsonString = JSON.stringify(resolvedValue, null, 2)
                 return (
-                    <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-[#1D2939]">
-                        {JSON.stringify(resolvedValue, null, 2)}
-                    </pre>
+                    <div className="overflow-hidden [&_.editor-inner]:!border-0 [&_.editor-inner]:!bg-transparent [&_.editor-container]:!bg-transparent [&_.editor-code]:!bg-transparent">
+                        <JsonEditor
+                            initialValue={jsonString}
+                            language="json"
+                            codeOnly
+                            showToolbar={false}
+                            disabled
+                            enableResize={false}
+                            boundWidth
+                            showLineNumbers={false}
+                            dimensions={{width: "100%", height: "auto"}}
+                        />
+                    </div>
                 )
             } catch {
                 return <Text>{String(resolvedValue)}</Text>

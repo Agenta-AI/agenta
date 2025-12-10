@@ -1,10 +1,14 @@
 import {memo, useMemo} from "react"
 
+import dynamic from "next/dynamic"
+
 import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {renderScenarioChatMessages} from "../../utils/chatMessages"
 
 import CellContentPopover from "./CellContentPopover"
+
+const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
 
 interface PreviewEvaluationInputCellProps {
     scenarioId?: string
@@ -30,49 +34,67 @@ const unwrapInputsWrapper = (value: unknown): unknown => {
 }
 
 /**
- * Convert a key to a human-friendly label (e.g., "country" -> "Country", "user_name" -> "User Name")
+ * Try to parse a JSON string, returns the parsed value or null if not valid JSON
  */
-const humanizeKey = (key: string): string => {
-    return key
-        .replace(/([a-z])([A-Z])/g, "$1 $2") // camelCase -> camel Case
-        .replace(/[_-]/g, " ") // snake_case/kebab-case -> spaces
-        .replace(/\b\w/g, (char) => char.toUpperCase()) // Capitalize first letter of each word
+const tryParseJson = (value: unknown): {parsed: unknown; isJson: boolean} => {
+    if (value === null || value === undefined) {
+        return {parsed: value, isJson: false}
+    }
+    // Already an object/array
+    if (typeof value === "object") {
+        return {parsed: value, isJson: true}
+    }
+    // Try to parse string as JSON
+    if (typeof value === "string") {
+        const trimmed = value.trim()
+        if (
+            (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+            (trimmed.startsWith("[") && trimmed.endsWith("]"))
+        ) {
+            try {
+                const parsed = JSON.parse(trimmed)
+                return {parsed, isJson: true}
+            } catch {
+                return {parsed: value, isJson: false}
+            }
+        }
+    }
+    return {parsed: value, isJson: false}
 }
 
 /**
- * Check if value is a simple flat object (no nested objects/arrays)
+ * Safely stringify a value to JSON
  */
-const isSimpleFlatObject = (value: unknown): value is Record<string, unknown> => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return false
-    const entries = Object.entries(value as Record<string, unknown>)
-    return entries.every(
-        ([, v]) =>
-            v === null ||
-            v === undefined ||
-            typeof v === "string" ||
-            typeof v === "number" ||
-            typeof v === "boolean",
-    )
+const safeJsonStringify = (value: unknown): string => {
+    try {
+        return JSON.stringify(value, null, 2)
+    } catch {
+        return String(value)
+    }
 }
 
 /**
- * Render a flat object as human-friendly key-value pairs
+ * Render JSON content using the code editor
  */
-const renderKeyValuePairs = (obj: Record<string, unknown>): React.ReactNode => {
-    const entries = Object.entries(obj)
+const JsonContent = memo(({value, height}: {value: unknown; height?: number}) => {
+    const jsonString = useMemo(() => safeJsonStringify(value), [value])
     return (
-        <div className="flex flex-col gap-1">
-            {entries.map(([key, val]) => (
-                <div key={key} className="flex flex-wrap gap-1">
-                    <span className="font-medium text-neutral-600">{humanizeKey(key)}:</span>
-                    <span className="text-neutral-900">
-                        {val === null || val === undefined ? "—" : String(val)}
-                    </span>
-                </div>
-            ))}
+        <div className="overflow-hidden [&_.editor-inner]:!border-0 [&_.editor-inner]:!bg-transparent [&_.editor-container]:!bg-transparent [&_.editor-code]:!bg-transparent">
+            <JsonEditor
+                initialValue={jsonString}
+                language="json"
+                codeOnly
+                showToolbar={false}
+                disabled
+                enableResize={false}
+                boundWidth
+                showLineNumbers={false}
+                dimensions={{width: "100%", height: height ?? "auto"}}
+            />
         </div>
     )
-}
+})
+JsonContent.displayName = "JsonContent"
 
 const normalizeValue = (value: unknown): string => {
     if (value === null || value === undefined) return "—"
@@ -80,11 +102,7 @@ const normalizeValue = (value: unknown): string => {
     if (typeof value === "number" || typeof value === "boolean") {
         return String(value)
     }
-    try {
-        return JSON.stringify(value)
-    } catch {
-        return String(value)
-    }
+    return safeJsonStringify(value)
 }
 
 const CONTAINER_CLASS = "scenario-table-cell"
@@ -99,6 +117,9 @@ const PreviewEvaluationInputCell = ({
 
     // Unwrap redundant "inputs" wrapper from online evaluations
     const value = useMemo(() => unwrapInputsWrapper(rawValue), [rawValue])
+
+    // Try to parse JSON strings - must be before any early returns
+    const {parsed: jsonValue, isJson} = useMemo(() => tryParseJson(value), [value])
 
     const widthStyle = {width: "100%"}
     const chatNodes = useMemo(
@@ -139,6 +160,8 @@ const PreviewEvaluationInputCell = ({
     const displayValue = normalizeValue(value)
     const popoverContent = popoverChatNodes?.length ? (
         <div className="flex w-full flex-col gap-2">{popoverChatNodes}</div>
+    ) : isJson ? (
+        <JsonContent value={jsonValue} height={200} />
     ) : (
         <span className="whitespace-pre-wrap break-words block">{displayValue}</span>
     )
@@ -153,12 +176,12 @@ const PreviewEvaluationInputCell = ({
         )
     }
 
-    // Render flat objects as human-friendly key-value pairs
-    if (isSimpleFlatObject(value)) {
+    // Render JSON objects/arrays using the JSON editor
+    if (isJson) {
         return (
             <CellContentPopover content={popoverContent}>
                 <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-                    {renderKeyValuePairs(value)}
+                    <JsonContent value={jsonValue} />
                 </div>
             </CellContentPopover>
         )
