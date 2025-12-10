@@ -16,7 +16,11 @@ import {runInvocation} from "@/oss/services/evaluations/invocations/api"
 import {fetchVariantConfig} from "@/oss/services/variantConfigs/api"
 import {getProjectValues} from "@/oss/state/project"
 
-import {evaluationMetricQueryAtomFamily, invalidateMetricBatcherCache} from "./metrics"
+import {
+    evaluationMetricQueryAtomFamily,
+    invalidateMetricBatcherCache,
+    triggerMetricsRefresh,
+} from "./metrics"
 import {scenarioStepsQueryFamily, invalidateScenarioStepsBatcherCache} from "./scenarioSteps"
 import {evaluationRunIndexAtomFamily} from "./table/run"
 import {invalidateTraceBatcherCache} from "./traces"
@@ -263,22 +267,8 @@ export const triggerRunInvocationAtom = atom(
                 invalidateTraceBatcherCache()
                 invalidateMetricBatcherCache()
 
-                // Trigger metrics refresh for this scenario
-                try {
-                    await axios.post(
-                        `/preview/evaluations/metrics/refresh`,
-                        {
-                            metrics: {
-                                run_id: runId,
-                                scenario_id: scenarioId,
-                            },
-                        },
-                        {params: {project_id: projectId}},
-                    )
-                    console.log("[runInvocationAction] Metrics refresh triggered")
-                } catch (metricsError) {
-                    console.warn("[runInvocationAction] Metrics refresh failed:", metricsError)
-                }
+                // Trigger metrics refresh for scenario-level and run-level metrics
+                await triggerMetricsRefresh({projectId, runId, scenarioId})
 
                 // Refetch the scenario steps and metrics to update the UI
                 const stepsQueryAtom = scenarioStepsQueryFamily({scenarioId, runId})

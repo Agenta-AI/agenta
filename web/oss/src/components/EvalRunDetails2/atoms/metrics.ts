@@ -653,7 +653,9 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
         const evalTypeFromAtom = get(previewEvalTypeAtom)
 
         // Try to get evaluation type from run data if not set in atom
-        const runQuery = effectiveRunId ? get(evaluationRunQueryAtomFamily(effectiveRunId)) : undefined
+        const runQuery = effectiveRunId
+            ? get(evaluationRunQueryAtomFamily(effectiveRunId))
+            : undefined
         const evalTypeFromRun =
             runQuery?.data?.rawRun?.evaluation_type ??
             runQuery?.data?.camelRun?.evaluationType ??
@@ -884,3 +886,55 @@ export const runLevelMetricQueryAtomFamily = atomFamily(({runId}: {runId?: strin
         }
     }),
 )
+
+/**
+ * Trigger metrics refresh for both scenario-level and run-level metrics.
+ * This should be called after actions that modify scenario data (invocations, annotations).
+ *
+ * @param projectId - The project ID
+ * @param runId - The run ID
+ * @param scenarioId - Optional scenario ID for scenario-level refresh
+ */
+export const triggerMetricsRefresh = async ({
+    projectId,
+    runId,
+    scenarioId,
+}: {
+    projectId: string
+    runId: string
+    scenarioId?: string
+}): Promise<void> => {
+    try {
+        // Refresh scenario-level metrics if scenarioId is provided
+        if (scenarioId) {
+            await axios.post(
+                `/preview/evaluations/metrics/refresh`,
+                {
+                    metrics: {
+                        run_id: runId,
+                        scenario_id: scenarioId,
+                    },
+                },
+                {params: {project_id: projectId}},
+            )
+        }
+        // Refresh run-level metrics (without scenario_id)
+        await axios.post(
+            `/preview/evaluations/metrics/refresh`,
+            {
+                metrics: {
+                    run_id: runId,
+                },
+            },
+            {params: {project_id: projectId}},
+        )
+        console.log("[metrics] Metrics refresh triggered", {
+            projectId,
+            runId,
+            scenarioId,
+            levels: scenarioId ? "scenario + run" : "run only",
+        })
+    } catch (error) {
+        console.warn("[metrics] Metrics refresh failed:", error)
+    }
+}
