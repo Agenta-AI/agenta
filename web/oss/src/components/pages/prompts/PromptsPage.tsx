@@ -1,22 +1,10 @@
-import {Key, useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Dropdown, Input, Space, Spin, Table, Typography, message} from "antd"
-import {ColumnsType} from "antd/es/table"
+import {Typography, message} from "antd"
 import dynamic from "next/dynamic"
 import useSWR from "swr"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
-
-import {
-    FolderDashedIcon,
-    FolderIcon,
-    GearSixIcon,
-    NoteIcon,
-    PencilSimpleIcon,
-    PlusIcon,
-    SquaresFourIcon,
-    TrashIcon,
-} from "@phosphor-icons/react"
 
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
@@ -28,15 +16,11 @@ import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreati
 import {useProfileData} from "@/oss/state/profile"
 import {createFolder, deleteFolder, editFolder, queryFolders} from "@/oss/services/folders"
 import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
-import {buildFolderTree, FolderTreeItem, FolderTreeNode, slugify} from "./assets/utils"
-import {MoreOutlined} from "@ant-design/icons"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {DataNode} from "antd/es/tree"
+import {FolderTreeItem, FolderTreeNode, slugify} from "./assets/utils"
 import MoveFolderModal from "./modals/MoveFolderModal"
 import DeleteFolderModal from "./modals/DeleteFolderModal"
 import NewFolderModal, {FolderModalState} from "./modals/NewFolderModal"
 import {Folder, FolderKind} from "@/oss/services/folders/types"
-import SetupWorkflowIcon from "./components/SetupWorkflowIcon"
 import {ListAppsItem, Template} from "@/oss/lib/Types"
 import {
     ServiceType,
@@ -53,14 +37,13 @@ import DeleteAppModal from "@/oss/components/pages/app-management/modals/DeleteA
 import EditAppModal from "@/oss/components/pages/app-management/modals/EditAppModal"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
-import {
-    createInfiniteDatasetStore,
-    InfiniteTableRowBase,
-    InfiniteVirtualTableFeatureShell,
-    InfiniteVirtualTableRowSelection,
-    TableFeaturePagination,
-    TableScopeConfig,
-} from "@/oss/components/InfiniteVirtualTable"
+import {TableFeaturePagination, TableScopeConfig} from "@/oss/components/InfiniteVirtualTable"
+import {usePromptsFolderTree} from "./hooks/usePromptsFolderTree"
+import {usePromptsSelection} from "./hooks/usePromptsSelection"
+import {usePromptsColumns} from "./hooks/usePromptsColumns"
+import {PromptsTableSection} from "./components/PromptsTableSection"
+import {promptsDatasetStore, promptsTableMetaAtom} from "./store"
+import {PromptsTableRow} from "./types"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -80,44 +63,6 @@ const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
     folderId: null,
 }
 
-type PromptsTableRow = (FolderTreeItem & InfiniteTableRowBase) & {
-    children?: PromptsTableRow[]
-}
-
-const promptsTableMetaAtom = atom({projectId: null as string | null})
-
-const promptsDatasetStore = createInfiniteDatasetStore<
-    PromptsTableRow,
-    PromptsTableRow,
-    {projectId: string | null}
->({
-    key: "prompts-table",
-    metaAtom: promptsTableMetaAtom,
-    createSkeletonRow: ({rowKey}) => ({
-        key: rowKey,
-        __isSkeleton: true,
-        type: "folder",
-        id: rowKey,
-        name: "",
-        description: "",
-        children: [],
-    }),
-    mergeRow: ({skeleton, apiRow}) => ({
-        ...skeleton,
-        ...(apiRow ?? {}),
-        __isSkeleton: apiRow?.__isSkeleton ?? skeleton.__isSkeleton,
-    }),
-    isEnabled: () => false,
-    fetchPage: async () => ({
-        rows: [],
-        totalCount: 0,
-        hasMore: false,
-        nextOffset: null,
-        nextCursor: null,
-        nextWindowing: null,
-    }),
-})
-
 const PromptsPage = () => {
     const {project, projectId} = useProjectData()
     const {secrets} = useVaultSecret()
@@ -130,8 +75,6 @@ const PromptsPage = () => {
     const statusData = useAtomValue(appCreationStatusAtom)
     const setStatusData = useSetAtom(appCreationStatusAtom)
     const resetAppCreation = useSetAtom(resetAppCreationAtom)
-    const [searchTerm, setSearchTerm] = useState("")
-    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
     const [moveModalOpen, setMoveModalOpen] = useState(false)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
@@ -156,10 +99,9 @@ const PromptsPage = () => {
     const [isSavingFolder, setIsSavingFolder] = useState(false)
     const [isMovingItem, setIsMovingItem] = useState(false)
     const [isDeletingFolder, setIsDeletingFolder] = useState(false)
-    const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
-    const [selectedRow, setSelectedRow] = useState<FolderTreeItem | null>(null)
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
     const openEditAppModal = useSetAtom(openEditAppModalAtom)
+    const setPromptsTableMeta = useSetAtom(promptsTableMetaAtom)
 
     const {openModal: openCustomWorkflowModal} = useCustomWorkflowConfig({
         setStatusModalOpen,
@@ -173,53 +115,58 @@ const PromptsPage = () => {
 
     const {
         data: foldersData,
-        isLoading,
+        isLoading: isLoadingFolders,
         mutate,
     } = useSWR(projectId ? ["folders", projectId] : null, () => queryFolders({folder: {}}))
 
-    const isLoadingInitialData = useMemo(
-        () => isLoading || isLoadingApps || !foldersData,
-        [foldersData, isLoading, isLoadingApps],
-    )
+    const {
+        currentFolderId,
+        setCurrentFolderId,
+        searchTerm,
+        setSearchTerm,
+        foldersById,
+        treeData,
+        moveDestinationName: getMoveDestinationName,
+        moveItemName: getMoveItemName,
+        deleteFolderName: getDeleteFolderName,
+        isLoadingInitialData,
+        searchExpandedRowKeys,
+        tableRows,
+        flattenedTableRows,
+        getRowKey,
+    } = usePromptsFolderTree({
+        foldersData,
+        apps,
+        isLoadingFolders,
+        isLoadingApps,
+    })
+
+    const {selectedRowKeys, setSelectedRowKeys, selectedRow, setSelectedRow, rowSelection} =
+        usePromptsSelection({
+            flattenedTableRows,
+            getRowKey,
+        })
 
     const appNameExist = useMemo(
         () => apps.some((app: any) => (app.app_name || "").toLowerCase() === newApp.toLowerCase()),
         [apps, newApp],
     )
 
-    const {roots, foldersById} = useMemo(() => {
-        const folders = foldersData?.folders ?? []
+    useEffect(() => {
+        setPromptsTableMeta({projectId})
+    }, [projectId, setPromptsTableMeta])
 
-        return buildFolderTree(folders, apps)
-    }, [apps, foldersData])
+    const moveDestinationName = useMemo(
+        () => getMoveDestinationName(moveSelection),
+        [getMoveDestinationName, moveSelection],
+    )
 
-    const treeData: DataNode[] = useMemo(() => {
-        const buildNodes = (nodes: FolderTreeItem[]): DataNode[] =>
-            nodes.map((node) => {
-                const isFolder = node.type === "folder"
-                const childNodes = isFolder ? buildNodes(node.children ?? []) : undefined
-                const hasChildren = (childNodes?.length ?? 0) > 0
+    const moveItemName = useMemo(() => getMoveItemName(moveEntity), [getMoveItemName, moveEntity])
 
-                return {
-                    key: isFolder ? (node.id as string) : node.app_id,
-                    title: isFolder ? node.name : node.app_name,
-                    children: hasChildren ? childNodes : undefined,
-                    selectable: isFolder,
-                    disableCheckbox: !isFolder,
-                    disabled: !isFolder,
-                    icon: isFolder ? <FolderIcon size={16} /> : <NoteIcon size={16} />,
-                }
-            })
-
-        return buildNodes(roots)
-    }, [roots])
-
-    const moveDestinationName = useMemo(() => {
-        if (!moveSelection) return null
-        return foldersById[moveSelection]?.name ?? moveSelection
-    }, [moveSelection, foldersById])
-
-    const moveItemName = useMemo(() => moveEntity?.name ?? null, [moveEntity])
+    const deleteFolderName = useMemo(
+        () => getDeleteFolderName(deleteFolderId),
+        [deleteFolderId, getDeleteFolderName],
+    )
 
     const isMoveConfirmDisabled = useMemo(() => {
         if (!moveEntity) return true
@@ -230,124 +177,6 @@ const PromptsPage = () => {
 
         return isSameFolder || isSameDestination
     }, [moveEntity, moveSelection])
-
-    const deleteFolderName = useMemo(() => {
-        if (!deleteFolderId) return null
-        return foldersById[deleteFolderId]?.name ?? null
-    }, [deleteFolderId, foldersById])
-
-    // keep your current visibleRows as-is (for navigation logic)
-    const visibleRows: FolderTreeItem[] = useMemo(() => {
-        if (!currentFolderId) return roots
-        const current = foldersById[currentFolderId]
-        return current?.children ?? roots
-    }, [currentFolderId, roots, foldersById])
-
-    const filteredRows: FolderTreeItem[] = useMemo(() => {
-        const normalizedSearchTerm = searchTerm.trim().toLowerCase()
-        const rowsToFilter = normalizedSearchTerm ? roots : visibleRows
-
-        if (!normalizedSearchTerm) return rowsToFilter
-
-        const matchesSearch = (item: FolderTreeItem) => {
-            const name = item.type === "folder" ? item.name : item.app_name
-            return (name ?? "").toLowerCase().includes(normalizedSearchTerm)
-        }
-
-        const filterNode = (item: FolderTreeItem): FolderTreeItem | null => {
-            if (item.type === "folder") {
-                const filteredChildren = (item.children ?? [])
-                    .map(filterNode)
-                    .filter(Boolean) as FolderTreeItem[]
-
-                if (matchesSearch(item) || filteredChildren.length) {
-                    return {
-                        ...item,
-                        children: filteredChildren,
-                    }
-                }
-
-                return null
-            }
-
-            return matchesSearch(item) ? item : null
-        }
-
-        return rowsToFilter.map(filterNode).filter(Boolean) as FolderTreeItem[]
-    }, [foldersById, roots, searchTerm, visibleRows])
-
-    const searchExpandedRowKeys = useMemo(() => {
-        if (!searchTerm.trim()) return []
-
-        const expanded: string[] = []
-
-        const collectFolderIds = (items: FolderTreeItem[]) => {
-            items.forEach((item) => {
-                if (item.type !== "folder") return
-
-                if (item.children && item.children.length > 0) {
-                    expanded.push(item.id as string)
-                    collectFolderIds(item.children)
-                }
-            })
-        }
-
-        collectFolderIds(filteredRows)
-
-        return expanded
-    }, [filteredRows, searchTerm])
-
-    const getRowKey = useCallback(
-        (item: FolderTreeItem) => (item.type === "folder" ? (item.id as string) : item.app_id),
-        [],
-    )
-
-    const tableRows: PromptsTableRow[] = useMemo(() => {
-        if (isLoadingInitialData) return []
-
-        const sanitizeNode = (item: FolderTreeItem): PromptsTableRow => {
-            const baseNode: PromptsTableRow = {
-                ...item,
-                key: getRowKey(item),
-                __isSkeleton: false,
-            }
-
-            if (item.type !== "folder") {
-                return baseNode
-            }
-
-            const childItems = (item.children ?? []).map(sanitizeNode)
-
-            if (childItems.length === 0) {
-                const {children, ...rest} = baseNode
-                return rest as PromptsTableRow
-            }
-
-            return {
-                ...baseNode,
-                children: childItems,
-            }
-        }
-
-        return filteredRows.map(sanitizeNode)
-    }, [filteredRows, getRowKey, isLoadingInitialData])
-
-    const flattenedTableRows = useMemo(() => {
-        const items: PromptsTableRow[] = []
-
-        const traverse = (nodes: PromptsTableRow[]) => {
-            nodes.forEach((node) => {
-                items.push(node)
-                if (node.children?.length) {
-                    traverse(node.children)
-                }
-            })
-        }
-
-        traverse(tableRows)
-
-        return items
-    }, [tableRows])
 
     const rowKeyExtractor = useCallback((record: PromptsTableRow) => record.key, [])
 
@@ -801,38 +630,6 @@ const PromptsPage = () => {
         openDeleteAppModal(selectedRow as ListAppsItem)
     }
 
-    const rowSelection = useMemo<InfiniteVirtualTableRowSelection<PromptsTableRow>>(
-        () => ({
-            type: "radio",
-            selectedRowKeys,
-            onChange: (keys: Key[], selectedRows: PromptsTableRow[]) => {
-                setSelectedRowKeys(keys as string[])
-                setSelectedRow(selectedRows[0] ?? null)
-            },
-        }),
-        [selectedRowKeys],
-    )
-
-    useEffect(() => {
-        if (!selectedRowKeys.length) {
-            setSelectedRow(null)
-            return
-        }
-
-        const currentKey = selectedRowKeys[0]
-        const currentRow = flattenedTableRows.find((item) => getRowKey(item) === currentKey) ?? null
-
-        if (!currentRow) {
-            setSelectedRowKeys([])
-            setSelectedRow(null)
-            return
-        }
-
-        setSelectedRow(currentRow)
-    }, [flattenedTableRows, getRowKey, selectedRowKeys])
-
-    const isLoadingTable = isLoadingInitialData
-
     const tableScope = useMemo<TableScopeConfig>(
         () => ({
             scopeId: projectId ? `prompts-${projectId}` : "prompts",
@@ -898,151 +695,15 @@ const PromptsPage = () => {
         [handleDropOnFolder, handleRowClick],
     )
 
-    const columns: ColumnsType<PromptsTableRow> = [
-        {
-            title: "Name",
-            key: "name",
-            width: 420,
-            ellipsis: true,
-            render: (_, record) => {
-                const isFolder = record.type === "folder"
-                const name = isFolder ? record.name : record.app_name
-
-                return (
-                    <Space size={8} className="truncate">
-                        {isFolder ? <FolderIcon size={16} /> : <NoteIcon size={16} />}
-                        <span className="truncate">{name}</span>
-                    </Space>
-                )
-            },
-        },
-        {
-            title: "Date modified",
-            key: "dateModified",
-            dataIndex: "updated_at",
-            width: 200,
-            render: (_, record) => {
-                return <div>{formatDay({date: record.updated_at})}</div>
-            },
-        },
-        {
-            title: "Type",
-            key: "type",
-            width: 160,
-            render: (_, record) => (record.type === "folder" ? "Folder" : record.app_type || "App"),
-        },
-        {
-            title: <GearSixIcon size={16} />,
-            key: "actions",
-            width: 56,
-            fixed: "right",
-            align: "center",
-            render: (_, record) => {
-                const isFolder = record.type === "folder"
-
-                const folderActions = [
-                    {
-                        key: "open_folder",
-                        label: "Open",
-                        icon: <NoteIcon size={16} />,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            handleRowClick(record as FolderTreeNode)
-                        },
-                    },
-                    {
-                        key: "rename_folder",
-                        label: "Rename",
-                        icon: <PencilSimpleIcon size={16} />,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            handleOpenRenameModal(record.id as string)
-                        },
-                    },
-                    {
-                        key: "move_folder",
-                        label: "Move",
-                        icon: <FolderDashedIcon size={16} />,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            handleOpenMoveModal(record)
-                        },
-                    },
-                    {
-                        type: "divider",
-                    },
-                    {
-                        key: "delete_folder",
-                        label: "Delete",
-                        icon: <TrashIcon size={16} />,
-                        danger: true,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            handleOpenDeleteModal(record.id as string)
-                        },
-                    },
-                ]
-
-                const appActions = [
-                    {
-                        key: "open_app",
-                        label: "Open",
-                        icon: <NoteIcon size={16} />,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            handleOpenAppOverview(record.app_id)
-                        },
-                    },
-                    {
-                        key: "rename_app",
-                        label: "Rename",
-                        icon: <PencilSimpleIcon size={16} />,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            openEditAppModal(record as ListAppsItem)
-                        },
-                    },
-                    {
-                        key: "move_app",
-                        label: "Move",
-                        icon: <FolderDashedIcon size={16} />,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            handleOpenMoveModal(record)
-                        },
-                    },
-                    {
-                        type: "divider",
-                    },
-                    {
-                        key: "delete_app",
-                        label: "Delete",
-                        icon: <TrashIcon size={16} />,
-                        danger: true,
-                        onClick: (e: any) => {
-                            e.domEvent.stopPropagation()
-                            openDeleteAppModal(record as ListAppsItem)
-                        },
-                    },
-                ]
-
-                return (
-                    <Dropdown
-                        trigger={["click"]}
-                        overlayStyle={{width: 180}}
-                        menu={{items: isFolder ? folderActions : appActions}}
-                    >
-                        <Button
-                            type="text"
-                            onClick={(e) => e.stopPropagation()}
-                            icon={<MoreOutlined />}
-                            size="small"
-                        />
-                    </Dropdown>
-                )
-            },
-        },
-    ]
+    const columns = usePromptsColumns({
+        onFolderClick: handleRowClick,
+        onRenameFolder: handleOpenRenameModal,
+        onDeleteFolder: handleOpenDeleteModal,
+        onMoveItem: handleOpenMoveModal,
+        onOpenAppOverview: handleOpenAppOverview,
+        onOpenEditAppModal: openEditAppModal,
+        onOpenDeleteAppModal: openDeleteAppModal,
+    })
 
     return (
         <div className="flex flex-col gap-4 grow w-full">
@@ -1062,86 +723,24 @@ const PromptsPage = () => {
                 onDeleteFolder={handleOpenDeleteModal}
             />
 
-            <div className="flex flex-col gap-2 grow">
-                <div className="flex items-center justify-between">
-                    <Space>
-                        <Input.Search
-                            placeholder="Search"
-                            allowClear
-                            className="w-[400px]"
-                            value={searchTerm}
-                            onChange={(event) => setSearchTerm(event.target.value)}
-                        />
-                    </Space>
-
-                    <Space>
-                        <Button
-                            icon={<TrashIcon />}
-                            danger
-                            disabled={!selectedRow}
-                            onClick={handleDeleteSelected}
-                        >
-                            Delete
-                        </Button>
-
-                        <Dropdown
-                            trigger={["click"]}
-                            overlayStyle={{width: 200}}
-                            placement="bottomLeft"
-                            menu={{
-                                items: [
-                                    {
-                                        key: "new_prompt",
-                                        icon: <SquaresFourIcon size={16} />,
-                                        label: "New prompt",
-                                        onClick: (event) => {
-                                            event.domEvent.stopPropagation()
-                                            handleOpenNewPromptModal()
-                                        },
-                                    },
-                                    {
-                                        key: "new_folder",
-                                        icon: <FolderIcon size={16} />,
-                                        label: "New folder",
-                                        onClick: (event) => {
-                                            event.domEvent.stopPropagation()
-                                            openNewFolderModal()
-                                        },
-                                    },
-                                    {
-                                        type: "divider",
-                                    },
-                                    {
-                                        key: "setup_workflow",
-                                        icon: <SetupWorkflowIcon />,
-                                        label: "Set up workflow",
-                                        onClick: (event) => {
-                                            event.domEvent.stopPropagation()
-                                            handleSetupWorkflow()
-                                        },
-                                    },
-                                ],
-                            }}
-                        >
-                            <Button icon={<PlusIcon />} type="primary">
-                                Create new
-                            </Button>
-                        </Dropdown>
-                    </Space>
-                </div>
-
-                <InfiniteVirtualTableFeatureShell<PromptsTableRow>
-                    datasetStore={promptsDatasetStore}
-                    tableScope={tableScope}
-                    columns={columns}
-                    rowKey={rowKeyExtractor}
-                    dataSource={tableRows}
-                    pagination={tablePagination}
-                    rowSelection={rowSelection}
-                    expandable={expandableConfig}
-                    tableProps={tableProps}
-                />
-            </div>
+            <PromptsTableSection
+                columns={columns}
+                datasetStore={promptsDatasetStore}
+                tableRows={tableRows}
+                rowKeyExtractor={rowKeyExtractor}
+                tableScope={tableScope}
+                tablePagination={tablePagination}
+                rowSelection={rowSelection}
+                expandable={expandableConfig}
+                tableProps={tableProps}
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                selectedRow={selectedRow}
+                onDeleteSelected={handleDeleteSelected}
+                onOpenNewPrompt={handleOpenNewPromptModal}
+                onOpenNewFolder={openNewFolderModal}
+                onSetupWorkflow={handleSetupWorkflow}
+            />
 
             <MoveFolderModal
                 itemName={moveItemName}
