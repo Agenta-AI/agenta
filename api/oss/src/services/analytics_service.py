@@ -49,7 +49,7 @@ ACTIVATION_EVENTS = {
 if POSTHOG_API_KEY:
     posthog.api_key = POSTHOG_API_KEY
     posthog.host = POSTHOG_HOST
-    log.info("PostHog initialized with host %s", POSTHOG_HOST)
+    log.info("Agenta - PostHog URL: %s", POSTHOG_HOST)
 else:
     log.warn("PostHog API key not found in environment variables")
 
@@ -328,12 +328,12 @@ def _get_event_name_from_path(
     # <----------- End of Evaluation Events ------------->
 
     # <----------- Observability Events ------------->
-    if method == "POST" and (
-        "/otlp/v1/traces" in path or "/observability/v1/otlp/traces" in path
-    ):
+    if method == "POST" and "/otlp/v1/traces" in path:
         return "spans_created"
 
-    elif method == "GET" and "/observability/v1/traces" in path:
+    elif method == "GET" and (
+        "/tracing" in path or "/invocations" in path or "/annotations" in path
+    ):
         return "spans_fetched"
     # <----------- End of Observability Events ------------->
 

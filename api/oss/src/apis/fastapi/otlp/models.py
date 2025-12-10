@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from oss.src.core.observability.dtos import (
+from oss.src.core.otel.dtos import (
     OTelSpanDTO,
     SpanDTO,
     TreeDTO,
