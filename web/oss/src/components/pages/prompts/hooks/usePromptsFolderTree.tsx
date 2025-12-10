@@ -43,18 +43,24 @@ export const usePromptsFolderTree = ({
                 const childNodes = isFolder ? buildNodes(node.children ?? []) : undefined
                 const hasChildren = (childNodes?.length ?? 0) > 0
 
+                const icon = isFolder ? (
+                    <FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />
+                ) : (
+                    getAppTypeIcon(node.app_type)
+                )
+
                 return {
                     key: isFolder ? (node.id as string) : node.app_id,
-                    title: isFolder ? node.name : node.app_name,
+                    title: (
+                        <div className="flex items-center gap-2 min-h-6 overflow-hidden">
+                            <span className="flex items-center text-gray-400">{icon}</span>
+                            <span className="truncate">{isFolder ? node.name : node.app_name}</span>
+                        </div>
+                    ),
                     children: hasChildren ? childNodes : undefined,
                     selectable: isFolder,
                     disableCheckbox: !isFolder,
                     disabled: !isFolder,
-                    icon: isFolder ? (
-                        <FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />
-                    ) : (
-                        getAppTypeIcon(node.app_type)
-                    ),
                 }
             })
 

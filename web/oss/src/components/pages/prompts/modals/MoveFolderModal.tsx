@@ -44,15 +44,16 @@ const MoveFolderModal = ({
                 <Space direction="vertical" size={4}>
                     <div className="font-medium">Select folder</div>
 
-                    <Tree
-                        selectable
-                        showIcon
-                        treeData={treeData}
-                        selectedKeys={moveSelection ? [moveSelection] : []}
-                        onSelect={(keys) => setMoveSelection((keys[0] as string) || null)}
-                        defaultExpandAll
-                        className="p-2 border border-solid border-gray-200 rounded"
-                    />
+                    <div className="p-2 border border-solid border-gray-200 rounded max-h-[60vh] overflow-auto">
+                        <Tree
+                            blockNode
+                            selectable
+                            treeData={treeData}
+                            selectedKeys={moveSelection ? [moveSelection] : []}
+                            onSelect={(keys) => setMoveSelection((keys[0] as string) || null)}
+                            defaultExpandAll
+                        />
+                    </div>
                 </Space>
             </div>
         </Modal>

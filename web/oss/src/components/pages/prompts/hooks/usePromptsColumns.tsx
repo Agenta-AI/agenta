@@ -1,6 +1,6 @@
 import {JSX, useMemo} from "react"
 
-import {Dropdown, Button, MenuProps} from "antd"
+import {Dropdown, Button, MenuProps, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {FolderFilled, MoreOutlined} from "@ant-design/icons"
 
@@ -75,7 +75,13 @@ export const usePromptsColumns = ({
                 key: "type",
                 width: 160,
                 render: (_, record) =>
-                    record.type === "folder" ? "Folder" : record.app_type || "App",
+                    record.type === "folder" ? (
+                        <Tag bordered={false}>Folder</Tag>
+                    ) : (
+                        <Tag className="capitalize" bordered={false}>
+                            {record.app_type || "App"}
+                        </Tag>
+                    ),
             },
             {
                 title: <GearSixIcon size={16} />,
