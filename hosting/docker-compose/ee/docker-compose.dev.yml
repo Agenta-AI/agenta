@@ -407,7 +407,7 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
 
         environment:
-            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS}
+            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS:-postgresql://username:password@postgres:5432/agenta_ee_supertokens}
 
         restart: always
         

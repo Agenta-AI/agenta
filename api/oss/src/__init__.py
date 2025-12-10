@@ -439,7 +439,7 @@ def _init_supertokens():
 
     # Validate auth configuration
     try:
-        env.auth.validate()
+        env.auth.validate_config()
     except ValueError as e:
         logger.error(f"[AUTH CONFIG ERROR] {e}")
         raise
@@ -534,19 +534,11 @@ def _init_supertokens():
     recipe_list.append(dashboard.init())
 
     # Initialize SuperTokens with selected recipes
+    from oss.src.core.auth.supertokens_config import get_app_info, get_supertokens_config
+
     init(
-        app_info=InputAppInfo(
-            app_name="agenta",
-            api_domain=api_domain,
-            website_domain=env.agenta.web_url,
-            api_gateway_path=api_gateway_path,
-            api_base_path="/auth/",
-            website_base_path="/auth",
-        ),
-        supertokens_config=SupertokensConfig(
-            uri_core=env.supertokens.uri_core,
-            api_key=env.supertokens.api_key,
-        ),
+        app_info=get_app_info(),
+        supertokens_config=SupertokensConfig(**get_supertokens_config()),
         framework="fastapi",
         recipe_list=recipe_list,
         mode="asgi",
