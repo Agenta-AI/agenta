@@ -1,7 +1,7 @@
 """add folders table and folder reference on applications
 
 Revision ID: 7a3d1c4f5b6a
-Revises: 79f40f71e912
+Revises: cfa14a847972
 Create Date: 2025-10-26 17:30:00.000000+00:00
 
 """
@@ -17,7 +17,7 @@ from oss.src.core.folders.types import FolderKind
 
 # revision identifiers, used by Alembic.
 revision: str = "7a3d1c4f5b6a"
-down_revision: Union[str, None] = "79f40f71e912"
+down_revision: Union[str, None] = "cfa14a847972"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
