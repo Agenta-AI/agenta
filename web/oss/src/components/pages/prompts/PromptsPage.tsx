@@ -1,6 +1,6 @@
 import {useMemo, useState} from "react"
 
-import {Button, Dropdown, Input, Space, Table, Typography, message} from "antd"
+import {Button, Dropdown, Input, Space, Spin, Table, Typography, message} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dynamic from "next/dynamic"
 import useSWR from "swr"
@@ -27,7 +27,7 @@ import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreati
 import {useProfileData} from "@/oss/state/profile"
 import {createFolder, deleteFolder, editFolder, queryFolders} from "@/oss/services/folders"
 import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
-import {buildFolderTree, FolderTreeNode, slugify} from "./assets/utils"
+import {buildFolderTree, FolderTreeItem, FolderTreeNode, slugify} from "./assets/utils"
 import {MoreOutlined} from "@ant-design/icons"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {DataNode} from "antd/es/tree"
@@ -66,7 +66,7 @@ const PromptsPage = () => {
     const {secrets} = useVaultSecret()
     const posthog = usePostHogAg()
     const {user} = useProfileData()
-    const {apps, mutate: mutateApps} = useAppsData()
+    const {apps, mutate: mutateApps, isLoading: isLoadingApps} = useAppsData()
     const [{data: templates = [], isLoading: fetchingTemplate}, noTemplateMessage] = useTemplates()
     const statusData = useAtomValue(appCreationStatusAtom)
     const setStatusData = useSetAtom(appCreationStatusAtom)
@@ -107,23 +107,36 @@ const PromptsPage = () => {
         mutate,
     } = useSWR(projectId ? ["folders", projectId] : null, () => queryFolders({folder: {}}))
 
-    const {roots, foldersById} = useMemo(() => {
-        const folders = foldersData?.folders ?? []
-        return buildFolderTree(folders)
-    }, [foldersData])
-
     const appNameExist = useMemo(
         () => apps.some((app: any) => (app.app_name || "").toLowerCase() === newApp.toLowerCase()),
         [apps, newApp],
     )
 
+    const {roots, foldersById} = useMemo(() => {
+        const folders = foldersData?.folders ?? []
+
+        return buildFolderTree(folders, apps)
+    }, [apps, foldersData])
+
     const treeData: DataNode[] = useMemo(() => {
-        const buildNodes = (nodes: FolderTreeNode[]): DataNode[] =>
-            nodes.map((node) => ({
-                key: node.id!,
-                title: node.name,
-                children: buildNodes(node.children || []),
-            }))
+        const buildNodes = (nodes: FolderTreeItem[]): DataNode[] =>
+            nodes
+                // only folders appear in the move modal tree
+                .filter((node): node is FolderTreeNode => node.type === "folder")
+                .map((node) => {
+                    // only consider child *folders* for the tree
+                    const childFolders = (node.children ?? []).filter(
+                        (child): child is FolderTreeNode => child.type === "folder",
+                    )
+
+                    return {
+                        key: node.id!,
+                        title: node.name,
+                        // only set children if there are any;
+                        // leaf folders will have `children: undefined` → no expand icon
+                        children: childFolders.length ? buildNodes(childFolders) : undefined,
+                    }
+                })
 
         return buildNodes(roots)
     }, [roots])
@@ -143,15 +156,40 @@ const PromptsPage = () => {
         return foldersById[deleteFolderId]?.name ?? null
     }, [deleteFolderId, foldersById])
 
-    // what we show in the table
-    const visibleRows: FolderTreeNode[] = useMemo(() => {
+    // keep your current visibleRows as-is (for navigation logic)
+    const visibleRows: FolderTreeItem[] = useMemo(() => {
         if (!currentFolderId) return roots
         const current = foldersById[currentFolderId]
         return current?.children ?? roots
     }, [currentFolderId, roots, foldersById])
 
-    const handleRowClick = (record: FolderTreeNode) => {
-        // only drill into folders; later you’ll have non-folder rows
+    const tableRows: FolderTreeItem[] = useMemo(() => {
+        const sanitizeNode = (item: FolderTreeItem): FolderTreeItem => {
+            if (item.type !== "folder") {
+                return item
+            }
+
+            // Recursively sanitize children first
+            const childItems = (item.children ?? []).map(sanitizeNode)
+
+            if (childItems.length === 0) {
+                // Leaf folder → remove children so AntD doesn’t show expand icon
+                const {children, ...rest} = item
+                return rest as FolderTreeItem
+            }
+
+            // Non-leaf folder → keep children
+            return {
+                ...item,
+                children: childItems,
+            }
+        }
+
+        return visibleRows.map(sanitizeNode)
+    }, [visibleRows])
+
+    const handleRowClick = (record: FolderTreeItem) => {
+        if (record.type !== "folder") return
         setCurrentFolderId(record.id as string | null)
     }
 
@@ -428,6 +466,9 @@ const PromptsPage = () => {
     const handleDropOnFolder = async (destinationId: string | null) => {
         if (!draggingFolderId) return
 
+        const destinationFolder = destinationId ? foldersById[destinationId] : null
+        if (destinationId && !destinationFolder) return
+
         await moveFolder(draggingFolderId, destinationId, () => {
             setMoveFolderId(null)
             setMoveSelection(null)
@@ -469,11 +510,23 @@ const PromptsPage = () => {
         }
     }
 
-    const columns: ColumnsType<FolderTreeNode> = [
+    const isLoadingTable = useMemo(() => isLoading || isLoadingApps, [isLoading, isLoadingApps])
+
+    const columns: ColumnsType<FolderTreeItem> = [
         {
             title: "Name",
-            dataIndex: "name",
-            render: (name) => <span>{name}</span>,
+            key: "name",
+            render: (_, record) => {
+                const isFolder = record.type === "folder"
+                const name = isFolder ? record.name : record.app_name
+
+                return (
+                    <Space size={8}>
+                        {isFolder ? <FolderIcon size={16} /> : <NoteIcon size={16} />}
+                        <span>{name}</span>
+                    </Space>
+                )
+            },
         },
         {
             title: "Date modified",
@@ -485,6 +538,7 @@ const PromptsPage = () => {
         {
             title: "Type",
             key: "type",
+            render: (_, record) => (record.type === "folder" ? "Folder" : record.app_type || "App"),
         },
         {
             title: <GearSixIcon size={16} />,
@@ -493,6 +547,8 @@ const PromptsPage = () => {
             fixed: "right",
             align: "center",
             render: (_, record) => {
+                if (record.type !== "folder") return null
+
                 return (
                     <Dropdown
                         trigger={["click"]}
@@ -583,77 +639,102 @@ const PromptsPage = () => {
                         />
                     </Space>
 
-                    <Dropdown
-                        trigger={["click"]}
-                        overlayStyle={{width: 200}}
-                        placement="bottomLeft"
-                        menu={{
-                            items: [
-                                {
-                                    key: "new_prompt",
-                                    icon: <SquaresFourIcon size={16} />,
-                                    label: "New prompt",
-                                    onClick: (event) => {
-                                        event.domEvent.stopPropagation()
-                                        handleOpenNewPromptModal()
-                                    },
-                                },
-                                {
-                                    key: "new_folder",
-                                    icon: <FolderIcon size={16} />,
-                                    label: "New folder",
-                                    onClick: (event) => {
-                                        event.domEvent.stopPropagation()
-                                        openNewFolderModal()
-                                    },
-                                },
-                                {
-                                    type: "divider",
-                                },
-                                {
-                                    key: "setup_workflow",
-                                    icon: <SetupWorkflowIcon />,
-                                    label: "Set up workflow",
-                                    onClick: (event) => {
-                                        event.domEvent.stopPropagation()
-                                        handleSetupWorkflow()
-                                    },
-                                },
-                            ],
-                        }}
-                    >
-                        <Button icon={<PlusIcon />} type="primary">
-                            Create new
+                    <Space>
+                        <Button icon={<TrashIcon />} danger disabled>
+                            Delete
                         </Button>
-                    </Dropdown>
+
+                        <Dropdown
+                            trigger={["click"]}
+                            overlayStyle={{width: 200}}
+                            placement="bottomLeft"
+                            menu={{
+                                items: [
+                                    {
+                                        key: "new_prompt",
+                                        icon: <SquaresFourIcon size={16} />,
+                                        label: "New prompt",
+                                        onClick: (event) => {
+                                            event.domEvent.stopPropagation()
+                                            // onNewPrompt?.()
+                                        },
+                                    },
+                                    {
+                                        key: "new_folder",
+                                        icon: <FolderIcon size={16} />,
+                                        label: "New folder",
+                                        onClick: (event) => {
+                                            event.domEvent.stopPropagation()
+                                            openNewFolderModal()
+                                        },
+                                    },
+                                    {
+                                        type: "divider",
+                                    },
+                                    {
+                                        key: "setup_workflow",
+                                        icon: <SetupWorkflowIcon />,
+                                        label: "Set up workflow",
+                                        onClick: (event) => {
+                                            event.domEvent.stopPropagation()
+                                            // onSetupWorkflow?.()
+                                        },
+                                    },
+                                ],
+                            }}
+                        >
+                            <Button icon={<PlusIcon />} type="primary">
+                                Create new
+                            </Button>
+                        </Dropdown>
+                    </Space>
                 </div>
 
-                <Table<FolderTreeNode>
-                    columns={columns}
-                    dataSource={visibleRows}
-                    loading={isLoading}
-                    pagination={false}
-                    bordered
-                    rowKey="id"
-                    onRow={(record) => ({
-                        onClick: () => handleRowClick(record as any),
-                        className: "cursor-pointer",
-                        draggable: true,
-                        onDragStart: (event) => {
-                            event.stopPropagation()
-                            setDraggingFolderId(record.id as string)
-                        },
-                        onDragEnd: () => setDraggingFolderId(null),
-                        onDragOver: (event) => {
-                            event.preventDefault()
-                        },
-                        onDrop: async (event) => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            await handleDropOnFolder(record.id as string)
-                        },
-                    })}
-                />
+                <Spin spinning={isLoadingTable}>
+                    <Table<FolderTreeItem>
+                        rowSelection={{type: "checkbox"}}
+                        columns={columns}
+                        dataSource={tableRows}
+                        pagination={false}
+                        bordered
+                        rowKey={(record) =>
+                            record.type === "folder" ? (record.id as string) : record.app_id
+                        }
+                        onRow={(record) => ({
+                            onClick:
+                                record.type === "folder"
+                                    ? () => handleRowClick(record as FolderTreeNode)
+                                    : undefined,
+                            className: record.type === "folder" ? "cursor-pointer" : "",
+                            draggable: record.type === "folder",
+                            onDragStart:
+                                record.type === "folder"
+                                    ? (event) => {
+                                          event.stopPropagation()
+                                          setDraggingFolderId(record.id as string)
+                                      }
+                                    : undefined,
+                            onDragEnd:
+                                record.type === "folder"
+                                    ? () => setDraggingFolderId(null)
+                                    : undefined,
+                            onDragOver:
+                                record.type === "folder"
+                                    ? (event) => {
+                                          event.preventDefault()
+                                      }
+                                    : undefined,
+                            onDrop:
+                                record.type === "folder"
+                                    ? async (event) => {
+                                          event.preventDefault()
+                                          event.stopPropagation()
+                                          await handleDropOnFolder(record.id as string)
+                                      }
+                                    : undefined,
+                        })}
+                    />
+                </Spin>
             </div>
 
             <MoveFolderModal
