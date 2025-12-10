@@ -208,19 +208,20 @@ export const createMetricProcessor = ({
         }
 
         if (scope === "scenario") {
-            // Skip ALL refresh logic for scenarios that haven't been run yet
-            // There's no data to refresh if the scenario hasn't been executed
-            if (isPendingScenario) {
-                // Return early - don't add any reasons for pending scenarios
-            } else {
-                // Only trigger refresh for scenarios that have been executed
-                if (status && status !== "success") {
-                    reasons.push(`status:${status}`)
-                }
-                if (hasLegacyShape) {
+            // SCENARIO METRIC REFRESH RULES:
+            // - Only for human evals
+            // - Refresh if scenario has invocation (success or fail) AND/OR annotation, BUT NOT metrics
+            // - For non-human evals, we don't trigger scenario-level refresh from processMetric
+            //   (the scenario already has metrics if we're processing it here)
+            if (evaluationType === "human") {
+                // For human evals, only refresh if there's a legacy shape issue
+                // Missing metrics are handled by markScenarioGap
+                if (!isPendingScenario && hasLegacyShape) {
                     reasons.push("legacy-value-leaf")
                 }
             }
+            // For non-human evals, don't trigger scenario refresh from processMetric
+            // The scenario already has metrics if we're here
         } else if (hasLegacyShape) {
             reasons.push("legacy-run-value-leaf")
         }
@@ -273,9 +274,25 @@ export const createMetricProcessor = ({
         scenarioId: string,
         reason: string,
         scenarioStatus?: string | null,
+        scenarioContext?: {
+            hasInvocation?: boolean
+            hasAnnotation?: boolean
+        },
     ) => {
         // Track the gap for informational purposes
         state.scenarioGaps.push({scenarioId, reason})
+
+        // SCENARIO METRIC REFRESH RULES:
+        // - Only for human evals
+        // - Refresh if scenario has invocation (success or fail) AND/OR annotation, BUT NOT metrics
+        if (evaluationType !== "human") {
+            metricProcessorDebug.debug("Skipping scenario refresh for non-human eval", {
+                scenarioId,
+                reason,
+                evaluationType,
+            })
+            return
+        }
 
         // Skip refresh for scenarios that were recently saved
         // This prevents triggering refresh before new metrics are persisted
@@ -287,8 +304,14 @@ export const createMetricProcessor = ({
             return
         }
 
+        // For human evals: only refresh if scenario has invocation or annotation but no metrics
+        // The scenario must have some execution data (invocation or annotation) to warrant a refresh
+        const hasInvocation = scenarioContext?.hasInvocation ?? false
+        const hasAnnotation = scenarioContext?.hasAnnotation ?? false
+        const hasExecutionData = hasInvocation || hasAnnotation
+
+        // Also check status as a fallback indicator of execution
         // Terminal statuses indicate the scenario HAS been executed
-        // If metrics are missing for a terminal scenario, we should trigger a refresh
         const terminalStatuses = new Set([
             "success",
             "completed",
@@ -298,22 +321,40 @@ export const createMetricProcessor = ({
             "error",
             "failure",
         ])
-
         const normalizedStatus = scenarioStatus?.toLowerCase?.() ?? null
         const isTerminalState = normalizedStatus && terminalStatuses.has(normalizedStatus)
 
-        if (isTerminalState && reason === "missing-scenario-metric") {
-            // Scenario is in terminal state but has no metrics - trigger refresh
-            metricProcessorDebug.debug("Terminal scenario missing metrics, triggering refresh", {
+        // Trigger refresh if:
+        // 1. Scenario has execution data (invocation or annotation) but no metrics, OR
+        // 2. Scenario is in terminal state but has no metrics (fallback check)
+        const shouldRefresh =
+            reason === "missing-scenario-metric" && (hasExecutionData || isTerminalState)
+
+        if (shouldRefresh) {
+            metricProcessorDebug.debug("[HumanEval] Scenario missing metrics, triggering refresh", {
                 scenarioId,
                 reason,
                 scenarioStatus: normalizedStatus,
+                hasInvocation,
+                hasAnnotation,
+                hasExecutionData,
+                isTerminalState,
             })
             state.scenarioIds.add(scenarioId)
+        } else {
+            metricProcessorDebug.debug(
+                "[HumanEval] Skipping scenario refresh - no execution data",
+                {
+                    scenarioId,
+                    reason,
+                    scenarioStatus: normalizedStatus,
+                    hasInvocation,
+                    hasAnnotation,
+                    hasExecutionData,
+                    isTerminalState,
+                },
+            )
         }
-        // NOTE: For non-terminal states (pending, waiting, etc.), we intentionally
-        // do NOT add to state.scenarioIds to prevent refresh for scenarios that
-        // simply haven't been executed yet
     }
 
     const getPendingActions = () => {
@@ -585,7 +626,7 @@ export const createMetricProcessor = ({
                 (entry) => entry.scope === "run" && entry.shouldRefresh,
             )
             const hasActionableRunFlag = runLevelFlags.some((f) => f !== "missing-run-level-entry")
-            const hasScenarioSignals = scenarioIds.length > 0 || scenarioGaps.length > 0
+            const _hasScenarioSignals = scenarioIds.length > 0 || scenarioGaps.length > 0
             const hasMissingRunOnly =
                 runLevelFlags.length > 0 &&
                 runLevelFlags.every((f) => f === "missing-run-level-entry")

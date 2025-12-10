@@ -141,6 +141,7 @@ const buildGroupedMetrics = (
     rawMetrics: any[],
     processor: MetricProcessor,
     scenarioStatuses?: Map<string, string | null>,
+    scenarioContextMap?: Map<string, {hasInvocation?: boolean; hasAnnotation?: boolean}>,
 ): Record<string, ScenarioMetricData | null> => {
     const grouped: Record<string, ScenarioMetricData | null> = Object.create(null)
 
@@ -247,7 +248,13 @@ const buildGroupedMetrics = (
     scenarioIds.forEach((scenarioId) => {
         if ((returnedScenarioCounts.get(scenarioId) ?? 0) === 0) {
             const scenarioStatus = scenarioStatuses?.get(scenarioId) ?? null
-            processor.markScenarioGap(scenarioId, "missing-scenario-metric", scenarioStatus)
+            const scenarioContext = scenarioContextMap?.get(scenarioId)
+            processor.markScenarioGap(
+                scenarioId,
+                "missing-scenario-metric",
+                scenarioStatus,
+                scenarioContext,
+            )
             grouped[scenarioId] = null
         }
     })
