@@ -78,9 +78,7 @@ export const usePromptsColumns = ({
                     record.type === "folder" ? (
                         <Tag bordered={false}>Folder</Tag>
                     ) : (
-                        <Tag className="capitalize" bordered={false}>
-                            {record.app_type || "App"}
-                        </Tag>
+                        <Tag bordered={false}>{record.app_type || "App"}</Tag>
                     ),
             },
             {
