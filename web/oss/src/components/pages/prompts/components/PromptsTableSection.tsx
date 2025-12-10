@@ -87,7 +87,7 @@ export const PromptsTableSection = ({
     ]
 
     return (
-        <div className="flex flex-col gap-2 grow">
+        <div className="flex flex-col gap-2 grow min-h-0">
             <div className="flex items-center justify-between">
                 <Space>
                     <Input.Search
@@ -123,6 +123,7 @@ export const PromptsTableSection = ({
             </div>
 
             <InfiniteVirtualTableFeatureShell<PromptsTableRow>
+                className="grow min-h-0"
                 datasetStore={datasetStore}
                 tableScope={tableScope}
                 columns={columns}

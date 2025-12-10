@@ -710,7 +710,7 @@ const PromptsPage = () => {
     })
 
     return (
-        <div className="flex flex-col gap-4 grow w-full">
+        <div className="flex flex-col gap-4 grow w-full min-h-0">
             <Title className="!m-0" level={2}>
                 Prompts
             </Title>
