@@ -310,9 +310,10 @@ export const createMetricProcessor = ({
         const hasAnnotation = scenarioContext?.hasAnnotation ?? false
         const hasExecutionData = hasInvocation || hasAnnotation
 
-        // Also check status as a fallback indicator of execution
-        // Terminal statuses indicate the scenario HAS been executed
-        const terminalStatuses = new Set([
+        // Check status as a fallback indicator of execution
+        // Statuses that indicate execution HAS started or completed
+        const executionStartedStatuses = new Set([
+            // Terminal statuses
             "success",
             "completed",
             "finished",
@@ -320,15 +321,28 @@ export const createMetricProcessor = ({
             "failed",
             "error",
             "failure",
+            // In-progress statuses (execution has started)
+            "running",
+            "in_progress",
+            "in-progress",
+            "processing",
+            "executing",
         ])
+        // Statuses that indicate NO execution has happened yet
+        const pendingStatuses = new Set(["pending", "queued", "waiting", "scheduled", "created"])
+
         const normalizedStatus = scenarioStatus?.toLowerCase?.() ?? null
-        const isTerminalState = normalizedStatus && terminalStatuses.has(normalizedStatus)
+        const hasExecutionStarted =
+            normalizedStatus && executionStartedStatuses.has(normalizedStatus)
+        const isPending = normalizedStatus && pendingStatuses.has(normalizedStatus)
 
         // Trigger refresh if:
         // 1. Scenario has execution data (invocation or annotation) but no metrics, OR
-        // 2. Scenario is in terminal state but has no metrics (fallback check)
+        // 2. Scenario status indicates execution has started (including "running"), OR
+        // 3. Scenario has a status that is NOT pending (fallback for unknown statuses)
         const shouldRefresh =
-            reason === "missing-scenario-metric" && (hasExecutionData || isTerminalState)
+            reason === "missing-scenario-metric" &&
+            (hasExecutionData || hasExecutionStarted || (normalizedStatus && !isPending))
 
         if (shouldRefresh) {
             metricProcessorDebug.debug("[HumanEval] Scenario missing metrics, triggering refresh", {
@@ -338,7 +352,8 @@ export const createMetricProcessor = ({
                 hasInvocation,
                 hasAnnotation,
                 hasExecutionData,
-                isTerminalState,
+                hasExecutionStarted,
+                isPending,
             })
             state.scenarioIds.add(scenarioId)
         } else {
@@ -351,7 +366,8 @@ export const createMetricProcessor = ({
                     hasInvocation,
                     hasAnnotation,
                     hasExecutionData,
-                    isTerminalState,
+                    hasExecutionStarted,
+                    isPending,
                 },
             )
         }
