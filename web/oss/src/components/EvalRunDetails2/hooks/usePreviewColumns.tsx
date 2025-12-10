@@ -26,7 +26,7 @@ type TableRowData = PreviewTableRow
 
 export interface PreviewColumnsArgs {
     columnResult: EvaluationTableColumnsResult | undefined
-    evaluationType: "auto" | "human"
+    evaluationType: "auto" | "human" | "online"
 }
 
 export interface PreviewColumnsResult {
@@ -42,7 +42,7 @@ export interface PreviewColumnsResult {
 
 const selectColumnsForType = (
     result: EvaluationTableColumnsResult | undefined,
-    evaluationType: "auto" | "human",
+    evaluationType: "auto" | "human" | "online",
 ) => {
     if (
         !result ||
@@ -52,17 +52,19 @@ const selectColumnsForType = (
         return buildSkeletonColumnResult(evaluationType)
     }
 
+    // Online evaluations use auto metrics, human evaluations use human metrics
+    const useAutoMetrics = evaluationType === "auto" || evaluationType === "online"
+
     const relevantGroups = result.groups.filter((group) => {
         if (group.kind !== "metric") return true
-        return evaluationType === "auto"
+        return useAutoMetrics
             ? group.id.includes("metrics:auto")
             : group.id.includes("metrics:human")
     })
 
-    const staticMetrics =
-        evaluationType === "auto"
-            ? {auto: result.staticMetricColumns.auto, human: [] as MetricColumnDefinition[]}
-            : {auto: [] as MetricColumnDefinition[], human: result.staticMetricColumns.human}
+    const staticMetrics = useAutoMetrics
+        ? {auto: result.staticMetricColumns.auto, human: [] as MetricColumnDefinition[]}
+        : {auto: [] as MetricColumnDefinition[], human: result.staticMetricColumns.human}
 
     return {
         columns: result.columns,
@@ -84,7 +86,7 @@ const usePreviewColumns = ({
 
     const metricsForType = useMemo(
         () =>
-            evaluationType === "auto"
+            evaluationType === "auto" || evaluationType === "online"
                 ? columnData.staticMetricColumns.auto
                 : columnData.staticMetricColumns.human,
         [columnData.staticMetricColumns, evaluationType],

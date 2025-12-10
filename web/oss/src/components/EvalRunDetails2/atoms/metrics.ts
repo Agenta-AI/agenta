@@ -358,7 +358,10 @@ const flattenMetrics = (raw: Record<string, any>): Record<string, any> => {
                         ? subValue.value
                         : subValue
 
-                if (!isEvaluatorBucket) {
+                // For invocation metrics (attributes.ag.*), always create both
+                // prefixed and unprefixed keys to support online evaluations
+                const isInvocationMetric = subKey.startsWith("attributes.ag.metrics.")
+                if (!isEvaluatorBucket || isInvocationMetric) {
                     assignFlat(flat, subKey, resolvedSubValue)
                 }
                 assignFlat(flat, `${key}.${subKey}`, resolvedSubValue)
@@ -483,7 +486,7 @@ interface MetricLookupContext {
 const logMetricLookupMatch = (
     context: MetricLookupContext,
     matchedKey: string,
-    source: "flat" | "raw" | "raw-prefixed",
+    source: "flat" | "flat-suffix" | "raw" | "raw-prefixed",
 ) => {
     if (process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG !== "true" || typeof window === "undefined") return
     // console.info("[EvalRunDetails2][MetricLookup] candidate match", {
@@ -491,6 +494,29 @@ const logMetricLookupMatch = (
     //     matchedKey,
     //     source,
     // })
+}
+
+/**
+ * Extract scalar value from a stats object.
+ * For single-count stats objects, use mean/sum. For multi-count, return the whole object.
+ */
+const extractScalarFromStats = (value: any): unknown => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value
+
+    // If it's a stats object with count: 1, extract the scalar value
+    if (typeof value.count === "number" && value.count === 1) {
+        // For single value, mean and sum should be the same
+        if (typeof value.mean === "number") return value.mean
+        if (typeof value.sum === "number") return value.sum
+        if (typeof value.max === "number") return value.max
+    }
+
+    // If it has a mean/sum for multi-count, use mean for display
+    if (typeof value.mean === "number") return value.mean
+    if (typeof value.sum === "number") return value.sum
+
+    // Return the whole object for complex stats (will be handled by the UI)
+    return value
 }
 
 const extractMetricValueFromData = (
@@ -519,11 +545,16 @@ const extractMetricValueFromData = (
     if (flattenedKey && flattenedKey !== canonicalPrimary) baseCandidates.push(flattenedKey)
     if (terminalKey) baseCandidates.push(terminalKey)
 
+    // For invocation metrics (attributes.ag.metrics.*), don't use stepKey for lookup
+    // because they're stored unprefixed in online evaluations
+    const isInvocationMetric = path.startsWith("attributes.ag.metrics.")
+    const effectiveStepKey = isInvocationMetric ? undefined : stepKey
+
     const stepCandidates: string[] = []
-    if (stepKey) {
+    if (effectiveStepKey) {
         baseCandidates.forEach((candidate) => {
             if (candidate) {
-                stepCandidates.push(`${stepKey}.${candidate}`)
+                stepCandidates.push(`${effectiveStepKey}.${candidate}`)
             }
         })
     }
@@ -543,7 +574,7 @@ const extractMetricValueFromData = (
     // Prioritize stepCandidates over evaluatorCandidates since online evaluations
     // use stepKey (e.g., "evaluator-142233c5fdb7") as the primary key in flatMap
     const candidates = (
-        stepKey && stepCandidates.length > 0
+        effectiveStepKey && stepCandidates.length > 0
             ? [...stepCandidates, ...evaluatorCandidates]
             : [...stepCandidates, ...evaluatorCandidates, ...baseCandidates]
     ).filter((candidate, index, array) => candidate && array.indexOf(candidate) === index)
@@ -551,7 +582,7 @@ const extractMetricValueFromData = (
     for (const candidate of candidates) {
         if (candidate && Object.prototype.hasOwnProperty.call(flatMap, candidate)) {
             logMetricLookupMatch(context, candidate, "flat")
-            return flatMap[candidate]
+            return extractScalarFromStats(flatMap[candidate])
         }
     }
 
@@ -567,23 +598,27 @@ const extractMetricValueFromData = (
     for (const suffix of suffixes) {
         const matchingKey = Object.keys(flatMap).find((key) => {
             if (!key.endsWith(suffix)) return false
-            // When stepKey is provided, only match keys that start with the stepKey
+            // When effectiveStepKey is provided, only match keys that start with the stepKey
             // to prevent cross-evaluator matching
-            if (stepKey && !key.startsWith(`${stepKey}.`) && key !== stepKey) {
+            if (
+                effectiveStepKey &&
+                !key.startsWith(`${effectiveStepKey}.`) &&
+                key !== effectiveStepKey
+            ) {
                 return false
             }
             return true
         })
         if (matchingKey) {
             logMetricLookupMatch(context, matchingKey, "flat-suffix")
-            return flatMap[matchingKey]
+            return extractScalarFromStats(flatMap[matchingKey])
         }
     }
 
     const resolvedFromRaw = resolveValueBySegments(data.raw, segments)
     if (resolvedFromRaw !== undefined) {
         logMetricLookupMatch(context, canonicalPrimary ?? segments.join("."), "raw")
-        return resolvedFromRaw
+        return extractScalarFromStats(resolvedFromRaw)
     }
 
     if (evaluatorKey) {
@@ -591,18 +626,18 @@ const extractMetricValueFromData = (
         const evaluatorResolved = resolveValueBySegments(data.raw, evaluatorSegments)
         if (evaluatorResolved !== undefined) {
             logMetricLookupMatch(context, `${evaluatorKey}.${segments.join(".")}`, "raw-prefixed")
-            return evaluatorResolved
+            return extractScalarFromStats(evaluatorResolved)
         }
     }
 
     if (canonicalPrimary && data.raw) {
         const prefixedSegments =
-            stepKey && canonicalPrimary !== stepKey
-                ? stepKey.split(".").filter(Boolean).concat(segments)
+            effectiveStepKey && canonicalPrimary !== effectiveStepKey
+                ? effectiveStepKey.split(".").filter(Boolean).concat(segments)
                 : null
         if (prefixedSegments) {
             const nested = resolveValueBySegments(data.raw, prefixedSegments)
-            if (nested !== undefined) return nested
+            if (nested !== undefined) return extractScalarFromStats(nested)
         }
     }
 
@@ -716,7 +751,7 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
     }),
 )
 
-export const evaluationMetricBatcherAtom = atom((get) => get(evaluationMetricBatcherFamily()))
+export const evaluationMetricBatcherAtom = atom((get) => get(evaluationMetricBatcherFamily({})))
 
 export const evaluationMetricQueryAtomFamily = atomFamily(
     ({scenarioId, runId}: {scenarioId: string; runId?: string | null}) =>
@@ -815,9 +850,11 @@ export const runLevelMetricQueryAtomFamily = atomFamily(({runId}: {runId?: strin
                 const response = await axios.post(
                     `/preview/evaluations/metrics/query`,
                     {
-                        run_ids: [effectiveRunId],
-                        scenario_ids: false,
-                        timestamps: false,
+                        metrics: {
+                            run_ids: [effectiveRunId],
+                            scenario_ids: false,
+                            timestamps: false,
+                        },
                     },
                     {params: {project_id: projectId}},
                 )

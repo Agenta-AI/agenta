@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useRef} from "react"
 
 import clsx from "clsx"
-import {useAtomValue, useSetAtom, useStore} from "jotai"
+import {useAtomValue, useStore} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails2/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
@@ -18,6 +18,7 @@ import {
 } from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
 
 import {MAX_COMPARISON_RUNS, compareRunIdsAtom, getComparisonColor} from "./atoms/compare"
+import {runDisplayNameAtomFamily} from "./atoms/runDerived"
 import {DEFAULT_SCENARIO_PAGE_SIZE} from "./atoms/table"
 import type {EvaluationTableColumn} from "./atoms/table"
 import type {PreviewTableRow} from "./atoms/tableRows"
@@ -32,7 +33,6 @@ import type {ScenarioColumnExportMetadata} from "./export/types"
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"
 import useRowHeightMenuItems from "./hooks/useRowHeightMenuItems"
-import {openFocusDrawerAtom, setFocusDrawerTargetAtom} from "./state/focusDrawerAtom"
 import {scenarioRowHeightAtom} from "./state/rowHeight"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
 
@@ -60,9 +60,9 @@ const EvalRunDetailsTable = ({
     const pageSize = skeletonRowCount ?? 50
     const compareRunIds = useAtomValue(compareRunIdsAtom)
     const rowHeight = useAtomValue(scenarioRowHeightAtom)
+    const runDisplayNameAtom = useMemo(() => runDisplayNameAtomFamily(runId), [runId])
+    const runDisplayName = useAtomValue(runDisplayNameAtom)
     const rowHeightMenuItems = useRowHeightMenuItems()
-    const setFocusDrawerTarget = useSetAtom(setFocusDrawerTargetAtom)
-    const openFocusDrawer = useSetAtom(openFocusDrawerAtom)
     const store = useStore()
 
     const basePagination = useInfiniteTablePagination({
@@ -192,16 +192,27 @@ const EvalRunDetailsTable = ({
             const targetRunId = record.runId ?? runId
             if (!targetRunId) return
 
-            const focusTarget = {focusRunId: targetRunId, focusScenarioId: scenarioId}
+            // Determine if we should open in compare mode
+            const isBaseRow = !record.isComparisonRow
+            const hasComparisons = compareRunIds.length > 0
+            const shouldCompare = isBaseRow && hasComparisons
+
+            const focusTarget = {
+                focusRunId: targetRunId,
+                focusScenarioId: scenarioId,
+                compareMode: shouldCompare,
+                testcaseId: shouldCompare ? record.testcaseId : undefined,
+                scenarioIndex: shouldCompare ? record.scenarioIndex : undefined,
+            }
             if (process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true") {
                 console.info("[EvalRunDetails2][Table] row click", {focusTarget, record})
             }
 
-            setFocusDrawerTarget(focusTarget)
-            openFocusDrawer(focusTarget)
+            // Use patchFocusDrawerQueryParams which writes to the global Jotai store
+            // (the table has an isolated Jotai Provider, so useSetAtom would write to the wrong store)
             patchFocusDrawerQueryParams(focusTarget)
         },
-        [openFocusDrawer, runId, setFocusDrawerTarget],
+        [runId, compareRunIds],
     )
 
     const handleLoadMore = useCallback(() => {
@@ -726,10 +737,10 @@ const EvalRunDetailsTable = ({
         () => ({
             resolveValue: exportResolveValue,
             resolveColumnLabel,
-            filename: `evaluation-scenarios-${runId}.csv`,
+            filename: `${runDisplayName || runId}-scenarios.csv`,
             beforeExport: loadAllPagesBeforeExport,
         }),
-        [exportResolveValue, resolveColumnLabel, runId, loadAllPagesBeforeExport],
+        [exportResolveValue, resolveColumnLabel, runId, runDisplayName, loadAllPagesBeforeExport],
     )
 
     return (
