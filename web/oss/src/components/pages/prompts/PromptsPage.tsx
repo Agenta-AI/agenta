@@ -181,8 +181,12 @@ const PromptsPage = () => {
     const rowKeyExtractor = useCallback((record: PromptsTableRow) => record.key, [])
 
     const handleRowClick = (record: FolderTreeItem) => {
-        if (record.type !== "folder") return
-        setCurrentFolderId(record.id as string | null)
+        if (record.type === "folder") {
+            setCurrentFolderId(record.id as string | null)
+            return
+        }
+
+        handleOpenAppOverview(record.app_id)
     }
 
     const handleBreadcrumbFolderChange = (folderId: string | null) => {
@@ -656,11 +660,8 @@ const PromptsPage = () => {
             tableLayout: "fixed" as const,
             scroll: {x: "max-content" as const},
             onRow: (record: PromptsTableRow) => ({
-                onClick:
-                    record.type === "folder"
-                        ? () => handleRowClick(record as FolderTreeNode)
-                        : undefined,
-                className: record.type === "folder" ? "cursor-pointer" : "",
+                onClick: () => handleRowClick(record),
+                className: "cursor-pointer",
                 draggable: true,
                 onDragStart: (event: any) => {
                     event.stopPropagation()
