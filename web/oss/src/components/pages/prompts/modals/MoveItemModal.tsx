@@ -1,8 +1,10 @@
 import {Modal, Tree} from "antd"
 import {DataNode} from "antd/es/tree"
+import React from "react"
 
-interface MoveAppModalProps {
-    appName?: string | null
+interface MoveItemModalProps {
+    itemName?: string | null
+    itemLabel?: string
     open: boolean
     onCancel: () => void
     onMove: () => void
@@ -14,8 +16,9 @@ interface MoveAppModalProps {
     disabledConfirm?: boolean
 }
 
-const MoveAppModal = ({
-    appName,
+const MoveItemModal = ({
+    itemName,
+    itemLabel = "item",
     open,
     onCancel,
     onMove,
@@ -25,20 +28,20 @@ const MoveAppModal = ({
     setMoveSelection,
     isMoving,
     disabledConfirm,
-}: MoveAppModalProps) => {
+}: MoveItemModalProps) => {
     return (
         <Modal
-            title="Move to folder"
+            title={`Move ${itemLabel}`}
             open={open}
             onOk={onMove}
             onCancel={onCancel}
-            okText={moveDestinationName ? `Move to ${moveDestinationName}` : "Move app"}
+            okText={moveDestinationName ? `Move to ${moveDestinationName}` : `Move ${itemLabel}`}
             okButtonProps={{disabled: disabledConfirm, loading: isMoving}}
             destroyOnHidden
         >
             <div className="flex flex-col gap-2">
                 <div className="text-gray-500">
-                    Moving <span className="font-medium">{appName || "app"}</span>
+                    Moving <span className="font-medium">{itemName || itemLabel}</span>
                 </div>
 
                 <div className="text-gray-500">Select folder</div>
@@ -55,4 +58,4 @@ const MoveAppModal = ({
     )
 }
 
-export default MoveAppModal
+export default MoveItemModal
