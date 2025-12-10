@@ -1,4 +1,4 @@
-import {AppstoreOutlined, DatabaseOutlined, GithubFilled} from "@ant-design/icons"
+import {AppstoreOutlined, DatabaseOutlined, GithubFilled, HomeOutlined} from "@ant-design/icons"
 import {
     ChartDonut,
     ChartLineUp,
@@ -41,14 +41,14 @@ export const useSidebarConfig = () => {
             key: "app-management-link",
             title: "App Management",
             link: baseAppURL,
-            icon: <AppstoreOutlined size={16} />,
+            icon: <HomeOutlined size={16} />,
             disabled: !hasProjectURL,
         },
         {
             key: "project-prompts-link",
             title: "Prompts",
             link: `${projectURL}/prompts`,
-            icon: <SquaresFourIcon size={16} />,
+            icon: <AppstoreOutlined size={16} />,
             disabled: !hasProjectURL,
         },
         {
