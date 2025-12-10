@@ -17,6 +17,8 @@ interface PromptsBreadcrumbProps {
     foldersById: Record<string, FolderTreeNode>
     currentFolderId: string | null
     onFolderChange?: (folderId: string | null) => void
+    onNewPrompt?: () => void
+    onSetupWorkflow?: () => void
     onNewFolder?: () => void
     onMoveFolder?: (folderId: string | null) => void
     onRenameFolder?: (folderId: string | null) => void
@@ -51,6 +53,8 @@ const PromptsBreadcrumb = ({
     foldersById,
     currentFolderId,
     onFolderChange,
+    onNewPrompt,
+    onSetupWorkflow,
     onNewFolder,
     onMoveFolder,
     onRenameFolder,
@@ -104,7 +108,7 @@ const PromptsBreadcrumb = ({
                 key: "new_prompt",
                 icon: <SquaresFourIcon size={16} />,
                 label: "New prompt",
-                onClick: () => {},
+                onClick: () => onNewPrompt?.(),
             },
             {
                 key: "new_folder",
@@ -119,7 +123,7 @@ const PromptsBreadcrumb = ({
                 key: "setup_workflow",
                 icon: <SetupWorkflowIcon />,
                 label: "Set up workflow",
-                onClick: () => {},
+                onClick: () => onSetupWorkflow?.(),
             },
             {
                 key: "delete_folder",
@@ -148,7 +152,17 @@ const PromptsBreadcrumb = ({
         })
 
         return base
-    }, [project, folderChain, onFolderChange, onNewFolder, onMoveFolder, onRenameFolder])
+    }, [
+        project,
+        folderChain,
+        onFolderChange,
+        onNewPrompt,
+        onSetupWorkflow,
+        onNewFolder,
+        onMoveFolder,
+        onRenameFolder,
+        onDeleteFolder,
+    ])
     return <Breadcrumb items={items} className={classes.container} />
 }
 

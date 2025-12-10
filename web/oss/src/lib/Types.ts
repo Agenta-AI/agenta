@@ -105,6 +105,7 @@ export interface ListAppsItem {
     app_type?: string
     created_at?: string
     updated_at: string
+    folder_id?: string | null
 }
 
 export type APP_TYPE = "completion" | "chat" | "custom"
