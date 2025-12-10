@@ -11,12 +11,14 @@ import GenericDrawer from "@/oss/components/GenericDrawer"
 import {VariantReferenceChip, TestsetChipList} from "@/oss/components/References"
 
 import ReadOnlyBox from "../../pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
+import {getComparisonSolidColor} from "../atoms/compare"
 import {
     applicationReferenceQueryAtomFamily,
     testsetReferenceQueryAtomFamily,
     variantReferenceQueryAtomFamily,
 } from "../atoms/references"
 import {effectiveProjectIdAtom} from "../atoms/run"
+import {runDisplayNameAtomFamily} from "../atoms/runDerived"
 import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../atoms/runDerived"
 import type {
     ColumnValueDescriptor,
@@ -34,10 +36,12 @@ import useRunIdentifiers from "../hooks/useRunIdentifiers"
 import useScenarioCellValue from "../hooks/useScenarioCellValue"
 import {
     closeFocusDrawerAtom,
+    compareScenarioMatchesAtom,
     focusScenarioAtom,
     isFocusDrawerOpenAtom,
     resetFocusDrawerAtom,
 } from "../state/focusDrawerAtom"
+import type {CompareScenarioInfo} from "../state/focusDrawerAtom"
 import {clearFocusDrawerQueryParams} from "../state/urlFocusDrawer"
 import {renderScenarioChatMessages} from "../utils/chatMessages"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../utils/metricFormatter"
@@ -125,6 +129,8 @@ const resolveRunMetricScalar = (stats: any): unknown => {
 interface FocusDrawerContentProps {
     runId: string
     scenarioId: string
+    /** When true, disables internal scrolling (for use in compare mode with shared scroll container) */
+    disableScroll?: boolean
 }
 
 interface SectionColumnEntry {
@@ -137,7 +143,78 @@ interface FocusDrawerSection {
     label: string
     columns: SectionColumnEntry[]
     anchorId: string
-    group: EvaluationTableColumn["groupId"] extends infer _ ? EvaluationTableColumn["groupId"] : any
+    group: EvaluationTableColumnGroup
+}
+
+/**
+ * Hook to compute sections for a given run
+ */
+const useFocusDrawerSections = (runId: string | null) => {
+    const {columnResult} = usePreviewTableData({runId: runId ?? undefined})
+    const descriptorMap = useAtomValue(
+        useMemo(() => columnValueDescriptorMapAtomFamily(runId), [runId]),
+    )
+    const runIndex = useAtomValue(useMemo(() => evaluationRunIndexAtomFamily(runId), [runId]))
+
+    const groups = columnResult?.groups ?? []
+    const columnMap = useMemo(() => {
+        const map = new Map<string, EvaluationTableColumn>()
+        columnResult?.columns.forEach((column) => {
+            map.set(column.id, column)
+        })
+        return map
+    }, [columnResult?.columns])
+
+    const sections = useMemo<FocusDrawerSection[]>(() => {
+        const resolveDescriptor = (column: EvaluationTableColumn) =>
+            descriptorMap?.[column.id] ?? createColumnValueDescriptor(column, runIndex)
+
+        return groups
+            .map((group) => {
+                if (group.kind === "metric" && group.id === "metrics:human") {
+                    return null
+                }
+
+                const sectionLabel =
+                    group.kind === "metric" && group.id === "metrics:auto" ? "Metrics" : group.label
+
+                const dynamicColumns: SectionColumnEntry[] = group.columnIds
+                    .map((columnId) => columnMap.get(columnId))
+                    .filter((column): column is EvaluationTableColumn => Boolean(column))
+                    .map((column) => ({
+                        column,
+                        descriptor: resolveDescriptor(column),
+                    }))
+
+                const staticColumns: SectionColumnEntry[] =
+                    group.kind === "metric" && group.staticMetricColumns?.length
+                        ? group.staticMetricColumns.map((definition) => {
+                              const column = buildStaticMetricColumn(group.id, definition)
+                              return {
+                                  column,
+                                  descriptor: resolveDescriptor(column),
+                              }
+                          })
+                        : []
+
+                const columns: SectionColumnEntry[] = [...dynamicColumns, ...staticColumns]
+
+                if (!columns.length) {
+                    return null
+                }
+
+                return {
+                    id: group.id,
+                    label: sectionLabel,
+                    columns,
+                    anchorId: toSectionAnchorId(group.id),
+                    group,
+                }
+            })
+            .filter((section): section is FocusDrawerSection => Boolean(section))
+    }, [columnMap, descriptorMap, groups, runIndex])
+
+    return {sections, isLoading: !columnResult}
 }
 
 interface InvocationRefs {
@@ -664,7 +741,256 @@ const InvocationMetaChips = memo(
 
 InvocationMetaChips.displayName = "InvocationMetaChips"
 
-export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps) => {
+/**
+ * Single run column content within a section (for compare mode)
+ */
+const CompareRunColumnContent = memo(
+    ({
+        runId,
+        scenarioId,
+        section,
+        compareIndex,
+    }: {
+        runId: string
+        scenarioId: string
+        section: FocusDrawerSection
+        compareIndex: number
+    }) => {
+        const runDisplayNameAtom = useMemo(() => runDisplayNameAtomFamily(runId), [runId])
+        const runDisplayName = useAtomValue(runDisplayNameAtom)
+
+        return (
+            <div className="flex-1 min-w-[280px] shrink-0 flex flex-col gap-3">
+                {/* Run header with color indicator */}
+                <div className="flex items-center gap-2 pb-2 border-b border-[#EAECF0]">
+                    <div
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{backgroundColor: getComparisonSolidColor(compareIndex)}}
+                    />
+                    <Text strong className="text-sm truncate">
+                        {runDisplayName ||
+                            (compareIndex === 0 ? "Base Run" : `Comparison ${compareIndex}`)}
+                    </Text>
+                </div>
+
+                {/* Invocation meta chips if applicable */}
+                {section.group?.kind === "invocation" ? (
+                    <InvocationMetaChips group={section.group} runId={runId} />
+                ) : null}
+
+                {/* Column values */}
+                <div className="flex flex-col gap-3">
+                    {section.columns.map(({column, descriptor}) => (
+                        <ScenarioColumnValue
+                            key={column.id}
+                            runId={runId}
+                            scenarioId={scenarioId}
+                            column={column}
+                            descriptor={descriptor}
+                            groupLabel={section.label}
+                        />
+                    ))}
+                </div>
+            </div>
+        )
+    },
+)
+
+CompareRunColumnContent.displayName = "CompareRunColumnContent"
+
+/**
+ * A single section card containing all runs side-by-side
+ */
+const CompareSectionCard = memo(
+    ({
+        sectionId,
+        sectionLabel,
+        sectionGroup,
+        compareScenarios,
+        sectionMapsPerRun,
+    }: {
+        sectionId: string
+        sectionLabel: string
+        sectionGroup: EvaluationTableColumnGroup | null
+        compareScenarios: {
+            runId: string | null
+            scenarioId: string | null
+            compareIndex: number
+        }[]
+        sectionMapsPerRun: Map<string, FocusDrawerSection>[]
+    }) => {
+        // Get the first available section for the label
+        const firstSection = sectionMapsPerRun.find((map) => map.get(sectionId))?.get(sectionId)
+
+        return (
+            <section className={`${SECTION_CARD_CLASS} flex flex-col`}>
+                {/* Section header */}
+                <div className="border-b border-[#EAECF0] px-4 py-3">
+                    <Title level={5} className="!mb-0 text-[#1D2939]">
+                        {sectionGroup && firstSection ? (
+                            <FocusGroupLabel
+                                group={sectionGroup}
+                                label={sectionLabel}
+                                runId={compareScenarios[0]?.runId ?? ""}
+                            />
+                        ) : (
+                            sectionLabel
+                        )}
+                    </Title>
+                </div>
+
+                {/* Run columns side by side */}
+                <div className="flex gap-4 p-4 overflow-x-auto">
+                    {compareScenarios.map(({runId, scenarioId, compareIndex}) => {
+                        const section = sectionMapsPerRun[compareIndex]?.get(sectionId)
+
+                        if (!runId || !scenarioId || !section) {
+                            return (
+                                <div
+                                    key={`empty-${compareIndex}`}
+                                    className="flex-1 min-w-[280px] shrink-0 flex items-center justify-center p-4 bg-gray-50 rounded-lg"
+                                >
+                                    <Text type="secondary">—</Text>
+                                </div>
+                            )
+                        }
+
+                        return (
+                            <CompareRunColumnContent
+                                key={`${runId}-${sectionId}`}
+                                runId={runId}
+                                scenarioId={scenarioId}
+                                section={section}
+                                compareIndex={compareIndex}
+                            />
+                        )
+                    })}
+                </div>
+            </section>
+        )
+    },
+)
+
+CompareSectionCard.displayName = "CompareSectionCard"
+
+/**
+ * Inner component that handles the section data fetching for compare mode
+ * This allows us to use hooks properly for each run
+ */
+const FocusDrawerCompareContentInner = ({
+    compareScenarios,
+}: {
+    compareScenarios: {
+        runId: string | null
+        scenarioId: string | null
+        compareIndex: number
+    }[]
+}) => {
+    // Get sections for base run (index 0)
+    const baseRunId = compareScenarios[0]?.runId ?? null
+    const {sections: baseSections} = useFocusDrawerSections(baseRunId)
+
+    // Get sections for comparison run 1 (index 1)
+    const compare1RunId = compareScenarios[1]?.runId ?? null
+    const {sections: compare1Sections} = useFocusDrawerSections(compare1RunId)
+
+    // Get sections for comparison run 2 (index 2)
+    const compare2RunId = compareScenarios[2]?.runId ?? null
+    const {sections: compare2Sections} = useFocusDrawerSections(compare2RunId)
+
+    // Collect all sections per run
+    const sectionsPerRun = useMemo(() => {
+        const result: FocusDrawerSection[][] = [baseSections]
+        if (compareScenarios.length > 1) result.push(compare1Sections)
+        if (compareScenarios.length > 2) result.push(compare2Sections)
+        return result
+    }, [baseSections, compare1Sections, compare2Sections, compareScenarios.length])
+
+    // Normalize section key for matching across runs
+    // Use group.kind for invocation/input sections (which have run-specific IDs)
+    // Use section.id for metric sections (which have stable IDs like "metrics:auto")
+    const getNormalizedSectionKey = (section: FocusDrawerSection): string => {
+        const kind = section.group?.kind
+        if (kind === "invocation" || kind === "input") {
+            return kind
+        }
+        return section.id
+    }
+
+    // Collect all unique normalized section keys in order with their labels and groups
+    const allSections = useMemo(() => {
+        const seen = new Set<string>()
+        const sections: {
+            normalizedKey: string
+            label: string
+            group: EvaluationTableColumnGroup | null
+        }[] = []
+        sectionsPerRun.forEach((runSections) => {
+            runSections.forEach((section) => {
+                const normalizedKey = getNormalizedSectionKey(section)
+                if (!seen.has(normalizedKey)) {
+                    seen.add(normalizedKey)
+                    sections.push({normalizedKey, label: section.label, group: section.group})
+                }
+            })
+        })
+        return sections
+    }, [sectionsPerRun])
+
+    // Create a map of normalizedKey -> section for each run
+    const sectionMapsPerRun = useMemo(() => {
+        return sectionsPerRun.map((sections) => {
+            const map = new Map<string, FocusDrawerSection>()
+            sections.forEach((section) => {
+                const normalizedKey = getNormalizedSectionKey(section)
+                map.set(normalizedKey, section)
+            })
+            return map
+        })
+    }, [sectionsPerRun])
+
+    return (
+        <div className="flex flex-col gap-4 p-4 overflow-auto h-full">
+            {allSections.map(({normalizedKey, label, group}) => (
+                <CompareSectionCard
+                    key={normalizedKey}
+                    sectionId={normalizedKey}
+                    sectionLabel={label}
+                    sectionGroup={group}
+                    compareScenarios={compareScenarios}
+                    sectionMapsPerRun={sectionMapsPerRun}
+                />
+            ))}
+        </div>
+    )
+}
+
+/**
+ * Comparison mode content - single column layout with sections containing multiple run columns
+ */
+const FocusDrawerCompareContent = () => {
+    const compareScenarios = useAtomValue(compareScenarioMatchesAtom)
+
+    if (!compareScenarios.length) {
+        return (
+            <div className="p-6">
+                <Text type="secondary">No comparison scenarios found</Text>
+            </div>
+        )
+    }
+
+    return (
+        <div className="flex flex-col h-full bg-[#F8FAFC]">
+            <FocusDrawerCompareContentInner compareScenarios={compareScenarios} />
+        </div>
+    )
+}
+
+export const FocusDrawerContent = ({
+    runId,
+    scenarioId,
+    disableScroll = false,
+}: FocusDrawerContentProps) => {
     const {columnResult} = usePreviewTableData({runId})
     const descriptorMap = useAtomValue(
         useMemo(() => columnValueDescriptorMapAtomFamily(runId ?? null), [runId]),
@@ -737,7 +1063,7 @@ export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps)
 
     return (
         <div
-            className="flex h-full flex-col gap-4 overflow-auto bg-[#F8FAFC] p-4"
+            className={`flex flex-col gap-4 bg-[#F8FAFC] p-4 ${disableScroll ? "" : "h-full overflow-auto"}`}
             data-focus-drawer-content
         >
             {sections.map((section) => (
@@ -784,15 +1110,16 @@ const FocusDrawer = () => {
 
     const focusRunId = focus?.focusRunId ?? null
     const focusScenarioId = focus?.focusScenarioId ?? null
+    const isCompareMode = focus?.compareMode ?? false
 
     const handleClose = useCallback(() => {
-        closeDrawer(null)
+        closeDrawer()
     }, [closeDrawer])
 
     const handleAfterOpenChange = useCallback(
         (nextOpen: boolean) => {
             if (!nextOpen) {
-                resetDrawer(null)
+                resetDrawer()
                 clearFocusDrawerQueryParams()
             }
         },
@@ -810,8 +1137,8 @@ const FocusDrawer = () => {
             open={isOpen}
             onClose={handleClose}
             afterOpenChange={handleAfterOpenChange}
-            expandable
             closeOnLayoutClick={false}
+            expandable
             className="[&_.ant-drawer-body]:p-0 [&_.ant-drawer-body]:bg-[#F8FAFC]"
             sideContentDefaultSize={240}
             headerExtra={
@@ -826,7 +1153,11 @@ const FocusDrawer = () => {
             }
             mainContent={
                 shouldRenderContent && focusScenarioId ? (
-                    <FocusDrawerContent runId={focusRunId} scenarioId={focusScenarioId} />
+                    isCompareMode ? (
+                        <FocusDrawerCompareContent />
+                    ) : (
+                        <FocusDrawerContent runId={focusRunId} scenarioId={focusScenarioId} />
+                    )
                 ) : (
                     <div className="p-6">
                         <Skeleton active paragraph={{rows: 6}} />

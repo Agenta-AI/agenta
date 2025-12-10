@@ -58,7 +58,9 @@ export type ScenarioColumnExportMetadata =
 /**
  * Build export metadata for a scenario column
  */
-export const buildExportMetadata = (column: EvaluationTableColumn): ScenarioColumnExportMetadata => {
+export const buildExportMetadata = (
+    column: EvaluationTableColumn,
+): ScenarioColumnExportMetadata => {
     const columnId = column.id
 
     // Meta columns (status, timestamp, etc.)
