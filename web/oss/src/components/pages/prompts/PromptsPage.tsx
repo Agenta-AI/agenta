@@ -3,6 +3,7 @@ import {useMemo, useState} from "react"
 import {Button, Dropdown, Input, Space, Spin, Table, Typography, message} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 import useSWR from "swr"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -19,6 +20,7 @@ import {
 
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
+import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {useProjectData} from "@/oss/state/project"
@@ -27,7 +29,7 @@ import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreati
 import {useProfileData} from "@/oss/state/profile"
 import {createFolder, deleteFolder, editFolder, queryFolders} from "@/oss/services/folders"
 import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
-import {buildFolderTree, FolderTreeItem, FolderTreeNode, slugify} from "./assets/utils"
+import {AppTreeNode, buildFolderTree, FolderTreeItem, FolderTreeNode, slugify} from "./assets/utils"
 import {MoreOutlined} from "@ant-design/icons"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {DataNode} from "antd/es/tree"
@@ -36,12 +38,20 @@ import DeleteFolderModal from "./modals/DeleteFolderModal"
 import NewFolderModal, {FolderModalState} from "./modals/NewFolderModal"
 import {Folder, FolderKind} from "@/oss/services/folders/types"
 import SetupWorkflowIcon from "./components/SetupWorkflowIcon"
-import {Template} from "@/oss/lib/Types"
-import {ServiceType, createAndStartTemplate, deleteApp} from "@/oss/services/app-selector/api"
+import {ListAppsItem, Template} from "@/oss/lib/Types"
+import {
+    ServiceType,
+    createAndStartTemplate,
+    deleteApp,
+    updateAppFolder,
+} from "@/oss/services/app-selector/api"
 import {getTemplateKey, timeout} from "@/oss/components/pages/app-management/assets/helpers"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {waitForAppToStart} from "@/oss/services/api"
+import MoveAppModal from "./modals/MoveAppModal"
+import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
+import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -63,10 +73,14 @@ const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
 
 const PromptsPage = () => {
     const {project, projectId} = useProjectData()
+    const router = useRouter()
+    const {baseAppURL} = useURL()
     const {secrets} = useVaultSecret()
     const posthog = usePostHogAg()
     const {user} = useProfileData()
     const {apps, mutate: mutateApps, isLoading: isLoadingApps} = useAppsData()
+    const openEditAppModal = useSetAtom(openEditAppModalAtom)
+    const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
     const [{data: templates = [], isLoading: fetchingTemplate}, noTemplateMessage] = useTemplates()
     const statusData = useAtomValue(appCreationStatusAtom)
     const setStatusData = useSetAtom(appCreationStatusAtom)
@@ -80,6 +94,9 @@ const PromptsPage = () => {
     const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null)
     const [moveSelection, setMoveSelection] = useState<string | null>(null)
     const [moveFolderId, setMoveFolderId] = useState<string | null>(null)
+    const [moveAppModalOpen, setMoveAppModalOpen] = useState(false)
+    const [moveAppId, setMoveAppId] = useState<string | null>(null)
+    const [appMoveSelection, setAppMoveSelection] = useState<string | null>(null)
     const [templateKey, setTemplateKey] = useState<ServiceType | undefined>(undefined)
     const [newApp, setNewApp] = useState("")
     const [fetchingCustomWorkflow, setFetchingCustomWorkflow] = useState(false)
@@ -89,6 +106,7 @@ const PromptsPage = () => {
     const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null)
     const [isSavingFolder, setIsSavingFolder] = useState(false)
     const [isMovingFolder, setIsMovingFolder] = useState(false)
+    const [isMovingApp, setIsMovingApp] = useState(false)
     const [isDeletingFolder, setIsDeletingFolder] = useState(false)
 
     const {openModal: openCustomWorkflowModal} = useCustomWorkflowConfig({
@@ -110,6 +128,15 @@ const PromptsPage = () => {
     const appNameExist = useMemo(
         () => apps.some((app: any) => (app.app_name || "").toLowerCase() === newApp.toLowerCase()),
         [apps, newApp],
+    )
+
+    const appsById = useMemo(
+        () =>
+            apps.reduce<Record<string, ListAppsItem>>((acc, app) => {
+                acc[app.app_id] = app
+                return acc
+            }, {}),
+        [apps],
     )
 
     const {roots, foldersById} = useMemo(() => {
@@ -145,6 +172,16 @@ const PromptsPage = () => {
         if (!moveSelection) return null
         return foldersById[moveSelection]?.name ?? moveSelection
     }, [moveSelection, foldersById])
+
+    const moveAppDestinationName = useMemo(() => {
+        if (!appMoveSelection) return null
+        return foldersById[appMoveSelection]?.name ?? appMoveSelection
+    }, [appMoveSelection, foldersById])
+
+    const moveAppName = useMemo(() => {
+        if (!moveAppId) return null
+        return appsById[moveAppId]?.app_name ?? moveAppId
+    }, [appsById, moveAppId])
 
     const moveFolderName = useMemo(() => {
         if (!moveFolderId) return null
@@ -376,6 +413,26 @@ const PromptsPage = () => {
         openCustomWorkflowModal()
     }
 
+    const handleOpenAppOverview = (appId: string | null) => {
+        if (!appId) return
+        router.push(`${baseAppURL}/${appId}/overview`)
+    }
+
+    const handleOpenMoveAppModal = (appId: string | null) => {
+        if (!appId) return
+
+        const app = appsById[appId]
+        setMoveAppId(appId)
+        setAppMoveSelection((app as any)?.folder_id ?? null)
+        setMoveAppModalOpen(true)
+    }
+
+    const handleCloseMoveAppModal = () => {
+        setMoveAppModalOpen(false)
+        setMoveAppId(null)
+        setAppMoveSelection(null)
+    }
+
     const handleOpenMoveModal = (folderId: string | null) => {
         if (!folderId) return
 
@@ -458,6 +515,48 @@ const PromptsPage = () => {
             setMoveModalOpen(false)
             setMoveFolderId(null)
             setMoveSelection(null)
+        })
+
+        if (!moveSuccess) return
+    }
+
+    const moveApp = async (
+        appId: string | null,
+        destinationId: string | null,
+        onSuccess?: () => void,
+    ) => {
+        if (!appId || !destinationId) {
+            message.warning("Select a destination folder")
+            return false
+        }
+
+        const app = appsById[appId]
+        const currentFolderId = (app as any)?.folder_id ?? null
+        if (currentFolderId === destinationId) {
+            message.info("App is already in the selected folder")
+            return false
+        }
+
+        setIsMovingApp(true)
+        try {
+            await updateAppFolder(appId, destinationId)
+            await mutateApps()
+            onSuccess?.()
+            message.success("App moved")
+            return true
+        } catch (error) {
+            message.error("Failed to move app")
+            return false
+        } finally {
+            setIsMovingApp(false)
+        }
+    }
+
+    const handleMoveApp = async () => {
+        const moveSuccess = await moveApp(moveAppId, appMoveSelection, () => {
+            setMoveAppModalOpen(false)
+            setMoveAppId(null)
+            setAppMoveSelection(null)
         })
 
         if (!moveSuccess) return
@@ -547,51 +646,111 @@ const PromptsPage = () => {
             fixed: "right",
             align: "center",
             render: (_, record) => {
-                if (record.type !== "folder") return null
+                if (record.type === "folder") {
+                    return (
+                        <Dropdown
+                            trigger={["click"]}
+                            overlayStyle={{width: 180}}
+                            menu={{
+                                items: [
+                                    {
+                                        key: "open_folder",
+                                        label: "Open",
+                                        icon: <NoteIcon size={16} />,
+                                        onClick: (e: any) => {
+                                            e.domEvent.stopPropagation()
+                                        },
+                                    },
+                                    {
+                                        key: "rename_folder",
+                                        label: "Rename",
+                                        icon: <PencilSimpleIcon size={16} />,
+                                        onClick: (e: any) => {
+                                            e.domEvent.stopPropagation()
+                                            handleOpenRenameModal(record.id as string)
+                                        },
+                                    },
+                                    {
+                                        key: "move_folder",
+                                        label: "Move",
+                                        icon: <FolderDashedIcon size={16} />,
+                                        onClick: (e: any) => {
+                                            e.domEvent.stopPropagation()
+                                            handleOpenMoveModal(record.id as string)
+                                        },
+                                    },
+                                    {
+                                        type: "divider",
+                                    },
+                                    {
+                                        key: "delete_folder",
+                                        label: "Delete",
+                                        icon: <TrashIcon size={16} />,
+                                        danger: true,
+                                        onClick: (e: any) => {
+                                            e.domEvent.stopPropagation()
+                                            handleOpenDeleteModal(record.id as string)
+                                        },
+                                    },
+                                ],
+                            }}
+                        >
+                            <Button
+                                type="text"
+                                onClick={(e) => e.stopPropagation()}
+                                icon={<MoreOutlined />}
+                                size="small"
+                            />
+                        </Dropdown>
+                    )
+                }
+
+                const appRecord = record as AppTreeNode
 
                 return (
                     <Dropdown
                         trigger={["click"]}
-                        overlayStyle={{width: 180}}
+                        overlayStyle={{width: 200}}
                         menu={{
                             items: [
                                 {
-                                    key: "open_folder",
+                                    key: "open_app",
                                     label: "Open",
-                                    icon: <NoteIcon size={16} />,
+                                    icon: <SquaresFourIcon size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
+                                        handleOpenAppOverview(appRecord.app_id)
                                     },
                                 },
                                 {
-                                    key: "rename_folder",
+                                    key: "rename_app",
                                     label: "Rename",
                                     icon: <PencilSimpleIcon size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        handleOpenRenameModal(record.id as string)
+                                        openEditAppModal(appRecord)
                                     },
                                 },
                                 {
-                                    key: "move_folder",
+                                    key: "move_app",
                                     label: "Move",
                                     icon: <FolderDashedIcon size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        handleOpenMoveModal(record.id as string)
+                                        handleOpenMoveAppModal(appRecord.app_id)
                                     },
                                 },
                                 {
                                     type: "divider",
                                 },
                                 {
-                                    key: "delete_folder",
+                                    key: "delete_app",
                                     label: "Delete",
                                     icon: <TrashIcon size={16} />,
                                     danger: true,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        handleOpenDeleteModal(record.id as string)
+                                        openDeleteAppModal(appRecord)
                                     },
                                 },
                             ],
@@ -736,6 +895,19 @@ const PromptsPage = () => {
                     />
                 </Spin>
             </div>
+
+            <MoveAppModal
+                appName={moveAppName}
+                moveDestinationName={moveAppDestinationName}
+                open={moveAppModalOpen}
+                onCancel={handleCloseMoveAppModal}
+                onMove={handleMoveApp}
+                treeData={treeData}
+                moveSelection={appMoveSelection}
+                setMoveSelection={setAppMoveSelection}
+                isMoving={isMovingApp}
+                disabledConfirm={!moveAppId || !appMoveSelection}
+            />
 
             <MoveFolderModal
                 folderName={moveFolderName}

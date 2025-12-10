@@ -165,6 +165,25 @@ export const updateAppName = async (appId: string, appName: string, ignoreAxiosE
     return response.data
 }
 
+export const updateAppFolder = async (
+    appId: string,
+    folderId: string | null,
+    ignoreAxiosError = false,
+) => {
+    const {projectId} = getProjectValues()
+
+    const response = await axios.patch(
+        `${getAgentaApiUrl()}/apps/${appId}?project_id=${projectId}`,
+        {
+            id: appId,
+            folder_id: folderId,
+        },
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+
+    return response.data
+}
+
 export const createAndStartTemplate = async ({
     appName,
     providerKey,
