@@ -9,7 +9,13 @@ import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 import {SocialAuthProps} from "../assets/types"
 
-const SocialAuth = ({authErrorMsg, isLoading, setIsLoading, disabled}: SocialAuthProps) => {
+const SocialAuth = ({
+    authErrorMsg,
+    isLoading,
+    setIsLoading,
+    disabled,
+    showDivider = true,
+}: SocialAuthProps) => {
     const router = useRouter()
     const inFlight = useRef(false)
 
@@ -79,7 +85,7 @@ const SocialAuth = ({authErrorMsg, isLoading, setIsLoading, disabled}: SocialAut
                 </Button>
             </div>
 
-            <Divider className="!m-0">or</Divider>
+            {showDivider && <Divider className="!m-0">or</Divider>}
         </>
     )
 }

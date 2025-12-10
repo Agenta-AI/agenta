@@ -9,7 +9,9 @@ import {useRouter} from "next/router"
 import {getLoginAttemptInfo} from "supertokens-auth-react/recipe/passwordless"
 import {useLocalStorage} from "usehooks-ts"
 
+import axios from "@/oss/lib/api/assets/axiosConfig"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {isDemo} from "@/oss/lib/helpers/utils"
@@ -28,9 +30,17 @@ const Auth = () => {
     const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
+    const [availableMethods, setAvailableMethods] = useState<{
+        "email:password"?: boolean
+        "email:otp"?: boolean
+        "social:google"?: boolean
+        "social:github"?: boolean
+    }>({})
     const [invite, setInvite] = useLocalStorage("invite", {})
     const router = useRouter()
     const authnEmail = getEnv("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL") || "password"
+    const authEmailEnabled = (getEnv("NEXT_PUBLIC_AGENTA_AUTH_EMAIL_ENABLED") || "").toLowerCase() === "true"
+    const authOidcEnabled = (getEnv("NEXT_PUBLIC_AGENTA_AUTH_OIDC_ENABLED") || "").toLowerCase() === "true"
     const isPasswordlessDemo = isDemo() && authnEmail === "otp"
 
     const firstString = (value: string | string[] | undefined): string | undefined => {
@@ -104,6 +114,43 @@ const Auth = () => {
         }
     }, [])
 
+    useEffect(() => {
+        const emailForDiscover = emailFromQuery ?? ""
+
+        // Only probe discover if either auth path is configured
+        if (!authEmailEnabled && !authOidcEnabled) return
+
+        const fetchDiscover = async () => {
+            try {
+                const resp = await axios.post(`${getAgentaApiUrl()}/auth/discover`, {
+                    email: emailForDiscover,
+                })
+                if (resp?.data?.methods) {
+                    setAvailableMethods(resp.data.methods)
+                }
+            } catch (err) {
+                // Ignore discover failures; UI will fall back to env flags
+                console.warn("Failed to fetch auth discover info", err)
+            }
+        }
+
+        fetchDiscover()
+    }, [authEmailEnabled, authOidcEnabled, emailFromQuery])
+
+    const socialAvailable =
+        authOidcEnabled &&
+        (availableMethods["social:google"] === true ||
+            availableMethods["social:github"] === true ||
+            Object.keys(availableMethods).length === 0)
+
+    const emailPasswordAvailable =
+        authEmailEnabled &&
+        authnEmail === "password" &&
+        (availableMethods["email:password"] !== false)
+
+    const emailOtpAvailable =
+        authEmailEnabled && authnEmail === "otp" && (availableMethods["email:otp"] !== false)
+
     useLazyEffect(() => {
         if (message.message && message.type !== "error") {
             setTimeout(() => {
@@ -168,21 +215,18 @@ const Auth = () => {
                         />
                     )}
 
-                    {!isPasswordlessDemo ? (
-                        <EmailPasswordAuth
-                            message={message}
-                            setMessage={setMessage}
+                    {socialAvailable && (
+                        <SocialAuth
                             authErrorMsg={authErrorMsg}
-                            initialEmail={emailFromQuery}
+                            disabled={isAuthLoading}
+                            isLoading={isSocialAuthLoading}
+                            setIsLoading={setIsSocialAuthLoading}
+                            showDivider={emailOtpAvailable || emailPasswordAvailable}
                         />
-                    ) : !isLoginCodeVisible ? (
-                        <>
-                            <SocialAuth
-                                authErrorMsg={authErrorMsg}
-                                disabled={isAuthLoading}
-                                isLoading={isSocialAuthLoading}
-                                setIsLoading={setIsSocialAuthLoading}
-                            />
+                    )}
+
+                    {emailOtpAvailable ? (
+                        !isLoginCodeVisible ? (
                             <PasswordlessAuth
                                 email={email}
                                 setEmail={setEmail}
@@ -194,17 +238,24 @@ const Auth = () => {
                                 setIsLoginCodeVisible={setIsLoginCodeVisible}
                                 disabled={isSocialAuthLoading}
                             />
-                        </>
-                    ) : (
-                        <SendOTP
+                        ) : (
+                            <SendOTP
+                                message={message}
+                                email={email}
+                                setMessage={setMessage}
+                                authErrorMsg={authErrorMsg}
+                                setIsLoginCodeVisible={setIsLoginCodeVisible}
+                                isInvitedUser={isInvitedUser}
+                            />
+                        )
+                    ) : emailPasswordAvailable ? (
+                        <EmailPasswordAuth
                             message={message}
-                            email={email}
                             setMessage={setMessage}
                             authErrorMsg={authErrorMsg}
-                            setIsLoginCodeVisible={setIsLoginCodeVisible}
-                            isInvitedUser={isInvitedUser}
+                            initialEmail={emailFromQuery}
                         />
-                    )}
+                    ) : null}
 
                     {isDemo() && !isLoginCodeVisible && (
                         <Text>

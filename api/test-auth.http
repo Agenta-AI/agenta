@@ -1,0 +1,409 @@
+### Auth Endpoints Testing
+### Base URL
+@baseUrl = http://localhost
+@apiBaseUrl = {{baseUrl}}/api/auth
+
+### NOTE: FastAPI app has root_path="/api" (line 150 in entrypoints/routers.py)
+### So auth router mounted at "/auth" becomes "/api/auth" in final URLs
+
+################################################################################
+# 1. Discover Authentication Methods (ALWAYS AVAILABLE)
+################################################################################
+# This endpoint works regardless of configuration
+# Returns available authentication methods based on:
+# - Environment variables (AGENTA_AUTHN_EMAIL, AGENTA_AUTHN_GOOGLE_ENABLED, etc.)
+# - Organization policies (EE only)
+# - User's existing identities
+
+POST {{apiBaseUrl}}/discover
+Content-Type: application/json
+
+{
+  "email": "jp@agenta.ai"
+}
+
+# Expected response (default config with no env vars):
+# {
+#   "user_exists": false,
+#   "primary_method": "email:password",
+#   "methods": {
+#     "email:password": true,
+#     "email:otp": false,
+#     "social:google": false,
+#     "social:github": false,
+#     "sso": false
+#   }
+# }
+
+################################################################################
+# 2. EMAIL/PASSWORD AUTHENTICATION (DEFAULT)
+################################################################################
+# Available when: AGENTA_AUTHN_EMAIL is NOT set OR = "password" (default)
+# This is the DEFAULT authentication method when no env vars are configured
+
+### 2a. Sign Up (Email/Password)
+POST {{apiBaseUrl}}/signup
+Content-Type: application/json
+
+{
+  "formFields": [
+    {
+      "id": "email",
+      "value": "test@example.com"
+    },
+    {
+      "id": "password",
+      "value": "SecurePassword123!"
+    }
+  ]
+}
+
+### 2b. Sign In (Email/Password)
+POST {{apiBaseUrl}}/signin
+Content-Type: application/json
+
+{
+  "formFields": [
+    {
+      "id": "email",
+      "value": "test@example.com"
+    },
+    {
+      "id": "password",
+      "value": "SecurePassword123!"
+    }
+  ]
+}
+
+################################################################################
+# 3. EMAIL OTP AUTHENTICATION (PASSWORDLESS)
+################################################################################
+# Available when: AGENTA_AUTHN_EMAIL="otp"
+# NOTE: These endpoints return 404 if email OTP is NOT enabled!
+
+### 3a. Create OTP Code (Email OTP)
+POST {{apiBaseUrl}}/signinup/code
+Content-Type: application/json
+
+{
+  "email": "jp@agenta.ai"
+}
+
+# Response contains:
+# {
+#   "status": "OK",
+#   "deviceId": "...",
+#   "preAuthSessionId": "...",
+#   "flowType": "USER_INPUT_CODE"
+# }
+
+### 3b. Consume OTP Code (Email OTP)
+POST {{apiBaseUrl}}/signinup/code/consume
+Content-Type: application/json
+
+{
+  "preAuthSessionId": "zpIr-uEZ0uaD0EAdzoAB-qZy0IC3qBYUH7ZYghtPfEk",
+  "deviceId": "tVzJYqpnPHDcsSXaOEf5nQG1SfTjkJ0X+41deOAvpwE=",
+  "userInputCode": "599869"
+}
+
+################################################################################
+# 4. SOCIAL OAUTH AUTHENTICATION
+################################################################################
+# Available when:
+# - Google: AGENTA_AUTHN_GOOGLE_ENABLED=true + client ID/secret configured
+# - GitHub: AGENTA_AUTHN_GITHUB_ENABLED=true + client ID/secret configured
+
+### 4a. Google - Get Authorization URL
+GET {{apiBaseUrl}}/authorisationurl?thirdPartyId=google&redirectURIOnProviderDashboard={{baseUrl}}/auth/callback/google
+
+# Response:
+# {
+#   "status": "OK",
+#   "urlWithQueryParams": "https://accounts.google.com/o/oauth2/v2/auth?..."
+# }
+
+### 4b. GitHub - Get Authorization URL
+GET {{apiBaseUrl}}/authorisationurl?thirdPartyId=github&redirectURIOnProviderDashboard={{baseUrl}}/auth/callback/github
+
+### 4c. OAuth Callback (handled automatically by SuperTokens)
+# After user authorizes on provider:
+# Provider redirects to: {{baseUrl}}/auth/callback/google
+# SuperTokens handles the callback, creates session, and redirects to frontend
+
+################################################################################
+# 5. OIDC/SSO AUTHENTICATION (EE ONLY)
+################################################################################
+# Available when: EE edition + organization has configured OIDC providers
+# Requires organization_providers table with enabled providers
+
+### 5a. OIDC - Initiate Authorization
+GET {{apiBaseUrl}}/authorize/oidc?provider_id=PROVIDER_UUID&redirect=/dashboard
+
+# This endpoint:
+# 1. Validates provider access
+# 2. Redirects to SuperTokens OIDC flow
+# 3. SuperTokens handles OIDC exchange
+# 4. Creates session with user identities
+# 5. Redirects to specified redirect path
+
+### 5b. OIDC Callback (handled automatically by SuperTokens)
+# Provider redirects to: {{baseUrl}}/auth/callback/custom
+# SuperTokens processes OIDC callback and creates session
+
+################################################################################
+# 6. SESSION MANAGEMENT (ALWAYS AVAILABLE)
+################################################################################
+# These endpoints are available regardless of which auth method was used
+
+### 6a. Verify Session
+GET {{apiBaseUrl}}/session/verify
+Cookie: sAccessToken=YOUR_ACCESS_TOKEN; sRefreshToken=YOUR_REFRESH_TOKEN
+
+### 6b. Refresh Session
+POST {{apiBaseUrl}}/session/refresh
+Cookie: sRefreshToken=YOUR_REFRESH_TOKEN
+
+### 6c. Sign Out
+POST {{apiBaseUrl}}/signout
+Cookie: sAccessToken=YOUR_ACCESS_TOKEN
+
+### 6d. Get Session User Info
+GET {{apiBaseUrl}}/session
+Cookie: sAccessToken=YOUR_ACCESS_TOKEN
+
+################################################################################
+# 7. SUPERTOKENS DASHBOARD (ADMIN)
+################################################################################
+# Available when: Dashboard recipe is enabled (default)
+GET {{baseUrl}}/auth/dashboard
+
+
+################################################################################
+# CURL COMMANDS
+################################################################################
+
+### 1. Discover (custom endpoint - always works)
+# curl -X POST http://localhost/api/auth/discover \
+#   -H "Content-Type: application/json" \
+#   -d '{"email": "test@example.com"}'
+
+### 2a. Email/Password - Sign Up (DEFAULT - works without env vars)
+# curl -X POST http://localhost/api/auth/signup \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "formFields": [
+#       {"id": "email", "value": "test@example.com"},
+#       {"id": "password", "value": "SecurePassword123!"}
+#     ]
+#   }'
+
+### 2b. Email/Password - Sign In (DEFAULT)
+# curl -X POST http://localhost/api/auth/signin \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "formFields": [
+#       {"id": "email", "value": "test@example.com"},
+#       {"id": "password", "value": "SecurePassword123!"}
+#     ]
+#   }'
+
+### 3a. Email OTP - Create Code (only if AGENTA_AUTHN_EMAIL=otp)
+# curl -X POST http://localhost/api/auth/signinup/code \
+#   -H "Content-Type: application/json" \
+#   -d '{"email": "test@example.com"}'
+
+### 3b. Email OTP - Consume Code (only if AGENTA_AUTHN_EMAIL=otp)
+# curl -X POST http://localhost/api/auth/signinup/code/consume \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "preAuthSessionId": "SESSION_ID",
+#     "deviceId": "DEVICE_ID",
+#     "userInputCode": "123456"
+#   }'
+
+### 4a. Google OAuth - Get URL (only if AGENTA_AUTHN_GOOGLE_ENABLED=true)
+# curl -X GET "http://localhost/api/auth/authorisationurl?thirdPartyId=google&redirectURIOnProviderDashboard=http://localhost/auth/callback/google"
+
+### 4b. GitHub OAuth - Get URL (only if AGENTA_AUTHN_GITHUB_ENABLED=true)
+# curl -X GET "http://localhost/api/auth/authorisationurl?thirdPartyId=github&redirectURIOnProviderDashboard=http://localhost/auth/callback/github"
+
+### 5. OIDC/SSO - Authorize (EE only, requires configured providers)
+# curl -X GET "http://localhost/api/auth/authorize/oidc?provider_id=UUID&redirect=/dashboard"
+
+### 6a. Session - Verify
+# curl -X GET http://localhost/api/auth/session/verify \
+#   -H "Cookie: sAccessToken=YOUR_TOKEN"
+
+### 6b. Session - Refresh
+# curl -X POST http://localhost/api/auth/session/refresh \
+#   -H "Cookie: sRefreshToken=YOUR_REFRESH_TOKEN"
+
+### 6c. Session - Sign Out
+# curl -X POST http://localhost/api/auth/signout \
+#   -H "Cookie: sAccessToken=YOUR_TOKEN"
+
+
+################################################################################
+# AUTHENTICATION FLOW DOCUMENTATION
+################################################################################
+
+# ============================================================================
+# DEFAULT CONFIGURATION (No environment variables set)
+# ============================================================================
+# When AGENTA_AUTHN_EMAIL is NOT set or = "password":
+# - Email/Password authentication is ENABLED (default)
+# - Available endpoints: /discover, /signup, /signin, /signout, /session/*
+# - SuperTokens emailpassword recipe is initialized
+#
+# Expected discover response:
+# {
+#   "primary_method": "email:password",
+#   "methods": {
+#     "email:password": true,
+#     "email:otp": false,
+#     "social:google": false,
+#     "social:github": false,
+#     "sso": false
+#   }
+# }
+
+# ============================================================================
+# EMAIL OTP CONFIGURATION
+# ============================================================================
+# Set: AGENTA_AUTHN_EMAIL=otp
+# - Email OTP authentication is ENABLED
+# - Email/Password authentication is DISABLED
+# - Available endpoints: /discover, /signinup/code, /signinup/code/consume, /signout, /session/*
+# - SuperTokens passwordless recipe is initialized
+#
+# Expected discover response:
+# {
+#   "primary_method": "email:otp",
+#   "methods": {
+#     "email:password": false,
+#     "email:otp": true,
+#     "social:google": false,
+#     "social:github": false,
+#     "sso": false
+#   }
+# }
+
+# ============================================================================
+# SOCIAL OAUTH CONFIGURATION
+# ============================================================================
+# Set: AGENTA_AUTHN_GOOGLE_ENABLED=true
+#      AGENTA_AUTHN_GOOGLE_CLIENT_ID=your_client_id
+#      AGENTA_AUTHN_GOOGLE_CLIENT_SECRET=your_client_secret
+# - Google OAuth is ENABLED
+# - Available endpoints: /authorisationurl?thirdPartyId=google
+# - SuperTokens thirdparty recipe is initialized with Google provider
+#
+# Set: AGENTA_AUTHN_GITHUB_ENABLED=true
+#      AGENTA_AUTHN_GITHUB_CLIENT_ID=your_client_id
+#      AGENTA_AUTHN_GITHUB_CLIENT_SECRET=your_client_secret
+# - GitHub OAuth is ENABLED
+# - Available endpoints: /authorisationurl?thirdPartyId=github
+# - SuperTokens thirdparty recipe is initialized with GitHub provider
+
+# ============================================================================
+# OIDC/SSO CONFIGURATION (EE ONLY)
+# ============================================================================
+# Requires:
+# 1. EE edition enabled
+# 2. Organization with verified domain in organization_domains table
+# 3. OIDC provider configured in organization_providers table
+# 4. Provider must be enabled and linked to domain
+#
+# Available endpoints: /authorize/oidc?provider_id=UUID
+# SuperTokens thirdparty recipe handles OIDC exchange
+#
+# Expected discover response (when domain has SSO):
+# {
+#   "primary_method": "sso",
+#   "methods": {
+#     "email:password": false,
+#     "email:otp": false,
+#     "social:google": false,
+#     "social:github": false,
+#     "sso": {
+#       "available": true,
+#       "required_by_some_orgs": false,
+#       "providers": [
+#         {
+#           "slug": "okta",
+#           "name": "ACME SSO",
+#           "recommended": true
+#         }
+#       ]
+#     }
+#   }
+# }
+
+# ============================================================================
+# COMMON ERRORS
+# ============================================================================
+# 404 on /signup or /signin:
+#   - Email/Password recipe is NOT enabled
+#   - Check: AGENTA_AUTHN_EMAIL should be "password" or unset
+#
+# 404 on /signinup/code:
+#   - Email OTP recipe is NOT enabled
+#   - Check: AGENTA_AUTHN_EMAIL should be "otp"
+#
+# 404 on /authorisationurl?thirdPartyId=google:
+#   - Google OAuth is NOT enabled
+#   - Check: AGENTA_AUTHN_GOOGLE_ENABLED=true and credentials configured
+#
+# 404 on /authorize/oidc:
+#   - OIDC endpoints are EE only
+#   - Check: EE edition enabled and provider configured
+#
+# All methods false in discover response:
+#   - No authentication methods are configured
+#   - This should NOT happen - email:password is always default
+#   - Check SuperTokens initialization in oss/src/__init__.py
+
+# ============================================================================
+# SUPERTOKENS RECIPE INITIALIZATION
+# ============================================================================
+# Location: /Users/junaway/Agenta/github/agenta/api/oss/src/__init__.py
+#
+# Email/Password (default):
+#   - Initialized when: env.auth.email_method == "password" OR not set
+#   - Recipe: emailpassword.init()
+#   - Endpoints: /signup, /signin
+#
+# Email OTP:
+#   - Initialized when: env.auth.email_method == "otp"
+#   - Recipe: passwordless.init()
+#   - Endpoints: /signinup/code, /signinup/code/consume
+#
+# Third-Party (Social OAuth):
+#   - Initialized when: env.auth.google_enabled OR env.auth.github_enabled
+#   - Recipe: thirdparty.init()
+#   - Endpoints: /authorisationurl, /callback/{provider}
+#
+# Session:
+#   - Always initialized
+#   - Recipe: session.init()
+#   - Endpoints: /session/verify, /session/refresh
+#
+# Dashboard:
+#   - Always initialized
+#   - Recipe: dashboard.init()
+#   - Endpoints: /dashboard
+
+# ============================================================================
+# SESSION PAYLOAD
+# ============================================================================
+# After successful authentication, SuperTokens creates a session with:
+# - User ID (from SuperTokens)
+# - Email
+# - Identities (list of authentication methods used)
+#   Example: ["email:password"], ["email:otp"], ["social:google", "email:otp"]
+#
+# Session cookies:
+# - sAccessToken: Short-lived access token
+# - sRefreshToken: Long-lived refresh token
+# - Both are httpOnly, secure, sameSite=lax

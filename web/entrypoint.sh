@@ -27,6 +27,20 @@ echo "[entrypoint.sh] Creating ${AGENTA_LICENSE}/public/__env.js with the follow
 
 mkdir -p "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public"
 
+# Derive frontend auth feature flags
+AUTH_EMAIL_ENABLED="false"
+if [ "${AGENTA_AUTHN_EMAIL}" = "password" ] || [ "${AGENTA_AUTHN_EMAIL}" = "otp" ]; then
+  AUTH_EMAIL_ENABLED="true"
+fi
+
+AUTH_OIDC_ENABLED="false"
+if [ -n "${GOOGLE_OAUTH_CLIENT_ID}" ] && [ -n "${GOOGLE_OAUTH_CLIENT_SECRET}" ]; then
+  AUTH_OIDC_ENABLED="true"
+fi
+if [ -n "${GITHUB_OAUTH_CLIENT_ID}" ] && [ -n "${GITHUB_OAUTH_CLIENT_SECRET}" ]; then
+  AUTH_OIDC_ENABLED="true"
+fi
+
 cat > "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public/__env.js" <<EOF
 window.__env = {
   NEXT_PUBLIC_AGENTA_LICENSE: "${AGENTA_LICENSE:-oss}",
@@ -38,6 +52,8 @@ window.__env = {
   NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID: "${GOOGLE_OAUTH_CLIENT_ID}",
   NEXT_PUBLIC_AGENTA_AUTH_GITHUB_OAUTH_CLIENT_ID: "${GITHUB_OAUTH_CLIENT_ID}",
   NEXT_PUBLIC_AGENTA_SENDGRID_ENABLED: "${AGENTA_SENDGRID_ENABLED}",
+  NEXT_PUBLIC_AGENTA_AUTH_EMAIL_ENABLED: "${AUTH_EMAIL_ENABLED}",
+  NEXT_PUBLIC_AGENTA_AUTH_OIDC_ENABLED: "${AUTH_OIDC_ENABLED}",
 };
 EOF
 

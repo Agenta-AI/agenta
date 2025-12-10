@@ -33,4 +33,5 @@ export interface SocialAuthProps {
     authErrorMsg: (error: any) => void
     setIsLoading: React.Dispatch<React.SetStateAction<boolean>>
     disabled: boolean
+    showDivider?: boolean
 }
