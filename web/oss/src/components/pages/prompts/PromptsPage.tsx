@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {Button, Dropdown, Input, Space, Spin, Table, Typography, message} from "antd"
 import {ColumnsType} from "antd/es/table"
@@ -107,6 +107,11 @@ const PromptsPage = () => {
         mutate,
     } = useSWR(projectId ? ["folders", projectId] : null, () => queryFolders({folder: {}}))
 
+    const isLoadingInitialData = useMemo(
+        () => isLoading || isLoadingApps || !foldersData,
+        [foldersData, isLoading, isLoadingApps],
+    )
+
     const appNameExist = useMemo(
         () => apps.some((app: any) => (app.app_name || "").toLowerCase() === newApp.toLowerCase()),
         [apps, newApp],
@@ -163,7 +168,63 @@ const PromptsPage = () => {
         return current?.children ?? roots
     }, [currentFolderId, roots, foldersById])
 
+    const filteredRows: FolderTreeItem[] = useMemo(() => {
+        const normalizedSearchTerm = searchTerm.trim().toLowerCase()
+        const rowsToFilter = normalizedSearchTerm ? roots : visibleRows
+
+        if (!normalizedSearchTerm) return rowsToFilter
+
+        const matchesSearch = (item: FolderTreeItem) => {
+            const name = item.type === "folder" ? item.name : item.app_name
+            return (name ?? "").toLowerCase().includes(normalizedSearchTerm)
+        }
+
+        const filterNode = (item: FolderTreeItem): FolderTreeItem | null => {
+            if (item.type === "folder") {
+                const filteredChildren = (item.children ?? [])
+                    .map(filterNode)
+                    .filter(Boolean) as FolderTreeItem[]
+
+                if (matchesSearch(item) || filteredChildren.length) {
+                    return {
+                        ...item,
+                        children: filteredChildren,
+                    }
+                }
+
+                return null
+            }
+
+            return matchesSearch(item) ? item : null
+        }
+
+        return rowsToFilter.map(filterNode).filter(Boolean) as FolderTreeItem[]
+    }, [foldersById, roots, searchTerm, visibleRows])
+
+    const searchExpandedRowKeys = useMemo(() => {
+        if (!searchTerm.trim()) return []
+
+        const expanded: string[] = []
+
+        const collectFolderIds = (items: FolderTreeItem[]) => {
+            items.forEach((item) => {
+                if (item.type !== "folder") return
+
+                if (item.children && item.children.length > 0) {
+                    expanded.push(item.id as string)
+                    collectFolderIds(item.children)
+                }
+            })
+        }
+
+        collectFolderIds(filteredRows)
+
+        return expanded
+    }, [filteredRows, searchTerm])
+
     const tableRows: FolderTreeItem[] = useMemo(() => {
+        if (isLoadingInitialData) return []
+
         const sanitizeNode = (item: FolderTreeItem): FolderTreeItem => {
             if (item.type !== "folder") {
                 return item
@@ -185,8 +246,8 @@ const PromptsPage = () => {
             }
         }
 
-        return visibleRows.map(sanitizeNode)
-    }, [visibleRows])
+        return filteredRows.map(sanitizeNode)
+    }, [filteredRows, isLoadingInitialData])
 
     const handleRowClick = (record: FolderTreeItem) => {
         if (record.type !== "folder") return
@@ -475,8 +536,45 @@ const PromptsPage = () => {
         })
     }
 
+    const folderHasApps = useCallback(
+        (folderId: string | null) => {
+            if (!folderId) return false
+
+            const folder = foldersById[folderId]
+
+            if (!folder) return false
+
+            const stack = [...(folder.children ?? [])]
+
+            while (stack.length) {
+                const node = stack.pop()
+
+                if (!node) continue
+
+                if (node.type === "app") {
+                    return true
+                }
+
+                if (node.type === "folder") {
+                    stack.push(...(node.children ?? []))
+                }
+            }
+
+            return false
+        },
+        [foldersById],
+    )
+
     const handleOpenDeleteModal = (folderId: string | null) => {
         if (!folderId) return
+
+        if (folderHasApps(folderId)) {
+            message.warning(
+                "Unable to delete folder. Please remove all prompts from this folder and subfolders",
+            )
+            return
+        }
+
         setDeleteFolderId(folderId)
         setDeleteModalOpen(true)
     }
@@ -510,7 +608,7 @@ const PromptsPage = () => {
         }
     }
 
-    const isLoadingTable = useMemo(() => isLoading || isLoadingApps, [isLoading, isLoadingApps])
+    const isLoadingTable = isLoadingInitialData
 
     const columns: ColumnsType<FolderTreeItem> = [
         {
@@ -561,6 +659,7 @@ const PromptsPage = () => {
                                     icon: <NoteIcon size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
+                                        handleRowClick(record as FolderTreeNode)
                                     },
                                 },
                                 {
@@ -656,7 +755,7 @@ const PromptsPage = () => {
                                         label: "New prompt",
                                         onClick: (event) => {
                                             event.domEvent.stopPropagation()
-                                            // onNewPrompt?.()
+                                            handleOpenNewPromptModal()
                                         },
                                     },
                                     {
@@ -677,7 +776,7 @@ const PromptsPage = () => {
                                         label: "Set up workflow",
                                         onClick: (event) => {
                                             event.domEvent.stopPropagation()
-                                            // onSetupWorkflow?.()
+                                            handleSetupWorkflow()
                                         },
                                     },
                                 ],
@@ -696,6 +795,13 @@ const PromptsPage = () => {
                         columns={columns}
                         dataSource={tableRows}
                         pagination={false}
+                        expandable={
+                            searchTerm
+                                ? {
+                                      expandedRowKeys: searchExpandedRowKeys,
+                                  }
+                                : undefined
+                        }
                         bordered
                         rowKey={(record) =>
                             record.type === "folder" ? (record.id as string) : record.app_id
