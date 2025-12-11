@@ -22,6 +22,8 @@ export interface FolderTreeNode extends Folder {
  */
 export type FolderTreeItem = FolderTreeNode | AppTreeNode
 
+export const ROOT_TREE_KEY = "__ROOT__"
+
 export const buildFolderTree = (
     folders: Folder[],
     apps: ListAppsItem[] = [],

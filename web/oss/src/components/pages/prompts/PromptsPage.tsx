@@ -16,7 +16,7 @@ import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreati
 import {useProfileData} from "@/oss/state/profile"
 import {createFolder, deleteFolder, editFolder, queryFolders} from "@/oss/services/folders"
 import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
-import {FolderTreeItem, FolderTreeNode, slugify} from "./assets/utils"
+import {FolderTreeItem, FolderTreeNode, ROOT_TREE_KEY, slugify} from "./assets/utils"
 import MoveFolderModal from "./modals/MoveFolderModal"
 import DeleteFolderModal from "./modals/DeleteFolderModal"
 import NewFolderModal, {FolderModalState} from "./modals/NewFolderModal"
@@ -224,15 +224,21 @@ const PromptsPage = () => {
         [deleteFolderId, getDeleteFolderName],
     )
 
+    const resolveDestinationId = useCallback(
+        (selection: string | null) => (selection === ROOT_TREE_KEY ? null : selection),
+        [],
+    )
+
     const isMoveConfirmDisabled = useMemo(() => {
         if (!moveEntity) return true
         if (!moveSelection) return true
 
-        const isSameFolder = moveEntity.type === "folder" && moveSelection === moveEntity.id
-        const isSameDestination = moveSelection === moveEntity.currentParentId
+        const destinationId = resolveDestinationId(moveSelection)
+        const isSameFolder = moveEntity.type === "folder" && destinationId === moveEntity.id
+        const isSameDestination = destinationId === moveEntity.currentParentId
 
         return isSameFolder || isSameDestination
-    }, [moveEntity, moveSelection])
+    }, [moveEntity, moveSelection, resolveDestinationId])
 
     const rowKeyExtractor = useCallback((record: PromptsTableRow) => record.key, [])
 
@@ -465,7 +471,7 @@ const PromptsPage = () => {
         currentParentId: string | null,
         onSuccess?: () => void,
     ) => {
-        if (!folderId || !destinationId) {
+        if (!folderId) {
             message.warning("Select a destination folder")
             return false
         }
@@ -533,10 +539,6 @@ const PromptsPage = () => {
         onSuccess?: () => void,
     ) => {
         if (!appId) return false
-        if (!destinationId) {
-            message.warning("Select a destination folder")
-            return false
-        }
 
         if (destinationId === currentFolderId) {
             message.info("Select a different folder to move to")
@@ -561,12 +563,13 @@ const PromptsPage = () => {
     const handleMoveItem = async () => {
         if (!moveEntity) return
 
+        const destinationId = resolveDestinationId(moveSelection)
         const moveSuccess =
             moveEntity.type === "folder"
-                ? await moveFolder(moveEntity.id, moveSelection, moveEntity.currentParentId, () => {
+                ? await moveFolder(moveEntity.id, destinationId, moveEntity.currentParentId, () => {
                       handleCloseMoveModal()
                   })
-                : await moveApp(moveEntity.id, moveSelection, moveEntity.currentParentId, () => {
+                : await moveApp(moveEntity.id, destinationId, moveEntity.currentParentId, () => {
                       handleCloseMoveModal()
                   })
 
@@ -598,6 +601,23 @@ const PromptsPage = () => {
 
         setDraggingItem(null)
     }
+
+    const handleRootDragOver = useCallback(
+        (event: any) => {
+            if (!draggingItem) return
+            event.preventDefault()
+        },
+        [draggingItem],
+    )
+
+    const handleDropToRoot = useCallback(
+        async (event?: any) => {
+            if (!draggingItem) return
+            event?.preventDefault?.()
+            await handleDropOnFolder(null)
+        },
+        [draggingItem, handleDropOnFolder],
+    )
 
     const folderHasApps = useCallback(
         (folderId: string | null) => {
@@ -786,6 +806,7 @@ const PromptsPage = () => {
                 onMoveFolder={handleOpenFolderMoveModal}
                 onRenameFolder={handleOpenRenameModal}
                 onDeleteFolder={handleOpenDeleteModal}
+                onDropOnRoot={handleDropToRoot}
             />
 
             <PromptsTableSection
@@ -796,7 +817,11 @@ const PromptsPage = () => {
                 tableScope={tableScope}
                 tablePagination={tablePagination}
                 rowSelection={rowSelection}
-                tableProps={tableProps}
+                tableProps={{
+                    ...tableProps,
+                    onDragOver: handleRootDragOver,
+                    onDrop: handleDropToRoot,
+                }}
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
                 selectedRow={selectedRow}

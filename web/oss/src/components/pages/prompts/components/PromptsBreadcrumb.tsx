@@ -23,6 +23,7 @@ interface PromptsBreadcrumbProps {
     onMoveFolder?: (folderId: string | null) => void
     onRenameFolder?: (folderId: string | null) => void
     onDeleteFolder?: (folderId: string | null) => void
+    onDropOnRoot?: () => void
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -59,6 +60,7 @@ const PromptsBreadcrumb = ({
     onMoveFolder,
     onRenameFolder,
     onDeleteFolder,
+    onDropOnRoot,
 }: PromptsBreadcrumbProps) => {
     const classes = useStyles()
     const {project} = useProjectData()
@@ -85,6 +87,11 @@ const PromptsBreadcrumb = ({
             base.push({
                 title: project.project_name,
                 onClick: () => onFolderChange?.(null),
+                onDragOver: (event) => event.preventDefault(),
+                onDrop: (event) => {
+                    event.preventDefault()
+                    onDropOnRoot?.()
+                },
             })
         }
 

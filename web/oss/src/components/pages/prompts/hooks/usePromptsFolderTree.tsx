@@ -4,7 +4,7 @@ import {DataNode} from "antd/es/tree"
 import {ListAppsItem} from "@/oss/lib/Types"
 import {Folder} from "@/oss/services/folders/types"
 
-import {FolderTreeItem, buildFolderTree} from "../assets/utils"
+import {FolderTreeItem, ROOT_TREE_KEY, buildFolderTree} from "../assets/utils"
 import {PromptsTableRow} from "../types"
 import {getAppTypeIcon} from "../assets/iconHelpers"
 import {FolderFilled} from "@ant-design/icons"
@@ -64,11 +64,29 @@ export const usePromptsFolderTree = ({
                 }
             })
 
-        return buildNodes(roots)
+        const rootNode: DataNode = {
+            key: ROOT_TREE_KEY,
+            title: (
+                <div className="flex items-center gap-2 min-h-6 overflow-hidden">
+                    <span className="flex items-center text-gray-400">
+                        <FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />
+                    </span>
+                    <span className="truncate font-medium">Root</span>
+                </div>
+            ),
+            children: buildNodes(roots),
+            selectable: true,
+            disableCheckbox: false,
+        }
+
+        return [rootNode]
     }, [roots])
 
     const moveDestinationName = useCallback(
-        (folderId: string | null) => (folderId ? (foldersById[folderId]?.name ?? folderId) : null),
+        (folderId: string | null) => {
+            if (folderId === ROOT_TREE_KEY) return "root"
+            return folderId ? (foldersById[folderId]?.name ?? folderId) : null
+        },
         [foldersById],
     )
 
