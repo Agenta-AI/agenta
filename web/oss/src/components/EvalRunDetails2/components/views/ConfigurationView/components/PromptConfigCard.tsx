@@ -185,6 +185,15 @@ const PromptConfigCard = ({
     const normalizedVariantId = useMemo(() => (variantId ? String(variantId) : ""), [variantId])
     const resolvedRevisionId = normalizedVariantId || "__missing__"
 
+    // DEBUG: Log input props
+    console.log("[PromptConfigCard] variantId:", variantId)
+    console.log("[PromptConfigCard] normalizedVariantId:", normalizedVariantId)
+    console.log("[PromptConfigCard] resolvedRevisionId:", resolvedRevisionId)
+    console.log("[PromptConfigCard] parameters:", parameters)
+    console.log("[PromptConfigCard] customProperties:", customProperties)
+    console.log("[PromptConfigCard] isLoading:", isLoading)
+    console.log("[PromptConfigCard] hasSnapshot:", hasSnapshot)
+
     const derivedPrompts = useAtomValue(promptsAtomFamily(resolvedRevisionId)) as PromptNode[]
     const derivedCustomProps = useAtomValue(
         customPropertiesByRevisionAtomFamily(resolvedRevisionId),
@@ -218,6 +227,16 @@ const PromptConfigCard = ({
     const hasPrompts = combinedPrompts.length > 0
     const hasCustomProps = hasCustomPropsContent(combinedCustomProps)
     const hasContent = hasPrompts || hasCustomProps
+
+    // DEBUG: Log derived state
+    console.log("[PromptConfigCard] derivedPrompts:", derivedPrompts)
+    console.log("[PromptConfigCard] derivedCustomProps:", derivedCustomProps)
+    console.log("[PromptConfigCard] promptsList (from extractPromptsFromParameters):", promptsList)
+    console.log("[PromptConfigCard] combinedPrompts:", combinedPrompts)
+    console.log("[PromptConfigCard] combinedCustomProps:", combinedCustomProps)
+    console.log("[PromptConfigCard] hasPrompts:", hasPrompts)
+    console.log("[PromptConfigCard] hasCustomProps:", hasCustomProps)
+    console.log("[PromptConfigCard] hasContent:", hasContent)
 
     const promptsMap = useMemo(() => {
         if (!normalizedVariantId || !hasPrompts) return {}

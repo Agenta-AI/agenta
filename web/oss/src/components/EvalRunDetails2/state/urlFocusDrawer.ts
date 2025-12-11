@@ -12,6 +12,7 @@ import {
     setFocusDrawerTargetAtom,
     type FocusTarget,
 } from "./focusDrawerAtom"
+import type {FocusDrawerState} from "./focusDrawerAtom"
 
 const isBrowser = typeof window !== "undefined"
 const debugEnabled = process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true"
@@ -58,7 +59,7 @@ export const syncFocusDrawerStateFromUrl = (nextUrl?: string) => {
         const scenarioId = rawScenario?.trim() || undefined
         const runId = rawRun?.trim() || undefined
 
-        const currentState = store.get(focusDrawerAtom)
+        const currentState = store.get(focusDrawerAtom) as FocusDrawerState
         logDebug("sync from url", {nextUrl, scenarioId, runId, currentState})
 
         if (ensureCleanFocusParams(url)) {
@@ -89,7 +90,7 @@ export const syncFocusDrawerStateFromUrl = (nextUrl?: string) => {
                 (urlProvided && currentState.open && hasStoredTarget && !currentState.isClosing)
 
             if (shouldReset) {
-                store.set(resetFocusDrawerAtom, null)
+                store.set(resetFocusDrawerAtom)
             }
             logDebug("sync: no scenario, reset", {shouldReset, currentState})
             return
@@ -98,12 +99,18 @@ export const syncFocusDrawerStateFromUrl = (nextUrl?: string) => {
         const nextTarget: FocusTarget = {
             focusScenarioId: scenarioId,
             focusRunId: runId ?? currentState.focusRunId ?? null,
+            compareMode: currentState.compareMode,
+            testcaseId: currentState.testcaseId,
+            scenarioIndex: currentState.scenarioIndex,
         }
 
         const alreadyOpen =
             currentState.open &&
             currentState.focusScenarioId === nextTarget.focusScenarioId &&
-            currentState.focusRunId === nextTarget.focusRunId
+            currentState.focusRunId === nextTarget.focusRunId &&
+            currentState.compareMode === nextTarget.compareMode &&
+            currentState.testcaseId === nextTarget.testcaseId &&
+            currentState.scenarioIndex === nextTarget.scenarioIndex
 
         if (alreadyOpen && !currentState.isClosing) {
             logDebug("sync: already open", {nextTarget})
@@ -141,13 +148,16 @@ export const clearFocusDrawerQueryParams = () => {
     }
 }
 
-export const patchFocusDrawerQueryParams = ({focusRunId, focusScenarioId}: FocusTarget) => {
-    if (!isBrowser || !focusScenarioId) return
+export const patchFocusDrawerQueryParams = (target: FocusTarget) => {
+    if (!isBrowser || !target.focusScenarioId) return
     try {
         const store = getDefaultStore()
         const nextTarget: FocusTarget = {
-            focusRunId: focusRunId ?? null,
-            focusScenarioId,
+            focusRunId: target.focusRunId ?? null,
+            focusScenarioId: target.focusScenarioId,
+            compareMode: target.compareMode,
+            testcaseId: target.testcaseId,
+            scenarioIndex: target.scenarioIndex,
         }
         store.set(applyFocusDrawerStateAtom, {
             ...nextTarget,
@@ -158,9 +168,9 @@ export const patchFocusDrawerQueryParams = ({focusRunId, focusScenarioId}: Focus
         store.set(openFocusDrawerAtom, nextTarget)
 
         const url = new URL(window.location.href)
-        url.searchParams.set(FOCUS_SCENARIO_QUERY_KEY, focusScenarioId)
-        if (focusRunId) {
-            url.searchParams.set(FOCUS_RUN_QUERY_KEY, focusRunId)
+        url.searchParams.set(FOCUS_SCENARIO_QUERY_KEY, target.focusScenarioId)
+        if (target.focusRunId) {
+            url.searchParams.set(FOCUS_RUN_QUERY_KEY, target.focusRunId)
         } else {
             url.searchParams.delete(FOCUS_RUN_QUERY_KEY)
         }
@@ -178,7 +188,7 @@ export const patchFocusDrawerQueryParams = ({focusRunId, focusScenarioId}: Focus
 
 export const closeFocusDrawerAndClear = () => {
     const store = getDefaultStore()
-    store.set(closeFocusDrawerAtom, null)
+    store.set(closeFocusDrawerAtom)
     clearFocusDrawerQueryParams()
 }
 
