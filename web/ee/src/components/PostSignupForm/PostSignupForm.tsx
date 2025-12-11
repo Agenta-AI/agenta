@@ -505,19 +505,20 @@ const PostSignupForm = () => {
                                 <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
                             </div>
 
-                            <Button
-                                size="large"
-                                type="primary"
-                                onClick={
-                                    currentStep < totalSteps - 1 ? handleNextStep : form.submit
-                                }
-                                className="w-full"
-                                iconPosition="end"
-                                icon={<ArrowRight className="mt-[3px]" />}
-                                disabled={!isCurrentStepValid}
-                            >
-                                {currentStep < totalSteps - 1 ? "Continue" : "Submit"}
-                            </Button>
+                            <div className="flex justify-end">
+                                <Button
+                                    size="large"
+                                    type="primary"
+                                    onClick={
+                                        currentStep < totalSteps - 1 ? handleNextStep : form.submit
+                                    }
+                                    iconPosition="end"
+                                    icon={<ArrowRight className="mt-[3px]" />}
+                                    disabled={!isCurrentStepValid}
+                                >
+                                    {currentStep < totalSteps - 1 ? "Continue" : "Submit"}
+                                </Button>
+                            </div>
                         </Form>
                     )}
                 </Spin>
