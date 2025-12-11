@@ -2,12 +2,10 @@ import React, {useState} from "react"
 
 import {MinusSquareOutlined, PlusSquareOutlined} from "@ant-design/icons"
 
-import {_AgentaRootsResponse} from "@/oss/services/observability/types"
+import {TreeContent} from "@/oss/components/SharedDrawers/TraceDrawer/components/TraceTree"
 
-import {TreeContent} from "../../pages/observability/drawer/TraceTree"
-
-import {useStyles} from "./assets/styles"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {useStyles} from "./assets/styles"
 
 /**
  * CustomTree is a recursive tree view component for rendering a hierarchy of nodes.

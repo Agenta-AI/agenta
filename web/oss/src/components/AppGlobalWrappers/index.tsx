@@ -8,7 +8,7 @@ import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appStat
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
 
 const TraceDrawer = dynamic(
-    () => import("@/oss/components/Playground/Components/Drawers/TraceDrawer/TraceDrawer"),
+    () => import("@/oss/components/SharedDrawers/TraceDrawer/components/TraceDrawer"),
     {ssr: false},
 )
 

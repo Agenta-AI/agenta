@@ -1,7 +1,7 @@
 import {memo, useMemo} from "react"
 
-import {Timer, PlusCircle} from "@phosphor-icons/react"
-import {Tag, Space} from "antd"
+import {PlusCircle, Timer} from "@phosphor-icons/react"
+import {Space, Tag} from "antd"
 import clsx from "clsx"
 
 import StatusRenderer from "@/oss/components/pages/observability/components/StatusRenderer"
@@ -9,7 +9,7 @@ import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {StatusCode} from "@/oss/services/tracing/types"
 
-import TraceDrawerButton from "../../../Drawers/TraceDrawer"
+import TraceDrawerButton from "@/oss/components/SharedDrawers/TraceDrawer"
 
 import {GenerationResultUtilsProps} from "./types"
 
