@@ -195,7 +195,7 @@ class EvaluationsService:
                     oldest=oldest,
                 )
 
-                await self.evaluations_worker.evaluate_live.kiq(
+                await self.evaluations_worker.evaluate_live_query.kiq(
                     project_id=project_id,
                     user_id=user_id,
                     #

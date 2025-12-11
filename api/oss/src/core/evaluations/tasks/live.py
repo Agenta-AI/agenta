@@ -192,7 +192,7 @@ annotations_router = AnnotationsRouter(
 # ------------------------------------------------------------------------------
 
 
-async def evaluate(
+async def evaluate_live_query(
     project_id: UUID,
     user_id: UUID,
     #

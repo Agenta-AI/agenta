@@ -15,9 +15,6 @@ from oss.src.core.evaluations.tasks.legacy import setup_evaluation
 # Import worker tasks from evals.py where they're instantiated
 from entrypoints.worker_evaluations import evaluations_worker
 
-# Alias for backward compatibility
-annotate = evaluations_worker.annotate_legacy
-
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.evaluation_model import (
     Evaluation,
@@ -609,7 +606,7 @@ async def start_evaluation(
 
             runs.append(run)
 
-            await annotate.kiq(
+            await evaluations_worker.evaluate_batch_testset.kiq(
                 project_id=request.state.project_id,
                 user_id=request.state.user_id,
                 #
