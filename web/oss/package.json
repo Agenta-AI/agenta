@@ -72,7 +72,7 @@
         "@types/react-window": "^1.8.8",
         "@types/uuid": "^10.0.0",
         "ajv": "^8.17.1",
-        "antd": "^6.0.1",
+        "antd": "^6.1.0",
         "autoprefixer": "10.4.20",
         "axios": "^1.12.2",
         "blakejs": "^1.2.1",
