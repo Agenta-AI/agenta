@@ -28,8 +28,8 @@ class TracingWorker:
     """
     Worker for tracing spans ingestion via Redis Streams.
 
-    Consumes from: streams:otlp
-    Consumer group: otlp-workers
+    Consumes from: streams:tracing
+    Consumer group: worker-tracing
 
     Flow:
     1. Read batch from Redis Streams (XREADGROUP)
@@ -58,8 +58,8 @@ class TracingWorker:
         Args:
             service: TracingService instance for creating spans
             redis_client: Redis async client
-            stream_name: Name of the stream (e.g., "streams:otlp")
-            consumer_group: Consumer group name (e.g., "otlp-workers")
+            stream_name: Name of the stream (e.g., "streams:tracing")
+            consumer_group: Consumer group name (e.g., "worker-tracing")
             consumer_name: Consumer name (defaults to "worker-{pid}")
             max_batch_size: Max messages to read per batch (COUNT in XREADGROUP)
             max_block_ms: Max milliseconds to block waiting for messages

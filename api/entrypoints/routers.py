@@ -230,8 +230,8 @@ if env.REDIS_URI_DURABLE:
     tracing_worker = TracingWorker(
         service=tracing_service,
         redis_client=redis_client,
-        stream_name="streams:otlp",
-        consumer_group="otlp-workers",
+        stream_name="streams:tracing",
+        consumer_group="worker-tracing",
     )
 else:
     raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
