@@ -146,12 +146,6 @@ class FoldersDAO(FoldersDAOInterface):
         )
         folder_dbe.created_by_id = user_id
 
-        # Validate path depth after construction
-        path_str = str(folder_dbe.path)
-        path_depth = len(path_str.split('.'))
-        if path_depth > 10:
-            raise FolderPathDepthExceeded()
-
         async with engine.core_session() as session:
             try:
                 session.add(folder_dbe)
@@ -241,11 +235,6 @@ class FoldersDAO(FoldersDAOInterface):
             new_prefix = (
                 new_slug if not new_parent_path else f"{new_parent_path}.{new_slug}"
             )
-
-            # Validate path depth before updating
-            path_depth = len(new_prefix.split('.'))
-            if path_depth > 10:
-                raise FolderPathDepthExceeded()
 
             try:
                 await _update_folder_path(
