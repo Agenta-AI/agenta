@@ -1,7 +1,5 @@
-import type {RunFlagsFilter} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
-import {fetchPreviewRunsShared} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
-
 import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
+import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 
 import type {QueryWindowingPayload} from "../../../services/onlineEvaluations/api"
 import type {
@@ -12,6 +10,9 @@ import type {
     PreviewRunColumnMeta,
     ConcreteEvaluationRunKind,
 } from "../types"
+
+import type {RunFlagsFilter} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
+import {fetchPreviewRunsShared} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 
 interface PreviewEvaluationRunsResult {
     runs: PreviewEvaluationRun[]
@@ -74,58 +75,12 @@ const fetchPreviewRuns = async ({
     }
 }
 
-const isPreviewRunHuman = (run: PreviewEvaluationRun): boolean => {
-    const steps = Array.isArray(run?.data?.steps) ? run.data.steps : []
-    const hasHuman = steps.some((step: any) => {
-        const type = step?.type ?? step?.stepType ?? step?.kind
-        if (type !== "annotation") return false
-        const origin = step?.origin ?? step?.step_role ?? step?.stepRole
-        return origin === "human"
-    })
-    return hasHuman && !isPreviewRunOnline(run)
-}
-
-const isPreviewRunOnline = (run: PreviewEvaluationRun): boolean => {
-    const flags = run?.flags ?? {}
-    if (flags?.isLive === true || flags?.is_live === true) {
-        return true
-    }
-    const source = typeof run?.meta?.source === "string" ? run.meta.source.toLowerCase() : null
-    return source === "online_evaluation_drawer"
-}
-
-const isPreviewRunCustom = (run: PreviewEvaluationRun): boolean => {
-    const steps = Array.isArray(run?.data?.steps) ? run.data.steps : []
-    const hasCustom = steps.some((step: any) => {
-        const origin = step?.origin ?? step?.step_role ?? step?.stepRole
-        const type = step?.type ?? step?.stepType ?? step?.kind
-        if (origin === "custom" || type === "custom") return true
-        return Boolean(step?.metadata?.origin === "custom")
-    })
-    return hasCustom && !isPreviewRunOnline(run)
-}
-
+/**
+ * Derive the evaluation kind for a preview run.
+ * Uses the centralized utility from evaluationKind.ts
+ */
 const derivePreviewRunKind = (run: PreviewEvaluationRun): ConcreteEvaluationRunKind => {
-    if (isPreviewRunOnline(run)) return "online"
-    if (isPreviewRunHuman(run)) return "human"
-    if (isPreviewRunCustom(run)) return "custom"
-    return "auto"
-}
-
-const normalizeEvaluationKindString = (
-    value: string | null | undefined,
-): ConcreteEvaluationRunKind | null => {
-    if (typeof value !== "string") return null
-    const normalized = value.trim().toLowerCase()
-    switch (normalized) {
-        case "auto":
-        case "human":
-        case "online":
-        case "custom":
-            return normalized
-        default:
-            return null
-    }
+    return deriveEvaluationKind(run) as ConcreteEvaluationRunKind
 }
 
 const normalizeString = (value: unknown): string | null => {
@@ -355,12 +310,9 @@ export const fetchEvaluationRunsWindow = async ({
         allowedAppIds.length > 0 ? new Set(allowedAppIds.map((id) => id.trim())) : null
 
     previewResult.runs.forEach((run) => {
-        const metaKindRaw = ((run as any)?.meta?.evaluation_kind ??
-            (run as any)?.meta?.evaluationKind ??
-            (run as any)?.flags?.evaluation_kind ??
-            null) as string | null
-        const normalizedMetaKind = normalizeEvaluationKindString(metaKindRaw)
-        const derivedKind = normalizedMetaKind ?? derivePreviewRunKind(run)
+        // Derive kind from run.data.steps - this is the reliable source of truth
+        // Do NOT rely on meta.evaluation_kind as it's flaky and unreliable
+        const derivedKind = derivePreviewRunKind(run)
 
         if (evaluationKind !== "all" && derivedKind !== evaluationKind) {
             return
@@ -369,13 +321,12 @@ export const fetchEvaluationRunsWindow = async ({
             return
         }
 
-        if (!normalizedMetaKind) {
-            ;(run as any).meta = {
-                ...(typeof (run as any).meta === "object" && (run as any).meta
-                    ? (run as any).meta
-                    : {}),
-                evaluation_kind: derivedKind,
-            }
+        // Always set the derived kind in meta for consistency
+        ;(run as any).meta = {
+            ...(typeof (run as any).meta === "object" && (run as any).meta
+                ? (run as any).meta
+                : {}),
+            evaluation_kind: derivedKind,
         }
         const runId = run.id ?? null
         const metaApplication = (run as any)?.meta?.application ?? {}

@@ -8,6 +8,7 @@ import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
 import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
 import {previewEvalTypeAtom} from "../state/evalType"
+import {focusScenarioAtom} from "../state/focusDrawerAtom"
 import {patchFocusDrawerQueryParams} from "../state/urlFocusDrawer"
 
 interface FocusDrawerHeaderProps {
@@ -20,6 +21,9 @@ const PAGE_SIZE = 50
 
 const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHeaderProps) => {
     const evalType = useAtomValue(previewEvalTypeAtom)
+    const focusState = useAtomValue(focusScenarioAtom)
+    const isCompareMode = focusState?.compareMode ?? false
+
     const {rows, paginationInfo, loadNextPage} = useInfiniteTablePagination({
         store: evaluationPreviewTableStore,
         scopeId: runId,
@@ -27,14 +31,20 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
     })
 
     const changeScenario = useCallback(
-        (nextScenarioId: string) => {
+        (nextScenarioId: string, scenarioIndex?: number, testcaseId?: string) => {
             if (onScenarioChange) {
                 onScenarioChange(nextScenarioId)
             } else {
-                patchFocusDrawerQueryParams({focusRunId: runId, focusScenarioId: nextScenarioId})
+                patchFocusDrawerQueryParams({
+                    focusRunId: runId,
+                    focusScenarioId: nextScenarioId,
+                    compareMode: isCompareMode,
+                    scenarioIndex,
+                    testcaseId,
+                })
             }
         },
-        [onScenarioChange, runId],
+        [onScenarioChange, runId, isCompareMode],
     )
 
     const loadedScenarios = useMemo(
@@ -91,23 +101,24 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
     const handleSelect = useCallback<NonNullable<SelectProps["onSelect"]>>(
         (value) => {
             const nextScenarioId = typeof value === "string" ? value : String(value)
-            changeScenario(nextScenarioId)
+            const targetRow = loadedScenarios.find((row) => row.scenarioId === nextScenarioId)
+            changeScenario(nextScenarioId, targetRow?.scenarioIndex, targetRow?.testcaseId)
         },
-        [changeScenario],
+        [changeScenario, loadedScenarios],
     )
 
     const handlePrev = useCallback(() => {
         if (currentIndex <= 0) return
         const target = loadedScenarios[currentIndex - 1]
         if (!target?.scenarioId) return
-        changeScenario(target.scenarioId)
+        changeScenario(target.scenarioId, target.scenarioIndex, target.testcaseId)
     }, [changeScenario, currentIndex, loadedScenarios])
 
     const handleNext = useCallback(() => {
         if (currentIndex === -1) return
         const target = loadedScenarios[currentIndex + 1]
         if (!target?.scenarioId) return
-        changeScenario(target.scenarioId)
+        changeScenario(target.scenarioId, target.scenarioIndex, target.testcaseId)
     }, [changeScenario, currentIndex, loadedScenarios])
 
     const selectedOption = useMemo(

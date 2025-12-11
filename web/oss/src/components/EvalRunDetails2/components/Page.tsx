@@ -132,6 +132,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
                 runId={runId}
                 activeView={activeView}
                 onChangeView={(v) => setActiveViewParam(v)}
+                projectId={projectId}
             />
 
             <div className="flex h-full min-h-0 flex-col gap-3 [&_.ant-tabs-content]:h-full [&_.ant-tabs-tabpane]:h-full">

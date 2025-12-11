@@ -167,12 +167,23 @@ export const deriveRunComparisonStructure = ({
     }
 }
 
+/** Terminal statuses that allow comparison */
+const TERMINAL_STATUSES = new Set(["success", "failure", "errors", "cancelled"])
+
+/** Check if a status is terminal (run has finished) */
+export const isTerminalStatus = (status: string | undefined | null): boolean => {
+    if (!status) return false
+    return TERMINAL_STATUSES.has(status.toLowerCase())
+}
+
 export interface CompareAvailabilityState {
     isLoading: boolean
     canCompare: boolean
-    reason?: "loading" | "no-input" | "no-testset" | "query-input"
+    reason?: "loading" | "no-input" | "no-testset" | "query-input" | "pending-status"
     testsetIds: string[]
     evaluatorIds: string[]
+    /** Current run status for display purposes */
+    status?: string
 }
 
 export const compareAvailabilityAtomFamily = atomFamily((runId: string | null) =>
@@ -206,9 +217,16 @@ export const compareAvailabilityAtomFamily = atomFamily((runId: string | null) =
             steps: data.camelRun?.data?.steps ?? [],
         })
 
+        // Get the run status from raw run data
+        const runStatus = data.rawRun?.status ?? data.camelRun?.status
+
         let reason: CompareAvailabilityState["reason"] = undefined
         let canCompare = false
-        if (structure.inputStepCount === 0) {
+
+        // Check terminal status first - pending/running runs cannot be compared
+        if (!isTerminalStatus(runStatus)) {
+            reason = "pending-status"
+        } else if (structure.inputStepCount === 0) {
             reason = "no-input"
         } else if (structure.testsetIds.length === 0) {
             reason = "no-testset"
@@ -224,6 +242,7 @@ export const compareAvailabilityAtomFamily = atomFamily((runId: string | null) =
             reason,
             testsetIds: structure.testsetIds,
             evaluatorIds: structure.evaluatorIds,
+            status: runStatus,
         }
     }),
 )

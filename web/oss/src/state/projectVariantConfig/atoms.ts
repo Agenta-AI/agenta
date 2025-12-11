@@ -4,6 +4,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {adaptRevisionToVariant} from "@/oss/lib/shared/variant"
+import {fetchOpenApiSchemaJson} from "@/oss/lib/shared/variant/transformer"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types/transformedVariant"
 import {
     RevisionObject,
@@ -89,6 +90,56 @@ export const projectVariantConfigQueryFamily = atomFamily((serializedKey: string
 )
 
 const projectVariantReferenceMapAtom = atom<Map<string, ProjectVariantConfigKey>>(new Map())
+
+/**
+ * Query atom to fetch OpenAPI schema for a given variant URL.
+ * This is needed for project-scoped variants in evaluation run details
+ * where the app context is not available.
+ */
+export const projectVariantSchemaQueryFamily = atomFamily((url: string | null) =>
+    atomWithQuery<{schema: any; runtimePrefix: string; routePath?: string} | null>((get) => {
+        const enabled = Boolean(url)
+
+        const fetchRecursive = async (
+            current: string,
+            removed = "",
+        ): Promise<{schema: any; runtimePrefix: string; routePath?: string}> => {
+            const result = await fetchOpenApiSchemaJson(current)
+            if (result.schema) {
+                return {
+                    runtimePrefix: current,
+                    routePath: removed || undefined,
+                    schema: result.schema,
+                }
+            }
+            const parts = current.split("/")
+            const popped = parts.pop()!
+            if (parts.length === 0) {
+                throw new Error("openapi.json not found")
+            }
+            return fetchRecursive(parts.join("/"), removed ? `${popped}/${removed}` : popped)
+        }
+
+        return {
+            queryKey: ["projectVariantSchema", url ?? ""],
+            queryFn: async () => {
+                if (!url) return null
+                try {
+                    return await fetchRecursive(url)
+                } catch (error) {
+                    console.warn("[projectVariantSchema] Failed to fetch schema for", url, error)
+                    return null
+                }
+            },
+            refetchOnReconnect: false,
+            refetchOnMount: false,
+            refetchOnWindowFocus: false,
+            staleTime: 60_000,
+            gcTime: 5 * 60 * 1000,
+            enabled,
+        }
+    }),
+)
 
 export const projectVariantReferenceCountAtom = atom(
     (get) => get(projectVariantReferenceMapAtom).size,
@@ -219,6 +270,22 @@ export const projectScopedVariantsAtom = atom<ProjectScopedVariantsState>((get) 
         if (enhanced.uri) {
             uriMap[enhanced.variantId] = {
                 runtimePrefix: enhanced.uri,
+            }
+
+            // Fetch OpenAPI schema for this variant's URL
+            const schemaQuery = get(projectVariantSchemaQueryFamily(enhanced.uri))
+            if (schemaQuery.isPending || schemaQuery.isLoading) {
+                isLoading = true
+            }
+            if (schemaQuery.data?.schema) {
+                specMap[enhanced.variantId] = schemaQuery.data.schema
+                // Update uriMap with routePath if available
+                if (schemaQuery.data.routePath) {
+                    uriMap[enhanced.variantId] = {
+                        runtimePrefix: schemaQuery.data.runtimePrefix,
+                        routePath: schemaQuery.data.routePath,
+                    }
+                }
             }
         }
     })
