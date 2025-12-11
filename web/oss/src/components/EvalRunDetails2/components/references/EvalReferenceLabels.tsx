@@ -2,7 +2,7 @@
  * Evaluation-specific reference label components.
  * These wrap the generic Reference components and provide projectId from context.
  */
-import {memo} from "react"
+import {memo, useMemo} from "react"
 
 import {useAtomValue} from "jotai"
 
@@ -16,6 +16,7 @@ import {
     VariantRevisionLabel as GenericVariantRevisionLabel,
 } from "@/oss/components/References"
 
+import {variantReferenceQueryAtomFamily} from "../../atoms/references"
 import {effectiveProjectIdAtom} from "../../atoms/run"
 import useRunIdentifiers from "../../hooks/useRunIdentifiers"
 import useRunScopedUrls from "../../hooks/useRunScopedUrls"
@@ -161,6 +162,7 @@ export const VariantReferenceLabel = memo(
  * Evaluation-scoped combined variant + revision label.
  * Displays "variantName v{revision}" in a single chip that links to the specific revision.
  * Gets projectId from evaluation context and IDs from run if not provided.
+ * Fetches variant details to use as fallbacks when not explicitly provided.
  */
 export const VariantRevisionLabel = memo(
     ({
@@ -192,6 +194,34 @@ export const VariantRevisionLabel = memo(
         const effectiveVariantId = explicitVariantId ?? runVariantId ?? null
         const effectiveApplicationId = explicitApplicationId ?? runApplicationId ?? null
 
+        // Fetch variant details to use as fallbacks
+        const variantAtom = useMemo(
+            () => variantReferenceQueryAtomFamily(effectiveVariantId),
+            [effectiveVariantId],
+        )
+        const variantQuery = useAtomValue(variantAtom)
+        const variantResolved = variantQuery.data
+
+        // Build fallbacks from variant query and rawRefs
+        const resolvedVariantName =
+            fallbackVariantName ??
+            variantResolved?.name ??
+            variantResolved?.slug ??
+            rawRefs?.applicationVariant?.name ??
+            rawRefs?.applicationVariant?.slug ??
+            rawRefs?.application_variant?.name ??
+            rawRefs?.application_variant?.slug ??
+            null
+
+        const resolvedRevision =
+            fallbackRevision ??
+            variantResolved?.revision ??
+            rawRefs?.applicationRevision?.version ??
+            rawRefs?.applicationRevision?.revision ??
+            rawRefs?.application_revision?.version ??
+            rawRefs?.application_revision?.revision ??
+            null
+
         const {buildRevisionPlaygroundHref} = useRunScopedUrls(runId, effectiveApplicationId)
 
         // Link to the specific revision in playground
@@ -202,8 +232,8 @@ export const VariantRevisionLabel = memo(
                 variantId={effectiveVariantId}
                 revisionId={effectiveRevisionId}
                 projectId={projectId}
-                fallbackVariantName={fallbackVariantName}
-                fallbackRevision={fallbackRevision}
+                fallbackVariantName={resolvedVariantName}
+                fallbackRevision={resolvedRevision}
                 href={href}
             />
         )
