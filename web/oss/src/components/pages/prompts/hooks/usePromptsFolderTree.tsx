@@ -7,7 +7,7 @@ import {Folder} from "@/oss/services/folders/types"
 import {FolderTreeItem, buildFolderTree} from "../assets/utils"
 import {PromptsTableRow} from "../types"
 import {getAppTypeIcon} from "../assets/iconHelpers"
-import {FolderFilled} from "@ant-design/icons"
+import {FolderFilled, FolderOpenOutlined} from "@ant-design/icons"
 
 interface UsePromptsFolderTreeProps {
     foldersData?: {folders?: Folder[]} | null
@@ -44,7 +44,7 @@ export const usePromptsFolderTree = ({
                 const hasChildren = (childNodes?.length ?? 0) > 0
 
                 const icon = isFolder ? (
-                    <FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />
+                    <FolderOpenOutlined style={{fontSize: 16, color: "#1C2C3D"}} />
                 ) : (
                     getAppTypeIcon(node.app_type)
                 )
