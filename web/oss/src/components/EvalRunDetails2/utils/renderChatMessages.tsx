@@ -69,9 +69,16 @@ export function renderChatMessages({
 
     if (view === "table") {
         return messages.map((msg, i) => {
-            const textContent = Array.isArray(msg.content)
+            const rawTextContent = Array.isArray(msg.content)
                 ? msg.content.find((content) => content.type === "text")?.text
                 : msg.content
+            // Ensure textContent is a string - objects like {type, title, elements} must be stringified
+            const textContent =
+                rawTextContent === null || rawTextContent === undefined
+                    ? undefined
+                    : typeof rawTextContent === "string"
+                      ? rawTextContent
+                      : JSON.stringify(rawTextContent, null, 2)
             const images = Array.isArray(msg.content)
                 ? msg.content.filter((content) => content.type === "image_url")
                 : []
@@ -142,9 +149,16 @@ export function renderChatMessages({
     }
 
     return messages.map((msg, i) => {
-        const textContent = Array.isArray(msg.content)
+        const rawTextContent = Array.isArray(msg.content)
             ? msg.content.find((content) => content.type === "text")?.text
             : msg.content
+        // Ensure textContent is a string - objects must be stringified
+        const textContent =
+            rawTextContent === null || rawTextContent === undefined
+                ? undefined
+                : typeof rawTextContent === "string"
+                  ? rawTextContent
+                  : JSON.stringify(rawTextContent, null, 2)
         const images = Array.isArray(msg.content)
             ? msg.content.filter((content) => content.type === "image_url")
             : []
