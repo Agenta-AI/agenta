@@ -64,103 +64,6 @@ class OTLPRouter:
     async def otlp_status(self):
         return CollectStatusResponse(status="ready")
 
-    async def _check_soft_meter(
-        self,
-        organization_id: str,
-        spans,
-    ) -> tuple[bool, str]:
-        """
-        Soft check: Validate TRACES quota using cached meter (Layer 1).
-
-        Uses check_entitlements with use_cache=True for fast quota validation
-        without touching the database. Falls back to hard check in worker on error.
-
-        Returns:
-            (allowed: bool, error_message: str)
-        """
-        if not is_ee() or not spans:
-            return True, ""
-
-        try:
-            # Count root spans (delta)
-            delta = sum(1 for span in spans if span.parent_id is None)
-
-            if delta == 0:
-                return True, ""
-
-            # Layer 1: Soft check using cached entitlements (use_cache=True)
-            allowed, _, _ = await check_entitlements(
-                organization_id=UUID(organization_id),
-                key=Counter.TRACES,
-                delta=delta,
-                use_cache=True,  # ✅ Soft check: cache only, no DB writes
-            )
-
-            if allowed:
-                # log.debug(
-                #     "[OTLP] Soft meter check passed",
-                #     org_id=str(organization_id),
-                #     delta=delta,
-                # )
-                return True, ""
-            else:
-                log.warning(
-                    "[OTLP] Soft meter check failed - quota exceeded",
-                    org_id=str(organization_id),
-                    delta=delta,
-                )
-                return (
-                    False,
-                    "You have reached your monthly quota limit. Please upgrade your plan to continue.",
-                )
-
-        except Exception as e:
-            # On error in soft check, allow (will be caught by hard check in worker)
-            log.warning(
-                f"[OTLP] Soft meter check failed with exception: {e}",
-                org_id=str(organization_id),
-                exc_info=True,
-            )
-            return True, ""
-
-    async def _write_spans_to_stream(
-        self,
-        organization_id: str,
-        project_id: str,
-        user_id: str,
-        spans,
-    ):
-        """
-        Write parsed spans to Redis Streams for async processing.
-
-        Uses TracingService.publish_to_stream() which handles serialization
-        and zlib compression.
-        """
-        if not spans:
-            return
-
-        try:
-            await self.tracing.publish_to_stream(
-                organization_id=UUID(organization_id),
-                project_id=UUID(project_id),
-                user_id=UUID(user_id),
-                span_dtos=spans,
-            )
-
-            # log.debug(
-            #     f"[OTLP] Wrote {len(spans)} spans to Redis Stream",
-            #     organization_id=str(organization_id),
-            #     project_id=str(project_id),
-            #     user_id=str(user_id),
-            # )
-
-        except Exception as e:
-            log.error(
-                f"[OTLP] Failed to write spans to Redis Stream: {e}",
-                exc_info=True,
-            )
-            raise
-
     @intercept_exceptions()
     async def otlp_ingest(
         self,
@@ -255,46 +158,63 @@ class OTLPRouter:
         # -------------------------------------------------------------------- #
         # Layer 1 Soft Check: Validate quota using cached meter
         # -------------------------------------------------------------------- #
-        allowed, error_msg = await self._check_soft_meter(
-            organization_id=request.state.organization_id,
-            spans=spans,
-        )
+        if is_ee() and spans:
+            try:
+                delta = sum(1 for span in spans if span.parent_id is None)
 
-        if not allowed:
-            log.warning(
-                "[OTLP] Quota check rejected at ingestion",
-                org_id=request.state.organization_id,
-            )
-            err_status = ProtoStatus(message=error_msg)
-            return Response(
-                content=err_status.SerializeToString(),
-                media_type="application/x-protobuf",
-                status_code=status.HTTP_403_FORBIDDEN,
-            )
+                if delta > 0:
+                    allowed, _, _ = await check_entitlements(
+                        organization_id=UUID(request.state.organization_id),
+                        key=Counter.TRACES,
+                        delta=delta,
+                        use_cache=True,
+                    )
+
+                    if not allowed:
+                        log.warning(
+                            "[OTLP] Soft meter check failed - quota exceeded",
+                            org_id=str(request.state.organization_id),
+                            delta=delta,
+                        )
+                        err_status = ProtoStatus(
+                            message="You have reached your monthly quota limit. Please upgrade your plan to continue."
+                        )
+                        return Response(
+                            content=err_status.SerializeToString(),
+                            media_type="application/x-protobuf",
+                            status_code=status.HTTP_403_FORBIDDEN,
+                        )
+
+            except Exception as e:
+                log.warning(
+                    f"[OTLP] Soft meter check failed with exception: {e}",
+                    org_id=str(request.state.organization_id),
+                    exc_info=True,
+                )
 
         # -------------------------------------------------------------------- #
         # Write spans to Redis Streams for async processing
         # Layer 2 Hard Check and database storage deferred to worker
         # -------------------------------------------------------------------- #
-        try:
-            await self._write_spans_to_stream(
-                organization_id=request.state.organization_id,
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                spans=spans,
-            )
-        except Exception:
-            log.error(
-                "Failed to write spans to Redis Stream from project %s with error:",
-                request.state.project_id,
-                exc_info=True,
-            )
-            err_status = ProtoStatus(message="Failed to queue spans for processing.")
-            return Response(
-                content=err_status.SerializeToString(),
-                media_type="application/x-protobuf",
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        if spans:
+            try:
+                await self.tracing.publish_to_stream(
+                    organization_id=UUID(request.state.organization_id),
+                    project_id=UUID(request.state.project_id),
+                    user_id=UUID(request.state.user_id),
+                    span_dtos=spans,
+                )
+            except Exception as e:
+                log.error(
+                    f"[OTLP] Failed to write spans to Redis Stream: {e}",
+                    exc_info=True,
+                )
+                err_status = ProtoStatus(message="Failed to queue spans for processing.")
+                return Response(
+                    content=err_status.SerializeToString(),
+                    media_type="application/x-protobuf",
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
         # -------------------------------------------------------------------- #
         # According to the OTLP/HTTP spec a full-success response must be an

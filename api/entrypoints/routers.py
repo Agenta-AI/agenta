@@ -115,7 +115,6 @@ from entrypoints.worker_evaluations import evaluations_worker
 
 import agenta as ag
 
-# Initialize Agenta SDK (idempotent - safe to call multiple times)
 ag.init(
     api_url=env.AGENTA_API_URL,
 )

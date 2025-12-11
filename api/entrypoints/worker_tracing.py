@@ -1,8 +1,6 @@
 """
 Redis Streams workers for tracing spans ingestion.
 
-Replaces asyncio.Queue workers from PR #1223 with persistent Redis Streams.
-
 Architecture:
 - TracingWorker: Consumes from streams:otlp with high-throughput batching
 
