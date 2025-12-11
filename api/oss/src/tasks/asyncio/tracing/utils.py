@@ -43,9 +43,7 @@ def serialize_span(
     # Strip null bytes from serialized data
     if b"\x00" in span_bytes:
         span_bytes = (
-            span_bytes.decode("utf-8", "replace")
-            .replace("\x00", "")
-            .encode("utf-8")
+            span_bytes.decode("utf-8", "replace").replace("\x00", "").encode("utf-8")
         )
 
     # Compress with zlib for efficient storage

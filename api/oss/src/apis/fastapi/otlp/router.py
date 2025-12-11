@@ -213,7 +213,9 @@ class OTLPRouter:
                     f"[OTLP] Failed to write spans to Redis Stream: {e}",
                     exc_info=True,
                 )
-                err_status = ProtoStatus(message="Failed to queue spans for processing.")
+                err_status = ProtoStatus(
+                    message="Failed to queue spans for processing."
+                )
                 return Response(
                     content=err_status.SerializeToString(),
                     media_type="application/x-protobuf",
