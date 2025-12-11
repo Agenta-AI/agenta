@@ -1,24 +1,24 @@
 import {useMemo, useState} from "react"
 
 import {ArrowClockwiseIcon, CaretDown, Funnel, Plus, Trash} from "@phosphor-icons/react"
+import type {TreeSelectProps} from "antd"
 import {
     Button,
     Divider,
+    Dropdown,
     Input,
+    MenuProps,
     Popover,
     Select,
     Space,
-    Typography,
-    Dropdown,
-    MenuProps,
     TreeSelect,
+    Typography,
 } from "antd"
-import type {TreeSelectProps} from "antd"
 import isEqual from "lodash/isEqual"
 
 import {
-    fieldConfigByOptionKey,
     FieldConfig,
+    fieldConfigByOptionKey,
 } from "@/oss/components/pages/observability/assets/filters/fieldAdapter"
 import {
     getOperator,
@@ -34,12 +34,12 @@ import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {Filter, FilterConditions} from "@/oss/lib/Types"
 
+import CustomAntdBadge from "../CustomUIs/CustomAntdBadge"
 import {
     NUM_OPS,
     STRING_EQU_AND_CONTAINS_OPS,
     STRING_EQU_OPS,
 } from "../pages/observability/assets/utils"
-import CustomAntdBadge from "../ui/CustomAntdBadge"
 
 import {useStyles} from "./assets/styles"
 import {
@@ -60,14 +60,14 @@ import {
     valueToPathLabel,
 } from "./helpers/utils"
 import {
-    FilterMenuNode,
-    FilterLeaf,
-    FilterGroup,
-    SelectOption,
-    Props,
-    FilterItem,
     FieldMenuItem,
+    FilterGroup,
+    FilterItem,
+    FilterLeaf,
+    FilterMenuNode,
+    Props,
     RowValidation,
+    SelectOption,
 } from "./types"
 
 type AnnotationFeedbackValueType = "string" | "number" | "boolean"

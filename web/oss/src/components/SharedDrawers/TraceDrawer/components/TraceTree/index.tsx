@@ -6,7 +6,7 @@ import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
 
-import CustomTreeComponent from "@/oss/components/ui/CustomTreeComponent"
+import CustomTreeComponent from "@/oss/components/CustomUIs/CustomTreeComponent"
 import {StatusCode, TraceSpanNode} from "@/oss/services/tracing/types"
 import {
     formattedSpanCostAtomFamily,
