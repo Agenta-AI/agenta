@@ -1,6 +1,5 @@
-import {Breadcrumb, BreadcrumbProps, Button, Dropdown, MenuProps, Space} from "antd"
+import {Breadcrumb, BreadcrumbProps, Button, Dropdown, MenuProps} from "antd"
 import React, {useMemo} from "react"
-import {useProjectData} from "@/oss/state/project"
 import {FolderTreeNode} from "../assets/utils"
 import {createUseStyles} from "react-jss"
 import {JSSTheme} from "@/oss/lib/Types"
@@ -13,6 +12,7 @@ import {
     TrashIcon,
 } from "@phosphor-icons/react"
 import SetupWorkflowIcon from "./SetupWorkflowIcon"
+import {FolderFilled} from "@ant-design/icons"
 
 interface PromptsBreadcrumbProps {
     foldersById: Record<string, FolderTreeNode>
@@ -61,7 +61,6 @@ const PromptsBreadcrumb = ({
     onDeleteFolder,
 }: PromptsBreadcrumbProps) => {
     const classes = useStyles()
-    const {project} = useProjectData()
 
     const folderChain = useMemo(() => {
         if (!currentFolderId) return []
@@ -136,14 +135,19 @@ const PromptsBreadcrumb = ({
     )
 
     const items: BreadcrumbProps["items"] = useMemo(() => {
-        const base: BreadcrumbProps["items"] = []
-
-        if (project) {
-            base.push({
-                title: project.project_name,
+        const base: BreadcrumbProps["items"] = [
+            {
+                title: (
+                    <Button
+                        type="link"
+                        className="w-5 h-5 m-0"
+                        size="small"
+                        icon={<FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />}
+                    />
+                ),
                 onClick: () => onFolderChange?.(null),
-            })
-        }
+            },
+        ]
 
         folderChain.forEach((folder, index) => {
             const isLast = index === folderChain.length - 1
@@ -176,7 +180,7 @@ const PromptsBreadcrumb = ({
         })
 
         return base
-    }, [actionItems, folderChain, onFolderChange, project])
+    }, [actionItems, folderChain, onFolderChange])
 
     return <Breadcrumb items={items} className={classes.container} />
 }
