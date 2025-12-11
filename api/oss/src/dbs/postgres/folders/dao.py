@@ -114,7 +114,14 @@ class FoldersDAO(FoldersDAOInterface):
     def __init__(self):
         pass
 
-    @suppress_exceptions(exclude=[FolderPathConflict, FolderParentMissing, FolderPathDepthExceeded, FolderPathLengthExceeded])
+    @suppress_exceptions(
+        exclude=[
+            FolderPathConflict,
+            FolderParentMissing,
+            FolderPathDepthExceeded,
+            FolderPathLengthExceeded,
+        ]
+    )
     async def create(
         self,
         *,
@@ -183,7 +190,14 @@ class FoldersDAO(FoldersDAOInterface):
                 dbe=folder,
             )
 
-    @suppress_exceptions(exclude=[FolderPathConflict, FolderParentMissing, FolderPathDepthExceeded, FolderPathLengthExceeded])
+    @suppress_exceptions(
+        exclude=[
+            FolderPathConflict,
+            FolderParentMissing,
+            FolderPathDepthExceeded,
+            FolderPathLengthExceeded,
+        ]
+    )
     async def edit(
         self,
         *,
@@ -298,10 +312,7 @@ class FoldersDAO(FoldersDAOInterface):
         folder_query: FolderQuery,
     ) -> List[Folder]:
         async with engine.core_session() as session:
-            stmt = (
-                select(FolderDBE)
-                .filter(FolderDBE.project_id == project_id)
-            )
+            stmt = select(FolderDBE).filter(FolderDBE.project_id == project_id)
 
             if folder_query.id is not None:
                 stmt = stmt.filter(FolderDBE.id == folder_query.id)
@@ -342,13 +353,17 @@ class FoldersDAO(FoldersDAOInterface):
 
             if folder_query.prefix is not None:
                 escaped_prefix = folder_query.prefix.replace("'", "''")
-                stmt = stmt.filter(FolderDBE.path.op("<@")(text(f"'{escaped_prefix}'::ltree")))
+                stmt = stmt.filter(
+                    FolderDBE.path.op("<@")(text(f"'{escaped_prefix}'::ltree"))
+                )
 
             if folder_query.prefixes:
                 prefix_filters = []
                 for prefix in folder_query.prefixes:
                     escaped_prefix = prefix.replace("'", "''")
-                    prefix_filters.append(FolderDBE.path.op("<@")(text(f"'{escaped_prefix}'::ltree")))
+                    prefix_filters.append(
+                        FolderDBE.path.op("<@")(text(f"'{escaped_prefix}'::ltree"))
+                    )
                 stmt = stmt.filter(or_(*prefix_filters))
 
             if folder_query.tags is not None:
