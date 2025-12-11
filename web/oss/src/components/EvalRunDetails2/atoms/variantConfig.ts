@@ -99,13 +99,19 @@ export const evaluationVariantConfigAtomFamily = atomFamily((runId: string | nul
         const projectId = get(effectiveProjectIdAtom)
         const runQuery = runId ? get(evaluationRunQueryAtomFamily(runId)) : undefined
 
+        // Wait for the run query to finish loading before determining enabled state.
+        // This prevents a race condition where the query is disabled because refs are
+        // empty during initial load, but doesn't re-enable when data arrives.
+        const isRunQueryLoading = runQuery?.isPending || runQuery?.isFetching
+
         const {refs} = runQuery
             ? pickInvocationReference(runQuery)
             : {stepKey: undefined, refs: undefined}
         const reference = normalizeVariantReference(refs)
 
         const hasVariantRef = Boolean(reference.variant?.id || reference.variant?.slug)
-        const enabled = Boolean(projectId && runId && hasVariantRef)
+        // Disable while run query is loading to ensure we wait for the actual data
+        const enabled = Boolean(projectId && runId && hasVariantRef && !isRunQueryLoading)
 
         return {
             queryKey: [

@@ -5,7 +5,6 @@ import dynamic from "next/dynamic"
 import Router from "next/router"
 
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
-import {legacyFocusDrawerEnabledAtom} from "@/oss/state/focusDrawerPreference"
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
 
 const TraceDrawer = dynamic(

@@ -15,6 +15,7 @@ import {
     compareRunIdsAtom,
     compareRunIdsWriteAtom,
     computeStructureFromRawRun,
+    isTerminalStatus,
 } from "../atoms/compare"
 import useRunScopedUrls from "../hooks/useRunScopedUrls"
 import {setCompareQueryParams} from "../state/urlCompare"
@@ -47,6 +48,7 @@ const reasonLabelMap: Record<string, string> = {
     "no-input": "Comparison requires at least one input step.",
     "no-testset": "Comparison is available only for testset-based evaluations.",
     "query-input": "Comparison is not supported for query-driven evaluations.",
+    "pending-status": "Comparison is only available for completed evaluation runs.",
 }
 
 const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
@@ -167,6 +169,8 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                 }
             })
             .filter((candidate) => {
+                // Only allow completed runs (terminal status)
+                if (!isTerminalStatus(candidate.status)) return false
                 if (!candidate.structure.inputStepCount) return false
                 if (candidate.structure.hasQueryInput) return false
                 if (!candidate.structure.testsetIds.length) return false

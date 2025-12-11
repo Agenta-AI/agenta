@@ -1,45 +1,21 @@
 {
     "openai": {
-        "function_calling": [
+        "web_search": [
             {
-                "type": "function",
-                "function": {
-                    "name": "get_weather",
-                    "description": "Get current weather",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "location": {
-                                "type": "string",
-                                "description": "City name"
-                            }
-                        },
-                        "required": ["location"]
-                    }
-                }
+                "type": "web_search_preview"
+            }
+        ],
+        "file_search": [
+            {
+                "type": "file_search",
+                "vector_store_ids": [
+                    "vs_SET_VECTOR_STORE_ID"
+                ],
+                "max_num_results": 10
             }
         ]
     },
     "anthropic": {
-        "function_calling": [
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_weather",
-                    "description": "Get current weather",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "location": {
-                                "type": "string",
-                                "description": "City name"
-                            }
-                        },
-                        "required": ["location"]
-                    }
-                }
-            }
-        ],
         "bash_scripting": [
             {
                 "type": "bash_20250124",
@@ -54,25 +30,6 @@
         ]
     },
     "google": {
-        "function_calling": [
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_weather",
-                    "description": "Get current weather",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "location": {
-                                "type": "string",
-                                "description": "City name"
-                            }
-                        },
-                        "required": ["location"]
-                    }
-                }
-            }
-        ],
         "code_execution": [
             {
                 "code_execution": {}
