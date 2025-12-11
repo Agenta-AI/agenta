@@ -66,6 +66,10 @@ services:
                 condition: service_healthy
             alembic:
                 condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
         restart: always
 
     worker-evaluations:

@@ -74,6 +74,10 @@ services:
                 condition: service_healthy
             alembic:
                 condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
         restart: always
 
     worker-evaluations:
@@ -90,9 +94,12 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
 
         depends_on:
-            - postgres
-            - redis-volatile
-            - redis-durable
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
 
         extra_hosts:
             - "host.docker.internal:host-gateway"
@@ -118,9 +125,12 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
 
         depends_on:
-            - postgres
-            - redis-volatile
-            - redis-durable
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
 
         extra_hosts:
             - "host.docker.internal:host-gateway"

@@ -93,6 +93,10 @@ services:
                 condition: service_completed_successfully
             supertokens:
                 condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
 
     worker-evaluations:
         image: agenta-ee-dev-api:latest
@@ -106,9 +110,12 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
 
         depends_on:
-            - postgres
-            - redis-volatile
-            - redis-durable
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
 
         extra_hosts:
             - "host.docker.internal:host-gateway"
@@ -134,9 +141,12 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
 
         depends_on:
-            - postgres
-            - redis-volatile
-            - redis-durable
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
 
         extra_hosts:
             - "host.docker.internal:host-gateway"

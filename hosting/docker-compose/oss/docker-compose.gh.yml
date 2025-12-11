@@ -67,6 +67,10 @@ services:
                 condition: service_healthy
             alembic:
                 condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
         restart: always
 
     worker-evaluations:
@@ -93,9 +97,12 @@ services:
             ]
 
         depends_on:
-            - postgres
-            - redis-volatile
-            - redis-durable
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
         restart: always
 
     worker-tracing:
@@ -122,9 +129,12 @@ services:
             ]
 
         depends_on:
-            - postgres
-            - redis-volatile
-            - redis-durable
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
         restart: always
 
     cron:
