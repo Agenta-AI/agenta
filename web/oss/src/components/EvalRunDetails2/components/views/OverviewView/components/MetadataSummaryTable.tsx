@@ -28,7 +28,7 @@ import type {
     QueryFilteringPayload,
 } from "../../../../services/onlineEvaluations/api"
 import {buildFrequencyChartData} from "../../../EvaluatorMetricsChart/utils/chartData"
-import {ApplicationReferenceLabel, TestsetTagList, VariantReferenceLabel} from "../../../references"
+import {ApplicationReferenceLabel, TestsetTagList, VariantRevisionLabel} from "../../../references"
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import {resolveMetricValue} from "../utils/metrics"
 
@@ -213,7 +213,7 @@ const ApplicationCell = ({runId, projectURL}: MetadataCellProps) => (
 
 const LegacyVariantCell = memo(({runId}: MetadataCellProps) => (
     <div className="inline-flex">
-        <VariantReferenceLabel runId={runId} />
+        <VariantRevisionLabel runId={runId} />
     </div>
 ))
 

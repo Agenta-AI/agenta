@@ -4,11 +4,13 @@ import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 import {getProjectValues} from "@/oss/state/project"
 import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
 
+import {previewEvalTypeAtom} from "../state/evalType"
 import {resolveValueBySegments, splitPath} from "../utils/valueAccess"
 
 import {
@@ -19,6 +21,7 @@ import {
     type MetricScope,
 } from "./metricProcessor"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
+import {evaluationRunQueryAtomFamily} from "./table/run"
 
 interface EvaluationMetricEntry {
     id?: string
@@ -138,6 +141,7 @@ const buildGroupedMetrics = (
     rawMetrics: any[],
     processor: MetricProcessor,
     scenarioStatuses?: Map<string, string | null>,
+    scenarioContextMap?: Map<string, {hasInvocation?: boolean; hasAnnotation?: boolean}>,
 ): Record<string, ScenarioMetricData | null> => {
     const grouped: Record<string, ScenarioMetricData | null> = Object.create(null)
 
@@ -244,7 +248,13 @@ const buildGroupedMetrics = (
     scenarioIds.forEach((scenarioId) => {
         if ((returnedScenarioCounts.get(scenarioId) ?? 0) === 0) {
             const scenarioStatus = scenarioStatuses?.get(scenarioId) ?? null
-            processor.markScenarioGap(scenarioId, "missing-scenario-metric", scenarioStatus)
+            const scenarioContext = scenarioContextMap?.get(scenarioId)
+            processor.markScenarioGap(
+                scenarioId,
+                "missing-scenario-metric",
+                scenarioStatus,
+                scenarioContext,
+            )
             grouped[scenarioId] = null
         }
     })
@@ -358,7 +368,10 @@ const flattenMetrics = (raw: Record<string, any>): Record<string, any> => {
                         ? subValue.value
                         : subValue
 
-                if (!isEvaluatorBucket) {
+                // For invocation metrics (attributes.ag.*), always create both
+                // prefixed and unprefixed keys to support online evaluations
+                const isInvocationMetric = subKey.startsWith("attributes.ag.metrics.")
+                if (!isEvaluatorBucket || isInvocationMetric) {
                     assignFlat(flat, subKey, resolvedSubValue)
                 }
                 assignFlat(flat, `${key}.${subKey}`, resolvedSubValue)
@@ -483,7 +496,7 @@ interface MetricLookupContext {
 const logMetricLookupMatch = (
     context: MetricLookupContext,
     matchedKey: string,
-    source: "flat" | "raw" | "raw-prefixed",
+    source: "flat" | "flat-suffix" | "raw" | "raw-prefixed",
 ) => {
     if (process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG !== "true" || typeof window === "undefined") return
     // console.info("[EvalRunDetails2][MetricLookup] candidate match", {
@@ -491,6 +504,29 @@ const logMetricLookupMatch = (
     //     matchedKey,
     //     source,
     // })
+}
+
+/**
+ * Extract scalar value from a stats object.
+ * For single-count stats objects, use mean/sum. For multi-count, return the whole object.
+ */
+const extractScalarFromStats = (value: any): unknown => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value
+
+    // If it's a stats object with count: 1, extract the scalar value
+    if (typeof value.count === "number" && value.count === 1) {
+        // For single value, mean and sum should be the same
+        if (typeof value.mean === "number") return value.mean
+        if (typeof value.sum === "number") return value.sum
+        if (typeof value.max === "number") return value.max
+    }
+
+    // If it has a mean/sum for multi-count, use mean for display
+    if (typeof value.mean === "number") return value.mean
+    if (typeof value.sum === "number") return value.sum
+
+    // Return the whole object for complex stats (will be handled by the UI)
+    return value
 }
 
 const extractMetricValueFromData = (
@@ -519,11 +555,16 @@ const extractMetricValueFromData = (
     if (flattenedKey && flattenedKey !== canonicalPrimary) baseCandidates.push(flattenedKey)
     if (terminalKey) baseCandidates.push(terminalKey)
 
+    // For invocation metrics (attributes.ag.metrics.*), don't use stepKey for lookup
+    // because they're stored unprefixed in online evaluations
+    const isInvocationMetric = path.startsWith("attributes.ag.metrics.")
+    const effectiveStepKey = isInvocationMetric ? undefined : stepKey
+
     const stepCandidates: string[] = []
-    if (stepKey) {
+    if (effectiveStepKey) {
         baseCandidates.forEach((candidate) => {
             if (candidate) {
-                stepCandidates.push(`${stepKey}.${candidate}`)
+                stepCandidates.push(`${effectiveStepKey}.${candidate}`)
             }
         })
     }
@@ -543,7 +584,7 @@ const extractMetricValueFromData = (
     // Prioritize stepCandidates over evaluatorCandidates since online evaluations
     // use stepKey (e.g., "evaluator-142233c5fdb7") as the primary key in flatMap
     const candidates = (
-        stepKey && stepCandidates.length > 0
+        effectiveStepKey && stepCandidates.length > 0
             ? [...stepCandidates, ...evaluatorCandidates]
             : [...stepCandidates, ...evaluatorCandidates, ...baseCandidates]
     ).filter((candidate, index, array) => candidate && array.indexOf(candidate) === index)
@@ -551,7 +592,7 @@ const extractMetricValueFromData = (
     for (const candidate of candidates) {
         if (candidate && Object.prototype.hasOwnProperty.call(flatMap, candidate)) {
             logMetricLookupMatch(context, candidate, "flat")
-            return flatMap[candidate]
+            return extractScalarFromStats(flatMap[candidate])
         }
     }
 
@@ -567,23 +608,27 @@ const extractMetricValueFromData = (
     for (const suffix of suffixes) {
         const matchingKey = Object.keys(flatMap).find((key) => {
             if (!key.endsWith(suffix)) return false
-            // When stepKey is provided, only match keys that start with the stepKey
+            // When effectiveStepKey is provided, only match keys that start with the stepKey
             // to prevent cross-evaluator matching
-            if (stepKey && !key.startsWith(`${stepKey}.`) && key !== stepKey) {
+            if (
+                effectiveStepKey &&
+                !key.startsWith(`${effectiveStepKey}.`) &&
+                key !== effectiveStepKey
+            ) {
                 return false
             }
             return true
         })
         if (matchingKey) {
             logMetricLookupMatch(context, matchingKey, "flat-suffix")
-            return flatMap[matchingKey]
+            return extractScalarFromStats(flatMap[matchingKey])
         }
     }
 
     const resolvedFromRaw = resolveValueBySegments(data.raw, segments)
     if (resolvedFromRaw !== undefined) {
         logMetricLookupMatch(context, canonicalPrimary ?? segments.join("."), "raw")
-        return resolvedFromRaw
+        return extractScalarFromStats(resolvedFromRaw)
     }
 
     if (evaluatorKey) {
@@ -591,18 +636,18 @@ const extractMetricValueFromData = (
         const evaluatorResolved = resolveValueBySegments(data.raw, evaluatorSegments)
         if (evaluatorResolved !== undefined) {
             logMetricLookupMatch(context, `${evaluatorKey}.${segments.join(".")}`, "raw-prefixed")
-            return evaluatorResolved
+            return extractScalarFromStats(evaluatorResolved)
         }
     }
 
     if (canonicalPrimary && data.raw) {
         const prefixedSegments =
-            stepKey && canonicalPrimary !== stepKey
-                ? stepKey.split(".").filter(Boolean).concat(segments)
+            effectiveStepKey && canonicalPrimary !== effectiveStepKey
+                ? effectiveStepKey.split(".").filter(Boolean).concat(segments)
                 : null
         if (prefixedSegments) {
             const nested = resolveValueBySegments(data.raw, prefixedSegments)
-            if (nested !== undefined) return nested
+            if (nested !== undefined) return extractScalarFromStats(nested)
         }
     }
 
@@ -613,9 +658,20 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
     atom((get) => {
         const projectId = resolveProjectId(get)
         const effectiveRunId = resolveEffectiveRunId(get, runId)
+        const evalTypeFromAtom = get(previewEvalTypeAtom)
+
+        // Derive evaluation type from run.data.steps - this is the reliable source of truth
+        // Do NOT use meta.evaluation_kind as it's flaky and unreliable
+        const runQuery = effectiveRunId
+            ? get(evaluationRunQueryAtomFamily(effectiveRunId))
+            : undefined
+        const rawRun = runQuery?.data?.rawRun
+        const evalTypeFromRun = rawRun ? deriveEvaluationKind(rawRun) : null
+        const evaluationType = evalTypeFromAtom || evalTypeFromRun
+
         if (!projectId || !effectiveRunId) return null
 
-        const cacheKey = `${projectId}:${effectiveRunId}`
+        const cacheKey = `${projectId}:${effectiveRunId}:${evaluationType || "auto"}`
         let batcher = metricBatcherCache.get(cacheKey)
         if (!batcher) {
             metricBatcherCache.clear()
@@ -668,6 +724,7 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
                                 projectId,
                                 runId: effectiveRunId,
                                 source,
+                                evaluationType,
                             })
 
                             // Get scenario statuses from cache for terminal state detection
@@ -716,7 +773,7 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
     }),
 )
 
-export const evaluationMetricBatcherAtom = atom((get) => get(evaluationMetricBatcherFamily()))
+export const evaluationMetricBatcherAtom = atom((get) => get(evaluationMetricBatcherFamily({})))
 
 export const evaluationMetricQueryAtomFamily = atomFamily(
     ({scenarioId, runId}: {scenarioId: string; runId?: string | null}) =>
@@ -815,9 +872,11 @@ export const runLevelMetricQueryAtomFamily = atomFamily(({runId}: {runId?: strin
                 const response = await axios.post(
                     `/preview/evaluations/metrics/query`,
                     {
-                        run_ids: [effectiveRunId],
-                        scenario_ids: false,
-                        timestamps: false,
+                        metrics: {
+                            run_ids: [effectiveRunId],
+                            scenario_ids: false,
+                            timestamps: false,
+                        },
                     },
                     {params: {project_id: projectId}},
                 )
@@ -833,3 +892,55 @@ export const runLevelMetricQueryAtomFamily = atomFamily(({runId}: {runId?: strin
         }
     }),
 )
+
+/**
+ * Trigger metrics refresh for both scenario-level and run-level metrics.
+ * This should be called after actions that modify scenario data (invocations, annotations).
+ *
+ * @param projectId - The project ID
+ * @param runId - The run ID
+ * @param scenarioId - Optional scenario ID for scenario-level refresh
+ */
+export const triggerMetricsRefresh = async ({
+    projectId,
+    runId,
+    scenarioId,
+}: {
+    projectId: string
+    runId: string
+    scenarioId?: string
+}): Promise<void> => {
+    try {
+        // Refresh scenario-level metrics if scenarioId is provided
+        if (scenarioId) {
+            await axios.post(
+                `/preview/evaluations/metrics/refresh`,
+                {
+                    metrics: {
+                        run_id: runId,
+                        scenario_id: scenarioId,
+                    },
+                },
+                {params: {project_id: projectId}},
+            )
+        }
+        // Refresh run-level metrics (without scenario_id)
+        await axios.post(
+            `/preview/evaluations/metrics/refresh`,
+            {
+                metrics: {
+                    run_id: runId,
+                },
+            },
+            {params: {project_id: projectId}},
+        )
+        console.log("[metrics] Metrics refresh triggered", {
+            projectId,
+            runId,
+            scenarioId,
+            levels: scenarioId ? "scenario + run" : "run only",
+        })
+    } catch (error) {
+        console.warn("[metrics] Metrics refresh failed:", error)
+    }
+}
