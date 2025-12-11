@@ -2,7 +2,7 @@
  * Evaluation-specific reference label components.
  * These wrap the generic Reference components and provide projectId from context.
  */
-import {memo} from "react"
+import {memo, useMemo} from "react"
 
 import {useAtomValue} from "jotai"
 
@@ -13,8 +13,10 @@ import {
     TestsetTagList as GenericTestsetTagList,
     VariantReferenceLabel as GenericVariantReferenceLabel,
     VariantReferenceText as GenericVariantReferenceText,
+    VariantRevisionLabel as GenericVariantRevisionLabel,
 } from "@/oss/components/References"
 
+import {variantReferenceQueryAtomFamily} from "../../atoms/references"
 import {effectiveProjectIdAtom} from "../../atoms/run"
 import useRunIdentifiers from "../../hooks/useRunIdentifiers"
 import useRunScopedUrls from "../../hooks/useRunScopedUrls"
@@ -150,6 +152,88 @@ export const VariantReferenceLabel = memo(
                 fallbackLabel={fallbackLabel}
                 showVersionPill={showVersionPill}
                 explicitVersion={explicitVersion}
+                href={href}
+            />
+        )
+    },
+)
+
+/**
+ * Evaluation-scoped combined variant + revision label.
+ * Displays "variantName v{revision}" in a single chip that links to the specific revision.
+ * Gets projectId from evaluation context and IDs from run if not provided.
+ * Fetches variant details to use as fallbacks when not explicitly provided.
+ */
+export const VariantRevisionLabel = memo(
+    ({
+        variantId: explicitVariantId,
+        revisionId: explicitRevisionId,
+        applicationId: explicitApplicationId,
+        runId,
+        fallbackVariantName,
+        fallbackRevision,
+    }: {
+        variantId?: string | null
+        revisionId?: string | null
+        applicationId?: string | null
+        runId?: string | null
+        fallbackVariantName?: string | null
+        fallbackRevision?: number | string | null
+    }) => {
+        const projectId = useAtomValue(effectiveProjectIdAtom)
+        const {
+            variantId: runVariantId,
+            applicationId: runApplicationId,
+            rawRefs,
+        } = useRunIdentifiers(runId)
+
+        // Get revision ID from rawRefs if not explicitly provided
+        const runRevisionId =
+            rawRefs?.applicationRevision?.id ?? rawRefs?.application_revision?.id ?? null
+        const effectiveRevisionId = explicitRevisionId ?? runRevisionId ?? null
+        const effectiveVariantId = explicitVariantId ?? runVariantId ?? null
+        const effectiveApplicationId = explicitApplicationId ?? runApplicationId ?? null
+
+        // Fetch variant details to use as fallbacks
+        const variantAtom = useMemo(
+            () => variantReferenceQueryAtomFamily(effectiveVariantId),
+            [effectiveVariantId],
+        )
+        const variantQuery = useAtomValue(variantAtom)
+        const variantResolved = variantQuery.data
+
+        // Build fallbacks from variant query and rawRefs
+        const resolvedVariantName =
+            fallbackVariantName ??
+            variantResolved?.name ??
+            variantResolved?.slug ??
+            rawRefs?.applicationVariant?.name ??
+            rawRefs?.applicationVariant?.slug ??
+            rawRefs?.application_variant?.name ??
+            rawRefs?.application_variant?.slug ??
+            null
+
+        const resolvedRevision =
+            fallbackRevision ??
+            variantResolved?.revision ??
+            rawRefs?.applicationRevision?.version ??
+            rawRefs?.applicationRevision?.revision ??
+            rawRefs?.application_revision?.version ??
+            rawRefs?.application_revision?.revision ??
+            null
+
+        const {buildRevisionPlaygroundHref} = useRunScopedUrls(runId, effectiveApplicationId)
+
+        // Link to the specific revision in playground
+        const href = buildRevisionPlaygroundHref(effectiveVariantId, effectiveRevisionId)
+
+        return (
+            <GenericVariantRevisionLabel
+                variantId={effectiveVariantId}
+                revisionId={effectiveRevisionId}
+                projectId={projectId}
+                fallbackVariantName={resolvedVariantName}
+                fallbackRevision={resolvedRevision}
                 href={href}
             />
         )

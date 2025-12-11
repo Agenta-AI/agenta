@@ -135,25 +135,50 @@ export const runInvocation = async (params: RunInvocationParams): Promise<Invoca
     } catch (error: any) {
         console.error("[runInvocation] Error:", error)
 
-        // Update step result with error status
+        // Extract error message from various response formats
+        const extractErrorMessage = (err: any): string => {
+            const detail = err?.response?.data?.detail
+            // Handle nested detail object with message property
+            if (detail && typeof detail === "object" && detail.message) {
+                return detail.message
+            }
+            // Handle array of validation errors
+            if (Array.isArray(detail)) {
+                return detail.map((d: any) => d.msg || d.message || JSON.stringify(d)).join("; ")
+            }
+            // Handle string detail
+            if (typeof detail === "string") {
+                return detail
+            }
+            // Fallback to error message
+            return err?.message || "Unknown error occurred"
+        }
+
+        const errorMessage = extractErrorMessage(error)
+
+        // Update step result with failure status and error details
         try {
             await upsertStepResultWithInvocation({
                 runId,
                 scenarioId,
                 stepKey,
-                status: "error",
+                status: "failure",
                 references,
+                error: {
+                    message: errorMessage,
+                    stacktrace: error?.response?.data?.detail?.stacktrace || error?.stack,
+                },
             })
 
-            // Update scenario status to error/failure
-            await updateScenarioStatus(scenarioId, EvaluationStatus.ERROR)
+            // Update scenario status to failure
+            await updateScenarioStatus(scenarioId, EvaluationStatus.FAILURE)
         } catch (updateError) {
             console.error("[runInvocation] Failed to update step result with error:", updateError)
         }
 
         return {
             success: false,
-            error: error?.response?.data?.detail || error?.message || "Unknown error occurred",
+            error: errorMessage,
         }
     }
 }
@@ -169,6 +194,7 @@ const upsertStepResultWithInvocation = async ({
     spanId,
     status,
     references,
+    error,
 }: {
     runId: string
     scenarioId: string
@@ -177,6 +203,7 @@ const upsertStepResultWithInvocation = async ({
     spanId?: string
     status: string
     references?: InvocationReferences
+    error?: {message: string; stacktrace?: string}
 }): Promise<void> => {
     const {projectId} = getProjectValues()
 
@@ -203,6 +230,9 @@ const upsertStepResultWithInvocation = async ({
     }
     if (spanIdUuid) {
         resultPayload.span_id = spanIdUuid
+    }
+    if (error) {
+        resultPayload.error = error
     }
 
     if (existingResult?.id) {
@@ -252,7 +282,7 @@ const updateScenarioStatus = async (
  * Check if all scenarios in a run are complete and update the run status accordingly.
  * A run is considered complete when all its scenarios have a terminal status (success, error, failure).
  */
-const checkAndUpdateRunStatus = async (runId: string): Promise<void> => {
+const _checkAndUpdateRunStatus = async (runId: string): Promise<void> => {
     const {projectId} = getProjectValues()
 
     try {

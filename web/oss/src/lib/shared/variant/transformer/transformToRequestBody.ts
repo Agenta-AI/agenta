@@ -9,7 +9,7 @@ import {
     extractVariablesFromJson,
 } from "../inputHelpers"
 import {getRequestSchema} from "../openapiUtils"
-import {extractValueByMetadata} from "../valueHelpers"
+import {extractValueByMetadata, stripAgentaMetadataDeep} from "../valueHelpers"
 
 import {EnhancedVariant, Message, VariantParameters} from "./types"
 
@@ -217,6 +217,9 @@ export function transformToRequestBody({
     }
 
     sanitizeResponseFormat(ag_config)
+
+    // Strip agenta_metadata from tools and any other nested objects before sending to API
+    ag_config = stripAgentaMetadataDeep(ag_config)
 
     data.ag_config = ag_config
 

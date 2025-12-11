@@ -210,9 +210,19 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         if (isExporting) return
         setIsExporting(true)
         try {
+            // If rows are selected, export only selected rows; otherwise export all rows
+            const selectedKeys = rowSelection?.selectedRowKeys
+            const rowsToExport =
+                selectedKeys && selectedKeys.length > 0
+                    ? pagination.rows.filter((row) => {
+                          const key =
+                              typeof rowKey === "function" ? rowKey(row) : row[rowKey as keyof Row]
+                          return selectedKeys.includes(key as Key)
+                      })
+                    : pagination.rows
             await tableExport({
                 columns,
-                rows: pagination.rows,
+                rows: rowsToExport,
                 filename: resolvedExportFilename,
                 isColumnExportable,
                 getValue: getExportValue,
@@ -239,6 +249,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         resolveValue,
         resolveColumnLabel,
         resolvedExportFilename,
+        rowKey,
+        rowSelection?.selectedRowKeys,
         tableExport,
     ])
 
