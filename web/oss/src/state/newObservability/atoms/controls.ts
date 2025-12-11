@@ -5,7 +5,7 @@ import dayjs from "dayjs"
 import {atom} from "jotai"
 
 import type {SortResult} from "@/oss/components/Filters/Sort"
-import type {TestsetTraceData} from "@/oss/components/pages/observability/drawer/TestsetDrawer/assets/types"
+import type {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
 import type {Filter} from "@/oss/lib/Types"
 
 import {routerAppIdAtom} from "../../app"

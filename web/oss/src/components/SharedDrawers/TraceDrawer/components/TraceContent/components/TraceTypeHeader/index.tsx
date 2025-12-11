@@ -20,7 +20,7 @@ const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
     ssr: false,
 })
 const TestsetDrawer = dynamic(
-    () => import("@/oss/components/pages/observability/drawer/TestsetDrawer/TestsetDrawer"),
+    () => import("@/oss/components/SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
     {ssr: false},
 )
 

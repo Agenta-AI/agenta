@@ -3,7 +3,7 @@ import {cloneElement, isValidElement, useMemo, useState} from "react"
 import {Database} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
 
-import {TestsetTraceData} from "@/oss/components/pages/observability/drawer/TestsetDrawer/assets/types"
+import {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 import EnhancedButton from "../../../assets/EnhancedButton"
@@ -11,7 +11,7 @@ import EnhancedButton from "../../../assets/EnhancedButton"
 import {TestsetDrawerButtonProps} from "./types"
 
 const TestsetDrawer = dynamic(
-    () => import("@/oss/components/pages/observability/drawer/TestsetDrawer/TestsetDrawer"),
+    () => import("@/oss/components/SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
 )
 
 const TestsetDrawerButton = ({
