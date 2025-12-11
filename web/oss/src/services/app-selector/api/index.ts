@@ -165,11 +165,28 @@ export const updateAppName = async (appId: string, appName: string, ignoreAxiosE
     return response.data
 }
 
+export const updateAppFolder = async (
+    appId: string,
+    folderId: string | null,
+    ignoreAxiosError = false,
+) => {
+    const {projectId} = getProjectValues()
+
+    const response = await axios.patch(
+        `${getAgentaApiUrl()}/apps/${appId}?project_id=${projectId}`,
+        {id: appId, folder_id: folderId},
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+
+    return response.data
+}
+
 export const createAndStartTemplate = async ({
     appName,
     providerKey,
     templateKey,
     serviceUrl,
+    folderId,
     isCustomWorkflow = false,
     onStatusChange,
 }: {
@@ -177,6 +194,7 @@ export const createAndStartTemplate = async ({
     templateKey: ServiceType
     serviceUrl?: string
     providerKey: LlmProvider[]
+    folderId?: string | null
     isCustomWorkflow?: boolean
     onStatusChange?: (
         status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
@@ -196,6 +214,7 @@ export const createAndStartTemplate = async ({
             templateKey,
             serviceUrl,
             providerKey,
+            folderId,
             isCustomWorkflow,
             onStatusChange,
         })
