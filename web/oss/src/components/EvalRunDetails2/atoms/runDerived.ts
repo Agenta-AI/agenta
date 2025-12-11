@@ -137,3 +137,32 @@ export const runTestsetIdsAtomFamily = atomFamily((runId: string | null) =>
         shallowArrayEqual,
     ),
 )
+
+interface RunFlags {
+    isLive?: boolean
+    isClosed?: boolean
+    isActive?: boolean
+}
+
+const shallowFlagsEqual = (a: RunFlags | null, b: RunFlags | null) => {
+    if (a === b) return true
+    if (!a || !b) return false
+    return a.isLive === b.isLive && a.isClosed === b.isClosed && a.isActive === b.isActive
+}
+
+export const runFlagsAtomFamily = atomFamily((runId: string | null) =>
+    selectAtom(
+        evaluationRunQueryAtomFamily(runId),
+        (query): RunFlags | null => {
+            const run = query.data?.camelRun ?? query.data?.rawRun
+            if (!run) return null
+            const flags = (run as any)?.flags ?? {}
+            return {
+                isLive: flags.isLive ?? flags.is_live ?? undefined,
+                isClosed: flags.isClosed ?? flags.is_closed ?? undefined,
+                isActive: flags.isActive ?? flags.is_active ?? undefined,
+            }
+        },
+        shallowFlagsEqual,
+    ),
+)

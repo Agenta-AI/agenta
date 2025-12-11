@@ -68,7 +68,9 @@ export const PreviewAppCell = ({
         variantSlot?.values.find((value) => value.source?.toLowerCase().includes("variant")) ??
         variantSlot?.values?.[0] ??
         null
+    // Look for revision in both application slot (application_revision) and variant slot
     const slotRevisionValue =
+        slot?.values.find((value) => value.source?.toLowerCase().includes("revision")) ??
         variantSlot?.values.find((value) => value.source?.toLowerCase().includes("revision")) ??
         null
     const revisionId =

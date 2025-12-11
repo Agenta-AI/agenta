@@ -82,7 +82,7 @@ export const useTraceDrawer = () => {
                 links: annotationLinks,
             },
         },
-        waitUntil: !annotationLinks.length,
+        waitUntil: !flatBaseTraces.length,
     })
 
     const traces = useMemo(() => {
