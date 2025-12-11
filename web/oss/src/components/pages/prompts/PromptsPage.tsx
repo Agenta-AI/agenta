@@ -353,7 +353,8 @@ const PromptsPage = () => {
             await mutate()
             resetFolderModalState()
         } catch (error) {
-            message.error(isRenameMode ? "Failed to rename folder" : "Failed to create folder")
+            const apiMessage = (error as any)?.response?.data?.detail
+            message.error(apiMessage)
         } finally {
             setIsSavingFolder(false)
         }
@@ -519,7 +520,8 @@ const PromptsPage = () => {
             message.success("Folder moved")
             return true
         } catch (error) {
-            message.error("Failed to move folder")
+            const apiMessage = (error as any)?.response?.data?.detail
+            message.error(apiMessage)
             return false
         } finally {
             setIsMovingItem(false)
@@ -551,7 +553,8 @@ const PromptsPage = () => {
             message.success("App moved")
             return true
         } catch (error) {
-            message.error("Failed to move app")
+            const apiMessage = (error as any)?.response?.data?.detail
+            message.error(apiMessage)
             return false
         } finally {
             setIsMovingItem(false)
@@ -667,7 +670,8 @@ const PromptsPage = () => {
             setSelectedRow(null)
             handleCloseDeleteModal()
         } catch (error) {
-            message.error("Failed to delete folder")
+            const apiMessage = (error as any)?.response?.data?.detail
+            message.error(apiMessage)
         } finally {
             setIsDeletingFolder(false)
         }
