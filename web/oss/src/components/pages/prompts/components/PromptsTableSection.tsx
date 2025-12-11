@@ -24,7 +24,6 @@ interface PromptsTableSectionProps {
     tableScope: TableScopeConfig
     tablePagination: TableFeaturePagination<PromptsTableRow>
     rowSelection: InfiniteVirtualTableRowSelection<PromptsTableRow>
-    expandable?: TableProps<PromptsTableRow>["expandable"]
     tableProps?: TableProps<PromptsTableRow>
     searchTerm: string
     onSearchChange: (value: string) => void
@@ -42,7 +41,6 @@ export const PromptsTableSection = ({
     tableScope,
     tablePagination,
     rowSelection,
-    expandable,
     tableProps,
     searchTerm,
     onSearchChange,
@@ -131,7 +129,6 @@ export const PromptsTableSection = ({
                 dataSource={tableRows}
                 pagination={tablePagination}
                 rowSelection={rowSelection}
-                expandable={expandable}
                 tableProps={tableProps}
             />
         </div>

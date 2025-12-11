@@ -702,19 +702,30 @@ const PromptsPage = () => {
         [tableRows],
     )
 
-    const expandableConfig = useMemo(
-        () => (searchTerm ? {expandedRowKeys: searchExpandedRowKeys} : undefined),
+    const tableExpandableConfig = useMemo(
+        () => ({
+            defaultExpandAllRows: Boolean(searchTerm),
+            defaultExpandedRowKeys: searchTerm ? searchExpandedRowKeys : undefined,
+            rowExpandable: (record: PromptsTableRow) => Boolean(record.children?.length),
+        }),
         [searchExpandedRowKeys, searchTerm],
+    )
+
+    const tableInstanceKey = useMemo(
+        () => (searchTerm ? `search-${searchTerm}` : `folder-${currentFolderId ?? "root"}`),
+        [currentFolderId, searchTerm],
     )
 
     const tableProps = useMemo(
         () => ({
+            key: tableInstanceKey,
             bordered: true,
             size: "small" as const,
             virtual: true,
             sticky: true,
             tableLayout: "fixed" as const,
             scroll: {x: "max-content" as const},
+            expandable: tableExpandableConfig,
             onRow: (record: PromptsTableRow) => ({
                 onClick: () => handleRowClick(record),
                 className: "cursor-pointer",
@@ -743,7 +754,7 @@ const PromptsPage = () => {
                         : undefined,
             }),
         }),
-        [handleDropOnFolder, handleRowClick],
+        [handleDropOnFolder, handleRowClick, tableExpandableConfig, tableInstanceKey],
     )
 
     const renderAppTypeIcon = useCallback((appType?: string) => getAppTypeIcon(appType), [])
@@ -785,7 +796,6 @@ const PromptsPage = () => {
                 tableScope={tableScope}
                 tablePagination={tablePagination}
                 rowSelection={rowSelection}
-                expandable={expandableConfig}
                 tableProps={tableProps}
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
