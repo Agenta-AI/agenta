@@ -148,7 +148,9 @@ class FoldersService:
             else:
                 new_parent_path = None
 
-        new_prefix = new_slug if not new_parent_path else f"{new_parent_path}.{new_slug}"
+        new_prefix = (
+            new_slug if not new_parent_path else f"{new_parent_path}.{new_slug}"
+        )
         _validate_path_depth(new_prefix)
 
         return await self.folders_dao.edit(
