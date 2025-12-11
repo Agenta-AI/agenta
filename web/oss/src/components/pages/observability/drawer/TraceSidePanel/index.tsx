@@ -13,7 +13,7 @@ import TraceAnnotations from "./TraceAnnotations"
 import TraceDetails from "./TraceDetails"
 import clsx from "clsx"
 import TraceLinkedSpans from "./TraceLinkedSpans"
-import TraceReferences from "./References"
+import TraceReferences from "./TraceReferences"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {

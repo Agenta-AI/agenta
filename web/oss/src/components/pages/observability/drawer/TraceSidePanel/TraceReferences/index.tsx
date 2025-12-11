@@ -40,7 +40,11 @@ const TraceReferences = () => {
     )
 
     const groupedReferences = useMemo(() => {
-        return references.reduce<Record<string, Record<string, any>[]>>((acc, reference) => {
+        const validReferences = references?.filter(
+            (reference) => (reference as any)?.id || (reference as any)?.slug,
+        )
+
+        return validReferences?.reduce<Record<string, Record<string, any>[]>>((acc, reference) => {
             const key = reference?.key || "other"
             if (!acc[key]) acc[key] = []
             acc[key].push(reference)
@@ -56,14 +60,18 @@ const TraceReferences = () => {
                         applicationId={id ?? null}
                         projectId={projectId}
                         projectURL={projectURL}
+                        label={slug}
+                        openExternally
                     />
                 )
             case "testset":
                 return (
                     <TestsetTag
-                        testsetId={id ?? ""}
+                        testsetId={id}
                         projectId={projectId}
                         projectURL={projectURL}
+                        label={slug}
+                        openExternally
                     />
                 )
             case "evaluator":
@@ -73,6 +81,8 @@ const TraceReferences = () => {
                         evaluatorSlug={slug}
                         projectId={projectId}
                         href={buildEvaluatorTarget({id, slug})?.href ?? undefined}
+                        label={slug}
+                        openExternally
                     />
                 )
             case "environment":
@@ -83,11 +93,18 @@ const TraceReferences = () => {
                         applicationId={applicationReference?.id}
                         projectId={projectId}
                         projectURL={projectURL}
+                        label={slug}
+                        openExternally
                     />
                 )
             case "application_variant": {
-                const applicationId = applicationReference?.id
-                const href = `${projectURL}/apps/${encodeURIComponent(applicationId)}/variants?revisionId=${encodeURIComponent(id)}`
+                const applicationId = applicationReference?.id || applicationReference?.slug
+                const href =
+                    projectURL && applicationId && id
+                        ? `${projectURL}/apps/${encodeURIComponent(
+                              applicationId,
+                          )}/variants?revisionId=${encodeURIComponent(id)}`
+                        : null
 
                 return (
                     <VariantReferenceLabel
@@ -95,6 +112,8 @@ const TraceReferences = () => {
                         projectId={projectId}
                         showVersionPill
                         href={href || undefined}
+                        label={slug}
+                        openExternally
                     />
                 )
             }
@@ -116,7 +135,7 @@ const TraceReferences = () => {
                     <Space key={key} direction="vertical" size={6} className="w-full">
                         <Typography.Text className={classes.title}>{displayLabel}</Typography.Text>
                         <div className="flex flex-col gap-1">
-                            {refs.map((ref, index) => {
+                            {refs?.map((ref, index) => {
                                 const tag = renderReferenceTag({
                                     key: ref.key as string,
                                     id: (ref as any)?.id,

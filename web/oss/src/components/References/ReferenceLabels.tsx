@@ -25,10 +25,12 @@ export const TestsetTag = memo(
         testsetId,
         projectId,
         projectURL,
+        openExternally = false,
     }: {
         testsetId: string
         projectId: string | null
         projectURL?: string | null
+        openExternally?: boolean
     }) => {
         const queryAtom = useMemo(
             () => previewTestsetReferenceAtomFamily({projectId, testsetId}),
@@ -55,6 +57,7 @@ export const TestsetTag = memo(
                 copyValue={testsetId}
                 className="max-w-[220px] w-fit"
                 tone="testset"
+                openExternally={openExternally}
             />
         )
     },
@@ -72,6 +75,8 @@ export const EnvironmentReferenceLabel = memo(
         applicationId,
         projectURL,
         href: explicitHref,
+        openExternally = false,
+        label: customLabel,
     }: {
         environmentId?: string | null
         environmentSlug?: string | null
@@ -79,6 +84,8 @@ export const EnvironmentReferenceLabel = memo(
         applicationId?: string | null
         projectURL?: string | null
         href?: string | null
+        openExternally?: boolean
+        label?: string
     }) => {
         const queryAtom = useMemo(
             () =>
@@ -93,6 +100,15 @@ export const EnvironmentReferenceLabel = memo(
         const query = useAtomValue(queryAtom)
 
         if (!environmentId && !environmentSlug) {
+            if (customLabel) {
+                return (
+                    <ReferenceTag
+                        label={customLabel}
+                        className="max-w-[220px] w-fit"
+                        tone="environment"
+                    />
+                )
+            }
             return <Text type="secondary">—</Text>
         }
 
@@ -109,6 +125,7 @@ export const EnvironmentReferenceLabel = memo(
             ? "Deleted"
             : (ref?.name ??
               ref?.slug ??
+              customLabel ??
               ref?.id ??
               environmentSlug ??
               environmentId ??
@@ -136,6 +153,7 @@ export const EnvironmentReferenceLabel = memo(
                 copyValue={resolvedSlug ?? ref?.id ?? environmentId ?? undefined}
                 className="max-w-[220px] w-fit"
                 tone="environment"
+                openExternally={openExternally}
             />
         )
     },
@@ -151,11 +169,13 @@ export const TestsetTagList = memo(
         projectId,
         projectURL,
         className,
+        openExternally = false,
     }: {
         ids: string[]
         projectId: string | null
         projectURL?: string | null
         className?: string
+        openExternally?: boolean
     }) => {
         if (!ids.length) {
             return <Text type="secondary">—</Text>
@@ -169,6 +189,7 @@ export const TestsetTagList = memo(
                         testsetId={id}
                         projectId={projectId}
                         projectURL={projectURL}
+                        openExternally={openExternally}
                     />
                 ))}
             </div>
@@ -186,11 +207,15 @@ export const ApplicationReferenceLabel = memo(
         projectId,
         projectURL,
         href: explicitHref,
+        openExternally = false,
+        label: customLabel,
     }: {
         applicationId: string | null
         projectId: string | null
         projectURL?: string | null
         href?: string | null
+        openExternally?: boolean
+        label?: string
     }) => {
         const queryAtom = useMemo(
             () => appReferenceAtomFamily({projectId, appId: applicationId}),
@@ -199,6 +224,11 @@ export const ApplicationReferenceLabel = memo(
         const query = useAtomValue(queryAtom)
 
         if (!applicationId) {
+            if (customLabel) {
+                return (
+                    <ReferenceTag label={customLabel} className="max-w-[220px] w-fit" tone="app" />
+                )
+            }
             return <Text type="secondary">—</Text>
         }
 
@@ -209,7 +239,9 @@ export const ApplicationReferenceLabel = memo(
         const ref = query.data
         // If we have an ID but no name/slug, or query errored, the app was likely deleted
         const isDeleted = Boolean(query.isError || (ref?.id && !ref?.name && !ref?.slug))
-        const label = isDeleted ? "Deleted" : (ref?.name ?? ref?.slug ?? ref?.id ?? applicationId)
+        const label = isDeleted
+            ? "Deleted"
+            : (ref?.name ?? ref?.slug ?? customLabel ?? ref?.id ?? applicationId)
         // Don't show link for deleted apps
         const href = isDeleted
             ? null
@@ -224,6 +256,7 @@ export const ApplicationReferenceLabel = memo(
                 copyValue={applicationId ?? undefined}
                 className="max-w-[220px] w-fit"
                 tone="app"
+                openExternally={openExternally}
             />
         )
     },
@@ -242,6 +275,8 @@ export const VariantReferenceLabel = memo(
         showVersionPill = false,
         explicitVersion,
         href: explicitHref,
+        openExternally = false,
+        label: customLabel,
     }: {
         revisionId?: string | null
         projectId: string | null
@@ -249,6 +284,8 @@ export const VariantReferenceLabel = memo(
         showVersionPill?: boolean
         explicitVersion?: number | string | null
         href?: string | null
+        openExternally?: boolean
+        label?: string
     }) => {
         const queryAtom = useMemo(
             () => variantConfigAtomFamily({projectId, revisionId}),
@@ -257,6 +294,9 @@ export const VariantReferenceLabel = memo(
         const query = useAtomValue(queryAtom)
 
         if (!revisionId) {
+            if (customLabel) {
+                return <ReferenceTag label={customLabel} className="max-w-[220px] w-fit" tone="variant" />
+            }
             return <Text type="secondary">—</Text>
         }
 
@@ -271,7 +311,7 @@ export const VariantReferenceLabel = memo(
         )
         const label = isDeleted
             ? "Deleted"
-            : (ref?.variantName ?? fallbackLabel ?? ref?.revisionId ?? revisionId)
+            : (ref?.variantName ?? fallbackLabel ?? customLabel ?? ref?.revisionId ?? revisionId)
         const resolvedVersion = isDeleted ? null : (explicitVersion ?? ref?.revision ?? null)
         // Don't show link for deleted variants
         const href = isDeleted ? null : explicitHref
@@ -285,6 +325,7 @@ export const VariantReferenceLabel = memo(
                     copyValue={revisionId ?? undefined}
                     className="max-w-[220px]"
                     tone="variant"
+                    openExternally={openExternally}
                 />
                 {showVersionPill && resolvedVersion ? (
                     <span className="rounded-md bg-[#F2F4F7] px-2 py-0.5 text-xs font-medium text-[#344054]">
@@ -305,10 +346,12 @@ export const VariantReferenceText = memo(
         revisionId,
         projectId,
         fallback,
+        label: customLabel,
     }: {
         revisionId: string | null
         projectId: string | null
         fallback?: string
+        label?: string
     }) => {
         const queryAtom = useMemo(
             () => variantConfigAtomFamily({projectId, revisionId}),
@@ -317,7 +360,7 @@ export const VariantReferenceText = memo(
         const query = useAtomValue(queryAtom)
 
         if (!revisionId) {
-            return <Text type="secondary">{fallback ?? "—"}</Text>
+            return <Text type="secondary" className="w-fit">{customLabel ?? fallback ?? "—"}</Text>
         }
 
         if (query.isPending || query.isFetching) {
@@ -341,11 +384,15 @@ export const EvaluatorReferenceLabel = memo(
         evaluatorSlug,
         projectId,
         href: explicitHref,
+        openExternally = false,
+        label: customLabel,
     }: {
         evaluatorId?: string | null
         evaluatorSlug?: string | null
         projectId: string | null
         href?: string | null
+        openExternally?: boolean
+        label?: string
     }) => {
         const queryAtom = useMemo(
             () => evaluatorReferenceAtomFamily({projectId, slug: evaluatorSlug, id: evaluatorId}),
@@ -354,6 +401,15 @@ export const EvaluatorReferenceLabel = memo(
         const query = useAtomValue(queryAtom)
 
         if (!evaluatorId && !evaluatorSlug) {
+            if (customLabel) {
+                return (
+                    <ReferenceTag
+                        label={customLabel}
+                        className="max-w-[220px] w-fit"
+                        tone="evaluator"
+                    />
+                )
+            }
             return <Text type="secondary">—</Text>
         }
 
@@ -367,7 +423,13 @@ export const EvaluatorReferenceLabel = memo(
         const displayId = evaluatorId ?? evaluatorSlug ?? ref?.id ?? ref?.slug ?? ""
         const label = isDeleted
             ? "Deleted"
-            : (ref?.name ?? ref?.slug ?? ref?.id ?? evaluatorSlug ?? evaluatorId ?? "—")
+            : (ref?.name ??
+              ref?.slug ??
+              customLabel ??
+              ref?.id ??
+              evaluatorSlug ??
+              evaluatorId ??
+              "—")
         // Don't show link for deleted evaluators
         const href = isDeleted ? null : explicitHref
 
@@ -379,6 +441,7 @@ export const EvaluatorReferenceLabel = memo(
                 copyValue={displayId}
                 className="max-w-[220px] w-fit"
                 tone="evaluator"
+                openExternally={openExternally}
             />
         )
     },
@@ -394,11 +457,15 @@ export const QueryReferenceLabel = memo(
         querySlug,
         projectId,
         href: explicitHref,
+        openExternally = false,
+        label: customLabel,
     }: {
         queryId?: string | null
         querySlug?: string | null
         projectId: string | null
         href?: string | null
+        openExternally?: boolean
+        label?: string
     }) => {
         const queryAtom = useMemo(
             () => queryReferenceAtomFamily({projectId, queryId, querySlug}),
@@ -407,6 +474,9 @@ export const QueryReferenceLabel = memo(
         const query = useAtomValue(queryAtom)
 
         if (!queryId && !querySlug) {
+            if (customLabel) {
+                return <ReferenceTag label={customLabel} className="max-w-[220px]" tone="query" />
+            }
             return <Text type="secondary">—</Text>
         }
 
@@ -420,7 +490,7 @@ export const QueryReferenceLabel = memo(
         const displayId = queryId ?? querySlug ?? ref?.id ?? ref?.slug ?? ""
         const label = isDeleted
             ? "Deleted"
-            : (ref?.name ?? ref?.slug ?? ref?.id ?? querySlug ?? queryId ?? "—")
+            : (ref?.name ?? ref?.slug ?? customLabel ?? ref?.id ?? querySlug ?? queryId ?? "—")
         // Don't show link for deleted queries
         const href = isDeleted ? null : explicitHref
 
@@ -432,6 +502,7 @@ export const QueryReferenceLabel = memo(
                 copyValue={displayId}
                 className="max-w-[220px]"
                 tone="query"
+                openExternally={openExternally}
             />
         )
     },
