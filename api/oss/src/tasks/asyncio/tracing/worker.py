@@ -174,13 +174,6 @@ class TracingWorker:
 
             # 2. If batch is small, accumulate more spans within time window
             if len(batch) < self.max_batch_size:
-                # log.debug(
-                #     "[INGEST] Small batch received, accumulating",
-                #     batch_size=len(batch),
-                #     threshold=self.max_batch_size,
-                #     max_delay_ms=self.max_delay_ms,
-                # )
-
                 # Record when accumulation starts (after initial read returns)
                 start_time = time.time()
                 accumulated_total = 0
@@ -191,12 +184,6 @@ class TracingWorker:
 
                     # Stop if we've exceeded the max delay window
                     if remaining_ms <= 0:
-                        # log.debug(
-                        #     "[INGEST] Accumulation time window expired",
-                        #     elapsed_ms=int(elapsed),
-                        #     max_delay_ms=self.max_delay_ms,
-                        #     accumulated=accumulated_total,
-                        # )
                         break
 
                     # Blocking read with remaining time to wait for more spans
@@ -214,34 +201,15 @@ class TracingWorker:
                         accumulated_total += len(accumulated_batch)
 
                         elapsed = (time.time() - start_time) * 1000  # Update elapsed
-                        # log.debug(
-                        #     "[INGEST] Batch accumulated",
-                        #     accumulated_size=len(accumulated_batch),
-                        #     accumulated_total=accumulated_total,
-                        #     batch_size=len(batch),
-                        #     elapsed_ms=int(elapsed),
-                        # )
 
                         # Stop if we've reached target batch size
                         if len(batch) >= self.max_batch_size:
-                            # log.debug(
-                            #     "[INGEST] Batch full, stopping accumulation",
-                            #     batch_size=len(batch),
-                            # )
                             break
                     # If no messages, loop will check time and either read again or break
 
             # Calculate batch size in bytes
             batch_bytes = sum(len(data.get(b"data", b"")) for _, data in batch)
             batch_mb = batch_bytes / (1024 * 1024)
-
-            # log.debug(
-            #     "[INGEST] Read batch from stream",
-            #     batch_size=len(batch),
-            #     batch_bytes=batch_bytes,
-            #     batch_bytes_mb=batch_mb,
-            #     max_batch_size=self.max_batch_size,
-            # )
 
             return batch
 
@@ -269,10 +237,6 @@ class TracingWorker:
 
             # DEL messages (remove from stream)
             await self.redis.xdel(self.stream_name, *message_ids)
-
-            # log.debug(
-            #     f"[INGEST] ACKed and deleted {len(message_ids)} messages",
-            # )
 
         except Exception as e:
             log.error(f"[INGEST] Failed to ACK/DEL messages: {e}")
@@ -343,20 +307,7 @@ class TracingWorker:
                 # Continue processing other messages
 
         if not spans_by_org:
-            # log.debug(
-            #     "[INGEST] No valid spans in batch",
-            #     processed_count=processed_count,
-            #     batch_bytes=batch_bytes,
-            # )
             return (processed_count, processed_message_ids)
-
-        # log.debug(
-        #     "[INGEST] Batch deserialized and grouped",
-        #     processed_count=processed_count,
-        #     batch_bytes=batch_bytes,
-        #     batch_bytes_mb=batch_bytes / (1024 * 1024),
-        #     org_count=len(spans_by_org),
-        # )
 
         # 2. Enforce entitlements per org (Layer 2, authoritative - same as PR #1223)
         for organization_id, spans_by_proj_user in spans_by_org.items():
@@ -405,14 +356,6 @@ class TracingWorker:
                         span_dtos=span_dtos,
                     )
 
-                    # log.debug(
-                    #     "[INGEST] Created spans",
-                    #     org_id=str(organization_id),
-                    #     project_id=str(project_id),
-                    #     user_id=str(user_id),
-                    #     count=len(span_dtos),
-                    # )
-
                 except Exception as e:
                     log.error(
                         "[INGEST] Failed to create spans",
@@ -453,20 +396,8 @@ class TracingWorker:
                 if not batch:
                     continue
 
-                # log.debug(
-                #     "[INGEST] Processing batch",
-                #     count=len(batch),
-                # )
-
                 # 3. Process batch (returns count and processed message IDs)
                 processed_count, processed_message_ids = await self.process_batch(batch)
-
-                # log.debug(
-                #     "[INGEST] Batch processing complete",
-                #     total_count=len(batch),
-                #     processed_count=processed_count,
-                #     remaining_count=len(batch) - processed_count,
-                # )
 
                 # 4. ACK and DELETE only the processed messages
                 if processed_message_ids:
