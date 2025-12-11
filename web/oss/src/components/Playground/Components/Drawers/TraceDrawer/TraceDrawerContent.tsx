@@ -6,7 +6,6 @@ import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import useTraceDrawer from "@/oss/components/pages/observability/drawer/hooks/useTraceDrawer"
-import TraceSidePanel from "@/oss/components/pages/observability/drawer/TraceSidePanel"
 import {useQueryParamState} from "@/oss/state/appState"
 import {useObservability} from "@/oss/state/newObservability"
 
@@ -28,8 +27,6 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
     const [selected, setSelected] = useState("")
     const {traces, activeSpanId, getTraceById, traceResponse, error, isLoading, traceId} =
         useTraceDrawer()
-
-    const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useState(true)
     const {
         traceTabs,
         filters,
@@ -86,7 +83,7 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
 
     return (
         <div className="h-full w-full flex flex-col">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--ant-color-border)]">
+            <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-colorSplit">
                 <Button onClick={onClose} type="text" icon={<CloseOutlined />} />
                 <Button
                     onClick={onToggleWidth}
@@ -109,8 +106,6 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
                         setSpanParam={setSpanQueryParam}
                         setTraceDrawerTrace={setTraceDrawerTrace}
                         activeTraceIndex={0}
-                        setIsAnnotationsSectionOpen={setIsAnnotationsSectionOpen}
-                        isAnnotationsSectionOpen={isAnnotationsSectionOpen}
                         setSelected={setSelected}
                     />
                 </div>
@@ -125,23 +120,17 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
                                 setSelected={setSelected}
                             />
                         </Splitter.Panel>
-                        <Splitter.Panel min={400} defaultSize={640}>
+                        <Splitter.Panel min={400}>
                             <TraceContent
                                 activeTrace={activeTrace as any}
                                 traceResponse={traceResponse}
                                 error={error as any}
                                 isLoading={isLoading}
+                                setSelectedTraceId={setGlobalSelectedTraceId}
+                                traces={traces as any}
+                                activeId={activeId}
                             />
                         </Splitter.Panel>
-                        {isAnnotationsSectionOpen && (
-                            <Splitter.Panel min={200} defaultSize={320} collapsible>
-                                <TraceSidePanel
-                                    activeTrace={activeTrace as any}
-                                    activeTraceId={activeId}
-                                    isLoading={isLoading}
-                                />
-                            </Splitter.Panel>
-                        )}
                     </Splitter>
                 </div>
             </Spin>

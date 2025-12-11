@@ -28,9 +28,19 @@ export interface TraceHeaderProps {
         value: QueryValue | ((prev: QueryValue) => QueryValue),
         options?: {shallow?: boolean; preserveHash?: boolean},
     ) => void
-    setTraceDrawerTrace: (payload: {traceId: string; activeSpanId?: string | null}) => void
+    setTraceDrawerTrace: (payload: {
+        traceId?: string
+        activeSpanId?: string | null
+        source?: "external" | "linked" | "back"
+    }) => void
     activeTraceIndex?: number
-    setIsAnnotationsSectionOpen?: Dispatch<SetStateAction<boolean>>
-    isAnnotationsSectionOpen?: boolean
     setSelected?: Dispatch<SetStateAction<string>>
+}
+
+export type NavSource = "table" | "remote"
+
+export interface NavState {
+    candidate: TraceSpanNode | null
+    loading: boolean
+    source: NavSource | null
 }

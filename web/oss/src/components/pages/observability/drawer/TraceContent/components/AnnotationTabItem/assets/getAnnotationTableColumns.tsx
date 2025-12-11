@@ -4,6 +4,11 @@ import CustomAntdTag from "@/oss/components/ui/CustomAntdTag"
 import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {TreeStructure} from "@phosphor-icons/react"
+import {Button} from "antd"
+import {getDefaultStore} from "jotai"
+import {setTraceDrawerTraceAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
+import {Table} from "antd"
 
 export const getAnnotationTableColumns = (
     reference: string,
@@ -11,20 +16,35 @@ export const getAnnotationTableColumns = (
 ): ColumnsType<AnnotationDto> => {
     return [
         {
-            title: "Created by",
-            key: "created_by",
-            width: 200,
+            title: null,
+            key: "trace",
+            width: 60,
+            fixed: "left",
             onHeaderCell: () => ({
-                style: {minWidth: 200},
+                style: {minWidth: 60},
             }),
             render: (_, record) => {
                 return (
-                    <div className="flex items-center justify-start">
-                        <UserAvatarTag modifiedBy={record.createdBy || ""} />
-                    </div>
+                    <Button
+                        icon={
+                            <TreeStructure
+                                size={14}
+                                onClick={() => {
+                                    const store = getDefaultStore()
+                                    store.set(setTraceDrawerTraceAtom, {
+                                        traceId: record.trace_id,
+                                        activeSpanId: record.span_id,
+                                        source: "linked",
+                                    })
+                                }}
+                            />
+                        }
+                        size="small"
+                    />
                 )
             },
         },
+        Table.EXPAND_COLUMN,
         {
             title: "Metrics",
             key: `metrics-${reference}`,
@@ -115,6 +135,21 @@ export const getAnnotationTableColumns = (
             }),
             render: (_, record) => {
                 return <div>{record.createdAt}</div>
+            },
+        },
+        {
+            title: "Created by",
+            key: "created_by",
+            width: 200,
+            onHeaderCell: () => ({
+                style: {minWidth: 200},
+            }),
+            render: (_, record) => {
+                return (
+                    <div className="flex items-center justify-start">
+                        <UserAvatarTag modifiedBy={record.createdBy || ""} />
+                    </div>
+                )
             },
         },
     ]

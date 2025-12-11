@@ -88,7 +88,6 @@ class DaytonaRunner(CodeRunner):
                 target=target,
             )
             self.daytona = Daytona(config)
-            # log.debug("Daytona client initialized")
 
         except Exception as e:
             raise RuntimeError(f"Failed to initialize Daytona client: {e}")
@@ -107,8 +106,6 @@ class DaytonaRunner(CodeRunner):
                     "Set it to the Daytona sandbox ID or snapshot name you want to use."
                 )
 
-            # log.debug(f"Creating sandbox from snapshot: {snapshot_id}")
-
             from daytona import CreateSandboxFromSnapshotParams
 
             sandbox = self.daytona.create(
@@ -118,9 +115,6 @@ class DaytonaRunner(CodeRunner):
                 )
             )
 
-            # log.debug(
-            #     f"Sandbox created: {sandbox.id if hasattr(sandbox, 'id') else sandbox}"
-            # )
             return sandbox
 
         except Exception as e:

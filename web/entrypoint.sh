@@ -2,10 +2,6 @@
 
 set -e
 
-echo "[entrypoint.sh] Starting entrypoint script..."
-echo "[entrypoint.sh] Current working directory: $(pwd)"
-echo "[entrypoint.sh] Initial AGENTA_LICENSE: $AGENTA_LICENSE"
-
 if [ "$AGENTA_LICENSE" != "ee" ]; then
   AGENTA_LICENSE="oss"
 fi
@@ -13,9 +9,6 @@ fi
 if [ "$ENTRYPOINT_DIR" != "." ]; then
   ENTRYPOINT_DIR="/app"
 fi
-
-echo "[entrypoint.sh] Using AGENTA_LICENSE: $AGENTA_LICENSE"
-echo "[entrypoint.sh] Creating ${AGENTA_LICENSE}/public/__env.js with the following content:"
 
 cat <<EOF > ${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public/__env.js
 
@@ -27,7 +20,5 @@ window.__env = {
   NEXT_PUBLIC_CRISP_WEBSITE_ID: "${CRISP_WEBSITE_ID}",
 };
 EOF
-
-echo "[entrypoint.sh] Finished writing env file. Executing: $@"
 
 exec "$@"

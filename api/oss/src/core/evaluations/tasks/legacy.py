@@ -1,9 +1,6 @@
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 from json import dumps
-from asyncio import get_event_loop
-
-from celery import shared_task, states
 
 from fastapi import Request
 
@@ -124,101 +121,6 @@ from oss.src.core.evaluations.utils import (
 log = get_module_logger(__name__)
 
 
-# DBS --------------------------------------------------------------------------
-
-tracing_dao = TracingDAO()
-
-testcases_dao = BlobsDAO(
-    BlobDBE=TestcaseBlobDBE,
-)
-
-queries_dao = GitDAO(
-    ArtifactDBE=QueryArtifactDBE,
-    VariantDBE=QueryVariantDBE,
-    RevisionDBE=QueryRevisionDBE,
-)
-
-testsets_dao = GitDAO(
-    ArtifactDBE=TestsetArtifactDBE,
-    VariantDBE=TestsetVariantDBE,
-    RevisionDBE=TestsetRevisionDBE,
-)
-
-workflows_dao = GitDAO(
-    ArtifactDBE=WorkflowArtifactDBE,
-    VariantDBE=WorkflowVariantDBE,
-    RevisionDBE=WorkflowRevisionDBE,
-)
-
-evaluations_dao = EvaluationsDAO()
-
-# CORE -------------------------------------------------------------------------
-
-tracing_service = TracingService(
-    tracing_dao=tracing_dao,
-)
-
-queries_service = QueriesService(
-    queries_dao=queries_dao,
-)
-
-testcases_service = TestcasesService(
-    testcases_dao=testcases_dao,
-)
-
-testsets_service = TestsetsService(
-    testsets_dao=testsets_dao,
-    testcases_service=testcases_service,
-)
-
-simple_testsets_service = SimpleTestsetsService(
-    testsets_service=testsets_service,
-)
-
-workflows_service = WorkflowsService(
-    workflows_dao=workflows_dao,
-)
-
-evaluators_service = EvaluatorsService(
-    workflows_service=workflows_service,
-)
-
-simple_evaluators_service = SimpleEvaluatorsService(
-    evaluators_service=evaluators_service,
-)
-
-evaluations_service = EvaluationsService(
-    evaluations_dao=evaluations_dao,
-    tracing_service=tracing_service,
-    queries_service=queries_service,
-    testsets_service=testsets_service,
-    evaluators_service=evaluators_service,
-)
-
-# APIS -------------------------------------------------------------------------
-
-tracing_router = TracingRouter(
-    tracing_service=tracing_service,
-)
-
-simple_testsets_router = SimpleTestsetsRouter(
-    simple_testsets_service=simple_testsets_service,
-)  # TODO: REMOVE/REPLACE ONCE TRANSFER IS MOVED TO 'core'
-
-simple_evaluators_router = SimpleEvaluatorsRouter(
-    simple_evaluators_service=simple_evaluators_service,
-)  # TODO: REMOVE/REPLACE ONCE TRANSFER IS MOVED TO 'core'
-
-annotations_service = AnnotationsService(
-    tracing_router=tracing_router,
-    evaluators_service=evaluators_service,
-    simple_evaluators_service=simple_evaluators_service,
-)
-
-annotations_router = AnnotationsRouter(
-    annotations_service=annotations_service,
-)  # TODO: REMOVE/REPLACE ONCE ANNOTATE IS MOVED TO 'core'
-
 # ------------------------------------------------------------------------------
 
 
@@ -236,6 +138,14 @@ async def setup_evaluation(
     revision_id: Optional[str] = None,
     #
     autoeval_ids: Optional[List[str]] = None,
+    #
+    tracing_router: TracingRouter,
+    simple_testsets_router: SimpleTestsetsRouter,
+    simple_evaluators_router: SimpleEvaluatorsRouter,
+    #
+    queries_service: QueriesService,
+    workflows_service: WorkflowsService,
+    evaluations_service: EvaluationsService,
 ) -> Optional[EvaluationRun]:
     request = Request(scope={"type": "http", "http_version": "1.1", "scheme": "http"})
     request.state.project_id = project_id
@@ -751,13 +661,7 @@ async def setup_evaluation(
     return run
 
 
-@shared_task(
-    name="src.tasks.evaluations.legacy.annotate",
-    queue="src.tasks.evaluations.legacy.annotate",
-    bind=True,
-)
-def annotate(
-    self,
+async def evaluate_batch_testset(
     *,
     project_id: UUID,
     user_id: UUID,
@@ -769,6 +673,14 @@ def annotate(
     autoeval_ids: Optional[List[str]],
     #
     run_config: Dict[str, int],
+    #
+    tracing_router: TracingRouter,
+    simple_testsets_router: SimpleTestsetsRouter,
+    simple_evaluators_router: SimpleEvaluatorsRouter,
+    #
+    queries_service: QueriesService,
+    workflows_service: WorkflowsService,
+    evaluations_service: EvaluationsService,
 ):
     """
     Annotates an application revision applied to a testset using auto evaluator(s).
@@ -796,8 +708,6 @@ def annotate(
     request.state.project_id = str(project_id)
     request.state.user_id = str(user_id)
 
-    loop = get_event_loop()
-
     run = None
 
     try:
@@ -809,41 +719,33 @@ def annotate(
         # ----------------------------------------------------------------------
 
         # fetch project --------------------------------------------------------
-        project = loop.run_until_complete(
-            get_project_by_id(
-                project_id=str(project_id),
-            ),
+        project = await get_project_by_id(
+            project_id=str(project_id),
         )
         # ----------------------------------------------------------------------
 
         # fetch secrets --------------------------------------------------------
-        secrets = loop.run_until_complete(
-            get_llm_providers_secrets(
-                project_id=str(project_id),
-            ),
+        secrets = await get_llm_providers_secrets(
+            project_id=str(project_id),
         )
         # ----------------------------------------------------------------------
 
         # prepare credentials --------------------------------------------------
-        secret_token = loop.run_until_complete(
-            sign_secret_token(
-                user_id=str(user_id),
-                project_id=str(project_id),
-                workspace_id=str(project.workspace_id),
-                organization_id=str(project.organization_id),
-            )
+        secret_token = await sign_secret_token(
+            user_id=str(user_id),
+            project_id=str(project_id),
+            workspace_id=str(project.workspace_id),
+            organization_id=str(project.organization_id),
         )
 
         credentials = f"Secret {secret_token}"
         # ----------------------------------------------------------------------
 
         # fetch run ------------------------------------------------------------
-        run = loop.run_until_complete(
-            evaluations_service.fetch_run(
-                project_id=project_id,
-                #
-                run_id=run_id,
-            )
+        run = await evaluations_service.fetch_run(
+            project_id=project_id,
+            #
+            run_id=run_id,
         )
 
         assert run, f"Evaluation run with id {run_id} not found!"
@@ -864,11 +766,9 @@ def annotate(
         # ----------------------------------------------------------------------
 
         # fetch testset --------------------------------------------------------
-        testset_response = loop.run_until_complete(
-            simple_testsets_router.fetch_simple_testset(
-                request=request,
-                testset_id=testset_id,
-            )
+        testset_response = await simple_testsets_router.fetch_simple_testset(
+            request=request,
+            testset_id=testset_id,
         )
 
         assert testset_response.count != 0, f"Testset with id {testset_id} not found!"
@@ -885,29 +785,21 @@ def annotate(
         # ----------------------------------------------------------------------
 
         # fetch application ----------------------------------------------------
-        revision = loop.run_until_complete(
-            fetch_app_variant_revision_by_id(revision_id),
-        )
+        revision = await fetch_app_variant_revision_by_id(revision_id)
 
         assert revision is not None, f"App revision with id {revision_id} not found!"
 
-        variant = loop.run_until_complete(
-            fetch_app_variant_by_id(str(revision.variant_id)),
-        )
+        variant = await fetch_app_variant_by_id(str(revision.variant_id))
 
         assert variant is not None, (
             f"App variant with id {revision.variant_id} not found!"
         )
 
-        app = loop.run_until_complete(
-            fetch_app_by_id(str(variant.app_id)),
-        )
+        app = await fetch_app_by_id(str(variant.app_id))
 
         assert app is not None, f"App with id {variant.app_id} not found!"
 
-        deployment = loop.run_until_complete(
-            get_deployment_by_id(str(revision.base.deployment_id)),
-        )
+        deployment = await get_deployment_by_id(str(revision.base.deployment_id))
 
         assert deployment is not None, (
             f"Deployment with id {revision.base.deployment_id} not found!"
@@ -927,16 +819,13 @@ def annotate(
         # fetch evaluators -----------------------------------------------------
         evaluator_references = {step.key: step.references for step in annotation_steps}
 
-        evaluators = {
-            evaluator_key: loop.run_until_complete(
-                workflows_service.fetch_workflow_revision(
-                    project_id=project_id,
-                    #
-                    workflow_revision_ref=evaluator_refs.get("evaluator_revision"),
-                )
+        evaluators = {}
+        for evaluator_key, evaluator_refs in evaluator_references.items():
+            evaluators[evaluator_key] = await workflows_service.fetch_workflow_revision(
+                project_id=project_id,
+                #
+                workflow_revision_ref=evaluator_refs.get("evaluator_revision"),
             )
-            for evaluator_key, evaluator_refs in evaluator_references.items()
-        }
         # ----------------------------------------------------------------------
 
         # prepare headers ------------------------------------------------------
@@ -952,12 +841,10 @@ def annotate(
 
         while max_recursive_depth > 0 and not openapi_parameters:
             try:
-                openapi_parameters = loop.run_until_complete(
-                    llm_apps_service.get_parameters_from_openapi(
-                        runtime_prefix + "/openapi.json",
-                        route_path,
-                        headers,
-                    ),
+                openapi_parameters = await llm_apps_service.get_parameters_from_openapi(
+                    runtime_prefix + "/openapi.json",
+                    route_path,
+                    headers,
                 )
             except Exception:  # pylint: disable=broad-exception-caught
                 openapi_parameters = None
@@ -971,12 +858,10 @@ def annotate(
                     route_path = ""
                     runtime_prefix = runtime_prefix[:-1]
 
-        openapi_parameters = loop.run_until_complete(
-            llm_apps_service.get_parameters_from_openapi(
-                runtime_prefix + "/openapi.json",
-                route_path,
-                headers,
-            ),
+        openapi_parameters = await llm_apps_service.get_parameters_from_openapi(
+            runtime_prefix + "/openapi.json",
+            route_path,
+            headers,
         )
         # ----------------------------------------------------------------------
 
@@ -990,13 +875,11 @@ def annotate(
             for _ in range(nof_testcases)
         ]
 
-        scenarios = loop.run_until_complete(
-            evaluations_service.create_scenarios(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                scenarios=scenarios_create,
-            )
+        scenarios = await evaluations_service.create_scenarios(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            scenarios=scenarios_create,
         )
 
         assert len(scenarios) == nof_testcases, (
@@ -1018,13 +901,11 @@ def annotate(
             for idx, scenario in enumerate(scenarios)
         ]
 
-        steps = loop.run_until_complete(
-            evaluations_service.create_results(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                results=results_create,
-            )
+        steps = await evaluations_service.create_results(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            results=results_create,
         )
 
         assert len(steps) == nof_testcases, (
@@ -1045,29 +926,27 @@ def annotate(
         # ----------------------------------------------------------------------
 
         # invoke application ---------------------------------------------------
-        invocations: List[InvokationResult] = loop.run_until_complete(
-            llm_apps_service.batch_invoke(
-                project_id=str(project_id),
-                user_id=str(user_id),
-                testset_data=testcases_data,  # type: ignore
-                parameters=revision_parameters,  # type: ignore
-                uri=uri,
-                rate_limit_config=run_config,
-                application_id=str(app.id),  # DO NOT REMOVE
-                references={
-                    "testset": {"id": testset_id},
-                    "application": {"id": str(app.id)},
-                    "application_variant": {"id": str(variant.id)},
-                    "application_revision": {"id": str(revision.id)},
-                },
-                scenarios=[
-                    s.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                    )
-                    for s in scenarios
-                ],
-            )
+        invocations: List[InvokationResult] = await llm_apps_service.batch_invoke(
+            project_id=str(project_id),
+            user_id=str(user_id),
+            testset_data=testcases_data,  # type: ignore
+            parameters=revision_parameters,  # type: ignore
+            uri=uri,
+            rate_limit_config=run_config,
+            application_id=str(app.id),  # DO NOT REMOVE
+            references={
+                "testset": {"id": testset_id},
+                "application": {"id": str(app.id)},
+                "application_variant": {"id": str(variant.id)},
+                "application_revision": {"id": str(revision.id)},
+            },
+            scenarios=[
+                s.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
+                for s in scenarios
+            ],
         )
         # ----------------------------------------------------------------------
 
@@ -1094,13 +973,11 @@ def annotate(
             for idx, scenario in enumerate(scenarios)
         ]
 
-        steps = loop.run_until_complete(
-            evaluations_service.create_results(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                results=results_create,
-            )
+        steps = await evaluations_service.create_results(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            results=results_create,
         )
 
         assert len(steps) == nof_testcases, (
@@ -1145,12 +1022,10 @@ def annotate(
 
                 trace = None
                 if invocation.trace_id:
-                    trace = loop.run_until_complete(
-                        fetch_trace(
-                            tracing_router=tracing_router,
-                            request=request,
-                            trace_id=invocation.trace_id,
-                        )
+                    trace = await fetch_trace(
+                        tracing_router=tracing_router,
+                        request=request,
+                        trace_id=invocation.trace_id,
                     )
 
                 if trace:
@@ -1322,8 +1197,8 @@ def annotate(
                         trace_id=invocation.trace_id,
                         uri=interface.get("uri"),
                     )
-                    workflows_service_response = loop.run_until_complete(
-                        workflows_service.invoke_workflow(
+                    workflows_service_response = (
+                        await workflows_service.invoke_workflow(
                             project_id=project_id,
                             user_id=user_id,
                             #
@@ -1384,12 +1259,10 @@ def annotate(
 
                         trace = None
                         if annotation.trace_id:
-                            trace = loop.run_until_complete(
-                                fetch_trace(
-                                    tracing_router=tracing_router,
-                                    request=request,
-                                    trace_id=annotation.trace_id,
-                                )
+                            trace = await fetch_trace(
+                                tracing_router=tracing_router,
+                                request=request,
+                                trace_id=annotation.trace_id,
                             )
 
                         if trace:
@@ -1424,13 +1297,11 @@ def annotate(
                         )
                     ]
 
-                    steps = loop.run_until_complete(
-                        evaluations_service.create_results(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            results=results_create,
-                        )
+                    steps = await evaluations_service.create_results(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        results=results_create,
                     )
 
                     assert len(steps) == 1, (
@@ -1445,13 +1316,11 @@ def annotate(
                 status=scenario_status,
             )
 
-            scenario = loop.run_until_complete(
-                evaluations_service.edit_scenario(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    scenario=scenario_edit,
-                )
+            scenario = await evaluations_service.edit_scenario(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                scenario=scenario_edit,
             )
 
             assert scenario, (
@@ -1460,16 +1329,14 @@ def annotate(
 
             if scenario_status != EvaluationStatus.FAILURE:
                 try:
-                    metrics = loop.run_until_complete(
-                        evaluations_service.refresh_metrics(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            metrics=EvaluationMetricsRefresh(
-                                run_id=run_id,
-                                scenario_id=scenario.id,
-                            ),
-                        )
+                    metrics = await evaluations_service.refresh_metrics(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        metrics=EvaluationMetricsRefresh(
+                            run_id=run_id,
+                            scenario_id=scenario.id,
+                        ),
                     )
 
                     if not metrics:
@@ -1490,8 +1357,6 @@ def annotate(
             exc_info=True,
         )
 
-        self.update_state(state=states.FAILURE)
-
         run_status = EvaluationStatus.FAILURE
 
     if not run:
@@ -1499,28 +1364,22 @@ def annotate(
 
     if run_status != EvaluationStatus.FAILURE:
         try:
-            metrics = loop.run_until_complete(
-                evaluations_service.refresh_metrics(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    metrics=EvaluationMetricsRefresh(
-                        run_id=run_id,
-                    ),
-                )
+            metrics = await evaluations_service.refresh_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                metrics=EvaluationMetricsRefresh(
+                    run_id=run_id,
+                ),
             )
 
             if not metrics:
                 log.warning(f"Refreshing metrics failed for {run_id}")
 
-                self.update_state(state=states.FAILURE)
-
                 run_status = EvaluationStatus.FAILURE
 
         except Exception as e:  # pylint: disable=broad-exception-caught
             log.warning(f"Refreshing metrics failed for {run_id}", exc_info=True)
-
-            self.update_state(state=states.FAILURE)
 
             run_status = EvaluationStatus.FAILURE
 
@@ -1539,24 +1398,20 @@ def annotate(
         data=run.data,
     )
 
-    loop.run_until_complete(
-        evaluations_service.edit_run(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            run=run_edit,
-        )
+    await evaluations_service.edit_run(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        run=run_edit,
     )
 
     # edit meters to avoid conting failed evaluations --------------------------
     if run_status == EvaluationStatus.FAILURE:
         if is_ee():
-            loop.run_until_complete(
-                check_entitlements(
-                    organization_id=project.organization_id,
-                    key=Counter.EVALUATIONS,
-                    delta=-1,
-                )
+            await check_entitlements(
+                organization_id=project.organization_id,
+                key=Counter.EVALUATIONS,
+                delta=-1,
             )
 
     log.info("[DONE]      ", run_id=run_id, project_id=project_id, user_id=user_id)

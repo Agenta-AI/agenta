@@ -28,6 +28,12 @@ from oss.src.apis.fastapi.tracing.models import (
 )
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.utils import FilteringException
+
+# TYPE_CHECKING to avoid circular import at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 from oss.src.core.tracing.dtos import (
     OTelLinks,
     OTelSpan,
@@ -48,8 +54,10 @@ class TracingRouter:
     def __init__(
         self,
         tracing_service: TracingService,
+        tracing_worker: "TracingWorker",
     ):
         self.service = tracing_service
+        self.worker = tracing_worker
 
         self.router = APIRouter()
 
@@ -153,6 +161,7 @@ class TracingRouter:
         self,
         project_id: UUID,
         user_id: UUID,
+        organization_id: UUID,
         #
         spans: Optional[OTelFlatSpans] = None,
         traces: Optional[OTelTraceTree] = None,
@@ -188,26 +197,23 @@ class TracingRouter:
 
         span_dtos = parse_spans_from_request(_spans)
 
-        if strict:
-            links = (
-                await self.service.create(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    span_dtos=span_dtos,
-                )
-                or []
+        # Publish to Redis Streams for async processing with entitlements check
+        await self.worker.publish_to_stream(
+            organization_id=organization_id,
+            project_id=project_id,
+            user_id=user_id,
+            span_dtos=span_dtos,
+        )
+
+        # Generate links from span_dtos to return to client
+        # Worker will process asynchronously
+        links = [
+            OTelLink(
+                trace_id=str(span_dto.trace_id),
+                span_id=str(span_dto.span_id),
             )
-        else:
-            links = (
-                await self.service.update(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    span_dtos=span_dtos,
-                )
-                or []
-            )
+            for span_dto in span_dtos
+        ]
 
         return links
 
@@ -272,6 +278,7 @@ class TracingRouter:
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
+            organization_id=UUID(request.state.organization_id),
             #
             spans=trace_request.spans,
             traces=trace_request.traces,
@@ -385,6 +392,7 @@ class TracingRouter:
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
+            organization_id=UUID(request.state.organization_id),
             #
             spans=trace_request.spans,
             traces=trace_request.traces,
@@ -437,6 +445,7 @@ class TracingRouter:
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
+            organization_id=UUID(request.state.organization_id),
             #
             spans=spans_request.spans,
             traces=spans_request.traces,

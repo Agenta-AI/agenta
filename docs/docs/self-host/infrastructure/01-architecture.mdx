@@ -41,23 +41,24 @@ Agenta follows a modern microservices architecture with clear separation of conc
                     │                 │     Worker      │
                     │                 │  (Background)   │
                     │                 │                 │
-                    │                 │ • Celery Tasks  │
+                    │                 │ • TaskIQ Tasks  │
                     │                 │ • Async Jobs    │
                     │                 │ • Evaluations   │
                     │                 └─────────┬───────┘
                     │                           │
                     ▼                           ▼
-          ┌─────────────────────────────────────────────────────────────────┐
-          │                       Infrastructure Layer                      │
-          │                                                                 │
-          │ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
-          │ │ PostgreSQL  │ │  RabbitMQ   │ │    Redis    │ │ SuperTokens │ │
-          │ │             │ │             │ │             │ │             │ │
-          │ │• Core DB    │ │• Task Queue │ │• Caching    │ │• Auth       │ │
-          │ │• Tracing DB │ │• Job Mgmt   │ │• Sessions   │ │             │ │
-          │ │             │ │• Workers    │ │• Results    │ │             │ │
-          │ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
-          └─────────────────────────────────────────────────────────────────┘
+          ┌───────────────────────────────────────────────────────────────────┐
+          │                       Infrastructure Layer                        │
+          │                                                                   │
+          │ ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐ │
+          │ │   PostgreSQL      │ │      Redis        │ │   SuperTokens     │ │
+          │ │                   │ │                   │ │                   │ │
+          │ │• Core DB          │ │• Task Queue       │ │• Auth             │ │
+          │ │• Tracing DB       │ │  (TaskIQ)         │ │                   │ │
+          │ │                   │ │• Caching          │ │                   │ │
+          │ │                   │ │• Sessions         │ │                   │ │
+          │ └───────────────────┘ └───────────────────┘ └───────────────────┘ │
+          └───────────────────────────────────────────────────────────────────┘
 ```
 
 ## Frontend Components
@@ -89,8 +90,8 @@ Agenta follows a modern microservices architecture with clear separation of conc
 - **Application Orchestration**: Manages application lifecycle and deployment
 - **Evaluation Management**: Coordinates evaluation runs and result collection
 
-### Worker Service (Celery)
-- **Technology**: Python, Celery, Redis/RabbitMQ
+### Worker Service (TaskIQ)
+- **Technology**: Python, TaskIQ (task queue library), Redis
 - **Purpose**: Background task processing and async operations
 
 **Key Responsibilities**:
@@ -99,6 +100,11 @@ Agenta follows a modern microservices architecture with clear separation of conc
 - **Scheduled Tasks**: Periodic maintenance and cleanup operations
 - **Resource Management**: Manages compute resources for evaluations
 - **Job Monitoring**: Tracks task progress and handles failures
+
+**TaskIQ Integration**:
+- **Broker**: Uses Redis Streams via `RedisStreamBroker` for task distribution
+- **Task Registration**: Evaluation tasks registered with the broker at startup
+- **Execution**: Workers consume tasks from Redis and execute them asynchronously
 
 ## AI Services
 
@@ -131,29 +137,18 @@ Agenta follows a modern microservices architecture with clear separation of conc
 - **Tracing Database**: Execution traces and performance metrics
 - **SuperTokens Database**: Authentication and user management data
 
-### Redis (Caching & Sessions)
+### Redis (Task Queue, Caching & Sessions)
 - **Technology**: Redis
-- **Ports**: 6379 (primary), 6378 (cache)
-- **Purpose**: Caching and session management
+- **Port**: 6379
+- **Purpose**: Task queue, caching, pub/sub, streams
 
 **Use Cases**:
+- **Task Queue**: TaskIQ broker for background job distribution and processing
 - **Application Caching**: Frequently accessed data
 - **Session Storage**: User sessions and temporary data
-- **Task Results**: Celery task results and status
+- **Task Results**: TaskIQ task results and status
 - **Real-time Data**: Live updates and notifications
 - **Rate Limiting**: API rate limit counters
-
-### RabbitMQ (Message Queue)
-- **Technology**: RabbitMQ
-- **Ports**: 5672 (AMQP), 15672 (Management UI)
-- **Purpose**: Asynchronous task queue and message broker
-
-**Key Functions**:
-- **Task Queue**: Celery task distribution
-- **Job Scheduling**: Delayed and scheduled tasks
-- **Event Broadcasting**: System-wide event notifications
-- **Worker Coordination**: Load balancing across worker instances
-- **Reliability**: Message persistence and delivery guarantees
 
 ### SuperTokens (Authentication)
 - **Technology**: SuperTokens
@@ -180,17 +175,15 @@ Web UI depends on:
 ```
 API Service depends on:
 ├── PostgreSQL (data persistence)
-├── Redis (caching and sessions)
+├── Redis (task queue, caching, sessions)
 ├── SuperTokens (authentication)
-├── RabbitMQ (task queuing)
 └── Worker (async task execution)
 ```
 
 ### Worker Dependencies
 ```
 Worker depends on:
-├── RabbitMQ (task queue)
-├── Redis (task results)
+├── Redis (task queue via TaskIQ)
 ├── PostgreSQL (data access)
 └── AI Services (evaluation execution)
 ```

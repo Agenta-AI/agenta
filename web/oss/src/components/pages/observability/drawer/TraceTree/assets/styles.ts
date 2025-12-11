@@ -4,7 +4,6 @@ import {JSSTheme} from "@/oss/lib/Types"
 
 export const useStyles = createUseStyles((theme: JSSTheme) => ({
     treeHeader: {
-        padding: "6px 16px 6px 8px",
         "& .ant-typography": {
             fontSize: theme.fontSizeHeading5,
             lineHeight: theme.lineHeightHeading5,

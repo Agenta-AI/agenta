@@ -50,7 +50,7 @@ services:
             - SCRIPT_NAME=/api
 
         command: >
-            newrelic-admin run-program gunicorn entrypoint:app
+            newrelic-admin run-program gunicorn entrypoints.routers:app
             --bind 0.0.0.0:8000
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
@@ -67,9 +67,13 @@ services:
                 condition: service_healthy
             alembic:
                 condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
         restart: always
 
-    worker:
+    worker-evaluations:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -88,19 +92,49 @@ services:
             [
                 "newrelic-admin",
                 "run-program",
-                "celery",
-                "-A",
-                "entrypoint.celery_app",
-                "worker",
-                "--concurrency=1",
-                "--max-tasks-per-child=1",
-                "--prefetch-multiplier=1"
+                "python",
+                "entrypoints/worker_evaluations.py"
             ]
 
         depends_on:
-            - postgres
-            - rabbitmq
-            - redis
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        restart: always
+
+    worker-tracing:
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+
+        networks:
+            - agenta-oss-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "entrypoints/worker_tracing.py"
+            ]
+
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
         restart: always
 
     cron:
@@ -226,7 +260,7 @@ services:
         restart: always
 
     postgres:
-        image: postgres:16.2
+        image: postgres:16
 
         volumes:
             - postgres-data:/var/lib/postgresql/data/
@@ -248,46 +282,22 @@ services:
             timeout: 5s
             retries: 5
 
-    rabbitmq:
-        image: rabbitmq:3-management
-
-        volumes:
-            - rabbitmq-data:/var/lib/rabbitmq
-
-        networks:
-            - agenta-oss-gh-network
-
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
-
-        ports:
-            - "${RABBITMQ_PORT:-5672}:5672"
-            - "${RABBITMQ_UI_PORT:-15672}:15672"
-
-        restart: always
-
-    redis:
-        image: redis:latest
-
-        volumes:
-            - redis-data:/data
-
-        networks:
-            - agenta-oss-gh-network
-
-        restart: always
-
-    cache:
-        image: redis:latest
+    redis-volatile:
+        image: redis:8
 
         command: >
-            redis-server --port 6378 --appendonly no --appendfsync no --save "" --maxmemory 128mb --maxmemory-policy allkeys-lru
+            redis-server
+            --appendonly no
+            --save ""
+            --maxmemory 512mb
+            --maxmemory-policy volatile-lru
+            --port 6379
 
         ports:
-            - "6378:6378"
+            - "6379:6379"
 
         volumes:
-            - cache-data:/data
+            - redis-volatile-data:/data
 
         networks:
             - agenta-oss-gh-network
@@ -298,14 +308,47 @@ services:
         restart: always
 
         healthcheck:
-            test: [ "CMD", "redis-cli", "-p", "6378", "ping" ]
+            test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
+    redis-durable:
+        image: redis:8
+
+        command: >
+            redis-server
+            --appendonly yes
+            --appendfsync no
+            --save ""
+            --maxmemory 512mb
+            --maxmemory-policy noeviction
+            --port 6381
+
+        ports:
+            - "6381:6381"
+
+        volumes:
+            - redis-durable-data:/data
+
+        networks:
+            - agenta-oss-gh-network
+
+        labels:
+            - "traefik.enable=false"
+
+        restart: always
+
+        healthcheck:
+            test: ["CMD", "redis-cli", "-p", "6381", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
             start_period: 5s
 
     traefik:
-        image: traefik:v2.11
+        image: traefik:2
         profiles:
             - with-traefik
         volumes:
@@ -377,6 +420,5 @@ networks:
 
 volumes:
     postgres-data:
-    rabbitmq-data:
-    redis-data:
-    cache-data:
+    redis-volatile-data:
+    redis-durable-data:

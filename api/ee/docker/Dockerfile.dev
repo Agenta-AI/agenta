@@ -15,12 +15,14 @@ RUN apt-get update && \
 RUN pip install --upgrade pip \
     && pip install poetry
 
-COPY ./ee /app/ee/
-COPY ./oss /app/oss/
-COPY ./entrypoint.py ./pyproject.toml /app/
+COPY ./pyproject.toml /app/
 
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
+
+COPY ./ee /app/ee/
+COPY ./oss /app/oss/
+COPY ./entrypoints /app/entrypoints/
 
 ENV PYTHONPATH=/sdk:$PYTHONPATH
 

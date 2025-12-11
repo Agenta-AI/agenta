@@ -145,24 +145,20 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
 
     return (
         <div className={"h-full overflow-hidden flex flex-col"}>
-            <div className={clsx("flex items-center justify-between", classes.treeHeader)}>
+            <div
+                className={clsx(
+                    "flex items-center justify-between h-[43px] pl-2 pr-2",
+                    classes.treeHeader,
+                )}
+            >
                 <Input
                     variant="borderless"
                     placeholder="Search in tree"
-                    prefix={<MagnifyingGlass size={16} className="text-gray-500 mr-2" />}
+                    prefix={<MagnifyingGlass size={14} className="text-gray-500 mr-2" />}
                     className="w-full"
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
-                    suffix={
-                        <Button
-                            size="small"
-                            className="text-[#586676]"
-                            type="text"
-                            onClick={() => setSearchValue("")}
-                        >
-                            clear
-                        </Button>
-                    }
+                    allowClear
                 />
 
                 <Popover
@@ -176,7 +172,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                     }
                     placement="bottomRight"
                 >
-                    <Button icon={<SlidersHorizontal size={14} />} type="text" />
+                    <Button icon={<SlidersHorizontal size={14} />} type="text" size="small" />
                 </Popover>
             </div>
             <Divider type="horizontal" className="m-0" />

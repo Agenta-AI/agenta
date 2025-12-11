@@ -14,6 +14,7 @@ interface ReferenceTagProps extends TagProps {
     tooltip?: string
     copyValue?: string
     tone?: ReferenceTone
+    openExternally?: boolean
 }
 
 const ReferenceTag = ({
@@ -24,6 +25,7 @@ const ReferenceTag = ({
     tooltip,
     copyValue,
     tone,
+    openExternally = false,
     ...props
 }: ReferenceTagProps) => {
     const router = useRouter()
@@ -78,7 +80,13 @@ const ReferenceTag = ({
                     onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        if (href) void router.push(href)
+                        if (href) {
+                            if (openExternally) {
+                                window.open(href, "_blank", "noreferrer")
+                            } else {
+                                void router.push(href)
+                            }
+                        }
                     }}
                 />
             ) : null}

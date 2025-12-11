@@ -644,7 +644,7 @@ export const spanTypeStyles = {
     },
     [SpanCategory.WORKFLOW]: {
         color: "#586673",
-        bgColor: "#F5F7FA",
+        bgColor: "#0517290F",
         icon: TreeStructureIcon,
     },
     [SpanCategory.CHAIN]: {
