@@ -8,7 +8,7 @@ import VariantNameCell from "@/oss/components/VariantNameCell"
 import {Environment} from "@/oss/lib/Types"
 import {deployedRevisionByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
-import EnvironmentTagLabel, {deploymentStatusColors} from "../EnvironmentTagLabel"
+import EnvironmentTagLabel, {deploymentStatusColors} from "../../../EnvironmentTagLabel"
 
 import {useDeploymentCardStyles} from "./styles"
 
