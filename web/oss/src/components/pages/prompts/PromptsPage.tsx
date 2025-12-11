@@ -113,7 +113,7 @@ const PromptsPage = () => {
 
     const {
         currentFolderId,
-        setCurrentFolderId,
+        setCurrentFolderId: setCurrentFolderIdState,
         searchTerm,
         setSearchTerm,
         foldersById,
@@ -132,6 +132,62 @@ const PromptsPage = () => {
         isLoadingFolders,
         isLoadingApps,
     })
+
+    const updateFolderInUrl = useCallback(
+        (folderId: string | null) => {
+            const {folderId: _, ...restQuery} = router.query
+            const nextQuery = {...restQuery}
+
+            if (folderId) {
+                nextQuery.folderId = folderId
+            }
+
+            router.replace(
+                {
+                    pathname: router.pathname,
+                    query: nextQuery,
+                },
+                undefined,
+                {shallow: true},
+            )
+        },
+        [router],
+    )
+
+    const setCurrentFolder = useCallback(
+        (folderId: string | null) => {
+            setCurrentFolderIdState(folderId)
+            updateFolderInUrl(folderId)
+        },
+        [setCurrentFolderIdState, updateFolderInUrl],
+    )
+
+    useEffect(() => {
+        if (!router.isReady) return
+
+        const folderIdParam = router.query.folderId
+        const folderId = (Array.isArray(folderIdParam) ? folderIdParam[0] : folderIdParam) ?? null
+
+        if (!folderId) {
+            setCurrentFolderIdState((prev) => (prev !== null ? null : prev))
+            return
+        }
+
+        if (!foldersById[folderId]) return
+
+        setCurrentFolderIdState((prev) => (prev === folderId ? prev : folderId))
+    }, [foldersById, router.isReady, router.query.folderId, setCurrentFolderIdState])
+
+    useEffect(() => {
+        if (!router.isReady || isLoadingFolders) return
+
+        const folderIdParam = router.query.folderId
+        const folderId = (Array.isArray(folderIdParam) ? folderIdParam[0] : folderIdParam) ?? null
+
+        if (folderId && !foldersById[folderId]) {
+            setCurrentFolder(null)
+        }
+    }, [foldersById, isLoadingFolders, router.isReady, router.query.folderId, setCurrentFolder])
 
     const {openModal: openCustomWorkflowModal} = useCustomWorkflowConfig({
         setStatusModalOpen,
@@ -182,7 +238,7 @@ const PromptsPage = () => {
 
     const handleRowClick = (record: FolderTreeItem) => {
         if (record.type === "folder") {
-            setCurrentFolderId(record.id as string | null)
+            setCurrentFolder(record.id as string | null)
             return
         }
 
@@ -190,7 +246,7 @@ const PromptsPage = () => {
     }
 
     const handleBreadcrumbFolderChange = (folderId: string | null) => {
-        setCurrentFolderId(folderId)
+        setCurrentFolder(folderId)
     }
 
     const resetFolderModalState = () => {
@@ -603,7 +659,7 @@ const PromptsPage = () => {
             await mutate()
 
             if (currentFolderId === deleteFolderId) {
-                setCurrentFolderId(parentId)
+                setCurrentFolder(parentId)
             }
 
             message.success("Folder deleted")
