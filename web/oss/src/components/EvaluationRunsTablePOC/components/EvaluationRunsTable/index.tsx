@@ -2,7 +2,7 @@ import type {Key, MouseEvent} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Grid, Tooltip} from "antd"
+import {Grid} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
@@ -52,7 +52,6 @@ import type {
 import {resolveRowAppId} from "../../utils/runHelpers"
 import ColumnVisibilityPopoverContent from "../columnVisibility/ColumnVisibilityPopoverContent"
 import EvaluationRunsCreateButton from "../EvaluationRunsCreateButton"
-import EvaluationRunsDeleteButton from "../EvaluationRunsDeleteButton"
 import EvaluationRunsHeaderFilters from "../filters/EvaluationRunsHeaderFilters"
 
 import {ROW_HEIGHT} from "./assets/constants"
@@ -171,6 +170,8 @@ const EvaluationRunsTableActive = ({
     enableInfiniteScroll = true,
     autoHeight = true,
     headerTitle,
+    tabs,
+    headerExtra,
 }: EvaluationRunsTableProps) => {
     const {
         projectId: contextProjectId,
@@ -428,47 +429,24 @@ const EvaluationRunsTableActive = ({
         () => (createSupported ? <EvaluationRunsCreateButton /> : null),
         [createSupported],
     )
-    // On wide screens, show delete button in header; on narrow screens, it's in the dropdown
-    const deleteButton = useMemo(
-        () => (isNarrowScreen ? null : <EvaluationRunsDeleteButton />),
-        [isNarrowScreen],
+
+    // Delete action config - shell handles button rendering and narrow screen behavior
+    const deleteAction = useMemo(
+        () => ({
+            onDelete: () => setDeleteModalOpen(true),
+            disabled: !selectionSnapshot.hasSelection,
+            disabledTooltip: "Select runs to delete",
+        }),
+        [selectionSnapshot.hasSelection, setDeleteModalOpen],
     )
 
-    // Delete action config for the settings dropdown (narrow screens only)
-    const settingsDropdownDelete = useMemo(
-        () =>
-            isNarrowScreen
-                ? {
-                      onDelete: () => setDeleteModalOpen(true),
-                      disabled: !selectionSnapshot.hasSelection,
-                      label: "Delete selected",
-                  }
-                : undefined,
-        [isNarrowScreen, selectionSnapshot.hasSelection, setDeleteModalOpen],
-    )
-
-    // Export button for wide screens (on narrow screens, export is in the dropdown)
-    const renderExportButton = useCallback(
-        ({onExport, loading}: {onExport: () => void; loading: boolean}) => {
-            if (isNarrowScreen) return null
-            const disabled = !selectionSnapshot.hasSelection
-            const tooltip = disabled ? "Select runs to export" : undefined
-            return (
-                <Tooltip title={tooltip}>
-                    <span>
-                        <Button
-                            className="evaluation-runs-table__export"
-                            disabled={disabled}
-                            onClick={onExport}
-                            loading={loading}
-                        >
-                            Export CSV
-                        </Button>
-                    </span>
-                </Tooltip>
-            )
-        },
-        [isNarrowScreen, selectionSnapshot.hasSelection],
+    // Export action config - shell handles button rendering and narrow screen behavior
+    const exportAction = useMemo(
+        () => ({
+            disabled: !selectionSnapshot.hasSelection,
+            disabledTooltip: "Select runs to export",
+        }),
+        [selectionSnapshot.hasSelection],
     )
 
     const fallbackControlsHeight = showFilters ? 96 : headerTitle ? 48 : 24
@@ -605,9 +583,12 @@ const EvaluationRunsTableActive = ({
                 columns={columns}
                 rowKey={rowKeyExtractor}
                 title={headerTitle}
+                tabs={tabs}
+                headerExtra={headerExtra}
                 filters={filtersNode}
                 primaryActions={createButton}
-                secondaryActions={deleteButton}
+                deleteAction={deleteAction}
+                exportAction={exportAction}
                 autoHeight={autoHeight}
                 rowHeight={ROW_HEIGHT}
                 fallbackControlsHeight={fallbackControlsHeight}
@@ -620,9 +601,7 @@ const EvaluationRunsTableActive = ({
                 pagination={tablePagination}
                 onPaginationStateChange={handlePaginationStateChange}
                 exportOptions={exportOptions}
-                renderExportButton={renderExportButton}
                 useSettingsDropdown={isNarrowScreen}
-                settingsDropdownDelete={settingsDropdownDelete}
                 keyboardShortcuts={infiniteTableKeyboardShortcuts}
             />
 

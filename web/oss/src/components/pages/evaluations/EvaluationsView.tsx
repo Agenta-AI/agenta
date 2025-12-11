@@ -1,7 +1,6 @@
-import {memo, useEffect, useMemo, useRef, useState, useTransition, type CSSProperties} from "react"
+import {memo, useEffect, useMemo, useRef, useState, useTransition} from "react"
 
-import {Tabs, Typography} from "antd"
-import clsx from "clsx"
+import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -11,6 +10,7 @@ import {
 } from "@/oss/components/EvaluationRunsTablePOC"
 import {evaluationRunsTableContextSetterAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/context"
 import {evaluationRunsTypeFiltersAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/view"
+import {TableDescription, type TableTabsConfig} from "@/oss/components/InfiniteVirtualTable"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useQueryParamState} from "@/oss/state/appState"
 import {projectIdAtom} from "@/oss/state/project"
@@ -150,74 +150,48 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
         [tabLabel, router.asPath],
     )
 
-    const renderContent = useMemo(() => {
-        return (
-            <div className="grow flex flex-col min-h-0">
-                <EvaluationRunsTablePOC
-                    includePreview
-                    pageSize={15}
-                    appId={appId}
-                    projectIdOverride={projectId ?? undefined}
-                    evaluationKind={displayedRunKind}
-                    className="flex-1 min-h-0"
-                />
+    // Header title with description - passed to InfiniteVirtualTableFeatureShell
+    const headerTitle = useMemo(
+        () => (
+            <div className="flex flex-col gap-1">
+                <Typography.Title level={3} style={{margin: 0}}>
+                    Evaluations
+                </Typography.Title>
+                <TableDescription>Manage all your evaluations in one place.</TableDescription>
             </div>
-        )
-    }, [displayedTab, displayedRunKind, projectId, appId])
+        ),
+        [],
+    )
+
+    // Tabs configuration for the table header
+    const tabsConfig = useMemo<TableTabsConfig>(
+        () => ({
+            items: tabItems,
+            activeKey: activeTab,
+            onChange: (key) => {
+                startTransition(() => {
+                    setKindParam(key)
+                })
+            },
+            indicatorColor: tabColorMap[displayedTab] ?? "#dbeafe",
+            className: "evaluations-tabs",
+        }),
+        [activeTab, displayedTab, setKindParam, startTransition, tabColorMap, tabItems],
+    )
 
     return (
-        <>
-            <div
-                className={clsx(
-                    "flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px-24px)] overflow-hidden",
-                    {
-                        "-mb-6": scope === "project",
-                    },
-                )}
-            >
-                <div className="w-full flex items-start justify-between gap-8">
-                    <div className="flex flex-col gap-1 min-w-[200px] max-w-prose shrink">
-                        <Typography.Title level={3} style={{margin: 0}}>
-                            Evaluations
-                        </Typography.Title>
-                        <Typography.Paragraph type="secondary" style={{marginBottom: 0}}>
-                            Manage all your evaluations in one place.
-                        </Typography.Paragraph>
-                    </div>
-
-                    <div className="min-w-0 shrink grow flex justify-end">
-                        <div className="flex flex-col items-end gap-1">
-                            <div
-                                className="evaluations-tabs min-w-[320px] flex-1"
-                                style={
-                                    {
-                                        "--tab-indicator-color":
-                                            tabColorMap[displayedTab] ?? "#dbeafe",
-                                    } as CSSProperties
-                                }
-                            >
-                                <Tabs
-                                    className="min-w-[320px] flex-1"
-                                    activeKey={activeTab}
-                                    items={tabItems.map((item) => ({
-                                        key: item.key,
-                                        label: item.label,
-                                    }))}
-                                    onChange={(key) => {
-                                        startTransition(() => {
-                                            setKindParam(key)
-                                        })
-                                    }}
-                                    destroyOnHidden
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {renderContent}
-            </div>
-        </>
+        <div className="flex flex-col h-full min-h-0 grow w-full">
+            <EvaluationRunsTablePOC
+                includePreview
+                pageSize={15}
+                appId={appId}
+                projectIdOverride={projectId ?? undefined}
+                evaluationKind={displayedRunKind}
+                className="flex-1 min-h-0"
+                headerTitle={headerTitle}
+                tabs={tabsConfig}
+            />
+        </div>
     )
 }
 
