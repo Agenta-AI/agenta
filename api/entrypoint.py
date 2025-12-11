@@ -52,6 +52,7 @@ from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
+from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
@@ -64,6 +65,7 @@ from oss.src.core.testsets.service import SimpleTestsetsService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.queries.service import SimpleQueriesService
 from oss.src.core.applications.service import LegacyApplicationsService
+from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
@@ -82,6 +84,7 @@ from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
 from oss.src.apis.fastapi.queries.router import QueriesRouter
 from oss.src.apis.fastapi.queries.router import SimpleQueriesRouter
 from oss.src.apis.fastapi.applications.router import LegacyApplicationsRouter
+from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
 from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
@@ -215,6 +218,7 @@ workflows_dao = GitDAO(
 )
 
 evaluations_dao = EvaluationsDAO()
+folders_dao = FoldersDAO()
 
 # SERVICES ---------------------------------------------------------------------
 
@@ -248,6 +252,9 @@ simple_queries_service = SimpleQueriesService(
 )
 
 legacy_applications_service = LegacyApplicationsService()
+folders_service = FoldersService(
+    folders_dao=folders_dao,
+)
 
 workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
@@ -314,6 +321,10 @@ simple_queries = SimpleQueriesRouter(
 
 legacy_applications = LegacyApplicationsRouter(
     legacy_applications_service=legacy_applications_service,
+)
+
+folders = FoldersRouter(
+    folders_service=folders_service,
 )
 
 workflows = WorkflowsRouter(
@@ -416,6 +427,12 @@ app.include_router(
     router=simple_queries.router,
     prefix="/preview/simple/queries",
     tags=["Queries"],
+)
+
+app.include_router(
+    router=folders.router,
+    prefix="/folders",
+    tags=["Folders"],
 )
 
 app.include_router(

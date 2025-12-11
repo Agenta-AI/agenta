@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import dynamic from "next/dynamic"
 import {Copy, Download, FileText, MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
-import {Collapse, Radio, Space} from "antd"
+import {ButtonProps, Collapse, Radio, Space} from "antd"
 import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
@@ -107,7 +107,7 @@ const LanguageAwareViewer = ({
     )
 }
 
-const MarkdownToggleButton = () => {
+const MarkdownToggleButton = ({...props}: ButtonProps) => {
     const [editor] = useLexicalComposerContext()
     const [markdownView, setMarkdownView] = useState(false)
 
@@ -122,6 +122,7 @@ const MarkdownToggleButton = () => {
             tooltipProps={{
                 title: !markdownView ? "Preview text" : "Preview markdown",
             }}
+            {...props}
         />
     )
 }
@@ -224,19 +225,20 @@ const AccordionTreePanel = ({
                         </div>
                     ),
                     extra: (
-                        <Space size={12} onClick={(e) => e.stopPropagation()}>
+                        <Space size={8} onClick={(e) => e.stopPropagation()}>
                             {enableFormatSwitcher && !isStringValue && (
                                 <Radio.Group
                                     value={segmentedValue}
                                     onChange={(e) =>
                                         setSegmentedValue(e.target.value as "json" | "yaml")
                                     }
+                                    size="small"
                                 >
                                     <Radio.Button value="json">JSON</Radio.Button>
                                     <Radio.Button value="yaml">YAML</Radio.Button>
                                 </Radio.Group>
                             )}
-                            {isStringValue && <MarkdownToggleButton />}
+                            {isStringValue && <MarkdownToggleButton size="small" />}
                             <CopyButton
                                 text={
                                     segmentedValue === "json"
@@ -246,6 +248,7 @@ const AccordionTreePanel = ({
                                 icon={true}
                                 buttonText={null}
                                 stopPropagation
+                                size="small"
                             />
                         </Space>
                     ),
