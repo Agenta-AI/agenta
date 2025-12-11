@@ -1,9 +1,7 @@
 from typing import List, Dict, Any, Optional
 from uuid import UUID
-import asyncio
 from datetime import datetime
 
-from celery import shared_task
 from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
@@ -172,6 +170,7 @@ evaluations_service = EvaluationsService(
     queries_service=queries_service,
     testsets_service=testsets_service,
     evaluators_service=evaluators_service,
+    #
 )
 
 # APIS -------------------------------------------------------------------------
@@ -193,14 +192,7 @@ annotations_router = AnnotationsRouter(
 # ------------------------------------------------------------------------------
 
 
-@shared_task(
-    name="src.tasks.evaluations.live.evaluate",
-    queue="src.tasks.evaluations.live.evaluate",
-    bind=True,
-)
-def evaluate(
-    self,
-    *,
+async def evaluate_live_query(
     project_id: UUID,
     user_id: UUID,
     #
@@ -213,8 +205,6 @@ def evaluate(
 
     request.state.project_id = str(project_id)
     request.state.user_id = str(user_id)
-
-    loop = asyncio.get_event_loop()
 
     # count in minutes
     timestamp = oldest
@@ -238,11 +228,9 @@ def evaluate(
         # ----------------------------------------------------------------------
 
         # fetch evaluation run -------------------------------------------------
-        run = loop.run_until_complete(
-            evaluations_service.fetch_run(
-                project_id=project_id,
-                run_id=run_id,
-            )
+        run = await evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
         )
 
         assert run, f"Evaluation run with id {run_id} not found!"
@@ -314,12 +302,10 @@ def evaluate(
             query_step_key,
             query_revision_ref,
         ) in query_revision_refs.items():
-            query_revision = loop.run_until_complete(
-                queries_service.fetch_query_revision(
-                    project_id=project_id,
-                    #
-                    query_revision_ref=query_revision_ref,
-                )
+            query_revision = await queries_service.fetch_query_revision(
+                project_id=project_id,
+                #
+                query_revision_ref=query_revision_ref,
             )
 
             if query_revision and not query_revision.data:
@@ -347,12 +333,10 @@ def evaluate(
             evaluator_step_key,
             evaluator_revision_ref,
         ) in evaluator_revision_refs.items():
-            evaluator_revision = loop.run_until_complete(
-                evaluators_service.fetch_evaluator_revision(
-                    project_id=project_id,
-                    #
-                    evaluator_revision_ref=evaluator_revision_ref,
-                )
+            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_revision_ref=evaluator_revision_ref,
             )
 
             if evaluator_revision and not evaluator_revision.data:
@@ -408,12 +392,10 @@ def evaluate(
                 windowing=windowing,
             )
 
-            tracing_response = loop.run_until_complete(
-                tracing_router.query_spans(
-                    request=request,
-                    #
-                    query=query,
-                )
+            tracing_response = await tracing_router.query_spans(
+                request=request,
+                #
+                query=query,
             )
 
             nof_traces = tracing_response.count
@@ -447,13 +429,11 @@ def evaluate(
                 for _ in range(nof_traces)
             ]
 
-            scenarios = loop.run_until_complete(
-                evaluations_service.create_scenarios(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    scenarios=scenarios_create,
-                )
+            scenarios = await evaluations_service.create_scenarios(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                scenarios=scenarios_create,
             )
 
             if len(scenarios) != nof_traces:
@@ -484,13 +464,11 @@ def evaluate(
                 for scenario_id, query_trace_id in zip(scenario_ids, query_trace_ids)
             ]
 
-            results = loop.run_until_complete(
-                evaluations_service.create_results(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    results=results_create,
-                )
+            results = await evaluations_service.create_results(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                results=results_create,
             )
 
             assert len(results) == nof_traces, (
@@ -665,8 +643,8 @@ def evaluate(
                         trace_id=query_trace_id,
                         uri=interface.get("uri"),
                     )
-                    workflows_service_response = loop.run_until_complete(
-                        workflows_service.invoke_workflow(
+                    workflows_service_response = (
+                        await workflows_service.invoke_workflow(
                             project_id=project_id,
                             user_id=user_id,
                             #
@@ -723,12 +701,10 @@ def evaluate(
 
                         trace = None
                         if annotation.trace_id:
-                            trace = loop.run_until_complete(
-                                fetch_trace(
-                                    tracing_router=tracing_router,
-                                    request=request,
-                                    trace_id=annotation.trace_id,
-                                )
+                            trace = await fetch_trace(
+                                tracing_router=tracing_router,
+                                request=request,
+                                trace_id=annotation.trace_id,
                             )
 
                         if trace:
@@ -766,13 +742,11 @@ def evaluate(
                         )
                     ]
 
-                    results = loop.run_until_complete(
-                        evaluations_service.create_results(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            results=results_create,
-                        )
+                    results = await evaluations_service.create_results(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        results=results_create,
                     )
 
                     assert len(results) == 1, (
@@ -787,13 +761,11 @@ def evaluate(
                     status=scenario_status[idx],
                 )
 
-                scenario = loop.run_until_complete(
-                    evaluations_service.edit_scenario(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        scenario=scenario_edit,
-                    )
+                scenario = await evaluations_service.edit_scenario(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    scenario=scenario_edit,
                 )
 
                 if not scenario or not scenario.id:
@@ -802,30 +774,26 @@ def evaluate(
                         run_id=run_id,
                     )
 
-                loop.run_until_complete(
-                    evaluations_service.refresh_metrics(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        metrics=EvaluationMetricsRefresh(
-                            run_id=run_id,
-                            scenario_id=scenario_id,
-                        ),
-                    )
+                await evaluations_service.refresh_metrics(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    metrics=EvaluationMetricsRefresh(
+                        run_id=run_id,
+                        scenario_id=scenario_id,
+                    ),
                 )
             # ------------------------------------------------------------------
 
-        loop.run_until_complete(
-            evaluations_service.refresh_metrics(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                metrics=EvaluationMetricsRefresh(
-                    run_id=run_id,
-                    timestamp=timestamp,
-                    interval=interval,
-                ),
-            )
+        await evaluations_service.refresh_metrics(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            metrics=EvaluationMetricsRefresh(
+                run_id=run_id,
+                timestamp=timestamp,
+                interval=interval,
+            ),
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.error(e, exc_info=True)

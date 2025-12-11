@@ -1,6 +1,5 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from uuid import UUID
-
 
 from oss.src.utils.logging import get_module_logger
 
@@ -28,6 +27,10 @@ log = get_module_logger(__name__)
 
 
 class TracingService:
+    """
+    Tracing service for managing spans and traces.
+    """
+
     def __init__(
         self,
         tracing_dao: TracingDAOInterface,

@@ -70,6 +70,10 @@ class AgentaSingleton:
 
         """
 
+        # Idempotency check: if already initialized, skip re-initialization
+        if self.tracing and self.api and self.async_api:
+            return
+
         log.info("Agenta -     SDK ver: %s", version("agenta"))
 
         config = {}

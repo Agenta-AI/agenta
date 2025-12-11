@@ -1,10 +1,8 @@
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 from uuid import UUID
 from asyncio import sleep
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-
-from celery import current_app as celery_dispatch
 
 from oss.src.utils.logging import get_module_logger
 
@@ -97,6 +95,9 @@ from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 
 log = get_module_logger(__name__)
 
+if TYPE_CHECKING:
+    from oss.src.tasks.taskiq.evaluations.worker import EvaluationsWorker
+
 
 SAFE_CLOSE_DELAY = 1  # seconds
 DEFAULT_ORIGIN_QUERIES = "custom"
@@ -140,6 +141,7 @@ class EvaluationsService:
         queries_service: QueriesService,
         testsets_service: TestsetsService,
         evaluators_service: EvaluatorsService,
+        evaluations_worker: Optional["EvaluationsWorker"] = None,
     ):
         self.evaluations_dao = evaluations_dao
 
@@ -147,6 +149,7 @@ class EvaluationsService:
         self.queries_service = queries_service
         self.testsets_service = testsets_service
         self.evaluators_service = evaluators_service
+        self.evaluations_worker = evaluations_worker
 
     ### CRUD
 
@@ -173,6 +176,12 @@ class EvaluationsService:
             log.error(e, exc_info=True)
             return False
 
+        if self.evaluations_worker is None:
+            log.warning(
+                "[LIVE] Taskiq client is not configured; skipping live run dispatch"
+            )
+            return False
+
         for project_id, run in ext_runs:
             user_id = run.created_by_id
 
@@ -186,17 +195,14 @@ class EvaluationsService:
                     oldest=oldest,
                 )
 
-                celery_dispatch.send_task(  # type: ignore
-                    "src.tasks.evaluations.live.evaluate",
-                    kwargs=dict(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        run_id=run.id,
-                        #
-                        newest=newest,
-                        oldest=oldest,
-                    ),
+                await self.evaluations_worker.evaluate_live_query.kiq(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    run_id=run.id,
+                    #
+                    newest=newest,
+                    oldest=oldest,
                 )
 
                 log.info(
@@ -1304,6 +1310,7 @@ class SimpleEvaluationsService:
         evaluations_service: EvaluationsService,
         simple_testsets_service: SimpleTestsetsService,
         simple_evaluators_service: SimpleEvaluatorsService,
+        evaluations_worker: Optional["EvaluationsWorker"] = None,
     ):
         self.queries_service = queries_service
         self.testsets_service = testsets_service
@@ -1311,6 +1318,7 @@ class SimpleEvaluationsService:
         self.evaluations_service = evaluations_service
         self.simple_testsets_service = simple_testsets_service
         self.simple_evaluators_service = simple_evaluators_service
+        self.evaluations_worker = evaluations_worker
 
     async def create(
         self,
@@ -1714,26 +1722,26 @@ class SimpleEvaluationsService:
                     )
                     return None
 
+                if self.evaluations_worker is None:
+                    log.warning(
+                        "[EVAL] Taskiq client missing; cannot dispatch evaluation run",
+                    )
+                    return _evaluation
+
                 if _evaluation.data.query_steps:
-                    celery_dispatch.send_task(  # type: ignore
-                        "src.tasks.evaluations.batch.evaluate_queries",
-                        kwargs=dict(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            run_id=run.id,
-                        ),
+                    await self.evaluations_worker.evaluate_queries.kiq(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        run_id=run.id,
                     )
 
                 elif _evaluation.data.testset_steps:
-                    celery_dispatch.send_task(  # type: ignore
-                        "src.tasks.evaluations.batch.evaluate_testsets",
-                        kwargs=dict(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            run_id=run.id,
-                        ),
+                    await self.evaluations_worker.evaluate_testsets.kiq(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        run_id=run.id,
                     )
 
                 return _evaluation
