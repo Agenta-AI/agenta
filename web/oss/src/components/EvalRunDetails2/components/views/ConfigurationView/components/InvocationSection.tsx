@@ -19,7 +19,7 @@ import {
 import {effectiveProjectIdAtom} from "../../../../atoms/run"
 import {runInvocationRefsAtomFamily} from "../../../../atoms/runDerived"
 import {evaluationVariantConfigAtomFamily} from "../../../../atoms/variantConfig"
-import {ApplicationReferenceLabel, VariantReferenceLabel} from "../../../references"
+import {ApplicationReferenceLabel, VariantRevisionLabel} from "../../../references"
 import {toIdString} from "../utils"
 
 import {ReadOnlySkeleton} from "./CopyableFields"
@@ -281,14 +281,14 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             <Text className="text-sm font-semibold text-[#344054]">Application</Text>
             <div className="flex flex-wrap items-center gap-2 mt-1">
                 <ApplicationReferenceLabel runId={runId} applicationId={applicationId} />
-                {variantId ? (
-                    <VariantReferenceLabel
+                {variantId || revisionId ? (
+                    <VariantRevisionLabel
                         variantId={variantId}
+                        revisionId={revisionId}
                         applicationId={applicationId}
                         runId={runId}
-                        fallbackLabel={variantLabel}
-                        showVersionPill
-                        explicitVersion={variantVersion}
+                        fallbackVariantName={variantLabel}
+                        fallbackRevision={variantVersion}
                     />
                 ) : variantLabel ? (
                     <span className="text-sm text-[#475467]">{variantLabel}</span>

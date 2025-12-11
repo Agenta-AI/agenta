@@ -15,6 +15,10 @@ export interface RunScopedUrls {
         variantId?: string | null,
         options?: {revisions?: string[]},
     ) => string | null
+    buildRevisionPlaygroundHref: (
+        variantId?: string | null,
+        revisionId?: string | null,
+    ) => string | null
     buildTestsetHref: (testsetId?: string | null) => string | null
 }
 
@@ -69,6 +73,25 @@ const useRunScopedUrls = (
             return `${base}?${params.toString()}`
         }
 
+        const buildRevisionPlaygroundHref = (
+            variantId?: string | null,
+            revisionId?: string | null,
+        ) => {
+            // Use revisionId if available, otherwise fall back to variantId
+            const targetId = revisionId ?? variantId
+            if (!targetId) return null
+            const base = buildAppPathHref("playground")
+            if (!base) return null
+
+            const revisionsParam = buildRevisionsQueryParam([targetId])
+            if (!revisionsParam) return base
+
+            const params = new URLSearchParams({
+                revisions: revisionsParam,
+            })
+            return `${base}?${params.toString()}`
+        }
+
         const buildTestsetHref = (testsetId?: string | null) => {
             if (!testsetId || !projectURL) return null
             return `${projectURL}/testsets/${encodeURIComponent(testsetId)}`
@@ -81,6 +104,7 @@ const useRunScopedUrls = (
             appDetailHref,
             buildAppPathHref,
             buildVariantPlaygroundHref,
+            buildRevisionPlaygroundHref,
             buildTestsetHref,
         }
     }, [applicationId, baseAppURL, projectURL])

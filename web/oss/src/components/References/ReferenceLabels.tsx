@@ -214,6 +214,80 @@ export const VariantReferenceLabel = memo(
 )
 
 /**
+ * Combined variant + revision label that displays "variantName v{revision}" in a single chip.
+ * Links to the specific revision in the playground.
+ * Requires both variantId (for variant name) and revisionId (for revision number).
+ */
+export const VariantRevisionLabel = memo(
+    ({
+        variantId,
+        revisionId,
+        projectId,
+        fallbackVariantName,
+        fallbackRevision,
+        href: explicitHref,
+    }: {
+        variantId?: string | null
+        revisionId?: string | null
+        projectId: string | null
+        fallbackVariantName?: string | null
+        fallbackRevision?: number | string | null
+        href?: string | null
+    }) => {
+        // Fetch variant config using revisionId to get revision number
+        const configQueryAtom = useMemo(
+            () => variantConfigAtomFamily({projectId, revisionId}),
+            [projectId, revisionId],
+        )
+        const configQuery = useAtomValue(configQueryAtom)
+
+        if (!variantId && !revisionId) {
+            return <Text type="secondary">—</Text>
+        }
+
+        const isLoading = (configQuery.isPending || configQuery.isFetching) && !configQuery.isError
+
+        if (isLoading) {
+            return <Skeleton.Input active size="small" style={{width: 140}} />
+        }
+
+        const configRef = configQuery.data
+
+        // Get variant name from config query or fallback
+        const variantName = configRef?.variantName ?? fallbackVariantName ?? null
+
+        // Get revision number from config query or fallback
+        const revision = configRef?.revision ?? fallbackRevision ?? null
+
+        // Determine if deleted
+        const hasResolvedData = variantName || revision != null
+        const isDeleted =
+            Boolean(configQuery.isError && !fallbackVariantName) ||
+            (!hasResolvedData && !fallbackVariantName)
+
+        // Build combined label: "variantName v{revision}"
+        const label = isDeleted
+            ? "Deleted"
+            : revision != null
+              ? `${variantName ?? "variant"} v${revision}`
+              : (variantName ?? revisionId ?? variantId ?? "Unknown")
+
+        const href = isDeleted ? null : explicitHref
+
+        return (
+            <ReferenceTag
+                label={label}
+                href={href ?? undefined}
+                tooltip={isDeleted ? `Variant ${revisionId ?? variantId} was deleted` : label}
+                copyValue={revisionId ?? variantId ?? undefined}
+                className="max-w-[220px]"
+                tone="variant"
+            />
+        )
+    },
+)
+
+/**
  * Generic variant reference text (no tag styling, just text).
  * Requires projectId to be passed explicitly for reusability across contexts.
  */
