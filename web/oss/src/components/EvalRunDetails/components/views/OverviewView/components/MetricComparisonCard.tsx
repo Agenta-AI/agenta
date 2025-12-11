@@ -15,7 +15,7 @@ import {
 import {
     buildBooleanHistogram,
     isBooleanMetricStats,
-} from "@/oss/components/EvalRunDetails2/utils/metricDistributions"
+} from "@/oss/components/EvalRunDetails/utils/metricDistributions"
 import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
 
 import type {AggregatedMetricChartData, AggregatedMetricChartEntry} from "../types"

@@ -3,8 +3,8 @@ import {useMemo} from "react"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {evaluationEvaluatorsByRunQueryAtomFamily} from "@/oss/components/EvalRunDetails2/atoms/table/evaluators"
-import {evaluationRunIndexAtomFamily} from "@/oss/components/EvalRunDetails2/atoms/table/run"
+import {evaluationEvaluatorsByRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/evaluators"
+import {evaluationRunIndexAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/run"
 import {
     previewRunMetricStatsLoadableFamily,
     previewRunMetricStatsSelectorFamily,
@@ -12,19 +12,17 @@ import {
     runTemporalMetricSeriesAtomFamily,
     TemporalMetricPoint,
 } from "@/oss/components/Evaluations/atoms/runMetrics"
-import {humanizeEvaluatorName, humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
+import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import {COMPARISON_SOLID_COLORS} from "../../../../atoms/compare"
 import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../../../../atoms/runDerived"
 import {INVOCATION_METRIC_KEYS, INVOCATION_METRIC_LABELS} from "../constants"
-import type {AggregatedMetricChartData} from "../types"
 import {
     buildEvaluatorFallbackMetricsByStep,
     buildEvaluatorMetricEntries,
     extractEvaluatorRef,
 } from "../utils/evaluatorMetrics"
-import {resolveMetricValue} from "../utils/metrics"
 
 const emptyEvaluatorsAtom = atom({data: [], isPending: false, isFetching: false} as const)
 const emptyLoadableAtom = atom({state: "loading"} as const)

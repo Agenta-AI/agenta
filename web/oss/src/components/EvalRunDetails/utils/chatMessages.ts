@@ -1,6 +1,6 @@
 import {ReactNode} from "react"
 
-import {renderChatMessages} from "@/oss/components/EvalRunDetails2/utils/renderChatMessages"
+import {renderChatMessages} from "@/oss/components/EvalRunDetails/utils/renderChatMessages"
 
 const CHAT_ARRAY_KEYS = [
     "messages",

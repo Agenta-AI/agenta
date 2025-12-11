@@ -1,8 +1,8 @@
 import {atom, Atom} from "jotai"
-import {atomFamily, loadable} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
+import {atomFamily, loadable} from "jotai/utils"
 
-import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails2/atoms/table/run"
+import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/run"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {BasicStats, canonicalizeMetricKey, getMetricValueWithAliases} from "@/oss/lib/metricUtils"

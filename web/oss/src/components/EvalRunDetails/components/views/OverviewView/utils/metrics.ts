@@ -1,10 +1,10 @@
 import {
     buildBooleanHistogram,
     isBooleanMetricStats,
-} from "@/oss/components/EvalRunDetails2/utils/metricDistributions"
+} from "@/oss/components/EvalRunDetails/utils/metricDistributions"
 import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
-import {getMetricValueWithAliases} from "@/oss/lib/metricUtils"
 import type {BasicStats} from "@/oss/lib/metricUtils"
+import {getMetricValueWithAliases} from "@/oss/lib/metricUtils"
 
 import {INVOCATION_METRIC_KEYS, INVOCATION_METRIC_LABELS} from "../constants"
 

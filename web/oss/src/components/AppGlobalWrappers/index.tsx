@@ -13,7 +13,7 @@ const TraceDrawer = dynamic(
 )
 
 const EvalRunFocusDrawerPreview = dynamic(
-    () => import("@/oss/components/EvalRunDetails2/components/FocusDrawer"),
+    () => import("@/oss/components/EvalRunDetails/components/FocusDrawer"),
     {ssr: false},
 )
 

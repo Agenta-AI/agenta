@@ -4,8 +4,8 @@ import clsx from "clsx"
 import {useAtomValue, useStore} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
-import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails2/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
-import ScenarioColumnVisibilityPopoverContent from "@/oss/components/EvalRunDetails2/components/columnVisibility/ColumnVisibilityPopoverContent"
+import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
+import ScenarioColumnVisibilityPopoverContent from "@/oss/components/EvalRunDetails/components/columnVisibility/ColumnVisibilityPopoverContent"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
@@ -19,8 +19,8 @@ import {
 
 import {MAX_COMPARISON_RUNS, compareRunIdsAtom, getComparisonColor} from "./atoms/compare"
 import {runDisplayNameAtomFamily} from "./atoms/runDerived"
-import {DEFAULT_SCENARIO_PAGE_SIZE} from "./atoms/table"
 import type {EvaluationTableColumn} from "./atoms/table"
+import {DEFAULT_SCENARIO_PAGE_SIZE} from "./atoms/table"
 import type {PreviewTableRow} from "./atoms/tableRows"
 import {
     evaluationPreviewDatasetStore,
@@ -28,8 +28,8 @@ import {
 } from "./evaluationPreviewTableStore"
 import {resolveScenarioColumnValue} from "./export/columnResolvers"
 import {buildGroupMap, resolveScenarioColumnLabel} from "./export/labelResolvers"
-import {buildExportMetadata} from "./export/types"
 import type {ScenarioColumnExportMetadata} from "./export/types"
+import {buildExportMetadata} from "./export/types"
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"
 import useRowHeightMenuItems from "./hooks/useRowHeightMenuItems"

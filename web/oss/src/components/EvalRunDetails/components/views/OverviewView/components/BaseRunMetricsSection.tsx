@@ -2,7 +2,7 @@ import {memo, useMemo} from "react"
 
 import {Alert, Card, Typography} from "antd"
 
-import {isBooleanMetricStats} from "@/oss/components/EvalRunDetails2/utils/metricDistributions"
+import {isBooleanMetricStats} from "@/oss/components/EvalRunDetails/utils/metricDistributions"
 import type {TemporalMetricPoint} from "@/oss/components/Evaluations/atoms/runMetrics"
 
 import EvaluatorMetricsChart from "../../../EvaluatorMetricsChart"
