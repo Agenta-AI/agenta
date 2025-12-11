@@ -158,26 +158,12 @@ export function extractValueByMetadata(
                     .reduce(
                         (acc, [key, val]) => {
                             if (key === "tools") {
-                                const toolsWithMetadata = (val?.value || []).map((tool: any) => {
+                                const toolsWithoutMetadata = (val?.value || []).map((tool: any) => {
                                     const rawTool = tool?.value ?? tool
-                                    const metadata = {
-                                        source: tool?.__source,
-                                        provider: tool?.__provider,
-                                        providerLabel: tool?.__providerLabel,
-                                        toolCode: tool?.__tool,
-                                        toolLabel: tool?.__toolLabel,
-                                    }
-
-                                    const hasMetadata = Object.values(metadata).some(Boolean)
-                                    if (!hasMetadata) return rawTool
-
-                                    return {
-                                        ...rawTool,
-                                        agenta_metadata: metadata,
-                                    }
+                                    return stripAgentaMetadataDeep(rawTool)
                                 })
 
-                                acc[key] = toolsWithMetadata
+                                acc[key] = toolsWithoutMetadata
                             } else if (
                                 key === "toolCalls" &&
                                 val.value &&
