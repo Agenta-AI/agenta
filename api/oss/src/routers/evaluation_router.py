@@ -13,7 +13,7 @@ from oss.src.services import evaluation_service
 from oss.src.core.evaluations.tasks.legacy import setup_evaluation
 
 # Import worker tasks from evals.py where they're instantiated
-from entrypoints.evals import evaluations_worker
+from entrypoints.worker_evaluations import evaluations_worker
 
 # Alias for backward compatibility
 annotate = evaluations_worker.annotate_legacy

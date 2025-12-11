@@ -69,7 +69,7 @@ services:
                 condition: service_completed_successfully
         restart: always
 
-    evals:
+    worker-evaluations:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -89,7 +89,7 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "entrypoints/evals.py"
+                "entrypoints/worker_evaluations.py"
             ]
 
         depends_on:
@@ -98,7 +98,7 @@ services:
             - redis-durable
         restart: always
 
-    ingest:
+    worker-tracing:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -118,7 +118,7 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "entrypoints/ingest.py"
+                "entrypoints/worker_tracing.py"
             ]
 
         depends_on:

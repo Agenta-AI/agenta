@@ -76,13 +76,13 @@ services:
                 condition: service_completed_successfully
         restart: always
 
-    evals:
+    worker-evaluations:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/entrypoints/evals.py:/app/entrypoints/evals.py
+            - ../../../api/entrypoints/worker_evaluations.py:/app/entrypoints/worker_evaluations.py
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -102,15 +102,15 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python entrypoints/evals.py
+            python entrypoints/worker_evaluations.py
 
-    ingest:
+    worker-tracing:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/entrypoints/ingest.py:/app/entrypoints/ingest.py
+            - ../../../api/entrypoints/worker_tracing.py:/app/entrypoints/worker_tracing.py
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -130,7 +130,7 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python entrypoints/ingest.py
+            python entrypoints/worker_tracing.py
 
     cron:
         image: agenta-oss-dev-api:latest

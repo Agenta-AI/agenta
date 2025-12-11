@@ -172,7 +172,7 @@ def main() -> int:
         # Run Taskiq worker
         # Broker and workers are instantiated above (like routers.py does for FastAPI)
         args = WorkerArgs(
-            broker="entrypoints.evals:broker",  # Reference broker from this module
+            broker="entrypoints.worker_evaluations:broker",  # Reference broker from this module
             modules=[],  # Workers already registered, no auto-discovery needed
             fs_discover=False,
             workers=1,  # Number of worker processes

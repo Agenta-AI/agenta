@@ -108,7 +108,7 @@ from oss.src.routers import (
 )
 
 from oss.src.utils.env import env
-from entrypoints.evals import evaluations_worker
+from entrypoints.worker_evaluations import evaluations_worker
 
 import agenta as ag
 
