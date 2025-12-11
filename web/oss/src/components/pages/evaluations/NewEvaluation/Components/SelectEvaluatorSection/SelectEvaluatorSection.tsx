@@ -1,13 +1,13 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {PlusOutlined} from "@ant-design/icons"
-import {Button, Input, Table, Tag, Space} from "antd"
+import {Button, Input, Space, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 import router from "next/router"
 
-import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
+import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
 import useURL from "@/oss/hooks/useURL"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"

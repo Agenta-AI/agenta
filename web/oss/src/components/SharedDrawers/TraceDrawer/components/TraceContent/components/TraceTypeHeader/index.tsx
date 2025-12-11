@@ -1,8 +1,8 @@
+import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import {Database} from "lucide-react"
 import dynamic from "next/dynamic"
-import AnnotateDrawerButton from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/AnnotateDrawerButton"
 
 import clsx from "clsx"
 
@@ -16,12 +16,9 @@ import {useMemo, useState} from "react"
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
 import {TraceTypeHeaderProps} from "./types"
 
-const DeleteTraceModal = dynamic(
-    () => import("../../../DeleteTraceModal"),
-    {
-        ssr: false,
-    },
-)
+const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
+    ssr: false,
+})
 const TestsetDrawer = dynamic(
     () => import("@/oss/components/pages/observability/drawer/TestsetDrawer/TestsetDrawer"),
     {ssr: false},

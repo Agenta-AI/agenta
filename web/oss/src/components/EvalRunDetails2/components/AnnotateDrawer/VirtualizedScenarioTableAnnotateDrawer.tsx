@@ -13,8 +13,8 @@ import {
     generateAnnotationPayloadData,
     generateNewAnnotationPayloadData,
     getInitialMetricsFromAnnotations,
-} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
-import type {UpdatedMetricsType} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/types"
+} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
+import type {UpdatedMetricsType} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/types"
 import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {uuidToSpanId} from "@/oss/lib/traces/helpers"
@@ -46,10 +46,7 @@ import {buildScenarioMetricDataFromAnnotation} from "../../utils/buildAnnotation
 import {classifyStep} from "../views/SingleScenarioViewerPOC"
 
 const Annotate = dynamic(
-    () =>
-        import(
-            "@agenta/oss/src/components/pages/observability/drawer/AnnotateDrawer/assets/Annotate"
-        ),
+    () => import("@/oss/components/SharedDrawers/AnnotateDrawer/assets/Annotate"),
     {ssr: false},
 )
 

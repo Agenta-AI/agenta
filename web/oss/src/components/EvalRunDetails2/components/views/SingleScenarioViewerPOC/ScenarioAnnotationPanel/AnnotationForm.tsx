@@ -3,7 +3,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {Alert, Collapse, Typography} from "antd"
 import clsx from "clsx"
 
-import {transformMetadata} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
+import {transformMetadata} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
 
 import type {AnnotationMetrics, EvaluatorDto} from "../types"
 

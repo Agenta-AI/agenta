@@ -12,14 +12,13 @@ import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {JSSTheme} from "@/oss/lib/Types"
 
-
 import NoTraceAnnotations from "../../../TraceSidePanel/TraceAnnotations/components/NoTraceAnnotations"
 
-import {getAnnotationTableColumns} from "./assets/getAnnotationTableColumns"
 import {
-    USEABLE_METRIC_TYPES,
     NUMERIC_METRIC_TYPES,
-} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/constants"
+    USEABLE_METRIC_TYPES,
+} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/constants"
+import {getAnnotationTableColumns} from "./assets/getAnnotationTableColumns"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     expandableTable: {
