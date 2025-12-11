@@ -79,7 +79,7 @@ const safeJsonStringify = (value: unknown): string => {
 const JsonContent = memo(({value, height}: {value: unknown; height?: number}) => {
     const jsonString = useMemo(() => safeJsonStringify(value), [value])
     return (
-        <div className="overflow-hidden [&_.editor-inner]:!border-0 [&_.editor-inner]:!bg-transparent [&_.editor-container]:!bg-transparent [&_.editor-code]:!bg-transparent">
+        <div className="overflow-hidden [&_.editor-inner]:!border-0 [&_.editor-inner]:!bg-transparent [&_.editor-container]:!bg-transparent [&_.editor-code]:!bg-transparent [&_.editor-code]:!text-xs">
             <JsonEditor
                 initialValue={jsonString}
                 language="json"
