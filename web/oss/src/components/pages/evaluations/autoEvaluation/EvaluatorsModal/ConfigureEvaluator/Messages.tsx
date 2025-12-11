@@ -5,7 +5,7 @@ import {MinusCircle} from "@phosphor-icons/react"
 import {Button, Form, Input} from "antd"
 import isEqual from "lodash/isEqual"
 
-import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
+import EnhancedButton from "@/oss/components/EnhancedUIs/EnhancedButton"
 import MessageEditor from "@/oss/components/Playground/Components/ChatCommon/MessageEditor"
 
 interface Message {

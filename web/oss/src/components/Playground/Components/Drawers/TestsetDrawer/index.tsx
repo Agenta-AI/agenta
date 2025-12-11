@@ -6,7 +6,7 @@ import dynamic from "next/dynamic"
 import {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
-import EnhancedButton from "../../../assets/EnhancedButton"
+import EnhancedButton from "../../../../EnhancedUIs/EnhancedButton"
 
 import {TestsetDrawerButtonProps} from "./types"
 

@@ -12,7 +12,7 @@ import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
 import {useAppState} from "@/oss/state/appState"
 
 import packageJsonData from "../../../../package.json"
-import EnhancedButton from "../../Playground/assets/EnhancedButton"
+import EnhancedButton from "../../EnhancedUIs/EnhancedButton"
 import TooltipWithCopyAction from "../../TooltipWithCopyAction"
 
 import {useStyles, type StyleProps} from "./styles"

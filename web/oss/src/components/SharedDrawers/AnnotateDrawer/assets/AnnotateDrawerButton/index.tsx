@@ -2,7 +2,7 @@ import {cloneElement, isValidElement, useState} from "react"
 
 import {PencilSimpleLine} from "@phosphor-icons/react"
 
-import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
+import EnhancedButton from "@/oss/components/EnhancedUIs/EnhancedButton"
 
 import AnnotateDrawer from "../../index"
 import {AnnotateDrawerButtonProps} from "../types"
