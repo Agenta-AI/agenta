@@ -259,11 +259,12 @@ export const VariantRevisionLabel = memo(
         // Get revision number from config query or fallback
         const revision = configRef?.revision ?? fallbackRevision ?? null
 
-        // Determine if deleted
-        const hasResolvedData = variantName || revision != null
-        const isDeleted =
-            Boolean(configQuery.isError && !fallbackVariantName) ||
-            (!hasResolvedData && !fallbackVariantName)
+        // Determine if deleted - only mark as deleted if:
+        // 1. Query errored AND we have no fallback variant name
+        // 2. No data from query AND no fallbacks at all
+        const hasFallbackData = fallbackVariantName || fallbackRevision != null
+        const hasResolvedData = configRef?.variantName || configRef?.revision != null
+        const isDeleted = !hasFallbackData && (Boolean(configQuery.isError) || !hasResolvedData)
 
         // Build combined label: "variantName v{revision}"
         const label = isDeleted
