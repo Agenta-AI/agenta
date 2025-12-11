@@ -1,7 +1,8 @@
 import type {ReactNode} from "react"
 
-import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
+import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
+import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import {EVALUATION_KIND_LABELS} from "../../constants"
 import type {EvaluationRunTableRow} from "../../types"
@@ -206,21 +207,28 @@ export const resolveCreatedAtForExport = (record: EvaluationRunTableRow): string
     return date.toISOString()
 }
 
+/**
+ * Resolve the evaluation kind for a table row.
+ * Uses the centralized utility that derives kind from run.data.steps.
+ */
 const resolveKindForRecord = (
     record: EvaluationRunTableRow,
 ): keyof typeof EVALUATION_KIND_LABELS | null => {
+    // First check if kind was already derived and set on the row
     const explicitKind = record.evaluationKind
     if (explicitKind && EVALUATION_KIND_LABELS[explicitKind]) {
         return explicitKind
     }
-    const metaKind = (record.previewMeta as any)?.evaluation_kind as string | undefined
-    if (metaKind && EVALUATION_KIND_LABELS[metaKind as keyof typeof EVALUATION_KIND_LABELS]) {
-        return metaKind as keyof typeof EVALUATION_KIND_LABELS
+
+    // Derive kind from run data if available (via previewMeta.steps)
+    const steps = (record.previewMeta as any)?.steps
+    if (steps) {
+        const derivedKind = deriveEvaluationKind({data: {steps}})
+        if (EVALUATION_KIND_LABELS[derivedKind]) {
+            return derivedKind
+        }
     }
-    const sourceKind = (record as any)?.source_kind as string | undefined
-    if (sourceKind && EVALUATION_KIND_LABELS[sourceKind as keyof typeof EVALUATION_KIND_LABELS]) {
-        return sourceKind as keyof typeof EVALUATION_KIND_LABELS
-    }
+
     return null
 }
 

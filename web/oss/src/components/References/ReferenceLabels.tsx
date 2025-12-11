@@ -305,10 +305,9 @@ export const VariantReferenceLabel = memo(
         }
 
         const ref = query.data
-        // If we have a revisionId but no variantName and no revision, or query errored, the variant was likely deleted
-        const isDeleted = Boolean(
-            query.isError || (ref?.revisionId && !ref?.variantName && ref?.revision == null),
-        )
+        const hasResolvedData = ref?.variantName || ref?.revision != null || fallbackLabel
+        const isDeleted =
+            Boolean(query.isError && !fallbackLabel) || (!hasResolvedData && !fallbackLabel)
         const label = isDeleted
             ? "Deleted"
             : (ref?.variantName ?? fallbackLabel ?? customLabel ?? ref?.revisionId ?? revisionId)
@@ -333,6 +332,81 @@ export const VariantReferenceLabel = memo(
                     </span>
                 ) : null}
             </div>
+        )
+    },
+)
+
+/**
+ * Combined variant + revision label that displays "variantName v{revision}" in a single chip.
+ * Links to the specific revision in the playground.
+ * Requires both variantId (for variant name) and revisionId (for revision number).
+ */
+export const VariantRevisionLabel = memo(
+    ({
+        variantId,
+        revisionId,
+        projectId,
+        fallbackVariantName,
+        fallbackRevision,
+        href: explicitHref,
+    }: {
+        variantId?: string | null
+        revisionId?: string | null
+        projectId: string | null
+        fallbackVariantName?: string | null
+        fallbackRevision?: number | string | null
+        href?: string | null
+    }) => {
+        // Fetch variant config using revisionId to get revision number
+        const configQueryAtom = useMemo(
+            () => variantConfigAtomFamily({projectId, revisionId}),
+            [projectId, revisionId],
+        )
+        const configQuery = useAtomValue(configQueryAtom)
+
+        if (!variantId && !revisionId) {
+            return <Text type="secondary">—</Text>
+        }
+
+        const isLoading = (configQuery.isPending || configQuery.isFetching) && !configQuery.isError
+
+        if (isLoading) {
+            return <Skeleton.Input active size="small" style={{width: 140}} />
+        }
+
+        const configRef = configQuery.data
+
+        // Get variant name from config query or fallback
+        const variantName = configRef?.variantName ?? fallbackVariantName ?? null
+
+        // Get revision number from config query or fallback
+        const revision = configRef?.revision ?? fallbackRevision ?? null
+
+        // Determine if deleted - only mark as deleted if:
+        // 1. Query errored AND we have no fallback variant name
+        // 2. No data from query AND no fallbacks at all
+        const hasFallbackData = fallbackVariantName || fallbackRevision != null
+        const hasResolvedData = configRef?.variantName || configRef?.revision != null
+        const isDeleted = !hasFallbackData && (Boolean(configQuery.isError) || !hasResolvedData)
+
+        // Build combined label: "variantName v{revision}"
+        const label = isDeleted
+            ? "Deleted"
+            : revision != null
+              ? `${variantName ?? "variant"} v${revision}`
+              : (variantName ?? revisionId ?? variantId ?? "Unknown")
+
+        const href = isDeleted ? null : explicitHref
+
+        return (
+            <ReferenceTag
+                label={label}
+                href={href ?? undefined}
+                tooltip={isDeleted ? `Variant ${revisionId ?? variantId} was deleted` : label}
+                copyValue={revisionId ?? variantId ?? undefined}
+                className="max-w-[220px]"
+                tone="variant"
+            />
         )
     },
 )

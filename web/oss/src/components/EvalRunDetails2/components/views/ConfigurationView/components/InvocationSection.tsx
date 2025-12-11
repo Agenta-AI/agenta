@@ -12,14 +12,11 @@ import {
     type ProjectVariantConfigKey,
 } from "@/oss/state/projectVariantConfig"
 
-import {
-    applicationReferenceQueryAtomFamily,
-    variantReferenceQueryAtomFamily,
-} from "../../../../atoms/references"
+import {variantReferenceQueryAtomFamily} from "../../../../atoms/references"
 import {effectiveProjectIdAtom} from "../../../../atoms/run"
 import {runInvocationRefsAtomFamily} from "../../../../atoms/runDerived"
 import {evaluationVariantConfigAtomFamily} from "../../../../atoms/variantConfig"
-import {ApplicationReferenceLabel, VariantReferenceLabel} from "../../../references"
+import {ApplicationReferenceLabel, VariantRevisionLabel} from "../../../references"
 import {toIdString} from "../utils"
 
 import {ReadOnlySkeleton} from "./CopyableFields"
@@ -45,17 +42,40 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
     const variantConfig = variantConfigQuery.data
     const isVariantLoading = variantConfigQuery.isPending || variantConfigQuery.isFetching
 
+    // DEBUG: Log invocation section state
+    console.log("[InvocationSection] runId:", runId)
+    console.log("[InvocationSection] invocationRefs:", invocationRefs)
+    console.log("[InvocationSection] rawRefs:", rawRefs)
+    console.log("[InvocationSection] variantConfigQuery:", {
+        isPending: variantConfigQuery.isPending,
+        isFetching: variantConfigQuery.isFetching,
+        error: variantConfigQuery.error,
+        data: variantConfigQuery.data,
+    })
+    console.log("[InvocationSection] variantConfig:", variantConfig)
+    console.log("[InvocationSection] isVariantLoading:", isVariantLoading)
+
     const applicationRef = rawRefs.application ?? rawRefs.application_ref ?? {}
     const applicationRevisionRef = rawRefs.applicationRevision ?? rawRefs.application_revision ?? {}
     const applicationVariantRef = rawRefs.applicationVariant ?? rawRefs.application_variant ?? {}
+    const variantRef = rawRefs.variant ?? rawRefs.variant_ref ?? {}
 
+    // Use variant ID (not revision ID) for the reference label query
+    // Priority: variant.id > applicationVariant.id > variantConfig.variant_ref.id
     const variantId = toIdString(
-        applicationRevisionRef?.id ??
-            applicationRevisionRef?.revision_id ??
+        variantRef?.id ??
             applicationVariantRef?.id ??
             variantConfig?.variant_ref?.id ??
             variantConfig?.variant_ref?.variant_id ??
             variantConfig?.variant_ref?.variantId,
+    )
+
+    // Revision ID is used for the prompt config card (to get the specific revision's params)
+    const revisionId = toIdString(
+        applicationRevisionRef?.id ??
+            applicationRevisionRef?.revision_id ??
+            variantRef?.id ??
+            applicationVariantRef?.id,
     )
 
     const applicationId = toIdString(
@@ -67,12 +87,6 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             applicationVariantRef?.applicationId ??
             null,
     )
-
-    const applicationAtom = useMemo(
-        () => applicationReferenceQueryAtomFamily(applicationId ?? null),
-        [applicationId],
-    )
-    const applicationQuery = useAtomValue(applicationAtom)
 
     const variantAtom = useMemo(() => variantReferenceQueryAtomFamily(variantId), [variantId])
     const variantQuery = useAtomValue(variantAtom)
@@ -99,37 +113,27 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
         null
 
     const hasParamsSnapshot = Boolean(variantConfig?.params)
-    const applicationLabel =
-        applicationQuery.data?.name ??
-        applicationQuery.data?.slug ??
-        applicationRef?.name ??
-        applicationRef?.app_name ??
-        applicationRef?.slug ??
-        applicationRef?.app_slug ??
-        (applicationId && applicationId.length > 12
-            ? `${applicationId.slice(0, 6)}…${applicationId.slice(-4)}`
-            : applicationId) ??
-        null
+
+    // Only use actual resolved names as fallback, not truncated IDs
+    // Truncated IDs should not be treated as valid fallback names
     const variantLabel =
         variantName ??
         variantConfig?.variant_ref?.name ??
         variantConfig?.variant_ref?.variant_name ??
-        variantConfig?.variant_ref?.slug ??
-        variantConfig?.variant_ref?.variant_slug ??
-        variantSlug ??
-        (variantDisplayId && variantDisplayId.length > 12
-            ? `${variantDisplayId.slice(0, 6)}…${variantDisplayId.slice(-4)}`
-            : variantDisplayId) ??
         null
 
+    // Use revisionId for the prompt config card (specific revision's params)
     const promptVariantKey = useMemo(() => {
-        const variantRef = variantConfig?.variant_ref ?? {}
+        const configVariantRef = variantConfig?.variant_ref ?? {}
         const refId = toIdString(
-            variantRef?.id ?? variantRef?.variant_id ?? variantRef?.variantId ?? null,
+            configVariantRef?.id ??
+                configVariantRef?.variant_id ??
+                configVariantRef?.variantId ??
+                null,
         )
         if (refId) return refId
-        return variantId
-    }, [variantConfig?.variant_ref, variantId])
+        return revisionId ?? variantId
+    }, [variantConfig?.variant_ref, revisionId, variantId])
 
     const projectId = useAtomValue(effectiveProjectIdAtom)
     const setProjectVariantReferences = useSetAtom(setProjectVariantReferencesAtom)
@@ -156,15 +160,6 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             toIdString(applicationVariantRef?.id) ??
             undefined
 
-        const resolvedVariantSlug =
-            variantRef?.slug ??
-            variantRef?.variant_slug ??
-            variantRef?.variantSlug ??
-            applicationVariantRef?.slug ??
-            applicationVariantRef?.variant_slug ??
-            applicationVariantRef?.variantSlug ??
-            undefined
-
         const rawVersion =
             variantRef?.version ??
             variantRef?.revision ??
@@ -178,7 +173,7 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
                   ? Number(rawVersion)
                   : null
 
-        if (!resolvedVariantId && !resolvedVariantSlug) {
+        if (!resolvedVariantId) {
             clearProjectVariantReferences()
             return
         }
@@ -188,7 +183,6 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             appId: toIdString(appRef?.id) ?? undefined,
             appSlug: appRef?.slug ?? undefined,
             variantId: resolvedVariantId,
-            variantSlug: resolvedVariantSlug,
             variantVersion: Number.isFinite(variantVersion as number) ? variantVersion : null,
         }
 
@@ -209,7 +203,28 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
     ])
 
     const [collapsed, setCollapsed] = useState(false)
+
+    // When the app/variant is deleted, the URL (openapi schema endpoint) won't be available.
+    // In this case, we cannot render the component view and should default to JSON view.
+    // We only know the schema is unavailable after loading completes.
+    const hasSchemaAvailable = Boolean(variantConfig?.url)
+    const schemaDefinitelyUnavailable =
+        !isVariantLoading && !variantLoading && variantConfig && !variantConfig.url
     const [view, setView] = useState<"details" | "json">("details")
+
+    // DEBUG: Log view state decision factors
+    console.log("[InvocationSection] hasSchemaAvailable:", hasSchemaAvailable)
+    console.log("[InvocationSection] schemaDefinitelyUnavailable:", schemaDefinitelyUnavailable)
+    console.log("[InvocationSection] variantConfig?.url:", variantConfig?.url)
+    console.log("[InvocationSection] current view:", view)
+    console.log("[InvocationSection] promptVariantKey:", promptVariantKey)
+
+    // Sync view state when we definitively know schema is unavailable (after loading completes)
+    useEffect(() => {
+        if (schemaDefinitelyUnavailable && view === "details") {
+            setView("json")
+        }
+    }, [schemaDefinitelyUnavailable, view])
 
     if (!rawRefs || Object.keys(rawRefs).length === 0) return null
     if (isVariantLoading || variantLoading) {
@@ -221,14 +236,14 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             <Text className="text-sm font-semibold text-[#344054]">Application</Text>
             <div className="flex flex-wrap items-center gap-2 mt-1">
                 <ApplicationReferenceLabel runId={runId} applicationId={applicationId} />
-                {variantId ? (
-                    <VariantReferenceLabel
+                {variantId || revisionId ? (
+                    <VariantRevisionLabel
                         variantId={variantId}
+                        revisionId={revisionId}
                         applicationId={applicationId}
                         runId={runId}
-                        fallbackLabel={variantLabel}
-                        showVersionPill
-                        explicitVersion={variantVersion}
+                        fallbackVariantName={variantLabel}
+                        fallbackRevision={variantVersion}
                     />
                 ) : variantLabel ? (
                     <span className="text-sm text-[#475467]">{variantLabel}</span>
@@ -242,7 +257,7 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             <div className="flex items-start justify-between gap-3">
                 {headerContent}
                 <div className="flex items-center gap-2">
-                    {variantConfig ? (
+                    {variantConfig && hasSchemaAvailable ? (
                         <Segmented
                             options={[
                                 {label: "Details", value: "details"},
@@ -321,13 +336,36 @@ const VariantConfigurationBlock = memo(
         variantVersion: number | string | null
         hasParamsSnapshot: boolean
     }) => {
+        // DEBUG: Log VariantConfigurationBlock props
+        console.log("[VariantConfigurationBlock] isLoading:", isLoading)
+        console.log("[VariantConfigurationBlock] hasVariantConfig:", hasVariantConfig)
+        console.log("[VariantConfigurationBlock] promptVariantKey:", promptVariantKey)
+        console.log("[VariantConfigurationBlock] variantParameters:", variantParameters)
+        console.log("[VariantConfigurationBlock] variantDisplayId:", variantDisplayId)
+        console.log("[VariantConfigurationBlock] variantName:", variantName)
+        console.log("[VariantConfigurationBlock] variantSlug:", variantSlug)
+        console.log("[VariantConfigurationBlock] variantResolved:", variantResolved)
+        console.log("[VariantConfigurationBlock] variantVersion:", variantVersion)
+        console.log("[VariantConfigurationBlock] hasParamsSnapshot:", hasParamsSnapshot)
+        console.log("[VariantConfigurationBlock] title:", title)
+
         if (isLoading) {
+            console.log("[VariantConfigurationBlock] Rendering: ReadOnlySkeleton (isLoading)")
             return <ReadOnlySkeleton />
         }
 
         if (!hasVariantConfig) {
+            console.log(
+                "[VariantConfigurationBlock] Rendering: 'Variant configuration unavailable' (no hasVariantConfig)",
+            )
             return <Text type="secondary">Variant configuration unavailable.</Text>
         }
+
+        console.log("[VariantConfigurationBlock] Rendering: PromptConfigCard with:", {
+            variantId: promptVariantKey ?? undefined,
+            parameters: variantParameters,
+            hasSnapshot: hasParamsSnapshot,
+        })
 
         return (
             <div className="flex flex-col gap-2">

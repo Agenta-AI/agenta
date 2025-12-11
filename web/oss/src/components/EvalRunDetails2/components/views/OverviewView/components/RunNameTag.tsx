@@ -12,7 +12,7 @@ import {
     runUpdatedAtAtomFamily,
 } from "../../../../atoms/runDerived"
 import {evaluationRunQueryAtomFamily} from "../../../../atoms/table/run"
-import {ApplicationReferenceLabel, TestsetTagList, VariantReferenceLabel} from "../../../references"
+import {ApplicationReferenceLabel, TestsetTagList, VariantRevisionLabel} from "../../../references"
 
 interface RunNameTagProps {
     runId: string
@@ -129,7 +129,7 @@ const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
                         </div>
                         <div className="flex items-center justify-between gap-3">
                             <Typography.Text type="secondary">Variant</Typography.Text>
-                            <VariantReferenceLabel
+                            <VariantRevisionLabel
                                 runId={runId}
                                 variantId={
                                     invocationRefs?.variantId ??

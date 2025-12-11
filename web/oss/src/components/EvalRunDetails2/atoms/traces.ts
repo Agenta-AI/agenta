@@ -215,12 +215,6 @@ export const evaluationTraceBatcherFamily = atomFamily(({runId}: {runId?: string
                         return {}
                     }
 
-                    debugTraceValue("Trace batch request", {
-                        projectId,
-                        requestedIds: traceIds,
-                        uniqueCount: unique.length,
-                    })
-
                     const canonicalPairs = unique.map((id) => ({
                         original: id,
                         canonical: uuidToTraceId(id) ?? id.replace(/-/g, ""),
@@ -247,14 +241,6 @@ export const evaluationTraceBatcherFamily = atomFamily(({runId}: {runId?: string
                             },
                         },
                     )
-
-                    debugTraceValue("Trace batch response", {
-                        traceIds: unique,
-                        canonicalIds: canonicalPairs.map((pair) => pair.canonical),
-                        status: response.status,
-                        hasTraces: Boolean(response.data?.traces),
-                        version: response.data?.version,
-                    })
 
                     const traces = response.data?.traces ?? {}
                     const version = response.data?.version
@@ -328,27 +314,6 @@ export const traceValueAtomFamily = atomFamily(
                     queryState.data,
                     args.path,
                     args.valueKey,
-                )
-
-                debugTraceValue(
-                    "Trace value selection",
-                    {
-                        traceId: args.traceId,
-                        path: args.path,
-                        valueKey: args.valueKey,
-                        queryState: {
-                            isLoading: queryState.isLoading,
-                            isFetching: queryState.isFetching,
-                            error: queryState.error ? String(queryState.error) : undefined,
-                        },
-                        traceData: summarizeTraceData(queryState.data),
-                        resolvedShape: summarizeShape(resolved),
-                    },
-                    {
-                        onceKey: `${args.traceId}:${args.path}:${
-                            args.valueKey ?? ""
-                        }:${queryState.isLoading ? "loading" : "ready"}`,
-                    },
                 )
 
                 if (

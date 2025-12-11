@@ -12,4 +12,5 @@ export {
     TestsetTagList,
     VariantReferenceLabel,
     VariantReferenceText,
+    VariantRevisionLabel,
 } from "./EvalReferenceLabels"
