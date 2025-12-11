@@ -1,5 +1,6 @@
 import sys
 
+from redis.asyncio import Redis
 from taskiq import TaskiqEvents
 from taskiq.cli.worker.run import run_worker
 from taskiq.cli.worker.args import WorkerArgs
@@ -9,6 +10,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.utils.env import env
 from oss.src.tasks.taskiq.evaluations.worker import EvaluationsWorker
+from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
@@ -93,6 +95,18 @@ tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
 
+# Redis client and TracingWorker for publishing spans to Redis Streams
+if env.REDIS_URI_DURABLE:
+    redis_client = Redis.from_url(env.REDIS_URI_DURABLE, decode_responses=False)
+    tracing_worker = TracingWorker(
+        service=tracing_service,
+        redis_client=redis_client,
+        stream_name="streams:tracing",
+        consumer_group="worker-tracing",
+    )
+else:
+    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
+
 queries_service = QueriesService(
     queries_dao=queries_dao,
 )
@@ -133,6 +147,7 @@ evaluations_service = EvaluationsService(
 
 tracing_router = TracingRouter(
     tracing_service=tracing_service,
+    tracing_worker=tracing_worker,
 )
 
 simple_testsets_router = SimpleTestsetsRouter(
