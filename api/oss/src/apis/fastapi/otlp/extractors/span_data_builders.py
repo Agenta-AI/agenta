@@ -22,6 +22,26 @@ from oss.src.core.tracing.utils import (
 log = get_module_logger(__name__)
 
 
+def _transform_legacy_references(attributes: dict[str, Any]) -> dict[str, Any]:
+    if not attributes:
+        return attributes
+
+    # Mapping of old keys to new keys
+    ref_mappings = {
+        "ag.references.variant.id": "ag.references.application_variant.id",
+        "ag.references.variant.slug": "ag.references.application_variant.slug",
+        "ag.references.variant.version": "ag.references.application_revision.version",
+        "ag.references.environment.version": "ag.references.environment_revision.version",
+    }
+
+    for old_key, new_key in list(ref_mappings.items()):
+        if old_key in attributes:
+            attributes[new_key] = attributes[old_key]
+            del attributes[old_key]
+
+    return attributes
+
+
 class SpanDataBuilder(ABC):
     """
     Abstract base class for span data builders.
@@ -128,6 +148,9 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
         attributes.update(**{f"ag.meta.{k}": v for k, v in features.meta.items()})
 
         attributes.update(**{f"ag.references.{k}": v for k, v in features.refs.items()})
+
+        # Transform legacy reference keys to new naming convention
+        attributes = _transform_legacy_references(attributes)
 
         ## TYPES ---------------------------------------------------------------
         attributes.update(**{f"ag.type.{k}": v for k, v in features.type.items()})
