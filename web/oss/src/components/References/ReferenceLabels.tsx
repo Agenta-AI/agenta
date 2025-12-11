@@ -287,7 +287,7 @@ export const VariantReferenceLabel = memo(
                     tone="variant"
                 />
                 {showVersionPill && resolvedVersion ? (
-                    <span className="rounded-full bg-[#F2F4F7] px-2 py-0.5 text-xs font-semibold text-[#344054]">
+                    <span className="rounded-md bg-[#F2F4F7] px-2 py-0.5 text-xs font-medium text-[#344054]">
                         v{resolvedVersion}
                     </span>
                 ) : null}

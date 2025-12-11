@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
-import {ChatText, QuestionIcon} from "@phosphor-icons/react"
+import {ChatText} from "@phosphor-icons/react"
 import {Badge, Button, Flex, Space, Table, Typography} from "antd"
 import type {TableProps} from "antd/es/table"
 import clsx from "clsx"
@@ -189,12 +189,9 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
                         <Space direction="vertical" key={key} className="w-full @container">
                             <div className="w-full flex items-center justify-between">
                                 <EvaluatorDetailsPopover evaluator={evaluator} fallbackLabel={slug}>
-                                    <div className="flex items-center gap-1">
-                                        <QuestionIcon size={14} />
-                                        <Typography.Text className="font-medium">
-                                            {evaluatorName}
-                                        </Typography.Text>
-                                    </div>
+                                    <Typography.Text className="font-medium">
+                                        {evaluatorName}
+                                    </Typography.Text>
                                 </EvaluatorDetailsPopover>
 
                                 <Typography.Text type="secondary" className="capitalize">

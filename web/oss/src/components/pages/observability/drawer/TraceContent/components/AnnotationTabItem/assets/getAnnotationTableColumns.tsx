@@ -46,21 +46,6 @@ export const getAnnotationTableColumns = (
         },
         Table.EXPAND_COLUMN,
         {
-            title: "Created by",
-            key: "created_by",
-            width: 200,
-            onHeaderCell: () => ({
-                style: {minWidth: 200},
-            }),
-            render: (_, record) => {
-                return (
-                    <div className="flex items-center justify-start">
-                        <UserAvatarTag modifiedBy={record.createdBy || ""} />
-                    </div>
-                )
-            },
-        },
-        {
             title: "Metrics",
             key: `metrics-${reference}`,
             align: "start",
@@ -150,6 +135,21 @@ export const getAnnotationTableColumns = (
             }),
             render: (_, record) => {
                 return <div>{record.createdAt}</div>
+            },
+        },
+        {
+            title: "Created by",
+            key: "created_by",
+            width: 200,
+            onHeaderCell: () => ({
+                style: {minWidth: 200},
+            }),
+            render: (_, record) => {
+                return (
+                    <div className="flex items-center justify-start">
+                        <UserAvatarTag modifiedBy={record.createdBy || ""} />
+                    </div>
+                )
             },
         },
     ]

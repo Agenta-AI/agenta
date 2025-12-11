@@ -18,7 +18,6 @@ import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {useStyles} from "./assets/styles"
 import NoTraceAnnotations from "./components/NoTraceAnnotations"
 import EvaluatorDetailsPopover from "@/oss/components/pages/observability/drawer/components/EvaluatorDetailsPopover"
-import {QuestionIcon} from "@phosphor-icons/react"
 
 interface TraceAnnotationsProps {
     annotations: AnnotationDto[]
@@ -176,12 +175,9 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                                 evaluator={group.evaluator}
                                 fallbackLabel={group.refId}
                             >
-                                <div className="flex items-center gap-1">
-                                    <QuestionIcon size={12} className="text-gray-500" />
-                                    <Typography.Text type="secondary" className="text-[10px]">
-                                        {group?.evaluator?.name || group.refId}
-                                    </Typography.Text>
-                                </div>
+                                <Typography.Text type="secondary" className="text-[10px]">
+                                    {group?.evaluator?.name || group.refId}
+                                </Typography.Text>
                             </EvaluatorDetailsPopover>
                         </div>
 

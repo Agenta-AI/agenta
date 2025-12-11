@@ -1,10 +1,4 @@
-export type ReferenceTone =
-    | "app"
-    | "variant"
-    | "testset"
-    | "query"
-    | "evaluator"
-    | "environment"
+export type ReferenceTone = "app" | "variant" | "testset" | "query" | "evaluator" | "environment"
 
 export interface ReferenceToneColors {
     text: string

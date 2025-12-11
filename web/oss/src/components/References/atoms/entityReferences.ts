@@ -747,7 +747,7 @@ const environmentReferenceBatchFetcher = createBatchFetcher<
                         const slug =
                             typeof item?.slug === "string" && item.slug.trim().length
                                 ? item.slug
-                                : item?.name ?? null
+                                : (item?.name ?? null)
                         const name =
                             typeof item?.name === "string" && item.name.trim().length
                                 ? item.name
@@ -771,7 +771,8 @@ const environmentReferenceBatchFetcher = createBatchFetcher<
                                 (env) =>
                                     (environmentId && env.id === environmentId) ||
                                     (environmentSlug &&
-                                        (env.slug === environmentSlug || env.name === environmentSlug)),
+                                        (env.slug === environmentSlug ||
+                                            env.name === environmentSlug)),
                             ) ??
                             (environmentId
                                 ? normalized.find((env) => env.id === environmentId)

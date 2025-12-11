@@ -24,6 +24,7 @@ type AnnotationLinkTarget = {
     key?: string
     type?: string
     source?: string
+    attributes?: Record<string, any>
     trace?: TracesWithAnnotations[]
 }
 // Linked span row surfaced in the linked spans table.
@@ -350,16 +351,26 @@ export const linkedSpanTargetsAtom = atom<AnnotationLinkTarget[]>((get) => {
         if (!traceId || !spanId) return
 
         const id = `${traceId}:${spanId}`
-        if (unique.has(id)) return
-
-        unique.set(id, {
+        const next = {
             trace_id: traceId,
             span_id: spanId,
             key: (link as any)?.key,
-            type: (link as any)?.type,
-            source: (link as any)?.attributes?.source,
+            type: (link as any)?.type || (link as any)?.source,
+            source: (link as any)?.attributes?.source || (link as any)?.source,
+            attributes: (link as any)?.attributes,
             trace: Array.isArray((link as any)?.trace) ? (link as any).trace : undefined,
-        })
+        }
+        if (unique.has(id)) {
+            const existing = unique.get(id) as AnnotationLinkTarget
+            unique.set(id, {
+                ...existing,
+                ...next,
+                trace: existing.trace?.length ? existing.trace : next.trace,
+            })
+            return
+        }
+
+        unique.set(id, next)
     })
 
     return Array.from(unique.values())
@@ -458,13 +469,19 @@ export const linkedSpansAtom = atom<LinkedSpanRow[]>((get) => {
 
         if (!spanNode) return rows
 
+        const inferredSource =
+            target.source ||
+            target.type ||
+            (target.attributes as Record<string, any> | undefined)?.type ||
+            (spanNode as any)?.span_type
+
         rows.push({
             ...(spanNode as TracesWithAnnotations),
             trace_id: (spanNode as any)?.trace_id || target.trace_id,
             span_id: (spanNode as any)?.span_id || target.span_id,
             key: `${target.trace_id}-${target.span_id}`,
             linkKey: target.key,
-            linkSource: target.source || target.type || target.key,
+            linkSource: inferredSource || undefined,
         })
 
         return rows
@@ -586,8 +603,38 @@ export const linksAndReferencesAtom = atom<{
 
     const traces = get(traceDrawerFlatAnnotatedTracesAtom)
     const activeTrace = getNodeById(traces as any, activeSpanId)
+    const annotatedTraceTree = get(senitizedTracesAtom)
     const annotationLinkTargets = get(annotationLinkTargetsAtom)
     const linkedTraces = get(annotationLinkTracesAtom)
+
+    const currentTraceId =
+        (activeTrace as any)?.invocationIds?.trace_id || (activeTrace as any)?.trace_id
+    const currentSpanId =
+        (activeTrace as any)?.invocationIds?.span_id || (activeTrace as any)?.span_id
+
+    const mergeLinks = (links: Map<string, AnnotationLinkTarget>, link?: AnnotationLinkTarget) => {
+        if (!link?.trace_id || !link?.span_id) return
+        const id = `${link.trace_id}:${link.span_id}`
+        const existing = links.get(id)
+
+        if (existing) {
+            links.set(id, {
+                ...existing,
+                ...link,
+                trace: existing.trace?.length ? existing.trace : link.trace,
+            })
+            return
+        }
+
+        const enrichedTrace =
+            link.trace_id === currentTraceId && Array.isArray(annotatedTraceTree)
+                ? annotatedTraceTree
+                : link.trace
+
+        links.set(id, {...link, trace: enrichedTrace})
+    }
+
+    const links = new Map<string, AnnotationLinkTarget>()
 
     const annotationLinks =
         annotationLinkTargets?.map((target) => {
@@ -596,21 +643,82 @@ export const linksAndReferencesAtom = atom<{
                 (getNodeById(nodes as any, target.span_id) as TracesWithAnnotations | null) ||
                 undefined
 
+            const trace = nodes?.length ? nodes : undefined
+
             return {
                 ...target,
-                trace: nodes,
+                trace,
                 span: spanNode,
             }
         }) || []
 
-    // extract links from annotations when they point to the current trace/span, otherwise fall back
-    const links = annotationLinks
+    annotationLinks.forEach((link) => mergeLinks(links, link))
 
-    // extract references
+    const annotations = ((activeTrace as unknown as TracesWithAnnotations)?.annotations ||
+        []) as AnnotationDto[]
+
+    annotations.forEach((annotation) => {
+        const annotationLinks = Object.values(annotation?.links || {}) as Array<Record<string, any>>
+        const annotationKey = annotation?.meta?.name || annotation?.id
+        const annotationType = annotation?.origin || annotation?.kind
+
+        annotationLinks.forEach((link) => {
+            const traceId = (link as any)?.trace_id
+            const spanId = (link as any)?.span_id
+
+            if (!traceId || !spanId) return
+            if (traceId === currentTraceId && spanId === currentSpanId) return
+
+            mergeLinks(links, {
+                trace_id: traceId,
+                span_id: spanId,
+                attributes: (link as any)?.attributes,
+                key: annotationKey,
+                type: annotationType,
+                source: (link as any)?.attributes?.type || annotationType,
+            })
+        })
+
+        if (
+            annotation.trace_id &&
+            annotation.span_id &&
+            (annotation.trace_id !== currentTraceId || annotation.span_id !== currentSpanId)
+        ) {
+            mergeLinks(links, {
+                trace_id: annotation.trace_id,
+                span_id: annotation.span_id,
+                key: annotationKey,
+                type: annotationType,
+                source: annotationType,
+            })
+        }
+    })
+
+    const spanLinks = [
+        ...(((activeTrace as any)?.otel?.links || []) as SpanLink[]),
+        ...(((activeTrace as any)?.links || []) as SpanLink[]),
+    ]
+
+    spanLinks.forEach((link) => {
+        const traceId = (link as any)?.trace_id || (link as any)?.context?.trace_id
+        const spanId = (link as any)?.span_id || (link as any)?.context?.span_id
+        if (!traceId || !spanId) return
+        if (traceId === currentTraceId && spanId === currentSpanId) return
+
+        mergeLinks(links, {
+            trace_id: traceId,
+            span_id: spanId,
+            attributes: (link as any)?.attributes,
+            key: (link as any)?.attributes?.key,
+            type: (link as any)?.attributes?.type || (link as any)?.type,
+            source: (link as any)?.attributes?.type || (link as any)?.type,
+        })
+    })
+
     const references = getReferences(activeTrace || undefined)
 
     return {
-        links,
+        links: Array.from(links.values()),
         references,
     }
 })

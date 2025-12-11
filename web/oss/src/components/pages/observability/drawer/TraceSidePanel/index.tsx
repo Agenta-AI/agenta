@@ -13,6 +13,7 @@ import TraceAnnotations from "./TraceAnnotations"
 import TraceDetails from "./TraceDetails"
 import clsx from "clsx"
 import TraceLinkedSpans from "./TraceLinkedSpans"
+import TraceReferences from "./References"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -97,6 +98,14 @@ const TraceSidePanel = ({
         emptyState("No linked spans found.")
     )
 
+    const referencesContent = showLoading ? (
+        loadingContent
+    ) : derived ? (
+        <TraceReferences />
+    ) : (
+        emptyState("No references found.")
+    )
+
     const items: CollapseProps["items"] = useMemo(
         () => [
             {
@@ -118,6 +127,15 @@ const TraceSidePanel = ({
                 children: detailsContent,
             },
             {
+                key: "references",
+                label: (
+                    <Typography.Text className={classes.collapseItemLabel}>
+                        References
+                    </Typography.Text>
+                ),
+                children: referencesContent,
+            },
+            {
                 key: "linked",
                 label: (
                     <Typography.Text className={classes.collapseItemLabel}>
@@ -133,7 +151,7 @@ const TraceSidePanel = ({
     return (
         <Collapse
             items={items}
-            defaultActiveKey={["annotations", "details", "linked"]}
+            defaultActiveKey={["annotations", "details", "linked", "references"]}
             className={clsx(classes.collapseContainer, "[&_.ant-collapse-header]:!py-[10.5px]")}
         />
     )

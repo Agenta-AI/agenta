@@ -1,6 +1,6 @@
-import {useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
-import {Typography} from "antd"
+import {Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
@@ -15,6 +15,7 @@ import {
 import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
+import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 
 type LinkedSpansTabItemProps = {
     isActive: boolean
@@ -62,35 +63,52 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
 
     const baseColumns = useMemo(() => getObservabilityColumns({evaluatorSlugs}), [evaluatorSlugs])
 
-    const columns = useMemo(() => {
-        const filtered = baseColumns.filter(
-            (column) =>
-                !["name", "span_type", "evaluators"].includes(String(column.key)) &&
-                !(Array.isArray(column.children) && column.children.length > 0),
-        )
+    const navigateToLink = useCallback(
+        (record: LinkedSpanRow) => {
+            setTraceDrawerTrace({
+                traceId: record.trace_id,
+                activeSpanId: record.span_id,
+                source: "linked",
+            })
+            setTraceParam(record.trace_id, {shallow: true})
+            setSpanParam(record.span_id, {shallow: true})
+        },
+        [setSpanParam, setTraceDrawerTrace, setTraceParam],
+    )
 
-        const sourceColumn: EnhancedColumnType<LinkedSpanRow> = {
-            title: "Source",
-            key: "source",
-            dataIndex: ["linkSource"],
-            width: 100,
+    const filteredColumns = useMemo(() => {
+        const idColumn = {
+            title: "ID",
+            key: "id",
+            dataIndex: ["span_id"],
+            width: 200,
+            fixed: "left",
+            onHeaderCell: () => ({
+                style: {minWidth: 200},
+            }),
             render: (_, record) => {
-                if (!record.linkSource && !record.linkKey) return null
+                const spanId = record.span_id || ""
+                const shortId = spanId ? spanId.split("-")[0] : "-"
                 return (
-                    <Typography.Text className="capitalize">
-                        {record.linkSource || record.linkKey}
-                    </Typography.Text>
+                    <TooltipWithCopyAction copyText={spanId} title="Copy span id">
+                        <Tag
+                            bordered={false}
+                            className="font-mono bg-[#0517290F]"
+                            onClick={() => navigateToLink(record)}
+                        >
+                            # {shortId}
+                        </Tag>
+                    </TooltipWithCopyAction>
                 )
             },
         }
-
-        const idColumnIndex = filtered.findIndex((col) => col.title === "ID")
-        if (idColumnIndex !== -1) {
-            const [idColumn] = filtered.splice(idColumnIndex, 1)
-            return [idColumn, sourceColumn, ...filtered]
-        }
-
-        return [sourceColumn, ...filtered]
+        const filtered = baseColumns.filter(
+            (column) =>
+                !["name", "span_type", "evaluators"].includes(String(column.key)) &&
+                !(Array.isArray(column.children) && column.children.length > 0) &&
+                column.title !== "ID",
+        )
+        return [idColumn, ...filtered]
     }, [baseColumns])
 
     const loading = linkedSpansQuery.isFetching || linkedSpansQuery.isLoading
@@ -108,19 +126,13 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
         <EnhancedTable
             loading={loading}
             rowKey={(record) => record.key || `${record.trace_id}-${record.span_id}`}
-            columns={columns}
+            columns={filteredColumns}
             dataSource={linkedSpans}
             scroll={{x: "max-content"}}
             uniqueKey="trace-drawer-linked-spans"
             onRow={(record) => ({
                 onClick: () => {
-                    setTraceDrawerTrace({
-                        traceId: record.trace_id,
-                        activeSpanId: record.span_id,
-                        source: "linked",
-                    })
-                    setTraceParam(record.trace_id, {shallow: true})
-                    setSpanParam(record.span_id, {shallow: true})
+                    navigateToLink(record)
                 },
             })}
         />
