@@ -720,7 +720,7 @@ const EvaluatorVariantModal = ({
                 activeKey={activePanel}
                 onChange={handlePanelChange}
                 items={tabs}
-                tabPosition="left"
+                tabPlacement="left"
                 className={clsx([
                     classes.tabsContainer,
                     "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
