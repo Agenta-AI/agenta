@@ -79,11 +79,6 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
     const [isAnnotateDrawerOpen, setIsAnnotateDrawerOpen] = useState(false)
     const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create")
     const [evaluatorToEdit, setEvaluatorToEdit] = useState<EvaluatorRegistryRow["raw"] | null>(null)
-    const openEvaluatorParam = useMemo(() => {
-        const raw = router.query?.openEvaluator
-        if (!raw) return null
-        return Array.isArray(raw) ? raw[0] : String(raw)
-    }, [router.query?.openEvaluator])
 
     const {rows, isLoading, refetchAll} = useEvaluatorsRegistryData(activeTab)
 
@@ -240,30 +235,6 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
             setIsDeleteModalOpen(false)
         }
     }, [selectedRows, refetchAll, activeTab])
-
-    useEffect(() => {
-        if (!router.isReady) return
-        if (activeTab !== "human") return
-        if (!openEvaluatorParam || isLoading) return
-
-        const match = rows.find(
-            (row) =>
-                row.id === openEvaluatorParam ||
-                row.slug === openEvaluatorParam ||
-                row.key === openEvaluatorParam,
-        )
-        if (!match) return
-
-        setDrawerMode("edit")
-        setEvaluatorToEdit(match.raw)
-        setIsAnnotateDrawerOpen(true)
-
-        const nextQuery = {...router.query}
-        delete nextQuery.openEvaluator
-        router.replace({pathname: router.pathname, query: nextQuery}, undefined, {
-            shallow: true,
-        })
-    }, [router.isReady, activeTab, openEvaluatorParam, isLoading, rows, router])
 
     const handleRowDelete = useCallback(
         (record: EvaluatorRegistryRow) => {
