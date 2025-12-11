@@ -16,6 +16,7 @@ from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.dtos import OTelFlatSpan
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
+from oss.src.tasks.asyncio.tracing.utils import serialize_span, deserialize_span
 
 log = get_module_logger(__name__)
 
@@ -74,6 +75,45 @@ class TracingWorker:
         self.max_block_ms = max_block_ms
         self.max_batch_mb = max_batch_mb
         self.max_delay_ms = max_delay_ms
+
+    async def publish_to_stream(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        user_id: UUID,
+        span_dtos: List[OTelFlatSpan],
+    ) -> int:
+        """
+        Publish spans to Redis Streams.
+
+        Args:
+            organization_id: Organization UUID
+            project_id: Project UUID
+            user_id: User UUID
+            span_dtos: Spans to publish
+
+        Returns:
+            Number of spans published
+        """
+        count = 0
+
+        for span_dto in span_dtos:
+            span_bytes = serialize_span(
+                organization_id=organization_id,
+                project_id=project_id,
+                user_id=user_id,
+                span_dto=span_dto,
+            )
+
+            await self.redis.xadd(
+                name=self.stream_name,
+                fields={"data": span_bytes},
+            )
+
+            count += 1
+
+        return count
 
     async def create_consumer_group(self):
         """
@@ -279,13 +319,13 @@ class TracingWorker:
                     # )
                     break
 
-                # Deserialize using service method (handles zlib decompression)
+                # Deserialize (handles zlib decompression)
                 (
                     organization_id,
                     project_id,
                     user_id,
                     span_dto,
-                ) = self.service.deserialize(span_bytes=span_bytes)
+                ) = deserialize_span(span_bytes=span_bytes)
 
                 # Group by org → (project, user)
                 spans_by_org.setdefault(organization_id, {}).setdefault(
@@ -372,38 +412,6 @@ class TracingWorker:
                     #     user_id=str(user_id),
                     #     count=len(span_dtos),
                     # )
-
-                    # Meter already adjusted by check_entitlements(use_cache=False)
-                    # Just cache it for soft checks (Layer 1) in OTLP router
-                    if is_ee() and meter and allowed:
-                        try:
-                            meter_data = {
-                                "value": meter.value,
-                                "synced": meter.synced,
-                                "delta": meter.delta,
-                                "month": meter.month,
-                                "year": meter.year,
-                                "key": meter.key,
-                            }
-                            await self.service.set_meter_cache(
-                                organization_id=organization_id,
-                                meter_data=meter_data,
-                                ttl=3600,  # 1 hour cache
-                            )
-
-                            # log.debug(
-                            #     "[INGEST] Cached meter after adjustment",
-                            #     org_id=str(organization_id),
-                            #     delta=delta,
-                            # )
-
-                        except Exception as e:
-                            log.error(
-                                "[INGEST] Failed to cache meter",
-                                org_id=str(organization_id),
-                                error=str(e),
-                                exc_info=True,
-                            )
 
                 except Exception as e:
                     log.error(

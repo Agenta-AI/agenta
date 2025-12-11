@@ -17,10 +17,14 @@ from oss.src.apis.fastapi.otlp.models import CollectStatusResponse
 from oss.src.apis.fastapi.otlp.opentelemetry.otlp import parse_otlp_stream
 from oss.src.apis.fastapi.otlp.utils.processing import parse_from_otel_span_dto
 
-from oss.src.core.tracing.service import TracingService
-
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
+
+# TYPE_CHECKING to avoid circular import at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 
 MAX_OTLP_BATCH_SIZE = env.AGENTA_OTLP_MAX_BATCH_BYTES
@@ -33,9 +37,9 @@ log = get_module_logger(__name__)
 class OTLPRouter:
     def __init__(
         self,
-        tracing_service: TracingService,
+        tracing_worker: "TracingWorker",
     ):
-        self.tracing = tracing_service
+        self.worker = tracing_worker
 
         self.sdk_router = APIRouter()
         self.router = APIRouter()
@@ -198,7 +202,7 @@ class OTLPRouter:
         # -------------------------------------------------------------------- #
         if spans:
             try:
-                await self.tracing.publish_to_stream(
+                await self.worker.publish_to_stream(
                     organization_id=UUID(request.state.organization_id),
                     project_id=UUID(request.state.project_id),
                     user_id=UUID(request.state.user_id),
