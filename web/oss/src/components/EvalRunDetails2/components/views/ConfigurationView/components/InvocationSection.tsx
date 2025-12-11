@@ -12,10 +12,7 @@ import {
     type ProjectVariantConfigKey,
 } from "@/oss/state/projectVariantConfig"
 
-import {
-    applicationReferenceQueryAtomFamily,
-    variantReferenceQueryAtomFamily,
-} from "../../../../atoms/references"
+import {variantReferenceQueryAtomFamily} from "../../../../atoms/references"
 import {effectiveProjectIdAtom} from "../../../../atoms/run"
 import {runInvocationRefsAtomFamily} from "../../../../atoms/runDerived"
 import {evaluationVariantConfigAtomFamily} from "../../../../atoms/variantConfig"
@@ -91,12 +88,6 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             null,
     )
 
-    const applicationAtom = useMemo(
-        () => applicationReferenceQueryAtomFamily(applicationId ?? null),
-        [applicationId],
-    )
-    const applicationQuery = useAtomValue(applicationAtom)
-
     const variantAtom = useMemo(() => variantReferenceQueryAtomFamily(variantId), [variantId])
     const variantQuery = useAtomValue(variantAtom)
     const variantLoading = variantQuery.isPending || variantQuery.isFetching
@@ -123,38 +114,12 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
 
     const hasParamsSnapshot = Boolean(variantConfig?.params)
 
-    // DEBUG: Log derived IDs and refs
-    console.log("[InvocationSection] applicationRef:", applicationRef)
-    console.log("[InvocationSection] applicationRevisionRef:", applicationRevisionRef)
-    console.log("[InvocationSection] applicationVariantRef:", applicationVariantRef)
-    console.log("[InvocationSection] variantRef:", variantRef)
-    console.log("[InvocationSection] variantId:", variantId)
-    console.log("[InvocationSection] revisionId:", revisionId)
-    console.log("[InvocationSection] applicationId:", applicationId)
-    console.log("[InvocationSection] hasParamsSnapshot:", hasParamsSnapshot)
-    console.log("[InvocationSection] variantConfig?.params:", variantConfig?.params)
-
-    const _applicationLabel =
-        applicationQuery.data?.name ??
-        applicationQuery.data?.slug ??
-        applicationRef?.name ??
-        applicationRef?.app_name ??
-        applicationRef?.slug ??
-        applicationRef?.app_slug ??
-        (applicationId && applicationId.length > 12
-            ? `${applicationId.slice(0, 6)}…${applicationId.slice(-4)}`
-            : applicationId) ??
-        null
+    // Only use actual resolved names as fallback, not truncated IDs
+    // Truncated IDs should not be treated as valid fallback names
     const variantLabel =
         variantName ??
         variantConfig?.variant_ref?.name ??
         variantConfig?.variant_ref?.variant_name ??
-        variantConfig?.variant_ref?.slug ??
-        variantConfig?.variant_ref?.variant_slug ??
-        variantSlug ??
-        (variantDisplayId && variantDisplayId.length > 12
-            ? `${variantDisplayId.slice(0, 6)}…${variantDisplayId.slice(-4)}`
-            : variantDisplayId) ??
         null
 
     // Use revisionId for the prompt config card (specific revision's params)
@@ -195,15 +160,6 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             toIdString(applicationVariantRef?.id) ??
             undefined
 
-        const resolvedVariantSlug =
-            variantRef?.slug ??
-            variantRef?.variant_slug ??
-            variantRef?.variantSlug ??
-            applicationVariantRef?.slug ??
-            applicationVariantRef?.variant_slug ??
-            applicationVariantRef?.variantSlug ??
-            undefined
-
         const rawVersion =
             variantRef?.version ??
             variantRef?.revision ??
@@ -217,7 +173,7 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
                   ? Number(rawVersion)
                   : null
 
-        if (!resolvedVariantId && !resolvedVariantSlug) {
+        if (!resolvedVariantId) {
             clearProjectVariantReferences()
             return
         }
@@ -227,7 +183,6 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             appId: toIdString(appRef?.id) ?? undefined,
             appSlug: appRef?.slug ?? undefined,
             variantId: resolvedVariantId,
-            variantSlug: resolvedVariantSlug,
             variantVersion: Number.isFinite(variantVersion as number) ? variantVersion : null,
         }
 
