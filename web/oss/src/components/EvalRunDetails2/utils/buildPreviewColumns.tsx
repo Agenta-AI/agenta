@@ -109,7 +109,7 @@ export interface BuildPreviewColumnsArgs<RowType> {
         auto: MetricColumnDefinition[]
         human: MetricColumnDefinition[]
     }
-    evaluationType: "auto" | "human"
+    evaluationType: "auto" | "human" | "online"
     getRenderer?: (column: EvaluationTableColumn) => ColumnType<RowType>["render"] | undefined
     isSkeletonRow?: (record: RowType) => boolean
     renderSkeleton?: (context: SkeletonRenderContext<RowType>) => React.ReactNode
@@ -209,8 +209,11 @@ export function buildPreviewColumns<RowType>({
     renderSkeleton,
 }: BuildPreviewColumnsArgs<RowType>): BuildPreviewColumnsResult<RowType> {
     const columnsMap = new Map(columns.map((column) => [column.id, column]))
+    // Online evaluations use auto metrics, human evaluations use human metrics
     const metricsForType =
-        evaluationType === "auto" ? staticMetricColumns.auto : staticMetricColumns.human
+        evaluationType === "auto" || evaluationType === "online"
+            ? staticMetricColumns.auto
+            : staticMetricColumns.human
 
     const defaultSkeleton = () => (
         <div className="h-3 w-full rounded bg-neutral-200 animate-pulse" />
