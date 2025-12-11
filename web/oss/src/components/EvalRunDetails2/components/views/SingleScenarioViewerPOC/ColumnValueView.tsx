@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import {ExclamationCircleOutlined} from "@ant-design/icons"
 import {Typography} from "antd"
 
 import type {EvaluationTableColumn} from "../../../atoms/table"
@@ -19,7 +20,7 @@ const ColumnValueView = ({column, scenarioId, runId}: ColumnValueViewProps) => {
         column,
         disableVisibilityTracking: true,
     })
-    const {value, displayValue} = selection
+    const {value, displayValue, stepError} = selection
 
     const chatNodes = useMemo(
         () =>
@@ -32,6 +33,19 @@ const ColumnValueView = ({column, scenarioId, runId}: ColumnValueViewProps) => {
 
     if (showSkeleton) {
         return <Typography.Text type="secondary">Loading…</Typography.Text>
+    }
+
+    // Display step error if present (e.g., invocation failure)
+    if (stepError) {
+        return (
+            <div className="flex flex-col gap-1 text-red-500">
+                <div className="flex items-center gap-1">
+                    <ExclamationCircleOutlined />
+                    <span className="font-medium">Error</span>
+                </div>
+                <Typography.Text type="danger">{stepError.message}</Typography.Text>
+            </div>
+        )
     }
 
     const resolved = (displayValue ?? value) as any

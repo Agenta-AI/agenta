@@ -253,7 +253,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 isEvaluator: pathname.includes("/evaluators/configure"),
                 isHumanEval:
                     pathname.includes("/evaluations") || selectedEvaluation === "human_annotation",
-                isTestsets: pathname.includes("/testsets"),
+                isTestsets: pathname.includes("/testsets") || pathname.includes("/prompts"),
             }
         }, [appState.asPath, appState.pathname, baseAppURL, query.selectedEvaluation])
 

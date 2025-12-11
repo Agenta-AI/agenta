@@ -57,10 +57,10 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
     const projectId = useAtomValue(projectIdAtom)
     const setEvaluationTypeFilters = useSetAtom(evaluationRunsTypeFiltersAtom)
     const setTableOverrides = useSetAtom(evaluationRunsTableContextSetterAtom)
-    const [kindParam, setKindParam] = useQueryParamState("kind", "auto")
+    const [kindParam, setKindParam] = useQueryParamState("kind", "all")
     const [isPending, startTransition] = useTransition()
     const [displayedTab, setDisplayedTab] = useState<AppTabKey>(
-        ((Array.isArray(kindParam) ? kindParam[0] : kindParam) as AppTabKey) ?? "auto",
+        ((Array.isArray(kindParam) ? kindParam[0] : kindParam) as AppTabKey) ?? "all",
     )
     const [isNavigatingAway, setIsNavigatingAway] = useState(false)
     const lastOverridesRef = useRef<{
@@ -72,7 +72,7 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
 
     const activeTab = useMemo<AppTabKey>(() => {
         const value = Array.isArray(kindParam) ? kindParam[0] : kindParam
-        return (value as AppTabKey) ?? "auto"
+        return (value as AppTabKey) ?? "all"
     }, [kindParam])
 
     useEffect(() => {
