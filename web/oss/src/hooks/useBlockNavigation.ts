@@ -43,6 +43,15 @@ const useBlockNavigation = (
     }, [_shouldAlert])
 
     useEffect(() => {
+        // Handle unhandled promise rejections for our intentional route cancellation
+        const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+            if (event.reason === "cancelRouteChange") {
+                event.preventDefault()
+            }
+        }
+
+        window.addEventListener("unhandledrejection", handleUnhandledRejection)
+
         const handler = (newRoute: string) => {
             if (opened.current || !blocking.current) return
 
@@ -84,13 +93,15 @@ const useBlockNavigation = (
                 cancellable: false,
             })
 
-            //block NextJS navigation until user confirms or cancels
+            // Block NextJS navigation until user confirms or cancels
+            Router.events.emit("routeChangeError")
             throw "cancelRouteChange"
         }
 
         Router.events.on("routeChangeStart", handler)
         return () => {
             window.removeEventListener("beforeunload", beforeUnloadHandler)
+            window.removeEventListener("unhandledrejection", handleUnhandledRejection)
             Router.events.off("routeChangeStart", handler)
         }
     }, [])
