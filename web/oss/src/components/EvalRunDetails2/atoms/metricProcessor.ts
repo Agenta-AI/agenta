@@ -141,7 +141,10 @@ export const createMetricProcessor = ({
     projectId,
     runId,
     source,
-}: MetricProcessorOptions): MetricProcessor => {
+    evaluationType,
+}: MetricProcessorOptions & {
+    evaluationType?: "auto" | "human" | "online" | null
+}): MetricProcessor => {
     const state: MetricProcessorState = {
         pending: [],
         scenarioIds: new Set<string>(),
@@ -166,8 +169,12 @@ export const createMetricProcessor = ({
 
         // Statuses that indicate a scenario has NOT been executed yet
         // These should NOT trigger a metric refresh - there's nothing to refresh
+        //
+        // EXCEPTION for human evaluations:
+        // For human evals, "pending" means invocations have run but annotations are pending.
+        // Metrics should exist from the invocations, so "pending" should not be treated as not-yet-executed.
         const pendingStatuses = new Set([
-            "pending",
+            ...(evaluationType === "human" ? [] : ["pending"]),
             "waiting",
             "created",
             "queued",
@@ -179,26 +186,42 @@ export const createMetricProcessor = ({
         // A scenario is considered "pending" (not yet run) if:
         // 1. It has an explicit pending status, OR
         // 2. It has no status at all (null/undefined means not yet executed)
-        const isPendingScenario = status ? pendingStatuses.has(status) : true
+        // Exception: For human evals, null status doesn't mean not-yet-executed
+        const isPendingScenario = status ? pendingStatuses.has(status) : evaluationType !== "human"
+
+        // [HUMAN_EVAL_REFRESH_LOG] Log decision factors for human eval type
+        if (evaluationType === "human") {
+            console.log("[MetricProcessor:HumanEval] processMetric decision", {
+                scope,
+                metricId: summary.id,
+                scenarioId: summary.scenarioId,
+                status,
+                evaluationType,
+                isPendingScenario,
+                pendingStatusesIncludesPending: pendingStatuses.has("pending"),
+                hasLegacyShape,
+                keyCount: summary.keyCount,
+                reason: isPendingScenario
+                    ? "SKIP: scenario is pending (not yet executed)"
+                    : "PROCESS: scenario has been executed, will check for refresh",
+            })
+        }
 
         if (scope === "scenario") {
-            // Skip ALL refresh logic for scenarios that haven't been run yet
-            // There's no data to refresh if the scenario hasn't been executed
-            if (isPendingScenario) {
-                metricProcessorDebug.debug("Skipping pending scenario", {
-                    scenarioId: summary.scenarioId,
-                    status,
-                })
-                // Return early - don't add any reasons for pending scenarios
-            } else {
-                // Only trigger refresh for scenarios that have been executed
-                if (status && status !== "success") {
-                    reasons.push(`status:${status}`)
-                }
-                if (hasLegacyShape) {
+            // SCENARIO METRIC REFRESH RULES:
+            // - Only for human evals
+            // - Refresh if scenario has invocation (success or fail) AND/OR annotation, BUT NOT metrics
+            // - For non-human evals, we don't trigger scenario-level refresh from processMetric
+            //   (the scenario already has metrics if we're processing it here)
+            if (evaluationType === "human") {
+                // For human evals, only refresh if there's a legacy shape issue
+                // Missing metrics are handled by markScenarioGap
+                if (!isPendingScenario && hasLegacyShape) {
                     reasons.push("legacy-value-leaf")
                 }
             }
+            // For non-human evals, don't trigger scenario refresh from processMetric
+            // The scenario already has metrics if we're here
         } else if (hasLegacyShape) {
             reasons.push("legacy-run-value-leaf")
         }
@@ -251,9 +274,25 @@ export const createMetricProcessor = ({
         scenarioId: string,
         reason: string,
         scenarioStatus?: string | null,
+        scenarioContext?: {
+            hasInvocation?: boolean
+            hasAnnotation?: boolean
+        },
     ) => {
         // Track the gap for informational purposes
         state.scenarioGaps.push({scenarioId, reason})
+
+        // SCENARIO METRIC REFRESH RULES:
+        // - Only for human evals
+        // - Refresh if scenario has invocation (success or fail) AND/OR annotation, BUT NOT metrics
+        if (evaluationType !== "human") {
+            metricProcessorDebug.debug("Skipping scenario refresh for non-human eval", {
+                scenarioId,
+                reason,
+                evaluationType,
+            })
+            return
+        }
 
         // Skip refresh for scenarios that were recently saved
         // This prevents triggering refresh before new metrics are persisted
@@ -265,9 +304,16 @@ export const createMetricProcessor = ({
             return
         }
 
-        // Terminal statuses indicate the scenario HAS been executed
-        // If metrics are missing for a terminal scenario, we should trigger a refresh
-        const terminalStatuses = new Set([
+        // For human evals: only refresh if scenario has invocation or annotation but no metrics
+        // The scenario must have some execution data (invocation or annotation) to warrant a refresh
+        const hasInvocation = scenarioContext?.hasInvocation ?? false
+        const hasAnnotation = scenarioContext?.hasAnnotation ?? false
+        const hasExecutionData = hasInvocation || hasAnnotation
+
+        // Check status as a fallback indicator of execution
+        // Statuses that indicate execution HAS started or completed
+        const executionStartedStatuses = new Set([
+            // Terminal statuses
             "success",
             "completed",
             "finished",
@@ -275,23 +321,56 @@ export const createMetricProcessor = ({
             "failed",
             "error",
             "failure",
+            // In-progress statuses (execution has started)
+            "running",
+            "in_progress",
+            "in-progress",
+            "processing",
+            "executing",
         ])
+        // Statuses that indicate NO execution has happened yet
+        const pendingStatuses = new Set(["pending", "queued", "waiting", "scheduled", "created"])
 
         const normalizedStatus = scenarioStatus?.toLowerCase?.() ?? null
-        const isTerminalState = normalizedStatus && terminalStatuses.has(normalizedStatus)
+        const hasExecutionStarted =
+            normalizedStatus && executionStartedStatuses.has(normalizedStatus)
+        const isPending = normalizedStatus && pendingStatuses.has(normalizedStatus)
 
-        if (isTerminalState && reason === "missing-scenario-metric") {
-            // Scenario is in terminal state but has no metrics - trigger refresh
-            metricProcessorDebug.debug("Terminal scenario missing metrics, triggering refresh", {
+        // Trigger refresh if:
+        // 1. Scenario has execution data (invocation or annotation) but no metrics, OR
+        // 2. Scenario status indicates execution has started (including "running"), OR
+        // 3. Scenario has a status that is NOT pending (fallback for unknown statuses)
+        const shouldRefresh =
+            reason === "missing-scenario-metric" &&
+            (hasExecutionData || hasExecutionStarted || (normalizedStatus && !isPending))
+
+        if (shouldRefresh) {
+            metricProcessorDebug.debug("[HumanEval] Scenario missing metrics, triggering refresh", {
                 scenarioId,
                 reason,
                 scenarioStatus: normalizedStatus,
+                hasInvocation,
+                hasAnnotation,
+                hasExecutionData,
+                hasExecutionStarted,
+                isPending,
             })
             state.scenarioIds.add(scenarioId)
+        } else {
+            metricProcessorDebug.debug(
+                "[HumanEval] Skipping scenario refresh - no execution data",
+                {
+                    scenarioId,
+                    reason,
+                    scenarioStatus: normalizedStatus,
+                    hasInvocation,
+                    hasAnnotation,
+                    hasExecutionData,
+                    hasExecutionStarted,
+                    isPending,
+                },
+            )
         }
-        // NOTE: For non-terminal states (pending, waiting, etc.), we intentionally
-        // do NOT add to state.scenarioIds to prevent refresh for scenarios that
-        // simply haven't been executed yet
     }
 
     const getPendingActions = () => {
@@ -563,7 +642,7 @@ export const createMetricProcessor = ({
                 (entry) => entry.scope === "run" && entry.shouldRefresh,
             )
             const hasActionableRunFlag = runLevelFlags.some((f) => f !== "missing-run-level-entry")
-            const hasScenarioSignals = scenarioIds.length > 0 || scenarioGaps.length > 0
+            const _hasScenarioSignals = scenarioIds.length > 0 || scenarioGaps.length > 0
             const hasMissingRunOnly =
                 runLevelFlags.length > 0 &&
                 runLevelFlags.every((f) => f === "missing-run-level-entry")
@@ -575,26 +654,12 @@ export const createMetricProcessor = ({
             const canAttemptBootstrap =
                 !isTemporalOnly && !alreadyAttemptedBootstrap && hasMissingRunOnly
 
+            // Allow run-level refresh when:
+            // 1. There's an actionable run flag (not just missing-run-level-entry)
+            // 2. Can attempt bootstrap (only missing-run-level-entry flag, not temporal, not already attempted)
+            //    even if there are scenario signals (scenarios with terminal status but missing metrics)
             const shouldRunRefresh =
-                (!hasRunPending && hasActionableRunFlag) ||
-                (!hasScenarioSignals && !hasRunPending && canAttemptBootstrap)
-
-            metricProcessorDebug.debug("Run-level refresh decision", {
-                runId,
-                source,
-                triggerRefresh,
-                isTemporalOnly,
-                hasRunPending,
-                hasActionableRunFlag,
-                hasScenarioSignals,
-                hasMissingRunOnly,
-                alreadyAttemptedBootstrap,
-                canAttemptBootstrap,
-                shouldRunRefresh,
-                runLevelFlags,
-                scenarioIdsCount: scenarioIds.length,
-                scenarioGapsCount: scenarioGaps.length,
-            })
+                (!hasRunPending && hasActionableRunFlag) || (!hasRunPending && canAttemptBootstrap)
 
             if (shouldRunRefresh) {
                 // Mark bootstrap attempt to prevent repeated tries

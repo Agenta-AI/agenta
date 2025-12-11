@@ -576,7 +576,8 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
             annotationOrder += 1
         }
 
-        if (GeneralHumanEvalMetricColumns.length) {
+        // Only show "Metrics (Human)" for actual human evaluations
+        if (GeneralHumanEvalMetricColumns.length && evaluationType === "human") {
             groups.push({
                 id: "metrics:human",
                 label: "Metrics (Human)",

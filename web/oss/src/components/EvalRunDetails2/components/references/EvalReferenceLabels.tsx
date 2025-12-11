@@ -13,6 +13,7 @@ import {
     TestsetTagList as GenericTestsetTagList,
     VariantReferenceLabel as GenericVariantReferenceLabel,
     VariantReferenceText as GenericVariantReferenceText,
+    VariantRevisionLabel as GenericVariantRevisionLabel,
 } from "@/oss/components/References"
 
 import {effectiveProjectIdAtom} from "../../atoms/run"
@@ -150,6 +151,59 @@ export const VariantReferenceLabel = memo(
                 fallbackLabel={fallbackLabel}
                 showVersionPill={showVersionPill}
                 explicitVersion={explicitVersion}
+                href={href}
+            />
+        )
+    },
+)
+
+/**
+ * Evaluation-scoped combined variant + revision label.
+ * Displays "variantName v{revision}" in a single chip that links to the specific revision.
+ * Gets projectId from evaluation context and IDs from run if not provided.
+ */
+export const VariantRevisionLabel = memo(
+    ({
+        variantId: explicitVariantId,
+        revisionId: explicitRevisionId,
+        applicationId: explicitApplicationId,
+        runId,
+        fallbackVariantName,
+        fallbackRevision,
+    }: {
+        variantId?: string | null
+        revisionId?: string | null
+        applicationId?: string | null
+        runId?: string | null
+        fallbackVariantName?: string | null
+        fallbackRevision?: number | string | null
+    }) => {
+        const projectId = useAtomValue(effectiveProjectIdAtom)
+        const {
+            variantId: runVariantId,
+            applicationId: runApplicationId,
+            rawRefs,
+        } = useRunIdentifiers(runId)
+
+        // Get revision ID from rawRefs if not explicitly provided
+        const runRevisionId =
+            rawRefs?.applicationRevision?.id ?? rawRefs?.application_revision?.id ?? null
+        const effectiveRevisionId = explicitRevisionId ?? runRevisionId ?? null
+        const effectiveVariantId = explicitVariantId ?? runVariantId ?? null
+        const effectiveApplicationId = explicitApplicationId ?? runApplicationId ?? null
+
+        const {buildRevisionPlaygroundHref} = useRunScopedUrls(runId, effectiveApplicationId)
+
+        // Link to the specific revision in playground
+        const href = buildRevisionPlaygroundHref(effectiveVariantId, effectiveRevisionId)
+
+        return (
+            <GenericVariantRevisionLabel
+                variantId={effectiveVariantId}
+                revisionId={effectiveRevisionId}
+                projectId={projectId}
+                fallbackVariantName={fallbackVariantName}
+                fallbackRevision={fallbackRevision}
                 href={href}
             />
         )
