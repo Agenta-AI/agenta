@@ -45,7 +45,8 @@ import agenta as ag
 
 log = get_module_logger(__name__)
 
-# Initialize Agenta SDK
+# Initialize Agenta SDK for workflow invocation in evaluation tasks
+# Idempotent - safe to call multiple times
 ag.init(
     api_url=env.AGENTA_API_URL,
 )
@@ -54,8 +55,8 @@ ag.init(
 # Create broker with durable Redis Streams for task queues
 broker = RedisStreamBroker(
     url=env.REDIS_URI_DURABLE,
-    queue_name="queues:taskiq:evaluations",
-    consumer_group_name="taskiq-workers",
+    queue_name="queues:evaluations",
+    consumer_group_name="worker-evaluations",
 )
 
 
@@ -170,7 +171,7 @@ def main() -> int:
         log.info("[WORKER] Starting Taskiq worker with Redis Streams")
 
         # Run Taskiq worker
-        # Broker and workers are instantiated above (like routers.py does for FastAPI)
+        # Broker and workers are instantiated above (like routes.py does for FastAPI)
         args = WorkerArgs(
             broker="entrypoints.worker_evaluations:broker",  # Reference broker from this module
             modules=[],  # Workers already registered, no auto-discovery needed

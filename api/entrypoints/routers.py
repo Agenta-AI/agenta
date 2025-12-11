@@ -113,6 +113,9 @@ from oss.src.routers import (
 from oss.src.utils.env import env
 from entrypoints.worker_evaluations import evaluations_worker
 
+from redis.asyncio import Redis
+from oss.src.tasks.asyncio.tracing.worker import TracingWorker
+
 import agenta as ag
 
 ag.init(
@@ -221,6 +224,18 @@ tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
 
+# Redis client and TracingWorker for publishing spans to Redis Streams
+if env.REDIS_URI_DURABLE:
+    redis_client = Redis.from_url(env.REDIS_URI_DURABLE, decode_responses=False)
+    tracing_worker = TracingWorker(
+        service=tracing_service,
+        redis_client=redis_client,
+        stream_name="streams:tracing",
+        consumer_group="worker-tracing",
+    )
+else:
+    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
+
 testcases_service = TestcasesService(
     testcases_dao=testcases_dao,
 )
@@ -285,11 +300,12 @@ secrets = VaultRouter(
 )
 
 otlp = OTLPRouter(
-    tracing_service=tracing_service,
+    tracing_worker=tracing_worker,
 )
 
 tracing = TracingRouter(
     tracing_service=tracing_service,
+    tracing_worker=tracing_worker,
 )
 
 testcases = TestcasesRouter(
