@@ -1,7 +1,7 @@
 import {useMemo, useRef, useState} from "react"
 
-import {Plus} from "@phosphor-icons/react"
-import {Select, Input, Button, Divider, InputRef} from "antd"
+import {CaretRight, Plus, X} from "@phosphor-icons/react"
+import {Select, Input, Button, Divider, InputRef, Popover} from "antd"
 import clsx from "clsx"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
@@ -21,15 +21,43 @@ import {SelectLLMProviderProps} from "./types"
 
 const {Option, OptGroup} = Select
 
-type ProviderOption = {
+interface ProviderOption {
     label: string
     value: string
     key?: string
 }
 
-type ProviderGroup = {
-    label?: string
+interface ProviderGroup {
+    label?: string | null
     options: ProviderOption[]
+}
+
+// Map lowercase provider keys to LLMIcons display labels
+const PROVIDER_ICON_MAP: Record<string, string> = {
+    anthropic: "Anthropic",
+    openai: "OpenAI",
+    groq: "Groq",
+    mistral: "Mistral AI",
+    gemini: "Google Gemini",
+    cohere: "Cohere",
+    deepinfra: "DeepInfra",
+    openrouter: "OpenRouter",
+    perplexity: "Perplexity AI",
+    together_ai: "Together AI",
+    vertex_ai: "Google Vertex AI",
+    bedrock: "AWS Bedrock",
+    azure: "Azure OpenAI",
+}
+
+const getProviderIcon = (key: string): React.FC<{className?: string}> | null => {
+    const displayName = PROVIDER_ICON_MAP[key?.toLowerCase()]
+    if (displayName && LLMIcons[displayName]) return LLMIcons[displayName]
+    if (LLMIcons[key]) return LLMIcons[key]
+    return null
+}
+
+const getProviderDisplayName = (key: string): string => {
+    return PROVIDER_ICON_MAP[key?.toLowerCase()] || capitalize(key?.replace(/_/g, " ") || "")
 }
 
 const SelectLLMProvider = ({
@@ -45,6 +73,7 @@ const SelectLLMProvider = ({
     const [isConfigProviderOpen, setIsConfigProviderOpen] = useState(false)
     const [open, setOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
+    const [hoveredProvider, setHoveredProvider] = useState<string | null>(null)
 
     const {customRowSecrets} = useVaultSecret()
     const inputRef = useRef<InputRef>(null)
@@ -98,19 +127,26 @@ const SelectLLMProvider = ({
         [labeledProviders],
     )
 
+    // Check if we have model options (for cascading menu mode)
+    const hasModelOptions =
+        options && options.length > 0 && options.some((g: any) => g.options?.length > 0)
+
     const filteredProviders = useMemo(() => {
         const normalizedSearchTerm = searchTerm.trim().toLowerCase()
 
-        const filterGroupOptions = (group: ProviderGroup) => ({
+        const filterGroupOptions = (group: ProviderGroup): ProviderGroup => ({
             label: group?.label,
-            options: group.options.filter((option) =>
-                option.label.toLowerCase().includes(normalizedSearchTerm),
+            options: group.options.filter(
+                (option) =>
+                    option.label.toLowerCase().includes(normalizedSearchTerm) ||
+                    option.value.toLowerCase().includes(normalizedSearchTerm) ||
+                    group.label?.toLowerCase().includes(normalizedSearchTerm),
             ),
         })
 
         if (options) {
             const groupOptions: ProviderGroup[] = options.map((group) => ({
-                label: group?.label,
+                label: group?.label as string | undefined,
                 options:
                     (group.options
                         ?.map((option: any) => {
@@ -161,6 +197,17 @@ const SelectLLMProvider = ({
         return providers.map(filterGroupOptions).filter((group) => group.options.length)
     }, [providers, searchTerm, options, customRowSecrets, showCustomSecretsOnOptions])
 
+    const isSearching = searchTerm.trim().length > 0
+
+    const handleSelect = (value: string) => {
+        if (props.onChange) {
+            props.onChange(value, {value} as any)
+        }
+        setOpen(false)
+        setSearchTerm("")
+        setHoveredProvider(null)
+    }
+
     return (
         <>
             <Select
@@ -168,27 +215,110 @@ const SelectLLMProvider = ({
                 showSearch={false}
                 open={open}
                 value={props.value || null}
-                onOpenChange={(visible) => setOpen(visible)}
+                onOpenChange={(visible) => {
+                    setOpen(visible)
+                    if (!visible) {
+                        setSearchTerm("")
+                        setHoveredProvider(null)
+                    }
+                }}
                 placeholder="Select a provider"
                 style={{width: "100%"}}
+                virtual={false}
                 className={clsx([
-                    "[&_.ant-select-item-option-content]:flex [&_.ant-select-item-option-content]:items-center [&_>.ant-select-item-option-content]:justify-normal [&_.ant-select-selection-item]:!flex [&_.ant-select-selection-item]:!items-center [&_.ant-select-selection-item]:!gap-1",
+                    "[&_.ant-select-item-option-content]:flex [&_.ant-select-item-option-content]:items-center [&_.ant-select-item-option-content]:gap-2 [&_.ant-select-selection-item]:!flex [&_.ant-select-selection-item]:!items-center [&_.ant-select-selection-item]:!gap-2",
                     className,
                 ])}
-                dropdownRender={(menu) => (
+                popupRender={(menu) => (
                     <div className="flex flex-col gap-1">
                         {showSearch && (
-                            <Input
-                                ref={inputRef}
-                                placeholder="Search"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                variant="borderless"
-                                className="border-0 border-b border-solid border-[#f0f0f0] rounded-none py-1.5"
-                            />
+                            <div className="relative border-0 border-b border-solid border-[#f0f0f0]">
+                                <Input
+                                    ref={inputRef}
+                                    placeholder="Search"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    variant="borderless"
+                                    className="rounded-none py-1.5 pr-8"
+                                />
+                                {searchTerm && (
+                                    <button
+                                        onClick={() => {
+                                            setSearchTerm("")
+                                            inputRef.current?.focus()
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded cursor-pointer border-none bg-transparent"
+                                    >
+                                        <X size={12} className="text-gray-400" />
+                                    </button>
+                                )}
+                            </div>
                         )}
 
-                        {menu}
+                        {/* When searching or no model options: show standard menu */}
+                        {(isSearching || !hasModelOptions || !showGroup) && menu}
+
+                        {/* When not searching and has model options with showGroup: show cascading menu */}
+                        {!isSearching && hasModelOptions && showGroup && (
+                            <div className="py-1">
+                                {filteredProviders.map((group, idx) => {
+                                    const Icon = getProviderIcon(group.label || "")
+                                    const isHovered = hoveredProvider === group.label
+                                    const displayName = getProviderDisplayName(group.label || "")
+
+                                    return (
+                                        <Popover
+                                            key={`provider-${group.label}-${idx}`}
+                                            placement="rightTop"
+                                            open={isHovered}
+                                            onOpenChange={(visible) =>
+                                                setHoveredProvider(
+                                                    visible ? group.label || null : null,
+                                                )
+                                            }
+                                            arrow={false}
+                                            overlayInnerStyle={{padding: 0}}
+                                            content={
+                                                <div className="max-h-[300px] overflow-y-auto min-w-[200px] py-1">
+                                                    {group.options.map((option) => (
+                                                        <div
+                                                            key={option.key ?? option.value}
+                                                            className="px-3 py-[5px] cursor-pointer hover:bg-[#f5f5f5] flex items-center gap-2"
+                                                            onClick={() =>
+                                                                handleSelect(option.value)
+                                                            }
+                                                        >
+                                                            {Icon && (
+                                                                <Icon className="w-4 h-4 flex-shrink-0" />
+                                                            )}
+                                                            <span>{option.label}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            }
+                                            trigger="hover"
+                                        >
+                                            <div
+                                                className={clsx([
+                                                    "px-3 py-[5px] cursor-pointer flex items-center gap-2 hover:bg-[#f5f5f5]",
+                                                    isHovered && "bg-[#f5f5f5]",
+                                                ])}
+                                            >
+                                                {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+                                                <span className="flex-1">{displayName}</span>
+                                                <span className="text-[rgba(0,0,0,0.45)] text-xs">
+                                                    {group.options.length}
+                                                </span>
+                                                <CaretRight
+                                                    size={12}
+                                                    className="text-[rgba(0,0,0,0.45)]"
+                                                />
+                                            </div>
+                                        </Popover>
+                                    )
+                                })}
+                            </div>
+                        )}
 
                         {showAddProvider && (
                             <>
@@ -208,8 +338,8 @@ const SelectLLMProvider = ({
                                     </span>
 
                                     <div className="flex items-center gap-0.5">
-                                        {icons.map((Icon, idx) => (
-                                            <Icon
+                                        {icons.map((IconComp, idx) => (
+                                            <IconComp
                                                 key={`provider-icon-${idx}`}
                                                 className="w-5 h-5"
                                             />
@@ -223,7 +353,7 @@ const SelectLLMProvider = ({
             >
                 {/* Map out filtered groups and their options */}
                 {filteredProviders.map((group, idx) => {
-                    const GroupIcon = group.label ? LLMIcons[group.label] : null
+                    const GroupIcon = getProviderIcon(group.label || "")
                     return showGroup ? (
                         <OptGroup
                             key={idx}
@@ -235,31 +365,27 @@ const SelectLLMProvider = ({
                             }
                         >
                             {group.options?.map((option) => {
-                                const Icon = LLMIcons[option.label]
+                                const Icon =
+                                    getProviderIcon(group.label || "") || LLMIcons[option.label]
                                 return (
                                     <Option key={option.key ?? option.value} value={option.value}>
-                                        {Icon && <Icon className="w-4 h-4" />}
-                                        <span>{option.label}</span>
+                                        <div className="flex items-center gap-2">
+                                            {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+                                            <span>{option.label}</span>
+                                        </div>
                                     </Option>
                                 )
                             })}
                         </OptGroup>
                     ) : (
                         group.options?.map((option) => {
-                            const Icon = LLMIcons[option.label]
+                            const Icon = getProviderIcon(option.value) || LLMIcons[option.label]
                             return (
-                                <Option
-                                    key={option.key ?? option.value}
-                                    value={option.value}
-                                    className={clsx([
-                                        "[&_.ant-select-item-option-content]:flex",
-                                        "[&_.ant-select-item-option-content]:items-center",
-                                        "[&_.ant-select-item-option-content]:justify-normal",
-                                        "[&_.ant-select-item-option-content]:gap-1",
-                                    ])}
-                                >
-                                    {Icon && <Icon className="w-4 h-4" />}
-                                    <span>{option.label}</span>
+                                <Option key={option.key ?? option.value} value={option.value}>
+                                    <div className="flex items-center gap-2">
+                                        {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+                                        <span>{option.label}</span>
+                                    </div>
                                 </Option>
                             )
                         })
