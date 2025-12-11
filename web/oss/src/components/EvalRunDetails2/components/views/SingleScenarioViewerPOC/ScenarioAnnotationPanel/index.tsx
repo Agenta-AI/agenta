@@ -15,9 +15,14 @@ import {
     updateScenarioStatus,
 } from "@/oss/services/evaluations/scenarios/api"
 import {upsertScenarioMetricData} from "@/oss/services/runMetrics/api"
+import {getProjectValues} from "@/oss/state/project"
 
 import {invalidateAnnotationBatcherCache} from "../../../../atoms/annotations"
-import {invalidateMetricBatcherCache, markScenarioAsRecentlySaved} from "../../../../atoms/metrics"
+import {
+    invalidateMetricBatcherCache,
+    markScenarioAsRecentlySaved,
+    triggerMetricsRefresh,
+} from "../../../../atoms/metrics"
 import {invalidatePreviewRunMetricStatsAtom} from "../../../../atoms/runMetrics"
 import {invalidateScenarioStepsBatcherCache} from "../../../../atoms/scenarioSteps"
 import {buildScenarioMetricDataFromAnnotation} from "../../../../utils/buildAnnotationMetricData"
@@ -385,6 +390,12 @@ const ScenarioAnnotationPanel = ({
 
             // Mark scenario as recently saved to prevent metric refresh from triggering
             markScenarioAsRecentlySaved(scenarioId)
+
+            // Trigger metrics refresh for scenario-level and run-level metrics
+            const {projectId} = getProjectValues()
+            if (projectId) {
+                await triggerMetricsRefresh({projectId, runId, scenarioId})
+            }
 
             // Invalidate caches to trigger a refetch of annotations
             invalidateAnnotationBatcherCache()
