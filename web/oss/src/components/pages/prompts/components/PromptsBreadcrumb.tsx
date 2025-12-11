@@ -1,10 +1,11 @@
-import {Breadcrumb, BreadcrumbProps} from "antd"
+import {Breadcrumb, BreadcrumbProps, Button, Dropdown, MenuProps, Space} from "antd"
 import React, {useMemo} from "react"
 import {useProjectData} from "@/oss/state/project"
 import {FolderTreeNode} from "../assets/utils"
 import {createUseStyles} from "react-jss"
 import {JSSTheme} from "@/oss/lib/Types"
 import {
+    CaretDownIcon,
     FolderDashedIcon,
     FolderIcon,
     PencilSimpleLineIcon,
@@ -30,8 +31,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         width: "fit-content",
         backgroundColor: theme.colorPrimaryBg,
         borderRadius: theme.borderRadiusLG,
-        paddingLeft: theme.paddingXS,
-        paddingRight: theme.paddingXS,
+        padding: theme.paddingXXS,
         "& :not(.ant-breadcrumb-separator)": {
             cursor: "pointer",
         },
@@ -78,17 +78,8 @@ const PromptsBreadcrumb = ({
         return chain.reverse()
     }, [currentFolderId, foldersById])
 
-    const items: BreadcrumbProps["items"] = useMemo(() => {
-        const base: BreadcrumbProps["items"] = []
-
-        if (project) {
-            base.push({
-                title: project.project_name,
-                onClick: () => onFolderChange?.(null),
-            })
-        }
-
-        const actionItems = [
+    const actionItems: MenuProps["items"] = useMemo(
+        () => [
             {
                 key: "rename_folder",
                 icon: <PencilSimpleLineIcon size={16} />,
@@ -132,37 +123,61 @@ const PromptsBreadcrumb = ({
                 danger: true,
                 onClick: () => onDeleteFolder?.(currentFolderId),
             },
-        ]
+        ],
+        [
+            currentFolderId,
+            onDeleteFolder,
+            onMoveFolder,
+            onNewFolder,
+            onNewPrompt,
+            onRenameFolder,
+            onSetupWorkflow,
+        ],
+    )
+
+    const items: BreadcrumbProps["items"] = useMemo(() => {
+        const base: BreadcrumbProps["items"] = []
+
+        if (project) {
+            base.push({
+                title: project.project_name,
+                onClick: () => onFolderChange?.(null),
+            })
+        }
 
         folderChain.forEach((folder, index) => {
             const isLast = index === folderChain.length - 1
 
             base.push({
-                title: folder.name,
+                title: isLast ? (
+                    <div className="flex items-center gap-1">
+                        <span>{folder.name}</span>
+                        <Dropdown
+                            trigger={["click"]}
+                            overlayStyle={{width: 200}}
+                            menu={{
+                                items: actionItems,
+                            }}
+                            placement="bottomLeft"
+                        >
+                            <Button
+                                type="text"
+                                className="w-5 h-5"
+                                size="small"
+                                icon={<CaretDownIcon size={14} />}
+                            />
+                        </Dropdown>
+                    </div>
+                ) : (
+                    folder.name
+                ),
                 onClick: !isLast ? () => onFolderChange?.(folder.id!) : undefined,
-                ...(isLast
-                    ? {
-                          menu: {
-                              items: actionItems,
-                              className: "w-[200px]",
-                          },
-                      }
-                    : {}),
             })
         })
 
         return base
-    }, [
-        project,
-        folderChain,
-        onFolderChange,
-        onNewPrompt,
-        onSetupWorkflow,
-        onNewFolder,
-        onMoveFolder,
-        onRenameFolder,
-        onDeleteFolder,
-    ])
+    }, [actionItems, folderChain, onFolderChange, project])
+
     return <Breadcrumb items={items} className={classes.container} />
 }
 
