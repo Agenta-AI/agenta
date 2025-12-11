@@ -12,7 +12,7 @@ from opentelemetry.proto.collector.trace.v1 import (
 )
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.core.observability.dtos import (
+from oss.src.core.otel.dtos import (
     OTelSpanDTO,
     OTelContextDTO,
     OTelEventDTO,

@@ -56,8 +56,6 @@ from oss.src.core.shared.dtos import (
 )
 
 from oss.src.core.tracing.dtos import Trace
-from oss.src.apis.fastapi.observability.models import AgentaVersionedTreeDTO as Tree
-
 from agenta.sdk.models.workflows import (
     WorkflowServiceRequestData,  # export
     WorkflowServiceResponseData,  # export
