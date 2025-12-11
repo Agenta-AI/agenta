@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.64.2"
+version = "0.68.1"
 description = "Agenta API"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
@@ -30,6 +30,7 @@ celery = "^5"
 newrelic = "^11"
 openai = "^2"
 sqlalchemy = "^2"
+sqlalchemy-utils = "^0.42.0"
 asyncpg = "^0.30"
 uuid-utils = "^0.11"
 alembic = "^1"
@@ -50,6 +51,7 @@ gunicorn = "^23"
 python-jsonpath = "^2"
 bson = "^0.5"
 python-multipart = "^0.0.20"
+daytona = "^0.121.0"
 
 # BLOCKED BY NEW RELIC INCOMPATIBILITY
 # opentelemetry-api = "^1"

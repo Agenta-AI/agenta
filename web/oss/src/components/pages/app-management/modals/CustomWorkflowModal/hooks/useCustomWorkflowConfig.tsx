@@ -25,6 +25,7 @@ const useCustomWorkflowConfig = ({
     setStatusModalOpen,
     // configureWorkflow = true,
     appId: propsAppId,
+    folderId,
     afterConfigSave,
 }: useCustomWorkflowConfigProps) => {
     const {currentApp} = useAppsData()
@@ -66,6 +67,7 @@ const useCustomWorkflowConfig = ({
             templateKey: ServiceType.Custom,
             serviceUrl: removeTrailingSlash(latestValues.appUrl),
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
+            folderId,
             onStatusChange: async (status, details, appId) => {
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     setFetchingTemplate(false)

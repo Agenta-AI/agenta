@@ -1,0 +1,44 @@
+{
+    "openai": {
+        "web_search": [
+            {
+                "type": "web_search_preview"
+            }
+        ],
+        "file_search": [
+            {
+                "type": "file_search",
+                "vector_store_ids": [
+                    "vs_SET_VECTOR_STORE_ID"
+                ],
+                "max_num_results": 10
+            }
+        ]
+    },
+    "anthropic": {
+        "bash_scripting": [
+            {
+                "type": "bash_20250124",
+                "name": "bash"
+            }
+        ],
+        "web_search": [
+            {
+                "type": "web_search_20250305",
+                "name": "web_search"
+            }
+        ]
+    },
+    "google": {
+        "code_execution": [
+            {
+                "code_execution": {}
+            }
+        ],
+        "web_search": [
+            {
+                "googleSearch": {}
+            }
+        ]
+    }
+}

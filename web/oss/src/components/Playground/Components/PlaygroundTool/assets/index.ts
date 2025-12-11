@@ -1,3 +1,5 @@
+import LLMIconMap from "@/oss/components/LLMIcons"
+
 export const TOOL_SCHEMA = {
     type: "object",
     properties: {
@@ -35,4 +37,13 @@ export const TOOL_SCHEMA = {
         },
     },
     required: ["type", "function"],
+}
+
+export const TOOL_PROVIDERS_META: Record<
+    string,
+    {label: string; iconKey?: keyof typeof LLMIconMap}
+> = {
+    openai: {label: "OpenAI", iconKey: "OpenAI"},
+    anthropic: {label: "Anthropic", iconKey: "Anthropic"},
+    google: {label: "Google Gemini", iconKey: "Google Gemini"},
 }

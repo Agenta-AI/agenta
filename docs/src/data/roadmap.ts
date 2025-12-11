@@ -26,6 +26,34 @@ export const shippedFeatures: ShippedFeature[] = [
   // Evaluation: 86B7FF
   // Integration: FFA500
     {
+    id: "provider-built-in-tools",
+    title: "Provider Built-in Tools in the Playground",
+    description:
+      "Use provider built-in tools like web search, code execution, and file search directly in the Playground. Supported providers include OpenAI, Anthropic, and Gemini. Tools are saved with prompts and automatically used via the LLM gateway.",
+    changelogPath: "/docs/changelog/provider-built-in-tools",
+    shippedAt: "2025-12-11",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
+    id: "projects-within-organizations",
+    title: "Projects within Organizations",
+    description:
+      "Create projects within organizations to divide work between different AI products. Each project scopes its prompts, traces, and evaluations independently.",
+    changelogPath: "/docs/changelog/projects-within-organizations",
+    shippedAt: "2025-12-04",
+    labels: [
+      {
+        name: "Misc",
+        color: "000000",
+      },
+    ],
+  },
+  {
     id: "jinja2-playground",
     title: "Jinja2 Template Support in the Playground",
     description:
@@ -271,19 +299,6 @@ export const inProgressFeatures: PlannedFeature[] = [
     ],
   },
   {
-    id: "tools-playground",
-    title: "Support for built-in LLM Tools (e.g. web search) in the Playground",
-    description:
-      "We are adding the ability to use built-in LLM tools (e.g. web search) in the playground.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2577",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
-      },
-    ],
-  },
-  {
     id: "prompt-folders",
     title: "Folders for Prompt Organization",
     description:
@@ -293,19 +308,6 @@ export const inProgressFeatures: PlannedFeature[] = [
       {
         name: "Playground",
         color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "projects-workspaces",
-    title: "Projects and Workspaces",
-    description:
-      "Improve organization structure by adding projects. Create projects for different products and scope resources to specific projects.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2860",
-    labels: [
-      {
-        name: "Misc",
-        color: "000000",
       },
     ],
   },

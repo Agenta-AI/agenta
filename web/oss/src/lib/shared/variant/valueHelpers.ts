@@ -2,6 +2,22 @@ import {isObjectMetadata} from "./genericTransformer/helpers/metadata"
 import {ConfigMetadata} from "./genericTransformer/types"
 import {toSnakeCase} from "./stringUtils"
 
+export function stripAgentaMetadataDeep<T = unknown>(value: T): T {
+    if (Array.isArray(value)) {
+        return value.map(stripAgentaMetadataDeep) as T
+    }
+
+    if (value && typeof value === "object") {
+        const entries = Object.entries(value as Record<string, unknown>)
+            .filter(([key]) => key !== "agenta_metadata" && key !== "__agenta_metadata")
+            .map(([key, val]) => [key, stripAgentaMetadataDeep(val)])
+
+        return Object.fromEntries(entries) as T
+    }
+
+    return value
+}
+
 export function shouldIncludeValue(value: unknown): boolean {
     // Handle null and undefined
     if (value === null || value === undefined) return false
@@ -142,7 +158,12 @@ export function extractValueByMetadata(
                     .reduce(
                         (acc, [key, val]) => {
                             if (key === "tools") {
-                                acc[key] = val.value
+                                const toolsWithoutMetadata = (val?.value || []).map((tool: any) => {
+                                    const rawTool = tool?.value ?? tool
+                                    return stripAgentaMetadataDeep(rawTool)
+                                })
+
+                                acc[key] = toolsWithoutMetadata
                             } else if (
                                 key === "toolCalls" &&
                                 val.value &&
@@ -169,11 +190,6 @@ export function extractValueByMetadata(
                                 if (shouldIncludeValue(extracted)) {
                                     acc[toSnakeCase(key)] = extracted
                                 }
-                            }
-                            if (key === "tools") {
-                                acc[key] = (acc[key] || []).map((tool: any) => {
-                                    return tool.value
-                                })
                             }
                             return acc
                         },

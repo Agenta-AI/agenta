@@ -43,8 +43,20 @@ const SelectControl = ({
     }, [propsLabel])
 
     const value = useMemo(() => {
-        return propsValue ?? SELECT_DEFAULT_VALUE_MAPS[propsLabel || ""]
-    }, [propsValue, propsLabel])
+        const rawValue = propsValue ?? SELECT_DEFAULT_VALUE_MAPS[propsLabel || ""]
+        // When mode is multiple/tags, ensure value is an array (or undefined for empty)
+        if (mode === "multiple" || mode === "tags") {
+            if (rawValue === null || rawValue === undefined) {
+                return undefined
+            }
+            if (Array.isArray(rawValue)) {
+                return rawValue.length === 0 ? undefined : rawValue
+            }
+            // Single value passed to multi-select - wrap in array
+            return [rawValue]
+        }
+        return rawValue
+    }, [propsValue, propsLabel, mode])
 
     const options = useMemo(() => {
         if (!_options) return []

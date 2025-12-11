@@ -3,6 +3,7 @@ import {MouseEvent, useMemo, useState} from "react"
 import {CloseOutlined, PythonOutlined} from "@ant-design/icons"
 import {Book, CodeBlock, FileTs, Play} from "@phosphor-icons/react"
 import {Button, ModalProps, Space, Tabs, TabsProps, Typography} from "antd"
+import clsx from "clsx"
 import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
@@ -10,7 +11,6 @@ import {isDemo} from "@/oss/lib/helpers/utils"
 
 import {generateCodeBlocks} from "./assets/generateCodeBlocks"
 import {useStyles} from "./assets/styles"
-import clsx from "clsx"
 
 export {useStyles}
 
@@ -39,7 +39,7 @@ export const SetupTracingModalContent = ({
     const items: TabsProps["items"] = [
         {
             key: "openai",
-            label: "Open AI",
+            label: "OpenAI",
             icon: <PythonOutlined />,
             children: (
                 <TracingTabContent

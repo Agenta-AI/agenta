@@ -33,6 +33,7 @@ export interface GeneratedJSONSchema {
         type: "object"
         properties: Record<string, JSONSchemaProperty>
         required: string[]
-        strict: boolean
+        additionalProperties: boolean
     }
+    strict: boolean
 }

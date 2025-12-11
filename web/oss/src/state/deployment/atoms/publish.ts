@@ -1,7 +1,7 @@
-import {message} from "antd"
 import {atomWithMutation} from "jotai-tanstack-query"
 import posthog from "posthog-js"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {createPublishRevision, createPublishVariant} from "@/oss/services/deployment/api"
 

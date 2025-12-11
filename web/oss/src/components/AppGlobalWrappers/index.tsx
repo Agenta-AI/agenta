@@ -12,8 +12,8 @@ const TraceDrawer = dynamic(
     {ssr: false},
 )
 
-const EvalRunFocusDrawer = dynamic(
-    () => import("@/oss/components/EvalRunDetails/AutoEvalRun/components/EvalRunFocusDrawer"),
+const EvalRunFocusDrawerPreview = dynamic(
+    () => import("@/oss/components/EvalRunDetails2/components/FocusDrawer"),
     {ssr: false},
 )
 
@@ -170,7 +170,7 @@ const AppGlobalWrappers = () => {
         <>
             <NavigationCommandListener />
             <TraceDrawer />
-            <EvalRunFocusDrawer />
+            <EvalRunFocusDrawerPreview />
             <DeleteAppModalWrapper />
             <EditAppModalWrapper />
             <VariantDrawerWrapper />
