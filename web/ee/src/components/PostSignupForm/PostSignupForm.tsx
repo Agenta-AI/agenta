@@ -65,7 +65,7 @@ type AnySurveyQuestion = SurveyQuestion & {
     originalQuestionIndex?: number
 }
 
-type QuestionMeta = {
+interface QuestionMeta {
     question: AnySurveyQuestion
     index: number
     originalIndex: number
@@ -511,7 +511,7 @@ const PostSignupForm = () => {
                                 onClick={
                                     currentStep < totalSteps - 1 ? handleNextStep : form.submit
                                 }
-                                className="w-full"
+                                className="w-full min-h-[32px] mt-2"
                                 iconPosition="end"
                                 icon={<ArrowRight className="mt-[3px]" />}
                                 disabled={!isCurrentStepValid}
