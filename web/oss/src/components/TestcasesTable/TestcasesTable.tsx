@@ -390,6 +390,7 @@ const TestcasesTable = ({mode: _mode = "edit"}: TestcasesTableProps) => {
             dataIndex: col.key,
             key: col.key,
             width: 200,
+            minWidth: 150,
             ellipsis: true,
             render: (_value: unknown, record: TestcaseTableRow) => {
                 if (record.__isSkeleton) return null
@@ -451,6 +452,7 @@ const TestcasesTable = ({mode: _mode = "edit"}: TestcasesTableProps) => {
             ),
             key: "actions",
             width: isAddColumnModalOpen ? 200 : 88,
+            maxWidth: isAddColumnModalOpen ? 200 : 88,
             fixed: "right",
             align: "center" as const,
             render: (_: unknown, record: TestcaseTableRow) => {
@@ -654,6 +656,7 @@ const TestcasesTable = ({mode: _mode = "edit"}: TestcasesTableProps) => {
                 primaryActions={primaryActions}
                 secondaryActions={secondaryActions}
                 dataSource={displayRows}
+                tableClassName="agenta-testcases-table"
                 rowSelection={{
                     type: "checkbox",
                     selectedRowKeys,

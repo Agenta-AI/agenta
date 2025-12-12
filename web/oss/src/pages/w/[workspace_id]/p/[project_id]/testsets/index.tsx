@@ -236,6 +236,8 @@ const Testset = () => {
                 {type: "user", key: "created_by_id", title: "Created by"},
                 {
                     type: "actions",
+                    width: 48,
+                    maxWidth: 48,
                     items: [
                         {
                             key: "details",

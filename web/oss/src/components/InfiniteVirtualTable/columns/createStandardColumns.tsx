@@ -54,6 +54,8 @@ export interface ActionsColumnDef<T> {
     type: "actions"
     items: (ActionItem<T> | {type: "divider"})[]
     width?: number
+    /** Maximum width for the actions column */
+    maxWidth?: number
     /** Show copy ID action (default: true) */
     showCopyId?: boolean
     /** Custom ID extractor for copy action */
@@ -162,7 +164,15 @@ function createDateColumn<T>(def: DateColumnDef): ColumnType<T> {
 function createActionsColumn<T extends InfiniteTableRowBase>(
     def: ActionsColumnDef<T>,
 ): ColumnType<T> {
-    const {items, width = 56, showCopyId = true, getRecordId, onExportRow, isExporting} = def
+    const {
+        items,
+        width = 56,
+        maxWidth,
+        showCopyId = true,
+        getRecordId,
+        onExportRow,
+        isExporting,
+    } = def
 
     const defaultGetId = (record: T): string => {
         if (getRecordId) return getRecordId(record)
@@ -175,10 +185,11 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
         title: <ColumnVisibilityMenuTrigger variant="icon" />,
         key: "actions",
         width,
+        ...(maxWidth ? {maxWidth} : {}),
         fixed: "right",
         align: "center",
         // Lock actions column from being toggled in visibility menu
-        columnVisibilityLocked: true,
+        columnVisibilityLocked: true as any,
         render: (_, record) => {
             if (record.__isSkeleton) return null
 
