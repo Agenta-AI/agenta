@@ -46,6 +46,7 @@ const PlaygroundVariantHistory: React.FC<PlaygroundVariantHistoryProps> = ({vari
                             key={promptId as string}
                             promptId={promptId}
                             variantId={variantId}
+                            disableCollapse={promptIds.length === 1}
                         />
                     ))}
 
