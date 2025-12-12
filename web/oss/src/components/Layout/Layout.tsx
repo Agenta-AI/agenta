@@ -119,13 +119,17 @@ const AppWithVariants = memo(
                                 <OldAppDeprecationBanner>
                                     <CustomWorkflowBanner />
                                     <Content
-                                        className={clsx("flex gap-4", "h-[calc(100%-30px)]", {
-                                            "p-6 pb-0 mb-8": !isHumanEval,
-                                            "flex flex-col min-h-0 grow":
-                                                isHumanEval || isEvaluator || isTestsets,
-                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                isPlayground,
-                                        })}
+                                        className={clsx(
+                                            "flex gap-4 flex-col w-full",
+                                            // "h-[calc(100%-30px)]",
+                                            {
+                                                "p-6 pb-0 mb-8": !isHumanEval,
+                                                "flex flex-col min-h-0 grow":
+                                                    isHumanEval || isEvaluator || isTestsets,
+                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                    isPlayground,
+                                            },
+                                        )}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
                                             <ConfigProvider
@@ -175,8 +179,8 @@ const AppWithVariants = memo(
                                             }}
                                         >
                                             <div
-                                                className={clsx({
-                                                    "w-full flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px)] overflow-hidden":
+                                                className={clsx("w-full flex flex-col", {
+                                                    "min-h-0 gap-6 h-[calc(100dvh-75px)] overflow-hidden":
                                                         isHumanEval || isEvaluator || isTestsets,
                                                 })}
                                             >
