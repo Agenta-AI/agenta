@@ -1,36 +1,27 @@
 # /agenta/sdk/decorators/tracing.py
 
-from typing import Callable, Optional, Any, Dict, List, Union
-
-from opentelemetry import context as otel_context
-from opentelemetry.context import attach, detach
-
-
 from functools import wraps
-from itertools import chain
 from inspect import (
     getfullargspec,
+    isasyncgenfunction,
     iscoroutinefunction,
     isgeneratorfunction,
-    isasyncgenfunction,
 )
+from itertools import chain
+from typing import Any, Callable, Dict, List, Optional, Union
 
-from pydantic import BaseModel
-
-from opentelemetry import baggage
-from opentelemetry.context import attach, detach, get_current
-from opentelemetry.baggage import set_baggage, get_all
-
-from agenta.sdk.utils.logging import get_module_logger
-from agenta.sdk.utils.exceptions import suppress
+import agenta as ag
 from agenta.sdk.contexts.tracing import (
     TracingContext,
     tracing_context_manager,
 )
 from agenta.sdk.tracing.conventions import parse_span_kind
-
-import agenta as ag
-
+from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.logging import get_module_logger
+from opentelemetry import context as otel_context
+from opentelemetry.baggage import get_all, set_baggage
+from opentelemetry.context import attach, detach, get_current
+from pydantic import BaseModel
 
 log = get_module_logger(__name__)
 
@@ -88,11 +79,12 @@ class instrument:  # pylint: disable=invalid-name
                 with tracing_context_manager(context=TracingContext.get()):
                     # debug_otel_context("[BEFORE STREAM] [BEFORE SETUP]")
 
-                    captured_ctx = otel_context.get_current()
-
                     self._parse_type_and_kind()
 
-                    self._attach_baggage()
+                    baggage_token = self._attach_baggage()
+
+                    # Capture AFTER baggage attach so we do not wipe it later.
+                    captured_ctx = otel_context.get_current()
 
                     ctx = self._get_traceparent()
 
@@ -141,6 +133,7 @@ class instrument:  # pylint: disable=invalid-name
                             otel_context.detach(otel_token)
 
                             # debug_otel_context("[WITHIN STREAM] [AFTER DETACH]")
+                            self._detach_baggage(baggage_token)
 
                 return wrapped_generator()
 
@@ -311,15 +304,30 @@ class instrument:  # pylint: disable=invalid-name
 
     def _attach_baggage(self):
         context = TracingContext.get()
+        otel_ctx = get_current()
 
-        references = context.references
+        # 1. Propagate any incoming `ag.*` baggage as-is (for example
+        # `ag.meta.session_id`) so all nested spans inherit it.
+        if context.baggage:
+            for k, v in context.baggage.items():
+                if not isinstance(k, str) or not k.startswith("ag."):
+                    continue
+                if v is None:
+                    continue
+                otel_ctx = set_baggage(name=k, value=str(v), context=otel_ctx)
 
-        token = None
-        if references:
-            for k, v in references.items():
-                token = attach(baggage.set_baggage(f"ag.refs.{k}", v))
+        # 2. Propagate Agenta references in baggage (used for linking traces to
+        # application/variant/environment).
+        if context.references:
+            for k, v in context.references.items():
+                if v is None:
+                    continue
+                otel_ctx = set_baggage(
+                    name=f"ag.refs.{k}", value=str(v), context=otel_ctx
+                )
 
-        return token
+        # Attach once so we can reliably detach later.
+        return attach(otel_ctx)
 
     def _detach_baggage(
         self,

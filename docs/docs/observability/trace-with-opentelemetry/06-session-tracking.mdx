@@ -1,0 +1,42 @@
+---
+title: "Session Tracking"
+sidebar_label: "Session Tracking"
+description: "Track chat sessions and multi-turn conversations with OpenTelemetry"
+sidebar_position: 6
+---
+
+When building chat applications or multi-turn workflows, you often need to group traces from multiple requests into a single session. This guide shows how to track sessions using OpenTelemetry attributes.
+
+## Setting session attributes
+
+Add session IDs to spans using the `ag.meta.session_id` attribute. Agenta recognizes this attribute and groups all spans with the same value together.
+
+```typescript
+import { trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('my-app');
+
+function processChatMessage(message: string, sessionId: string) {
+  return tracer.startActiveSpan('process_message', (span) => {
+    try {
+      // Set session ID attribute
+      span.setAttribute('ag.meta.session_id', sessionId);
+      
+      // Your processing logic
+      const response = generateResponse(message);
+      return response;
+    } finally {
+      span.end();
+    }
+  });
+}
+```
+
+## Session ID format
+
+Session IDs can be any string value. Common patterns:
+
+- UUIDs: `550e8400-e29b-41d4-a716-446655440000`
+- Composite IDs: `user_123_session_456`
+- Custom formats: `chat_2024-01-15_abc123`
+

@@ -1,14 +1,10 @@
-from typing import Tuple, Optional, Dict, Any
-
-from opentelemetry.trace import Span, set_span_in_context, get_current_span
-from opentelemetry.baggage.propagation import W3CBaggagePropagator
-from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-from opentelemetry.baggage import set_baggage
-from opentelemetry.context import get_current
+from typing import Any, Dict, Optional, Tuple
 
 from agenta.sdk.contexts.tracing import TracingContext
-
-import agenta as ag
+from opentelemetry.baggage import set_baggage
+from opentelemetry.baggage.propagation import W3CBaggagePropagator
+from opentelemetry.context import get_current
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 
 def extract(
@@ -47,11 +43,12 @@ def extract(
     baggage = {}
 
     try:
-        _carrier = {
-            "baggage": headers.get("Baggage")  # Uppercase
+        raw_baggage = (
+            headers.get("Baggage")  # Uppercase
             or headers.get("baggage")  # Lowercase
-            or "",
-        }
+            or ""
+        )
+        _carrier = {"baggage": raw_baggage}
 
         _context = W3CBaggagePropagator().extract(_carrier)
 
