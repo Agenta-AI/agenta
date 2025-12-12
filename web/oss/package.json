@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.68.1",
+    "version": "0.68.3",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -52,7 +52,7 @@
         "@lexical/table": "^0.38.2",
         "@lexical/utils": "^0.38.2",
         "@monaco-editor/react": "^4.7.0-rc.0",
-        "@next/bundle-analyzer": "15.5.7",
+        "@next/bundle-analyzer": "15.5.9",
         "@phosphor-icons/react": "^2.1.10",
         "@prettier/sync": "^0.5.2",
         "@scalar/openapi-parser": "^0.9.0",
@@ -98,7 +98,7 @@
         "lexical": "^0.38.2",
         "lodash": "^4.17.21",
         "lucide-react": "^0.475.0",
-        "next": "15.5.7",
+        "next": "15.5.9",
         "papaparse": "^5.5.3",
         "postcss": "^8.5.6",
         "postcss-antd-fixes": "^0.2.0",
