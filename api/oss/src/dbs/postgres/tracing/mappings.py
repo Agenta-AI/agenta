@@ -71,6 +71,7 @@ def map_span_dbe_to_span_dto(
         OTelReference(
             id=_reference.get("id"),
             slug=_reference.get("slug"),
+            version=_reference.get("version"),
             attributes=_reference.get("attributes"),
         ).model_dump(mode="json", exclude_none=True)
         for _reference in _references
