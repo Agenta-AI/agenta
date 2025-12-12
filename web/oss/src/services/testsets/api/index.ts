@@ -69,7 +69,7 @@ export async function fetchTestset<T extends boolean = false>(
         const response = await axios.post(
             `${getAgentaApiUrl()}/preview/testsets/query?project_id=${projectId}`,
             {
-                testset_ids: [testsetId],
+                testset_refs: [{id: testsetId}],
                 windowing: {limit: 1},
             },
         )

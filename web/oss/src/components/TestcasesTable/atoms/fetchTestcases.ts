@@ -139,7 +139,7 @@ export const fetchTestsetMetadata = async ({
         const response = await axios.post(
             `${getAgentaApiUrl()}/preview/testsets/query`,
             {
-                testset_ids: [testsetId],
+                testset_refs: [{id: testsetId}],
                 windowing: {limit: 1},
             },
             {

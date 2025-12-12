@@ -643,7 +643,7 @@ const TestcasesTable = ({mode: _mode = "edit"}: TestcasesTableProps) => {
     )
 
     return (
-        <div ref={containerRef} className="flex flex-col h-full w-full overflow-hidden">
+        <div ref={containerRef} className="flex flex-col h-full w-full overflow-hidden p-6">
             <InfiniteVirtualTableFeatureShell<TestcaseTableRow>
                 datasetStore={testcasesDatasetStore}
                 tableScope={table.tableScope}
