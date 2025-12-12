@@ -30,7 +30,7 @@ Our folder structure follows a module-based architecture that prioritizes mainta
     - Components are organized by their scope of use
     - Each component may contain:
         - Presentational logic (`Component.tsx`)
-        - UI-only subcomponents (`assets/*.tsx`)
+        - UI-only subcomponents (`components/*.tsx`)
         - Component-specific hooks (`hooks/*.ts`)
         - Local constants and utilities (`assets/*.ts`)
         - Type definitions (`types.d.ts`)
@@ -47,10 +47,9 @@ Our folder structure follows a module-based architecture that prioritizes mainta
 
 1. **Store Organization**
 
-    - Each module can have its own `store` folder containing:
-        - Jotai atoms for reactive state
-        - Context providers for complex state/dependency injection
-    - Global store at root level for cross-module state
+ - Each module can have its own `store` folder containing:
+     - Jotai atoms for reactive state
+   - Global store at root level for cross-module state
 
 2. **State Movement Guidelines**
 
@@ -64,9 +63,8 @@ Our folder structure follows a module-based architecture that prioritizes mainta
         - Data persistence requirements
 
 3. **State Management Tools**
-    - Prefer Jotai atoms for simple reactive state
-    - Use Context for complex state with multiple consumers
-    - Local component state for UI-only concerns
+   - Prefer Jotai atoms for all kind of shared state
+   - Local component state for UI-only concerns
 
 #### Implementation Strategy
 
@@ -83,125 +81,57 @@ This structure supports:
 -   Natural code organization based on usage
 -   Scalable architecture that grows with the application
 
-### Data Fetching Best Practices
+### State and Data Fetching (Jotai-First)
 
-We recommend using SWR with Axios for data fetching instead of useEffect patterns. This helps achieve cleaner code while,
+We now prefer Jotai atoms (especially `atomWithQuery`) for shared state and data fetching/caching. Keep local component state local; promote to atoms when the state is shared across multiple components or needs caching.
 
--   simplifying management of fetch states.
--   handling cache better
--   having a more interactive UI by revalidating in background
--   utilizing optimistic mutations.
+- Use `atomWithQuery` for data fetching/caching.
+- For realistic patterns, review the `state` directory for existing atoms and queries.
 
-#### Example: Converting useEffect Data Fetching to SWR with Axios
-
-❌ **Avoid this pattern:**
+#### Example: use `atomWithQuery` for shared/cached data
 
 ```javascript
-useEffect(() => {
-    fetchData1()
-        .then((data1) => {
-            setData1(data1)
-        })
-        .catch((error) => {
-            setError1(error)
-        })
+import { atomWithQuery } from "jotai-tanstack-query";
+import { useAtomValue } from "jotai";
+import { queryClient } from "@/state/queryClient";
+import api from "@/oss/lib/helpers/axios";
 
-    fetchData2()
-        .then((data2) => {
-            setData2(data2)
-        })
-        .catch((error) => {
-            setError2(error)
-        })
-}, [])
-```
+// shared atom
+export const usersAtom = atomWithQuery(
+  () => ({
+    queryKey: ["users"],
+    queryFn: async () => {
+      const { data } = await api.get("/api/users");
+      return data;
+    },
+  }),
+  { queryClient }
+);
 
-✅ **Use this pattern:**
+// consuming component
+function UsersList() {
+  const { data, isLoading, error } = useAtomValue(usersAtom);
 
-We configure SWR globally with our pre-configured Axios instance:
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error loading users</div>;
 
-```javascript
-// src/utils/swrConfig.js
-import axios from "@/oss/lib/helpers/axios"
-import useSWR from "swr"
-
-const fetcher = (url) => axios.get(url).then((res) => res.data)
-
-export const swrConfig = {
-    fetcher,
+  return <div>{data.map((u) => u.name).join(", ")}</div>;
 }
 ```
 
-To ensure SWR configuration is applied globally, wrap your application with SWRConfig in `_app.tsx`:
+#### Legacy `useSWR` usage
 
-```javascript
-// src/pages/_app.tsx
-import {SWRConfig} from "swr"
-import {swrConfig} from "../utils/swrConfig"
+We still have existing `useSWR` hooks. When touching them:
 
-function MyApp({Component, pageProps}) {
-    return (
-        <SWRConfig value={swrConfig}>
-            <Component {...pageProps} />
-        </SWRConfig>
-    )
-}
+- Replace with `atomWithQuery` where practical.
+- Keep returned variables/signatures the same to avoid wide refactors.
+- Do not introduce inline arrays or heavy inline props; memoize as needed.
 
-export default MyApp
-```
+### UI Components (Enhanced variants)
 
-and data can be then be fetched in a way that fits react mental model inside the component:
-
-```javascript
-import useSWR from "swr"
-
-function Component() {
-    const {data: data1, error: error1, loading: loadingData1} = useSWR("/api/data1")
-    const {data: data2, error: error2, loading: loadingData2} = useSWR("/api/data2")
-
-    if (error1 || error2) return <div>Error loading data</div>
-    if (!data1 || !data2) return <div>Loading...</div>
-
-    return (
-        <div>
-            <div>Data 1: {data1}</div>
-            <div>Data 2: {data2}</div>
-        </div>
-    )
-}
-```
-
-Mutations can be triggered via Swr in the following way
-
-```javascript
-import useSWRMutation from 'swr/mutation'
-
-async function sendRequest(url, { arg }: { arg: { username: string }}) {
-  return fetch(url, {
-    method: 'POST',
-    body: JSON.stringify(arg)
-  }).then(res => res.json())
-}
-
-function App() {
-  const { trigger, isMutating } = useSWRMutation('/api/user', sendRequest, /* options */)
-
-  return (
-    <button
-      disabled={isMutating}
-      onClick={async () => {
-        try {
-          const result = await trigger({ username: 'johndoe' }, /* options */)
-        } catch (e) {
-          // error handling
-        }
-      }}
-    >
-      Create User
-    </button>
-  )
-}
-```
+- Prefer Enhanced `Table`, `Drawer`, and `Modal` components instead of raw Ant Design equivalents. Read the Enhanced components docs before using.
+- When adding buttons that need a tooltip, use `EnhancedButton` (wraps tooltip behavior).
+- Follow module/component placement rules above; keep shared UI elements in the appropriate shared folders.
 
 ### React Best Practices
 
@@ -214,20 +144,18 @@ For example, in the `AccordionTreePanel` component, the `items` prop is passed a
 ❌ **Avoid this pattern:**
 
 ```javascript
-
 <AccordionTreePanel
-    items={[
-        {
-            title: "Item 1",
-            content: <div>Content 1</div>,
-        },
-        {
-            title: "Item 2",
-            content: <div>Content 2</div>,
-        },
-    ]}
+  items={[
+    {
+      title: "Item 1",
+      content: <div>Content 1</div>,
+    },
+    {
+      title: "Item 2",
+      content: <div>Content 2</div>,
+    },
+  ]}
 />
-
 ```
 
 ✅ **Use this pattern:**
