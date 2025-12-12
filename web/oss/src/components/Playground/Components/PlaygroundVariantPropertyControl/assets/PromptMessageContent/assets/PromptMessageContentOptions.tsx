@@ -17,7 +17,7 @@ import {useAtom, useAtomValue} from "jotai"
 
 import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
-import EnhancedButton from "@/oss/components/EnhancedUIs/EnhancedButton"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {getTextContent} from "@/oss/components/Playground/adapters/TurnMessageHeaderOptions"
 import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
 import {findPropertyInObject} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"

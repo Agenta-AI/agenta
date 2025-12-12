@@ -4,6 +4,8 @@ import {Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
+import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
+import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
 import {
     LinkedSpanRow,
     linkedSpansAtom,
@@ -11,8 +13,6 @@ import {
     linkedSpanTracesQueryAtom,
     setTraceDrawerTraceAtom,
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
-import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
 

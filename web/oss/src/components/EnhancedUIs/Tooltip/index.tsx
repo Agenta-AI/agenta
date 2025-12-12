@@ -5,17 +5,17 @@ import {CheckCircleFilled} from "@ant-design/icons"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
-import {TooltipWithCopyActionProps} from "./types"
+import {EnhancedTooltipProps} from "./types"
 
 const Tooltip = dynamic(() => import("antd").then((mod) => mod.Tooltip), {ssr: false})
 
-const TooltipWithCopyAction = ({
+const EnhancedTooltip = ({
     children,
     title,
     copyText,
     tooltipProps,
     duration = 1500,
-}: TooltipWithCopyActionProps) => {
+}: EnhancedTooltipProps) => {
     const [isCopied, setIsCopied] = useState(false)
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -71,4 +71,4 @@ const TooltipWithCopyAction = ({
     )
 }
 
-export default TooltipWithCopyAction
+export default EnhancedTooltip

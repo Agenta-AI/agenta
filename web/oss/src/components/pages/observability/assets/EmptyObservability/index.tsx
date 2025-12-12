@@ -3,7 +3,7 @@ import {memo} from "react"
 import {SwapOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
 
-import EmptyComponent from "@/oss/components/EmptyComponent"
+import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"

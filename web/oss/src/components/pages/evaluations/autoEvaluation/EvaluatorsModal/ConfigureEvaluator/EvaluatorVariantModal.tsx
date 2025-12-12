@@ -104,9 +104,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const EvaluatorVariantModal = ({
     variants: _variants,

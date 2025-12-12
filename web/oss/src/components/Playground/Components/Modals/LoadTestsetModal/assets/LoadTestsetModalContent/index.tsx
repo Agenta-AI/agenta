@@ -1,5 +1,6 @@
 import dynamic from "next/dynamic"
 
+import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {Expandable} from "@/oss/components/Tables/ExpandableCell"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {Testset, testset} from "@/oss/lib/Types"
@@ -10,17 +11,19 @@ import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 import {useQueryClient} from "@tanstack/react-query"
 import {Checkbox, Divider, Input, Menu, Tooltip, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {useAtomValue} from "jotai"
-import {memo, useCallback, useEffect, useMemo, useState} from "react"
-import {useRouter} from "next/router"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
+import {useRouter} from "next/router"
+import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import {useTestsetInputsAnalysis} from "../../hooks/useTestsetInputsAnalysis"
 import {LoadTestsetModalContentProps} from "../types"
-import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const LoadTestsetModalContent = ({
     modalProps,

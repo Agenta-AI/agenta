@@ -1,18 +1,11 @@
 import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
+import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 
-import CostCell from "../components/CostCell"
-import DurationCell from "../components/DurationCell"
-import EvaluatorMetricsCell from "../components/EvaluatorMetricsCell"
-import NodeNameCell from "../components/NodeNameCell"
-import StatusRenderer from "../components/StatusRenderer"
-import TimestampCell from "../components/TimestampCell"
-import UsageCell from "../components/UsageCell"
 import {
     getCost,
     getLatency,
@@ -20,6 +13,13 @@ import {
     getTraceInputs,
     getTraceOutputs,
 } from "@/oss/state/newObservability"
+import CostCell from "../components/CostCell"
+import DurationCell from "../components/DurationCell"
+import EvaluatorMetricsCell from "../components/EvaluatorMetricsCell"
+import NodeNameCell from "../components/NodeNameCell"
+import StatusRenderer from "../components/StatusRenderer"
+import TimestampCell from "../components/TimestampCell"
+import UsageCell from "../components/UsageCell"
 
 interface ObservabilityColumnsProps {
     evaluatorSlugs: string[]

@@ -4,7 +4,7 @@ import {CloudArrowUp} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import EnhancedButton from "@/oss/components/EnhancedUIs/EnhancedButton"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 

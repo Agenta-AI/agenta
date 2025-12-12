@@ -15,9 +15,12 @@ import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
 
 import type {SelectEvaluatorSectionProps} from "../../types"
 
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const EvaluatorMetrics = memo(({evaluator}: {evaluator: EvaluatorDto<"response">}) => {
     const metrics = getMetricsFromEvaluator(evaluator)

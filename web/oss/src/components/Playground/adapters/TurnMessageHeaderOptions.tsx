@@ -20,7 +20,7 @@ import {useAtom} from "jotai"
 
 import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
-import EnhancedButton from "@/oss/components/EnhancedUIs/EnhancedButton"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import TestsetDrawerButton from "@/oss/components/Playground/Components/Drawers/TestsetDrawer"
 
 export interface TurnMessageHeaderOptionsProps {

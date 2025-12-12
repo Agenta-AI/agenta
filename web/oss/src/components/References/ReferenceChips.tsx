@@ -4,9 +4,9 @@ import {Tag, type TagProps} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
+import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 
-import {variantConfigAtomFamily, previewTestsetReferenceAtomFamily} from "./atoms/entityReferences"
+import {previewTestsetReferenceAtomFamily, variantConfigAtomFamily} from "./atoms/entityReferences"
 
 type ChipTone = "variant" | "testset"
 

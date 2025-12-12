@@ -98,9 +98,12 @@ const extractVariablesFromVariant = (variant: EnhancedVariant): string[] => {
     return Array.from(vars)
 }
 
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const SelectTestsetSection = ({
     testsets: propsTestsets,

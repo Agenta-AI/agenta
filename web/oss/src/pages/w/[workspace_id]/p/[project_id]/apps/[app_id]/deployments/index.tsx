@@ -1,13 +1,13 @@
 // @ts-nocheck
-import {useMemo, useState, useEffect} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {Flex, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
-import EnvironmentCardRow from "@/oss/components/DeploymentCard/EnvironmentCardRow"
 import DeploymentsDashboard from "@/oss/components/DeploymentsDashboard"
+import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {JSSTheme} from "@/oss/lib/Types"

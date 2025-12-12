@@ -1,5 +1,6 @@
 import {Typography} from "antd"
 
+import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import {
     formatSamplingRate,
     formatWindowRange,
@@ -7,7 +8,6 @@ import {
 import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 
 import FiltersPreview from "../../pages/evaluations/onlineEvaluation/components/FiltersPreview"
 import usePreviewQueryRevision from "../hooks/usePreviewQueryRevision"

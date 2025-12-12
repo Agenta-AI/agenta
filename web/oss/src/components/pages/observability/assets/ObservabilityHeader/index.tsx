@@ -7,7 +7,7 @@ import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import dynamic from "next/dynamic"
 
-import EnhancedButton from "@/oss/components/EnhancedUIs/EnhancedButton"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {SortResult} from "@/oss/components/Filters/Sort"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"

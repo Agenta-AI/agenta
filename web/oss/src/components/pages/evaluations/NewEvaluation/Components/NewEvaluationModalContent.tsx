@@ -1,7 +1,7 @@
 import {type FC, memo, useCallback, useMemo} from "react"
 
 import {CloseCircleOutlined} from "@ant-design/icons"
-import {Input, Typography, Tabs, Tag} from "antd"
+import {Input, Tabs, Tag, Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
@@ -31,9 +31,12 @@ const AdvancedSettings = dynamic(() => import("./AdvancedSettings"), {
     ssr: false,
 })
 
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     onSuccess,

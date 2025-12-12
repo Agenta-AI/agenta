@@ -3,8 +3,8 @@ import {PropsWithChildren} from "react"
 import {Skeleton, Typography} from "antd"
 import clsx from "clsx"
 
+import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import ReadOnlyBox from "@/oss/components/pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 
 const {Text} = Typography
 

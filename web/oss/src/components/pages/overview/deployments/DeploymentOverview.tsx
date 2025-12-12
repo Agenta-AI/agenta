@@ -4,7 +4,7 @@ import {Typography} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
 
-import EnvironmentCardRow from "@/oss/components/DeploymentCard/EnvironmentCardRow"
+import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
 import useURL from "@/oss/hooks/useURL"
 import type {Environment} from "@/oss/lib/Types"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"

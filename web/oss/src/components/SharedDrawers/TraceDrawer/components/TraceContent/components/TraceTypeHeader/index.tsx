@@ -1,5 +1,5 @@
+import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import {Database} from "lucide-react"
 import dynamic from "next/dynamic"
