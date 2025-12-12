@@ -203,9 +203,9 @@ const SelectLLMProvider = ({
         if (props.onChange) {
             props.onChange(value, {value} as any)
         }
-        setOpen(false)
         setSearchTerm("")
         setHoveredProvider(null)
+        setTimeout(() => setOpen(false), 0)
     }
 
     return (
@@ -215,7 +215,7 @@ const SelectLLMProvider = ({
                 showSearch={false}
                 open={open}
                 value={props.value || null}
-                onOpenChange={(visible) => {
+                onDropdownVisibleChange={(visible) => {
                     setOpen(visible)
                     if (!visible) {
                         setSearchTerm("")
@@ -284,9 +284,13 @@ const SelectLLMProvider = ({
                                                         <div
                                                             key={option.key ?? option.value}
                                                             className="px-3 py-[5px] cursor-pointer hover:bg-[#f5f5f5] flex items-center gap-2"
-                                                            onClick={() =>
+                                                            onMouseDown={(e) => {
+                                                                // Prevent focus/blur weirdness inside Select dropdown,
+                                                                // and make sure our close logic runs before unmount.
+                                                                e.preventDefault()
+                                                                e.stopPropagation()
                                                                 handleSelect(option.value)
-                                                            }
+                                                            }}
                                                         >
                                                             {Icon && (
                                                                 <Icon className="w-4 h-4 flex-shrink-0" />
