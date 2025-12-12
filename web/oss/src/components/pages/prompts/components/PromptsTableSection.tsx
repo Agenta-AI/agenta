@@ -1,7 +1,8 @@
-import {Dropdown, Input, Space, Button, MenuProps} from "antd"
-import {ColumnsType, TableProps} from "antd/es/table"
+import {Key} from "react"
 
 import {FolderIcon, PlusIcon, SquaresFourIcon, TrashIcon} from "@phosphor-icons/react"
+import {Dropdown, Input, Space, Button, MenuProps} from "antd"
+import {ColumnsType, TableProps} from "antd/es/table"
 
 import {
     InfiniteVirtualTableFeatureShell,
@@ -9,12 +10,12 @@ import {
     TableFeaturePagination,
     TableScopeConfig,
 } from "@/oss/components/InfiniteVirtualTable"
-
-import {PromptsTableRow} from "../types"
-import {FolderTreeItem} from "../assets/utils"
-import SetupWorkflowIcon from "./SetupWorkflowIcon"
 import {InfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable/createInfiniteDatasetStore"
-import {Key} from "react"
+
+import {FolderTreeItem} from "../assets/utils"
+import {PromptsTableRow} from "../types"
+
+import SetupWorkflowIcon from "./SetupWorkflowIcon"
 
 interface PromptsTableSectionProps {
     columns: ColumnsType<PromptsTableRow>
@@ -121,7 +122,7 @@ export const PromptsTableSection = ({
             </div>
 
             <InfiniteVirtualTableFeatureShell<PromptsTableRow>
-                className="grow min-h-0"
+                className="grow min-h-0 [&_.ant-table-cell]:!align-middle [&_.ant-table-container]:!border-b"
                 datasetStore={datasetStore}
                 tableScope={tableScope}
                 columns={columns}
