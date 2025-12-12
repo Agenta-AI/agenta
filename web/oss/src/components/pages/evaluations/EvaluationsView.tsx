@@ -180,7 +180,7 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
     )
 
     return (
-        <div className="flex flex-col h-full min-h-0 grow w-full">
+        <div className="flex flex-col h-full min-h-0 grow w-full p-6">
             <EvaluationRunsTablePOC
                 includePreview
                 pageSize={15}
