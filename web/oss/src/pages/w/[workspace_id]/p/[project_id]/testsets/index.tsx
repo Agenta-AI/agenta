@@ -11,8 +11,8 @@ import {createUseStyles} from "react-jss"
 
 import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
 import useURL from "@/oss/hooks/useURL"
-import {formatDate} from "@/oss/lib/helpers/dateTimeHelper"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
+import {formatDate} from "@/oss/lib/helpers/dateTimeHelper"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {JSSTheme, Testset, testset, TestsetCreationMode} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app"
@@ -204,7 +204,7 @@ const Testset = () => {
     ]
 
     return (
-        <>
+        <div className="w-full p-6 flex flex-col">
             <section className="w-full flex flex-col gap-6 mb-2">
                 <div className={classes.headerText}>
                     <Typography.Title level={4}>Testsets</Typography.Title>
@@ -291,7 +291,7 @@ const Testset = () => {
                     setIsCreateTestsetModalOpen(false)
                 }}
             />
-        </>
+        </div>
     )
 }
 

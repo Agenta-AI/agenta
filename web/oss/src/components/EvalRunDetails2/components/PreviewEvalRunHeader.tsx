@@ -154,7 +154,7 @@ const PreviewEvalRunHeader = ({
         <div
             className={clsx(
                 "w-full",
-                "flex items-center justify-between gap-4 p-2 sticky top-0 z-[11] bg-white",
+                "flex items-center justify-between gap-4 p-2 px-4 sticky top-0 z-[11] bg-white",
                 currentView === "overview" && "border-0",
                 className,
             )}
