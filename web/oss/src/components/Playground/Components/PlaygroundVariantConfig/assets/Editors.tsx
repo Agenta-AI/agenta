@@ -38,6 +38,8 @@ const PlaygroundVariantConfigEditors = ({
         )
     }
 
+    const disablePromptCollapse = promptIds.length === 1
+
     return (
         <div className={clsx("flex flex-col", className)} {...divProps}>
             {promptIds.map((promptId) => (
@@ -45,6 +47,7 @@ const PlaygroundVariantConfigEditors = ({
                     key={`${variantId}:${promptId as string}`}
                     promptId={promptId}
                     variantId={variantId}
+                    disableCollapse={disablePromptCollapse}
                 />
             ))}
             <PlaygroundVariantCustomProperties
