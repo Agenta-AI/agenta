@@ -7,14 +7,14 @@ import {useAtom} from "jotai"
 import {traceSidePanelOpenAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 
 import AccordionTreePanel from "../../components/AccordionTreePanel"
+import TraceSidePanel from "../TraceSidePanel"
 
 import {useStyles} from "./assets/styles"
-import AnnotationTabItem from "./components/AnnotationTabItem"
-import OverviewTabItem from "./components/OverviewTabItem"
 import {TraceContentProps} from "./assets/types"
-import TraceTypeHeader from "./components/TraceTypeHeader"
-import TraceSidePanel from "../TraceSidePanel"
+import AnnotationTabItem from "./components/AnnotationTabItem"
 import LinkedSpansTabItem from "./components/LinkedSpansTabItem"
+import OverviewTabItem from "./components/OverviewTabItem"
+import TraceTypeHeader from "./components/TraceTypeHeader"
 
 const loadingContent = (
     <div className="px-4 py-6">
@@ -63,6 +63,7 @@ const TraceContent = ({
                             value={rawPayload as any}
                             enableFormatSwitcher
                             fullEditorHeight
+                            enableSearch
                         />
                     ),
                 },
@@ -84,6 +85,7 @@ const TraceContent = ({
                         value={{...filteredTrace}}
                         enableFormatSwitcher
                         fullEditorHeight
+                        enableSearch
                     />
                 ),
             },
