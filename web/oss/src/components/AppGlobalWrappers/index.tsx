@@ -77,7 +77,7 @@ const DeleteVariantModalWrapper = dynamic(
 )
 
 const CustomWorkflowModalMount = dynamic(
-    () => import("@/oss/components/Modals/CustomWorkflowModalMount"),
+    () => import("@/oss/components/CustomWorkflow/CustomWorkflowModalMount"),
     {ssr: false},
 )
 
