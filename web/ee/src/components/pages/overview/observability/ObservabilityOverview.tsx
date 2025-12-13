@@ -1,15 +1,11 @@
 import {useMemo} from "react"
 
+import {ChartLine} from "@phosphor-icons/react"
 import {AreaChart} from "@tremor/react"
 import {Col, Row, Spin} from "antd"
 import {createUseStyles} from "react-jss"
 
-import {
-    formatCompactNumber,
-    formatCurrency,
-    formatLatency,
-    formatNumber,
-} from "@/oss/lib/helpers/formatters"
+import {formatCompactNumber, formatCurrency, formatNumber} from "@/oss/lib/helpers/formatters"
 import {JSSTheme} from "@/oss/lib/Types"
 
 import {useObservabilityDashboard} from "../../../../state/observability"
@@ -20,6 +16,16 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .ant-row": {
             rowGap: "20px !important",
         },
+    },
+    emptyState: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        height: 140,
+
+        color: theme.colorTextTertiary,
+        fontSize: 13,
     },
     statText: {
         display: "flex",
@@ -44,12 +50,13 @@ const ObservabilityOverview = () => {
     const classes = useStyles()
     const {data, loading, isFetching} = useObservabilityDashboard()
 
-    const chartData = useMemo(() => (data?.data?.length ? data.data : [{}]), [data])
+    const chartData = useMemo(() => (data?.data?.length ? data.data : []), [data])
+    const hasData = (data?.total_count ?? 0) > 0
 
     const defaultGraphProps = useMemo<React.ComponentProps<typeof AreaChart>>(
         () => ({
             className: "h-[140px]",
-            colors: ["slate", "rose"],
+            colors: ["cyan-600", "rose"],
             connectNulls: true,
             tickGap: 20,
             curveType: "monotone",
@@ -64,6 +71,13 @@ const ObservabilityOverview = () => {
             showYAxis: true,
         }),
         [chartData],
+    )
+
+    const EmptyChart = () => (
+        <div className={classes.emptyState}>
+            <ChartLine size={18} />
+            <span>No data</span>
+        </div>
     )
 
     return (
@@ -94,14 +108,18 @@ const ObservabilityOverview = () => {
                                 )
                             }
                         >
-                            <AreaChart
-                                {...defaultGraphProps}
-                                categories={
-                                    (data?.failure_rate ?? 0) > 0
-                                        ? ["success_count", "failure_count"]
-                                        : ["success_count"]
-                                }
-                            />
+                            {hasData ? (
+                                <AreaChart
+                                    {...defaultGraphProps}
+                                    categories={
+                                        (data?.failure_rate ?? 0) > 0
+                                            ? ["success_count", "failure_count"]
+                                            : ["success_count"]
+                                    }
+                                />
+                            ) : (
+                                <EmptyChart />
+                            )}
                         </WidgetCard>
                     </Col>
                     <Col span={12}>
@@ -118,11 +136,15 @@ const ObservabilityOverview = () => {
                                 </div>
                             }
                         >
-                            <AreaChart
-                                {...defaultGraphProps}
-                                categories={["latency"]}
-                                valueFormatter={(value) => `${formatCompactNumber(value)}ms`}
-                            />
+                            {hasData ? (
+                                <AreaChart
+                                    {...defaultGraphProps}
+                                    categories={["latency"]}
+                                    valueFormatter={(value) => `${formatCompactNumber(value)}ms`}
+                                />
+                            ) : (
+                                <EmptyChart />
+                            )}
                         </WidgetCard>
                     </Col>
                     <Col span={12}>
@@ -145,12 +167,16 @@ const ObservabilityOverview = () => {
                                 </div>
                             }
                         >
-                            <AreaChart
-                                {...defaultGraphProps}
-                                categories={["cost"]}
-                                colors={["emerald"]}
-                                valueFormatter={(value) => formatCurrency(value)}
-                            />
+                            {hasData ? (
+                                <AreaChart
+                                    {...defaultGraphProps}
+                                    categories={["cost"]}
+                                    colors={["cyan-600"]}
+                                    valueFormatter={(value) => formatCurrency(value)}
+                                />
+                            ) : (
+                                <EmptyChart />
+                            )}
                         </WidgetCard>
                     </Col>
                     <Col span={12}>
@@ -175,11 +201,15 @@ const ObservabilityOverview = () => {
                                 </div>
                             }
                         >
-                            <AreaChart
-                                {...defaultGraphProps}
-                                categories={["total_tokens"]}
-                                colors={["emerald"]}
-                            />
+                            {hasData ? (
+                                <AreaChart
+                                    {...defaultGraphProps}
+                                    categories={["total_tokens"]}
+                                    colors={["cyan-600"]}
+                                />
+                            ) : (
+                                <EmptyChart />
+                            )}
                         </WidgetCard>
                     </Col>
                 </Row>
