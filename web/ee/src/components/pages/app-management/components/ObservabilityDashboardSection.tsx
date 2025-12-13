@@ -1,11 +1,15 @@
 import {useMemo, type ComponentProps} from "react"
 
 import {AreaChart} from "@tremor/react"
-import {Spin, Typography} from "antd"
-import round from "lodash/round"
+import {Spin} from "antd"
 import {createUseStyles} from "react-jss"
 
-import {formatCurrency, formatLatency, formatNumber} from "@/oss/lib/helpers/formatters"
+import {
+    formatCompactNumber,
+    formatCurrency,
+    formatLatency,
+    formatNumber,
+} from "@/oss/lib/helpers/formatters"
 import {JSSTheme} from "@/oss/lib/Types"
 
 import {useObservabilityDashboard} from "../../../../state/observability"
@@ -20,20 +24,26 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
     statText: {
-        "& span.ant-typography": {
-            fontSize: theme.fontSize,
-            lineHeight: theme.lineHeight,
-            fontWeight: "normal",
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 13,
+        "& .label": {
             color: theme.colorTextSecondary,
+            fontWeight: 400,
         },
-        "& > span": {
-            fontWeight: theme.fontWeightMedium,
+        "& .value": {
+            color: theme.colorText,
+            fontWeight: 500,
+        },
+        "&.danger .value": {
+            color: theme.colorError,
         },
     },
     widgetContainer: {
         display: "grid",
         gridTemplateColumns: "repeat(2, 1fr)",
-        gap: 16,
+        gap: 20,
         "@media (min-width: 1360px)": {
             gridTemplateColumns: "repeat(4, 1fr)",
         },
@@ -51,16 +61,20 @@ const ObservabilityDashboardSection = () => {
 
     const defaultGraphProps = useMemo<ComponentProps<typeof AreaChart>>(
         () => ({
-            className: "h-[168px] p-0",
-            colors: ["cyan", "red"],
+            className: "h-[140px]",
+            colors: ["slate", "rose"],
             connectNulls: true,
-            tickGap: 15,
+            tickGap: 20,
             curveType: "monotone",
-            showGridLines: false,
+            showGridLines: true,
             showLegend: false,
             index: "timestamp",
             data: chartData,
             categories: [],
+            valueFormatter: (value) => formatCompactNumber(value),
+            yAxisWidth: 48,
+            showXAxis: true,
+            showYAxis: true,
         }),
         [chartData],
     )
@@ -74,18 +88,17 @@ const ObservabilityDashboardSection = () => {
                             title="Requests"
                             leftSubHeading={
                                 <div className={classes.statText}>
-                                    <Typography.Text>Total:</Typography.Text>{" "}
-                                    <span>
+                                    <span className="label">Total:</span>
+                                    <span className="value">
                                         {data?.total_count ? formatNumber(data?.total_count) : "-"}
                                     </span>
                                 </div>
                             }
                             rightSubHeading={
                                 (data?.failure_rate ?? 0) > 0 && (
-                                    <div className={classes.statText}>
-                                        <Typography.Text>Failed:</Typography.Text>{" "}
-                                        <span>
-                                            {" "}
+                                    <div className={`${classes.statText} danger`}>
+                                        <span className="label">Failed:</span>
+                                        <span className="value">
                                             {data?.failure_rate
                                                 ? `${formatNumber(data?.failure_rate)}%`
                                                 : "-"}
@@ -109,8 +122,8 @@ const ObservabilityDashboardSection = () => {
                             title="Latency"
                             leftSubHeading={
                                 <div className={classes.statText}>
-                                    <Typography.Text>Avg:</Typography.Text>{" "}
-                                    <span>
+                                    <span className="label">Avg:</span>
+                                    <span className="value">
                                         {data?.avg_latency
                                             ? `${formatNumber(data.avg_latency)}ms`
                                             : "-"}
@@ -118,7 +131,11 @@ const ObservabilityDashboardSection = () => {
                                 </div>
                             }
                         >
-                            <AreaChart {...defaultGraphProps} categories={["latency"]} />
+                            <AreaChart
+                                {...defaultGraphProps}
+                                categories={["latency"]}
+                                valueFormatter={(value) => `${formatCompactNumber(value)}ms`}
+                            />
                         </WidgetCard>
                     </div>
                     <div className="flex-1">
@@ -126,22 +143,27 @@ const ObservabilityDashboardSection = () => {
                             title="Cost"
                             leftSubHeading={
                                 <div className={classes.statText}>
-                                    <Typography.Text>Total:</Typography.Text>{" "}
-                                    <span>
+                                    <span className="label">Total:</span>
+                                    <span className="value">
                                         {data?.total_cost ? formatCurrency(data.total_cost) : "-"}
                                     </span>
                                 </div>
                             }
                             rightSubHeading={
                                 <div className={classes.statText}>
-                                    <Typography.Text>Avg:</Typography.Text>{" "}
-                                    <span>
+                                    <span className="label">Avg:</span>
+                                    <span className="value">
                                         {data?.total_cost ? formatCurrency(data.avg_cost) : "-"}
                                     </span>
                                 </div>
                             }
                         >
-                            <AreaChart {...defaultGraphProps} categories={["cost"]} />
+                            <AreaChart
+                                {...defaultGraphProps}
+                                categories={["cost"]}
+                                colors={["emerald"]}
+                                valueFormatter={(value) => formatCurrency(value)}
+                            />
                         </WidgetCard>
                     </div>
                     <div className="flex-1">
@@ -149,9 +171,8 @@ const ObservabilityDashboardSection = () => {
                             title="Tokens"
                             leftSubHeading={
                                 <div className={classes.statText}>
-                                    <Typography.Text>Total:</Typography.Text>{" "}
-                                    <span>
-                                        {" "}
+                                    <span className="label">Total:</span>
+                                    <span className="value">
                                         {data?.total_tokens
                                             ? formatNumber(data?.total_tokens)
                                             : "-"}
@@ -160,15 +181,18 @@ const ObservabilityDashboardSection = () => {
                             }
                             rightSubHeading={
                                 <div className={classes.statText}>
-                                    <Typography.Text>Avg:</Typography.Text>{" "}
-                                    <span>
-                                        {" "}
+                                    <span className="label">Avg:</span>
+                                    <span className="value">
                                         {data?.avg_tokens ? formatNumber(data?.avg_tokens) : "-"}
                                     </span>
                                 </div>
                             }
                         >
-                            <AreaChart {...defaultGraphProps} categories={["total_tokens"]} />
+                            <AreaChart
+                                {...defaultGraphProps}
+                                categories={["total_tokens"]}
+                                colors={["emerald"]}
+                            />
                         </WidgetCard>
                     </div>
                 </div>
