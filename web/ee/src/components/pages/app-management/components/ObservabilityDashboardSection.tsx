@@ -27,7 +27,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
-        height: 140,
+        flex: 1,
+        minHeight: 140,
+        paddingBottom: 40,
 
         color: theme.colorTextTertiary,
         fontSize: 13,

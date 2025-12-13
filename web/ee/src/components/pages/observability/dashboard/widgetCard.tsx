@@ -30,6 +30,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         marginBottom: 12,
         minHeight: 22,
     },
+    childrenContainer: {
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        minHeight: 0,
+    },
 }))
 
 interface WidgetData {
@@ -56,7 +62,7 @@ const WidgetInnerContent: React.FC<Omit<WidgetData, "title"> & {loading?: boolea
                 <span>{leftSubHeading ?? null}</span>
                 <span>{rightSubHeading ?? null}</span>
             </div>
-            {children ?? null}
+            <div className={classes.childrenContainer}>{children ?? null}</div>
         </>
     )
 }
