@@ -81,7 +81,7 @@ const ApplicationManagementSection = ({
                 <Flex justify="space-between" align="center" wrap>
                     <Space>
                         <Title level={2} className="!my-2 shrink-0">
-                            Application
+                            Prompts
                         </Title>
                         <Button
                             type="primary"
