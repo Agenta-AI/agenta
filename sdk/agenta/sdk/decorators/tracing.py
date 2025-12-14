@@ -65,7 +65,7 @@ def _warn_instrumentation_before_init_once(handler_name: str) -> None:
         "- Fix: call `ag.init()` once at startup (before invoking any `@ag.instrument()` / `@ag.workflow` code)."
     )
 
-    warnings.warn(message, RuntimeWarning, stacklevel=3)
+    warnings.warn(message, RuntimeWarning, stacklevel=4)
 
 
 def _has_instrument(handler: Callable[..., Any]) -> bool:
