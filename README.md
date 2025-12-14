@@ -140,13 +140,20 @@ The easiest way to get started is through Agenta Cloud. Free tier available with
 ```bash
 git clone https://github.com/Agenta-AI/agenta && cd agenta
 ```
+2. Copy configuration:
 
-2. Start Agenta services:
+Before starting the services, create the environment file from the example:
+
+```bash
+cp hosting/docker-compose/oss/env.oss.gh.example hosting/docker-compose/oss/.env.oss.gh
+```
+
+3. Start Agenta services:
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 ```
 
-3. Access Agenta at `http://localhost`.
+4. Access Agenta at `http://localhost`.
 
 For deploying on a remote host, or using different ports refers to our [self-hosting](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://agenta.ai/docs/self-host/guides/deploy-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
