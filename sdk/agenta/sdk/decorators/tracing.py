@@ -2,6 +2,8 @@
 
 from typing import Callable, Optional, Any, Dict, List, Union
 
+import warnings
+
 from opentelemetry import context as otel_context
 from opentelemetry.context import attach, detach
 
@@ -33,6 +35,37 @@ import agenta as ag
 
 
 log = get_module_logger(__name__)
+
+_PREINIT_INSTRUMENTATION_WARNING_EMITTED = False
+
+
+def _is_tracing_initialized() -> bool:
+    singleton = getattr(ag, "DEFAULT_AGENTA_SINGLETON_INSTANCE", None)
+    tracing = getattr(singleton, "tracing", None) if singleton is not None else None
+
+    return bool(
+        tracing is not None
+        and getattr(tracing, "tracer_provider", None) is not None
+        and getattr(tracing, "tracer", None) is not None
+    )
+
+
+def _warn_instrumentation_before_init_once(handler_name: str) -> None:
+    global _PREINIT_INSTRUMENTATION_WARNING_EMITTED  # pylint: disable=global-statement
+
+    if _PREINIT_INSTRUMENTATION_WARNING_EMITTED:
+        return
+
+    _PREINIT_INSTRUMENTATION_WARNING_EMITTED = True
+
+    message = (
+        "Agenta SDK warning: an instrumented function was called before `ag.init()`.\n"
+        f"- Function: {handler_name}\n"
+        "- Impact: this call will run without Agenta tracing/export.\n"
+        "- Fix: call `ag.init()` once at startup (before invoking any `@ag.instrument()` / `@ag.workflow` code)."
+    )
+
+    warnings.warn(message, RuntimeWarning, stacklevel=3)
 
 
 def _has_instrument(handler: Callable[..., Any]) -> bool:
@@ -80,12 +113,18 @@ class instrument:  # pylint: disable=invalid-name
         is_sync_generator = isgeneratorfunction(handler)
         is_async_generator = isasyncgenfunction(handler)
 
+        handler_name = f"{getattr(handler, '__module__', '<unknown>')}.{getattr(handler, '__qualname__', getattr(handler, '__name__', '<unknown>'))}"
+
         # ---- ASYNC GENERATOR ----
         if is_async_generator:
 
             @wraps(handler)
             def astream_wrapper(*args, **kwargs):
                 with tracing_context_manager(context=TracingContext.get()):
+                    if not _is_tracing_initialized():
+                        _warn_instrumentation_before_init_once(handler_name)
+                        return handler(*args, **kwargs)
+
                     # debug_otel_context("[BEFORE STREAM] [BEFORE SETUP]")
 
                     captured_ctx = otel_context.get_current()
@@ -154,6 +193,10 @@ class instrument:  # pylint: disable=invalid-name
             @wraps(handler)
             def stream_wrapper(*args, **kwargs):
                 with tracing_context_manager(context=TracingContext.get()):
+                    if not _is_tracing_initialized():
+                        _warn_instrumentation_before_init_once(handler_name)
+                        return handler(*args, **kwargs)
+
                     self._parse_type_and_kind()
 
                     token = self._attach_baggage()
@@ -217,6 +260,10 @@ class instrument:  # pylint: disable=invalid-name
             @wraps(handler)
             async def awrapper(*args, **kwargs):
                 with tracing_context_manager(context=TracingContext.get()):
+                    if not _is_tracing_initialized():
+                        _warn_instrumentation_before_init_once(handler_name)
+                        return await handler(*args, **kwargs)
+
                     self._parse_type_and_kind()
 
                     token = self._attach_baggage()
@@ -250,6 +297,10 @@ class instrument:  # pylint: disable=invalid-name
         @wraps(handler)
         def wrapper(*args, **kwargs):
             with tracing_context_manager(context=TracingContext.get()):
+                if not _is_tracing_initialized():
+                    _warn_instrumentation_before_init_once(handler_name)
+                    return handler(*args, **kwargs)
+
                 self._parse_type_and_kind()
 
                 token = self._attach_baggage()
@@ -473,9 +524,7 @@ class instrument:  # pylint: disable=invalid-name
             not in (
                 ignore
                 if isinstance(ignore, list)
-                else io.keys()
-                if ignore is True
-                else []
+                else io.keys() if ignore is True else []
             )
         }
 

@@ -46,9 +46,11 @@ Coverage:
 
 import pytest
 import asyncio
-from unittest.mock import Mock, MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from agenta.sdk.decorators.tracing import instrument
+import agenta.sdk.decorators.tracing as tracing_decorators
 
 
 class TestExistingFunctionality:
@@ -680,3 +682,73 @@ class TestGeneratorTracing:
 
         # Verify span was set to OK status
         self.mock_span.set_status.assert_called_with("OK")
+
+
+class TestPreInitInstrumentationWarnings:
+    def setup_method(self):
+        tracing_decorators._PREINIT_INSTRUMENTATION_WARNING_EMITTED = (
+            False  # pylint: disable=protected-access
+        )
+
+    @patch(
+        "agenta.sdk.decorators.tracing.ag",
+        new=SimpleNamespace(
+            DEFAULT_AGENTA_SINGLETON_INSTANCE=SimpleNamespace(tracing=None),
+        ),
+    )
+    def test_sync_function_warns_once_and_still_executes(self, recwarn):
+        @instrument()
+        def add(x, y):
+            return x + y
+
+        assert add(1, 2) == 3
+        assert add(2, 3) == 5
+
+        runtime_warnings = [
+            w for w in recwarn if issubclass(w.category, RuntimeWarning)
+        ]
+        assert len(runtime_warnings) == 1
+        message = str(runtime_warnings[0].message)
+        assert "called before `ag.init()`" in message
+        assert "Fix: call `ag.init()`" in message
+
+    @pytest.mark.asyncio
+    @patch(
+        "agenta.sdk.decorators.tracing.ag",
+        new=SimpleNamespace(
+            DEFAULT_AGENTA_SINGLETON_INSTANCE=SimpleNamespace(tracing=None),
+        ),
+    )
+    async def test_async_function_warns_once_and_still_executes(self, recwarn):
+        @instrument()
+        async def mul(x, y):
+            await asyncio.sleep(0.001)
+            return x * y
+
+        assert await mul(2, 3) == 6
+        assert await mul(3, 4) == 12
+
+        runtime_warnings = [
+            w for w in recwarn if issubclass(w.category, RuntimeWarning)
+        ]
+        assert len(runtime_warnings) == 1
+
+    @patch(
+        "agenta.sdk.decorators.tracing.ag",
+        new=SimpleNamespace(
+            DEFAULT_AGENTA_SINGLETON_INSTANCE=SimpleNamespace(tracing=None),
+        ),
+    )
+    def test_sync_generator_warns_once_and_still_executes(self, recwarn):
+        @instrument()
+        def gen():
+            yield "a"
+            yield "b"
+
+        assert list(gen()) == ["a", "b"]
+        assert list(gen()) == ["a", "b"]
+
+        runtime_warnings = [
+            w for w in recwarn if issubclass(w.category, RuntimeWarning)
+        ]
+        assert len(runtime_warnings) == 1
