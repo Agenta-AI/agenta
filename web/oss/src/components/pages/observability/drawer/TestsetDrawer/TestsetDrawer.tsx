@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import Editor from "@monaco-editor/react"
 import {
@@ -192,7 +192,19 @@ const TestsetDrawer = ({
         }
     }
 
-    const mappingOptions = useMemo(() => {
+    const allAvailablePaths = useMemo(() => {
+        const uniquePaths = new Set<string>()
+
+        traceData.forEach((traceItem) => {
+            const traceKeys = collectKeyPathsFromObject(traceItem?.data, "data")
+            traceKeys.forEach((key) => uniquePaths.add(key))
+        })
+
+        return Array.from(uniquePaths).map((item) => ({value: item, label: item}))
+    }, [traceData])
+
+    // Auto-detect and map paths when testset is selected
+    useEffect(() => {
         const uniquePaths = new Set<string>()
 
         traceData.forEach((traceItem) => {
@@ -205,9 +217,10 @@ const TestsetDrawer = ({
                 (item) =>
                     item.startsWith("data.inputs") ||
                     item === "data.outputs" ||
-                    item.startsWith("data.outputs."),
+                    item.startsWith("data.outputs.") ||
+                    item.startsWith("data.internals"),
             )
-            .map((item) => ({value: item}))
+            .map((item) => ({value: item, label: item}))
 
         if (mappedData.length > 0 && testset.id) {
             setMappingData((prevMappingData) => {
@@ -263,9 +276,7 @@ const TestsetDrawer = ({
                 return newMappedData
             })
         }
-
-        return mappedData
-    }, [traceData, testset])
+    }, [traceData, testset.id, selectedTestsetColumns])
 
     const columnOptions = useMemo(() => {
         return selectedTestsetColumns?.map(({column}) => ({
@@ -772,10 +783,17 @@ const TestsetDrawer = ({
                                                 key={idx}
                                                 className="flex items-center justify-between gap-2"
                                             >
-                                                <Select
+                                                <AutoComplete
                                                     style={{width: elementWidth}}
-                                                    placeholder="Select a mapped data key"
+                                                    placeholder="Select or type a data path"
                                                     value={data.data || undefined}
+                                                    onSelect={(value) =>
+                                                        onMappingOptionChange({
+                                                            pathName: "data",
+                                                            value,
+                                                            idx,
+                                                        })
+                                                    }
                                                     onChange={(value) =>
                                                         onMappingOptionChange({
                                                             pathName: "data",
@@ -783,7 +801,13 @@ const TestsetDrawer = ({
                                                             idx,
                                                         })
                                                     }
-                                                    options={mappingOptions}
+                                                    options={allAvailablePaths}
+                                                    filterOption={(inputValue, option) =>
+                                                        option!.value
+                                                            .toUpperCase()
+                                                            .indexOf(inputValue.toUpperCase()) !==
+                                                        -1
+                                                    }
                                                 />
                                                 <ArrowRight size={16} />
                                                 <div className="flex-1 flex gap-2 items-center">
