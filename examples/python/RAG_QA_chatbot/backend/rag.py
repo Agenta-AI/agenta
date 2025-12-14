@@ -1,7 +1,7 @@
 """RAG logic: retrieve and generate."""
 
 from dataclasses import dataclass
-from typing import AsyncGenerator, List, Optional
+from typing import AsyncGenerator, List, Optional, Tuple
 
 import agenta as ag
 from agenta.sdk.managers.shared import SharedManager
@@ -46,9 +46,9 @@ def get_query_embedding(text: str, model: str = "openai") -> list[float]:
 @ag.instrument()
 def retrieve(
     query: str,
-    top_k: int = None,
-    collection_name: str = None,
-    embedding_model: str = None,
+    top_k: Optional[int] = None,
+    collection_name: Optional[str] = None,
+    embedding_model: Optional[str] = None,
 ) -> List[RetrievedDoc]:
     """
     Retrieve relevant documents from the vector store.
@@ -129,12 +129,12 @@ Answer based on the context above:"""
 
 
 @ag.instrument()
-async def get_prompt_config() -> Optional[dict]:
+async def get_prompt_config() -> Optional[Tuple]:
     """
     Fetch prompt configuration from Agenta registry.
 
     Returns:
-        Config dict with 'prompt' key if successful, None otherwise.
+        Tuple of (config, refs) if successful, None otherwise.
     """
     try:
         config = await SharedManager.afetch(
@@ -153,7 +153,7 @@ async def get_prompt_config() -> Optional[dict]:
             ag.Reference.ENVIRONMENT_VERSION.value: str(config.environment_version),
         }
 
-        return config, refs
+        return (config, refs)
     except Exception:
         import traceback
 
@@ -166,7 +166,7 @@ async def get_prompt_config() -> Optional[dict]:
 async def generate(
     query: str,
     docs: List[RetrievedDoc],
-    model: str = None,
+    model: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """
     Generate a response using the LLM with streaming.
@@ -191,9 +191,14 @@ async def generate(
     )
 
     # Try to fetch prompt from Agenta, fallback to default if unavailable
-    config, refs = await get_prompt_config()
-    ag.tracing.store_refs(refs)
-    params = config.params
+    result = await get_prompt_config()
+    if result:
+        config, refs = result
+        ag.tracing.store_refs(refs)
+        params = config.params
+    else:
+        params = None
+
     if params and "prompt" in params:
         try:
             # Use PromptTemplate from Agenta

@@ -53,9 +53,8 @@ import { Loader } from "@/components/ai-elements/loader";
 export default function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage, status, regenerate, setMessages } = useChat({
-    // Bypass Next.js proxy to avoid buffering - call backend directly
-    // @ts-ignore - api property works but not in type definitions
-    api: "http://144.76.237.122/:8000/api/chat",
+    // Use relative URL - Next.js rewrites to backend
+    api: "/api/chat",
     onError: (error) => {
       console.error("useChat error:", error);
     },
