@@ -752,3 +752,32 @@ class TestPreInitInstrumentationWarnings:
             w for w in recwarn if issubclass(w.category, RuntimeWarning)
         ]
         assert len(runtime_warnings) == 1
+
+    @pytest.mark.asyncio
+    @patch(
+        "agenta.sdk.decorators.tracing.ag",
+        new=SimpleNamespace(
+            DEFAULT_AGENTA_SINGLETON_INSTANCE=SimpleNamespace(tracing=None),
+        ),
+    )
+    async def test_async_generator_warns_once_and_still_executes(self, recwarn):
+        @instrument()
+        async def gen():
+            yield "a"
+            await asyncio.sleep(0.001)
+            yield "b"
+
+        first = []
+        async for item in gen():
+            first.append(item)
+        assert first == ["a", "b"]
+
+        second = []
+        async for item in gen():
+            second.append(item)
+        assert second == ["a", "b"]
+
+        runtime_warnings = [
+            w for w in recwarn if issubclass(w.category, RuntimeWarning)
+        ]
+        assert len(runtime_warnings) == 1
