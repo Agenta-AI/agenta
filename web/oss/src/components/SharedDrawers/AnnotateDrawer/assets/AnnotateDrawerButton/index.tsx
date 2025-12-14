@@ -36,7 +36,11 @@ const AnnotateDrawerButton = ({
                 <EnhancedButton
                     label={label}
                     icon={icon && <PencilSimpleLine size={14} />}
-                    onClick={() => setIsDrawerOpen(true)}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDrawerOpen(true)
+                    }}
                     {...props}
                 />
             )}
