@@ -1,16 +1,15 @@
-import toml
-from os import getenv
-from typing import Optional, Callable, Any
 from importlib.metadata import version
+from os import getenv
+from typing import Any, Callable, Optional
 
-from agenta.sdk.utils.helpers import parse_url
-from agenta.sdk.utils.globals import set_global
-from agenta.sdk.utils.logging import get_module_logger
+import requests
+import toml
 from agenta.client.client import AgentaApi, AsyncAgentaApi
-
-from agenta.sdk.tracing import Tracing
 from agenta.sdk.contexts.routing import RoutingContext
-
+from agenta.sdk.tracing import Tracing
+from agenta.sdk.utils.globals import set_global
+from agenta.sdk.utils.helpers import parse_url
+from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
@@ -32,6 +31,10 @@ class AgentaSingleton:
 
         self.scope_type = None
         self.scope_id = None
+
+        # Cached scope information for URL building
+        self._workspace_id: Optional[str] = None
+        self._project_id: Optional[str] = None
 
     def __new__(cls):
         if not cls._instance:
@@ -158,6 +161,97 @@ class AgentaSingleton:
             host=self.host,
             api_key=self.api_key,
         )
+
+        # Reset cached scope info on re-init
+        self._workspace_id = None
+        self._project_id = None
+
+    def _fetch_scope_ids(self) -> None:
+        """Fetch and cache workspace_id and project_id from the API."""
+        if self._workspace_id is not None and self._project_id is not None:
+            return
+
+        if self.api_url is None or self.api_key is None:
+            log.error("API URL or API key is not set. Please call ag.init() first.")
+            return
+
+        try:
+            response = requests.get(
+                f"{self.api_url}/projects/current",
+                headers={"Authorization": f"ApiKey {self.api_key}"},
+                timeout=10,
+            )
+            response.raise_for_status()
+
+            project_info = response.json()
+
+            if not project_info:
+                log.error(
+                    "No project context found. Please ensure your API key is valid."
+                )
+
+            self._workspace_id = project_info.get("workspace_id")
+            self._project_id = project_info.get("project_id")
+
+            if not self._workspace_id or not self._project_id:
+                log.error("Could not determine workspace/project from API response.")
+        except Exception as e:
+            log.error(f"Failed to fetch scope information: {e}")
+            return
+
+    def get_trace_url(self, trace_id: Optional[str] = None) -> str:
+        """
+        Build a URL to view a trace in the Agenta UI.
+
+        Automatically extracts the trace ID from the current tracing context
+        if not explicitly provided.
+
+        Args:
+            trace_id: Optional trace ID (hex string format). If not provided,
+                      it will be automatically extracted from the current trace context.
+
+        Returns:
+            The full URL to view the trace in the observability dashboard
+
+        Raises:
+            RuntimeError: If the SDK is not initialized, no active trace context exists,
+                          or scope info cannot be fetched
+
+        Example:
+            >>> import agenta as ag
+            >>> ag.init(api_key="xxx")
+            >>>
+            >>> @ag.instrument()
+            >>> def my_function():
+            >>>     # Get URL for the current trace
+            >>>     url = ag.get_trace_url()
+            >>>     print(url)
+            >>>     return "result"
+        """
+        if self.host is None:
+            raise RuntimeError(
+                "Agenta SDK is not initialized. Please call ag.init() first."
+            )
+
+        # Auto-detect trace_id from tracing context if not provided
+        if trace_id is None:
+            if self.tracing is None:
+                raise RuntimeError(
+                    "Tracing is not configured. Please call ag.init() first."
+                )
+
+            span_ctx = self.tracing.get_span_context()
+            if span_ctx is None or not span_ctx.is_valid:
+                raise RuntimeError(
+                    "No active trace context found. "
+                    "Make sure you call this within an instrumented function or span."
+                )
+
+            trace_id = f"{span_ctx.trace_id:032x}"
+
+        self._fetch_scope_ids()
+
+        return f"{self.host}/w/{self._workspace_id}/p/{self._project_id}/observability?trace={trace_id}"
 
 
 class Config:

@@ -1,52 +1,50 @@
 from typing import Any, Callable, Optional
 
-from .sdk.utils.preinit import PreInitObject
-
-from agenta.client import AgentaApi, AsyncAgentaApi
 import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
+from agenta.client import AgentaApi, AsyncAgentaApi
 
-from .sdk.types import (
-    MCField,
-    DictInput,
-    MultipleChoice,
-    FloatParam,
-    IntParam,
-    MultipleChoiceParam,
-    GroupedMultipleChoiceParam,
-    MessagesInput,
-    TextParam,
-    FileInputURL,
-    BinaryParam,
-    Prompt,
-    PromptTemplate,
-)
-
-from .sdk.agenta_init import Config, AgentaSingleton, init as _init
-from .sdk.utils.logging import get_module_logger
-from .sdk.utils.costs import calculate_token_usage
-from .sdk.tracing import Tracing, get_tracer
-from .sdk.tracing.conventions import Reference
-from .sdk.decorators.tracing import instrument
-from .sdk.decorators.running import (
-    workflow,
-    application,
-    evaluator,
-)
-from .sdk.decorators.serving import route, app
-from .sdk.context.running import workflow_mode_enabled
-from .sdk.litellm import litellm as callbacks
-from .sdk.managers.apps import AppManager
-from .sdk.managers.vault import VaultManager
-from .sdk.managers.secrets import SecretsManager
-from .sdk.managers.config import ConfigManager
-from .sdk.managers.variant import VariantManager
-from .sdk.managers.deployment import DeploymentManager
 from .sdk import assets as assets
-from .sdk import tracer
 
 # evaluations
 from .sdk import testsets as testsets
-
+from .sdk import tracer
+from .sdk.agenta_init import AgentaSingleton, Config
+from .sdk.agenta_init import init as _init
+from .sdk.context.running import workflow_mode_enabled
+from .sdk.decorators.running import (
+    application,
+    evaluator,
+    workflow,
+)
+from .sdk.decorators.serving import app, route
+from .sdk.decorators.tracing import instrument
+from .sdk.litellm import litellm as callbacks
+from .sdk.managers.apps import AppManager
+from .sdk.managers.config import ConfigManager
+from .sdk.managers.deployment import DeploymentManager
+from .sdk.managers.secrets import SecretsManager
+from .sdk.managers.variant import VariantManager
+from .sdk.managers.vault import VaultManager
+from .sdk.tracing import Tracing, get_tracer
+from .sdk.tracing.conventions import Reference
+from .sdk.types import (
+    BinaryParam,
+    DictInput,
+    FileInputURL,
+    FloatParam,
+    GroupedMultipleChoiceParam,
+    IntParam,
+    MCField,
+    MessagesInput,
+    MultipleChoice,
+    MultipleChoiceParam,
+    Prompt,
+    PromptTemplate,
+    TextParam,
+)
+from .sdk.utils.costs import calculate_token_usage
+from .sdk.utils.logging import get_module_logger
+from .sdk.utils.preinit import PreInitObject
 
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
@@ -88,3 +86,35 @@ def init(
 
     tracing = DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing  # type: ignore
     tracer = get_tracer(tracing)
+
+
+def get_trace_url(trace_id: Optional[str] = None) -> str:
+    """
+    Build a URL to view the current trace in the Agenta UI.
+
+    Automatically extracts the trace ID from the current tracing context.
+    Can also accept an explicit trace_id if needed.
+
+    Args:
+        trace_id: Optional trace ID (hex string format). If not provided,
+                  it will be automatically extracted from the current trace context.
+
+    Returns:
+        The full URL to view the trace in the observability dashboard
+
+    Raises:
+        RuntimeError: If the SDK is not initialized, no active trace context exists,
+                      or scope info cannot be fetched
+
+    Example:
+        >>> import agenta as ag
+        >>> ag.init(api_key="xxx")
+        >>>
+        >>> @ag.instrument()
+        >>> def my_function():
+        >>>     # Get URL for the current trace
+        >>>     url = ag.get_trace_url()
+        >>>     print(url)
+        >>>     return "result"
+    """
+    return DEFAULT_AGENTA_SINGLETON_INSTANCE.get_trace_url(trace_id)
