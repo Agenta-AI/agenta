@@ -143,7 +143,9 @@ services:
             python entrypoints/worker_tracing.py
 
     cron:
-        image: agenta-oss-dev-api:latest
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
             #
