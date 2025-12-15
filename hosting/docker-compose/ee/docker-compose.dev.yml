@@ -102,7 +102,6 @@ services:
         image: agenta-ee-dev-api:latest
 
         volumes:
-            - ../../../api/entrypoints/worker_evaluations.py:/app/entrypoints/worker_evaluations.py
             - ../../../api:/app
             - ../../../sdk:/sdk
 
@@ -133,7 +132,6 @@ services:
         image: agenta-ee-dev-api:latest
 
         volumes:
-            - ../../../api/entrypoints/worker_tracing.py:/app/entrypoints/worker_tracing.py
             - ../../../api:/app
             - ../../../sdk:/sdk
 

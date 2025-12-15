@@ -19,6 +19,7 @@ class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
 
     _instance = None
+    _initialized = False
     config = None
     tracing = None
 
@@ -26,6 +27,11 @@ class AgentaSingleton:
     async_api = None
 
     def __init__(self):
+        # Only initialize once
+        if AgentaSingleton._initialized:
+            return
+
+        AgentaSingleton._initialized = True
         self.host = None
         self.api_url = None
         self.api_key = None

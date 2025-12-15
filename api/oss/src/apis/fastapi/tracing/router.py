@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 from oss.src.core.tracing.dtos import (
+    OTelLink,
     OTelLinks,
     OTelSpan,
     OTelFlatSpans,
@@ -48,6 +49,9 @@ from oss.src.core.tracing.dtos import (
 )
 
 log = get_module_logger(__name__)
+
+if is_ee():
+    from ee.src.utils.entitlements import check_entitlements, Counter
 
 
 class TracingRouter:
@@ -165,7 +169,7 @@ class TracingRouter:
         #
         spans: Optional[OTelFlatSpans] = None,
         traces: Optional[OTelTraceTree] = None,
-        strict: Optional[bool] = False,
+        sync: bool = False,
     ) -> OTelLinks:
         _spans: Dict[str, Union[OTelSpan, OTelFlatSpans]] = dict()
 
@@ -197,16 +201,42 @@ class TracingRouter:
 
         span_dtos = parse_spans_from_request(_spans)
 
-        # Publish to Redis Streams for async processing with entitlements check
-        await self.worker.publish_to_stream(
-            organization_id=organization_id,
-            project_id=project_id,
-            user_id=user_id,
-            span_dtos=span_dtos,
-        )
+        if sync:
+            # Synchronous path for low-volume, user-facing operations
+            # (annotations, invocations) - check entitlements inline and write directly
+            if is_ee():
+                # Count root spans (traces) for entitlements check
+                delta = sum(1 for span_dto in span_dtos if span_dto.parent_id is None)
+                if delta > 0:
+                    allowed, _, _ = await check_entitlements(  # type: ignore
+                        organization_id=organization_id,
+                        key=Counter.TRACES,  # type: ignore
+                        delta=delta,
+                        use_cache=False,  # Authoritative DB check
+                    )
+                    if not allowed:
+                        raise HTTPException(
+                            status_code=429,
+                            detail="Trace quota exceeded for organization",
+                        )
+
+            # Write directly to database (synchronous)
+            await self.service.create(
+                project_id=project_id,
+                user_id=user_id,
+                span_dtos=span_dtos,
+            )
+        else:
+            # Async path for high-volume operations (observability, evaluations)
+            # Publish to Redis Streams for async processing with entitlements check
+            await self.worker.publish_to_stream(
+                organization_id=organization_id,
+                project_id=project_id,
+                user_id=user_id,
+                span_dtos=span_dtos,
+            )
 
         # Generate links from span_dtos to return to client
-        # Worker will process asynchronously
         links = [
             OTelLink(
                 trace_id=str(span_dto.trace_id),
@@ -224,6 +254,7 @@ class TracingRouter:
         self,
         request: Request,
         trace_request: OTelTracingRequest,
+        sync: bool = False,
     ) -> OTelLinksResponse:
         spans = None
 
@@ -282,7 +313,7 @@ class TracingRouter:
             #
             spans=trace_request.spans,
             traces=trace_request.traces,
-            strict=True,
+            sync=sync,
         )
 
         link_response = OTelLinksResponse(
@@ -338,6 +369,7 @@ class TracingRouter:
         trace_request: OTelTracingRequest,
         #
         trace_id: str,
+        sync: bool = False,
     ) -> OTelLinksResponse:
         spans = None
 
@@ -396,7 +428,7 @@ class TracingRouter:
             #
             spans=trace_request.spans,
             traces=trace_request.traces,
-            strict=False,
+            sync=sync,
         )
 
         link_response = OTelLinksResponse(
@@ -449,7 +481,6 @@ class TracingRouter:
             #
             spans=spans_request.spans,
             traces=spans_request.traces,
-            strict=True,
         )
 
         link_response = OTelLinksResponse(

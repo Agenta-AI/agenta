@@ -35,7 +35,7 @@ services:
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/entrypoints/routers.py:/app/entrypoints/routers.py
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -86,7 +86,7 @@ services:
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/entrypoints/worker_evaluations.py:/app/entrypoints/worker_evaluations.py
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -117,7 +117,7 @@ services:
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/entrypoints/worker_tracing.py:/app/entrypoints/worker_tracing.py
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
