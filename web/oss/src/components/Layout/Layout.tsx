@@ -50,6 +50,7 @@ const AppWithVariants = memo(
         isTestsets,
         isEvaluator,
         appTheme,
+        footerHeight,
         ...props
     }: {
         children: ReactNode
@@ -60,6 +61,7 @@ const AppWithVariants = memo(
         classes: StyleClasses
         appTheme: string
         isPlayground?: boolean
+        footerHeight?: number
     }) => {
         const {baseAppURL} = useURL()
         const appState = useAppState()
@@ -117,12 +119,17 @@ const AppWithVariants = memo(
                                 <OldAppDeprecationBanner>
                                     <CustomWorkflowBanner />
                                     <Content
-                                        className={clsx(classes.content, {
-                                            "flex flex-col min-h-0 grow":
-                                                isHumanEval || isEvaluator || isTestsets,
-                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                isPlayground,
-                                        })}
+                                        className={clsx(
+                                            "flex gap-4 flex-col w-full",
+                                            // "h-[calc(100%-30px)]",
+                                            {
+                                                "p-6 pb-0 mb-8": !isHumanEval,
+                                                "flex flex-col min-h-0 grow":
+                                                    isHumanEval || isEvaluator || isTestsets,
+                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                    isPlayground,
+                                            },
+                                        )}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
                                             <ConfigProvider
@@ -133,14 +140,31 @@ const AppWithVariants = memo(
                                                             : theme.defaultAlgorithm,
                                                 }}
                                             >
-                                                {children}
+                                                {isHumanEval || isEvaluator || isTestsets ? (
+                                                    <div
+                                                        className={clsx(
+                                                            "w-full flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px)] overflow-hidden",
+                                                        )}
+                                                    >
+                                                        {children}
+                                                    </div>
+                                                ) : (
+                                                    children
+                                                )}
                                             </ConfigProvider>
                                         </ErrorBoundary>
                                     </Content>
                                 </OldAppDeprecationBanner>
                             ) : (
                                 <Content
-                                    className={clsx(classes.content, {
+                                    className={clsx("flex gap-4", "h-[calc(100%-30px)]", {
+                                        "p-6 pb-0 mb-8": !(
+                                            isHumanEval ||
+                                            isEvaluator ||
+                                            isTestsets
+                                        ),
+                                        "flex flex-col min-h-0 grow":
+                                            isHumanEval || isEvaluator || isTestsets,
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                             isPlayground || isEvaluator,
                                     })}
@@ -155,8 +179,8 @@ const AppWithVariants = memo(
                                             }}
                                         >
                                             <div
-                                                className={clsx({
-                                                    "w-full flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px-24px-30px)] overflow-hidden":
+                                                className={clsx("w-full flex flex-col", {
+                                                    "min-h-0 gap-6 h-[calc(100dvh-75px)] overflow-hidden":
                                                         isHumanEval || isEvaluator || isTestsets,
                                                 })}
                                             >
@@ -167,7 +191,7 @@ const AppWithVariants = memo(
                                 </Content>
                             )}
                         </div>
-                        <div className="w-full h-[20px]"></div>
+                        <div className="w-full h-[30px]"></div>
                         <FooterIsland className={classes.footer}>
                             <Space className={classes.footerLeft} size={10}>
                                 <Link href={"https://github.com/Agenta-AI/agenta"} target="_blank">
@@ -276,6 +300,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         isHumanEval={isHumanEval}
                         isEvaluator={isEvaluator}
                         isTestsets={isTestsets}
+                        footerHeight={footerHeight}
                     >
                         {children}
                         {contextHolder}

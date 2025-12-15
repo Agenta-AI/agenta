@@ -295,7 +295,13 @@ export const VariantReferenceLabel = memo(
 
         if (!revisionId) {
             if (customLabel) {
-                return <ReferenceTag label={customLabel} className="max-w-[220px] w-fit" tone="variant" />
+                return (
+                    <ReferenceTag
+                        label={customLabel}
+                        className="max-w-[220px] w-fit"
+                        tone="variant"
+                    />
+                )
             }
             return <Text type="secondary">—</Text>
         }
@@ -434,7 +440,11 @@ export const VariantReferenceText = memo(
         const query = useAtomValue(queryAtom)
 
         if (!revisionId) {
-            return <Text type="secondary" className="w-fit">{customLabel ?? fallback ?? "—"}</Text>
+            return (
+                <Text type="secondary" className="w-fit">
+                    {customLabel ?? fallback ?? "—"}
+                </Text>
+            )
         }
 
         if (query.isPending || query.isFetching) {

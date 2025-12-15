@@ -393,6 +393,12 @@ app.include_router(
 app.include_router(
     router=tracing.router,
     prefix="/preview/tracing",
+    tags=["Deprecated"],
+)
+
+app.include_router(
+    router=tracing.router,
+    prefix="/tracing",
     tags=["Observability"],
 )
 
