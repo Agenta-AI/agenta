@@ -23,8 +23,11 @@ import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/asset
 import {useQueryParamState} from "@/oss/state/appState"
 
 import {shouldIgnoreRowClick} from "../../actions/navigationActions"
-import {evaluationRunsTableFetchEnabledAtom} from "../../atoms/context"
-import {evaluationRunsDatasetStore} from "../../atoms/tableStore"
+import {
+    evaluationRunsDeleteContextAtom,
+    evaluationRunsTableFetchEnabledAtom,
+} from "../../atoms/context"
+import {EVALUATION_RUNS_QUERY_KEY_ROOT, evaluationRunsDatasetStore} from "../../atoms/tableStore"
 import {
     evaluationRunsDeleteModalOpenAtom,
     evaluationRunsCreateModalOpenAtom,
@@ -60,6 +63,13 @@ import {resolveMetricColumnExportLabel, resolveMetricExportValue} from "./export
 import {resolveReferenceValueFromAtoms} from "./export/referenceResolvers"
 import {resolveCreatedByExportValue, resolveRunNameFromSummary} from "./export/runResolvers"
 import {EvaluationRunsTableProps} from "./types"
+
+const DeleteEvaluationModal = dynamic(
+    () => import("@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"),
+    {
+        ssr: false,
+    },
+)
 
 const NewEvaluationModal = dynamic(
     () => import("@/oss/components/pages/evaluations/NewEvaluation"),
@@ -185,7 +195,7 @@ const EvaluationRunsTableActive = ({
         createEvaluationType,
         evaluationKind: contextEvaluationKind,
     } = useAtomValue(evaluationRunsTableComponentSliceAtom)
-    const _setMetaUpdater = useSetAtom(evaluationRunsMetaUpdaterAtom)
+    const setMetaUpdater = useSetAtom(evaluationRunsMetaUpdaterAtom)
     const setResetCallback = useSetAtom(evaluationRunsTableResetAtom)
     const setActivePreviewProjectId = useSetAtom(activePreviewProjectIdAtom)
     const [isCreateModalOpen, setIsCreateModalOpen] = useAtom(evaluationRunsCreateModalOpenAtom)
@@ -194,7 +204,9 @@ const EvaluationRunsTableActive = ({
     )
     const [selectedRowKeys, setSelectedRowKeys] = useAtom(evaluationRunsSelectedRowKeysAtom)
     const [rowExportingKey, setRowExportingKey] = useState<string | null>(null)
-    const setDeleteModalOpen = useSetAtom(evaluationRunsDeleteModalOpenAtom)
+    const deleteContext = useAtomValue(evaluationRunsDeleteContextAtom)
+    const [isDeleteModalOpen, setDeleteModalOpen] = useAtom(evaluationRunsDeleteModalOpenAtom)
+
     const selectionSnapshot = useAtomValue(evaluationRunsSelectionSnapshotAtom)
     const store = useStore()
     const queryClient = useQueryClient()
@@ -235,6 +247,45 @@ const EvaluationRunsTableActive = ({
 
     // Poll for updates when evaluations are running
     useEvaluationRunsPolling({rows: displayedRows})
+
+    useEffect(() => {
+        if (!selectionSnapshot.hasSelection && isDeleteModalOpen) {
+            setDeleteModalOpen(false)
+        }
+    }, [isDeleteModalOpen, selectionSnapshot.hasSelection, setDeleteModalOpen])
+
+    const evaluationType = useMemo(() => {
+        if (selectionSnapshot.labels && selectionSnapshot.labels.length) {
+            return selectionSnapshot.labels
+        }
+        return "selected evaluations"
+    }, [selectionSnapshot.labels])
+
+    const deletionConfig = useMemo(() => {
+        if (!selectionSnapshot.hasSelection) return undefined
+        return {
+            evaluationKind: deleteContext.evaluationKind,
+            projectId: deleteContext.projectId,
+            previewRunIds: selectionSnapshot.previewRunIds,
+            invalidateQueryKeys: [EVALUATION_RUNS_QUERY_KEY_ROOT],
+            onSuccess: async () => {
+                setSelectedRowKeys([])
+                setMetaUpdater((prev) => ({...prev}))
+                setDeleteModalOpen(false)
+            },
+            onError: () => {
+                setDeleteModalOpen(false)
+            },
+        }
+    }, [
+        deleteContext.evaluationKind,
+        deleteContext.projectId,
+        selectionSnapshot.hasSelection,
+        selectionSnapshot.previewRunIds,
+        setMetaUpdater,
+        setSelectedRowKeys,
+        setDeleteModalOpen,
+    ])
 
     const buildRowHandlers = useCallback(
         (record: EvaluationRunTableRow) => {
@@ -603,6 +654,14 @@ const EvaluationRunsTableActive = ({
                 exportOptions={exportOptions}
                 useSettingsDropdown={isNarrowScreen}
                 keyboardShortcuts={infiniteTableKeyboardShortcuts}
+            />
+
+            <DeleteEvaluationModal
+                open={isDeleteModalOpen}
+                onCancel={() => setDeleteModalOpen(false)}
+                evaluationType={evaluationType}
+                isMultiple={selectionSnapshot.rows.length > 1}
+                deletionConfig={deletionConfig}
             />
 
             {createSupported ? (
