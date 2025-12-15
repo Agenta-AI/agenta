@@ -4,6 +4,7 @@ from copy import deepcopy
 from hashlib import blake2b
 from traceback import format_exc
 from datetime import datetime
+from re import match
 
 from fastapi import Query
 
@@ -54,6 +55,7 @@ from oss.src.core.tracing.utils import (
 log = get_module_logger(__name__)
 
 TRACE_DEFAULT_KEY = "__default__"
+URL_SAFE = r"^[a-zA-Z0-9_-]+$"
 
 # --- PARSE QUERY DTO ---
 
@@ -399,11 +401,13 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     if isinstance(references_dict, dict):
         for key in references_dict:
             if key in REFERENCE_KEYS:
-                entry = {}
+                entry: Dict[str, Optional[str]] = dict()
                 if references_dict[key].get("id") is not None:
                     entry["id"] = str(references_dict[key]["id"])
                 if references_dict[key].get("slug") is not None:
                     entry["slug"] = str(references_dict[key]["slug"])
+                    if entry["slug"] and not match(URL_SAFE, entry["slug"]):
+                        entry["slug"] = None
                 if references_dict[key].get("version") is not None:
                     entry["version"] = str(references_dict[key]["version"])
 
