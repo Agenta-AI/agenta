@@ -1,9 +1,9 @@
 import {useMemo, useState} from "react"
 
-import {Tabs, Typography} from "antd"
 import {Chats, TreeStructure} from "@phosphor-icons/react"
+import {Tabs, Typography} from "antd"
 
-import ObservabilityDashboard from "./ObservabilityDashboard"
+import ObservabilityTable from "./components/ObservabilityTable"
 
 const ObservabilityTabs = () => {
     const [activeTab, setActiveTab] = useState<"traces" | "sessions">("traces")
@@ -45,7 +45,7 @@ const ObservabilityTabs = () => {
             </div>
 
             {activeTab === "traces" ? (
-                <ObservabilityDashboard />
+                <ObservabilityTable />
             ) : (
                 <div className="min-h-[200px]" />
             )}

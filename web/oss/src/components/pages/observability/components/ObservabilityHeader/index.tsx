@@ -25,17 +25,15 @@ import {
     getLatency,
     getTokens,
 } from "@/oss/state/newObservability/selectors/tracing"
-
-import {buildAttributeKeyTreeOptions} from "../filters/attributeKeyOptions"
-import getFilterColumns from "../getFilterColumns"
-import {ObservabilityHeaderProps} from "../types"
+import {ObservabilityHeaderProps} from "../../assets/types"
+import {buildAttributeKeyTreeOptions} from "../../assets/filters/attributeKeyOptions"
+import getFilterColumns from "../../assets/getFilterColumns"
 
 const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
 const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
-    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isScrolled, setIsScrolled] = useState(false)
 
     const {

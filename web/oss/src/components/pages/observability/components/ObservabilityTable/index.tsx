@@ -13,16 +13,16 @@ import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
 
-import {filterColumns} from "../../Filters/EditColumns/assets/helper"
-import ResizableTitle from "../../ResizableTitle"
-import {getObservabilityColumns} from "./assets/getObservabilityColumns"
+import {filterColumns} from "../../../../Filters/EditColumns/assets/helper"
+import ResizableTitle from "../../../../ResizableTitle"
+import {getObservabilityColumns} from "../../assets/getObservabilityColumns"
 
-const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})
+const EmptyObservability = dynamic(() => import("../EmptyObservability"), {ssr: false})
 const TestsetDrawer = dynamic(
-    () => import("../../SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
+    () => import("../../../../SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
     {ssr: false},
 )
-const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
+const ObservabilityHeader = dynamic(() => import("../ObservabilityHeader"), {ssr: false})
 
 const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     const slugs = new Set<string>()
@@ -51,7 +51,7 @@ const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     return Array.from(slugs)
 }
 
-const ObservabilityDashboard = () => {
+const ObservabilityTable = () => {
     const {
         traces,
         isLoading,
@@ -276,4 +276,4 @@ const ObservabilityDashboard = () => {
     )
 }
 
-export default ObservabilityDashboard
+export default ObservabilityTable
