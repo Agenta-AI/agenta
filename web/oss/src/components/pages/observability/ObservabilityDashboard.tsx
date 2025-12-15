@@ -1,33 +1,28 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Table, TableColumnType, Typography} from "antd"
+import {Button, Table, TableColumnType} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {
-    chatSessionsAtom,
-    openSessionDrawerAtom,
-    setTraceDrawerActiveSpanAtom as setSessionDrawerActiveTurnAtom,
-} from "@/oss/components/SharedDrawers/SessionDrawer/store/sessionDrawerStore"
-import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+    openTraceDrawerAtom,
+    setTraceDrawerActiveSpanAtom,
+} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
 
 import {filterColumns} from "../../Filters/EditColumns/assets/helper"
 import ResizableTitle from "../../ResizableTitle"
-
 import {getObservabilityColumns} from "./assets/getObservabilityColumns"
 
-const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})
 const TestsetDrawer = dynamic(
     () => import("../../SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
-    {
-        ssr: false,
-    },
+    {ssr: false},
 )
+const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
 
 const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     const slugs = new Set<string>()
@@ -77,9 +72,8 @@ const ObservabilityDashboard = () => {
         isFetchingMore,
     } = useObservability()
     const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
-    const openSessionDrawer = useSetAtom(openSessionDrawerAtom)
-    const setSessionActiveTurn = useSetAtom(setSessionDrawerActiveTurnAtom)
-    const chatSessions = useAtomValue(chatSessionsAtom)
+    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
+    const annotationEvaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
 
     const [traceParamValue, setTraceParam] = useQueryParamState("trace")
     const traceParam = Array.isArray(traceParamValue)
@@ -90,8 +84,6 @@ const ObservabilityDashboard = () => {
     const spanParam = Array.isArray(spanParamValue)
         ? (spanParamValue[0] ?? "")
         : ((spanParamValue as string | undefined) ?? "")
-
-    const annotationEvaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
 
     const traceEvaluatorSlugs = useMemo(() => collectEvaluatorSlugsFromTraces(traces), [traces])
 
@@ -192,26 +184,9 @@ const ObservabilityDashboard = () => {
         }))
     }, [columns, editColumns])
 
-    const handleOpenSessionDrawer = useCallback(() => {
-        if (!chatSessions.length) return
-        const session = chatSessions[0]
-        const lastTurn = session.turns?.[session.turns.length - 1]
-        openSessionDrawer({
-            traceId: session.session_id,
-            activeSpanId: lastTurn?.turn_index ?? null,
-        })
-        setSessionActiveTurn(lastTurn?.turn_index ?? null)
-    }, [chatSessions, openSessionDrawer, setSessionActiveTurn])
-
     return (
         <div className="flex flex-col gap-6">
-            <Typography.Text className="text-[16px] font-medium">Observability</Typography.Text>
-
-            <div className="flex items-center justify-between gap-3">
-                <ObservabilityHeader columns={columns} />
-                <Button onClick={handleOpenSessionDrawer}>Open chat session drawer</Button>
-            </div>
-
+            <ObservabilityHeader columns={columns} />
             <div className="flex flex-col gap-2">
                 <Table
                     rowSelection={{
