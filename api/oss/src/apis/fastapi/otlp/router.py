@@ -16,6 +16,7 @@ from oss.src.utils.common import is_ee
 from oss.src.apis.fastapi.otlp.models import CollectStatusResponse
 from oss.src.apis.fastapi.otlp.opentelemetry.otlp import parse_otlp_stream
 from oss.src.apis.fastapi.otlp.utils.processing import parse_from_otel_span_dto
+from oss.src.core.tracing.utils import calculate_and_propagate_metrics
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
@@ -195,6 +196,20 @@ class OTLPRouter:
                     org_id=str(request.state.organization_id),
                     exc_info=True,
                 )
+
+        # -------------------------------------------------------------------- #
+        # Calculate and propagate costs/tokens BEFORE batching
+        # This ensures complete trace trees for proper metric propagation
+        # -------------------------------------------------------------------- #
+        if spans:
+            try:
+                spans = calculate_and_propagate_metrics(spans)
+            except Exception as e:
+                log.error(
+                    f"[OTLP] Failed to calculate metrics: {e}",
+                    exc_info=True,
+                )
+                # Continue without metrics rather than failing the entire request
 
         # -------------------------------------------------------------------- #
         # Write spans to Redis Streams for async processing
