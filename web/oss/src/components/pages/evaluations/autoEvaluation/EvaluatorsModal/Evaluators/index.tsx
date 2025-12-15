@@ -78,9 +78,22 @@ const Evaluators = ({
 }: EvaluatorsProps) => {
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
-    const evaluatorTags = getEvaluatorTags()
+    const baseEvaluatorTags = getEvaluatorTags()
     const evaluators = useAtom(evaluatorsAtom)[0]
     const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
+
+    const nonArchivedEvaluators = useMemo(() => {
+        return evaluators.filter((item) => item.archived !== true)
+    }, [evaluators])
+
+    // Filter tags to only show those that have evaluators
+    const evaluatorTags = useMemo(() => {
+        const tagsWithEvaluators = new Set<string>()
+        nonArchivedEvaluators.forEach((item) => {
+            item.tags.forEach((tag) => tagsWithEvaluators.add(tag))
+        })
+        return baseEvaluatorTags.filter((tag) => tagsWithEvaluators.has(tag.value))
+    }, [baseEvaluatorTags, nonArchivedEvaluators])
 
     const updatedEvaluatorConfigs = useMemo(() => {
         return evaluatorConfigs.map((config) => {

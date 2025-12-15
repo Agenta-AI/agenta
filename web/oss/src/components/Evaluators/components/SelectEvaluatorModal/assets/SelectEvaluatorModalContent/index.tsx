@@ -35,14 +35,7 @@ const ENABLED_EVALUATORS = [
     "auto_ai_critique",
     "auto_custom_code_run",
     "auto_webhook_test",
-    "auto_starts_with",
-    "auto_ends_with",
-    "auto_contains",
-    "auto_contains_any",
-    "auto_contains_all",
     "auto_levenshtein_distance",
-    "rag_faithfulness",
-    "rag_context_relevancy",
 ]
 
 const getEvaluatorTagValues = (item: EvaluatorPreview | Evaluator) => {
@@ -78,7 +71,9 @@ const SelectEvaluatorModalContent = () => {
             normalized.set(tag.value, tag.label)
         })
 
-        evaluators.forEach((item) => {
+        // Only extract tags from non-archived evaluators
+        const nonArchivedEvaluators = evaluators.filter((item) => item.archived !== true)
+        nonArchivedEvaluators.forEach((item) => {
             getEvaluatorTagValues(item).forEach((tag) => {
                 if (!normalized.has(tag)) {
                     normalized.set(tag, capitalize(tag.replace(/[_-]+/g, " ")))
@@ -92,17 +87,36 @@ const SelectEvaluatorModalContent = () => {
     const tabItems = useMemo<TabsProps["items"]>(() => {
         const items: TabsProps["items"] = [{key: DEFAULT_TAB_KEY, label: "All templates"}]
 
+        // Only include tabs that have evaluators
+        const nonArchivedEvaluators = evaluators.filter((item) => item.archived !== true)
+        const enabledEvaluators = nonArchivedEvaluators.filter((item) => {
+            return ENABLED_EVALUATORS.includes(item.key)
+        })
+
+        // Create a set of tags that actually have evaluators
+        const tagsWithEvaluators = new Set<string>()
+        enabledEvaluators.forEach((item) => {
+            getEvaluatorTagValues(item).forEach((tag) => {
+                tagsWithEvaluators.add(tag)
+            })
+        })
+
         availableTags.forEach((label, value) => {
-            items!.push({key: value, label})
+            // Only add tab if it has evaluators
+            if (tagsWithEvaluators.has(value)) {
+                items!.push({key: value, label})
+            }
         })
 
         return items
-    }, [availableTags])
+    }, [availableTags, evaluators])
 
     const filteredEvaluators = useMemo(() => {
-        const enabled_evaluators = evaluators.filter((item) => {
-            return ENABLED_EVALUATORS.includes(item.key)
-        })
+        const enabled_evaluators = evaluators
+            .filter((item) => {
+                return ENABLED_EVALUATORS.includes(item.key)
+            })
+            .filter((item) => item.archived !== true)
 
         if (activeTab === DEFAULT_TAB_KEY) {
             return enabled_evaluators

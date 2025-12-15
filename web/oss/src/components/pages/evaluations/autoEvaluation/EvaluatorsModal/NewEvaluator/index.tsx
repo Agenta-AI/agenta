@@ -65,13 +65,24 @@ const NewEvaluator = ({
 }: NewEvaluatorProps) => {
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
-    const evaluatorTags = getEvaluatorTags()
+    const baseEvaluatorTags = getEvaluatorTags()
     const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
 
-    const filteredEvaluators = useMemo(() => {
-        let filtered = evaluators
+    const nonArchivedEvaluators = useMemo(() => {
+        return evaluators.filter((item) => item.archived !== true)
+    }, [evaluators])
 
-        console.log("filtered", filtered)
+    // Filter tags to only show those that have evaluators
+    const evaluatorTags = useMemo(() => {
+        const tagsWithEvaluators = new Set<string>()
+        nonArchivedEvaluators.forEach((item) => {
+            item.tags.forEach((tag) => tagsWithEvaluators.add(tag))
+        })
+        return baseEvaluatorTags.filter((tag) => tagsWithEvaluators.has(tag.value))
+    }, [baseEvaluatorTags, nonArchivedEvaluators])
+
+    const filteredEvaluators = useMemo(() => {
+        let filtered = nonArchivedEvaluators
 
         if (selectedEvaluatorCategory !== "view_all") {
             filtered = filtered.filter((item) => item.tags.includes(selectedEvaluatorCategory))
@@ -84,7 +95,7 @@ const NewEvaluator = ({
         }
 
         return filtered
-    }, [searchTerm, selectedEvaluatorCategory, evaluators])
+    }, [searchTerm, selectedEvaluatorCategory, nonArchivedEvaluators])
 
     return (
         <div>
