@@ -8,6 +8,7 @@ import DiffView from "@/oss/components/Editor/DiffView"
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import Version from "@/oss/components/Playground/assets/Version"
 import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
+import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {newestRevisionForVariantIdAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
@@ -162,6 +163,13 @@ const CommitVariantChangesModalContent = ({
                                     className="w-full max-w-xs"
                                     value={selectedCommitType?.name}
                                     disabled={selectedCommitType?.type !== "variant"}
+                                    status={
+                                        selectedCommitType?.type === "variant" &&
+                                        selectedCommitType?.name &&
+                                        !isVariantNameInputValid(selectedCommitType.name)
+                                            ? "error"
+                                            : undefined
+                                    }
                                     onChange={(e) =>
                                         setSelectedCommitType((prev) => {
                                             const prevType = prev?.type
@@ -177,6 +185,14 @@ const CommitVariantChangesModalContent = ({
                                     }
                                     suffix={<Version revision={1} />}
                                 />
+                                {selectedCommitType?.type === "variant" &&
+                                    selectedCommitType?.name &&
+                                    !isVariantNameInputValid(selectedCommitType.name) && (
+                                        <Text className="text-xs text-[#EF4444]">
+                                            Variant name must contain only letters, numbers, underscore,
+                                            or dash
+                                        </Text>
+                                    )}
                             </div>
                         </div>
                     </div>
