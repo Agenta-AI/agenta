@@ -1,30 +1,4 @@
-import {UUID} from "uuidjs"
-
 import {AnnotationDto} from "../types"
-
-/**
- * Converts a UUID string to a trace ID by parsing it and returning its hexadecimal representation without delimiters.
- *
- * @param uuid - The UUID string to convert (e.g., '442d8202-a01b-fe43-f024-5be0780eae9f').
- * @returns The hexadecimal string representation of the UUID without dashes, or undefined if parsing fails.
- */
-export const uuidToTraceId = (uuid?: string) => {
-    if (!uuid) return undefined
-    const parsed = UUID.parse(uuid)
-    return parsed?.hexNoDelim
-}
-
-/**
- * Converts a UUID string to a span ID by extracting and concatenating the clock sequence and node fields from the parsed UUID.
- *
- * @param uuid - The UUID string to convert.
- * @returns The concatenated hexadecimal string of clock sequence and node fields, or undefined if parsing fails.
- */
-export const uuidToSpanId = (uuid?: string) => {
-    if (!uuid) return undefined
-    const parsed = UUID.parse(uuid)
-    return `${parsed?.hexFields.clockSeqHiAndReserved}${parsed?.hexFields.clockSeqLow}${parsed?.hexFields.node}`
-}
 
 /**
  * Generates a formatted span UUID string from an annotation object.

@@ -7,7 +7,7 @@ import {useAtom} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
-import {getEvaluatorTags} from "@/oss/lib/helpers/evaluate"
+import {getEvaluatorTags} from "@/oss/lib/evaluations/legacy"
 import {Evaluator, EvaluatorConfig, JSSTheme} from "@/oss/lib/Types"
 
 import EvaluatorCard from "./EvaluatorCard"

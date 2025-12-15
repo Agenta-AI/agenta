@@ -484,6 +484,15 @@
       "contributions": [
         "design"
       ]
+    },
+    {
+      "login": "VahantSharma",
+      "name": "Vahant Sharma",
+      "avatar_url": "https://avatars.githubusercontent.com/u/172914890?v=4",
+      "profile": "https://github.com/VahantSharma",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

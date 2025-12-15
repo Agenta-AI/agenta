@@ -1,4 +1,5 @@
 import {cloneElement, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import type {MouseEvent} from "react"
 
 import {CheckCircleFilled} from "@ant-design/icons"
 import clsx from "clsx"
@@ -53,9 +54,12 @@ const TooltipWithCopyAction = ({
         return {
             ...children.props,
             className: clsx("cursor-copy", children.props?.className),
-            onClick: () => {
-                children.props?.onClick?.()
-                copyText && handleClick()
+            onClick: (event: MouseEvent<HTMLElement>) => {
+                event?.stopPropagation?.()
+                children.props?.onClick?.(event)
+                if (copyText) {
+                    handleClick()
+                }
             },
         }
     }, [children, copyText, handleClick])

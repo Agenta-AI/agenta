@@ -1,18 +1,10 @@
 // @ts-nocheck
-import {
-    type FC,
-    type ChangeEvent,
-    ReactNode,
-    useEffect,
-    useState,
-    useMemo,
-    useCallback,
-} from "react"
+import {type FC, type ChangeEvent, ReactNode, useEffect, useState, useCallback} from "react"
 
 import {type IHeaderParams} from "@ag-grid-community/core"
 import {CheckCircleFilled} from "@ant-design/icons"
 import {Link} from "@phosphor-icons/react"
-import {Button, Input, Typography, message, Space, Tag, Tooltip} from "antd"
+import {Button, Input, Typography, Space, Tag, Tooltip} from "antd"
 import {NoticeType} from "antd/es/message/interface"
 import {AxiosResponse} from "axios"
 import {useRouter} from "next/router"
@@ -31,6 +23,7 @@ import {fetchTestset, updateTestset} from "@/oss/services/testsets/api"
 import {useProjectData} from "@/oss/state/project"
 import {useTestsetsData} from "@/oss/state/testset"
 
+import {message} from "../AppMessageContext"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 import EditRowModal from "./EditRowModal"
@@ -93,15 +86,6 @@ const useStylesTestset = createUseStyles({
 })
 
 const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
-    const [messageApi, contextHolder] = message.useMessage()
-
-    const mssgModal = (type: NoticeType, content: ReactNode) => {
-        messageApi.open({
-            type,
-            content,
-        })
-    }
-
     const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
     const [isDataChanged, setIsDataChanged] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
@@ -243,9 +227,8 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
             const afterSave = (response: AxiosResponse) => {
                 if (response.status === 200) {
                     mutateTestsets()
-                    setUnSavedChanges(false, () => {
-                        mssgModal("success", "Changes saved successfully!")
-                    })
+                    message.success("Changes saved successfully!")
+                    setUnSavedChanges(false)
                     setIsLoading(false)
                     setWriteMode("edit")
                 }
@@ -360,9 +343,7 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
     )
 
     return (
-        <div>
-            {contextHolder}
-
+        <div className="w-full p-6">
             <Typography.Title level={5} className={classes.title}>
                 <Space size="small" align="center">
                     <span>Edit testset</span>

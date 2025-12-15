@@ -1,4 +1,7 @@
 body {
+    --not-available-stripe: #eaeff5;
+    --not-available-bg: transparent;
+
     :has(.human-eval) {
         height: 100dvh;
         overflow: hidden;
@@ -23,15 +26,16 @@ body {
         left: 0;
         right: 0;
         bottom: 0;
-        background-color: #ffffff;
+        background-color: transparent;
         opacity: 1;
         background: repeating-linear-gradient(
             -45deg,
-            #eaeff5,
-            #eaeff5 2px,
-            #ffffff 2px,
-            #ffffff 12px
+            var(--not-available-stripe),
+            var(--not-available-stripe) 2px,
+            var(--not-available-bg) 2px,
+            var(--not-available-bg) 12px
         );
+        transition: inherit;
     }
     .scenario-row {
         .cell-expand-container {
@@ -48,16 +52,29 @@ body {
     }
 
     .agenta-scenario-table {
-        .ant-table-tbody > tr {
+        .ant-table-row {
             cursor: pointer;
         }
-        .ant-table-row {
-            &.ant-table-row-hover,
-            &:hover {
-                > td {
-                    background-color: #9ab7ff !important;
-                }
+
+        .ant-table-row,
+        .ant-table-row > * {
+            transition: background-color 200ms ease;
+        }
+
+        .ant-table-row.evaluation-runs-table__row--highlighted {
+            background-color: #e9efff !important;
+
+            .ant-table-cell {
+                background-color: inherit !important;
             }
+
+            .not-available-table-cell {
+                --not-available-stripe: @apply bg-zinc-2;
+            }
+        }
+
+        .ant-table-row.evaluation-runs-table__row--highlighted .ant-table-cell-fix-left {
+            background-color: inherit !important;
         }
     }
 }

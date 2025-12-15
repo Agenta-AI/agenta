@@ -7,15 +7,16 @@ import {
     FullscreenOutlined,
     InfoCircleOutlined,
 } from "@ant-design/icons"
-import {GlobalToken, Space, Tooltip, Typography, message, theme} from "antd"
+import {GlobalToken, Space, Tooltip, Typography, theme} from "antd"
 import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
 import Link from "next/link"
 import {createUseStyles} from "react-jss"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {useDurationCounter} from "@/oss/hooks/useDurationCounter"
-import {getTypedValue} from "@/oss/lib/helpers/evaluate"
+import {getTypedValue} from "@/oss/lib/evaluations/legacy"
 import {
     EvaluationStatus,
     EvaluatorConfig,

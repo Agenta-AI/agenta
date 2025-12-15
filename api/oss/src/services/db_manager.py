@@ -229,7 +229,9 @@ async def fetch_latest_app_variant(app_id: str) -> Optional[AppVariantDB]:
         return app_variant
 
 
-async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]:
+async def fetch_app_variant_by_id(
+    app_variant_id: str, include_hidden: bool = False
+) -> Optional[AppVariantDB]:
     """
     Fetches an app variant by its ID.
 
@@ -251,9 +253,12 @@ async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]
             .load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
         )
 
+        if not include_hidden:
+            query = query.where(AppVariantDB.hidden.is_not(True))
+
         result = await session.execute(
-            query.where(AppVariantDB.hidden.is_not(True)).filter_by(
-                id=uuid.UUID(app_variant_id)
+            query.filter_by(
+                id=uuid.UUID(app_variant_id),
             )
         )
         app_variant = result.scalars().first()
@@ -703,6 +708,7 @@ async def create_app_and_envs(
     template_key: Optional[str] = None,
     project_id: Optional[str] = None,
     user_id: Optional[str] = None,
+    folder_id: Optional[str] = None,
 ) -> AppDB:
     """
     Create a new app with the given name and organization ID.
@@ -735,6 +741,7 @@ async def create_app_and_envs(
             app_name=app_name,
             app_type=app_type,
             modified_by_id=uuid.UUID(user_id) if user_id else None,
+            folder_id=uuid.UUID(folder_id) if folder_id else None,
         )
 
         session.add(app)
@@ -760,7 +767,7 @@ async def update_app(app_id: str, values_to_update: dict):
             raise NoResultFound(f"App with {app_id} not found")
 
         # Check if 'app_name' is in the values to update
-        if "app_name" in values_to_update:
+        if "app_name" in values_to_update and values_to_update["app_name"] is not None:
             new_app_name = values_to_update["app_name"]
 
             # Check if another app with the same name exists for the user
@@ -779,6 +786,8 @@ async def update_app(app_id: str, values_to_update: dict):
                 )
 
         for key, value in values_to_update.items():
+            if key == "folder_id" and value:
+                value = uuid.UUID(value)
             if hasattr(app, key):
                 setattr(app, key, value)
 
