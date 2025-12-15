@@ -12,10 +12,6 @@ const TraceDrawer = dynamic(
     {ssr: false},
 )
 
-const SessionDrawer = dynamic(() => import("@/oss/components/SharedDrawers/SessionDrawer"), {
-    ssr: false,
-})
-
 const EvalRunFocusDrawerPreview = dynamic(
     () => import("@/oss/components/EvalRunDetails/components/FocusDrawer"),
     {ssr: false},
@@ -174,7 +170,6 @@ const AppGlobalWrappers = () => {
         <>
             <NavigationCommandListener />
             <TraceDrawer />
-            <SessionDrawer />
             <EvalRunFocusDrawerPreview />
             <DeleteAppModalWrapper />
             <EditAppModalWrapper />

@@ -1,9 +1,8 @@
-import {useEffect, useRef, useState} from "react"
+import {useState} from "react"
 
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {Button, Splitter} from "antd"
 import dynamic from "next/dynamic"
-
 
 const SessionContent = dynamic(
     () => import("@/oss/components/SharedDrawers/SessionDrawer/components/SessionContent"),
@@ -22,7 +21,8 @@ interface TraceDrawerContentProps {
 }
 
 const SessionDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerContentProps) => {
-    const isLoading = false
+    const [selected, setSelected] = useState<string>("")
+    
     return (
         <div className="h-full w-full flex flex-col">
             <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-colorSplit">
@@ -40,7 +40,7 @@ const SessionDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerC
             <div className="h-full min-w-0">
                 <Splitter>
                     <Splitter.Panel defaultSize={320} collapsible>
-                        <SessionTree />
+                        <SessionTree selected={selected} setSelected={setSelected} />
                     </Splitter.Panel>
                     <Splitter.Panel min={600}>
                         <SessionContent />

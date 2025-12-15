@@ -1,4 +1,4 @@
-import { ButtonProps, TooltipProps } from "antd"
+import {ButtonProps, TooltipProps} from "antd"
 
 export interface EnhancedButtonProps extends ButtonProps {
     label?: React.ReactNode

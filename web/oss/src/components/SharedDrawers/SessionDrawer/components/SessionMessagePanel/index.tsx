@@ -32,7 +32,6 @@ const SessionMessagePanel = ({
     const sanitizedValue = ""
     const isStringValue = true
 
-    console.log("incomingValue", incomingValue)
     const collapse = (
         <Collapse
             {...props}
@@ -84,7 +83,7 @@ const SessionMessagePanel = ({
 
                             {isAnnotationVisible && (
                                 <div className="w-[300px] shrink-0 border-0 border-l border-solid border-colorSplit p-4">
-                                    <TraceAnnotations annotations={[]} />
+                                    <TraceAnnotations annotations={trace?.annotations} />
                                 </div>
                             )}
                         </div>
@@ -107,11 +106,11 @@ const SessionMessagePanel = ({
                             <AnnotateDrawerButton
                                 label="Annotate"
                                 size="small"
-                                // data={activeTrace?.annotations || []}
-                                // traceSpanIds={{
-                                //     traceId: activeTrace?.trace_id,
-                                //     spanId: activeTrace?.span_id,
-                                // }}
+                                data={trace?.annotations || []}
+                                traceSpanIds={{
+                                    traceId: trace?.trace_id,
+                                    spanId: trace?.span_id,
+                                }}
                             />
                         </div>
                     ),
