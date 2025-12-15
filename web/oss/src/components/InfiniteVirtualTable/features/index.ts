@@ -4,5 +4,9 @@ export type {
     TableScopeConfig,
     TableFeaturePagination,
     TableFeatureExportOptions,
+    TableTabItem,
+    TableTabsConfig,
+    TableDeleteConfig,
+    TableExportConfig,
 } from "./InfiniteVirtualTableFeatureShell"
 export {default as useInfiniteTableFeaturePagination} from "./useInfiniteTableFeaturePagination"

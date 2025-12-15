@@ -117,8 +117,9 @@ export const buildSkeletonColumnResult = (
 
     const groups: EvaluationTableColumnGroup[] = [inputGroup.group, outputGroup.group]
 
-    const metricGroupId = evaluationType === "auto" ? "metrics:auto" : "metrics:human"
-    const metricLabel = evaluationType === "auto" ? "Metrics (Auto)" : "Metrics (Human)"
+    // Online evaluations use auto metrics, human evaluations use human metrics
+    const metricGroupId = evaluationType === "human" ? "metrics:human" : "metrics:auto"
+    const metricLabel = evaluationType === "human" ? "Metrics (Human)" : "Metrics"
     groups.push({
         id: metricGroupId,
         label: metricLabel,

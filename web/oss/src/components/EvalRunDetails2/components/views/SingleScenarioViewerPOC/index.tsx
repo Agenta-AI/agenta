@@ -796,9 +796,9 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
 
     return (
         <section className="relative flex min-h-0 w-full h-full overflow-hidden">
-            <div className="flex w-full min-h-0 flex-col gap-3 px-3">
+            <div className="flex w-full min-h-0 flex-col gap-3 px-3 overflow-hidden">
                 {/* Header */}
-                <div className="w-full p-3">
+                <div className="w-full p-3 shrink-0">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <ScenarioNavigator
                             runId={runId}
@@ -824,7 +824,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                 </div>
 
                 {/* Content */}
-                <div className="flex min-h-0 flex-col gap-3 w-full">
+                <div className="flex-1 min-h-0 overflow-y-auto w-full pb-3">
                     <div className="flex gap-3 w-full items-start">
                         <div className="flex flex-col gap-3 shrink min-w-0 grow w-7/12">
                             {/* Inputs Card */}
