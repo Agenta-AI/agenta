@@ -186,7 +186,7 @@ const ObservabilityTable = () => {
 
     return (
         <div className="flex flex-col gap-6">
-            <ObservabilityHeader columns={columns} />
+            <ObservabilityHeader columns={columns} componentType="traces" />
             <div className="flex flex-col gap-2">
                 <Table
                     rowSelection={{

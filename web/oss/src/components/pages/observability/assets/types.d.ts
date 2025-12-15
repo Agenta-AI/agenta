@@ -4,7 +4,8 @@ import {ColumnsType} from "antd/es/table"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 export interface ObservabilityHeaderProps {
-    columns: ColumnsType<TraceSpanNode>
+    columns: ColumnsType<any>
+    componentType: 'traces' | 'sessions'
 }
 
 export type AvatarTreeContentProps = {

@@ -33,7 +33,7 @@ const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns")
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
-const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
+const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps) => {
     const [isScrolled, setIsScrolled] = useState(false)
 
     const {
@@ -282,7 +282,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                             onClearFilter={onClearFilter}
                         />
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
-                        {isScrolled && (
+                        {isScrolled && componentType === "traces" ? (
                             <>
                                 <Space>
                                     <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
@@ -299,10 +299,10 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                                     tooltipProps={{title: "Add to testset"}}
                                 />
                             </>
-                        )}
+                        ) : null}
                     </div>
                 </div>
-                {!isScrolled && (
+                {!isScrolled && componentType === "traces" ? (
                     <div className="w-full flex items-center justify-between">
                         <Space>
                             <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
@@ -338,7 +338,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                             />
                         </Space>
                     </div>
-                )}
+                ) : null}
             </section>
             {/* This element is to reduce the pixel shift of the table */}
             {isScrolled && <div className="w-full h-[10px]"></div>}{" "}
