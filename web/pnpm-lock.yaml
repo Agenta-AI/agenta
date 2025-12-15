@@ -2124,9 +2124,6 @@ packages:
   '@types/node@20.19.11':
     resolution: {integrity: sha512-uug3FEEGv0r+jrecvUUpbY8lLisvIjg6AAic6a2bSP5OEOLeJsDSnvhCDov7ipFFMXS3orMpzlmi0ZcuGkBbow==}
 
-  '@types/node@20.19.25':
-    resolution: {integrity: sha512-ZsJzA5thDQMSQO788d7IocwwQbI8B5OPzmqNvpf3NY/+MHDAS759Wo0gd2WQeXYt5AAAQjzcrTVC6SKCuYgoCQ==}
-
   '@types/node@20.19.26':
     resolution: {integrity: sha512-0l6cjgF0XnihUpndDhk+nyD3exio3iKaYROSgvh/qSevPXax3L8p5DBRFjbvalnwatGgHEQn2R88y2fA3g4irg==}
 
@@ -2677,8 +2674,6 @@ packages:
 
   baseline-browser-mapping@2.9.6:
     resolution: {integrity: sha512-v9BVVpOTLB59C9E7aSnmIF8h7qRsFpx+A2nugVMTszEOMcfjlZMsXRm4LF23I3Z9AJxc8ANpIvzbzONoX9VJlg==}
-  baseline-browser-mapping@2.9.6:
-    resolution: {integrity: sha512-v9BVVpOTLB59C9E7aSnmIF8h7qRsFpx+A2nugVMTszEOMcfjlZMsXRm4LF23I3Z9AJxc8ANpIvzbzONoX9VJlg==}
     hasBin: true
 
   binary-extensions@2.3.0:
@@ -2742,9 +2737,6 @@ packages:
 
   caniuse-lite@1.0.30001703:
     resolution: {integrity: sha512-kRlAGTRWgPsOj7oARC9m1okJEXdL/8fekFVcxA8Hl7GH4r/sN4OJn/i6Flde373T50KS7Y37oFbMwlE8+F42kQ==}
-
-  caniuse-lite@1.0.30001759:
-    resolution: {integrity: sha512-Pzfx9fOKoKvevQf8oCXoyNRQ5QyxJj+3O0Rqx2V5oxT61KGx8+n6hV/IUyJeifUci2clnmmKVpvtiqRzgiWjSw==}
 
   caniuse-lite@1.0.30001760:
     resolution: {integrity: sha512-7AAMPcueWELt1p3mi13HR/LHH0TJLT11cnwDJEs3xA4+CK/PLKeO9Kl1oru24htkyUKtkGCvAx4ohB0Ttry8Dw==}
@@ -3103,8 +3095,6 @@ packages:
 
   electron-to-chromium@1.5.267:
     resolution: {integrity: sha512-0Drusm6MVRXSOJpGbaSVgcQsuB4hEkMpHXaVstcPmhu5LIedxs1xNK/nIxmQIU/RPC0+1/o0AVZfBTkTNJOdUw==}
-  electron-to-chromium@1.5.267:
-    resolution: {integrity: sha512-0Drusm6MVRXSOJpGbaSVgcQsuB4hEkMpHXaVstcPmhu5LIedxs1xNK/nIxmQIU/RPC0+1/o0AVZfBTkTNJOdUw==}
 
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
@@ -3112,8 +3102,8 @@ packages:
   emoji-regex@9.2.2:
     resolution: {integrity: sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==}
 
-  enhanced-resolve@5.18.4:
-    resolution: {integrity: sha512-LgQMM4WXU3QI+SYgEc2liRgznaD5ojbmY3sb8LxyguVkIg5FxdpTkvk72te2R38/TGKxH634oLxXRGY6d7AP+Q==}
+  enhanced-resolve@5.18.3:
+    resolution: {integrity: sha512-d4lC8xfavMeBjzGr2vECC3fsGXziXZQyJxD868h2M/mBI3PwAuODxAkLkq5HYuvrPYcUtiLzsTo8U3PgX3Ocww==}
     engines: {node: '>=10.13.0'}
 
   err-code@2.0.3:
@@ -5431,8 +5421,6 @@ packages:
 
   update-browserslist-db@1.2.2:
     resolution: {integrity: sha512-E85pfNzMQ9jpKkA7+TJAi4TJN+tBCuWh5rUcS/sv6cFi+1q9LYDwDI5dpUL0u/73EElyQ8d3TEaeW4sPedBqYA==}
-  update-browserslist-db@1.2.2:
-    resolution: {integrity: sha512-E85pfNzMQ9jpKkA7+TJAi4TJN+tBCuWh5rUcS/sv6cFi+1q9LYDwDI5dpUL0u/73EElyQ8d3TEaeW4sPedBqYA==}
     hasBin: true
     peerDependencies:
       browserslist: '>= 4.21.0'
@@ -7183,10 +7171,6 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
-  '@types/node@20.19.25':
-    dependencies:
-      undici-types: 6.21.0
-
   '@types/node@20.19.26':
     dependencies:
       undici-types: 6.21.0
@@ -7864,7 +7848,6 @@ snapshots:
   base64-js@1.5.1: {}
 
   baseline-browser-mapping@2.9.6: {}
-  baseline-browser-mapping@2.9.6: {}
 
   binary-extensions@2.3.0: {}
 
@@ -7899,11 +7882,7 @@ snapshots:
       baseline-browser-mapping: 2.9.6
       caniuse-lite: 1.0.30001760
       electron-to-chromium: 1.5.267
-      baseline-browser-mapping: 2.9.6
-      caniuse-lite: 1.0.30001760
-      electron-to-chromium: 1.5.267
       node-releases: 2.0.27
-      update-browserslist-db: 1.2.2(browserslist@4.28.1)
       update-browserslist-db: 1.2.2(browserslist@4.28.1)
 
   buffer-equal-constant-time@1.0.1: {}
@@ -7937,8 +7916,6 @@ snapshots:
   camelcase-css@2.0.1: {}
 
   caniuse-lite@1.0.30001703: {}
-
-  caniuse-lite@1.0.30001759: {}
 
   caniuse-lite@1.0.30001760: {}
 
@@ -8254,13 +8231,12 @@ snapshots:
   electron-to-chromium@1.5.113: {}
 
   electron-to-chromium@1.5.267: {}
-  electron-to-chromium@1.5.267: {}
 
   emoji-regex@8.0.0: {}
 
   emoji-regex@9.2.2: {}
 
-  enhanced-resolve@5.18.4:
+  enhanced-resolve@5.18.3:
     dependencies:
       graceful-fs: 4.2.11
       tapable: 2.3.0
@@ -9183,7 +9159,6 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 20.19.26
       '@types/node': 20.19.26
       merge-stream: 2.0.0
       supports-color: 8.1.1
@@ -10990,7 +10965,6 @@ snapshots:
       picocolors: 1.1.1
 
   update-browserslist-db@1.2.2(browserslist@4.28.1):
-  update-browserslist-db@1.2.2(browserslist@4.28.1):
     dependencies:
       browserslist: 4.28.1
       escalade: 3.2.0
@@ -11159,7 +11133,7 @@ snapshots:
       acorn: 8.15.0
       browserslist: 4.28.1
       chrome-trace-event: 1.0.4
-      enhanced-resolve: 5.18.4
+      enhanced-resolve: 5.18.3
       es-module-lexer: 1.7.0
       eslint-scope: 5.1.1
       events: 3.3.0
