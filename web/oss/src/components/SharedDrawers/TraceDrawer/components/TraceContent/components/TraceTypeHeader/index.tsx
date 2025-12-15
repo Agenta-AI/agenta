@@ -1,7 +1,6 @@
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import {Button, Tag, Tooltip, Typography} from "antd"
-import {Database} from "lucide-react"
 import dynamic from "next/dynamic"
 
 import clsx from "clsx"
@@ -15,14 +14,11 @@ import {useMemo, useState} from "react"
 
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
 import {TraceTypeHeaderProps} from "./types"
+import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
 
 const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
     ssr: false,
 })
-const TestsetDrawer = dynamic(
-    () => import("@/oss/components/SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
-    {ssr: false},
-)
 
 const TraceTypeHeader = ({
     activeTrace,
@@ -32,7 +28,6 @@ const TraceTypeHeader = ({
     setIsAnnotationsSectionOpen,
     isAnnotationsSectionOpen,
 }: TraceTypeHeaderProps) => {
-    const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const activeTraceData = useAtomValue(spanAgDataAtomFamily(activeTrace))
     const testsetData = useMemo(() => {
@@ -72,15 +67,13 @@ const TraceTypeHeader = ({
                         # {activeTrace?.span_id || "-"}
                     </Tag>
                 </TooltipWithCopyAction>
-                <Button
+                <AddToTestsetButton
                     className="flex items-center"
-                    onClick={() => setIsTestsetDrawerOpen(true)}
-                    disabled={!activeTrace?.key}
+                    label="Add to testset"
                     size="small"
-                >
-                    <Database size={14} />
-                    Add to testset
-                </Button>
+                    testsetData={testsetData}
+                    disabled={!activeTrace?.key}
+                />
 
                 <AnnotateDrawerButton
                     label="Annotate"
@@ -109,11 +102,6 @@ const TraceTypeHeader = ({
                 )}
             </div>
 
-            <TestsetDrawer
-                open={isTestsetDrawerOpen && !!activeTrace?.key}
-                data={testsetData}
-                onClose={() => setIsTestsetDrawerOpen(false)}
-            />
             <DeleteTraceModal
                 open={isDeleteModalOpen}
                 onCancel={() => setIsDeleteModalOpen(false)}
