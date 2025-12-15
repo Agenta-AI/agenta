@@ -14,14 +14,6 @@ from oss.src.core.tracing.dtos import (
     MetricsBucket,
 )
 
-from oss.src.core.tracing.utils import (
-    parse_span_dtos_to_span_idx,
-    parse_span_idx_to_span_id_tree,
-    calculate_costs,
-    cumulate_costs,
-    cumulate_tokens,
-)
-
 
 log = get_module_logger(__name__)
 
@@ -46,18 +38,6 @@ class TracingService:
         span_dto: Optional[OTelFlatSpan] = None,
         span_dtos: Optional[List[OTelFlatSpan]] = None,
     ) -> List[OTelLink]:
-        span_idx = parse_span_dtos_to_span_idx(
-            [span_dto] if span_dto else span_dtos or []
-        )
-
-        span_id_tree = parse_span_idx_to_span_id_tree(span_idx)
-
-        calculate_costs(span_idx)
-
-        cumulate_costs(span_id_tree, span_idx)
-
-        cumulate_tokens(span_id_tree, span_idx)
-
         if span_dto:
             link = await self.tracing_dao.create_span(
                 project_id=project_id,

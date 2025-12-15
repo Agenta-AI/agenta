@@ -27,7 +27,10 @@ from oss.src.apis.fastapi.tracing.models import (
     AnalyticsResponse,
 )
 from oss.src.core.tracing.service import TracingService
-from oss.src.core.tracing.utils import FilteringException
+from oss.src.core.tracing.utils import (
+    FilteringException,
+    calculate_and_propagate_metrics,
+)
 
 # TYPE_CHECKING to avoid circular import at runtime
 from typing import TYPE_CHECKING
@@ -200,6 +203,10 @@ class TracingRouter:
                             )
 
         span_dtos = parse_spans_from_request(_spans)
+
+        # Calculate and propagate costs/tokens BEFORE batching
+        # This ensures complete trace trees for proper metric propagation
+        span_dtos = calculate_and_propagate_metrics(span_dtos)
 
         if sync:
             # Synchronous path for low-volume, user-facing operations

@@ -199,6 +199,41 @@ def parse_span_dtos_to_span_idx(
     return span_idx
 
 
+def calculate_and_propagate_metrics(
+    span_dtos: List[OTelFlatSpan],
+) -> List[OTelFlatSpan]:
+    """
+    Calculate and propagate costs/tokens for a list of span DTOs.
+
+    This must be called BEFORE batching to ensure complete trace trees.
+    If called after batching, partial traces will fail to propagate correctly.
+
+    Args:
+        span_dtos: List of span DTOs (should be from a complete trace)
+
+    Returns:
+        List of span DTOs with calculated and propagated costs/tokens
+    """
+    if not span_dtos:
+        return span_dtos
+
+    # Build span index and tree
+    span_idx = parse_span_dtos_to_span_idx(span_dtos)
+    span_id_tree = parse_span_idx_to_span_id_tree(span_idx)
+
+    # Calculate incremental costs from token counts
+    calculate_costs(span_idx)
+
+    # Propagate costs up the tree (children to parents)
+    cumulate_costs(span_id_tree, span_idx)
+
+    # Propagate tokens up the tree (children to parents)
+    cumulate_tokens(span_id_tree, span_idx)
+
+    # Return updated span DTOs
+    return list(span_idx.values())
+
+
 def parse_span_idx_to_span_id_tree(
     span_idx: Dict[str, OTelFlatSpan],
 ) -> OrderedDict:
