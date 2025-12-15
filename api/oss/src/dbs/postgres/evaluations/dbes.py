@@ -203,12 +203,29 @@ class EvaluationMetricsDBE(
             ["evaluation_scenarios.project_id", "evaluation_scenarios.id"],
             ondelete="CASCADE",
         ),  # for project scope
-        UniqueConstraint(
+        Index(
+            "ux_evaluation_metrics_global",
+            "project_id",
+            "run_id",
+            unique=True,
+            postgresql_where="scenario_id IS NULL AND timestamp IS NULL",
+        ),  # for global metrics
+        Index(
+            "ux_evaluation_metrics_variational",
             "project_id",
             "run_id",
             "scenario_id",
+            unique=True,
+            postgresql_where="timestamp IS NULL",
+        ),  # for variational metrics
+        Index(
+            "ux_evaluation_metrics_temporal",
+            "project_id",
+            "run_id",
             "timestamp",
-        ),  # for uniqueness
+            unique=True,
+            postgresql_where="scenario_id IS NULL",
+        ),  # for temporal metrics
         Index(
             "ix_evaluation_metrics_project_id",
             "project_id",

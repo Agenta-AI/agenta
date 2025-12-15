@@ -1,8 +1,9 @@
+import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 
-import ResultTag from "@/oss/components/ResultTag/ResultTag"
+import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
+import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 import CostCell from "../components/CostCell"
@@ -37,7 +38,15 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             defaultHidden: true,
             fixed: "left",
             render: (_, record) => {
-                return <ResultTag value1={`# ${record.span_id.split("-")[0]}`} />
+                const spanId = record.span_id || ""
+                const shortId = spanId ? spanId.split("-")[0] : "-"
+                return (
+                    <TooltipWithCopyAction copyText={spanId || ""} title="Copy span id">
+                        <Tag className="font-mono bg-[#0517290F]" bordered={false}>
+                            # {shortId}
+                        </Tag>
+                    </TooltipWithCopyAction>
+                )
             },
         },
         {
@@ -72,9 +81,10 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
             render: (_, record) => {
                 const inputs = getTraceInputs(record)
+                const {data: sanitizedInputs} = sanitizeDataWithBlobUrls(inputs)
                 return (
                     <TruncatedTooltipTag
-                        children={inputs ? getStringOrJson(inputs) : ""}
+                        children={inputs ? getStringOrJson(sanitizedInputs) : ""}
                         placement="bottom"
                     />
                 )

@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
-
-import {MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
-import {Collapse, Radio, Space} from "antd"
+import dynamic from "next/dynamic"
+import {Copy, Download, FileText, MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
+import {ButtonProps, Collapse, Radio, Space} from "antd"
 import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
@@ -11,11 +11,13 @@ import EditorWrapper from "@/oss/components/Editor/Editor"
 import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
 import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
+import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {JSSTheme} from "@/oss/lib/Types"
+import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
+const ImagePreview = dynamic(() => import("@/oss/components/Common/ImagePreview"), {ssr: false})
 
 type AccordionTreePanelProps = {
-    value: Record<string, any> | string
+    value: Record<string, any> | string | any[]
     label: string
     enableFormatSwitcher?: boolean
     bgColor?: string
@@ -105,7 +107,7 @@ const LanguageAwareViewer = ({
     )
 }
 
-const MarkdownToggleButton = () => {
+const MarkdownToggleButton = ({...props}: ButtonProps) => {
     const [editor] = useLexicalComposerContext()
     const [markdownView, setMarkdownView] = useState(false)
 
@@ -120,12 +122,13 @@ const MarkdownToggleButton = () => {
             tooltipProps={{
                 title: !markdownView ? "Preview text" : "Preview markdown",
             }}
+            {...props}
         />
     )
 }
 
 const AccordionTreePanel = ({
-    value,
+    value: incomingValue,
     label,
     enableFormatSwitcher = false,
     bgColor,
@@ -136,10 +139,31 @@ const AccordionTreePanel = ({
     const [segmentedValue, setSegmentedValue] = useState<"json" | "yaml">("json")
     const editorRef = useRef<HTMLDivElement>(null)
 
+    const {
+        data: sanitizedValue,
+        fileAttachments,
+        imageAttachments,
+    } = useMemo(() => {
+        return sanitizeDataWithBlobUrls(incomingValue)
+    }, [incomingValue])
+    const isStringValue = typeof sanitizedValue === "string"
+
+    const downloadFile = useCallback((url: string) => {
+        const link = document.createElement("a")
+        link.href = url
+        link.download = ""
+        link.click()
+    }, [])
+
     const yamlOutput = useMemo(() => {
-        if (segmentedValue === "yaml" && value && Object.keys(value).length) {
+        if (
+            segmentedValue === "yaml" &&
+            sanitizedValue &&
+            typeof sanitizedValue === "object" &&
+            Object.keys(sanitizedValue).length
+        ) {
             try {
-                const jsonObject = JSON.parse(getStringOrJson(value))
+                const jsonObject = JSON.parse(getStringOrJson(sanitizedValue))
                 return yaml.dump(jsonObject)
             } catch (error: any) {
                 console.error("Failed to convert JSON to YAML:", error)
@@ -147,7 +171,7 @@ const AccordionTreePanel = ({
             }
         }
         return ""
-    }, [segmentedValue, value])
+    }, [segmentedValue, sanitizedValue])
 
     const collapse = (
         <Collapse
@@ -166,10 +190,10 @@ const AccordionTreePanel = ({
                                 overflowY: "auto",
                             }}
                         >
-                            {typeof value === "string" ? (
+                            {isStringValue ? (
                                 <div className="p-2">
                                     <EditorWrapper
-                                        initialValue={value}
+                                        initialValue={sanitizedValue as string}
                                         disabled
                                         codeOnly={false}
                                         showToolbar={false}
@@ -191,7 +215,7 @@ const AccordionTreePanel = ({
                                     <LanguageAwareViewer
                                         initialValue={
                                             segmentedValue === "json"
-                                                ? getStringOrJson(value)
+                                                ? getStringOrJson(sanitizedValue)
                                                 : yamlOutput
                                         }
                                         language={segmentedValue}
@@ -201,26 +225,30 @@ const AccordionTreePanel = ({
                         </div>
                     ),
                     extra: (
-                        <Space size={12} onClick={(e) => e.stopPropagation()}>
-                            {enableFormatSwitcher && typeof value !== "string" && (
+                        <Space size={8} onClick={(e) => e.stopPropagation()}>
+                            {enableFormatSwitcher && !isStringValue && (
                                 <Radio.Group
                                     value={segmentedValue}
                                     onChange={(e) =>
                                         setSegmentedValue(e.target.value as "json" | "yaml")
                                     }
+                                    size="small"
                                 >
                                     <Radio.Button value="json">JSON</Radio.Button>
                                     <Radio.Button value="yaml">YAML</Radio.Button>
                                 </Radio.Group>
                             )}
-                            {typeof value === "string" && <MarkdownToggleButton />}
+                            {isStringValue && <MarkdownToggleButton size="small" />}
                             <CopyButton
                                 text={
-                                    segmentedValue === "json" ? getStringOrJson(value) : yamlOutput
+                                    segmentedValue === "json"
+                                        ? getStringOrJson(sanitizedValue)
+                                        : yamlOutput
                                 }
                                 icon={true}
                                 buttonText={null}
                                 stopPropagation
+                                size="small"
                             />
                         </Space>
                     ),
@@ -231,10 +259,10 @@ const AccordionTreePanel = ({
         />
     )
 
-    if (typeof value === "string") {
+    if (isStringValue) {
         return (
             <EditorProvider
-                initialValue={value}
+                initialValue={sanitizedValue as string}
                 disabled
                 showToolbar={false}
                 className={classes.editor}
@@ -245,7 +273,67 @@ const AccordionTreePanel = ({
         )
     }
 
-    return collapse
+    return (
+        <>
+            {collapse}
+            {fileAttachments?.length || imageAttachments?.length ? (
+                <div className="flex flex-col gap-2 mt-4">
+                    <span className="tracking-wide">Attachments</span>
+                    <div className="flex flex-wrap gap-2">
+                        {(fileAttachments || [])?.map((file, index) => (
+                            <a
+                                key={`${file.data}-${index}`}
+                                className="group w-[80px] h-[60px] rounded border border-solid border-gray-200 bg-gray-100 px-2 pt-3 pb-2 hover:bg-gray-200 hover:scale-[1.02] cursor-pointer flex flex-col justify-between"
+                                href={file.data}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                <div className="w-full flex items-start gap-1">
+                                    <FileText size={16} className="shrink-0" />
+                                    <span className="text-[10px] truncate">
+                                        {file.filename || `File ${index + 1}`}
+                                    </span>
+                                </div>
+                                <div className="flex gap-1.5 shrink-0 invisible group-hover:visible">
+                                    <EnhancedButton
+                                        icon={<Download size={10} className="mb-[1px]" />}
+                                        size="small"
+                                        tooltipProps={{title: "Download"}}
+                                        className="!w-5 !h-5"
+                                        onClick={(e) => {
+                                            e.preventDefault()
+                                            downloadFile(file.data)
+                                        }}
+                                    />
+                                    <EnhancedButton
+                                        icon={<Copy size={10} className="mb-[1px]" />}
+                                        size="small"
+                                        tooltipProps={{title: "Copy URL"}}
+                                        className="!w-5 !h-5"
+                                        onClick={(e) => {
+                                            e.preventDefault()
+                                            copyToClipboard(file.data)
+                                        }}
+                                    />
+                                </div>
+                            </a>
+                        ))}
+
+                        {(imageAttachments || [])?.map((image, index) => (
+                            <ImagePreview
+                                key={`${image.data}-${index}`}
+                                src={image.data}
+                                isValidPreview={true}
+                                alt={image.filename || `Image ${index + 1}`}
+                                size={80}
+                                className=""
+                            />
+                        ))}
+                    </div>
+                </div>
+            ) : null}
+        </>
+    )
 }
 
 export default AccordionTreePanel

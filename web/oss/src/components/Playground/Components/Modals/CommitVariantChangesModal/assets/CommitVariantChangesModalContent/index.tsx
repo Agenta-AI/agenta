@@ -8,12 +8,14 @@ import DiffView from "@/oss/components/Editor/DiffView"
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import Version from "@/oss/components/Playground/assets/Version"
 import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
+import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {newestRevisionForVariantIdAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 
 import {CommitVariantChangesModalContentProps} from "../types"
+import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 
 const {Text} = Typography
 
@@ -66,6 +68,8 @@ const CommitVariantChangesModalContent = ({
     // const params =
     // transformToRequestBody({variant: composedVariant})?.ag_config
     const oldParams = variant.parameters
+    const sanitizedOldParams = stripAgentaMetadataDeep(oldParams)
+    const sanitizedParams = stripAgentaMetadataDeep(params)
 
     const onChange = useCallback(
         (e: RadioChangeEvent) => {
@@ -87,10 +91,10 @@ const CommitVariantChangesModalContent = ({
     // Compute snapshot lazily on first render after mount
     if (variant && initialOriginalRef.current === null && initialModifiedRef.current === null) {
         try {
-            initialOriginalRef.current = JSON.stringify(variant.parameters)
+            initialOriginalRef.current = JSON.stringify(sanitizedOldParams)
             // Use the same transformed local prompts ag_config that drives dirty-state
             if (params !== undefined) {
-                initialModifiedRef.current = JSON.stringify(params)
+                initialModifiedRef.current = JSON.stringify(sanitizedParams)
             }
         } catch {
             // Keep refs null; we will fall back to live values below
@@ -105,8 +109,9 @@ const CommitVariantChangesModalContent = ({
     }))
 
     // Ensure DiffView gets strings even when params are undefined
-    const originalForDiff = initialOriginalRef.current ?? JSON.stringify(oldParams ?? {})
-    const modifiedForDiff = initialModifiedRef.current ?? JSON.stringify(params ?? oldParams ?? {})
+    const originalForDiff = initialOriginalRef.current ?? JSON.stringify(sanitizedOldParams ?? {})
+    const modifiedForDiff =
+        initialModifiedRef.current ?? JSON.stringify(sanitizedParams ?? sanitizedOldParams ?? {})
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-6 md:flex-row">
@@ -158,6 +163,13 @@ const CommitVariantChangesModalContent = ({
                                     className="w-full max-w-xs"
                                     value={selectedCommitType?.name}
                                     disabled={selectedCommitType?.type !== "variant"}
+                                    status={
+                                        selectedCommitType?.type === "variant" &&
+                                        selectedCommitType?.name &&
+                                        !isVariantNameInputValid(selectedCommitType.name)
+                                            ? "error"
+                                            : undefined
+                                    }
                                     onChange={(e) =>
                                         setSelectedCommitType((prev) => {
                                             const prevType = prev?.type
@@ -173,6 +185,14 @@ const CommitVariantChangesModalContent = ({
                                     }
                                     suffix={<Version revision={1} />}
                                 />
+                                {selectedCommitType?.type === "variant" &&
+                                    selectedCommitType?.name &&
+                                    !isVariantNameInputValid(selectedCommitType.name) && (
+                                        <Text className="text-xs text-[#EF4444]">
+                                            Variant name must contain only letters, numbers, underscore,
+                                            or dash
+                                        </Text>
+                                    )}
                             </div>
                         </div>
                     </div>

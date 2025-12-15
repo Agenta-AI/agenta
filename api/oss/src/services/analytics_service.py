@@ -6,6 +6,7 @@ from typing import Callable, Optional
 import posthog
 from fastapi import Request
 from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.common import is_oss
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -42,13 +43,14 @@ ACTIVATION_EVENTS = {
     "spans_created": ("activated_observability", {"ApiKey"}),
     "evaluation_created": ("activated_evaluation", None),
     "app_variant_created": ("activated_playground", None),
+    "user_invitation_sent_v1": ("invited_user_v1", None),
 }
 
 
 if POSTHOG_API_KEY:
     posthog.api_key = POSTHOG_API_KEY
     posthog.host = POSTHOG_HOST
-    log.info("PostHog initialized with host %s", POSTHOG_HOST)
+    log.info("Agenta - PostHog URL: %s", POSTHOG_HOST)
 else:
     log.warn("PostHog API key not found in environment variables")
 
@@ -102,10 +104,31 @@ async def _set_activation_property(
             ttl=365 * 24 * 60 * 60,  # 1 year (effectively permanent)
         )
 
-        log.debug(f"Set activation property '{property_name}' for user {distinct_id}")
+        # log.debug(f"Set activation property '{property_name}' for user {distinct_id}")
 
     except Exception as e:
         log.error(f"Error setting activation property '{property_name}': {e}")
+
+
+def capture_oss_deployment_created(user_email: str, organization_id: str):
+    """
+    Captures the 'oss_deployment_created' event in PostHog.
+    This event is triggered when the first user signs up in an OSS instance.
+    """
+
+    if is_oss() and env.POSTHOG_API_KEY:
+        try:
+            posthog.capture(
+                distinct_id=user_email,
+                event="oss_deployment_created",
+                properties={
+                    "organization_id": organization_id,
+                    "deployment_type": "oss",
+                },
+            )
+            log.info(f"Captured 'oss_deployment_created' event for {user_email}")
+        except Exception as e:
+            log.error(f"Error capturing 'oss_deployment_created' event: {e}")
 
 
 async def analytics_middleware(request: Request, call_next: Callable):
@@ -306,12 +329,12 @@ def _get_event_name_from_path(
     # <----------- End of Evaluation Events ------------->
 
     # <----------- Observability Events ------------->
-    if method == "POST" and (
-        "/otlp/v1/traces" in path or "/observability/v1/otlp/traces" in path
-    ):
+    if method == "POST" and "/otlp/v1/traces" in path:
         return "spans_created"
 
-    elif method == "GET" and "/observability/v1/traces" in path:
+    elif method == "GET" and (
+        "/tracing" in path or "/invocations" in path or "/annotations" in path
+    ):
         return "spans_fetched"
     # <----------- End of Observability Events ------------->
 
@@ -324,12 +347,11 @@ def _get_event_name_from_path(
     # <----------- End of Query/Prompt Management Events ------------->
 
     # <----------- User Lifecycle Events ------------->
-    if (
-        method == "POST"
-        and ("/invite" in path)
-        and ("invite" in path_parts and "resend" in path_parts)
-    ):
-        return "invitation_created"
+    if method == "POST" and "invite" in path_parts:
+        if "resend" in path_parts:
+            return "invitation_created"
+        if "accept" not in path_parts:
+            return "user_invitation_sent_v1"
     # <----------- End of User Lifecycle Events ------------->
 
     return None

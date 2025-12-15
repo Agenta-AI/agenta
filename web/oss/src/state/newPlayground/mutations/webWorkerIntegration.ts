@@ -14,7 +14,10 @@ import {
 import {getAllMetadata, getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {extractInputKeysFromSchema, extractVariables} from "@/oss/lib/shared/variant/inputHelpers"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
-import {extractValueByMetadata} from "@/oss/lib/shared/variant/valueHelpers"
+import {
+    extractValueByMetadata,
+    stripAgentaMetadataDeep,
+} from "@/oss/lib/shared/variant/valueHelpers"
 import {getJWT} from "@/oss/services/api"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {
@@ -74,6 +77,23 @@ const cloneNodeDeep = (value: any) => {
     }
 }
 
+const scrubLargeFields = (value: any): any => {
+    if (Array.isArray(value)) {
+        return value.map((item) => scrubLargeFields(item))
+    }
+    if (value && typeof value === "object") {
+        const next: Record<string, unknown> = {}
+        for (const [key, val] of Object.entries(value)) {
+            next[key] = scrubLargeFields(val)
+        }
+        return next
+    }
+    if (typeof value === "string" && value.startsWith("data:") && value.length > 120) {
+        return `${value.slice(0, 60)}...(${value.length})`
+    }
+    return value
+}
+
 function resolveEffectiveRevisionId(
     get: any,
     requestedVariantId: string | undefined,
@@ -102,7 +122,10 @@ function detectIsChatVariant(get: any, rowId: string): boolean {
     return false
 }
 
-type ResolvedVariableKeys = {ordered: string[]; set: Set<string>}
+interface ResolvedVariableKeys {
+    ordered: string[]
+    set: Set<string>
+}
 
 function computeVariableValues(
     get: any,
@@ -360,7 +383,7 @@ export const triggerWebWorkerTestAtom = atom(
             const historyTurns = turnHistoryIds.map((id) => get(chatTurnsByIdAtom)[id])
 
             chatHistory = historyTurns
-                .map((t) => {
+                .map((t, historyIdx) => {
                     const x = []
                     if (t.userMessage) {
                         x.push(extractValueByMetadata(t.userMessage, allMetadata))
@@ -400,6 +423,9 @@ export const triggerWebWorkerTestAtom = atom(
                 .flat()
                 .filter(Boolean)
         }
+
+        const sanitizedChatHistory = stripAgentaMetadataDeep(chatHistory)
+        const sanitizedPrompts = stripAgentaMetadataDeep(prompts)
 
         inputRow = (() => {
             const rowIds = get(generationInputRowIdsAtom) as string[]
@@ -459,10 +485,10 @@ export const triggerWebWorkerTestAtom = atom(
             },
             headers,
             projectId,
-            chatHistory,
+            chatHistory: sanitizedChatHistory,
             spec: getSpecLazy(),
             runId,
-            prompts,
+            prompts: sanitizedPrompts,
             // variables: promptVars,
             variables: allowedKeys.ordered,
             variableValues: computeVariableValues(

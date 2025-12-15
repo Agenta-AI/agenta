@@ -6,7 +6,7 @@ interface MessageImageListProps {
     properties: any[]
     disabled?: boolean
     onRemove: (propertyId: string) => void
-    onChange?: (propertyId: string, url: string) => void
+    onChange?: (propertyId: string, value: string) => void
 }
 
 /**

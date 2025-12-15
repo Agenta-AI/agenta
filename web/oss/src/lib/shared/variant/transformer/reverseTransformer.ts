@@ -81,6 +81,16 @@ export function extractValueByMetadata(
                     {} as Record<string, unknown>,
                 )
 
+            // Special handling for file objects: convert file_id with data URL to file_data
+            if (obj && typeof obj === "object" && "file_id" in obj) {
+                const fileId = obj.file_id
+                if (typeof fileId === "string" && fileId.startsWith("data:")) {
+                    // This is a base64 data URL, move it to file_data
+                    obj.file_data = fileId
+                    delete obj.file_id
+                }
+            }
+
             return Object.keys(obj).length > 0 &&
                 checkValidity(obj, allMetadata[enhanced.__metadata])
                 ? obj

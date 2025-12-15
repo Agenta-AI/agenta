@@ -39,7 +39,7 @@ const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.Re
                 {item.icon}
                 <TooltipWithCopyAction
                     title={getUniquePartOfId(item.value)}
-                    copyText={getUniquePartOfId(item.value)}
+                    copyText={item.value}
                     tooltipProps={{placement: "right"}}
                 >
                     <span className="font-mono">
@@ -121,7 +121,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
                 </div>
             </div>
 
-            <div className={clsx(classes.topRightBar, "shrink-0")}>
+            <div className={clsx(classes.topRightBar, "shrink-0 flex items-center gap-2")}>
                 <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
             </div>
         </section>

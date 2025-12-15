@@ -7,11 +7,13 @@
         <img alt="Shows the logo of agenta" src="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262" >
       </picture>
   </a>
-
+  
 <div align="center">
   <strong> <h1> The Open-source LLMOps Platform </h1></strong>
   Build reliable LLM applications faster with integrated prompt management, evaluation, and observability.
 </div>
+
+
   <br />
       <div align="center" >
         <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
@@ -80,17 +82,17 @@ Agenta is a platform for building production-grade LLM applications. It helps **
 
 ## Core Features
 
-### 🧪 Prompt Engineering & Management
+### 🧪 Prompt Management & Prompt Engineering
 Collaborate with Subject Matter Experts (SMEs) on prompt engineering and make sure nothing breaks in production.
 
-- **Interactive Playground**: Compare prompts side by side against your test cases
+- **Interactive LLM Playground**: Compare prompts side by side against your test cases
 - **Multi-Model Support**: Experiment with 50+ LLM models or [bring-your-own models](https://agenta.ai/docs/prompt-engineering/playground/custom-providers?utm_source=github&utm_medium=referral&utm_campaign=readme)
 - **Version Control**: Version prompts and configurations with branching and environments
 - **Complex Configurations**: Enable SMEs to collaborate on [complex configuration schemas](https://agenta.ai/docs/custom-workflows/overview?utm_source=github&utm_medium=referral&utm_campaign=readme) beyond simple prompts
 
 [Explore prompt management →](https://agenta.ai/docs/prompt-engineering/concepts?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
-### 📊 Evaluation & Testing
+### 📊 LLM Evaluation
 Evaluate your LLM applications systematically with both human and automated feedback.
 - **Flexible Testsets**: Create testcases from production data, playground experiments, or upload CSVs
 - **Pre-built and Custom Evaluators**: Use LLM-as-judge, one of our 20+ pre-built evaluators, or you custom evaluators
@@ -99,10 +101,10 @@ Evaluate your LLM applications systematically with both human and automated feed
 
 [Explore evaluation frameworks →](https://agenta.ai/docs/evaluation/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
-### 📡 Observability & Monitoring
+### 📡 LLM Observability
 Get visibility into your LLM applications in production.
 - **Cost & Performance Tracking**: Monitor spending, latency, and usage patterns
-- **Tracing**: Debug complex workflows with detailed traces
+- **LLM Tracing**: Debug complex workflows with detailed traces
 - **Open Standards**: OpenTelemetry native tracing compatible with OpenLLMetry, and OpenInference
 - **Integrations**: Comes with pre-built integrations for most models and frameworks
 
@@ -138,13 +140,20 @@ The easiest way to get started is through Agenta Cloud. Free tier available with
 ```bash
 git clone https://github.com/Agenta-AI/agenta && cd agenta
 ```
+2. Copy configuration:
 
-2. Start Agenta services:
+Before starting the services, create the environment file from the example:
+
+```bash
+cp hosting/docker-compose/oss/env.oss.gh.example hosting/docker-compose/oss/.env.oss.gh
+```
+
+3. Start Agenta services:
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 ```
 
-3. Access Agenta at `http://localhost`.
+4. Access Agenta at `http://localhost`.
 
 For deploying on a remote host, or using different ports refers to our [self-hosting](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://agenta.ai/docs/self-host/guides/deploy-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
@@ -182,7 +191,7 @@ We welcome contributions of all kinds — from filing issues and sharing ideas t
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-51-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-52-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -258,6 +267,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://ikazoy.me/"><img src="https://avatars.githubusercontent.com/u/385109?v=4?s=100" width="100px;" alt="Yoshiki Ozaki"/><br /><sub><b>Yoshiki Ozaki</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Aikazoy" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ahmed-agenta"><img src="https://avatars.githubusercontent.com/u/194256084?v=4?s=100" width="100px;" alt="ahmed-agenta"/><br /><sub><b>ahmed-agenta</b></sub></a><br /><a href="#design-ahmed-agenta" title="Design">🎨</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/VahantSharma"><img src="https://avatars.githubusercontent.com/u/172914890?v=4?s=100" width="100px;" alt="Vahant Sharma"/><br /><sub><b>Vahant Sharma</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=VahantSharma" title="Documentation">📖</a></td>
     </tr>
   </tbody>
 </table>

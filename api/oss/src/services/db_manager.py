@@ -7,7 +7,7 @@ from json import dumps
 
 from fastapi import HTTPException
 from sqlalchemy.future import select
-from sqlalchemy import func, or_, asc
+from sqlalchemy import func, or_, asc, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from supertokens_python.types import AccountInfo
 from sqlalchemy.orm import joinedload, load_only, aliased
@@ -22,10 +22,10 @@ from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services.json_importer_helper import get_json
 
-if is_ee():
-    from ee.src.models.db_models import ProjectDB, WorkspaceDB
-else:
-    from oss.src.models.db_models import ProjectDB, WorkspaceDB
+from oss.src.models.db_models import (
+    WorkspaceDB,
+    ProjectDB,
+)
 
 from oss.src.models.db_models import (
     AppDB,
@@ -91,6 +91,26 @@ async def fetch_project_by_id(
         )
 
         return project
+
+
+async def fetch_projects_by_workspace(
+    workspace_id: str,
+) -> List[ProjectDB]:
+    """
+    Retrieve all projects that belong to a workspace ordered by creation date.
+    Args:
+        workspace_id (str): Workspace identifier.
+    Returns:
+        List[ProjectDB]: Projects scoped to the workspace.
+    """
+
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(ProjectDB)
+            .filter(ProjectDB.workspace_id == uuid.UUID(workspace_id))
+            .order_by(ProjectDB.created_at.asc())
+        )
+        return result.scalars().all()
 
 
 async def fetch_workspace_by_id(
@@ -209,7 +229,9 @@ async def fetch_latest_app_variant(app_id: str) -> Optional[AppVariantDB]:
         return app_variant
 
 
-async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]:
+async def fetch_app_variant_by_id(
+    app_variant_id: str, include_hidden: bool = False
+) -> Optional[AppVariantDB]:
     """
     Fetches an app variant by its ID.
 
@@ -231,9 +253,12 @@ async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]
             .load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
         )
 
+        if not include_hidden:
+            query = query.where(AppVariantDB.hidden.is_not(True))
+
         result = await session.execute(
-            query.where(AppVariantDB.hidden.is_not(True)).filter_by(
-                id=uuid.UUID(app_variant_id)
+            query.filter_by(
+                id=uuid.UUID(app_variant_id),
             )
         )
         app_variant = result.scalars().first()
@@ -683,6 +708,7 @@ async def create_app_and_envs(
     template_key: Optional[str] = None,
     project_id: Optional[str] = None,
     user_id: Optional[str] = None,
+    folder_id: Optional[str] = None,
 ) -> AppDB:
     """
     Create a new app with the given name and organization ID.
@@ -715,6 +741,7 @@ async def create_app_and_envs(
             app_name=app_name,
             app_type=app_type,
             modified_by_id=uuid.UUID(user_id) if user_id else None,
+            folder_id=uuid.UUID(folder_id) if folder_id else None,
         )
 
         session.add(app)
@@ -740,7 +767,7 @@ async def update_app(app_id: str, values_to_update: dict):
             raise NoResultFound(f"App with {app_id} not found")
 
         # Check if 'app_name' is in the values to update
-        if "app_name" in values_to_update:
+        if "app_name" in values_to_update and values_to_update["app_name"] is not None:
             new_app_name = values_to_update["app_name"]
 
             # Check if another app with the same name exists for the user
@@ -759,6 +786,8 @@ async def update_app(app_id: str, values_to_update: dict):
                 )
 
         for key, value in values_to_update.items():
+            if key == "folder_id" and value:
+                value = uuid.UUID(value)
             if hasattr(app, key):
                 setattr(app, key, value)
 
@@ -1369,8 +1398,6 @@ async def get_workspace(workspace_id: str) -> WorkspaceDB:
 
     async with engine.core_session() as session:
         query = select(WorkspaceDB).filter_by(id=uuid.UUID(workspace_id))
-        if is_ee():
-            query = query.options(joinedload(WorkspaceDB.members))
 
         result = await session.execute(query)
         workspace = result.scalars().first()
@@ -1644,6 +1671,193 @@ async def get_default_project_id_from_workspace(
                 f"No default project for the provided workspace_id {workspace_id} found"
             )
         return str(project.id)
+
+
+async def create_workspace_project(
+    project_name: str,
+    workspace_id: str,
+    organization_id: Optional[str] = None,
+    *,
+    set_default: bool = False,
+    session: Optional[AsyncSession] = None,
+) -> ProjectDB:
+    """
+    Create a project scoped to the provided workspace.
+
+    Args:
+        project_name (str): Display name for the project.
+        workspace_id (str): Workspace identifier.
+        organization_id (Optional[str]): Explicit organization id. If omitted it will be
+            inferred from the workspace.
+        set_default (bool): Whether the project should become the workspace default.
+        session (Optional[AsyncSession]): Existing db session reuse.
+
+    Returns:
+        ProjectDB: Newly created project.
+    """
+
+    workspace_uuid = uuid.UUID(workspace_id)
+
+    async def _create(
+        db_session: AsyncSession,
+    ) -> ProjectDB:
+        workspace = await db_session.get(WorkspaceDB, workspace_uuid)
+        if workspace is None:
+            raise NoResultFound(f"Workspace with ID {workspace_id} not found")
+
+        org_uuid = (
+            uuid.UUID(organization_id) if organization_id else workspace.organization_id
+        )
+
+        should_be_default = set_default
+        if not should_be_default:
+            result = await db_session.execute(
+                select(ProjectDB.id).filter(
+                    ProjectDB.workspace_id == workspace_uuid,
+                    ProjectDB.is_default == True,
+                )
+            )
+            has_default = result.scalars().first() is not None
+            should_be_default = not has_default
+
+        if should_be_default:
+            await db_session.execute(
+                update(ProjectDB)
+                .where(
+                    ProjectDB.workspace_id == workspace_uuid,
+                    ProjectDB.is_default == True,
+                )
+                .values(is_default=False)
+            )
+
+        project_db = ProjectDB(
+            project_name=project_name,
+            is_default=should_be_default,
+            organization_id=org_uuid,
+            workspace_id=workspace_uuid,
+        )
+
+        db_session.add(project_db)
+        await db_session.commit()
+        await db_session.refresh(project_db)
+
+        log.info(
+            "[scopes] project created",
+            organization_id=str(org_uuid),
+            workspace_id=str(workspace_uuid),
+            project_id=str(project_db.id),
+            is_default=project_db.is_default,
+        )
+
+        return project_db
+
+    if session is not None:
+        return await _create(session)
+
+    async with engine.core_session() as new_session:
+        return await _create(new_session)
+
+
+async def delete_project(project_id: str) -> None:
+    """
+    Delete a project if it is not the default one.
+
+    Args:
+        project_id (str): Identifier of project to delete.
+    """
+
+    async with engine.core_session() as session:
+        project = await session.get(ProjectDB, uuid.UUID(project_id))
+        if project is None:
+            raise NoResultFound(f"Project with ID {project_id} not found")
+
+        if project.is_default:
+            raise ValueError("Default project cannot be deleted")
+
+        # this should cascade delete all related entities
+        await session.delete(project)
+        await session.commit()
+
+        log.info(
+            "[scopes] project deleted",
+            organization_id=str(project.organization_id),
+            workspace_id=str(project.workspace_id),
+            project_id=project_id,
+        )
+
+
+async def set_default_project(project_id: str) -> ProjectDB:
+    """
+    Mark the provided project as the default for its workspace.
+
+    Args:
+        project_id (str): Identifier of project to promote.
+
+    Returns:
+        ProjectDB: Updated project.
+    """
+
+    async with engine.core_session() as session:
+        project = await session.get(ProjectDB, uuid.UUID(project_id))
+        if project is None:
+            raise NoResultFound(f"Project with ID {project_id} not found")
+
+        if project.is_default:
+            return project
+
+        await session.execute(
+            update(ProjectDB)
+            .where(
+                ProjectDB.workspace_id == project.workspace_id,
+                ProjectDB.is_default == True,
+            )
+            .values(is_default=False)
+        )
+
+        project.is_default = True
+        await session.commit()
+        await session.refresh(project)
+
+        log.info(
+            "[scopes] project set as default",
+            organization_id=str(project.organization_id),
+            workspace_id=str(project.workspace_id),
+            project_id=project_id,
+        )
+
+        return project
+
+
+async def update_project_name(project_id: str, *, project_name: str) -> ProjectDB:
+    """
+    Update the project's name.
+
+    Args:
+        project_id (str): Identifier of project to update.
+        project_name (str): New name for the project.
+    """
+
+    if not project_name.strip():
+        raise ValueError("Project name cannot be empty")
+
+    async with engine.core_session() as session:
+        project = await session.get(ProjectDB, uuid.UUID(project_id))
+        if project is None:
+            raise NoResultFound(f"Project with ID {project_id} not found")
+
+        project.project_name = project_name.strip()
+        await session.commit()
+        await session.refresh(project)
+
+        log.info(
+            "[scopes] project renamed",
+            organization_id=str(project.organization_id),
+            workspace_id=str(project.workspace_id),
+            project_id=project_id,
+            project_name=project.project_name,
+        )
+
+        return project
 
 
 async def get_project_invitation_by_email(project_id: str, email: str) -> InvitationDB:

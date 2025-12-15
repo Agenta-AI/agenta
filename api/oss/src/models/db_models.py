@@ -46,15 +46,6 @@ class OrganizationDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship(
-        "oss.src.models.db_models.ProjectDB",
-        back_populates="organization",
-        overlaps="organization",
-    )
-    workspaces_relation = relationship(
-        "oss.src.models.db_models.WorkspaceDB", back_populates="organization"
-    )
-
 
 class WorkspaceDB(Base):
     __tablename__ = "workspaces"
@@ -70,7 +61,9 @@ class WorkspaceDB(Base):
     type = Column(String, nullable=True)
     description = Column(String, nullable=True)
     organization_id = Column(
-        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL")
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
     )
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -79,13 +72,8 @@ class WorkspaceDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    projects = relationship(
-        "oss.src.models.db_models.ProjectDB",
-        cascade="all, delete-orphan",
-        back_populates="workspace",
-    )
     organization = relationship(
-        "oss.src.models.db_models.OrganizationDB", back_populates="workspaces_relation"
+        "oss.src.models.db_models.OrganizationDB",
     )
 
 
@@ -129,28 +117,23 @@ class ProjectDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    workspace_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="SET NULL"),
-        nullable=True,
-    )
     organization_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("organizations.id", ondelete="SET NULL"),
-        nullable=True,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    workspace_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
     )
 
-    workspace = relationship(
-        "oss.src.models.db_models.WorkspaceDB", back_populates="projects"
-    )
     organization = relationship(
-        "oss.src.models.db_models.OrganizationDB", back_populates="project"
+        "oss.src.models.db_models.OrganizationDB",
     )
-    app = relationship("AppDB", cascade=CASCADE_ALL_DELETE, backref="project")
-    evaluator_config = relationship(
-        "EvaluatorConfigDB", cascade=CASCADE_ALL_DELETE, backref="project"
+    workspace = relationship(
+        "oss.src.models.db_models.WorkspaceDB",
     )
-    testset = relationship("TestsetDB", cascade=CASCADE_ALL_DELETE, backref="project")
 
 
 class AppDB(Base):
@@ -166,7 +149,19 @@ class AppDB(Base):
     app_name = Column(String)
     app_type = Column(Enum(AppType, name="app_type_enum"), nullable=True)  # type: ignore
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    folder_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("folders.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    folder_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("folders.id", ondelete="SET NULL"),
+        nullable=True,
     )
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(
@@ -176,9 +171,18 @@ class AppDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
+    modified_by = relationship(
+        "oss.src.models.db_models.UserDB",
+        foreign_keys=[modified_by_id],
+    )
+
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
+    )
     variant = relationship(
-        "AppVariantDB", cascade=CASCADE_ALL_DELETE, back_populates="app"
+        "oss.src.models.db_models.AppVariantDB",
+        cascade=CASCADE_ALL_DELETE,
+        back_populates="app",
     )
     deployment = relationship(
         "oss.src.models.db_models.DeploymentDB",
@@ -199,7 +203,9 @@ class DeploymentDB(Base):
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     uri = Column(String)
     created_at = Column(
@@ -209,8 +215,13 @@ class DeploymentDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("oss.src.models.db_models.ProjectDB")
-    app = relationship("AppDB", back_populates="deployment")
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
+    )
+    app = relationship(
+        "oss.src.models.db_models.AppDB",
+        back_populates="deployment",
+    )
 
 
 class VariantBaseDB(Base):
@@ -225,7 +236,9 @@ class VariantBaseDB(Base):
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     base_name = Column(String)
     deployment_id = Column(
@@ -238,9 +251,15 @@ class VariantBaseDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    app = relationship("AppDB")
-    deployment = relationship("oss.src.models.db_models.DeploymentDB")
-    project = relationship("oss.src.models.db_models.ProjectDB")
+    app = relationship(
+        "oss.src.models.db_models.AppDB",
+    )
+    deployment = relationship(
+        "oss.src.models.db_models.DeploymentDB",
+    )
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
+    )
 
 
 class AppVariantDB(Base):
@@ -257,7 +276,9 @@ class AppVariantDB(Base):
     variant_name = Column(String)
     revision = Column(Integer)
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     base_name = Column(String)
@@ -276,12 +297,21 @@ class AppVariantDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    app = relationship("AppDB", back_populates="variant")
-    project = relationship("oss.src.models.db_models.ProjectDB")
-    modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
-    base = relationship("VariantBaseDB")
+    app = relationship(
+        "oss.src.models.db_models.AppDB",
+        back_populates="variant",
+    )
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
+    )
+    modified_by = relationship(
+        "oss.src.models.db_models.UserDB", foreign_keys=[modified_by_id]
+    )
+    base = relationship(
+        "oss.src.models.db_models.VariantBaseDB",
+    )
     variant_revision = relationship(
-        "AppVariantRevisionsDB",
+        "oss.src.models.db_models.AppVariantRevisionsDB",
         cascade=CASCADE_ALL_DELETE,
         backref="variant_revision",
     )
@@ -303,7 +333,9 @@ class AppVariantRevisionsDB(Base):
     revision = Column(Integer)
     commit_message = Column(String(length=255), nullable=True)
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
@@ -321,9 +353,16 @@ class AppVariantRevisionsDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("oss.src.models.db_models.ProjectDB")
-    modified_by = relationship("UserDB")
-    base = relationship("VariantBaseDB")
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
+    )
+    modified_by = relationship(
+        "oss.src.models.db_models.UserDB",
+        foreign_keys=[modified_by_id],
+    )
+    base = relationship(
+        "oss.src.models.db_models.VariantBaseDB",
+    )
 
     def get_config(self) -> dict:
         return {"config_name": self.config_name, "parameters": self.config_parameters}
@@ -342,7 +381,9 @@ class AppEnvironmentDB(Base):
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     name = Column(String)
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     revision = Column(Integer)
     deployed_app_variant_id = Column(
@@ -358,12 +399,20 @@ class AppEnvironmentDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("oss.src.models.db_models.ProjectDB")
-    environment_revisions = relationship(
-        "AppEnvironmentRevisionDB", cascade=CASCADE_ALL_DELETE, backref="environment"
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
     )
-    deployed_app_variant = relationship("AppVariantDB")
-    deployed_app_variant_revision = relationship("AppVariantRevisionsDB")
+    environment_revisions = relationship(
+        "oss.src.models.db_models.AppEnvironmentRevisionDB",
+        cascade=CASCADE_ALL_DELETE,
+        backref="environment",
+    )
+    deployed_app_variant = relationship(
+        "oss.src.models.db_models.AppVariantDB",
+    )
+    deployed_app_variant_revision = relationship(
+        "oss.src.models.db_models.AppVariantRevisionsDB"
+    )
 
 
 class AppEnvironmentRevisionDB(Base):
@@ -380,7 +429,9 @@ class AppEnvironmentRevisionDB(Base):
         UUID(as_uuid=True), ForeignKey("environments.id", ondelete="CASCADE")
     )
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     revision = Column(Integer)
     commit_message = Column(String(length=255), nullable=True)
@@ -395,8 +446,12 @@ class AppEnvironmentRevisionDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("oss.src.models.db_models.ProjectDB")
-    modified_by = relationship("UserDB")
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
+    )
+    modified_by = relationship(
+        "oss.src.models.db_models.UserDB",
+    )
 
 
 class TestsetDB(Base):
@@ -411,7 +466,9 @@ class TestsetDB(Base):
     )
     name = Column(String)
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     csvdata = Column(mutable_json_type(dbtype=JSONB, nested=True))
     created_at = Column(
@@ -419,6 +476,10 @@ class TestsetDB(Base):
     )
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
     )
 
 
@@ -434,7 +495,9 @@ class EvaluatorConfigDB(Base):
     )
 
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     name = Column(String)
     evaluator_key = Column(String)
@@ -444,6 +507,10 @@ class EvaluatorConfigDB(Base):
     )
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
     )
 
 
@@ -477,14 +544,22 @@ class InvitationDB(Base):
     used = Column(Boolean, default=False)
     role = Column(String, nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"))
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     expiration_date = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    user = relationship("UserDB")
-    project = relationship("oss.src.models.db_models.ProjectDB")
+    user = relationship(
+        "oss.src.models.db_models.UserDB",
+    )
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
+    )
 
 
 class APIKeyDB(Base):
@@ -500,7 +575,9 @@ class APIKeyDB(Base):
     prefix = Column(String)
     hashed_key = Column(String)
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     created_by_id = Column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -515,9 +592,12 @@ class APIKeyDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    user = relationship("UserDB", backref="api_key_owner")
+    user = relationship(
+        "oss.src.models.db_models.UserDB",
+        backref="api_key_owner",
+    )
     project = relationship(
-        "oss.src.models.db_models.ProjectDB", backref="api_key_project"
+        "oss.src.models.db_models.ProjectDB",
     )
 
 
@@ -541,9 +621,13 @@ class HumanEvaluationVariantDB(Base):
         UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
     )
 
-    variant = relationship("AppVariantDB", backref="evaluation_variant")
+    variant = relationship(
+        "oss.src.models.db_models.AppVariantDB",
+        backref="evaluation_variant",
+    )
     variant_revision = relationship(
-        "AppVariantRevisionsDB", backref="evaluation_variant_revision"
+        "oss.src.models.db_models.AppVariantRevisionsDB",
+        backref="evaluation_variant_revision",
     )
 
 
@@ -559,7 +643,9 @@ class HumanEvaluationDB(Base):
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     status = Column(String)
     evaluation_type = Column(String)
@@ -571,16 +657,22 @@ class HumanEvaluationDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    testset = relationship("TestsetDB")
+    testset = relationship(
+        "oss.src.models.db_models.TestsetDB",
+    )
     evaluation_variant = relationship(
-        "HumanEvaluationVariantDB",
+        "oss.src.models.db_models.HumanEvaluationVariantDB",
         cascade=CASCADE_ALL_DELETE,
         backref="human_evaluation",
     )
     evaluation_scenario = relationship(
-        "HumanEvaluationScenarioDB",
+        "oss.src.models.db_models.HumanEvaluationScenarioDB",
         cascade=CASCADE_ALL_DELETE,
         backref="evaluation_scenario",
+    )
+
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
     )
 
 
@@ -595,7 +687,9 @@ class HumanEvaluationScenarioDB(Base):
         nullable=False,
     )
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     evaluation_id = Column(
         UUID(as_uuid=True), ForeignKey("human_evaluations.id", ondelete="CASCADE")
@@ -618,6 +712,10 @@ class HumanEvaluationScenarioDB(Base):
     is_pinned = Column(Boolean)
     note = Column(String)
 
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
+    )
+
 
 class EvaluationAggregatedResultDB(Base):
     __tablename__ = "auto_evaluation_aggregated_results"
@@ -638,7 +736,10 @@ class EvaluationAggregatedResultDB(Base):
     )
     result = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
 
-    evaluator_config = relationship("EvaluatorConfigDB", backref="evaluator_config")
+    evaluator_config = relationship(
+        "oss.src.models.db_models.EvaluatorConfigDB",
+        backref="evaluator_config",
+    )
 
 
 class EvaluationScenarioResultDB(Base):
@@ -674,7 +775,9 @@ class EvaluationDB(Base):
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     status = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
     testset_id = Column(
@@ -696,20 +799,30 @@ class EvaluationDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("oss.src.models.db_models.ProjectDB")
-    testset = relationship("TestsetDB")
-    variant = relationship("AppVariantDB")
-    variant_revision = relationship("AppVariantRevisionsDB")
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
+    )
+    testset = relationship(
+        "oss.src.models.db_models.TestsetDB",
+    )
+    variant = relationship(
+        "oss.src.models.db_models.AppVariantDB",
+    )
+    variant_revision = relationship(
+        "oss.src.models.db_models.AppVariantRevisionsDB",
+    )
     aggregated_results = relationship(
-        "EvaluationAggregatedResultDB",
+        "oss.src.models.db_models.EvaluationAggregatedResultDB",
         cascade=CASCADE_ALL_DELETE,
         backref="evaluation",
     )
     evaluation_scenarios = relationship(
-        "EvaluationScenarioDB", cascade=CASCADE_ALL_DELETE, backref="evaluation"
+        "oss.src.models.db_models.EvaluationScenarioDB",
+        cascade=CASCADE_ALL_DELETE,
+        backref="evaluation",
     )
     evaluator_configs = relationship(
-        "EvaluationEvaluatorConfigDB",
+        "oss.src.models.db_models.EvaluationEvaluatorConfigDB",
         cascade=CASCADE_ALL_DELETE,
         backref="evaluation",
     )
@@ -748,7 +861,9 @@ class EvaluationScenarioDB(Base):
         nullable=False,
     )
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
     )
     evaluation_id = Column(
         UUID(as_uuid=True), ForeignKey("auto_evaluations.id", ondelete="CASCADE")
@@ -776,10 +891,14 @@ class EvaluationScenarioDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("oss.src.models.db_models.ProjectDB")
-    variant = relationship("AppVariantDB")
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
+    )
+    variant = relationship(
+        "oss.src.models.db_models.AppVariantDB",
+    )
     results = relationship(
-        "EvaluationScenarioResultDB",
+        "oss.src.models.db_models.EvaluationScenarioResultDB",
         cascade=CASCADE_ALL_DELETE,
         backref="evaluation_scenario",
     )

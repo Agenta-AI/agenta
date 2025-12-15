@@ -85,8 +85,9 @@ export function generateJSONSchema(config: SchemaConfig): GeneratedJSONSchema {
             type: "object",
             properties,
             required,
-            strict: true,
+            additionalProperties: false,
         },
+        strict: true,
     }
 }
 

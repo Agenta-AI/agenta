@@ -2,9 +2,10 @@ import {useState} from "react"
 
 import {UploadOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileCsv, Trash} from "@phosphor-icons/react"
-import {Button, Collapse, Form, Input, message, Radio, Typography, Upload, UploadFile} from "antd"
+import {Button, Collapse, Form, Input, Radio, Typography, Upload, UploadFile} from "antd"
 import {createUseStyles} from "react-jss"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
 import {isValidCSVFile, isValidJSONFile} from "@/oss/lib/helpers/fileManipulations"
 import {GenericObject, JSSTheme} from "@/oss/lib/Types"
@@ -278,7 +279,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                         )}
 
                                         <Typography.Link
-                                            href="https://agenta.ai/docs/evaluation/create-testsets#creating-a-testset-from-a-csv-or-json"
+                                            href="https://agenta.ai/docs/evaluation/managing-test-sets/upload-csv"
                                             target="_blank"
                                         >
                                             <Button>Read the docs</Button>

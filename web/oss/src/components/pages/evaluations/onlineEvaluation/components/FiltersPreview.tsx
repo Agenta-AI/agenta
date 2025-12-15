@@ -130,7 +130,10 @@ const FiltersPreview = ({filtering, filters, className, compact}: FiltersPreview
         return (
             <div className={clsx("flex flex-col gap-1 text-xs text-[#475467]", className)}>
                 {normalizedFilters.map((item) => (
-                    <div key={item.id} className="leading-snug">
+                    <div
+                        key={item.id}
+                        className="leading-snug whitespace-nowrap overflow-hidden text-ellipsis"
+                    >
                         <span className="font-medium text-[#1D2939]">{item.fieldLabel}</span>{" "}
                         <span className="text-[#98A2B3]">{item.operatorLabel}</span>{" "}
                         <span className="font-medium text-[#1D2939]">{item.valueLabel}</span>

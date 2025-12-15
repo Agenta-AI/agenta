@@ -2,6 +2,7 @@ import {memo} from "react"
 
 import {Tag, TagProps, Tooltip, TooltipProps} from "antd"
 import {Inter} from "next/font/google"
+import clsx from "clsx"
 
 const inter = Inter({
     subsets: ["latin"],
@@ -28,7 +29,13 @@ const TruncatedTooltipTag = ({
             placement="bottomLeft"
             {...props}
         >
-            <Tag {...tagProps}>{children}</Tag>
+            <Tag
+                {...tagProps}
+                bordered={false}
+                className={clsx("self-start w-fit bg-[#0517290F]", tagProps?.className)}
+            >
+                {children}
+            </Tag>
         </Tooltip>
     )
 }

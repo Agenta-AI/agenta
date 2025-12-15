@@ -59,6 +59,7 @@ export interface testset {
     name: string
     created_at: string
     updated_at: string
+    columns?: string[]
 }
 
 export interface Testset {
@@ -67,6 +68,7 @@ export interface Testset {
     created_at: string
     updated_at: string
     csvdata: KeyValuePair[]
+    columns?: string[]
 }
 
 export interface PreviewTestcase {
@@ -105,6 +107,7 @@ export interface ListAppsItem {
     app_type?: string
     created_at?: string
     updated_at: string
+    folder_id?: string | null
 }
 
 export type APP_TYPE = "completion" | "chat" | "custom"
@@ -1037,7 +1040,21 @@ export interface ChatMessageContentImage {
     image_url: ChatImageURL
 }
 
-export type ChatMessageContent = string | (ChatMessageContentText | ChatMessageContentImage)[]
+export interface ChatMessageContentFile {
+    type: "file"
+    file: {
+        file_id?: string
+        file_data?: string
+        filename?: string
+        format?: string
+        name?: string
+        mime_type?: string
+    }
+}
+
+export type ChatMessageContent =
+    | string
+    | (ChatMessageContentText | ChatMessageContentImage | ChatMessageContentFile)[]
 
 export interface ChatMessage {
     role: ChatRole

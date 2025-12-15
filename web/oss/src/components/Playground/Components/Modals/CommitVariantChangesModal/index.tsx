@@ -1,21 +1,22 @@
 import {type ReactElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {FloppyDiskBack} from "@phosphor-icons/react"
-import {message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {Resizable} from "react-resizable"
 
+import {message} from "@/oss/components/AppMessageContext"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {
     revisionListAtom,
     saveVariantMutationAtom,
     selectedVariantsAtom,
     variantByRevisionIdAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
+import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 import {createVariantMutationAtom} from "../../../state/atoms/variantCrudMutations"
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 import {CommitVariantChangesModalProps, SelectedCommitType} from "./assets/types"
 const CommitVariantChangesModalContent = dynamic(
@@ -281,6 +282,9 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const isOkDisabled =
         !selectedCommitType?.type ||
         (selectedCommitType?.type === "variant" && !selectedCommitType?.name) ||
+        (selectedCommitType?.type === "variant" &&
+            selectedCommitType?.name &&
+            !isVariantNameInputValid(selectedCommitType.name)) ||
         (shouldDeploy && !selectedEnvironment)
 
     const modalRender = useCallback(

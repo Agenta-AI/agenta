@@ -1,10 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Flex, Form, Input, message, Space, Typography, Divider, Collapse} from "antd"
+import {Button, Flex, Form, Input, Space, Typography, Divider, Collapse} from "antd"
+import clsx from "clsx"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {
     EvaluationSettingsTemplate,
@@ -24,11 +26,14 @@ import {useAppList} from "@/oss/state/app"
 
 import AdvancedSettings from "./AdvancedSettings"
 import {DynamicFormField} from "./DynamicFormField"
-import clsx from "clsx"
 
-const LoadEvaluatorPreset = dynamic(() => import("./components/modals/LoadEvaluatorPreset"), {
-    ssr: false,
-})
+const LoadEvaluatorPreset = dynamic(
+    () =>
+        import(
+            "@/agenta-oss-common/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/components/modals/LoadEvaluatorPreset"
+        ),
+    {ssr: false},
+)
 
 const DebugSection: any = dynamic(
     () =>
@@ -184,7 +189,7 @@ const ConfigureEvaluator = ({
 
             if (allKeys.length) {
                 const fieldNames = allKeys.map(
-                    (key) => ["settings_values", key] as Array<string | number>,
+                    (key) => ["settings_values", key] as (string | number)[],
                 )
                 form.resetFields(fieldNames)
 
@@ -209,7 +214,7 @@ const ConfigureEvaluator = ({
 
                         return {name: namePath, value}
                     })
-                    .filter(Boolean) as Array<{name: Array<string | number>; value: any}>
+                    .filter(Boolean) as {name: (string | number)[]; value: any}[]
 
                 if (nextFields.length) {
                     form.setFields(nextFields)
@@ -257,7 +262,7 @@ const ConfigureEvaluator = ({
                 })
                 return acc
             },
-            [] as Array<EvaluationSettingsTemplate & {key: string}>,
+            [] as (EvaluationSettingsTemplate & {key: string})[],
         )
     }, [selectedEvaluator, evaluatorVersionNumber])
 
@@ -270,7 +275,7 @@ const ConfigureEvaluator = ({
             if (!selectedEvaluator.key) throw new Error("No selected key")
             const settingsValues = values.settings_values || {}
 
-            const jsonSchemaFieldPath: Array<string | number> = ["settings_values", "json_schema"]
+            const jsonSchemaFieldPath: (string | number)[] = ["settings_values", "json_schema"]
             const hasJsonSchema = Object.prototype.hasOwnProperty.call(
                 settingsValues,
                 "json_schema",
