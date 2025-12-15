@@ -207,44 +207,6 @@ evaluators = [
         "requires_llm_api_keys": True,
         "settings_presets": [
             {
-                "key": "default",
-                "name": "Default",
-                "values": {
-                    "prompt_template": [
-                        {
-                            "role": "system",
-                            "content": "You are an expert evaluator grading model outputs. Your task is to grade the responses based on the criteria and requirements provided below. \n\nGiven the model output and inputs (and any other data you might get) assign a grade to the output. \n\n## Grading considerations\n- Evaluate the overall value provided in the model output\n- Verify all claims in the output meticulously\n- Differentiate between minor errors and major errors\n- Evaluate the outputs based on the inputs and whether they follow the instruction in the inputs if any\n- Give the highst and lowest score for cases where you have complete certainty about correctness and value\n\n## output format\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER\n",
-                        },
-                        {
-                            "role": "user",
-                            "content": "## Model inputs\n{{inputs}}\n## Model outputs\n{{outputs}}",
-                        },
-                    ],
-                    "model": "gpt-4o-mini",
-                    "response_type": "json_schema",
-                    "json_schema": {
-                        "name": "schema",
-                        "schema": {
-                            "title": "extract",
-                            "description": "Extract information from the user's response.",
-                            "type": "object",
-                            "properties": {
-                                "score": {
-                                    "type": "boolean",
-                                    "description": "The grade results",
-                                }
-                            },
-                            "required": [
-                                "score",
-                            ],
-                            "additionalProperties": False,
-                        },
-                        "strict": True,
-                    },
-                    "version": "4",
-                },
-            },
-            {
                 "key": "hallucination",
                 "name": "Hallucination Detection",
                 "values": {
@@ -274,6 +236,140 @@ evaluators = [
                             },
                             "required": [
                                 "score",
+                            ],
+                            "additionalProperties": False,
+                        },
+                        "strict": True,
+                    },
+                    "version": "4",
+                },
+            },
+            {
+                "key": "conciseness",
+                "name": "Conciseness",
+                "values": {
+                    "prompt_template": [
+                        {
+                            "role": "system",
+                            "content": "You are an expert data labeler evaluating AI-generated responses for conciseness. Your task is to assess how efficiently the response delivers the requested information without unnecessary content.\n\n## Task\nEvaluate the response's conciseness on a scale from 0 to 1.\n\n## Scoring Scale\n- **1.0**: Maximally concise. Contains only essential information in minimal words.\n- **0.7-0.9**: Mostly concise with minor excess (one or two unnecessary phrases).\n- **0.4-0.6**: Moderately verbose. Contains noticeable filler but core answer is present.\n- **0.1-0.3**: Significantly verbose. Buried answer with substantial unnecessary content.\n- **0.0**: Entirely verbose or non-responsive.\n\n## What Constitutes Perfect Conciseness\nA perfectly concise response:\n- Delivers exactly what was asked—nothing more\n- Uses the fewest words possible while remaining complete\n- Omits pleasantries, hedging, and filler\n- Excludes self-referential commentary (\"I think...\", \"As an AI...\")\n- Avoids unrequested explanations or context\n- Contains no redundancy or restatement\n\n## Deduction Triggers\nPenalize responses containing:\n- Opening phrases: \"Sure!\", \"Great question!\", \"I'd be happy to help\"\n- Hedging: \"probably\", \"I believe\", \"as far as I know\"\n- Self-reference: \"I think\", \"In my opinion\", \"As an AI\"\n- Unrequested context or background\n- Closing phrases: \"Hope this helps!\", \"Let me know if you need more\"\n- Follow-up offers: \"Would you like me to explain further?\"\n- Redundant restatements of the same point",
+                        },
+                        {
+                            "role": "user",
+                            "content": "## Model inputs\n{{inputs}}\n## Model outputs\n{{outputs}}",
+                        },
+                    ],
+                    "model": "gpt-4o-mini",
+                    "response_type": "json_schema",
+                    "json_schema": {
+                        "name": "schema",
+                        "schema": {
+                            "title": "extract",
+                            "description": "Extract information from the user's response.",
+                            "type": "object",
+                            "properties": {
+                                "score": {
+                                    "type": "number",
+                                    "description": "The grade results",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                },
+                                "comment": {
+                                    "type": "string",
+                                    "description": "Reasoning for the score",
+                                },
+                            },
+                            "required": [
+                                "score",
+                                "comment",
+                            ],
+                            "additionalProperties": False,
+                        },
+                        "strict": True,
+                    },
+                    "version": "4",
+                },
+            },
+            {
+                "key": "answer_relevancy",
+                "name": "Answer Relevancy",
+                "values": {
+                    "prompt_template": [
+                        {
+                            "role": "system",
+                            "content": "You are an expert data labeler evaluating AI-generated responses for answer relevancy. Your task involves two steps: generating a question the response would answer, then assessing whether the response is noncommittal.\n\n## Task\nGiven a response, perform two evaluations:\n1. Generate the most likely question this response is attempting to answer\n2. Determine if the response is noncommittal (evasive/vague) or committal (direct/specific)\n\n\n## Step 1: Question Generation\nInfer the question the response is most likely answering. The question should:\n- Be specific and direct\n- Match the subject matter and scope of the response\n- Represent what a user would realistically ask to receive this response\n\n## Step 2: Noncommittal Assessment\nEvaluate whether the response directly answers the inferred question or evades it.\n\n**Score 1 (Committal - Good)**: The response provides a direct, specific answer. Indicators include:\n- States concrete facts, dates, names, or figures\n- Takes a clear position or provides definitive information\n- Answers the question without hedging or deflecting\n\n**Score 0 (Noncommittal - Bad)**: The response avoids giving a direct answer. Indicators include:\n- Explicit uncertainty: \"I don't know\", \"I'm not sure\", \"I cannot answer\"\n- Knowledge cutoff disclaimers: \"I'm unaware of information beyond...\"\n- Deflection: \"You should ask someone else\", \"That depends on many factors\"\n- Vague generalizations instead of specific answers\n- Refusal to answer: \"I can't help with that\"\n\n## Examples\n\n**Example 1**\nResponse: \"Albert Einstein was born in Germany.\"\n\nOutput:\n{\n  \"question\": \"Where was Albert Einstein born?\",\n  \"score\": 1\n}\n\n**Example 2**\nResponse: \"I don't know about the groundbreaking feature of the smartphone invented in 2023 as I am unaware of information beyond 2022.\"\n\nOutput:\n{\n  \"question\": \"What was the groundbreaking feature of the smartphone invented in 2023?\",\n  \"score\": 0\n}\n\n**Example 3**\nResponse: \"The capital of France is Paris, which has been the capital since the 10th century.\"\n\nOutput:\n{\n  \"question\": \"What is the capital of France?\",\n  \"score\": 1\n}\n\n**Example 4**\nResponse: \"That's a complex topic with many perspectives. It really depends on who you ask and what criteria you use.\"\n\nOutput:\n{\n  \"question\": \"What is the best programming language for beginners?\",\n  \"score\": 0\n}",
+                        },
+                        {
+                            "role": "user",
+                            "content": "## Model outputs\n{{outputs}}",
+                        },
+                    ],
+                    "model": "gpt-4o-mini",
+                    "response_type": "json_schema",
+                    "json_schema": {
+                        "name": "schema",
+                        "schema": {
+                            "title": "extract",
+                            "description": "Extract information from the user's response.",
+                            "type": "object",
+                            "properties": {
+                                "question": {
+                                    "type": "string",
+                                    "description": "The inferred question the response answers",
+                                },
+                                "score": {
+                                    "type": "number",
+                                    "description": "Score where 1 = committal (direct/specific - good), 0 = noncommittal (evasive/vague - bad)",
+                                    "enum": [0, 1],
+                                },
+                            },
+                            "required": [
+                                "question",
+                                "score",
+                            ],
+                            "additionalProperties": False,
+                        },
+                        "strict": True,
+                    },
+                    "version": "4",
+                },
+            },
+            {
+                "key": "helpfulness",
+                "name": "Helpfulness",
+                "values": {
+                    "prompt_template": [
+                        {
+                            "role": "system",
+                            "content": "You are an expert data labeler evaluating AI-generated responses for helpfulness. Your task is to assess how effectively the response addresses the user's needs and assists them in achieving their goal.\n\n## Task\nEvaluate the response's helpfulness on a scale from 0 to 1.\n\n\n## Scoring Scale\n- **1.0**: Fully helpful. Accurately addresses the query, provides actionable information, and is clear and engaging.\n- **0.7-0.9**: Mostly helpful. Addresses the core query with minor gaps in clarity, completeness, or tone.\n- **0.4-0.6**: Partially helpful. Provides some useful information but misses key aspects or lacks clarity.\n- **0.1-0.3**: Minimally helpful. Touches on the topic but fails to meaningfully assist the user.\n- **0.0**: Not helpful. Incorrect, irrelevant, or refuses to engage with the query.\n\n## What Constitutes a Helpful Response\nA fully helpful response:\n- Directly addresses the user's actual question or need\n- Provides accurate and factually correct information\n- Includes relevant details that aid understanding or resolution\n- Is clear, well-structured, and easy to follow\n- Offers actionable guidance when the query calls for it\n- Maintains an appropriate and engaging tone\n- Anticipates reasonable follow-up needs without over-explaining\n\n## Evaluation Criteria\n\n**Accuracy** (Is the information correct?)\n- Deduct heavily for factual errors or misleading information\n- Deduct for outdated information when current data is available\n\n**Relevance** (Does it address what was asked?)\n- Deduct for tangential information that doesn't serve the query\n- Deduct for answering a different question than what was asked\n\n**Completeness** (Does it cover the necessary ground?)\n- Deduct for missing critical information needed to resolve the query\n- Deduct for superficial answers when depth is required\n\n**Clarity** (Is it easy to understand?)\n- Deduct for confusing explanations or poor organization\n- Deduct for unnecessary jargon without explanation\n\n**Actionability** (Can the user act on it?)\n- Deduct for vague suggestions when specific steps are needed\n- Deduct for theoretical answers to practical questions\n\n## Output Format\nReturn a JSON object:\n{\n  \"score\": <float between 0 and 1>,\n  \"reasoning\": \"<brief explanation of score>\"\n}\n\n## Examples\n\n**Example 1**\nQuestion: \"How do I reset my password on Gmail?\"\nResponse: \"Go to the Gmail sign-in page, click 'Forgot password', enter your email, and follow the verification steps. You'll receive a code via SMS or backup email to create a new password.\"\n\nOutput:\n{\n  \"score\": 1.0,\n  \"reasoning\": \"Provides accurate, step-by-step instructions that directly address the query. Clear, actionable, and complete.\"\n}\n\n**Example 2**\nQuestion: \"What's the best way to learn Python?\"\nResponse: \"Python is a programming language created by Guido van Rossum in 1991. It's used for web development, data science, and automation.\"\n\nOutput:\n{\n  \"score\": 0.2,\n  \"reasoning\": \"Provides background information about Python but completely ignores the actual question about how to learn it. Not actionable.\"\n}\n\n**Example 3**\nQuestion: \"Why is my plant's leaves turning yellow?\"\nResponse: \"Yellow leaves can indicate overwatering, underwatering, nutrient deficiency, or insufficient light. Check if the soil is soggy (overwatering) or bone dry (underwatering). If watering seems fine, consider a balanced fertilizer or moving the plant to brighter indirect light.\"\n\nOutput:\n{\n  \"score\": 0.9,\n  \"reasoning\": \"Covers multiple causes with diagnostic steps and solutions. Minor deduction for not asking clarifying questions about the plant type, which could affect advice.\"\n}",
+                        },
+                        {
+                            "role": "user",
+                            "content": "## Model inputs\n{{inputs}}\n## Model outputs\n{{outputs}}",
+                        },
+                    ],
+                    "model": "gpt-4o-mini",
+                    "response_type": "json_schema",
+                    "json_schema": {
+                        "name": "schema",
+                        "schema": {
+                            "title": "extract",
+                            "description": "Extract information from the user's response.",
+                            "type": "object",
+                            "properties": {
+                                "score": {
+                                    "type": "number",
+                                    "description": "Helpfulness score from 0 to 1",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                },
+                                "reasoning": {
+                                    "type": "string",
+                                    "description": "Brief explanation of the score",
+                                },
+                            },
+                            "required": [
+                                "score",
+                                "reasoning",
                             ],
                             "additionalProperties": False,
                         },
