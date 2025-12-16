@@ -2,10 +2,6 @@
 
 set -e
 
-echo "[entrypoint.sh] Starting entrypoint script..." >&2
-echo "[entrypoint.sh] Current working directory: $(pwd)" >&2
-echo "[entrypoint.sh] Initial AGENTA_LICENSE: $AGENTA_LICENSE" >&2
-
 if [ "$AGENTA_LICENSE" != "ee" ]; then
   AGENTA_LICENSE="oss"
 fi
@@ -20,10 +16,6 @@ if [ -n "$SENDGRID_API_KEY" ]; then
 else
   export AGENTA_SENDGRID_ENABLED="false"
 fi
-
-echo "[entrypoint.sh] Using AGENTA_LICENSE: $AGENTA_LICENSE" >&2
-echo "[entrypoint.sh] AGENTA_SENDGRID_ENABLED: $AGENTA_SENDGRID_ENABLED" >&2
-echo "[entrypoint.sh] Creating ${AGENTA_LICENSE}/public/__env.js with the following content:" >&2
 
 mkdir -p "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public"
 
@@ -57,9 +49,6 @@ window.__env = {
 };
 EOF
 
-echo "[entrypoint.sh] Finished writing env file." >&2
-echo "[entrypoint.sh] Contents of __env.js:" >&2
 cat "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public/__env.js" >&2
-echo "[entrypoint.sh] Executing: $@" >&2
 
 exec "$@"

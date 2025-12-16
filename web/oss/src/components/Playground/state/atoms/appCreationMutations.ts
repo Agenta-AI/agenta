@@ -39,6 +39,7 @@ export interface CreateAppParams {
     templateKey: ServiceType
     serviceUrl?: string
     providerKey: LlmProvider[]
+    folderId?: string | null
     isCustomWorkflow?: boolean
     onStatusChange?: (
         status:
@@ -64,7 +65,15 @@ export interface AppCreationResult {
 
 // Helper function to create app
 // Use axios so that global interceptors handle errors like 403
-const createApp = async ({templateKey, appName}: {appName: string; templateKey: ServiceType}) => {
+const createApp = async ({
+    templateKey,
+    appName,
+    folderId,
+}: {
+    appName: string
+    templateKey: ServiceType
+    folderId?: string | null
+}) => {
     const {selectedOrg} = getOrgValues()
     const {project, projectId} = getProjectValues()
     // Prefer selectedOrg, fallback to current project's org/workspace when available
@@ -72,6 +81,16 @@ const createApp = async ({templateKey, appName}: {appName: string; templateKey: 
     const workspace_id =
         (selectedOrg as any)?.default_workspace?.id || (project as any)?.workspace_id || null
     const url = new URL(`${getAgentaApiUrl()}/apps?project_id=${projectId}`)
+
+    const basePayload: Record<string, any> = {
+        app_name: appName,
+        template_key: templateKey,
+    }
+
+    if (folderId !== undefined) {
+        basePayload.folder_id = folderId
+    }
+
     if (process.env.NODE_ENV === "development") {
         console.log("[app:create] createApp payload preview", {
             app_name: appName,
@@ -79,6 +98,7 @@ const createApp = async ({templateKey, appName}: {appName: string; templateKey: 
             organization_id,
             workspace_id,
             projectId,
+            folder_id: folderId,
         })
     }
     const response = await fetchJson(url, {
@@ -86,15 +106,11 @@ const createApp = async ({templateKey, appName}: {appName: string; templateKey: 
         body: JSON.stringify(
             organization_id && workspace_id
                 ? {
-                      app_name: appName,
-                      template_key: templateKey,
+                      ...basePayload,
                       organization_id,
                       workspace_id,
                   }
-                : {
-                      app_name: appName,
-                      template_key: templateKey,
-                  },
+                : basePayload,
         ),
     })
 
@@ -231,6 +247,7 @@ export const createAppMutationAtom = atom(
             templateKey,
             serviceUrl,
             providerKey: _providerKey, // retained if needed elsewhere
+            folderId,
             isCustomWorkflow = false,
             onStatusChange,
         } = params
@@ -244,6 +261,7 @@ export const createAppMutationAtom = atom(
             const app = await createApp({
                 appName,
                 templateKey,
+                folderId,
             })
 
             await queryClient.invalidateQueries({queryKey: ["apps"]})

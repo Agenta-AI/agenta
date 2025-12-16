@@ -11,6 +11,9 @@ import useTraceDrawer from "../hooks/useTraceDrawer"
 
 import TraceAnnotations from "./TraceAnnotations"
 import TraceDetails from "./TraceDetails"
+import clsx from "clsx"
+import TraceLinkedSpans from "./TraceLinkedSpans"
+import TraceReferences from "./TraceReferences"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -87,26 +90,69 @@ const TraceSidePanel = ({
         emptyState("Select a span to view trace details.")
     )
 
-    const items: CollapseProps["items"] = [
-        {
-            key: "annotations",
-            label: (
-                <Typography.Text className={classes.collapseItemLabel}>Annotations</Typography.Text>
-            ),
-            children: annotationsContent,
-        },
-        {
-            key: "details",
-            label: <Typography.Text className={classes.collapseItemLabel}>Details</Typography.Text>,
-            children: detailsContent,
-        },
-    ]
+    const linkedContent = showLoading ? (
+        loadingContent
+    ) : derived ? (
+        <TraceLinkedSpans />
+    ) : (
+        emptyState("No linked spans found.")
+    )
+
+    const referencesContent = showLoading ? (
+        loadingContent
+    ) : derived ? (
+        <TraceReferences />
+    ) : (
+        emptyState("No references found.")
+    )
+
+    const items: CollapseProps["items"] = useMemo(
+        () => [
+            {
+                key: "annotations",
+                label: (
+                    <Typography.Text className={classes.collapseItemLabel}>
+                        Annotations
+                    </Typography.Text>
+                ),
+                children: annotationsContent,
+            },
+            {
+                key: "details",
+                label: (
+                    <Typography.Text className={classes.collapseItemLabel}>
+                        Trace info
+                    </Typography.Text>
+                ),
+                children: detailsContent,
+            },
+            {
+                key: "references",
+                label: (
+                    <Typography.Text className={classes.collapseItemLabel}>
+                        References
+                    </Typography.Text>
+                ),
+                children: referencesContent,
+            },
+            {
+                key: "linked",
+                label: (
+                    <Typography.Text className={classes.collapseItemLabel}>
+                        Linked spans
+                    </Typography.Text>
+                ),
+                children: linkedContent,
+            },
+        ],
+        [activeTrace, derived],
+    )
 
     return (
         <Collapse
             items={items}
-            defaultActiveKey={["annotations", "details"]}
-            className={classes.collapseContainer}
+            defaultActiveKey={["annotations", "details", "linked", "references"]}
+            className={clsx(classes.collapseContainer, "[&_.ant-collapse-header]:!py-[10.5px]")}
         />
     )
 }

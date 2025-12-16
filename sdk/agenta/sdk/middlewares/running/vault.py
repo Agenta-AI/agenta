@@ -127,7 +127,7 @@ class VaultMiddleware:
         request: WorkflowServiceRequest,
         call_next: Callable[[WorkflowServiceRequest], Any],
     ):
-        api_url = f"{ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host}/api"
+        api_url = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_url
 
         with suppress():
             ctx = RunningContext.get()

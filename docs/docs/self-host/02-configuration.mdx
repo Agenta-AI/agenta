@@ -72,10 +72,14 @@ Essential third-party service configurations:
 | `TRAEFIK_UI_PORT` | Port for Traefik dashboard | `8080` |
 | `TRAEFIK_HTTPS_PORT` | HTTPS port for Traefik | `443` |
 
-#### Redis (Task Queue, Caching & Sessions)
+#### Redis (Task Queue, Caching & Sessions) {#redis-caching}
+Use `REDIS_URI` when you have a single Redis, or split to two instances with the volatile/durable URLs below.
+
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `REDIS_URI` | Redis connection URL for TaskIQ task queue, caching, and sessions | `redis://redis:6379/0` |
+| `REDIS_URI` | Single Redis URL used when the split URLs are not provided | `redis://redis:6379/0` |
+| `REDIS_URI_VOLATILE` | Caches/PubSub channels; falls back to `REDIS_URI` | `redis://redis-volatile:6379/0` |
+| `REDIS_URI_DURABLE` | Queues/Streams; falls back to `REDIS_URI` | `redis://redis-durable:6381/0` |
 
 #### PostgreSQL (Database)
 | Variable | Description | Example |

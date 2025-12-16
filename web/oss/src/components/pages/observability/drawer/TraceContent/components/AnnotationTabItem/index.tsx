@@ -7,7 +7,7 @@ import type {TableProps} from "antd/es/table"
 import clsx from "clsx"
 import {createUseStyles} from "react-jss"
 
-import CustomAntdTag from "@/oss/components/ui/CustomAntdTag"
+import EvaluatorDetailsPopover from "@/oss/components/pages/observability/drawer/components/EvaluatorDetailsPopover"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {JSSTheme} from "@/oss/lib/Types"
@@ -143,47 +143,61 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
                 />
             </div>
         ),
-        expandIcon: ({expanded, onExpand, record}) => (
-            <Flex align="center" gap={10}>
-                <Button
-                    size="small"
-                    className="!w-[16px] !h-4 !p-0.5 !rounded-sm flex items-center justify-center"
-                    icon={
-                        expanded ? (
-                            <MinusOutlined className="w-3 h-3 mt-0.5" />
-                        ) : (
-                            <PlusOutlined className="w-3 h-3 mt-0.5" />
-                        )
-                    }
-                    onClick={(e) => onExpand(record, e)}
-                />
-                <div className="flex items-center gap-1.5">
-                    <ChatText size={16} />
-                    <Badge
-                        count={Object.values(record?.data?.outputs?.notes || {}).length}
-                        color="#000000"
-                        className="[&_.ant-badge-count]:!rounded-[4px] [&_.ant-badge-count]:!h-[14px] [&_.ant-badge-count]:!min-w-[14px] [&_.ant-badge-count]:text-[10px] [&_.ant-badge-count]:!flex [&_.ant-badge-count]:items-center [&_.ant-badge-count]:justify-center"
+        expandIcon: ({expanded, onExpand, record}) => {
+            const notes = record?.data?.outputs?.notes || {}
+            const hasNotes = Object.keys(notes).length > 0
+
+            if (!hasNotes) return <div className="not-available-table-cell"></div> // Don't render expand icon if no notes
+
+            return (
+                <Flex align="center" gap={10}>
+                    <Button
+                        size="small"
+                        className="!w-[16px] !h-4 !p-0.5 !rounded-sm flex items-center justify-center"
+                        icon={
+                            expanded ? (
+                                <MinusOutlined className="w-3 h-3 mt-0.5" />
+                            ) : (
+                                <PlusOutlined className="w-3 h-3 mt-0.5" />
+                            )
+                        }
+                        onClick={(e) => onExpand(record, e)}
                     />
-                </div>
-            </Flex>
-        ),
+                    <div className="flex items-center gap-1.5">
+                        <ChatText size={16} />
+                        <Badge
+                            count={Object.values(notes).length}
+                            color="#000000"
+                            className="[&_.ant-badge-count]:!rounded-[4px] [&_.ant-badge-count]:!h-[14px] [&_.ant-badge-count]:!min-w-[14px] [&_.ant-badge-count]:text-[10px] [&_.ant-badge-count]:!flex [&_.ant-badge-count]:items-center [&_.ant-badge-count]:justify-center"
+                        />
+                    </div>
+                </Flex>
+            )
+        },
         rowExpandable: (record) => Object.values(record?.data?.outputs?.notes || {}).length > 0,
         columnWidth: 100,
         fixed: "left",
     }
-
     return (
         <Space direction="vertical" size={16} className="w-full">
             {Object.entries(groupedByReference).length > 0 ? (
                 Object.entries(groupedByReference).map(([key, annotations]) => {
                     const [slug, kind] = key.split("::")
-
+                    const evaluator = annotations?.[0]?.evaluator
+                    const evaluatorName = evaluator?.name || slug
                     return (
                         <Space direction="vertical" key={key} className="w-full @container">
-                            <Space>
-                                <Typography.Text className="font-medium">{slug}</Typography.Text>
-                                <CustomAntdTag bordered={false} value={kind} />
-                            </Space>
+                            <div className="w-full flex items-center justify-between">
+                                <EvaluatorDetailsPopover evaluator={evaluator} fallbackLabel={slug}>
+                                    <Typography.Text className="font-medium">
+                                        {evaluatorName}
+                                    </Typography.Text>
+                                </EvaluatorDetailsPopover>
+
+                                <Typography.Text type="secondary" className="capitalize">
+                                    {kind} evaluator
+                                </Typography.Text>
+                            </div>
 
                             <Table
                                 columns={getAnnotationTableColumns(slug, annotations)}

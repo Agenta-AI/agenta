@@ -195,7 +195,7 @@ class EvaluationsService:
                     oldest=oldest,
                 )
 
-                await self.evaluations_worker.evaluate_live.kiq(
+                await self.evaluations_worker.evaluate_live_query.kiq(
                     project_id=project_id,
                     user_id=user_id,
                     #
@@ -1729,7 +1729,7 @@ class SimpleEvaluationsService:
                     return _evaluation
 
                 if _evaluation.data.query_steps:
-                    await self.evaluations_worker.evaluate_queries.kiq(
+                    await self.evaluations_worker.evaluate_live_query.kiq(
                         project_id=project_id,
                         user_id=user_id,
                         #
@@ -1737,7 +1737,7 @@ class SimpleEvaluationsService:
                     )
 
                 elif _evaluation.data.testset_steps:
-                    await self.evaluations_worker.evaluate_testsets.kiq(
+                    await self.evaluations_worker.evaluate_batch_testset.kiq(
                         project_id=project_id,
                         user_id=user_id,
                         #

@@ -1,9 +1,9 @@
 import {ComponentProps, useState} from "react"
 
-import {CheckOutlined, CopyOutlined} from "@ant-design/icons"
 import {Button, notification} from "antd"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
+import {Check, Copy} from "@phosphor-icons/react"
 
 interface Props {
     text: string
@@ -19,7 +19,7 @@ const CopyButton: React.FC<Props & ComponentProps<typeof Button>> = ({
     stopPropagation = false,
     ...props
 }) => {
-    const [buttonIcon, setButtonIcon] = useState(<CopyOutlined />)
+    const [buttonIcon, setButtonIcon] = useState(<Copy size={14} className="mt-0.5" />)
 
     return (
         <Button
@@ -35,9 +35,9 @@ const CopyButton: React.FC<Props & ComponentProps<typeof Button>> = ({
                     notification.success({
                         message: "Copied to clipboard!",
                     })
-                    setButtonIcon(<CheckOutlined />)
+                    setButtonIcon(<Check size={14} />)
                     setTimeout(() => {
-                        setButtonIcon(<CopyOutlined />)
+                        setButtonIcon(<Copy size={14} />)
                     }, 3000)
                 }
             }}

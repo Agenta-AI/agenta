@@ -2,9 +2,11 @@ from typing import List, Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime
 
+from redis.asyncio import Redis
 from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
 from oss.src.services.auth_service import sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
 from oss.src.core.secrets.utils import get_llm_providers_secrets
@@ -47,6 +49,7 @@ from oss.src.core.annotations.service import AnnotationsService
 # from oss.src.apis.fastapi.tracing.utils import make_hash_id
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
+from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 from oss.src.core.annotations.types import (
     AnnotationOrigin,
@@ -135,6 +138,18 @@ tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
 
+# Redis client and TracingWorker for publishing spans to Redis Streams
+if env.REDIS_URI_DURABLE:
+    redis_client = Redis.from_url(env.REDIS_URI_DURABLE, decode_responses=False)
+    tracing_worker = TracingWorker(
+        service=tracing_service,
+        redis_client=redis_client,
+        stream_name="streams:tracing",
+        consumer_group="worker-tracing",
+    )
+else:
+    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
+
 queries_service = QueriesService(
     queries_dao=queries_dao,
 )
@@ -177,6 +192,7 @@ evaluations_service = EvaluationsService(
 
 tracing_router = TracingRouter(
     tracing_service=tracing_service,
+    tracing_worker=tracing_worker,
 )
 
 annotations_service = AnnotationsService(
@@ -192,7 +208,7 @@ annotations_router = AnnotationsRouter(
 # ------------------------------------------------------------------------------
 
 
-async def evaluate(
+async def evaluate_live_query(
     project_id: UUID,
     user_id: UUID,
     #

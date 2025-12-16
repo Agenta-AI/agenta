@@ -661,7 +661,7 @@ async def setup_evaluation(
     return run
 
 
-async def annotate(
+async def evaluate_batch_testset(
     *,
     project_id: UUID,
     user_id: UUID,

@@ -1,10 +1,12 @@
 from typing import Any, List
 import random
 
+from redis.asyncio import Redis
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, status, Response, Query
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
 from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.services import converters
@@ -12,11 +14,8 @@ from oss.src.services import evaluation_service
 
 from oss.src.core.evaluations.tasks.legacy import setup_evaluation
 
-# Import worker tasks from evals.py where they're instantiated
-from entrypoints.evals import evaluations_worker
-
-# Alias for backward compatibility
-annotate = evaluations_worker.annotate_legacy
+# Import worker tasks from worker_evaluations.py where they're instantiated
+from entrypoints.worker_evaluations import evaluations_worker
 
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.evaluation_model import (
@@ -73,6 +72,7 @@ from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
+from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 
 tracing_dao = TracingDAO()
@@ -104,6 +104,18 @@ evaluations_dao = EvaluationsDAO()
 tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
+
+# Redis client and TracingWorker for publishing spans to Redis Streams
+if env.REDIS_URI_DURABLE:
+    redis_client = Redis.from_url(env.REDIS_URI_DURABLE, decode_responses=False)
+    tracing_worker = TracingWorker(
+        service=tracing_service,
+        redis_client=redis_client,
+        stream_name="streams:tracing",
+        consumer_group="worker-tracing",
+    )
+else:
+    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
 
 queries_service = QueriesService(
     queries_dao=queries_dao,
@@ -145,6 +157,7 @@ evaluations_service = EvaluationsService(
 
 tracing_router = TracingRouter(
     tracing_service=tracing_service,
+    tracing_worker=tracing_worker,
 )
 
 simple_testsets_router = SimpleTestsetsRouter(
@@ -609,7 +622,7 @@ async def start_evaluation(
 
             runs.append(run)
 
-            await annotate.kiq(
+            await evaluations_worker.evaluate_batch_testset.kiq(
                 project_id=request.state.project_id,
                 user_id=request.state.user_id,
                 #

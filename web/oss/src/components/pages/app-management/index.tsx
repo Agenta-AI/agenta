@@ -1,10 +1,10 @@
 import {useEffect, useMemo, useState} from "react"
 
 import {Typography} from "antd"
-import {useRouter} from "next/router"
 import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
@@ -20,15 +20,15 @@ import {useAppsData} from "@/oss/state/app"
 import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
+import {useProjectData} from "@/oss/state/project"
 
 import {getTemplateKey, timeout} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
 import GetStartedSection from "./components/GetStartedSection"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
-import useCustomWorkflowConfig from "./modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import ProjectHeaderActions from "./components/ProjectHeaderActions"
-import {useProjectData} from "@/oss/state/project"
+import useCustomWorkflowConfig from "./modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -167,19 +167,17 @@ const AppManagement: React.FC = () => {
                     <ResultComponent status={"error"} title="Failed to load" />
                 ) : (
                     <>
-                        <div className="flex items-center gap-3 flex-wrap">
-                            <Title level={3} className="!m-0 flex items-center gap-2 min-w-0">
-                                <span
-                                    className="truncate max-w-[360px]"
-                                    title={project?.project_name || "Project"}
-                                >
-                                    {project?.project_name || "Project"}
-                                </span>
-                                <span className="text-neutral-500 whitespace-nowrap">
-                                    App Management
-                                </span>
-                            </Title>
-
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <Title level={2} className="!m-0">
+                                    Home
+                                </Title>
+                                {project?.project_name && (
+                                    <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-500 text-sm border border-gray-200">
+                                        {project.project_name}
+                                    </span>
+                                )}
+                            </div>
                             <ProjectHeaderActions />
                         </div>
 

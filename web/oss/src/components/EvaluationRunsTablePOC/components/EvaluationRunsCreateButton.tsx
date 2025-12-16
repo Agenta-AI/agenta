@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo} from "react"
 
-import {Check, Plus} from "@phosphor-icons/react"
+import {CaretDown, Check, Plus} from "@phosphor-icons/react"
 import {Button, Dropdown, Tooltip, type MenuProps} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
@@ -141,7 +141,7 @@ const EvaluationRunsCreateButton = () => {
                 {isAllTab ? (
                     <Dropdown.Button
                         type="primary"
-                        icon={<Plus size={16} />}
+                        icon={<CaretDown size={14} />}
                         disabled={!createEnabled}
                         menu={{items: dropdownMenuItems, onClick: handleMenuClick}}
                         onClick={handlePrimaryClick}

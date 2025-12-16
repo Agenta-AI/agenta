@@ -2,7 +2,7 @@ import type {Key, MouseEvent} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Grid, Tooltip} from "antd"
+import {Grid} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
@@ -23,8 +23,11 @@ import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/asset
 import {useQueryParamState} from "@/oss/state/appState"
 
 import {shouldIgnoreRowClick} from "../../actions/navigationActions"
-import {evaluationRunsTableFetchEnabledAtom} from "../../atoms/context"
-import {evaluationRunsDatasetStore} from "../../atoms/tableStore"
+import {
+    evaluationRunsDeleteContextAtom,
+    evaluationRunsTableFetchEnabledAtom,
+} from "../../atoms/context"
+import {EVALUATION_RUNS_QUERY_KEY_ROOT, evaluationRunsDatasetStore} from "../../atoms/tableStore"
 import {
     evaluationRunsDeleteModalOpenAtom,
     evaluationRunsCreateModalOpenAtom,
@@ -52,7 +55,6 @@ import type {
 import {resolveRowAppId} from "../../utils/runHelpers"
 import ColumnVisibilityPopoverContent from "../columnVisibility/ColumnVisibilityPopoverContent"
 import EvaluationRunsCreateButton from "../EvaluationRunsCreateButton"
-import EvaluationRunsDeleteButton from "../EvaluationRunsDeleteButton"
 import EvaluationRunsHeaderFilters from "../filters/EvaluationRunsHeaderFilters"
 
 import {ROW_HEIGHT} from "./assets/constants"
@@ -61,6 +63,13 @@ import {resolveMetricColumnExportLabel, resolveMetricExportValue} from "./export
 import {resolveReferenceValueFromAtoms} from "./export/referenceResolvers"
 import {resolveCreatedByExportValue, resolveRunNameFromSummary} from "./export/runResolvers"
 import {EvaluationRunsTableProps} from "./types"
+
+const DeleteEvaluationModal = dynamic(
+    () => import("@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"),
+    {
+        ssr: false,
+    },
+)
 
 const NewEvaluationModal = dynamic(
     () => import("@/oss/components/pages/evaluations/NewEvaluation"),
@@ -171,6 +180,8 @@ const EvaluationRunsTableActive = ({
     enableInfiniteScroll = true,
     autoHeight = true,
     headerTitle,
+    tabs,
+    headerExtra,
 }: EvaluationRunsTableProps) => {
     const {
         projectId: contextProjectId,
@@ -184,7 +195,7 @@ const EvaluationRunsTableActive = ({
         createEvaluationType,
         evaluationKind: contextEvaluationKind,
     } = useAtomValue(evaluationRunsTableComponentSliceAtom)
-    const _setMetaUpdater = useSetAtom(evaluationRunsMetaUpdaterAtom)
+    const setMetaUpdater = useSetAtom(evaluationRunsMetaUpdaterAtom)
     const setResetCallback = useSetAtom(evaluationRunsTableResetAtom)
     const setActivePreviewProjectId = useSetAtom(activePreviewProjectIdAtom)
     const [isCreateModalOpen, setIsCreateModalOpen] = useAtom(evaluationRunsCreateModalOpenAtom)
@@ -193,7 +204,9 @@ const EvaluationRunsTableActive = ({
     )
     const [selectedRowKeys, setSelectedRowKeys] = useAtom(evaluationRunsSelectedRowKeysAtom)
     const [rowExportingKey, setRowExportingKey] = useState<string | null>(null)
-    const setDeleteModalOpen = useSetAtom(evaluationRunsDeleteModalOpenAtom)
+    const deleteContext = useAtomValue(evaluationRunsDeleteContextAtom)
+    const [isDeleteModalOpen, setDeleteModalOpen] = useAtom(evaluationRunsDeleteModalOpenAtom)
+
     const selectionSnapshot = useAtomValue(evaluationRunsSelectionSnapshotAtom)
     const store = useStore()
     const queryClient = useQueryClient()
@@ -234,6 +247,45 @@ const EvaluationRunsTableActive = ({
 
     // Poll for updates when evaluations are running
     useEvaluationRunsPolling({rows: displayedRows})
+
+    useEffect(() => {
+        if (!selectionSnapshot.hasSelection && isDeleteModalOpen) {
+            setDeleteModalOpen(false)
+        }
+    }, [isDeleteModalOpen, selectionSnapshot.hasSelection, setDeleteModalOpen])
+
+    const evaluationType = useMemo(() => {
+        if (selectionSnapshot.labels && selectionSnapshot.labels.length) {
+            return selectionSnapshot.labels
+        }
+        return "selected evaluations"
+    }, [selectionSnapshot.labels])
+
+    const deletionConfig = useMemo(() => {
+        if (!selectionSnapshot.hasSelection) return undefined
+        return {
+            evaluationKind: deleteContext.evaluationKind,
+            projectId: deleteContext.projectId,
+            previewRunIds: selectionSnapshot.previewRunIds,
+            invalidateQueryKeys: [EVALUATION_RUNS_QUERY_KEY_ROOT],
+            onSuccess: async () => {
+                setSelectedRowKeys([])
+                setMetaUpdater((prev) => ({...prev}))
+                setDeleteModalOpen(false)
+            },
+            onError: () => {
+                setDeleteModalOpen(false)
+            },
+        }
+    }, [
+        deleteContext.evaluationKind,
+        deleteContext.projectId,
+        selectionSnapshot.hasSelection,
+        selectionSnapshot.previewRunIds,
+        setMetaUpdater,
+        setSelectedRowKeys,
+        setDeleteModalOpen,
+    ])
 
     const buildRowHandlers = useCallback(
         (record: EvaluationRunTableRow) => {
@@ -428,47 +480,24 @@ const EvaluationRunsTableActive = ({
         () => (createSupported ? <EvaluationRunsCreateButton /> : null),
         [createSupported],
     )
-    // On wide screens, show delete button in header; on narrow screens, it's in the dropdown
-    const deleteButton = useMemo(
-        () => (isNarrowScreen ? null : <EvaluationRunsDeleteButton />),
-        [isNarrowScreen],
+
+    // Delete action config - shell handles button rendering and narrow screen behavior
+    const deleteAction = useMemo(
+        () => ({
+            onDelete: () => setDeleteModalOpen(true),
+            disabled: !selectionSnapshot.hasSelection,
+            disabledTooltip: "Select runs to delete",
+        }),
+        [selectionSnapshot.hasSelection, setDeleteModalOpen],
     )
 
-    // Delete action config for the settings dropdown (narrow screens only)
-    const settingsDropdownDelete = useMemo(
-        () =>
-            isNarrowScreen
-                ? {
-                      onDelete: () => setDeleteModalOpen(true),
-                      disabled: !selectionSnapshot.hasSelection,
-                      label: "Delete selected",
-                  }
-                : undefined,
-        [isNarrowScreen, selectionSnapshot.hasSelection, setDeleteModalOpen],
-    )
-
-    // Export button for wide screens (on narrow screens, export is in the dropdown)
-    const renderExportButton = useCallback(
-        ({onExport, loading}: {onExport: () => void; loading: boolean}) => {
-            if (isNarrowScreen) return null
-            const disabled = !selectionSnapshot.hasSelection
-            const tooltip = disabled ? "Select runs to export" : undefined
-            return (
-                <Tooltip title={tooltip}>
-                    <span>
-                        <Button
-                            className="evaluation-runs-table__export"
-                            disabled={disabled}
-                            onClick={onExport}
-                            loading={loading}
-                        >
-                            Export CSV
-                        </Button>
-                    </span>
-                </Tooltip>
-            )
-        },
-        [isNarrowScreen, selectionSnapshot.hasSelection],
+    // Export action config - shell handles button rendering and narrow screen behavior
+    const exportAction = useMemo(
+        () => ({
+            disabled: !selectionSnapshot.hasSelection,
+            disabledTooltip: "Select runs to export",
+        }),
+        [selectionSnapshot.hasSelection],
     )
 
     const fallbackControlsHeight = showFilters ? 96 : headerTitle ? 48 : 24
@@ -605,9 +634,12 @@ const EvaluationRunsTableActive = ({
                 columns={columns}
                 rowKey={rowKeyExtractor}
                 title={headerTitle}
+                tabs={tabs}
+                headerExtra={headerExtra}
                 filters={filtersNode}
                 primaryActions={createButton}
-                secondaryActions={deleteButton}
+                deleteAction={deleteAction}
+                exportAction={exportAction}
                 autoHeight={autoHeight}
                 rowHeight={ROW_HEIGHT}
                 fallbackControlsHeight={fallbackControlsHeight}
@@ -620,10 +652,16 @@ const EvaluationRunsTableActive = ({
                 pagination={tablePagination}
                 onPaginationStateChange={handlePaginationStateChange}
                 exportOptions={exportOptions}
-                renderExportButton={renderExportButton}
                 useSettingsDropdown={isNarrowScreen}
-                settingsDropdownDelete={settingsDropdownDelete}
                 keyboardShortcuts={infiniteTableKeyboardShortcuts}
+            />
+
+            <DeleteEvaluationModal
+                open={isDeleteModalOpen}
+                onCancel={() => setDeleteModalOpen(false)}
+                evaluationType={evaluationType}
+                isMultiple={selectionSnapshot.rows.length > 1}
+                deletionConfig={deletionConfig}
             />
 
             {createSupported ? (
