@@ -25,6 +25,28 @@ export const shippedFeatures: ShippedFeature[] = [
   // Observability: DE74FF
   // Evaluation: 86B7FF
   // Integration: FFA500
+  {
+    id: "pdf-support-playground",
+    title: "PDF Support in the Playground",
+    description:
+      "Attach PDF documents to chat messages in the playground. Upload files, provide URLs, or use file IDs from provider APIs. Works with OpenAI, Gemini, and Claude models. PDFs are supported in evaluations and observability traces.",
+    changelogPath: "/docs/changelog/pdf-support-in-playground",
+    shippedAt: "2025-12-17",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
     {
     id: "provider-built-in-tools",
     title: "Provider Built-in Tools in the Playground",
@@ -304,19 +326,6 @@ export const inProgressFeatures: PlannedFeature[] = [
     description:
       "Create folders and subfolders to organize prompts in the playground. Move prompts between folders and search within specific folders to structure prompt libraries.",
     githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2859",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "pdf-support-playground",
-    title: "PDF Support in the Playground",
-    description:
-      "Add PDF support for models that support it (OpenAI, Gemini, etc.) through base64 encoding, URLs, or file IDs. Support extends to human evaluation for reviewing model responses on PDF inputs.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2857",
     labels: [
       {
         name: "Playground",
