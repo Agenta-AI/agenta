@@ -289,6 +289,10 @@ export const transformTraceKeysInSettings = (
 export const getEvaluatorTags = () => {
     const evaluatorTags = [
         {
+            label: "AI / LLM",
+            value: "ai_llm",
+        },
+        {
             label: "Classifiers",
             value: "classifiers",
         },
@@ -297,12 +301,8 @@ export const getEvaluatorTags = () => {
             value: "similarity",
         },
         {
-            label: "AI / LLM",
-            value: "ai_llm",
-        },
-        {
-            label: "Functional",
-            value: "functional",
+            label: "Custom",
+            value: "custom",
         },
     ]
 

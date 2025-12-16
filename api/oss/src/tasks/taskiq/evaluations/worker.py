@@ -12,8 +12,12 @@ from oss.src.core.queries.service import QueriesService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluations.service import EvaluationsService
 
-from oss.src.core.evaluations.tasks.legacy import annotate as annotate_impl
-from oss.src.core.evaluations.tasks.live import evaluate as evaluate_live_impl
+from oss.src.core.evaluations.tasks.legacy import (
+    evaluate_batch_testset as evaluate_batch_testset_impl,
+)
+from oss.src.core.evaluations.tasks.live import (
+    evaluate_live_query as evaluate_live_query_impl,
+)
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -62,7 +66,7 @@ class EvaluationsWorker:
         """Register all evaluation tasks with the broker."""
 
         @self.broker.task(task_name="evaluations.legacy.annotate")
-        async def annotate_legacy(
+        async def evaluate_batch_testset(
             *,
             project_id: UUID,
             user_id: UUID,
@@ -77,13 +81,13 @@ class EvaluationsWorker:
         ) -> Any:
             """Legacy annotation task - wraps the existing annotate function."""
             log.info(
-                "[TASK] Starting annotate_legacy",
+                "[TASK] Starting evaluate_batch_testset",
                 project_id=str(project_id),
                 user_id=str(user_id),
             )
 
             # Call the async annotate function directly
-            result = await annotate_impl(
+            result = await evaluate_batch_testset_impl(
                 project_id=project_id,
                 user_id=user_id,
                 #
@@ -103,11 +107,11 @@ class EvaluationsWorker:
                 workflows_service=self.workflows_service,
                 evaluations_service=self.evaluations_service,
             )
-            log.info("[TASK] Completed annotate_legacy")
+            log.info("[TASK] Completed evaluate_batch_testset")
             return result
 
         @self.broker.task(task_name="evaluations.live.evaluate")
-        async def evaluate_live(
+        async def evaluate_live_query(
             project_id: UUID,
             user_id: UUID,
             #
@@ -117,10 +121,10 @@ class EvaluationsWorker:
             oldest: datetime,
         ) -> Any:
             """Live evaluation task - evaluates traces against evaluators."""
-            log.info("[TASK] Starting evaluate_live")
+            log.info("[TASK] Starting evaluate_live_query")
 
             # Call the async evaluate function directly
-            result = await evaluate_live_impl(
+            result = await evaluate_live_query_impl(
                 project_id=project_id,
                 user_id=user_id,
                 #
@@ -129,9 +133,9 @@ class EvaluationsWorker:
                 newest=newest,
                 oldest=oldest,
             )
-            log.info("[TASK] Completed evaluate_live")
+            log.info("[TASK] Completed evaluate_live_query")
             return result
 
         # Store task references for external access
-        self.annotate_legacy = annotate_legacy
-        self.evaluate_live = evaluate_live
+        self.evaluate_batch_testset = evaluate_batch_testset
+        self.evaluate_live_query = evaluate_live_query

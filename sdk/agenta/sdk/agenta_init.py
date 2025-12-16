@@ -27,16 +27,17 @@ class AgentaSingleton:
     async_api = None
 
     def __init__(self):
-        # Only initialize attributes once
-        if not AgentaSingleton._initialized:
-            self.host = None
-            self.api_url = None
-            self.api_key = None
+        # Only initialize once
+        if AgentaSingleton._initialized:
+            return
 
-            self.scope_type = None
-            self.scope_id = None
+        AgentaSingleton._initialized = True
+        self.host = None
+        self.api_url = None
+        self.api_key = None
 
-            AgentaSingleton._initialized = True
+        self.scope_type = None
+        self.scope_id = None
 
     def __new__(cls):
         if not cls._instance:

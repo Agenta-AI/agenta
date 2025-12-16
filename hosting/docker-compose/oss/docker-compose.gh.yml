@@ -67,9 +67,13 @@ services:
                 condition: service_healthy
             alembic:
                 condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
         restart: always
 
-    evals:
+    worker-evaluations:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -89,16 +93,19 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "entrypoints/evals.py"
+                "entrypoints/worker_evaluations.py"
             ]
 
         depends_on:
-            - postgres
-            - redis-volatile
-            - redis-durable
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
         restart: always
 
-    ingest:
+    worker-tracing:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -118,13 +125,16 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "entrypoints/ingest.py"
+                "entrypoints/worker_tracing.py"
             ]
 
         depends_on:
-            - postgres
-            - redis-volatile
-            - redis-durable
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
         restart: always
 
     cron:
@@ -175,7 +185,7 @@ services:
             context: ../../../services/completion
             dockerfile: oss/docker/Dockerfile.gh
 
-        image: ghcr.io/agenta-ai/agenta-completion
+        image: ghcr.io/agenta-ai/${AGENTA_COMPLETION_IMAGE_NAME:-agenta-completion}:${AGENTA_COMPLETION_IMAGE_TAG:-latest}
 
         networks:
             - agenta-oss-gh-network
@@ -215,7 +225,7 @@ services:
             context: ../../../services/chat
             dockerfile: oss/docker/Dockerfile.gh
 
-        image: ghcr.io/agenta-ai/agenta-chat
+        image: ghcr.io/agenta-ai/${AGENTA_CHAT_IMAGE_NAME:-agenta-chat}:${AGENTA_CHAT_IMAGE_TAG:-latest}
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}

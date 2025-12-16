@@ -113,14 +113,16 @@ These variables control how external users access Agenta:
 
 ### Internal Service Communication
 
-These variables configure how containers communicate internally:
+These variables configure how containers communicate internally. Use `REDIS_URI` for a single Redis instance, or split with the volatile/durable URLs for separate caches and queues.
 
 | Variable | Purpose | Example | Description |
 |----------|---------|---------|-------------|
 | `POSTGRES_URI_CORE` | Core database | `postgresql+asyncpg://user:pass@postgres:5432/agenta_core` | Core database connection |
 | `POSTGRES_URI_TRACING` | Tracing database | `postgresql+asyncpg://user:pass@postgres:5432/agenta_tracing` | Tracing database connection |
 | `POSTGRES_URI_SUPERTOKENS` | Auth database | `postgresql://user:pass@postgres:5432/agenta_supertokens` | SuperTokens database connection |
-| `REDIS_URI` | Task queue & cache | `redis://redis:6379/0` | Redis instance for TaskIQ and caching |
+| `REDIS_URI` | Single Redis (fallback) | `redis://redis:6379/0` | Used when split URLs are not set |
+| `REDIS_URI_VOLATILE` | Redis for caches/channels | `redis://redis-volatile:6379/0` | Falls back to `REDIS_URI` |
+| `REDIS_URI_DURABLE` | Redis for queues/streams | `redis://redis-durable:6381/0` | Falls back to `REDIS_URI` |
 | `SUPERTOKENS_CONNECTION_URI` | Auth service | `http://supertokens:3567` | SuperTokens service URL |
 
 ### Port Mapping (Optional)

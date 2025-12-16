@@ -66,9 +66,13 @@ services:
                 condition: service_healthy
             alembic:
                 condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
         restart: always
 
-    evals:
+    worker-evaluations:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -88,7 +92,7 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "entrypoints/evals.py"
+                "entrypoints/worker_evaluations.py"
             ]
         depends_on:
             postgres:
@@ -99,7 +103,7 @@ services:
                 condition: service_healthy
         restart: always
 
-    ingest:
+    worker-tracing:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -119,7 +123,7 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "entrypoints/ingest.py"
+                "entrypoints/worker_tracing.py"
             ]
         depends_on:
             postgres:

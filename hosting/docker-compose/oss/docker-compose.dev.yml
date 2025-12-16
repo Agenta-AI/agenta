@@ -35,7 +35,7 @@ services:
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/entrypoints/routers.py:/app/entrypoints/routers.py
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -74,15 +74,19 @@ services:
                 condition: service_healthy
             alembic:
                 condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
         restart: always
 
-    evals:
+    worker-evaluations:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/entrypoints/evals.py:/app/entrypoints/evals.py
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -90,9 +94,12 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
 
         depends_on:
-            - postgres
-            - redis-volatile
-            - redis-durable
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
 
         extra_hosts:
             - "host.docker.internal:host-gateway"
@@ -102,15 +109,15 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python entrypoints/evals.py
+            python entrypoints/worker_evaluations.py
 
-    ingest:
+    worker-tracing:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/entrypoints/ingest.py:/app/entrypoints/ingest.py
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -118,9 +125,12 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
 
         depends_on:
-            - postgres
-            - redis-volatile
-            - redis-durable
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
 
         extra_hosts:
             - "host.docker.internal:host-gateway"
@@ -130,10 +140,12 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python entrypoints/ingest.py
+            python entrypoints/worker_tracing.py
 
     cron:
-        image: agenta-oss-dev-api:latest
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
             #

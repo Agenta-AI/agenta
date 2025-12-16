@@ -93,8 +93,12 @@ services:
                 condition: service_completed_successfully
             supertokens:
                 condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
 
-    evals:
+    worker-evaluations:
         image: agenta-ee-dev-api:latest
 
         volumes:
@@ -105,9 +109,12 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
 
         depends_on:
-            - postgres
-            - redis-volatile
-            - redis-durable
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
 
         extra_hosts:
             - "host.docker.internal:host-gateway"
@@ -119,9 +126,9 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python entrypoints/evals.py
+            python entrypoints/worker_evaluations.py
 
-    ingest:
+    worker-tracing:
         image: agenta-ee-dev-api:latest
 
         volumes:
@@ -132,9 +139,12 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
 
         depends_on:
-            - postgres
-            - redis-volatile
-            - redis-durable
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
 
         extra_hosts:
             - "host.docker.internal:host-gateway"
@@ -146,7 +156,7 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python entrypoints/ingest.py
+            python entrypoints/worker_tracing.py
 
     cron:
         image: agenta-ee-dev-api:latest

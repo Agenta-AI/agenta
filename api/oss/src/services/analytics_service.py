@@ -40,6 +40,7 @@ ACTIVATION_EVENTS = {
     "spans_created": ("activated_observability", {"ApiKey"}),
     "evaluation_created": ("activated_evaluation", None),
     "app_variant_created": ("activated_playground", None),
+    "user_invitation_sent_v1": ("invited_user_v1", None),
 }
 
 
@@ -100,8 +101,6 @@ async def _set_activation_property(
             value=True,
             ttl=365 * 24 * 60 * 60,  # 1 year (effectively permanent)
         )
-
-        # log.debug(f"Set activation property '{property_name}' for user {distinct_id}")
 
     except Exception as e:
         log.error(f"Error setting activation property '{property_name}': {e}")
@@ -350,12 +349,11 @@ def _get_event_name_from_path(
     # <----------- End of Query/Prompt Management Events ------------->
 
     # <----------- User Lifecycle Events ------------->
-    if (
-        method == "POST"
-        and ("/invite" in path)
-        and ("invite" in path_parts and "resend" in path_parts)
-    ):
-        return "invitation_created"
+    if method == "POST" and "invite" in path_parts:
+        if "resend" in path_parts:
+            return "invitation_created"
+        if "accept" not in path_parts:
+            return "user_invitation_sent_v1"
     # <----------- End of User Lifecycle Events ------------->
 
     return None
