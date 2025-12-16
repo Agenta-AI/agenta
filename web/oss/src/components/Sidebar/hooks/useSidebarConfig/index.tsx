@@ -39,7 +39,7 @@ export const useSidebarConfig = () => {
     const sidebarConfig: SidebarConfig[] = [
         {
             key: "app-management-link",
-            title: "App Management",
+            title: "Home",
             link: baseAppURL,
             icon: <HomeOutlined size={16} />,
             disabled: !hasProjectURL,
