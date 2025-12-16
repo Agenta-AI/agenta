@@ -33,10 +33,10 @@ const SidebarBanner = ({banner, onDismiss}: SidebarBannerProps) => {
                 {banner.dismissible && onDismiss && (
                     <button
                         onClick={onDismiss}
-                        className="absolute top-2 right-2 p-1 rounded hover:bg-gray-200 transition-colors"
+                        className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-md border-0 bg-transparent text-gray-900 transition-colors hover:bg-black/5 focus:outline-none focus-visible:bg-black/5 focus-visible:outline-none"
                         aria-label="Dismiss banner"
                     >
-                        <X size={14} className="text-gray-500" />
+                        <X size={16} />
                     </button>
                 )}
                 {banner.customContent}
@@ -49,16 +49,16 @@ const SidebarBanner = ({banner, onDismiss}: SidebarBannerProps) => {
             {banner.dismissible && onDismiss && (
                 <button
                     onClick={onDismiss}
-                    className="absolute top-2 right-2 p-1 rounded hover:bg-gray-200 transition-colors"
+                    className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-md border-0 bg-transparent text-gray-900 transition-colors hover:bg-black/5 focus:outline-none focus-visible:bg-black/5 focus-visible:outline-none"
                     aria-label="Dismiss banner"
                 >
-                    <X size={14} className="text-gray-500" />
+                    <X size={16} />
                 </button>
             )}
-            <Typography.Text className="text-base font-semibold pr-4">
+            <Typography.Text className="text-sm leading-5 font-semibold pr-10 text-gray-900">
                 {banner.title}
             </Typography.Text>
-            <Typography.Text className="text-[#586673] text-sm">
+            <Typography.Text className="text-[13px] leading-5 text-[#586673]">
                 {banner.description}
             </Typography.Text>
             {banner.action && (
