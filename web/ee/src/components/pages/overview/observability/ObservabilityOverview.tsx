@@ -48,6 +48,13 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
+const EmptyChart = ({className}: {className: string}) => (
+    <div className={className}>
+        <ChartLine size={18} />
+        <span>No data</span>
+    </div>
+)
+
 const ObservabilityOverview = () => {
     const classes = useStyles()
     const {data, loading, isFetching} = useObservabilityDashboard()
@@ -73,13 +80,6 @@ const ObservabilityOverview = () => {
             showYAxis: true,
         }),
         [chartData],
-    )
-
-    const EmptyChart = () => (
-        <div className={classes.emptyState}>
-            <ChartLine size={18} />
-            <span>No data</span>
-        </div>
     )
 
     return (
@@ -120,7 +120,7 @@ const ObservabilityOverview = () => {
                                     }
                                 />
                             ) : (
-                                <EmptyChart />
+                                <EmptyChart className={classes.emptyState} />
                             )}
                         </WidgetCard>
                     </Col>
@@ -145,7 +145,7 @@ const ObservabilityOverview = () => {
                                     valueFormatter={(value) => `${formatCompactNumber(value)}ms`}
                                 />
                             ) : (
-                                <EmptyChart />
+                                <EmptyChart className={classes.emptyState} />
                             )}
                         </WidgetCard>
                     </Col>
@@ -177,7 +177,7 @@ const ObservabilityOverview = () => {
                                     valueFormatter={(value) => formatCurrency(value)}
                                 />
                             ) : (
-                                <EmptyChart />
+                                <EmptyChart className={classes.emptyState} />
                             )}
                         </WidgetCard>
                     </Col>
@@ -210,7 +210,7 @@ const ObservabilityOverview = () => {
                                     colors={["cyan-600"]}
                                 />
                             ) : (
-                                <EmptyChart />
+                                <EmptyChart className={classes.emptyState} />
                             )}
                         </WidgetCard>
                     </Col>

@@ -64,6 +64,13 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
+const EmptyChart = ({className}: {className: string}) => (
+    <div className={className}>
+        <ChartLine size={18} />
+        <span>No data</span>
+    </div>
+)
+
 const ObservabilityDashboardSection = () => {
     const classes = useStyles()
     const {data, loading, isFetching} = useObservabilityDashboard()
@@ -89,13 +96,6 @@ const ObservabilityDashboardSection = () => {
             showYAxis: true,
         }),
         [chartData],
-    )
-
-    const EmptyChart = () => (
-        <div className={classes.emptyState}>
-            <ChartLine size={18} />
-            <span>No data</span>
-        </div>
     )
 
     return (
@@ -142,7 +142,7 @@ const ObservabilityDashboardSection = () => {
                                     }
                                 />
                             ) : (
-                                <EmptyChart />
+                                <EmptyChart className={classes.emptyState} />
                             )}
                         </WidgetCard>
                     </div>
@@ -167,7 +167,7 @@ const ObservabilityDashboardSection = () => {
                                     valueFormatter={(value) => `${formatCompactNumber(value)}ms`}
                                 />
                             ) : (
-                                <EmptyChart />
+                                <EmptyChart className={classes.emptyState} />
                             )}
                         </WidgetCard>
                     </div>
@@ -199,7 +199,7 @@ const ObservabilityDashboardSection = () => {
                                     valueFormatter={(value) => formatCurrency(value)}
                                 />
                             ) : (
-                                <EmptyChart />
+                                <EmptyChart className={classes.emptyState} />
                             )}
                         </WidgetCard>
                     </div>
@@ -232,7 +232,7 @@ const ObservabilityDashboardSection = () => {
                                     colors={["cyan-600"]}
                                 />
                             ) : (
-                                <EmptyChart />
+                                <EmptyChart className={classes.emptyState} />
                             )}
                         </WidgetCard>
                     </div>
