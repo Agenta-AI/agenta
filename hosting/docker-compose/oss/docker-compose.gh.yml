@@ -25,11 +25,11 @@ services:
         restart: always
 
     api:
-        build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
-        # Use local build instead of pulling from ghcr.io
-        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        # build:
+        #     context: ../../../api
+        #     dockerfile: oss/docker/Dockerfile.gh
+        
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         networks:
             - agenta-oss-gh-network
@@ -74,11 +74,11 @@ services:
         restart: always
 
     worker-evaluations:
-        build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
-        # Use local build instead of pulling from ghcr.io
-        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        # build:
+        #     context: ../../../api
+        #     dockerfile: oss/docker/Dockerfile.gh
+        
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         networks:
             - agenta-oss-gh-network
@@ -106,11 +106,11 @@ services:
         restart: always
 
     worker-tracing:
-        build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
-        # Use local build instead of pulling from ghcr.io
-        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        # build:
+        #     context: ../../../api
+        #     dockerfile: oss/docker/Dockerfile.gh
+        
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         networks:
             - agenta-oss-gh-network
@@ -138,11 +138,11 @@ services:
         restart: always
 
     cron:
-        build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
-        # Use local build instead of pulling from ghcr.io
-        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        # build:
+        #     context: ../../../api
+        #     dockerfile: oss/docker/Dockerfile.gh
+        
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
@@ -162,11 +162,11 @@ services:
         command: cron -f
 
     alembic:
-        build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
-        # Use local build instead of pulling from ghcr.io
-        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        # build:
+        #     context: ../../../api
+        #     dockerfile: oss/docker/Dockerfile.gh
+        
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         networks:
             - agenta-oss-gh-network
@@ -181,10 +181,10 @@ services:
                 condition: service_healthy
 
     completion:
-        build:
-            context: ../../../services/completion
-            dockerfile: oss/docker/Dockerfile.gh
-
+        # build:
+        #     context: ../../../services/completion
+        #     dockerfile: oss/docker/Dockerfile.gh
+        
         image: ghcr.io/agenta-ai/${AGENTA_COMPLETION_IMAGE_NAME:-agenta-completion}:${AGENTA_COMPLETION_IMAGE_TAG:-latest}
 
         networks:
@@ -192,7 +192,7 @@ services:
         extra_hosts:
             - "host.docker.internal:host-gateway"
         labels:
-            - "traefik.http.routers.completion.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/completion/`)"
+            - "traefik.http.routers.completion.rule=PathPrefix(`/services/completion/`)"
             - "traefik.http.routers.completion.entrypoints=web"
             - "traefik.http.middlewares.completion-strip.stripprefix.prefixes=/services/completion"
             - "traefik.http.middlewares.completion-strip.stripprefix.forceslash=true"
@@ -221,10 +221,10 @@ services:
         restart: always
 
     chat:
-        build:
-            context: ../../../services/chat
-            dockerfile: oss/docker/Dockerfile.gh
-
+        # build:
+        #     context: ../../../services/chat
+        #     dockerfile: oss/docker/Dockerfile.gh
+        
         image: ghcr.io/agenta-ai/${AGENTA_CHAT_IMAGE_NAME:-agenta-chat}:${AGENTA_CHAT_IMAGE_TAG:-latest}
 
         env_file:
@@ -234,7 +234,7 @@ services:
         extra_hosts:
             - "host.docker.internal:host-gateway"
         labels:
-            - "traefik.http.routers.chat.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/chat/`)"
+            - "traefik.http.routers.chat.rule=PathPrefix(`/services/chat/`)"
             - "traefik.http.routers.chat.entrypoints=web"
             - "traefik.http.middlewares.chat-strip.stripprefix.prefixes=/services/chat"
             - "traefik.http.middlewares.chat-strip.stripprefix.forceslash=true"
