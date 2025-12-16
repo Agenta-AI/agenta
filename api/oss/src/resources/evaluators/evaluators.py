@@ -26,224 +26,11 @@ rag_evaluator_settings_template = {
 }
 evaluators = [
     {
-        "name": "Exact Match",
-        "key": "auto_exact_match",
-        "direct_use": True,
-        "settings_template": {
-            "correct_answer_key": {
-                "label": "Expected Answer Column",
-                "default": "correct_answer",
-                "type": "string",
-                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
-                "description": "The name of the column in the test data that contains the correct answer",
-            },
-        },
-        "description": "Exact Match evaluator determines if the output exactly matches the specified correct answer, ensuring precise alignment with expected results.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["functional"],
-    },
-    {
-        "name": "Contains JSON",
-        "key": "auto_contains_json",
-        "direct_use": True,
-        "settings_template": {},
-        "description": "'Contains JSON' evaluator checks if the output contains the a valid JSON.",
-        "requires_testcase": "never",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["functional", "classifiers"],
-    },
-    {
-        "name": "Similarity Match",
-        "key": "auto_similarity_match",
-        "direct_use": False,
-        "settings_template": {
-            "similarity_threshold": {
-                "label": "Similarity Threshold",
-                "type": "number",
-                "default": 0.5,
-                "description": "The threshold value for similarity comparison",
-                "min": 0,
-                "max": 1,
-                "required": True,
-            },
-            "correct_answer_key": {
-                "label": "Expected Answer Column",
-                "default": "correct_answer",
-                "type": "string",
-                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
-                "description": "The name of the column in the test data that contains the correct answer",
-            },
-        },
-        "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["similarity", "functional"],
-    },
-    {
-        "name": "Semantic Similarity Match",
-        "key": "auto_semantic_similarity",
-        "direct_use": False,
-        "requires_llm_api_keys": True,
-        "description": "Semantic Similarity Match evaluator measures the similarity between two pieces of text by analyzing their meaning and context. It compares the semantic content, providing a score that reflects how closely the texts match in terms of meaning, rather than just exact word matches.",
-        "settings_template": {
-            "correct_answer_key": {
-                "label": "Expected Answer Column",
-                "default": "correct_answer",
-                "type": "string",
-                "required": True,
-                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
-                "description": "The name of the column in the test data that contains the correct answer",
-            },
-        },
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["similarity", "ai_llm"],
-    },
-    {
-        "name": "Regex Test",
-        "key": "auto_regex_test",
-        "direct_use": False,
-        "description": "Regex Test evaluator checks if the generated answer matches a regular expression pattern. You need to provide the regex expression and specify whether an answer is correct if it matches or does not match the regex.",
-        "settings_template": {
-            "regex_pattern": {
-                "label": "Regex Pattern",
-                "type": "regex",
-                "default": "",
-                "description": "Pattern for regex testing (ex: ^this_word\\d{3}$)",
-                "required": True,
-            },
-            "regex_should_match": {
-                "label": "Match/Mismatch",
-                "type": "boolean",
-                "default": True,
-                "description": "If the regex should match or mismatch",
-            },
-        },
-        "requires_testcase": "never",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["classifiers", "functional"],
-    },
-    {
-        "name": "JSON Field Match",
-        "key": "field_match_test",
-        "direct_use": False,
-        "settings_template": {
-            "json_field": {
-                "label": "JSON Field",
-                "type": "string",
-                "default": "",
-                "description": "The name of the field in the JSON output that you wish to evaluate",
-                "required": True,
-            },
-            "correct_answer_key": {
-                "label": "Expected Answer Column",
-                "default": "correct_answer",
-                "type": "string",
-                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
-                "description": "The name of the column in the test data that contains the correct answer",
-            },
-        },
-        "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["functional"],
-    },
-    {
-        "name": "JSON Diff Match",
-        "key": "auto_json_diff",
-        "direct_use": False,
-        "description": "Compares the generated JSON output to a ground truth JSON and returns a normalized score between 0 and 1 based on their differences.",
-        "settings_template": {
-            "compare_schema_only": {
-                "label": "Compare Schema Only",
-                "type": "boolean",
-                "default": False,
-                "advanced": True,
-                "description": "If set to True, only the key names and their types will be compared between prediction and ground truth, ignoring the actual values. If set to False, key names, their types, and their values will all compared.",
-            },
-            "predict_keys": {
-                "label": "Include prediction keys",
-                "type": "boolean",
-                "default": False,
-                "advanced": True,
-                "description": "If set to True, only keys present in the ground truth will be considered. The result will be 1.0 if a key from the ground truth is correctly predicted, regardless of any additional predicted keys. Otherwise both ground truth and prediction keys will be checked.",
-            },
-            "case_insensitive_keys": {
-                "label": "Enable Case-sensitive keys",
-                "type": "boolean",
-                "default": False,
-                "advanced": True,
-                "description": "If set to True, keys will be treated as case-insensitive, meaning 'key', 'Key', and 'KEY' are considered equivalent. Otherwise, keys will be treated as case-sensitive.",
-            },
-            "correct_answer_key": {
-                "label": "Expected Answer Column",
-                "default": "correct_answer",
-                "type": "string",
-                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
-                "description": "The name of the column in the test data that contains the correct answer",
-            },
-        },
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["similarity", "functional"],
-    },
-    {
         "name": "LLM-as-a-judge",
         "key": "auto_ai_critique",
         "direct_use": False,
         "requires_llm_api_keys": True,
         "settings_presets": [
-            {
-                "key": "default",
-                "name": "Default",
-                "values": {
-                    "prompt_template": [
-                        {
-                            "role": "system",
-                            "content": "You are an expert evaluator grading model outputs. Your task is to grade the responses based on the criteria and requirements provided below. \n\nGiven the model output and inputs (and any other data you might get) assign a grade to the output. \n\n## Grading considerations\n- Evaluate the overall value provided in the model output\n- Verify all claims in the output meticulously\n- Differentiate between minor errors and major errors\n- Evaluate the outputs based on the inputs and whether they follow the instruction in the inputs if any\n- Give the highst and lowest score for cases where you have complete certainty about correctness and value\n\n## output format\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER\n",
-                        },
-                        {
-                            "role": "user",
-                            "content": "## Model inputs\n{{inputs}}\n## Model outputs\n{{outputs}}",
-                        },
-                    ],
-                    "model": "gpt-4o-mini",
-                    "response_type": "json_schema",
-                    "json_schema": {
-                        "name": "schema",
-                        "schema": {
-                            "title": "extract",
-                            "description": "Extract information from the user's response.",
-                            "type": "object",
-                            "properties": {
-                                "score": {
-                                    "type": "boolean",
-                                    "description": "The grade results",
-                                }
-                            },
-                            "required": [
-                                "score",
-                            ],
-                            "additionalProperties": False,
-                        },
-                        "strict": True,
-                    },
-                    "version": "4",
-                },
-            },
             {
                 "key": "hallucination",
                 "name": "Hallucination Detection",
@@ -274,6 +61,140 @@ evaluators = [
                             },
                             "required": [
                                 "score",
+                            ],
+                            "additionalProperties": False,
+                        },
+                        "strict": True,
+                    },
+                    "version": "4",
+                },
+            },
+            {
+                "key": "conciseness",
+                "name": "Conciseness",
+                "values": {
+                    "prompt_template": [
+                        {
+                            "role": "system",
+                            "content": 'You are an expert data labeler evaluating AI-generated responses for conciseness. Your task is to assess how efficiently the response delivers the requested information without unnecessary content.\n\n## Task\nEvaluate the response\'s conciseness on a scale from 0 to 1.\n\n## Scoring Scale\n- **1.0**: Maximally concise. Contains only essential information in minimal words.\n- **0.7-0.9**: Mostly concise with minor excess (one or two unnecessary phrases).\n- **0.4-0.6**: Moderately verbose. Contains noticeable filler but core answer is present.\n- **0.1-0.3**: Significantly verbose. Buried answer with substantial unnecessary content.\n- **0.0**: Entirely verbose or non-responsive.\n\n## What Constitutes Perfect Conciseness\nA perfectly concise response:\n- Delivers exactly what was asked—nothing more\n- Uses the fewest words possible while remaining complete\n- Omits pleasantries, hedging, and filler\n- Excludes self-referential commentary ("I think...", "As an AI...")\n- Avoids unrequested explanations or context\n- Contains no redundancy or restatement\n\n## Deduction Triggers\nPenalize responses containing:\n- Opening phrases: "Sure!", "Great question!", "I\'d be happy to help"\n- Hedging: "probably", "I believe", "as far as I know"\n- Self-reference: "I think", "In my opinion", "As an AI"\n- Unrequested context or background\n- Closing phrases: "Hope this helps!", "Let me know if you need more"\n- Follow-up offers: "Would you like me to explain further?"\n- Redundant restatements of the same point',
+                        },
+                        {
+                            "role": "user",
+                            "content": "## Model inputs\n{{inputs}}\n## Model outputs\n{{outputs}}",
+                        },
+                    ],
+                    "model": "gpt-4o-mini",
+                    "response_type": "json_schema",
+                    "json_schema": {
+                        "name": "schema",
+                        "schema": {
+                            "title": "extract",
+                            "description": "Extract information from the user's response.",
+                            "type": "object",
+                            "properties": {
+                                "score": {
+                                    "type": "number",
+                                    "description": "The grade results",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                },
+                                "comment": {
+                                    "type": "string",
+                                    "description": "Reasoning for the score",
+                                },
+                            },
+                            "required": [
+                                "score",
+                                "comment",
+                            ],
+                            "additionalProperties": False,
+                        },
+                        "strict": True,
+                    },
+                    "version": "4",
+                },
+            },
+            {
+                "key": "answer_relevancy",
+                "name": "Answer Relevancy",
+                "values": {
+                    "prompt_template": [
+                        {
+                            "role": "system",
+                            "content": 'You are an expert data labeler evaluating AI-generated responses for answer relevancy. Your task involves two steps: generating a question the response would answer, then assessing whether the response is noncommittal.\n\n## Task\nGiven a response, perform two evaluations:\n1. Generate the most likely question this response is attempting to answer\n2. Determine if the response is noncommittal (evasive/vague) or committal (direct/specific)\n\n\n## Step 1: Question Generation\nInfer the question the response is most likely answering. The question should:\n- Be specific and direct\n- Match the subject matter and scope of the response\n- Represent what a user would realistically ask to receive this response\n\n## Step 2: Noncommittal Assessment\nEvaluate whether the response directly answers the inferred question or evades it.\n\n**Score 1 (Committal - Good)**: The response provides a direct, specific answer. Indicators include:\n- States concrete facts, dates, names, or figures\n- Takes a clear position or provides definitive information\n- Answers the question without hedging or deflecting\n\n**Score 0 (Noncommittal - Bad)**: The response avoids giving a direct answer. Indicators include:\n- Explicit uncertainty: "I don\'t know", "I\'m not sure", "I cannot answer"\n- Knowledge cutoff disclaimers: "I\'m unaware of information beyond..."\n- Deflection: "You should ask someone else", "That depends on many factors"\n- Vague generalizations instead of specific answers\n- Refusal to answer: "I can\'t help with that"\n\n## Examples\n\n**Example 1**\nResponse: "Albert Einstein was born in Germany."\n\nOutput:\n{\n  "question": "Where was Albert Einstein born?",\n  "score": 1\n}\n\n**Example 2**\nResponse: "I don\'t know about the groundbreaking feature of the smartphone invented in 2023 as I am unaware of information beyond 2022."\n\nOutput:\n{\n  "question": "What was the groundbreaking feature of the smartphone invented in 2023?",\n  "score": 0\n}\n\n**Example 3**\nResponse: "The capital of France is Paris, which has been the capital since the 10th century."\n\nOutput:\n{\n  "question": "What is the capital of France?",\n  "score": 1\n}\n\n**Example 4**\nResponse: "That\'s a complex topic with many perspectives. It really depends on who you ask and what criteria you use."\n\nOutput:\n{\n  "question": "What is the best programming language for beginners?",\n  "score": 0\n}',
+                        },
+                        {
+                            "role": "user",
+                            "content": "## Model outputs\n{{outputs}}",
+                        },
+                    ],
+                    "model": "gpt-4o-mini",
+                    "response_type": "json_schema",
+                    "json_schema": {
+                        "name": "schema",
+                        "schema": {
+                            "title": "extract",
+                            "description": "Extract information from the user's response.",
+                            "type": "object",
+                            "properties": {
+                                "question": {
+                                    "type": "string",
+                                    "description": "The inferred question the response answers",
+                                },
+                                "score": {
+                                    "type": "number",
+                                    "description": "Score where 1 = committal (direct/specific - good), 0 = noncommittal (evasive/vague - bad)",
+                                    "enum": [0, 1],
+                                },
+                            },
+                            "required": [
+                                "question",
+                                "score",
+                            ],
+                            "additionalProperties": False,
+                        },
+                        "strict": True,
+                    },
+                    "version": "4",
+                },
+            },
+            {
+                "key": "helpfulness",
+                "name": "Helpfulness",
+                "values": {
+                    "prompt_template": [
+                        {
+                            "role": "system",
+                            "content": 'You are an expert data labeler evaluating AI-generated responses for helpfulness. Your task is to assess how effectively the response addresses the user\'s needs and assists them in achieving their goal.\n\n## Task\nEvaluate the response\'s helpfulness on a scale from 0 to 1.\n\n\n## Scoring Scale\n- **1.0**: Fully helpful. Accurately addresses the query, provides actionable information, and is clear and engaging.\n- **0.7-0.9**: Mostly helpful. Addresses the core query with minor gaps in clarity, completeness, or tone.\n- **0.4-0.6**: Partially helpful. Provides some useful information but misses key aspects or lacks clarity.\n- **0.1-0.3**: Minimally helpful. Touches on the topic but fails to meaningfully assist the user.\n- **0.0**: Not helpful. Incorrect, irrelevant, or refuses to engage with the query.\n\n## What Constitutes a Helpful Response\nA fully helpful response:\n- Directly addresses the user\'s actual question or need\n- Provides accurate and factually correct information\n- Includes relevant details that aid understanding or resolution\n- Is clear, well-structured, and easy to follow\n- Offers actionable guidance when the query calls for it\n- Maintains an appropriate and engaging tone\n- Anticipates reasonable follow-up needs without over-explaining\n\n## Evaluation Criteria\n\n**Accuracy** (Is the information correct?)\n- Deduct heavily for factual errors or misleading information\n- Deduct for outdated information when current data is available\n\n**Relevance** (Does it address what was asked?)\n- Deduct for tangential information that doesn\'t serve the query\n- Deduct for answering a different question than what was asked\n\n**Completeness** (Does it cover the necessary ground?)\n- Deduct for missing critical information needed to resolve the query\n- Deduct for superficial answers when depth is required\n\n**Clarity** (Is it easy to understand?)\n- Deduct for confusing explanations or poor organization\n- Deduct for unnecessary jargon without explanation\n\n**Actionability** (Can the user act on it?)\n- Deduct for vague suggestions when specific steps are needed\n- Deduct for theoretical answers to practical questions\n\n## Output Format\nReturn a JSON object:\n{\n  "score": <float between 0 and 1>,\n  "reasoning": "<brief explanation of score>"\n}\n\n## Examples\n\n**Example 1**\nQuestion: "How do I reset my password on Gmail?"\nResponse: "Go to the Gmail sign-in page, click \'Forgot password\', enter your email, and follow the verification steps. You\'ll receive a code via SMS or backup email to create a new password."\n\nOutput:\n{\n  "score": 1.0,\n  "reasoning": "Provides accurate, step-by-step instructions that directly address the query. Clear, actionable, and complete."\n}\n\n**Example 2**\nQuestion: "What\'s the best way to learn Python?"\nResponse: "Python is a programming language created by Guido van Rossum in 1991. It\'s used for web development, data science, and automation."\n\nOutput:\n{\n  "score": 0.2,\n  "reasoning": "Provides background information about Python but completely ignores the actual question about how to learn it. Not actionable."\n}\n\n**Example 3**\nQuestion: "Why is my plant\'s leaves turning yellow?"\nResponse: "Yellow leaves can indicate overwatering, underwatering, nutrient deficiency, or insufficient light. Check if the soil is soggy (overwatering) or bone dry (underwatering). If watering seems fine, consider a balanced fertilizer or moving the plant to brighter indirect light."\n\nOutput:\n{\n  "score": 0.9,\n  "reasoning": "Covers multiple causes with diagnostic steps and solutions. Minor deduction for not asking clarifying questions about the plant type, which could affect advice."\n}',
+                        },
+                        {
+                            "role": "user",
+                            "content": "## Model inputs\n{{inputs}}\n## Model outputs\n{{outputs}}",
+                        },
+                    ],
+                    "model": "gpt-4o-mini",
+                    "response_type": "json_schema",
+                    "json_schema": {
+                        "name": "schema",
+                        "schema": {
+                            "title": "extract",
+                            "description": "Extract information from the user's response.",
+                            "type": "object",
+                            "properties": {
+                                "score": {
+                                    "type": "number",
+                                    "description": "Helpfulness score from 0 to 1",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                },
+                                "reasoning": {
+                                    "type": "string",
+                                    "description": "Brief explanation of the score",
+                                },
+                            },
+                            "required": [
+                                "score",
+                                "reasoning",
                             ],
                             "additionalProperties": False,
                         },
@@ -371,7 +292,7 @@ evaluators = [
         },
         "description": "LLM-as-a-judge uses a configurable prompt template that takes the output—and optionally inputs or data from the testcase such as correct answer—to evaluate the generated output.",
         "oss": True,
-        "tags": ["ai_llm", "functional"],
+        "tags": ["ai_llm"],
     },
     {
         "name": "Code Evaluation",
@@ -405,7 +326,97 @@ evaluators = [
         },
         "description": "Code Evaluation allows you to write your own evaluator in Python. You need to provide the Python code for the evaluator.",
         "oss": True,
-        "tags": ["functional"],
+        "tags": ["custom"],
+    },
+    {
+        "name": "JSON Field Match",
+        "key": "field_match_test",
+        "direct_use": False,
+        "settings_template": {
+            "json_field": {
+                "label": "JSON Field",
+                "type": "string",
+                "default": "",
+                "description": "The name of the field in the JSON output that you wish to evaluate",
+                "required": True,
+            },
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+        "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
+        "requires_testcase": "always",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["classifiers"],
+    },
+    {
+        "name": "JSON Diff Match",
+        "key": "auto_json_diff",
+        "direct_use": False,
+        "description": "Compares the generated JSON output to a ground truth JSON and returns a normalized score between 0 and 1 based on their differences.",
+        "settings_template": {
+            "compare_schema_only": {
+                "label": "Compare Schema Only",
+                "type": "boolean",
+                "default": False,
+                "advanced": True,
+                "description": "If set to True, only the key names and their types will be compared between prediction and ground truth, ignoring the actual values. If set to False, key names, their types, and their values will all compared.",
+            },
+            "predict_keys": {
+                "label": "Include prediction keys",
+                "type": "boolean",
+                "default": False,
+                "advanced": True,
+                "description": "If set to True, only keys present in the ground truth will be considered. The result will be 1.0 if a key from the ground truth is correctly predicted, regardless of any additional predicted keys. Otherwise both ground truth and prediction keys will be checked.",
+            },
+            "case_insensitive_keys": {
+                "label": "Enable Case-sensitive keys",
+                "type": "boolean",
+                "default": False,
+                "advanced": True,
+                "description": "If set to True, keys will be treated as case-insensitive, meaning 'key', 'Key', and 'KEY' are considered equivalent. Otherwise, keys will be treated as case-sensitive.",
+            },
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+        "requires_testcase": "always",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["classifiers"],
+    },
+    {
+        "name": "Semantic Similarity Match",
+        "key": "auto_semantic_similarity",
+        "direct_use": False,
+        "requires_llm_api_keys": True,
+        "description": "Semantic Similarity Match evaluator measures the similarity between two pieces of text by analyzing their meaning and context. It compares the semantic content, providing a score that reflects how closely the texts match in terms of meaning, rather than just exact word matches.",
+        "settings_template": {
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "required": True,
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+        "requires_testcase": "always",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["similarity"],
     },
     {
         "name": "Webhook test",
@@ -438,12 +449,145 @@ evaluators = [
         },
         "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response, in JSON format, indicating the correctness of the answer, along with a 200 HTTP status. You need to provide the URL of the webhook and the response of the webhook must be between 0 and 1.",
         "oss": True,
-        "tags": ["functional"],
+        "tags": ["custom"],
+    },
+    {
+        "name": "Exact Match",
+        "key": "auto_exact_match",
+        "direct_use": True,
+        "settings_template": {
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+        "description": "Exact Match evaluator determines if the output exactly matches the specified correct answer, ensuring precise alignment with expected results.",
+        "requires_testcase": "always",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["classifiers"],
+    },
+    {
+        "name": "Contains JSON",
+        "key": "auto_contains_json",
+        "direct_use": True,
+        "settings_template": {},
+        "description": "'Contains JSON' evaluator checks if the output contains the a valid JSON.",
+        "requires_testcase": "never",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["classifiers"],
+    },
+    {
+        "name": "Similarity Match",
+        "key": "auto_similarity_match",
+        "direct_use": False,
+        "settings_template": {
+            "similarity_threshold": {
+                "label": "Similarity Threshold",
+                "type": "number",
+                "default": 0.5,
+                "description": "The threshold value for similarity comparison",
+                "min": 0,
+                "max": 1,
+                "required": True,
+            },
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+        "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
+        "requires_testcase": "always",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["similarity"],
+    },
+    {
+        "name": "Regex Test",
+        "key": "auto_regex_test",
+        "direct_use": False,
+        "description": "Regex Test evaluator checks if the generated answer matches a regular expression pattern. You need to provide the regex expression and specify whether an answer is correct if it matches or does not match the regex.",
+        "settings_presets": [
+            {
+                "key": "starts_with",
+                "name": "Starts With",
+                "values": {
+                    "regex_pattern": "^PREFIX_PLACEHOLDER",
+                    "regex_should_match": True,
+                },
+                "description": "Checks if the output starts with a specified prefix. Replace PREFIX_PLACEHOLDER with your desired prefix. For case-insensitive matching, use (?i)^PREFIX_PLACEHOLDER",
+            },
+            {
+                "key": "ends_with",
+                "name": "Ends With",
+                "values": {
+                    "regex_pattern": "SUFFIX_PLACEHOLDER$",
+                    "regex_should_match": True,
+                },
+                "description": "Checks if the output ends with a specified suffix. Replace SUFFIX_PLACEHOLDER with your desired suffix. For case-insensitive matching, use (?i)SUFFIX_PLACEHOLDER$",
+            },
+            {
+                "key": "contains",
+                "name": "Contains",
+                "values": {
+                    "regex_pattern": "SUBSTRING_PLACEHOLDER",
+                    "regex_should_match": True,
+                },
+                "description": "Checks if the output contains a specified substring. Replace SUBSTRING_PLACEHOLDER with your desired substring. For case-insensitive matching, use (?i)SUBSTRING_PLACEHOLDER",
+            },
+            {
+                "key": "contains_any",
+                "name": "Contains Any",
+                "values": {
+                    "regex_pattern": "(OPTION1|OPTION2|OPTION3)",
+                    "regex_should_match": True,
+                },
+                "description": "Checks if the output contains any of the specified substrings. Replace OPTION1, OPTION2, OPTION3 with your desired substrings separated by |. For case-insensitive matching, use (?i)(OPTION1|OPTION2|OPTION3)",
+            },
+            {
+                "key": "contains_all",
+                "name": "Contains All",
+                "values": {
+                    "regex_pattern": "(?=.*SUBSTRING1)(?=.*SUBSTRING2)(?=.*SUBSTRING3).*",
+                    "regex_should_match": True,
+                },
+                "description": "Checks if the output contains all of the specified substrings. Replace SUBSTRING1, SUBSTRING2, SUBSTRING3 with your desired substrings. For case-insensitive matching, use (?i)(?=.*SUBSTRING1)(?=.*SUBSTRING2)(?=.*SUBSTRING3).*",
+            },
+        ],
+        "settings_template": {
+            "regex_pattern": {
+                "label": "Regex Pattern",
+                "type": "regex",
+                "default": "",
+                "description": "Pattern for regex testing (ex: ^this_word\\d{3}$)",
+                "required": True,
+            },
+            "regex_should_match": {
+                "label": "Match/Mismatch",
+                "type": "boolean",
+                "default": True,
+                "description": "If the regex should match or mismatch",
+            },
+        },
+        "requires_testcase": "never",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["classifiers"],
     },
     {
         "name": "Starts With",
         "key": "auto_starts_with",
         "direct_use": False,
+        "archived": True,
         "settings_template": {
             "prefix": {
                 "label": "prefix",
@@ -462,12 +606,13 @@ evaluators = [
         "requires_testcase": "never",
         "requires_trace": "always",
         "oss": True,
-        "tags": ["classifiers", "functional"],
+        "tags": ["classifiers"],
     },
     {
         "name": "Ends With",
         "key": "auto_ends_with",
         "direct_use": False,
+        "archived": True,
         "settings_template": {
             "case_sensitive": {
                 "label": "Case Sensitive",
@@ -486,12 +631,13 @@ evaluators = [
         "requires_testcase": "never",
         "requires_trace": "always",
         "oss": True,
-        "tags": ["classifiers", "functional"],
+        "tags": ["classifiers"],
     },
     {
         "name": "Contains",
         "key": "auto_contains",
         "direct_use": False,
+        "archived": True,
         "settings_template": {
             "case_sensitive": {
                 "label": "Case Sensitive",
@@ -510,12 +656,13 @@ evaluators = [
         "requires_testcase": "never",
         "requires_trace": "always",
         "oss": True,
-        "tags": ["classifiers", "functional"],
+        "tags": ["classifiers"],
     },
     {
         "name": "Contains Any",
         "key": "auto_contains_any",
         "direct_use": False,
+        "archived": True,
         "settings_template": {
             "case_sensitive": {
                 "label": "Case Sensitive",
@@ -534,12 +681,13 @@ evaluators = [
         "requires_testcase": "never",
         "requires_trace": "always",
         "oss": True,
-        "tags": ["classifiers", "functional"],
+        "tags": ["classifiers"],
     },
     {
         "name": "Contains All",
         "key": "auto_contains_all",
         "direct_use": False,
+        "archived": True,
         "settings_template": {
             "case_sensitive": {
                 "label": "Case Sensitive",
@@ -558,7 +706,7 @@ evaluators = [
         "requires_testcase": "never",
         "requires_trace": "always",
         "oss": True,
-        "tags": ["classifiers", "functional"],
+        "tags": ["classifiers"],
     },
     {
         "name": "Levenshtein Distance",
@@ -584,12 +732,13 @@ evaluators = [
         "requires_testcase": "always",
         "requires_trace": "always",
         "oss": True,
-        "tags": ["functional"],
+        "tags": ["similarity"],
     },
     {
         "name": "RAG Faithfulness",
         "key": "rag_faithfulness",
         "direct_use": False,
+        "archived": True,
         "requires_llm_api_keys": True,
         "settings_template": rag_evaluator_settings_template,
         "description": "RAG Faithfulness evaluator assesses the accuracy and reliability of responses generated by Retrieval-Augmented Generation (RAG) models. It evaluates how faithfully the responses adhere to the retrieved documents or sources, ensuring that the generated text accurately reflects the information from the original sources.",
@@ -601,6 +750,7 @@ evaluators = [
         "name": "RAG Context Relevancy",
         "key": "rag_context_relevancy",
         "direct_use": False,
+        "archived": True,
         "requires_llm_api_keys": True,
         "settings_template": rag_evaluator_settings_template,
         "description": "RAG Context Relevancy evaluator measures how relevant the retrieved documents or contexts are to the given question or prompt. It ensures that the selected documents provide the necessary information for generating accurate and meaningful responses, improving the overall quality of the RAG model's output.",

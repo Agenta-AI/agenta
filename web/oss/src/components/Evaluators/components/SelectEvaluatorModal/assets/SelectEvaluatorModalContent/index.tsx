@@ -4,6 +4,7 @@ import {ArrowRight} from "@phosphor-icons/react"
 import type {TabsProps} from "antd"
 import {Empty, Skeleton, Tabs, Tag, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {message} from "@/oss/components/AppMessageContext"
@@ -13,6 +14,7 @@ import {getEvaluatorTags} from "@/oss/lib/evaluations/legacy"
 import {capitalize} from "@/oss/lib/helpers/utils"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import type {Evaluator} from "@/oss/lib/Types"
+import {nonArchivedEvaluatorsAtom} from "@/oss/state/evaluators"
 
 const DEFAULT_TAB_KEY = "all"
 
@@ -35,14 +37,7 @@ const ENABLED_EVALUATORS = [
     "auto_ai_critique",
     "auto_custom_code_run",
     "auto_webhook_test",
-    "auto_starts_with",
-    "auto_ends_with",
-    "auto_contains",
-    "auto_contains_any",
-    "auto_contains_all",
     "auto_levenshtein_distance",
-    "rag_faithfulness",
-    "rag_context_relevancy",
 ]
 
 const getEvaluatorTagValues = (item: EvaluatorPreview | Evaluator) => {
@@ -67,9 +62,9 @@ const getEvaluatorTagValues = (item: EvaluatorPreview | Evaluator) => {
 const SelectEvaluatorModalContent = () => {
     const {projectURL} = useURL()
     const router = useRouter()
-    const {evaluatorsSwr, isLoadingEvaluators} = useFetchEvaluatorsData()
+    const {isLoadingEvaluators} = useFetchEvaluatorsData()
     const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_KEY)
-    const evaluators = evaluatorsSwr.data || []
+    const nonArchivedEvaluators = useAtomValue(nonArchivedEvaluatorsAtom)
     const baseTags = useMemo(() => getEvaluatorTags(), [])
 
     const availableTags = useMemo(() => {
@@ -78,7 +73,7 @@ const SelectEvaluatorModalContent = () => {
             normalized.set(tag.value, tag.label)
         })
 
-        evaluators.forEach((item) => {
+        nonArchivedEvaluators.forEach((item) => {
             getEvaluatorTagValues(item).forEach((tag) => {
                 if (!normalized.has(tag)) {
                     normalized.set(tag, capitalize(tag.replace(/[_-]+/g, " ")))
@@ -87,32 +82,47 @@ const SelectEvaluatorModalContent = () => {
         })
 
         return normalized
-    }, [baseTags, evaluators])
+    }, [baseTags, nonArchivedEvaluators])
 
     const tabItems = useMemo<TabsProps["items"]>(() => {
         const items: TabsProps["items"] = [{key: DEFAULT_TAB_KEY, label: "All templates"}]
 
+        const enabledEvaluators = nonArchivedEvaluators.filter((item) => {
+            return ENABLED_EVALUATORS.includes(item.key)
+        })
+
+        // Create a set of tags that actually have evaluators
+        const tagsWithEvaluators = new Set<string>()
+        enabledEvaluators.forEach((item) => {
+            getEvaluatorTagValues(item).forEach((tag) => {
+                tagsWithEvaluators.add(tag)
+            })
+        })
+
         availableTags.forEach((label, value) => {
-            items!.push({key: value, label})
+            // Only add tab if it has evaluators
+            if (tagsWithEvaluators.has(value)) {
+                items!.push({key: value, label})
+            }
         })
 
         return items
-    }, [availableTags])
+    }, [availableTags, nonArchivedEvaluators])
 
     const filteredEvaluators = useMemo(() => {
-        const enabled_evaluators = evaluators.filter((item) => {
+        const enabledEvaluators = nonArchivedEvaluators.filter((item) => {
             return ENABLED_EVALUATORS.includes(item.key)
         })
 
         if (activeTab === DEFAULT_TAB_KEY) {
-            return enabled_evaluators
+            return enabledEvaluators
         }
 
-        return enabled_evaluators.filter((item) => {
+        return enabledEvaluators.filter((item) => {
             const tags = getEvaluatorTagValues(item)
             return tags.includes(activeTab)
         })
-    }, [activeTab, evaluators])
+    }, [activeTab, nonArchivedEvaluators])
 
     const handleTabChange = useCallback((key: string) => {
         setActiveTab(key)
