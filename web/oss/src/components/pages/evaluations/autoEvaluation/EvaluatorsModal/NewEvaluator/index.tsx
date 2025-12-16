@@ -3,17 +3,18 @@ import {useMemo, useState} from "react"
 import {CloseOutlined} from "@ant-design/icons"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Divider, Flex, Input, Radio, Space, Typography} from "antd"
+import {useAtomValue} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {getEvaluatorTags} from "@/oss/lib/evaluations/legacy"
 import {Evaluator, JSSTheme} from "@/oss/lib/Types"
+import {nonArchivedEvaluatorsAtom} from "@/oss/state/evaluators"
 
 import NewEvaluatorList from "./NewEvaluatorList"
 
 interface NewEvaluatorProps {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     handleOnCancel: () => void
-    evaluators: Evaluator[]
     setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
     setEvaluatorsDisplay: any
     evaluatorsDisplay: string
@@ -56,7 +57,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const NewEvaluator = ({
-    evaluators,
     setCurrent,
     handleOnCancel,
     setSelectedEvaluator,
@@ -66,11 +66,8 @@ const NewEvaluator = ({
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
     const baseEvaluatorTags = getEvaluatorTags()
+    const nonArchivedEvaluators = useAtomValue(nonArchivedEvaluatorsAtom)
     const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
-
-    const nonArchivedEvaluators = useMemo(() => {
-        return evaluators.filter((item) => item.archived !== true)
-    }, [evaluators])
 
     // Filter tags to only show those that have evaluators
     const evaluatorTags = useMemo(() => {

@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {ArrowLeftOutlined} from "@ant-design/icons"
 import {Button, Result} from "antd"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
@@ -13,7 +14,7 @@ import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
 import {Evaluator, EvaluatorConfig, Variant, testset} from "@/oss/lib/Types"
-import {fetchAllEvaluators} from "@/oss/services/evaluators"
+import {evaluatorByKeyAtomFamily} from "@/oss/state/evaluators"
 import {useTestsetsData} from "@/oss/state/testset"
 
 import ConfigureEvaluatorSkeleton from "./assets/ConfigureEvaluatorSkeleton"
@@ -46,32 +47,10 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
 
     const evaluatorKey = existingConfig?.evaluator_key ?? evaluatorId ?? null
 
-    const [archivedEvaluators, setArchivedEvaluators] = useState<Evaluator[]>([])
-
-    // Fetch archived evaluators if evaluator not found in regular list
-    useEffect(() => {
-        if (!evaluatorKey || evaluators.find((item) => item.key === evaluatorKey)) {
-            return
-        }
-
-        // Evaluator not found, fetch all including archived
-        fetchAllEvaluators(true)
-            .then((allEvaluators) => {
-                setArchivedEvaluators(allEvaluators)
-            })
-            .catch((error) => {
-                console.error("Failed to fetch archived evaluators:", error)
-            })
-    }, [evaluatorKey, evaluators])
-
-    const evaluator = useMemo(() => {
-        if (!evaluatorKey) return null
-        return (
-            evaluators.find((item) => item.key === evaluatorKey) ??
-            archivedEvaluators.find((item) => item.key === evaluatorKey) ??
-            null
-        )
-    }, [evaluators, archivedEvaluators, evaluatorKey])
+    const evaluatorQuery = useAtomValue(evaluatorByKeyAtomFamily(evaluatorKey))
+    const evaluatorFromRegular = evaluators.find((item) => item.key === evaluatorKey)
+    const evaluator = evaluatorFromRegular ?? evaluatorQuery.data ?? null
+    const isLoadingEvaluatorByKey = evaluatorQuery.isPending && !evaluatorFromRegular
 
     const {testsets} = useTestsetsData()
     const {variants: variantData} = useStatelessVariants({lightLoading: true})
@@ -101,7 +80,7 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
         }
     }, [existingConfig])
 
-    const isLoading = isLoadingEvaluators || isLoadingEvaluatorConfigs
+    const isLoading = isLoadingEvaluators || isLoadingEvaluatorConfigs || isLoadingEvaluatorByKey
 
     useEffect(() => {
         if (testsets?.length) {
