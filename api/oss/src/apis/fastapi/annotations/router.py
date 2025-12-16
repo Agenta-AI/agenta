@@ -150,6 +150,7 @@ class AnnotationsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         annotation = await self.annotations_service.create(
+            organization_id=UUID(request.state.organization_id),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
@@ -213,6 +214,7 @@ class AnnotationsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         annotation = await self.annotations_service.edit(
+            organization_id=UUID(request.state.organization_id),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #

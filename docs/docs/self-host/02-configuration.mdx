@@ -72,24 +72,14 @@ Essential third-party service configurations:
 | `TRAEFIK_UI_PORT` | Port for Traefik dashboard | `8080` |
 | `TRAEFIK_HTTPS_PORT` | HTTPS port for Traefik | `443` |
 
-#### Redis (Caching)
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `REDIS_URL` | Redis connection URL for task queue | `redis://redis:6379/0` |
-| `REDIS_CACHE_HOST` | Redis cache hostname for application caching | `cache` |
-| `REDIS_CACHE_PORT` | Redis cache port for application caching | `6378` |
+#### Redis (Task Queue, Caching & Sessions) {#redis-caching}
+Use `REDIS_URI` when you have a single Redis, or split to two instances with the volatile/durable URLs below.
 
-#### RabbitMQ (Message Queue)
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `RABBITMQ_DEFAULT_USER` | RabbitMQ username | `guest` |
-| `RABBITMQ_DEFAULT_PASS` | RabbitMQ password | `guest` |
-
-#### Celery (Task Queue)
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CELERY_BROKER_URL` | Celery broker URL | `amqp://guest@rabbitmq//` |
-| `CELERY_RESULT_BACKEND` | Celery result backend | `redis://redis:6379/0` |
+| `REDIS_URI` | Single Redis URL used when the split URLs are not provided | `redis://redis:6379/0` |
+| `REDIS_URI_VOLATILE` | Caches/PubSub channels; falls back to `REDIS_URI` | `redis://redis-volatile:6379/0` |
+| `REDIS_URI_DURABLE` | Queues/Streams; falls back to `REDIS_URI` | `redis://redis-durable:6381/0` |
 
 #### PostgreSQL (Database)
 | Variable | Description | Example |
@@ -131,8 +121,6 @@ Optional port and service configurations:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NGINX_PORT` | Nginx port (when using Nginx) | `80` |
-| `RABBITMQ_PORT` | RabbitMQ AMQP port | `5672` |
-| `RABBITMQ_UI_PORT` | RabbitMQ management UI port | `15672` |
 | `POSTGRES_PORT` | PostgreSQL port | `5432` |
 | `SUPERTOKENS_PORT` | SuperTokens port | `3567` |
 
@@ -224,7 +212,7 @@ TRAEFIK_PORT=80
 ## Security Considerations
 
 - **Replace default secrets**: Always change `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, and `SUPERTOKENS_API_KEY` in production
-- **Secure database credentials**: Use strong passwords for `POSTGRES_PASSWORD` and `RABBITMQ_DEFAULT_PASS`
+- **Secure database credentials**: Use strong passwords for `POSTGRES_PASSWORD`
 - **Use HTTPS in production**: Configure SSL/TLS for production deployments
 
 ## Troubleshooting

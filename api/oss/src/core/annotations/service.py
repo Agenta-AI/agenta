@@ -88,6 +88,7 @@ class AnnotationsService:
     async def create(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -211,6 +212,7 @@ class AnnotationsService:
         )
 
         annotation_link = await self._create_annotation(
+            organization_id=organization_id,
             project_id=project_id,
             user_id=user_id,
             #
@@ -260,6 +262,7 @@ class AnnotationsService:
     async def edit(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -394,6 +397,7 @@ class AnnotationsService:
         )
 
         annotation_link = await self._edit_annotation(
+            organization_id=organization_id,
             project_id=project_id,
             user_id=user_id,
             #
@@ -505,6 +509,7 @@ class AnnotationsService:
     async def _create_annotation(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -590,6 +595,7 @@ class AnnotationsService:
             scope={"type": "http", "http_version": "1.1", "scheme": "http"}
         )
 
+        request.state.organization_id = str(organization_id)
         request.state.project_id = str(project_id)
         request.state.user_id = str(user_id)
 
@@ -597,6 +603,7 @@ class AnnotationsService:
             request=request,
             #
             trace_request=trace_request,
+            sync=True,  # Synchronous for user-facing annotations
         )
 
         _link = (
@@ -742,6 +749,7 @@ class AnnotationsService:
     async def _edit_annotation(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -819,6 +827,7 @@ class AnnotationsService:
             scope={"type": "http", "http_version": "1.1", "scheme": "http"}
         )
 
+        request.state.organization_id = str(organization_id)
         request.state.project_id = str(project_id)
         request.state.user_id = str(user_id)
 
@@ -828,6 +837,7 @@ class AnnotationsService:
             trace_id=annotation.trace_id,
             #
             trace_request=trace_request,
+            sync=True,  # Synchronous for user-facing annotations
         )
 
         _link = (
