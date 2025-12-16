@@ -1,8 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Flex, Form, Input, Space, Typography, Divider, Collapse} from "antd"
-import clsx from "clsx"
+import {ArrowLeft, Info} from "@phosphor-icons/react"
+import {Button, Form, Input, Space, Tag, Tooltip, Typography} from "antd"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
@@ -158,6 +157,9 @@ const ConfigureEvaluator = ({
     }>({
         trace: null,
     })
+
+    // Watch form name field for display in header
+    const formName = Form.useWatch("name", form)
 
     const settingsPresets = useMemo(
         () => selectedEvaluator?.settings_presets || [],
@@ -375,7 +377,8 @@ const ConfigureEvaluator = ({
     return (
         <>
             <section className="flex flex-col w-full h-[calc(100vh-84px)]">
-                <div className="flex items-center justify-between border-0 border-b border-solid border-gray-200 py-2 px-4 sticky top-0 z-20 bg-white">
+                {/* Top Header - grey like playground */}
+                <div className="flex items-center justify-between gap-4 px-2.5 py-2 border-0 border-b border-solid border-gray-200 sticky top-0 z-20 bg-[#FAFAFB]">
                     <div className="flex items-center gap-2">
                         <Button
                             icon={<ArrowLeft size={14} />}
@@ -388,140 +391,141 @@ const ConfigureEvaluator = ({
                                 setEditEvalEditValues(null)
                             }}
                         />
-                        <Typography.Text className={classes.title}>
+                        <Typography.Text className="text-[16px] leading-[18px] font-[600]">
                             {editMode ? "Edit evaluator" : "Configure evaluator"}
                         </Typography.Text>
                     </div>
-
-                    <Flex gap={8} justify="end">
-                        <Button type="text" onClick={() => form.resetFields()}>
-                            Reset
-                        </Button>
-                        <Button type="primary" loading={submitLoading} onClick={form.submit}>
-                            Commit
-                        </Button>
-                    </Flex>
                 </div>
 
-                <div className="flex w-full h-full pr-4 overflow-auto">
-                    <div className="flex-1 flex flex-col gap-4 min-w-0 min-h-0 h-full w-[50%]">
-                        <Collapse
-                            ghost
-                            className={clsx("rounded-none", classes.collapseContainer)}
-                            bordered={false}
-                            defaultActiveKey={["1"]}
-                            activeKey={["1"]}
-                            items={[
-                                {
-                                    key: "1",
-                                    label: "Configuration",
-                                    showArrow: false,
-                                    collapsible: "disabled",
-                                    children: (
-                                        <>
-                                            <Space direction="vertical">
-                                                <Flex justify="space-between">
-                                                    <Typography.Text className={classes.title}>
-                                                        {selectedEvaluator.name}
-                                                    </Typography.Text>
-                                                </Flex>
-                                                <Typography.Text type="secondary">
-                                                    {selectedEvaluator.description}
-                                                </Typography.Text>
-                                            </Space>
+                <div className="flex w-full h-full overflow-hidden">
+                    {/* Left Column */}
+                    <div className="flex-1 flex flex-col h-full min-w-0 border-r border-gray-200 border-0 border-solid overflow-y-auto">
+                        {/* Evaluator Name & Actions */}
+                        <div className="h-[48px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-white flex-shrink-0 sticky top-0 z-10">
+                            <Typography.Text className="font-semibold text-[14px]">
+                                {formName || "New evaluator"}
+                            </Typography.Text>
+                            <Space>
+                                <Button type="text" onClick={() => form.resetFields()}>
+                                    Reset
+                                </Button>
+                                <Button
+                                    type="primary"
+                                    loading={submitLoading}
+                                    onClick={form.submit}
+                                >
+                                    Commit
+                                </Button>
+                            </Space>
+                        </div>
 
-                                            <div>
-                                                <Form
-                                                    requiredMark={false}
-                                                    form={form}
-                                                    name="new-evaluator"
-                                                    onFinish={onSubmit}
-                                                    layout="vertical"
-                                                    className={classes.formContainer}
-                                                >
-                                                    <div className="flex gap-4">
-                                                        <Form.Item
-                                                            name="name"
-                                                            label="Name"
-                                                            rules={[
-                                                                {
-                                                                    required: true,
-                                                                    message:
-                                                                        "This field is required",
-                                                                },
-                                                            ]}
-                                                            className="w-full"
-                                                        >
-                                                            <Input />
-                                                        </Form.Item>
-                                                    </div>
+                        {/* Configuration Header */}
+                        <div className="h-[48px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-[#FAFAFB] flex-shrink-0 sticky top-[48px] z-10">
+                            <Space size={8} align="center">
+                                <span className="text-[14px] font-medium text-gray-800">
+                                    Configuration
+                                </span>
+                                <Tag color={selectedEvaluator.color || "default"}>
+                                    {selectedEvaluator.name}
+                                </Tag>
+                                <Tooltip title={selectedEvaluator.description}>
+                                    <span className="flex items-center">
+                                        <Info size={16} className="text-gray-500 cursor-help" />
+                                    </span>
+                                </Tooltip>
+                            </Space>
+                            {settingsPresets.length > 0 && (
+                                <Button
+                                    size="small"
+                                    onClick={() => setIsLoadEvaluatorPresetsModalOpen(true)}
+                                >
+                                    Load Preset
+                                </Button>
+                            )}
+                        </div>
 
-                                                    {basicSettingsFields.length ? (
-                                                        <div className="h-full w-full max-w-full flex flex-col gap-2">
-                                                            <Typography.Text className="text-xs font-medium">
-                                                                Parameters
-                                                            </Typography.Text>
+                        {/* Scrollable Form Area */}
+                        <div className="p-4">
+                            <Form
+                                requiredMark={false}
+                                form={form}
+                                name="new-evaluator"
+                                onFinish={onSubmit}
+                                layout="vertical"
+                                className={classes.formContainer}
+                            >
+                                <div className="flex gap-4">
+                                    <Form.Item
+                                        name="name"
+                                        label="Name"
+                                        rules={[
+                                            {
+                                                required: true,
+                                                message: "This field is required",
+                                            },
+                                        ]}
+                                        className="w-full"
+                                    >
+                                        <Input />
+                                    </Form.Item>
+                                </div>
 
-                                                            {basicSettingsFields.map((field) => (
-                                                                <DynamicFormField
-                                                                    {...field}
-                                                                    key={field.key}
-                                                                    traceTree={traceTree}
-                                                                    form={form}
-                                                                    name={[
-                                                                        "settings_values",
-                                                                        field.key,
-                                                                    ]}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                    ) : null}
+                                {basicSettingsFields.length ? (
+                                    <div className="h-full w-full max-w-full flex flex-col gap-2">
+                                        <Typography.Text className="text-xs font-medium">
+                                            Parameters
+                                        </Typography.Text>
 
-                                                    {advancedSettingsFields.length > 0 && (
-                                                        <div className="h-fit">
-                                                            <AdvancedSettings
-                                                                settings={advancedSettingsFields}
-                                                                selectedTestcase={selectedTestcase}
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </Form>
-                                            </div>
-                                        </>
-                                    ),
-                                    extra: settingsPresets.length > 0 && (
-                                        <Button
-                                            size="small"
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                setIsLoadEvaluatorPresetsModalOpen(true)
-                                            }}
-                                        >
-                                            Load Preset
-                                        </Button>
-                                    ),
-                                },
-                            ]}
-                        />
+                                        {basicSettingsFields.map((field) => (
+                                            <DynamicFormField
+                                                {...field}
+                                                key={field.key}
+                                                traceTree={traceTree}
+                                                form={form}
+                                                name={["settings_values", field.key]}
+                                            />
+                                        ))}
+                                    </div>
+                                ) : null}
+
+                                {advancedSettingsFields.length > 0 && (
+                                    <div className="h-fit">
+                                        <AdvancedSettings
+                                            settings={advancedSettingsFields}
+                                            selectedTestcase={selectedTestcase}
+                                        />
+                                    </div>
+                                )}
+                            </Form>
+                        </div>
                     </div>
 
-                    <Divider type="vertical" className="h-full sticky m-0 mr-6" />
+                    {/* Right Column */}
+                    <div className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto">
+                        {/* Test Evaluator Header */}
+                        <div className="h-[48px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-white flex-shrink-0 sticky top-0 z-10">
+                            <span className="font-semibold text-[14px]">Test evaluator</span>
+                        </div>
 
-                    <DebugSection
-                        selectedEvaluator={selectedEvaluator}
-                        selectedTestcase={selectedTestcase}
-                        selectedVariant={selectedVariant}
-                        setTraceTree={setTraceTree}
-                        debugEvaluator={true}
-                        form={form}
-                        testsets={testsets}
-                        traceTree={traceTree}
-                        variants={variants}
-                        setSelectedVariant={setSelectedVariant}
-                        setSelectedTestcase={setSelectedTestcase}
-                        selectedTestset={selectedTestset}
-                        setSelectedTestset={setSelectedTestset}
-                    />
+                        {/* Debug Section Content - without its own title */}
+                        <div className="p-4">
+                            <DebugSection
+                                selectedEvaluator={selectedEvaluator}
+                                selectedTestcase={selectedTestcase}
+                                selectedVariant={selectedVariant}
+                                setTraceTree={setTraceTree}
+                                debugEvaluator={true}
+                                form={form}
+                                testsets={testsets}
+                                traceTree={traceTree}
+                                variants={variants}
+                                setSelectedVariant={setSelectedVariant}
+                                setSelectedTestcase={setSelectedTestcase}
+                                selectedTestset={selectedTestset}
+                                setSelectedTestset={setSelectedTestset}
+                            />
+                        </div>
+                    </div>
                 </div>
             </section>
 
