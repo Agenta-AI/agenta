@@ -28,8 +28,8 @@ services:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
-
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        # Use local build instead of pulling from ghcr.io
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         networks:
             - agenta-oss-gh-network
@@ -77,8 +77,8 @@ services:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
-
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        # Use local build instead of pulling from ghcr.io
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         networks:
             - agenta-oss-gh-network
@@ -109,8 +109,8 @@ services:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
-
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        # Use local build instead of pulling from ghcr.io
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         networks:
             - agenta-oss-gh-network
@@ -141,8 +141,8 @@ services:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
-
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        # Use local build instead of pulling from ghcr.io
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
@@ -165,8 +165,8 @@ services:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
-
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        # Use local build instead of pulling from ghcr.io
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         networks:
             - agenta-oss-gh-network
