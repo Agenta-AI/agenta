@@ -26,181 +26,6 @@ rag_evaluator_settings_template = {
 }
 evaluators = [
     {
-        "name": "Exact Match",
-        "key": "auto_exact_match",
-        "direct_use": True,
-        "settings_template": {
-            "correct_answer_key": {
-                "label": "Expected Answer Column",
-                "default": "correct_answer",
-                "type": "string",
-                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
-                "description": "The name of the column in the test data that contains the correct answer",
-            },
-        },
-        "description": "Exact Match evaluator determines if the output exactly matches the specified correct answer, ensuring precise alignment with expected results.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["functional"],
-    },
-    {
-        "name": "Contains JSON",
-        "key": "auto_contains_json",
-        "direct_use": True,
-        "settings_template": {},
-        "description": "'Contains JSON' evaluator checks if the output contains the a valid JSON.",
-        "requires_testcase": "never",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["functional", "classifiers"],
-    },
-    {
-        "name": "Similarity Match",
-        "key": "auto_similarity_match",
-        "direct_use": False,
-        "settings_template": {
-            "similarity_threshold": {
-                "label": "Similarity Threshold",
-                "type": "number",
-                "default": 0.5,
-                "description": "The threshold value for similarity comparison",
-                "min": 0,
-                "max": 1,
-                "required": True,
-            },
-            "correct_answer_key": {
-                "label": "Expected Answer Column",
-                "default": "correct_answer",
-                "type": "string",
-                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
-                "description": "The name of the column in the test data that contains the correct answer",
-            },
-        },
-        "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["similarity", "functional"],
-    },
-    {
-        "name": "Semantic Similarity Match",
-        "key": "auto_semantic_similarity",
-        "direct_use": False,
-        "requires_llm_api_keys": True,
-        "description": "Semantic Similarity Match evaluator measures the similarity between two pieces of text by analyzing their meaning and context. It compares the semantic content, providing a score that reflects how closely the texts match in terms of meaning, rather than just exact word matches.",
-        "settings_template": {
-            "correct_answer_key": {
-                "label": "Expected Answer Column",
-                "default": "correct_answer",
-                "type": "string",
-                "required": True,
-                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
-                "description": "The name of the column in the test data that contains the correct answer",
-            },
-        },
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["similarity", "ai_llm"],
-    },
-    {
-        "name": "Regex Test",
-        "key": "auto_regex_test",
-        "direct_use": False,
-        "description": "Regex Test evaluator checks if the generated answer matches a regular expression pattern. You need to provide the regex expression and specify whether an answer is correct if it matches or does not match the regex.",
-        "settings_template": {
-            "regex_pattern": {
-                "label": "Regex Pattern",
-                "type": "regex",
-                "default": "",
-                "description": "Pattern for regex testing (ex: ^this_word\\d{3}$)",
-                "required": True,
-            },
-            "regex_should_match": {
-                "label": "Match/Mismatch",
-                "type": "boolean",
-                "default": True,
-                "description": "If the regex should match or mismatch",
-            },
-        },
-        "requires_testcase": "never",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["classifiers", "functional"],
-    },
-    {
-        "name": "JSON Field Match",
-        "key": "field_match_test",
-        "direct_use": False,
-        "settings_template": {
-            "json_field": {
-                "label": "JSON Field",
-                "type": "string",
-                "default": "",
-                "description": "The name of the field in the JSON output that you wish to evaluate",
-                "required": True,
-            },
-            "correct_answer_key": {
-                "label": "Expected Answer Column",
-                "default": "correct_answer",
-                "type": "string",
-                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
-                "description": "The name of the column in the test data that contains the correct answer",
-            },
-        },
-        "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["functional"],
-    },
-    {
-        "name": "JSON Diff Match",
-        "key": "auto_json_diff",
-        "direct_use": False,
-        "description": "Compares the generated JSON output to a ground truth JSON and returns a normalized score between 0 and 1 based on their differences.",
-        "settings_template": {
-            "compare_schema_only": {
-                "label": "Compare Schema Only",
-                "type": "boolean",
-                "default": False,
-                "advanced": True,
-                "description": "If set to True, only the key names and their types will be compared between prediction and ground truth, ignoring the actual values. If set to False, key names, their types, and their values will all compared.",
-            },
-            "predict_keys": {
-                "label": "Include prediction keys",
-                "type": "boolean",
-                "default": False,
-                "advanced": True,
-                "description": "If set to True, only keys present in the ground truth will be considered. The result will be 1.0 if a key from the ground truth is correctly predicted, regardless of any additional predicted keys. Otherwise both ground truth and prediction keys will be checked.",
-            },
-            "case_insensitive_keys": {
-                "label": "Enable Case-sensitive keys",
-                "type": "boolean",
-                "default": False,
-                "advanced": True,
-                "description": "If set to True, keys will be treated as case-insensitive, meaning 'key', 'Key', and 'KEY' are considered equivalent. Otherwise, keys will be treated as case-sensitive.",
-            },
-            "correct_answer_key": {
-                "label": "Expected Answer Column",
-                "default": "correct_answer",
-                "type": "string",
-                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
-                "description": "The name of the column in the test data that contains the correct answer",
-            },
-        },
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "oss": True,
-        "tags": ["similarity", "functional"],
-    },
-    {
         "name": "LLM-as-a-judge",
         "key": "auto_ai_critique",
         "direct_use": False,
@@ -467,7 +292,7 @@ evaluators = [
         },
         "description": "LLM-as-a-judge uses a configurable prompt template that takes the output—and optionally inputs or data from the testcase such as correct answer—to evaluate the generated output.",
         "oss": True,
-        "tags": ["ai_llm", "functional"],
+        "tags": ["ai_llm"],
     },
     {
         "name": "Code Evaluation",
@@ -501,7 +326,97 @@ evaluators = [
         },
         "description": "Code Evaluation allows you to write your own evaluator in Python. You need to provide the Python code for the evaluator.",
         "oss": True,
-        "tags": ["functional"],
+        "tags": ["custom"],
+    },
+    {
+        "name": "JSON Field Match",
+        "key": "field_match_test",
+        "direct_use": False,
+        "settings_template": {
+            "json_field": {
+                "label": "JSON Field",
+                "type": "string",
+                "default": "",
+                "description": "The name of the field in the JSON output that you wish to evaluate",
+                "required": True,
+            },
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+        "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
+        "requires_testcase": "always",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["classifiers"],
+    },
+    {
+        "name": "JSON Diff Match",
+        "key": "auto_json_diff",
+        "direct_use": False,
+        "description": "Compares the generated JSON output to a ground truth JSON and returns a normalized score between 0 and 1 based on their differences.",
+        "settings_template": {
+            "compare_schema_only": {
+                "label": "Compare Schema Only",
+                "type": "boolean",
+                "default": False,
+                "advanced": True,
+                "description": "If set to True, only the key names and their types will be compared between prediction and ground truth, ignoring the actual values. If set to False, key names, their types, and their values will all compared.",
+            },
+            "predict_keys": {
+                "label": "Include prediction keys",
+                "type": "boolean",
+                "default": False,
+                "advanced": True,
+                "description": "If set to True, only keys present in the ground truth will be considered. The result will be 1.0 if a key from the ground truth is correctly predicted, regardless of any additional predicted keys. Otherwise both ground truth and prediction keys will be checked.",
+            },
+            "case_insensitive_keys": {
+                "label": "Enable Case-sensitive keys",
+                "type": "boolean",
+                "default": False,
+                "advanced": True,
+                "description": "If set to True, keys will be treated as case-insensitive, meaning 'key', 'Key', and 'KEY' are considered equivalent. Otherwise, keys will be treated as case-sensitive.",
+            },
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+        "requires_testcase": "always",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["classifiers"],
+    },
+    {
+        "name": "Semantic Similarity Match",
+        "key": "auto_semantic_similarity",
+        "direct_use": False,
+        "requires_llm_api_keys": True,
+        "description": "Semantic Similarity Match evaluator measures the similarity between two pieces of text by analyzing their meaning and context. It compares the semantic content, providing a score that reflects how closely the texts match in terms of meaning, rather than just exact word matches.",
+        "settings_template": {
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "required": True,
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+        "requires_testcase": "always",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["similarity"],
     },
     {
         "name": "Webhook test",
@@ -534,12 +449,145 @@ evaluators = [
         },
         "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response, in JSON format, indicating the correctness of the answer, along with a 200 HTTP status. You need to provide the URL of the webhook and the response of the webhook must be between 0 and 1.",
         "oss": True,
-        "tags": ["functional"],
+        "tags": ["custom"],
+    },
+    {
+        "name": "Exact Match",
+        "key": "auto_exact_match",
+        "direct_use": True,
+        "settings_template": {
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+        "description": "Exact Match evaluator determines if the output exactly matches the specified correct answer, ensuring precise alignment with expected results.",
+        "requires_testcase": "always",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["classifiers"],
+    },
+    {
+        "name": "Contains JSON",
+        "key": "auto_contains_json",
+        "direct_use": True,
+        "settings_template": {},
+        "description": "'Contains JSON' evaluator checks if the output contains the a valid JSON.",
+        "requires_testcase": "never",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["classifiers"],
+    },
+    {
+        "name": "Similarity Match",
+        "key": "auto_similarity_match",
+        "direct_use": False,
+        "settings_template": {
+            "similarity_threshold": {
+                "label": "Similarity Threshold",
+                "type": "number",
+                "default": 0.5,
+                "description": "The threshold value for similarity comparison",
+                "min": 0,
+                "max": 1,
+                "required": True,
+            },
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+        "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
+        "requires_testcase": "always",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["similarity"],
+    },
+    {
+        "name": "Regex Test",
+        "key": "auto_regex_test",
+        "direct_use": False,
+        "description": "Regex Test evaluator checks if the generated answer matches a regular expression pattern. You need to provide the regex expression and specify whether an answer is correct if it matches or does not match the regex.",
+        "settings_presets": [
+            {
+                "key": "starts_with",
+                "name": "Starts With",
+                "values": {
+                    "regex_pattern": "^PREFIX_PLACEHOLDER",
+                    "regex_should_match": True,
+                },
+                "description": "Checks if the output starts with a specified prefix. Replace PREFIX_PLACEHOLDER with your desired prefix. For case-insensitive matching, use (?i)^PREFIX_PLACEHOLDER",
+            },
+            {
+                "key": "ends_with",
+                "name": "Ends With",
+                "values": {
+                    "regex_pattern": "SUFFIX_PLACEHOLDER$",
+                    "regex_should_match": True,
+                },
+                "description": "Checks if the output ends with a specified suffix. Replace SUFFIX_PLACEHOLDER with your desired suffix. For case-insensitive matching, use (?i)SUFFIX_PLACEHOLDER$",
+            },
+            {
+                "key": "contains",
+                "name": "Contains",
+                "values": {
+                    "regex_pattern": "SUBSTRING_PLACEHOLDER",
+                    "regex_should_match": True,
+                },
+                "description": "Checks if the output contains a specified substring. Replace SUBSTRING_PLACEHOLDER with your desired substring. For case-insensitive matching, use (?i)SUBSTRING_PLACEHOLDER",
+            },
+            {
+                "key": "contains_any",
+                "name": "Contains Any",
+                "values": {
+                    "regex_pattern": "(OPTION1|OPTION2|OPTION3)",
+                    "regex_should_match": True,
+                },
+                "description": "Checks if the output contains any of the specified substrings. Replace OPTION1, OPTION2, OPTION3 with your desired substrings separated by |. For case-insensitive matching, use (?i)(OPTION1|OPTION2|OPTION3)",
+            },
+            {
+                "key": "contains_all",
+                "name": "Contains All",
+                "values": {
+                    "regex_pattern": "(?=.*SUBSTRING1)(?=.*SUBSTRING2)(?=.*SUBSTRING3).*",
+                    "regex_should_match": True,
+                },
+                "description": "Checks if the output contains all of the specified substrings. Replace SUBSTRING1, SUBSTRING2, SUBSTRING3 with your desired substrings. For case-insensitive matching, use (?i)(?=.*SUBSTRING1)(?=.*SUBSTRING2)(?=.*SUBSTRING3).*",
+            },
+        ],
+        "settings_template": {
+            "regex_pattern": {
+                "label": "Regex Pattern",
+                "type": "regex",
+                "default": "",
+                "description": "Pattern for regex testing (ex: ^this_word\\d{3}$)",
+                "required": True,
+            },
+            "regex_should_match": {
+                "label": "Match/Mismatch",
+                "type": "boolean",
+                "default": True,
+                "description": "If the regex should match or mismatch",
+            },
+        },
+        "requires_testcase": "never",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["classifiers"],
     },
     {
         "name": "Starts With",
         "key": "auto_starts_with",
         "direct_use": False,
+        "archived": True,
         "settings_template": {
             "prefix": {
                 "label": "prefix",
@@ -558,12 +606,13 @@ evaluators = [
         "requires_testcase": "never",
         "requires_trace": "always",
         "oss": True,
-        "tags": ["classifiers", "functional"],
+        "tags": ["classifiers"],
     },
     {
         "name": "Ends With",
         "key": "auto_ends_with",
         "direct_use": False,
+        "archived": True,
         "settings_template": {
             "case_sensitive": {
                 "label": "Case Sensitive",
@@ -582,12 +631,13 @@ evaluators = [
         "requires_testcase": "never",
         "requires_trace": "always",
         "oss": True,
-        "tags": ["classifiers", "functional"],
+        "tags": ["classifiers"],
     },
     {
         "name": "Contains",
         "key": "auto_contains",
         "direct_use": False,
+        "archived": True,
         "settings_template": {
             "case_sensitive": {
                 "label": "Case Sensitive",
@@ -606,12 +656,13 @@ evaluators = [
         "requires_testcase": "never",
         "requires_trace": "always",
         "oss": True,
-        "tags": ["classifiers", "functional"],
+        "tags": ["classifiers"],
     },
     {
         "name": "Contains Any",
         "key": "auto_contains_any",
         "direct_use": False,
+        "archived": True,
         "settings_template": {
             "case_sensitive": {
                 "label": "Case Sensitive",
@@ -630,12 +681,13 @@ evaluators = [
         "requires_testcase": "never",
         "requires_trace": "always",
         "oss": True,
-        "tags": ["classifiers", "functional"],
+        "tags": ["classifiers"],
     },
     {
         "name": "Contains All",
         "key": "auto_contains_all",
         "direct_use": False,
+        "archived": True,
         "settings_template": {
             "case_sensitive": {
                 "label": "Case Sensitive",
@@ -654,7 +706,7 @@ evaluators = [
         "requires_testcase": "never",
         "requires_trace": "always",
         "oss": True,
-        "tags": ["classifiers", "functional"],
+        "tags": ["classifiers"],
     },
     {
         "name": "Levenshtein Distance",
@@ -680,12 +732,13 @@ evaluators = [
         "requires_testcase": "always",
         "requires_trace": "always",
         "oss": True,
-        "tags": ["functional"],
+        "tags": ["similarity"],
     },
     {
         "name": "RAG Faithfulness",
         "key": "rag_faithfulness",
         "direct_use": False,
+        "archived": True,
         "requires_llm_api_keys": True,
         "settings_template": rag_evaluator_settings_template,
         "description": "RAG Faithfulness evaluator assesses the accuracy and reliability of responses generated by Retrieval-Augmented Generation (RAG) models. It evaluates how faithfully the responses adhere to the retrieved documents or sources, ensuring that the generated text accurately reflects the information from the original sources.",
@@ -697,6 +750,7 @@ evaluators = [
         "name": "RAG Context Relevancy",
         "key": "rag_context_relevancy",
         "direct_use": False,
+        "archived": True,
         "requires_llm_api_keys": True,
         "settings_template": rag_evaluator_settings_template,
         "description": "RAG Context Relevancy evaluator measures how relevant the retrieved documents or contexts are to the given question or prompt. It ensures that the selected documents provide the necessary information for generating accurate and meaningful responses, improving the overall quality of the RAG model's output.",
