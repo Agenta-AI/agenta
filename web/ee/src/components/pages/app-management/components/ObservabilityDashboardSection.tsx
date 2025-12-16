@@ -64,6 +64,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
+//TODO: Move this to a shared component
 const EmptyChart = ({className}: {className: string}) => (
     <div className={className}>
         <ChartLine size={18} />
