@@ -266,12 +266,24 @@ const TestsetDrawer = ({
                         .map((item) => item.column),
                 ])
 
-                setSelectedTestsetColumns(
-                    Array.from(updatedColumns).map((column) => ({
-                        column,
-                        isNew: !testsetColumnsSet.has(column.toLowerCase()),
-                    })),
-                )
+                const nextSelectedColumns = Array.from(updatedColumns).map((column) => ({
+                    column,
+                    isNew: !testsetColumnsSet.has(column.toLowerCase()),
+                }))
+
+                setSelectedTestsetColumns((prevColumns) => {
+                    const hasSameLength = prevColumns.length === nextSelectedColumns.length
+
+                    const isSameOrder = hasSameLength
+                        ? prevColumns.every(
+                              (col, index) =>
+                                  col.column === nextSelectedColumns[index].column &&
+                                  col.isNew === nextSelectedColumns[index].isNew,
+                          )
+                        : false
+
+                    return isSameOrder ? prevColumns : nextSelectedColumns
+                })
 
                 return newMappedData
             })

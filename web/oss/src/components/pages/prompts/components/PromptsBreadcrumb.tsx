@@ -40,9 +40,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             cursor: "pointer",
         },
         "& .ant-breadcrumb-link": {
+            transition: "all 0.2s ease-in-out",
             "&:hover": {
                 textDecoration: "underline",
-                fontWeight: 600,
             },
         },
         "& .ant-dropdown-trigger": {
