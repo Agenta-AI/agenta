@@ -5,20 +5,16 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {appTypeAtom} from "@/oss/components/Playground/state/atoms/app"
-import {
-    generationInputRowIdsAtom,
-    generationRowIdsAtom,
-} from "@/oss/components/Playground/state/atoms/generationProperties"
+import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {clearAllRunsMutationAtom} from "@/oss/components/Playground/state/atoms/utilityMutations"
 import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 
 import RunButton from "../../../../assets/RunButton"
 import {usePlaygroundAtoms} from "../../../../hooks/usePlaygroundAtoms"
 import {generationHeaderDataAtomFamily, triggerWebWorkerTestAtom} from "../../../../state/atoms"
-import TestsetDrawerButton from "../../../Drawers/TestsetDrawer"
-import LoadTestsetButton from "../../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
 
 import {useStyles} from "./styles"
+import TestSetMenu from "./TestSetMenu"
 import type {GenerationHeaderProps} from "./types"
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
@@ -84,14 +80,10 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                         </Button>
                     </Tooltip>
 
-                    <LoadTestsetButton label="Load testset" variantId={variantId} />
-
-                    <TestsetDrawerButton
-                        label="Add all to testset"
-                        icon={false}
-                        size="small"
-                        disabled={isRunning}
+                    <TestSetMenu
+                        variantId={variantId}
                         resultHashes={resultHashes}
+                        isRunning={isRunning}
                     />
 
                     {!isRunning ? (
