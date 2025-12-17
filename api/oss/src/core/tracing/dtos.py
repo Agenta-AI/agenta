@@ -56,6 +56,7 @@ class SessionType(Enum):
 
 
 class ActorType(Enum):
+    USER = "user"
     PERSON = "person"
     AGENT = "agent"
     #
