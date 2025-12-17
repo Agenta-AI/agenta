@@ -17,9 +17,6 @@ from oss.src.core.tracing.dtos import (
     MetricsBucket,
     TracingQuery,
     MetricSpec,
-    #
-    SessionsQuery,
-    ActorsQuery,
 )
 
 
@@ -53,8 +50,6 @@ class AnalyticsResponse(BaseModel):
 
 
 class SessionsQueryRequest(BaseModel):
-    session: Optional[SessionsQuery] = None
-    #
     windowing: Optional[Windowing] = None
 
 
@@ -63,12 +58,10 @@ class SessionIdsResponse(BaseModel):
     session_ids: List[str] = []
 
 
-class ActorsQueryRequest(BaseModel):
-    actor: Optional[ActorsQuery] = None
-    #
+class UsersQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class ActorIdsResponse(BaseModel):
+class UserIdsResponse(BaseModel):
     count: int = 0
-    actor_ids: List[str] = []
+    user_ids: List[str] = []

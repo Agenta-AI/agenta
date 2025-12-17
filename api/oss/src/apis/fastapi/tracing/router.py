@@ -27,8 +27,8 @@ from oss.src.apis.fastapi.tracing.models import (
     AnalyticsResponse,
     SessionsQueryRequest,
     SessionIdsResponse,
-    ActorsQueryRequest,
-    ActorIdsResponse,
+    UsersQueryRequest,
+    UserIdsResponse,
 )
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.utils import (
@@ -167,22 +167,22 @@ class TracingRouter:
         )
 
         self.router.add_api_route(
-            "/sessions/query",
-            self.query_sessions,
+            "/sessions",
+            self.get_sessions,
             methods=["POST"],
-            operation_id="query_sessions",
+            operation_id="get_sessions",
             status_code=status.HTTP_200_OK,
             response_model=SessionIdsResponse,
             response_model_exclude_none=True,
         )
 
         self.router.add_api_route(
-            "/actors/query",
-            self.query_actors,
+            "/users",
+            self.get_users,
             methods=["POST"],
-            operation_id="query_actors",
+            operation_id="get_users",
             status_code=status.HTTP_200_OK,
-            response_model=ActorIdsResponse,
+            response_model=UserIdsResponse,
             response_model_exclude_none=True,
         )
 
@@ -704,16 +704,13 @@ class TracingRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=SessionIdsResponse())
-    async def query_sessions(
+    async def get_sessions(
         self,
         request: Request,
         sessions_query_request: SessionsQueryRequest,
     ):
         session_ids = await self.service.sessions(
             project_id=request.state.project_id,
-            #
-            session=sessions_query_request.session,
-            #
             windowing=sessions_query_request.windowing,
         )
 
@@ -725,23 +722,20 @@ class TracingRouter:
         return session_ids_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=ActorIdsResponse())
-    async def query_actors(
+    @suppress_exceptions(default=UserIdsResponse())
+    async def get_users(
         self,
         request: Request,
-        actors_query_request: ActorsQueryRequest,
+        users_query_request: UsersQueryRequest,
     ):
-        actor_ids = await self.service.actors(
+        user_ids = await self.service.users(
             project_id=request.state.project_id,
-            #
-            actor=actors_query_request.actor,
-            #
-            windowing=actors_query_request.windowing,
+            windowing=users_query_request.windowing,
         )
 
-        actor_ids_response = ActorIdsResponse(
-            count=len(actor_ids) if actor_ids else 0,
-            actor_ids=actor_ids,
+        user_ids_response = UserIdsResponse(
+            count=len(user_ids) if user_ids else 0,
+            user_ids=user_ids,
         )
 
-        return actor_ids_response
+        return user_ids_response

@@ -250,31 +250,23 @@ class TracingService:
         *,
         project_id: UUID,
         #
-        session: Optional[SessionsQuery] = None,
-        #
         windowing: Optional[Windowing] = None,
     ):
         return await self.tracing_dao.sessions(
             project_id=project_id,
             #
-            session=session,
-            #
             windowing=windowing,
         )
 
-    async def actors(
+    async def users(
         self,
         *,
         project_id: UUID,
         #
-        actor: Optional[ActorsQuery] = None,
-        #
         windowing: Optional[Windowing] = None,
     ):
-        return await self.tracing_dao.actors(
+        return await self.tracing_dao.users(
             project_id=project_id,
-            #
-            actor=actor,
             #
             windowing=windowing,
         )

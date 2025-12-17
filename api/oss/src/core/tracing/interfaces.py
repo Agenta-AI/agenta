@@ -10,8 +10,6 @@ from oss.src.core.tracing.dtos import (
     Bucket,
     MetricSpec,
     MetricsBucket,
-    SessionsQuery,
-    ActorsQuery,
 )
 
 
@@ -190,19 +188,15 @@ class TracingDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        session: Optional[SessionsQuery] = None,
-        #
         windowing: Optional[Windowing] = None,
     ) -> List[str]:
         raise NotImplementedError
 
     @abstractmethod
-    async def actors(
+    async def users(
         self,
         *,
         project_id: UUID,
-        #
-        actor: Optional[ActorsQuery] = None,
         #
         windowing: Optional[Windowing] = None,
     ) -> List[str]:
