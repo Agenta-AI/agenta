@@ -525,6 +525,3 @@ class SimpleTraceQuery(BaseModel):
     links: Optional[SimpleTraceLinks] = None
 
 
-# SESSION AND ACTOR QUERIES AND SUMMARIES ----------------------------------------
-
-
