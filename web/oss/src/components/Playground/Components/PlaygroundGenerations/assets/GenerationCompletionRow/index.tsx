@@ -40,12 +40,13 @@ const GenerationCompletionRow = ({
 
     // Only subscribe to generation result atoms in completion mode
     const generationResultAtom = useMemo(
-        () => (!isChat ? resolvedGenerationResultAtomFamily({variantId, rowId}) : null),
-        [isChat, variantId, rowId],
-    ) as any
+        () => resolvedGenerationResultAtomFamily({variantId, rowId}),
+        [variantId, rowId],
+    )
 
-    const resultState =
-        !isChat && generationResultAtom ? (useAtomValue(generationResultAtom) as any) : ({} as any)
+    // Always call the hook (React hooks rule), but only use result in completion mode
+    const generationResultValue = useAtomValue(generationResultAtom) as any
+    const resultState = !isChat ? generationResultValue : ({} as any)
     const resultHash = resultState?.resultHash as string | null
     const isRunning = Boolean(resultState?.isRunning)
     const resultFromAtom = resultState?.result

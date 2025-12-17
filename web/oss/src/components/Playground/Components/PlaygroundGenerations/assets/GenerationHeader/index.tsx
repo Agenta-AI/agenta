@@ -12,10 +12,9 @@ import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 import RunButton from "../../../../assets/RunButton"
 import {usePlaygroundAtoms} from "../../../../hooks/usePlaygroundAtoms"
 import {generationHeaderDataAtomFamily, triggerWebWorkerTestAtom} from "../../../../state/atoms"
-import TestsetDrawerButton from "../../../Drawers/TestsetDrawer"
-import LoadTestsetButton from "../../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
 
 import {useStyles} from "./styles"
+import TestSetMenu from "./TestSetMenu"
 import type {GenerationHeaderProps} from "./types"
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
@@ -81,17 +80,10 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                         </Button>
                     </Tooltip>
 
-                    <div id="tour-playground-load-testset">
-                        <LoadTestsetButton label="Load testset" variantId={variantId} />
-                    </div>
-
-                    <TestsetDrawerButton
-                        label="Add all to testset"
-                        icon={false}
-                        size="small"
-                        disabled={isRunning}
+                    <TestSetMenu
+                        variantId={variantId}
                         resultHashes={resultHashes}
-                        id="tour-playground-add-testset"
+                        isRunning={isRunning}
                     />
 
                     {!isRunning ? (

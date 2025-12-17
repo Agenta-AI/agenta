@@ -12,7 +12,7 @@ import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
 
-import SelectAppSection from "./SelectAppSection"
+const SelectAppSection = dynamic(() => import("./SelectAppSection"), {ssr: false})
 
 const SelectEvaluatorSection = dynamic(
     () => import("./SelectEvaluatorSection/SelectEvaluatorSection"),
@@ -197,6 +197,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         setSelectedTestsetId={setSelectedTestsetId}
                         testsets={testsets}
                         selectedVariantRevisionIds={selectedVariantRevisionIds}
+                        selectedVariants={selectedVariants}
                         className="pt-2"
                     />
                 ) : (
@@ -307,7 +308,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 activeKey={activePanel || "appPanel"}
                 onChange={handlePanelChange as any}
                 items={items}
-                tabPosition="left"
+                tabPlacement="left"
                 className={clsx([
                     classes.tabsContainer,
                     "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",

@@ -39,7 +39,7 @@ const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.Re
                 {item.icon}
                 <TooltipWithCopyAction
                     title={getUniquePartOfId(item.value)}
-                    copyText={getUniquePartOfId(item.value)}
+                    copyText={item.value}
                     tooltipProps={{placement: "right"}}
                 >
                     <span className="font-mono">
@@ -70,7 +70,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const breadcrumbs = useAtomValue(breadcrumbAtom)
     const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
-    const appState = useAppState()
+    const _appState = useAppState()
     const breadcrumbItems = useMemo(
         () => breadcrumbItemsGenerator(breadcrumbs || {}),
         [breadcrumbs],

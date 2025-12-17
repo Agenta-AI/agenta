@@ -1,21 +1,22 @@
-import {message} from "antd"
 import {produce} from "immer"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {drawerVariantIdAtom} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
-import {duplicateChatHistoryForRevision} from "@/oss/state/generation/utils"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
+import {duplicateChatHistoryForRevision} from "@/oss/state/generation/utils"
 import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
     promptsAtomFamily,
     clearLocalPromptsForRevisionAtomFamily,
     transformedPromptsAtomFamily,
 } from "@/oss/state/newPlayground/core/prompts"
+import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 import {variantsAtom as parentVariantsAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {VariantAPI} from "../../services/api"
@@ -27,14 +28,12 @@ import type {
     EnhancedVariant,
 } from "../types"
 
-import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-
 import {selectedVariantsAtom} from "./core"
 import {parametersOverrideAtomFamily} from "./parametersOverride"
-import {revisionListAtom} from "./variants"
-
 import {variantByRevisionIdAtomFamily} from "./propertySelectors"
 import {invalidatePlaygroundQueriesAtom, waitForNewRevisionAfterMutationAtom} from "./queries"
+import {revisionListAtom} from "./variants"
+
 // Add variant mutation atom
 export const addVariantMutationAtom = atom(
     null,
@@ -268,13 +267,12 @@ export const saveVariantMutationAtom = atom(
             const waitResult = await set(waitForNewRevisionAfterMutationAtom, {
                 variantId: savedVariant.variantId || currentVariant.variantId || variantId,
                 prevRevisionId: variantId,
+                timeoutMs: 10_000,
             })
 
             if (waitResult.newestRevisionId && waitResult.newestRevisionId !== variantId) {
                 const newRevisionId = waitResult.newestRevisionId
                 const previousRevisionId = variantId
-
-                let logicalIdsForNewRevision: string[] = []
 
                 const currentDisplayedVariants = get(selectedVariantsAtom)
                 const updatedVariants = currentDisplayedVariants.map((id) =>
@@ -296,7 +294,13 @@ export const saveVariantMutationAtom = atom(
                 set(clearLocalCustomPropsForRevisionAtomFamily(variantId))
                 return {
                     success: true,
-                    variant: savedVariant,
+                    // Ensure consumers (e.g. Commit modal) get the *new revision id*
+                    // even if the backend returns a parent-variant payload.
+                    variant: {
+                        ...(savedVariant as any),
+                        id: newRevisionId,
+                        variantId: (savedVariant as any)?.variantId || currentVariant.variantId,
+                    } as any,
                     message: `Variant saved successfully`,
                 }
             }
@@ -309,7 +313,12 @@ export const saveVariantMutationAtom = atom(
             set(clearLocalCustomPropsForRevisionAtomFamily(variantId))
             return {
                 success: true,
-                variant: savedVariant,
+                // No revision swap detected; keep the current revision id stable for callers.
+                variant: {
+                    ...(savedVariant as any),
+                    id: variantId,
+                    variantId: (savedVariant as any)?.variantId || currentVariant.variantId,
+                } as any,
                 message: "Variant saved successfully",
             }
         } catch (error) {

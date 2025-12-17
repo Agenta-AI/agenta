@@ -8,15 +8,17 @@ import {
     MoreOutlined,
 } from "@ant-design/icons"
 import {Database, Lightning, Play} from "@phosphor-icons/react"
-import {Button, Dropdown, Flex, FormInstance, message, Space, Tabs, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Flex, FormInstance, Space, Tabs, Tooltip, Typography} from "antd"
+import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
+import {message} from "@/oss/components/AppMessageContext"
+import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
-import {mapTestcaseAndEvalValues, transformTraceKeysInSettings} from "@/oss/lib/helpers/evaluate"
-import {buildNodeTree, observabilityTransformer} from "@/oss/lib/helpers/observability_helpers"
+import {transformTraceKeysInSettings, mapTestcaseAndEvalValues} from "@/oss/lib/evaluations/legacy"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
 import {
     apiKeyObject,
@@ -33,6 +35,7 @@ import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
 import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {buildNodeTree, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {
     buildNodeTreeV3,
     fromBaseResponseToTraceSpanType,
@@ -65,8 +68,6 @@ import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {buildVariantFromRevision} from "./variantUtils"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
-import clsx from "clsx"
 
 interface DebugSectionProps {
     selectedTestcase: {
@@ -744,7 +745,7 @@ const DebugSection = ({
         [selectedTestset, selectedTestcase.testcase],
     )
 
-    const variantOutputEditorKey = useMemo(
+    const _variantOutputEditorKey = useMemo(
         () =>
             `variant-output-${selectedVariant?.variantId ?? "none"}-${JSON.stringify(
                 selectedTestcase.testcase ?? {},
@@ -752,7 +753,7 @@ const DebugSection = ({
         [selectedVariant?.variantId, selectedTestcase.testcase],
     )
 
-    const traceEditorKey = useMemo(
+    const _traceEditorKey = useMemo(
         () =>
             `trace-${selectedVariant?.variantId ?? "none"}-${JSON.stringify(
                 traceTree.trace ?? {},
@@ -760,7 +761,7 @@ const DebugSection = ({
         [selectedVariant?.variantId, traceTree.trace],
     )
 
-    const evaluatorOutputEditorKey = useMemo(
+    const _evaluatorOutputEditorKey = useMemo(
         () =>
             `evaluator-output-${selectedEvaluator.key}-${JSON.stringify(
                 selectedTestcase.testcase ?? {},
@@ -773,15 +774,8 @@ const DebugSection = ({
     const variantName = selectedVariant?.variantName || "variant"
 
     return (
-        <section className="flex flex-col gap-4 h-full pb-10 w-[50%]">
+        <section className="flex flex-col gap-4 h-full pb-10 w-full">
             <div className="flex flex-col gap-4 min-w-0">
-                <Space direction="vertical" size={0}>
-                    <Typography.Text className={classes.title}>Test evaluator</Typography.Text>
-                    <Typography.Text type="secondary">
-                        Test your evaluator by generating a test data
-                    </Typography.Text>
-                </Space>
-
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center justify-between">
                         <Space size={5}>

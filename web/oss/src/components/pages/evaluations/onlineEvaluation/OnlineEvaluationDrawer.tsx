@@ -19,6 +19,7 @@ import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import type {Evaluator, Filter} from "@/oss/lib/Types"
+
 import {
     createSimpleEvaluation,
     createSimpleQuery,
@@ -47,7 +48,7 @@ import {capitalize} from "./utils/evaluatorDetails"
 interface OnlineEvaluationDrawerProps {
     open: boolean
     onClose: () => void
-    onCreate?: (values: any) => void
+    onCreate?: (values: any) => void | Promise<void>
 }
 
 const {Text, Link: TypographyLink} = Typography
@@ -352,7 +353,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 })
             }
             message.success("Online evaluation created")
-            onCreate?.(evaluation)
+            await onCreate?.(evaluation)
             await invalidateUseEvaluatorsQueries()
             onClose()
         } catch (error) {
@@ -415,7 +416,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             open={open}
             onClose={onClose}
             width={520}
-            destroyOnClose
+            destroyOnHidden
             closeOnLayoutClick={false}
             zIndex={900}
             styles={{body: {padding: 0}, footer: {padding: 8}}}

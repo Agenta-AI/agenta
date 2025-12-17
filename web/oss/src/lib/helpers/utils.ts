@@ -1,5 +1,4 @@
 import {notification} from "antd"
-import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import yaml from "js-yaml"
 import JSON5 from "json5"
@@ -8,13 +7,13 @@ import promiseRetry from "promise-retry"
 import {v4 as uuidv4} from "uuid"
 
 import {tryParsePartialJson} from "@/oss/components/Editor/plugins/code/tryParsePartialJson"
+import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {waitForValidURL} from "@/oss/state/url"
 
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 
-import {getEnv} from "./dynamicEnv"
 import {getErrorMessage} from "./errorHandler"
 import {isEE} from "./isEE"
 
@@ -79,8 +78,14 @@ export const capitalize = (s: string) => {
         .join(" ")
 }
 
+const URL_SAFE = /^[a-zA-Z0-9_-]+$/
+
 export const isAppNameInputValid = (input: string) => {
-    return /^[a-zA-Z0-9_-]+$/.test(input)
+    return URL_SAFE.test(input)
+}
+
+export const isVariantNameInputValid = (input: string) => {
+    return URL_SAFE.test(input)
 }
 
 export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
@@ -474,7 +479,7 @@ export const convertToStringOrJson = (value: any) => {
 }
 
 // Helper function to convert base64 data to object URL
-export type FileAttachment = {
+export interface FileAttachment {
     filename: string
     data: string
     format?: string

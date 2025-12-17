@@ -2,6 +2,7 @@ import {GenerationChatRow, GenerationInputRow} from "@/oss/components/Playground
 import {ConfigMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {constructPlaygroundTestUrl} from "@/oss/lib/shared/variant/stringUtils"
 import {OpenAPISpec} from "@/oss/lib/shared/variant/types/openapi"
+import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 
 import {transformToRequestBody} from "../../../../../lib/shared/variant/transformer/transformToRequestBody"
 import {EnhancedVariant} from "../../../../../lib/shared/variant/transformer/types"
@@ -116,22 +117,24 @@ async function runVariantInputRow(payload: {
         appType,
     } = payload
 
-    const requestBody = transformToRequestBody({
-        variant,
-        inputRow,
-        messageRow,
-        allMetadata,
-        chatHistory,
-        spec,
-        routePath: uri?.routePath,
-        prompts,
-        variables,
-        variableValues,
-        revisionId,
-        isChat,
-        isCustom,
-        appType,
-    })
+    const requestBody = stripAgentaMetadataDeep(
+        transformToRequestBody({
+            variant,
+            inputRow,
+            messageRow,
+            allMetadata,
+            chatHistory,
+            spec,
+            routePath: uri?.routePath,
+            prompts,
+            variables,
+            variableValues,
+            revisionId,
+            isChat,
+            isCustom,
+            appType,
+        }),
+    )
     applyModelAttachmentRules(variant, requestBody)
     let result
     try {

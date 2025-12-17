@@ -1,24 +1,11 @@
-import {current, produce} from "immer"
+import {produce} from "immer"
 import {atom} from "jotai"
 
-import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
-import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
-import {fetchTestset} from "@/oss/services/testsets/api"
 import {
     runStatusByRowRevisionAtom,
     inputRowsByIdAtom,
-    inputRowIdsAtom,
-    chatTurnsByIdAtom,
-    chatSessionsByIdAtom,
-    chatSessionIdsAtom,
-    logicalTurnIndexAtom,
-    rowIdIndexAtom,
-    chatTurnsByIdFamilyAtom,
     chatTurnIdsAtom,
 } from "@/oss/state/generation/entities"
-import {appUriInfoAtom, getSpecLazy} from "@/oss/state/variant/atoms/fetcher"
 import {
     loadingByRowRevisionAtomFamily,
     responseByRowRevisionAtomFamily,
@@ -26,7 +13,6 @@ import {
 
 import {appChatModeAtom} from "./app"
 import {generationRowIdsAtom} from "./generationProperties"
-import {displayedVariantsVariablesAtom, displayedVariantsAtom} from "./variants"
 
 /**
  * Utility mutations for playground operations

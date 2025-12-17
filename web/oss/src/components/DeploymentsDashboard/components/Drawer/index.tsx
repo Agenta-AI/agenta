@@ -8,7 +8,6 @@ import {createUseStyles} from "react-jss"
 
 import {envRevisionsAtom} from "@/oss/components/DeploymentsDashboard/atoms"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {JSSTheme} from "@/oss/lib/Types"
 import {openSelectDeployVariantModalAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
@@ -160,7 +159,6 @@ const DeploymentsDrawer = ({
 }: DeploymentsDrawerProps) => {
     const classes = useStyles()
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
-    const {goToPlayground} = usePlaygroundNavigation()
 
     return (
         <EnhancedDrawer

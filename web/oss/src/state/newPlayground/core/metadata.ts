@@ -1,13 +1,7 @@
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
 
-import {
-    getAllMetadata,
-    getMetadataLazy,
-    metadataSelectorFamily,
-} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {getAllMetadata, metadataSelectorFamily} from "@/oss/lib/hooks/useStatelessVariants/state"
 import type {ConfigMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {getSpecLazy} from "@/oss/state/variant/atoms/fetcher"
 
 /**
  * Metadata Management Atoms

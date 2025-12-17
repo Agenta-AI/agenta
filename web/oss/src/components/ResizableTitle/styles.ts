@@ -1,6 +1,6 @@
 import {createUseStyles} from "react-jss"
 
-export const useStyles = createUseStyles(() => ({
+export const useStyles = createUseStyles({
     filterRoot: {
         padding: "1rem",
         display: "flex",
@@ -31,4 +31,4 @@ export const useStyles = createUseStyles(() => ({
             },
         },
     },
-}))
+})

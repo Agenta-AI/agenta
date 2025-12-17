@@ -44,7 +44,7 @@ const modelHubTests = () => {
 
             // Fetch provider secrets directly from the canonical endpoint
             const secretsPromise = await apiHelpers.waitForApiResponse<StandardSecretDTO[]>({
-                route: "/api/vault/v1/secrets",
+                route: "/api/vault/v1/secrets/",
                 method: "GET",
             })
 
@@ -86,7 +86,7 @@ const modelHubTests = () => {
 
             // Fetch secrets again after configuration to verify creation
             const secretsAfterResponse = apiHelpers.waitForApiResponse<StandardSecretDTO[]>({
-                route: "/api/vault/v1/secrets",
+                route: "/api/vault/v1/secrets/",
                 method: "GET",
             })
             await uiHelpers.clickButton("Confirm")
@@ -112,13 +112,13 @@ const modelHubTests = () => {
             await uiHelpers.confirmModal("Delete")
 
             await apiHelpers.waitForApiResponse<StandardSecretDTO[]>({
-                route: "/api/vault/v1/secrets",
+                route: "/api/vault/v1/secrets/",
                 method: "DELETE",
             })
 
             // Fetch secrets again after delete
             const secretsAfterDelete = await apiHelpers.waitForApiResponse<StandardSecretDTO[]>({
-                route: "/api/vault/v1/secrets",
+                route: "/api/vault/v1/secrets/",
                 method: "GET",
             })
 

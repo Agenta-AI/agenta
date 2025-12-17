@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useMemo} from "react"
+import {memo, useCallback, useMemo} from "react"
 
 import {Collapse, Typography} from "antd"
 import clsx from "clsx"
@@ -6,7 +6,7 @@ import deepEqual from "fast-deep-equal"
 import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
 
-import {getMetadataLazy, metadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {metadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {
     customPropertiesByRevisionAtomFamily,
     customPropertyIdsByRevisionAtomFamily,
@@ -114,7 +114,6 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
     customPropsRecord: providedCustomProps,
 }) => {
     const classes = useStyles()
-    const updateParam = useSetAtom(parameterUpdateMutationAtom)
 
     // Derive custom properties from spec + saved params using new selector
     const atomCustomPropertyIds = useAtomValue(customPropertyIdsByRevisionAtomFamily(variantId))
@@ -176,7 +175,6 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
         variantId,
         className,
         viewOnly,
-        updateParam,
         providedCustomProps,
     ])
 

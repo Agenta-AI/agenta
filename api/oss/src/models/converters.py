@@ -226,8 +226,24 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
         app_name=app_db.app_name,
         app_id=str(app_db.id),
         app_type=AppType.friendly_tag(app_db.app_type),
+        folder_id=str(app_db.folder_id) if app_db.folder_id else None,
         updated_at=str(app_db.updated_at),
     )
+
+
+def _extract_columns_from_csvdata(csvdata: Any) -> List[str]:
+    if not isinstance(csvdata, list) or len(csvdata) == 0:
+        return []
+
+    first_row = csvdata[0]
+    if not isinstance(first_row, dict):
+        return []
+
+    data_section = first_row.get("data")
+    if isinstance(data_section, dict):
+        return [str(key) for key in data_section.keys()]
+
+    return [str(key) for key in first_row.keys()]
 
 
 def testset_db_to_pydantic(testset_db: TestsetDB) -> TestsetOutput:
@@ -246,6 +262,7 @@ def testset_db_to_pydantic(testset_db: TestsetDB) -> TestsetOutput:
         created_at=str(testset_db.created_at),
         updated_at=str(testset_db.updated_at),
         id=str(testset_db.id),
+        columns=_extract_columns_from_csvdata(testset_db.csvdata),
     )
 
 

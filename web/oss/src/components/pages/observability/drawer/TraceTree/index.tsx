@@ -3,10 +3,17 @@ import {useMemo, useState} from "react"
 import {Coins, MagnifyingGlass, PlusCircle, SlidersHorizontal, Timer} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Space, Tooltip, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
 
 import CustomTreeComponent from "@/oss/components/ui/CustomTreeComponent"
 import {_AgentaRootsResponse} from "@/oss/services/observability/types"
+import {StatusCode, TraceSpanNode} from "@/oss/services/tracing/types"
+import {
+    formattedSpanLatencyAtomFamily,
+    formattedSpanTokensAtomFamily,
+    formattedSpanCostAtomFamily,
+} from "@/oss/state/newObservability"
 
 import {filterTree} from "../../assets/utils"
 import AvatarTreeContent from "../../components/AvatarTreeContent"
@@ -15,13 +22,6 @@ import TraceTreeSettings from "../TraceTreeSettings"
 
 import {useStyles} from "./assets/styles"
 import {TraceTreeProps} from "./assets/types"
-import {StatusCode, TraceSpanNode} from "@/oss/services/tracing/types"
-import {useAtomValue} from "jotai"
-import {
-    formattedSpanLatencyAtomFamily,
-    formattedSpanTokensAtomFamily,
-    formattedSpanCostAtomFamily,
-} from "@/oss/state/newObservability"
 
 export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: any}) => {
     const {span_name, span_id, status_code} = value || {}
@@ -145,24 +145,20 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
 
     return (
         <div className={"h-full overflow-hidden flex flex-col"}>
-            <div className={clsx("flex items-center justify-between", classes.treeHeader)}>
+            <div
+                className={clsx(
+                    "flex items-center justify-between h-[43px] pl-2 pr-2",
+                    classes.treeHeader,
+                )}
+            >
                 <Input
                     variant="borderless"
                     placeholder="Search in tree"
-                    prefix={<MagnifyingGlass size={16} className="text-gray-500 mr-2" />}
+                    prefix={<MagnifyingGlass size={14} className="text-gray-500 mr-2" />}
                     className="w-full"
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
-                    suffix={
-                        <Button
-                            size="small"
-                            className="text-[#586676]"
-                            type="text"
-                            onClick={() => setSearchValue("")}
-                        >
-                            clear
-                        </Button>
-                    }
+                    allowClear
                 />
 
                 <Popover
@@ -176,7 +172,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                     }
                     placement="bottomRight"
                 >
-                    <Button icon={<SlidersHorizontal size={14} />} type="text" />
+                    <Button icon={<SlidersHorizontal size={14} />} type="text" size="small" />
                 </Popover>
             </div>
             <Divider type="horizontal" className="m-0" />

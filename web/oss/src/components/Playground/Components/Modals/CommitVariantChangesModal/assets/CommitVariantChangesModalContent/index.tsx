@@ -5,12 +5,14 @@ import {Checkbox, Input, Radio, RadioChangeEvent, Select, Tooltip, Typography} f
 import {useAtomValue} from "jotai"
 
 import DiffView from "@/oss/components/Editor/DiffView"
+import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import Version from "@/oss/components/Playground/assets/Version"
-import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
 import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {newestRevisionForVariantIdAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
+import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 
 import {CommitVariantChangesModalContentProps} from "../types"
@@ -30,42 +32,13 @@ const CommitVariantChangesModalContent = ({
     onSelectEnvironment,
     isDeploymentPending,
 }: CommitVariantChangesModalContentProps) => {
-    // Get variant metadata and derived prompts (prefers local cache, falls back to spec)
+    // All hooks must be called before any early returns (React hooks rule)
     const variant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
-    // const prompts = useAtomValue(promptsAtomFamily(variantId)) || []
-
-    // Guard against undefined variant during commit invalidation (after hooks)
-    if (!variant) {
-        return (
-            <div className="flex gap-4">
-                <section className="flex flex-col gap-4">
-                    <Text>Loading variant data...</Text>
-                </section>
-            </div>
-        )
-    }
-
-    // Extract values from the variant object (safe now)
-    const variantName = variant.variantName
-    const revision = variant.revision
-    // Determine target revision based on the latest revision number for this variant, not the base
     const latestRevisionForVariant = useAtomValue(
         newestRevisionForVariantIdAtomFamily(variant?.variantId || ""),
     ) as any
-    const targetRevision = Number(latestRevisionForVariant?.revision ?? 0) + 1
-
-    // Compose a minimal EnhancedVariant-like object using current prompts
-    // const composedVariant = {
-    //     ...variant,
-    //     prompts,
-    // } as any
-    // Read both sources: prompt-derived params and any JSON override from the editor
     const derivedAgConfig = useAtomValue(transformedPromptsAtomFamily(variantId))?.ag_config
     const jsonOverride = useAtomValue(parametersOverrideAtomFamily(variantId))
-    const params = commitType === "parameters" && jsonOverride ? jsonOverride : derivedAgConfig
-    // const params =
-    // transformToRequestBody({variant: composedVariant})?.ag_config
-    const oldParams = variant.parameters
 
     const onChange = useCallback(
         (e: RadioChangeEvent) => {
@@ -84,13 +57,33 @@ const CommitVariantChangesModalContent = ({
         initialModifiedRef.current = null
     }, [variantId])
 
+    // Guard against undefined variant during commit invalidation (after all hooks)
+    if (!variant) {
+        return (
+            <div className="flex gap-4">
+                <section className="flex flex-col gap-4">
+                    <Text>Loading variant data...</Text>
+                </section>
+            </div>
+        )
+    }
+
+    // Extract values from the variant object (safe now - after hooks and guard)
+    const variantName = variant.variantName
+    const revision = variant.revision
+    const targetRevision = Number(latestRevisionForVariant?.revision ?? 0) + 1
+    const params = commitType === "parameters" && jsonOverride ? jsonOverride : derivedAgConfig
+    const oldParams = variant.parameters
+    const sanitizedOldParams = stripAgentaMetadataDeep(oldParams)
+    const sanitizedParams = stripAgentaMetadataDeep(params)
+
     // Compute snapshot lazily on first render after mount
     if (variant && initialOriginalRef.current === null && initialModifiedRef.current === null) {
         try {
-            initialOriginalRef.current = JSON.stringify(variant.parameters)
+            initialOriginalRef.current = JSON.stringify(sanitizedOldParams)
             // Use the same transformed local prompts ag_config that drives dirty-state
             if (params !== undefined) {
-                initialModifiedRef.current = JSON.stringify(params)
+                initialModifiedRef.current = JSON.stringify(sanitizedParams)
             }
         } catch {
             // Keep refs null; we will fall back to live values below
@@ -98,15 +91,16 @@ const CommitVariantChangesModalContent = ({
     }
 
     const environmentOptions = (
-        Object.keys(deploymentStatusColors) as Array<keyof typeof deploymentStatusColors>
+        Object.keys(deploymentStatusColors) as (keyof typeof deploymentStatusColors)[]
     ).map((env) => ({
         value: env,
         label: <EnvironmentTagLabel environment={env} />,
     }))
 
     // Ensure DiffView gets strings even when params are undefined
-    const originalForDiff = initialOriginalRef.current ?? JSON.stringify(oldParams ?? {})
-    const modifiedForDiff = initialModifiedRef.current ?? JSON.stringify(params ?? oldParams ?? {})
+    const originalForDiff = initialOriginalRef.current ?? JSON.stringify(sanitizedOldParams ?? {})
+    const modifiedForDiff =
+        initialModifiedRef.current ?? JSON.stringify(sanitizedParams ?? sanitizedOldParams ?? {})
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-6 md:flex-row">
@@ -158,6 +152,13 @@ const CommitVariantChangesModalContent = ({
                                     className="w-full max-w-xs"
                                     value={selectedCommitType?.name}
                                     disabled={selectedCommitType?.type !== "variant"}
+                                    status={
+                                        selectedCommitType?.type === "variant" &&
+                                        selectedCommitType?.name &&
+                                        !isVariantNameInputValid(selectedCommitType.name)
+                                            ? "error"
+                                            : undefined
+                                    }
                                     onChange={(e) =>
                                         setSelectedCommitType((prev) => {
                                             const prevType = prev?.type
@@ -173,6 +174,14 @@ const CommitVariantChangesModalContent = ({
                                     }
                                     suffix={<Version revision={1} />}
                                 />
+                                {selectedCommitType?.type === "variant" &&
+                                    selectedCommitType?.name &&
+                                    !isVariantNameInputValid(selectedCommitType.name) && (
+                                        <Text className="text-xs text-[#EF4444]">
+                                            Variant name must contain only letters, numbers,
+                                            underscore, or dash
+                                        </Text>
+                                    )}
                             </div>
                         </div>
                     </div>

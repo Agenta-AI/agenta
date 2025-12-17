@@ -43,27 +43,53 @@ export const waitForNewRevisionAfterMutationAtom = atom(
         _set,
         params: {variantId: string; prevRevisionId?: string | null; timeoutMs?: number},
     ): Promise<{newestRevisionId: string | null}> => {
-        const {variantId, prevRevisionId} = params
+        const {variantId, prevRevisionId, timeoutMs = 15_000} = params
         const store = getDefaultStore()
+
+        // If we don't have a variantId to watch, don't hang forever.
+        if (!variantId) {
+            return {newestRevisionId: null}
+        }
 
         return new Promise((resolve) => {
             let unsubscribe: (() => void) | null = null
-
-            const cleanup = () => {
-                if (unsubscribe) unsubscribe()
-            }
+            let intervalId: ReturnType<typeof setInterval> | null = null
+            let timeoutId: ReturnType<typeof setTimeout> | null = null
 
             const check = () => {
                 const newest = store.get(newestRevisionForVariantIdAtomFamily(variantId)) as any
                 const newestId = newest?.id || null
                 if (!newestId) return
                 if (!prevRevisionId || newestId !== prevRevisionId) {
-                    cleanup()
+                    if (unsubscribe) unsubscribe()
+                    if (intervalId) clearInterval(intervalId)
+                    if (timeoutId) clearTimeout(timeoutId)
                     resolve({newestRevisionId: newestId})
                 }
             }
 
-            unsubscribe = store.sub(newestRevisionForVariantIdAtomFamily(variantId), check)
+            // Prefer subscription when available, but also poll as a safety net.
+            try {
+                if ((store as any).sub) {
+                    unsubscribe = (store as any).sub(
+                        newestRevisionForVariantIdAtomFamily(variantId),
+                        check,
+                    )
+                }
+            } catch {
+                // ignore; we'll rely on polling + timeout
+            }
+
+            intervalId = setInterval(check, 250)
+            timeoutId = setTimeout(() => {
+                if (unsubscribe) unsubscribe()
+                if (intervalId) clearInterval(intervalId)
+                // Best-effort: return whatever is currently newest (may still be prevRevisionId)
+                const newest = store.get(newestRevisionForVariantIdAtomFamily(variantId)) as any
+                const newestId = newest?.id || null
+                resolve({newestRevisionId: newestId})
+            }, timeoutMs)
+
             // Run once in case it's already updated
             check()
         })

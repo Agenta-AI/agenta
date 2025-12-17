@@ -43,7 +43,7 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
 }) => {
     // Compute model config from unified prompts source (provider-aware)
     const prompts = usePromptsSource(variantId)
-    const {propertyIds, modelPropertyId, resolvedModelName} = useMemo(() => {
+    const {propertyIds, resolvedModelName} = useMemo(() => {
         const prompt = getPromptById(prompts, promptId)
         const llm = getLLMConfig(prompt) || {}
         const properties =
@@ -58,7 +58,6 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
 
         return {
             propertyIds: ids,
-            modelPropertyId: llm?.model?.__id,
             resolvedModelName: name,
         }
     }, [prompts, promptId])

@@ -34,7 +34,7 @@ export const vaultMigrationAtom = atom({
  */
 export const vaultSecretsQueryAtom = atomWithQuery((get) => {
     const user = get(userAtom)
-    const migrationStatus = get(vaultMigrationAtom)
+    const _migrationStatus = get(vaultMigrationAtom)
     const projectId = get(projectIdAtom)
 
     return {
@@ -135,7 +135,6 @@ const getEnvNameMap = (): Record<string, any> => ({
     ALEPHALPHA_API_KEY: SecretDTOProvider.ALEPHALPHA,
     GROQ_API_KEY: SecretDTOProvider.GROQ,
     MISTRAL_API_KEY: SecretDTOProvider.MISTRALAI,
-    MISTRALAI_API_KEY: SecretDTOProvider.MISTRALAI,
     ANTHROPIC_API_KEY: SecretDTOProvider.ANTHROPIC,
     PERPLEXITYAI_API_KEY: SecretDTOProvider.PERPLEXITYAI,
     TOGETHERAI_API_KEY: SecretDTOProvider.TOGETHERAI,

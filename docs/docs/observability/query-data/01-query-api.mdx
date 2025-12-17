@@ -18,7 +18,7 @@ The Agenta API lets you query trace and span data programmatically. You can filt
 ## API Endpoint
 
 ```
-POST /api/preview/tracing/spans/query
+POST /api/tracing/spans/query
 ```
 
 Send queries as JSON in the request body. This approach works best for complex filters with nested conditions.
@@ -646,7 +646,7 @@ query = {
 }
 
 response = requests.post(
-    f"{AGENTA_HOST}/api/preview/tracing/spans/query",
+    f"{AGENTA_HOST}/api/tracing/spans/query",
     headers={
         "Authorization": f"ApiKey {API_KEY}",
         "Content-Type": "application/json"
@@ -692,7 +692,7 @@ const query = {
 };
 
 const response = await fetch(
-    `${AGENTA_HOST}/api/preview/tracing/spans/query`,
+    `${AGENTA_HOST}/api/tracing/spans/query`,
     {
         method: "POST",
         headers: {

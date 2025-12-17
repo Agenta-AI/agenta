@@ -11,10 +11,13 @@ import {
     revisionListAtom,
     displayedVariantsAtom,
 } from "@/oss/components/Playground/state/atoms/variants"
-import {getAllMetadata, getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {extractInputKeysFromSchema, extractVariables} from "@/oss/lib/shared/variant/inputHelpers"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
-import {extractValueByMetadata} from "@/oss/lib/shared/variant/valueHelpers"
+import {
+    extractValueByMetadata,
+    stripAgentaMetadataDeep,
+} from "@/oss/lib/shared/variant/valueHelpers"
 import {getJWT} from "@/oss/services/api"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {
@@ -24,11 +27,10 @@ import {
     chatTurnsByIdAtom,
     inputRowsByIdFamilyAtom,
     chatTurnsByIdFamilyAtom,
-    inputRowIdsAtom,
     chatTurnIdsAtom,
     messageSchemaMetadataAtom,
 } from "@/oss/state/generation/entities"
-import {inputRowAtomFamily, rowVariablesAtomFamily} from "@/oss/state/generation/selectors"
+import {rowVariablesAtomFamily} from "@/oss/state/generation/selectors"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {promptsAtomFamily, promptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
@@ -40,7 +42,6 @@ import {
     buildAssistantMessage,
     buildCompletionResponseText,
     buildToolMessages,
-    buildUserMessage,
 } from "@/oss/state/newPlayground/helpers/messageFactory"
 import {variableValuesSelectorFamily} from "@/oss/state/newPlayground/selectors/variables"
 import {getProjectValues} from "@/oss/state/project"
@@ -74,14 +75,14 @@ const cloneNodeDeep = (value: any) => {
     }
 }
 
-const scrubLargeFields = (value: any): any => {
+const _scrubLargeFields = (value: any): any => {
     if (Array.isArray(value)) {
-        return value.map((item) => scrubLargeFields(item))
+        return value.map((item) => _scrubLargeFields(item))
     }
     if (value && typeof value === "object") {
         const next: Record<string, unknown> = {}
         for (const [key, val] of Object.entries(value)) {
-            next[key] = scrubLargeFields(val)
+            next[key] = _scrubLargeFields(val)
         }
         return next
     }
@@ -380,7 +381,7 @@ export const triggerWebWorkerTestAtom = atom(
             const historyTurns = turnHistoryIds.map((id) => get(chatTurnsByIdAtom)[id])
 
             chatHistory = historyTurns
-                .map((t, historyIdx) => {
+                .map((t, _historyIdx) => {
                     const x = []
                     if (t.userMessage) {
                         x.push(extractValueByMetadata(t.userMessage, allMetadata))
@@ -420,6 +421,9 @@ export const triggerWebWorkerTestAtom = atom(
                 .flat()
                 .filter(Boolean)
         }
+
+        const sanitizedChatHistory = stripAgentaMetadataDeep(chatHistory)
+        const sanitizedPrompts = stripAgentaMetadataDeep(prompts)
 
         inputRow = (() => {
             const rowIds = get(generationInputRowIdsAtom) as string[]
@@ -479,10 +483,10 @@ export const triggerWebWorkerTestAtom = atom(
             },
             headers,
             projectId,
-            chatHistory,
+            chatHistory: sanitizedChatHistory,
             spec: getSpecLazy(),
             runId,
-            prompts,
+            prompts: sanitizedPrompts,
             // variables: promptVars,
             variables: allowedKeys.ordered,
             variableValues: computeVariableValues(

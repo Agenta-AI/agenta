@@ -9,7 +9,7 @@ import {
     variantByRevisionIdAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
 import VariantNameCell from "@/oss/components/VariantNameCell"
-import {checkIfResourceValidForDeletion} from "@/oss/lib/helpers/evaluate"
+import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {parentVariantDisplayNameAtomFamily} from "@/oss/state/variant/selectors/variant"
 
 const {Text} = Typography
@@ -33,9 +33,9 @@ const DeleteVariantContent = ({variantId, onClose}: Props) => {
         parentVariantDisplayNameAtomFamily(parentVariantId || ""),
     )
 
-    const {variantName, isMutating} = useMemo(() => {
+    const {_variantName, isMutating} = useMemo(() => {
         return {
-            variantName: (parentDisplayName as string) || "-",
+            _variantName: (parentDisplayName as string) || "-",
             isMutating: (variant as any)?.__isMutating || false,
         }
     }, [parentDisplayName, variant])

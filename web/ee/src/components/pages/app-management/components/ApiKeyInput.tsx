@@ -1,8 +1,8 @@
 import {useMemo, useState} from "react"
 
-import {Button, Input, Space, Typography, message} from "antd"
+import {Button, Input, Space, Typography} from "antd"
 
-import {isDemo} from "@/oss/lib/helpers/utils"
+import {message} from "@/oss/components/AppMessageContext"
 import {createApiKey} from "@/oss/services/apiKeys/api"
 import {fetchAllProjects} from "@/oss/services/project"
 import {useOrgData} from "@/oss/state/org"

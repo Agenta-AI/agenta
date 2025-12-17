@@ -3,12 +3,18 @@ import React, {useMemo, useState} from "react"
 import {CloseOutlined} from "@ant-design/icons"
 import {Button, Popover, Space, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 
+import EvaluatorDetailsPopover from "@/oss/components/pages/observability/drawer/components/EvaluatorDetailsPopover"
 import CustomAntdTag from "@/oss/components/ui/CustomAntdTag"
 import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import useEvaluators from "@/oss/lib/hooks/useEvaluators"
+import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
+import {Evaluator} from "@/oss/lib/Types"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {useStyles} from "./assets/styles"
 import NoTraceAnnotations from "./components/NoTraceAnnotations"
@@ -19,29 +25,59 @@ interface TraceAnnotationsProps {
 
 type AnnotationCategory = "metric" | "note" | "extra"
 
-type AnnotationChipEntry = {
+interface AnnotationChipEntry {
     annotations: {value: any; user: string}[]
     average?: number
     category: AnnotationCategory
+}
+
+interface AnnotationGroup {
+    refId: string
+    evaluator?: Evaluator | EvaluatorPreviewDto | null
+    metrics: Record<string, AnnotationChipEntry>
 }
 
 const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
     const classes = useStyles()
     const [isAnnotationsPopoverOpen, setIsAnnotationsPopoverOpen] = useState<string | null>(null)
     const getPopoverKey = (refId: string, key: string) => `${refId}-${key}`
-    const grouped = useMemo(() => {
+    const projectId = useAtomValue(projectIdAtom)
+    const {data: evaluators = []} = useEvaluators({
+        preview: true,
+        projectId: projectId || undefined,
+    })
+
+    const evaluatorMap = useMemo(() => {
+        const map = new Map<string, EvaluatorPreviewDto | Evaluator>()
+        evaluators.forEach((ev) => {
+            if (ev?.slug) {
+                map.set(ev.slug, ev)
+            } else if ((ev as Evaluator)?.key) {
+                map.set((ev as Evaluator).key, ev as Evaluator)
+            }
+        })
+        return map
+    }, [evaluators])
+
+    const grouped = useMemo<Record<string, AnnotationGroup>>(() => {
         const groupedMetrics = groupAnnotationsByReferenceId(annotations)
-        const result: Record<string, Record<string, AnnotationChipEntry>> = {}
+        const result: Record<string, AnnotationGroup> = {}
 
         for (const [refId, metrics] of Object.entries(groupedMetrics)) {
-            result[refId] = {}
+            const metricsBucket: Record<string, AnnotationChipEntry> = {}
 
             for (const [metricName, metricValue] of Object.entries(metrics)) {
-                result[refId][metricName] = {
+                metricsBucket[metricName] = {
                     annotations: (metricValue.annotations || []) as {value: any; user: string}[],
                     average: metricValue.average,
                     category: "metric",
                 }
+            }
+
+            result[refId] = {
+                refId,
+                evaluator: evaluatorMap.get(refId) || null,
+                metrics: metricsBucket,
             }
         }
 
@@ -49,12 +85,21 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
             const refId = annotation.references?.evaluator?.slug
             if (!refId) continue
 
-            if (!result[refId]) {
-                result[refId] = {}
+            let bucket = result[refId]
+
+            if (!bucket) {
+                bucket = {
+                    refId,
+                    evaluator: evaluatorMap.get(refId) || null,
+                    metrics: {},
+                }
+                result[refId] = bucket
+            } else if (!bucket.evaluator) {
+                bucket.evaluator = evaluatorMap.get(refId) || null
             }
 
             const outputs = (annotation.data?.outputs || {}) as Record<string, any>
-            const categories: Array<[AnnotationCategory, Record<string, any>]> = [
+            const categories: [AnnotationCategory, Record<string, any>][] = [
                 ["note", outputs.notes || {}],
                 ["extra", outputs.extra || {}],
             ]
@@ -63,14 +108,14 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                 for (const [key, value] of Object.entries(values)) {
                     if (value === undefined || value === null) continue
 
-                    if (!result[refId][key]) {
-                        result[refId][key] = {
+                    if (!bucket.metrics[key]) {
+                        bucket.metrics[key] = {
                             annotations: [],
                             category,
                         }
                     }
 
-                    result[refId][key].annotations.push({
+                    bucket.metrics[key].annotations.push({
                         value,
                         user: annotation.createdBy || "",
                     })
@@ -79,27 +124,18 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
         }
 
         return result
-    }, [annotations])
+    }, [annotations, evaluatorMap])
 
     const hasAnnotations = useMemo(
         () =>
             Object.values(grouped).some((group) =>
-                Object.values(group).some((entry) => entry.annotations.length > 0),
+                Object.values(group.metrics).some((entry) => entry.annotations.length > 0),
             ),
         [grouped],
     )
 
     const getSummaryValue = (metric: AnnotationChipEntry) => {
         if (metric.category === "metric") {
-            // const values = metric.annotations.map((item) => item.value)
-            // const allBooleans = values.every((value) => typeof value === "boolean")
-
-            // if (allBooleans) {
-            //     const trueCount = values.filter(Boolean).length
-            //     const percentage = Math.round((trueCount / values.length) * 100)
-            //     return `${percentage}% true`
-            // }
-
             if (metric.average !== undefined) {
                 return `μ ${metric.average}`
             }
@@ -126,18 +162,24 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
 
     return hasAnnotations ? (
         <div className="flex flex-col gap-3">
-            {Object.entries(grouped).map(([refId, metricsArr]) => {
-                const filteredMetrics = Object.entries(metricsArr)
+            {Object.values(grouped || {}).map((group) => {
+                const filteredMetrics = Object.entries(group.metrics)
                     .filter(([, metric]) => metric.annotations.length > 0)
                     .sort(([a], [b]) => a.localeCompare(b))
-
                 if (filteredMetrics.length === 0) return null
 
                 return (
-                    <div key={refId} className="flex flex-col gap-[6px]">
-                        <Typography.Text type="secondary" className="text-[10px]">
-                            {refId}
-                        </Typography.Text>
+                    <div key={group.refId} className="flex flex-col gap-[6px]">
+                        <div className="flex items-center gap-2">
+                            <EvaluatorDetailsPopover
+                                evaluator={group.evaluator}
+                                fallbackLabel={group.refId}
+                            >
+                                <Typography.Text type="secondary" className="text-[10px]">
+                                    {group?.evaluator?.name || group.refId}
+                                </Typography.Text>
+                            </EvaluatorDetailsPopover>
+                        </div>
 
                         {filteredMetrics.map(([key, metric]) => {
                             const summaryValue = getSummaryValue(metric)
@@ -155,6 +197,7 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                                             type="text"
                                             icon={<CloseOutlined />}
                                             onClick={() => setIsAnnotationsPopoverOpen(null)}
+                                            size="small"
                                         />
                                     </div>
                                 ) : (
@@ -163,19 +206,12 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                                             <Typography.Text className="truncate">
                                                 {key}
                                             </Typography.Text>
-                                            {summaryValue ? (
-                                                <Typography.Text
-                                                    type="secondary"
-                                                    className="truncate"
-                                                >
-                                                    {summaryValue}
-                                                </Typography.Text>
-                                            ) : null}
                                         </div>
                                         <Button
                                             type="text"
                                             icon={<CloseOutlined />}
                                             onClick={() => setIsAnnotationsPopoverOpen(null)}
+                                            size="small"
                                         />
                                     </div>
                                 )
@@ -185,11 +221,12 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                                     <Popover
                                         overlayClassName={classes.annotationPopover}
                                         open={
-                                            isAnnotationsPopoverOpen === getPopoverKey(refId, key)
+                                            isAnnotationsPopoverOpen ===
+                                            getPopoverKey(group.refId, key)
                                         }
                                         onOpenChange={(open) => {
                                             setIsAnnotationsPopoverOpen(
-                                                open ? getPopoverKey(refId, key) : null,
+                                                open ? getPopoverKey(group.refId, key) : null,
                                             )
                                         }}
                                         placement="bottom"
@@ -200,17 +237,20 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                                             <div className="flex flex-col gap-2">
                                                 {metric.annotations?.map(
                                                     (annotation: any, i: number) => (
-                                                        <Space
-                                                            className="items-center justify-between"
+                                                        <div
+                                                            className="flex flex-col gap-2"
                                                             key={i}
                                                         >
                                                             <UserAvatarTag
                                                                 modifiedBy={annotation.user || ""}
                                                             />
-                                                            <Typography.Text type="secondary">
+                                                            <Typography.Text
+                                                                type="secondary"
+                                                                className="px-1"
+                                                            >
                                                                 {getStringOrJson(annotation.value)}
                                                             </Typography.Text>
-                                                        </Space>
+                                                        </div>
                                                     ),
                                                 )}
                                             </div>
@@ -218,7 +258,7 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                                     >
                                         <div
                                             className={clsx(
-                                                "flex items-center flex-wrap gap-2 justify-between",
+                                                "flex items-center flex-wrap gap-1 justify-between",
                                                 "py-1 px-3 cursor-pointer",
                                                 "rounded-lg border border-[#BDC7D1] border-solid",
                                             )}

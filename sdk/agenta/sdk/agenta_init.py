@@ -19,6 +19,7 @@ class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
 
     _instance = None
+    _initialized = False
     config = None
     tracing = None
 
@@ -26,6 +27,11 @@ class AgentaSingleton:
     async_api = None
 
     def __init__(self):
+        # Only initialize once
+        if AgentaSingleton._initialized:
+            return
+
+        AgentaSingleton._initialized = True
         self.host = None
         self.api_url = None
         self.api_key = None
@@ -70,7 +76,11 @@ class AgentaSingleton:
 
         """
 
-        log.info("Agenta -  SDK ver: %s", version("agenta"))
+        # Idempotency check: if already initialized, skip re-initialization
+        if self.tracing and self.api and self.async_api:
+            return
+
+        log.info("Agenta -     SDK ver: %s", version("agenta"))
 
         config = {}
         if config_fname:
@@ -118,7 +128,7 @@ class AgentaSingleton:
             or None  # NO FALLBACK
         )
 
-        log.info("Agenta -  API URL: %s", self.api_url)
+        log.info("Agenta -     API URL: %s", self.api_url)
 
         self.scope_type = (
             scope_type
