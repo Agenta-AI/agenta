@@ -60,7 +60,7 @@ class SessionsQueryRequest(BaseModel):
 
 class SessionIdsResponse(BaseModel):
     count: int = 0
-    session_ids: List[UUID] = []
+    session_ids: List[str] = []
 
 
 class ActorsQueryRequest(BaseModel):
@@ -71,4 +71,4 @@ class ActorsQueryRequest(BaseModel):
 
 class ActorIdsResponse(BaseModel):
     count: int = 0
-    actor_ids: List[UUID] = []
+    actor_ids: List[str] = []
