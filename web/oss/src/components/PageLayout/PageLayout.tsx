@@ -5,19 +5,19 @@ import {Typography} from "antd"
 
 interface PageLayoutProps {
     title: ReactNode
-    extra?: ReactNode
+    headerExtra?: ReactNode
     children: ReactNode
     className?: string
 }
 
-const PageLayout = ({title, extra, children, className}: PageLayoutProps) => {
+const PageLayout = ({title, headerExtra, children, className}: PageLayoutProps) => {
     return (
         <div className={classNames("flex w-full flex-col gap-4 p-4 self-stretch", className)}>
             <div className="flex items-center justify-between gap-3 h-11">
                 <Typography.Title className="!m-0 font-medium" level={3}>
                     {title}
                 </Typography.Title>
-                {extra ? <div className="">{extra}</div> : null}
+                {headerExtra ? <div>{headerExtra}</div> : null}
             </div>
             {children}
         </div>
