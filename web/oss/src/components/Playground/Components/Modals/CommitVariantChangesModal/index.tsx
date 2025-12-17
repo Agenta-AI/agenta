@@ -299,7 +299,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 maxWidth: maxConstraints[0],
             }}
             styles={{
-                content: {
+                container: {
                     display: "flex",
                     flexDirection: "column",
                     height: "100%",
