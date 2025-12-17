@@ -7,21 +7,34 @@ import {JSSTheme} from "@/oss/lib/Types"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     root: {
-        borderRadius: theme.borderRadiusLG,
-        border: `1px solid ${theme.colorBorder}`,
+        borderRadius: 12,
+        border: `1px solid ${theme.colorBorderSecondary}`,
+        boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05)",
         display: "flex",
         flexDirection: "column",
-        padding: theme.padding,
+        padding: "16px 20px",
+        backgroundColor: theme.colorBgContainer,
+        height: "100%",
     },
     title: {
-        fontSize: theme.fontSizeLG,
-        lineHeight: theme.lineHeightLG,
-        fontWeight: theme.fontWeightMedium,
+        fontSize: 15,
+        lineHeight: 1.4,
+        fontWeight: 600,
+        color: theme.colorTextHeading,
+        marginBottom: 4,
     },
     subHeadingRoot: {
         display: "flex",
-        gap: 8,
-        marginBottom: theme.padding,
+        alignItems: "center",
+        gap: 16,
+        marginBottom: 12,
+        minHeight: 22,
+    },
+    childrenContainer: {
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        minHeight: 0,
     },
 }))
 
@@ -49,7 +62,7 @@ const WidgetInnerContent: React.FC<Omit<WidgetData, "title"> & {loading?: boolea
                 <span>{leftSubHeading ?? null}</span>
                 <span>{rightSubHeading ?? null}</span>
             </div>
-            {children ?? null}
+            <div className={classes.childrenContainer}>{children ?? null}</div>
         </>
     )
 }

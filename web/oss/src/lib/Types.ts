@@ -579,7 +579,7 @@ export type FilterValue =
     | number
     | boolean
     | Record<string, any>
-    | Array<string | number | boolean | Record<string, any>>
+    | (string | number | boolean | Record<string, any>)[]
 
 export interface Filter {
     field: string
@@ -855,6 +855,7 @@ export interface Evaluator {
     oss?: boolean
     requires_llm_api_keys?: boolean
     tags: string[]
+    archived?: boolean
 }
 
 export interface EvaluatorConfig {

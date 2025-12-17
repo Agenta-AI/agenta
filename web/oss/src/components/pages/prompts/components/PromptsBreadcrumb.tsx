@@ -1,8 +1,6 @@
-import {Breadcrumb, BreadcrumbProps, Button, Dropdown, MenuProps} from "antd"
 import React, {useMemo} from "react"
-import {FolderTreeNode} from "../assets/utils"
-import {createUseStyles} from "react-jss"
-import {JSSTheme} from "@/oss/lib/Types"
+
+import {HomeFilled} from "@ant-design/icons"
 import {
     CaretDownIcon,
     FolderDashedIcon,
@@ -11,8 +9,14 @@ import {
     SquaresFourIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
+import {Breadcrumb, BreadcrumbProps, Button, Dropdown, MenuProps} from "antd"
+import {createUseStyles} from "react-jss"
+
+import {JSSTheme} from "@/oss/lib/Types"
+
+import {FolderTreeNode} from "../assets/utils"
+
 import SetupWorkflowIcon from "./SetupWorkflowIcon"
-import {FolderFilled} from "@ant-design/icons"
 
 interface PromptsBreadcrumbProps {
     foldersById: Record<string, FolderTreeNode>
@@ -35,6 +39,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& :not(.ant-breadcrumb-separator)": {
             cursor: "pointer",
         },
+        "& .ant-breadcrumb-link": {
+            transition: "all 0.2s ease-in-out",
+            "&:hover": {
+                textDecoration: "underline",
+            },
+        },
         "& .ant-dropdown-trigger": {
             display: "flex",
             alignItems: "center",
@@ -45,6 +55,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             "& .anticon-down": {
                 fontSize: "10px !important",
             },
+        },
+    },
+    homeButton: {
+        "&:hover .anticon": {
+            color: "#1C2C3D !important",
         },
     },
 }))
@@ -140,9 +155,9 @@ const PromptsBreadcrumb = ({
                 title: (
                     <Button
                         type="link"
-                        className="w-5 h-5 m-0"
+                        className={`w-5 h-5 m-0 ${classes.homeButton}`}
                         size="small"
-                        icon={<FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />}
+                        icon={<HomeFilled style={{fontSize: 16, color: "#BDC7D1"}} />}
                     />
                 ),
                 onClick: () => onFolderChange?.(null),

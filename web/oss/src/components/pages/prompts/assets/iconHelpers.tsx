@@ -8,8 +8,8 @@ import SetupWorkflowIcon from "../components/SetupWorkflowIcon"
 export const getAppTypeIcon = (appType?: string) => {
     const normalizedType = appType?.toLowerCase()
 
-    if (normalizedType?.includes("completion")) return <CompletionAppIcon />
-    if (normalizedType?.includes("chat")) return <ChatDotsIcon size={16} />
+    if (normalizedType?.includes("completion")) return <ChatDotsIcon size={16} />
+    if (normalizedType?.includes("chat")) return <CompletionAppIcon />
     if (normalizedType?.includes("custom")) return <SetupWorkflowIcon className="" />
 
     return <NoteIcon size={16} />
