@@ -7,6 +7,7 @@ import {Resizable} from "react-resizable"
 
 import {message} from "@/oss/components/AppMessageContext"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {
     revisionListAtom,
     saveVariantMutationAtom,
@@ -281,6 +282,9 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const isOkDisabled =
         !selectedCommitType?.type ||
         (selectedCommitType?.type === "variant" && !selectedCommitType?.name) ||
+        (selectedCommitType?.type === "variant" &&
+            selectedCommitType?.name &&
+            !isVariantNameInputValid(selectedCommitType.name)) ||
         (shouldDeploy && !selectedEnvironment)
 
     const modalRender = useCallback(

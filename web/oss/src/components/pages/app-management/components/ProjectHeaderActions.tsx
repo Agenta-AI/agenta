@@ -147,7 +147,7 @@ const ProjectHeaderActions = () => {
                 label: (
                     <div className="flex items-center gap-2">
                         <Star size={16} />
-                        Set as default
+                        Set project as default
                     </div>
                 ),
                 disabled: project.is_default_project,
@@ -157,7 +157,7 @@ const ProjectHeaderActions = () => {
                 label: (
                     <div className="flex items-center gap-2">
                         <PencilSimple size={16} />
-                        Rename
+                        Rename project
                     </div>
                 ),
             },
@@ -167,7 +167,7 @@ const ProjectHeaderActions = () => {
                 label: (
                     <div className="flex items-center gap-2">
                         <Trash size={16} />
-                        Delete
+                        Delete project
                     </div>
                 ),
                 disabled: !canDeleteProject || project.is_default_project,

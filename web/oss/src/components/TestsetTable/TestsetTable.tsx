@@ -343,7 +343,7 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
     )
 
     return (
-        <div>
+        <div className="w-full p-6">
             <Typography.Title level={5} className={classes.title}>
                 <Space size="small" align="center">
                     <span>Edit testset</span>
