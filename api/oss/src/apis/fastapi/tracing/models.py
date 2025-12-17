@@ -53,7 +53,7 @@ class AnalyticsResponse(BaseModel):
 
 
 class SessionsQueryRequest(BaseModel):
-    session: SessionsQuery
+    session: Optional[SessionsQuery] = None
     #
     windowing: Optional[Windowing] = None
 
@@ -64,7 +64,7 @@ class SessionIdsResponse(BaseModel):
 
 
 class ActorsQueryRequest(BaseModel):
-    actor: ActorsQuery
+    actor: Optional[ActorsQuery] = None
     #
     windowing: Optional[Windowing] = None
 
