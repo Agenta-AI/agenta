@@ -3,7 +3,6 @@ import {useEffect, useRef} from "react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import ProtectedRoute from "@/oss/components/ProtectedRoute/ProtectedRoute"
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
 import useURL from "@/oss/hooks/useURL"
 import {EvaluationType} from "@/oss/lib/enums"
@@ -24,7 +23,7 @@ const EvaluationShare: React.FC = () => {
 
         //1. check all the required params are present
         if (app && org && testset && type && Array.isArray(variantIds) && !loading) {
-            const executor = async () => {
+            const Executor = async () => {
                 //make sure this is only called once
                 if (called.current) {
                     return
@@ -72,10 +71,10 @@ const EvaluationShare: React.FC = () => {
             if (selectedOrg?.id !== org) {
                 //2. change the selected org to the one in the query
                 changeSelectedOrg(org as string, () => {
-                    executor()
+                    Executor()
                 })
             } else {
-                executor()
+                Executor()
             }
         }
     }, [router.query, loading])

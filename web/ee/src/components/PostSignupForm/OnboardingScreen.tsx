@@ -1,19 +1,21 @@
 import {useState} from "react"
-import {Typography, Card, Button, Space} from "antd"
+
 import {ArrowLeft, Code, TreeView, Rocket} from "@phosphor-icons/react"
+import {Typography, Card, Button} from "antd"
 import {useRouter} from "next/router"
-import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+import {createUseStyles} from "react-jss"
+
 import {
     SetupTracingModalContent,
     useStyles as useTracingStyles,
 } from "@/oss/components/pages/app-management/modals/SetupTracingModal"
-import {RunEvaluationView} from "./RunEvaluationView"
-import {createUseStyles} from "react-jss"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {JSSTheme} from "@/oss/lib/Types"
-import useURL from "@/oss/hooks/useURL"
 import {waitForWorkspaceContext, buildPostLoginPath} from "@/oss/state/url/postLoginRedirect"
 
-const {Title, Text} = Typography
+import {RunEvaluationView} from "./RunEvaluationView"
+
+const {Title} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     card: {
@@ -109,7 +111,6 @@ export const OnboardingScreen = () => {
     const [view, setView] = useState<ViewState>("selection")
     const router = useRouter()
     const posthog = usePostHogAg()
-    const {buildUrl} = useURL()
 
     const handleSelection = async (selection: "trace" | "eval" | "test_prompt") => {
         posthog?.capture?.("onboarding_selection_v1", {
