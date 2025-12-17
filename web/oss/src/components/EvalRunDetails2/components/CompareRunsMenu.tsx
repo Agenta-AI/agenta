@@ -258,9 +258,9 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
     }, [candidates, compareIds])
 
     return (
-        <Space direction="vertical" style={{width: "100%"}} size="small">
+        <Space orientation="vertical" style={{width: "100%"}} size="small">
             <div>
-                <Space direction="vertical" size={2} style={{width: "100%"}}>
+                <Space orientation="vertical" size={2} style={{width: "100%"}}>
                     {availability.testsetIds.length ? (
                         <Space size={[6, 6]} wrap className="compare-runs-match-tags">
                             {availability.testsetIds.map((id) => {

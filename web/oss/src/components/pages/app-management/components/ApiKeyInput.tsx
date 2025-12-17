@@ -81,7 +81,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
     }
 
     return (
-        <Space direction="vertical">
+        <Space orientation="vertical">
             <Text>Create or enter your API key</Text>
             <Space>
                 <Input

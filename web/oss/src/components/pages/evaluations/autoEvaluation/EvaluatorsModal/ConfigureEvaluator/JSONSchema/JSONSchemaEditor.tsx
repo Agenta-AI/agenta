@@ -298,7 +298,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                     </Tooltip>
                 </Flex>
 
-                <Space direction="vertical" style={{width: "100%"}} size="middle">
+                <Space orientation="vertical" style={{width: "100%"}} size="middle">
                     {/* Response Format */}
                     <div>
                         <div

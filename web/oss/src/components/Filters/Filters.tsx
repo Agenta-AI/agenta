@@ -1194,7 +1194,7 @@ const Filters: React.FC<Props> = ({
 
                             return (
                                 <Space
-                                    direction="vertical"
+                                    orientation="vertical"
                                     className={`overflow-x-auto [&::-webkit-scrollbar]:!w-0 [&::-webkit-scrollbar]:!h-0`}
                                     size={0}
                                     key={idx}
@@ -1203,7 +1203,7 @@ const Filters: React.FC<Props> = ({
                                         {idx === 0 ? "Where" : "And"}
                                     </Typography.Text>
 
-                                    <Space direction="vertical" className="w-full">
+                                    <Space orientation="vertical" className="w-full">
                                         <div className="flex items-center gap-2 w-full">
                                             <Dropdown
                                                 trigger={["click"]}

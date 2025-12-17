@@ -81,7 +81,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
     // Deep-link handling moved to DeploymentsDrawerWrapper
 
     return (
-        <Space direction="vertical" size={24}>
+        <Space orientation="vertical" size={24}>
             <Flex align="center" justify="space-between">
                 <Typography.Text className={classes.title}>
                     {envRevisions?.name || selectedEnvName}

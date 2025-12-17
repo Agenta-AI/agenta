@@ -349,7 +349,7 @@ const VariantDrawerContent = ({
                 )}
 
                 {deployedIn?.length > 0 && (
-                    <Space direction="vertical">
+                    <Space orientation="vertical">
                         <Text className="font-medium">Deployment</Text>
                         <div className="flex flex-col gap-1">
                             {deployedIn.map((env, idx) => (

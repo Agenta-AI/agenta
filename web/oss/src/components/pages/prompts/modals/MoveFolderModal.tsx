@@ -54,7 +54,7 @@ const MoveFolderModal = ({
             <div className="flex flex-col gap-4 pt-2 pb-4">
                 <div className="font-medium">Moving {itemName || "folder"}</div>
 
-                <Space direction="vertical" size={4}>
+                <Space orientation="vertical" size={4}>
                     <div className="font-medium">Select folder</div>
 
                     <div className="p-2 border border-solid border-gray-200 rounded min-h-[200px] max-h-[60vh] overflow-auto">

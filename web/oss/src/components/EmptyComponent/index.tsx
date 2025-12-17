@@ -45,7 +45,7 @@ const EmptyComponent: React.FC<Props> = ({image, description, primaryCta, second
 
     return (
         <Empty className={classes.empty} description={description} image={image}>
-            <Space direction="vertical">
+            <Space orientation="vertical">
                 {primaryCta && (
                     <Tooltip title={primaryCta.tooltip}>
                         <Button

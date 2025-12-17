@@ -137,7 +137,7 @@ const VariantsDashboard = () => {
             <div className={classes.container}>
                 <Typography.Text className="text-[16px] font-medium">Variants</Typography.Text>
 
-                <Space direction="vertical">
+                <Space orientation="vertical">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-1">
                             <Input.Search
