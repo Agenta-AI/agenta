@@ -7,9 +7,9 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {envRevisionsAtom} from "@/oss/components/DeploymentsDashboard/atoms"
+import {openSelectDeployVariantModalAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {JSSTheme} from "@/oss/lib/Types"
-import {openSelectDeployVariantModalAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 import UseApiContent from "../../assets/UseApiContent"

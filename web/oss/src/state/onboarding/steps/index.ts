@@ -1,8 +1,8 @@
 import {APP_MANAGEMENT_TOURS} from "./appManagementSteps"
+import {DEPLOYMENT_TOURS} from "./deploymentSteps"
 import {evaluationTour} from "./evaluations"
 import {PLAYGROUND_TOURS, resolvePlaygroundPostRunTour} from "./playgroundSteps"
 import {TRACE_TOURS} from "./traceSteps"
-import {DEPLOYMENT_TOURS} from "./deploymentSteps"
 import {OnboardingStepsContext, TourDefinition} from "./types"
 
 export const TOUR_STEPS: Record<string, (ctx: OnboardingStepsContext) => TourDefinition> = {

@@ -3,9 +3,9 @@ import {cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef} f
 
 import {ArrowLeft, ArrowRight} from "@phosphor-icons/react"
 import {Button, Card, Typography} from "antd"
+import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import type {CardComponentProps} from "nextstepjs"
-import {NormalizedStepContent} from "./types"
 
 import type {OnboardingControlLabels, UserOnboardingStatus} from "@/oss/state/onboarding"
 import {
@@ -15,7 +15,8 @@ import {
     updateUserOnboardingStatusAtom,
 } from "@/oss/state/onboarding"
 import {urlLocationAtom} from "@/oss/state/url"
-import clsx from "clsx"
+
+import {NormalizedStepContent} from "./types"
 
 const {Text} = Typography
 

@@ -1,5 +1,6 @@
-import {ModalProps} from "antd"
 import {ReactNode} from "react"
+
+import {ModalProps} from "antd"
 
 import type {OnboardingControlLabels} from "@/oss/state/onboarding/types"
 

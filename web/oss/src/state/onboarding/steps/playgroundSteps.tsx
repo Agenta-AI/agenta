@@ -1,5 +1,7 @@
-import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
 import {getDefaultStore} from "jotai"
+
+import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
+
 import {OnboardingStepsContext, TourDefinition} from "./types"
 
 export const PLAYGROUND_COMPLETION_TOUR: TourDefinition[number]["steps"] = [

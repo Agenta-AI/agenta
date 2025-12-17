@@ -9,9 +9,7 @@ const GENERAL_TOURS: Record<string, TourDefinition> = {
                     icon: "❓",
                     title: "Come back anytime",
                     content: (
-                        <span>
-                            You can always use the Help &amp; Docs menu to reopen the guide
-                        </span>
+                        <span>You can always use the Help &amp; Docs menu to reopen the guide</span>
                     ),
                     selector: ".tour-help-docs-link",
                     side: "top",

@@ -1,9 +1,10 @@
 import {Tour} from "nextstepjs"
 
-import {CurrentOnboardingStepExtended, OnboardingStep, UserOnboardingStatus} from "../types"
 import {URLLocationState} from "@/oss/state/url"
 
-export type OnboardingStepsContext = {
+import {CurrentOnboardingStepExtended, OnboardingStep, UserOnboardingStatus} from "../types"
+
+export interface OnboardingStepsContext {
     userContext: {
         userRole: string
         userExperience: string

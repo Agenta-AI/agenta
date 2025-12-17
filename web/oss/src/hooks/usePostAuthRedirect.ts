@@ -11,6 +11,7 @@ import {useProfileData} from "@/oss/state/profile"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {useProjectData} from "@/oss/state/project"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
+
 import {isNewUserStorageAtom} from "../state/onboarding/atoms/stepsAtom"
 
 interface AuthUserLike {

@@ -2,7 +2,7 @@ import {forwardRef, useEffect, useRef, type MutableRefObject, type ReactNode} fr
 
 import clsx from "clsx"
 
-type NextViewportProps = {
+interface NextViewportProps {
     id: string
     className?: string
     children: ReactNode

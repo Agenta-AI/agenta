@@ -1,8 +1,9 @@
-import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 import {atom} from "jotai"
-import {eagerAtom} from "jotai-eager"
 import {atomWithStorage} from "jotai/utils"
+import {eagerAtom} from "jotai-eager"
 import {Tour} from "nextstepjs"
+
+import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {userAtom} from "../../profile"
 import {sessionExistsAtom} from "../../session"
@@ -15,7 +16,6 @@ import {
     OnboardingState,
     UserOnboardingStatus,
 } from "../types"
-import {playgroundHasFirstRunAtom} from "./helperAtom"
 
 const NEW_USER_STORAGE_KEY = "new-user"
 const USER_ONBOARDING_STATE_TRACKER = "user-onboarding-state-tracker"
@@ -105,17 +105,12 @@ export const onboardingStepsAtom = atom<Tour[]>((get) => {
     const userOnboardingJourneyStatus = get(userOnboardingStatusAtom)
     const manualTrigger = get(triggerOnboardingAtom)
     const currentStep = get(currentOnboardingStepWithLocationAtom)
-    const hasPlaygroundRun = get(playgroundHasFirstRunAtom)
 
     if (appStatusLoading) return []
 
     if (manualTrigger) {
         const requestedState = manualTrigger.state as keyof typeof TOUR_STEPS
         const requestedTourId = manualTrigger.tourId
-        const effectiveState =
-            requestedState === "playground" && hasPlaygroundRun
-                ? ("playgroundPostRun" as keyof typeof TOUR_STEPS)
-                : requestedState
 
         const tourSteps = TOUR_STEPS[requestedState]
         if (!tourSteps) return []

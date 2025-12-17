@@ -1,24 +1,24 @@
-import Router from "next/router"
 import {getDefaultStore} from "jotai"
-import {v4 as uuidv4} from "uuid"
 import {queryClientAtom} from "jotai-tanstack-query"
+import Router from "next/router"
+import {v4 as uuidv4} from "uuid"
 
 import {collectEvaluatorCandidates} from "@/oss/components/pages/evaluations/onlineEvaluation/utils/evaluatorDetails"
+import {lastVisitedEvaluationAtom} from "@/oss/components/pages/evaluations/state/lastVisitedEvaluationAtom"
 import {evaluatorConfigsAtom} from "@/oss/lib/atoms/evaluation"
 import type {EvaluatorConfig} from "@/oss/lib/Types"
+import {fetchAllEvaluatorConfigs} from "@/oss/services/evaluators"
 import {
     createSimpleEvaluation,
     createSimpleQuery,
     retrieveQueryRevision,
     type SimpleEvaluationCreatePayload,
 } from "@/oss/services/onlineEvaluations/api"
-import {fetchAllEvaluatorConfigs} from "@/oss/services/evaluators"
-import {lastVisitedEvaluationAtom} from "@/oss/components/pages/evaluations/state/lastVisitedEvaluationAtom"
 import {waitForValidURL, getURLValues} from "@/oss/state/url"
 
+import {demoOnlineEvaluationAtom, DemoOnlineEvaluationContext} from "../atoms/helperAtom"
 import {currentOnboardingStepAtom, triggerOnboardingAtom} from "../atoms/stepsAtom"
 import {currentRunningWidgetOnboardingAtom} from "../atoms/widgetAtom"
-import {demoOnlineEvaluationAtom, DemoOnlineEvaluationContext} from "../atoms/helperAtom"
 
 const DEMO_EVALUATION_NAME = "demo-evaluation"
 const LLM_JUDGE_KEYS = new Set([

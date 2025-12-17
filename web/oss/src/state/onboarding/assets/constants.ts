@@ -12,9 +12,9 @@ export const defaultUserOnboardingState: UserOnboardingStatus = {
     deployment: "idle",
 }
 
-export const ONBOARDING_SECTIONS = Object.keys(defaultUserOnboardingState) as Array<
-    keyof UserOnboardingStatus
->
+export const ONBOARDING_SECTIONS = Object.keys(
+    defaultUserOnboardingState,
+) as (keyof UserOnboardingStatus)[]
 
 export const TOUR_STEP_KEY_MAPPER: Record<string, keyof UserOnboardingStatus> = {
     trace: "trace",

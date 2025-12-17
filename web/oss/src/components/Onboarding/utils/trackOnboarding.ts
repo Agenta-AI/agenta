@@ -2,7 +2,7 @@ import {getDefaultStore} from "jotai"
 
 import {posthogAtom} from "@/oss/lib/helpers/analytics/store/atoms"
 
-type BasePayload = {
+interface BasePayload {
     total_tasks: number
     completed_tasks: number
     skipped_tasks: number

@@ -16,7 +16,6 @@ import {
     SlackLogo,
     TreeView,
 } from "@phosphor-icons/react"
-
 import {useSetAtom} from "jotai"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"

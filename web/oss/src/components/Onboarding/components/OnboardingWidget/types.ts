@@ -5,12 +5,12 @@ import {CHECKLIST_PREREQUISITES} from "./constants"
 export type ChecklistPrerequisite =
     (typeof CHECKLIST_PREREQUISITES)[keyof typeof CHECKLIST_PREREQUISITES]
 
-export type ChecklistItemTour = {
+export interface ChecklistItemTour {
     section: keyof UserOnboardingStatus
     tourId?: string
 }
 
-export type ChecklistItem = {
+export interface ChecklistItem {
     id: string
     title: string
     description: string
@@ -22,13 +22,13 @@ export type ChecklistItem = {
     prerequisites?: ChecklistPrerequisite[]
 }
 
-export type ChecklistSection = {
+export interface ChecklistSection {
     id: string
     title: string
     items: ChecklistItem[]
 }
 
-export type ChecklistContext = {
+export interface ChecklistContext {
     projectURL: string
     appURL: string
     recentlyVisitedAppURL: string

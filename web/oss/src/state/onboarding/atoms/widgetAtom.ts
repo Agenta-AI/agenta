@@ -1,9 +1,9 @@
 import {atom} from "jotai"
 import {atomWithStorage, createJSONStorage} from "jotai/utils"
-import {OnboardingState, UserOnboardingStatus} from "../types"
-import {currentOnboardingStepWithLocationAtom} from "./stepsAtom"
 
-export type OnboardingWidgetPosition = {
+import {OnboardingState, UserOnboardingStatus} from "../types"
+
+export interface OnboardingWidgetPosition {
     x: number
     y: number
 }
@@ -12,7 +12,7 @@ const ONBOARDING_WIDGET_COMPLETION_KEY = "onboarding-widget-completion"
 const ONBOARDING_WIDGET_SKIPPED_KEY = "onboarding-widget-skipped"
 const ONBOARDING_WIDGET_UI_STATE_KEY = "onboarding-widget-ui-state"
 
-type OnboardingWidgetUIState = {
+interface OnboardingWidgetUIState {
     minimized: boolean
     position: OnboardingWidgetPosition | null
     minimizeHint: boolean
@@ -20,7 +20,7 @@ type OnboardingWidgetUIState = {
     closed: boolean
 }
 
-export type RunningWidgetOnboarding = {
+export interface RunningWidgetOnboarding {
     section: keyof UserOnboardingStatus
     completionKey: string
     initialStatus: OnboardingState

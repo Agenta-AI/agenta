@@ -22,16 +22,21 @@ import {
 } from "@/oss/state/onboarding/atoms/widgetAtom"
 import {userAtom} from "@/oss/state/profile"
 import {sessionExistsAtom} from "@/oss/state/session"
+
 import {
     trackOnboardingAllTasksCompleted,
     trackOnboardingGuideClosed,
     trackOnboardingTaskCompleted,
 } from "../../utils/trackOnboarding"
+
 import {BOUNDARY_PADDING} from "./constants"
 import {type ChecklistItem} from "./types"
 import {buildChecklistSections, clamp} from "./utils"
 
-type ElementSize = {width: number; height: number}
+interface ElementSize {
+    width: number
+    height: number
+}
 
 const DEFAULT_WIDGET_SIZE: ElementSize = {width: 280, height: 360}
 
@@ -59,7 +64,7 @@ const OnboardingWidget = () => {
     const router = useRouter()
     const {projectURL, appURL, recentlyVisitedAppURL} = useURL()
     const [completedMap, setCompletedMap] = useAtom(onboardingWidgetCompletionAtom)
-    const [skippedMap, setSkippedMap] = useAtom(onboardingWidgetSkippedAtom)
+    const [skippedMap] = useAtom(onboardingWidgetSkippedAtom)
     const [currentRunningWidgetOnboarding, setCurrentRunningWidgetOnboarding] = useAtom(
         currentRunningWidgetOnboardingAtom,
     )

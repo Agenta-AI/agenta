@@ -1,13 +1,15 @@
-import type {UserOnboardingStatus} from "@/oss/state/onboarding/types"
-import type {ButtonProps, TooltipProps} from "antd"
 import type {ReactNode} from "react"
 
-export type TriggerPayload = {
+import type {ButtonProps, TooltipProps} from "antd"
+
+import type {UserOnboardingStatus} from "@/oss/state/onboarding/types"
+
+export interface TriggerPayload {
     state: keyof UserOnboardingStatus
     tourId?: string
 }
 
-export type OnboardingTriggerButtonProps = {
+export interface OnboardingTriggerButtonProps {
     triggerOnboarding?: (payload: TriggerPayload | null) => void
     triggerPayload?: TriggerPayload
     tooltipTitle?: ReactNode

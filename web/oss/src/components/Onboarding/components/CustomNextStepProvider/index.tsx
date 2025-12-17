@@ -1,3 +1,8 @@
+import {useEffect, useRef} from "react"
+
+import {useAtomValue, useSetAtom} from "jotai"
+import {NextStep, useNextStep} from "nextstepjs"
+
 import {
     isNewUserAtom,
     onboardingStepsAtom,
@@ -5,9 +10,7 @@ import {
     userOnboardingStatusAtom,
 } from "@/oss/state/onboarding"
 import {urlLocationAtom} from "@/oss/state/url"
-import {useAtomValue, useSetAtom} from "jotai"
-import {NextStep, useNextStep} from "nextstepjs"
-import {useEffect, useRef} from "react"
+
 import OnboardingCard from "../../index"
 import OnboardingAutoAdvance from "../OnboardingAutoAdvance"
 

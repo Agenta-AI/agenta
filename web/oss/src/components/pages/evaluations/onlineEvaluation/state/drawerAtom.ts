@@ -1,6 +1,8 @@
 import {atom} from "jotai"
 
-export type OnlineEvaluationDrawerState = {open: boolean}
+export interface OnlineEvaluationDrawerState {
+    open: boolean
+}
 
 const defaultState: OnlineEvaluationDrawerState = {open: false}
 

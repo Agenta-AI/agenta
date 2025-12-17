@@ -5,12 +5,12 @@ import {Typography, Button, Splitter} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
+import NextViewport from "@/oss/components/Onboarding/components/NextViewport"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {chatTurnIdsAtom} from "@/oss/state/generation/entities"
 import {appStatusAtom} from "@/oss/state/variant/atoms/appStatus"
 import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 
-import NextViewport from "@/oss/components/Onboarding/components/NextViewport"
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
 import {displayedVariantsAtom, isComparisonViewAtom, appChatModeAtom} from "../../state/atoms"
 import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"

@@ -1,5 +1,7 @@
 import {setCompleteWidgetTaskMap} from "@/oss/components/Onboarding/components/OnboardingWidget"
+
 import {clearOnboardingState} from "../assets/utils"
+
 import {OnboardingStepsContext, TourDefinition} from "./types"
 
 // integration

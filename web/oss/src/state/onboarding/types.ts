@@ -2,7 +2,7 @@ import {Tour} from "nextstepjs"
 
 export type OnboardingState = "idle" | "started" | "done" | "error" | "skipped"
 
-export type UserOnboardingStatus<T = OnboardingState> = {
+export interface UserOnboardingStatus<T = OnboardingState> {
     apps: T
     playground: T
     playgroundPostRun: T
@@ -14,7 +14,7 @@ export type UserOnboardingStatus<T = OnboardingState> = {
     deployment: T
 }
 
-export type OnboardingControlLabels = {
+export interface OnboardingControlLabels {
     next?: string
     previous?: string
     finish?: string

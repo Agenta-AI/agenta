@@ -1,6 +1,6 @@
 import {atom} from "jotai"
 
-type AutoEvaluationModalState = {
+interface AutoEvaluationModalState {
     open: boolean
 }
 

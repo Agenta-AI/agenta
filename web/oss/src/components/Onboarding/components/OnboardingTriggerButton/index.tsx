@@ -3,8 +3,9 @@ import {memo, useCallback, useMemo, MouseEvent} from "react"
 import {QuestionCircleOutlined} from "@ant-design/icons"
 import {Button, Tooltip} from "antd"
 import type {ButtonProps, TooltipProps} from "antd"
-import {triggerOnboardingAtom} from "@/oss/state/onboarding"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {triggerOnboardingAtom} from "@/oss/state/onboarding"
 import {urlLocationAtom} from "@/oss/state/url"
 
 import {OnboardingTriggerButtonProps} from "./types"
