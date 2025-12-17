@@ -31,6 +31,9 @@ from oss.src.core.tracing.dtos import (
     MetricsBucket,
     Condition,
     ListOperator,
+    #
+    SessionsQuery,
+    ActorsQuery,
 )
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
@@ -1137,3 +1140,144 @@ class TracingDAO(TracingDAOInterface):
         # ---------
 
         return buckets
+
+    ### SESSIONS AND ACTORS
+
+    @suppress_exceptions(default=[])
+    async def sessions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        session: Optional[SessionsQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[UUID]:
+        """Query unique session IDs, filtering by type with windowing support."""
+        try:
+            async with engine.tracing_session() as _session:
+                # TIMEOUT
+                await _session.execute(TIMEOUT_STMT)
+
+                # Select distinct session IDs from JSONB
+                stmt = (
+                    select(
+                        distinct(SpanDBE.attributes["ag.session.id"].as_string()).label(
+                            "session_id"
+                        )
+                    )
+                    .filter(SpanDBE.project_id == project_id)
+                    .filter(SpanDBE.attributes.has_key("ag.session.id"))
+                )
+
+                # Apply type filtering (query.type or query.types)
+                if session:
+                    if session.type:
+                        stmt = stmt.filter(
+                            SpanDBE.attributes["ag.session.type"].as_string()
+                            == session.type.value
+                        )
+                    elif session.types:
+                        stmt = stmt.filter(
+                            SpanDBE.attributes["ag.session.type"]
+                            .as_string()
+                            .in_([t.value for t in session.types])
+                        )
+
+                # Apply windowing
+                if windowing:
+                    stmt = apply_windowing(
+                        stmt=stmt,
+                        DBE=SpanDBE,
+                        attribute="start_time",
+                        order="descending",
+                        windowing=windowing,
+                    )
+
+                result = await _session.execute(stmt)
+                rows = result.all()
+
+                # Convert session_id strings to UUIDs
+                session_ids = []
+                for row in rows:
+                    try:
+                        session_ids.append(UUID(row.session_id))
+                    except (ValueError, AttributeError):
+                        # Skip invalid UUIDs
+                        log.warn(f"Skipping invalid session_id: {row.session_id}")
+
+                return session_ids
+
+        except Exception as e:
+            log.error(f"{type(e).__name__}: {e}")
+            log.error(format_exc())
+            raise e
+
+    @suppress_exceptions(default=[])
+    async def actors(
+        self,
+        *,
+        project_id: UUID,
+        #
+        actor: Optional[ActorsQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[UUID]:
+        """Query unique actor IDs, filtering by type with windowing support."""
+        try:
+            async with engine.tracing_session() as _session:
+                # TIMEOUT
+                await _session.execute(TIMEOUT_STMT)
+
+                # Select distinct actor IDs from JSONB
+                stmt = (
+                    select(
+                        distinct(SpanDBE.attributes["ag.actor.id"].as_string()).label(
+                            "actor_id"
+                        )
+                    )
+                    .filter(SpanDBE.project_id == project_id)
+                    .filter(SpanDBE.attributes.has_key("ag.actor.id"))
+                )
+
+                if actor:
+                    if actor.type:
+                        stmt = stmt.filter(
+                            SpanDBE.attributes["ag.actor.type"].as_string()
+                            == actor.type.value
+                        )
+                    elif actor.types:
+                        stmt = stmt.filter(
+                            SpanDBE.attributes["ag.actor.type"]
+                            .as_string()
+                            .in_([t.value for t in actor.types])
+                        )
+
+                # Apply windowing
+                if windowing:
+                    stmt = apply_windowing(
+                        stmt=stmt,
+                        DBE=SpanDBE,
+                        attribute="start_time",
+                        order="descending",
+                        windowing=windowing,
+                    )
+
+                result = await _session.execute(stmt)
+                rows = result.all()
+
+                # Convert actor_id strings to UUIDs
+                actor_ids = []
+                for row in rows:
+                    try:
+                        actor_ids.append(UUID(row.actor_id))
+                    except (ValueError, AttributeError):
+                        # Skip invalid UUIDs
+                        log.warn(f"Skipping invalid actor_id: {row.actor_id}")
+
+                return actor_ids
+
+        except Exception as e:
+            log.error(f"{type(e).__name__}: {e}")
+            log.error(format_exc())
+            raise e

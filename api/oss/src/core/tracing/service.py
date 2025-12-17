@@ -12,6 +12,11 @@ from oss.src.core.tracing.dtos import (
     Bucket,
     MetricSpec,
     MetricsBucket,
+    #
+    SessionsQuery,
+    ActorsQuery,
+    #
+    Windowing,
 )
 
 
@@ -239,3 +244,37 @@ class TracingService:
         )
 
         return bucket_dtos
+
+    async def sessions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        session: Optional[SessionsQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ):
+        return await self.tracing_dao.sessions(
+            project_id=project_id,
+            #
+            session=session,
+            #
+            windowing=windowing,
+        )
+
+    async def actors(
+        self,
+        *,
+        project_id: UUID,
+        #
+        actor: Optional[ActorsQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ):
+        return await self.tracing_dao.actors(
+            project_id=project_id,
+            #
+            actor=actor,
+            #
+            windowing=windowing,
+        )

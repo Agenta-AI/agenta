@@ -25,6 +25,10 @@ from oss.src.apis.fastapi.tracing.models import (
     OTelTracingResponse,
     OldAnalyticsResponse,
     AnalyticsResponse,
+    SessionsQueryRequest,
+    SessionIdsResponse,
+    ActorsQueryRequest,
+    ActorIdsResponse,
 )
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.utils import (
@@ -677,3 +681,47 @@ class TracingRouter:
             query=query,
             specs=specs,
         )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SessionIdsResponse())
+    async def query_sessions(
+        self,
+        request: Request,
+        sessions_query_request: SessionsQueryRequest,
+    ):
+        session_ids = await self.service.sessions(
+            project_id=request.state.project_id,
+            #
+            session=sessions_query_request.session,
+            #
+            windowing=sessions_query_request.windowing,
+        )
+
+        session_ids_response = SessionIdsResponse(
+            count=len(session_ids) if session_ids else 0,
+            session_ids=session_ids,
+        )
+
+        return session_ids_response
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=ActorIdsResponse())
+    async def query_actors(
+        self,
+        request: Request,
+        actors_query_request: ActorsQueryRequest,
+    ):
+        actor_ids = await self.service.actors(
+            project_id=request.state.project_id,
+            #
+            actor=actors_query_request.actor,
+            #
+            windowing=actors_query_request.windowing,
+        )
+
+        actor_ids_response = ActorIdsResponse(
+            count=len(actor_ids) if actor_ids else 0,
+            actor_ids=actor_ids,
+        )
+
+        return actor_ids_response

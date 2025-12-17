@@ -48,6 +48,20 @@ class SpanType(Enum):
     UNKNOWN = "unknown"
 
 
+class SessionType(Enum):
+    CHAT = "thread"
+    TASK = "task"
+    #
+    UNKNOWN = "unknown"
+
+
+class ActorType(Enum):
+    PERSON = "person"
+    AGENT = "agent"
+    #
+    UNKNOWN = "unknown"
+
+
 class AgMetricEntryAttributes(BaseModel):
     # cumulative: 'cum' can't be used though
     cumulative: Optional[Metrics] = None
@@ -80,9 +94,26 @@ class AgDataAttributes(BaseModel):
     model_config = {"ser_json_exclude_none": True}
 
 
+class AgSessionAttributes(BaseModel):
+    id: Optional[str] = None
+    type: Optional[SessionType] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
+class AgActorAttributes(BaseModel):
+    id: Optional[str] = None
+    type: Optional[ActorType] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
 class AgAttributes(BaseModel):
     type: AgTypeAttributes = Field(default_factory=AgTypeAttributes)
     data: AgDataAttributes = Field(default_factory=AgDataAttributes)
+
+    session: Optional[AgSessionAttributes] = None
+    actor: Optional[AgActorAttributes] = None
 
     metrics: Optional[AgMetricsAttributes] = None
     flags: Optional[Flags] = None
@@ -508,3 +539,20 @@ class SimpleTraceQuery(BaseModel):
 
     references: Optional[SimpleTraceReferences] = None
     links: Optional[SimpleTraceLinks] = None
+
+
+# SESSION AND ACTOR QUERIES AND SUMMARIES ----------------------------------------
+
+
+class SessionsQuery(BaseModel):
+    type: Optional[SessionType] = None  # Filter by single type
+    types: Optional[List[SessionType]] = None  # Filter by multiple types
+
+    model_config = {"ser_json_exclude_none": True}
+
+
+class ActorsQuery(BaseModel):
+    type: Optional[ActorType] = None  # Filter by single type
+    types: Optional[List[ActorType]] = None  # Filter by multiple types
+
+    model_config = {"ser_json_exclude_none": True}

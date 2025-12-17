@@ -2,6 +2,7 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from abc import ABC, abstractmethod
 
+from oss.src.core.shared.dtos import Windowing
 from oss.src.core.tracing.dtos import (
     OTelLink,
     OTelFlatSpan,
@@ -9,6 +10,8 @@ from oss.src.core.tracing.dtos import (
     Bucket,
     MetricSpec,
     MetricsBucket,
+    SessionsQuery,
+    ActorsQuery,
 )
 
 
@@ -156,6 +159,8 @@ class TracingDAOInterface(ABC):
     ) -> List[OTelFlatSpan]:
         raise NotImplementedError
 
+    ### SESSIONS AND ACTORS
+
     ### ANALYTICS
 
     @abstractmethod
@@ -177,4 +182,28 @@ class TracingDAOInterface(ABC):
         query: TracingQuery,
         specs: List[MetricSpec],
     ) -> List[MetricsBucket]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def sessions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        session: Optional[SessionsQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[UUID]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def actors(
+        self,
+        *,
+        project_id: UUID,
+        #
+        actor: Optional[ActorsQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[UUID]:
         raise NotImplementedError

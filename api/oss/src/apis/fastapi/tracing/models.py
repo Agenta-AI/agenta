@@ -1,6 +1,11 @@
 from typing import Optional, List
+from uuid import UUID
 
 from pydantic import BaseModel
+
+from oss.src.core.shared.dtos import (
+    Windowing,
+)
 
 from oss.src.core.tracing.dtos import (
     OTelLink,  # needed for annotations at the moment
@@ -12,6 +17,9 @@ from oss.src.core.tracing.dtos import (
     MetricsBucket,
     TracingQuery,
     MetricSpec,
+    #
+    SessionsQuery,
+    ActorsQuery,
 )
 
 
@@ -42,3 +50,25 @@ class AnalyticsResponse(BaseModel):
     #
     query: TracingQuery = TracingQuery()
     specs: List[MetricSpec] = []
+
+
+class SessionsQueryRequest(BaseModel):
+    session: SessionsQuery
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SessionIdsResponse(BaseModel):
+    count: int = 0
+    session_ids: List[UUID] = []
+
+
+class ActorsQueryRequest(BaseModel):
+    actor: ActorsQuery
+    #
+    windowing: Optional[Windowing] = None
+
+
+class ActorIdsResponse(BaseModel):
+    count: int = 0
+    actor_ids: List[UUID] = []
