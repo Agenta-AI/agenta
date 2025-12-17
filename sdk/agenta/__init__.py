@@ -113,8 +113,8 @@ def get_trace_url(trace_id: Optional[str] = None) -> str:
         >>> @ag.instrument()
         >>> def my_function():
         >>>     # Get URL for the current trace
-        >>>     url = ag.get_trace_url()
+        >>>     url = ag.tracing.get_trace_url()
         >>>     print(url)
         >>>     return "result"
     """
-    return DEFAULT_AGENTA_SINGLETON_INSTANCE.get_trace_url(trace_id)
+    return DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing.get_trace_url(trace_id)
