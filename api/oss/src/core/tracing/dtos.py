@@ -49,7 +49,7 @@ class SpanType(Enum):
 
 
 class SessionType(Enum):
-    CHAT = "thread"
+    CHAT = "chat"
     TASK = "task"
     #
     UNKNOWN = "unknown"

@@ -415,6 +415,44 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
 
     cleaned_ag["references"] = cleaned_references or None
 
+    # --- session ---
+    session_dict = ag.get("session")
+    if session_dict and isinstance(session_dict, dict):
+        cleaned_session = {}
+        if "id" in session_dict:
+            cleaned_session["id"] = session_dict["id"]
+        if "type" in session_dict:
+            # Validate session type - cast unknown types to "unknown"
+            from oss.src.core.tracing.dtos import SessionType
+            session_type = session_dict["type"]
+            valid_session_types = {member.value for member in SessionType}
+            if session_type not in valid_session_types:
+                log.debug(f"[initialize_ag_attributes] Unrecognized session.type '{session_type}', casting to 'unknown'")
+                session_type = "unknown"
+            cleaned_session["type"] = session_type
+        cleaned_ag["session"] = cleaned_session if cleaned_session else None
+    else:
+        cleaned_ag["session"] = None
+
+    # --- actor ---
+    actor_dict = ag.get("actor")
+    if actor_dict and isinstance(actor_dict, dict):
+        cleaned_actor = {}
+        if "id" in actor_dict:
+            cleaned_actor["id"] = actor_dict["id"]
+        if "type" in actor_dict:
+            # Validate actor type - cast unknown types to "unknown"
+            from oss.src.core.tracing.dtos import ActorType
+            actor_type = actor_dict["type"]
+            valid_actor_types = {member.value for member in ActorType}
+            if actor_type not in valid_actor_types:
+                log.debug(f"[initialize_ag_attributes] Unrecognized actor.type '{actor_type}', casting to 'unknown'")
+                actor_type = "unknown"
+            cleaned_actor["type"] = actor_type
+        cleaned_ag["actor"] = cleaned_actor if cleaned_actor else None
+    else:
+        cleaned_ag["actor"] = None
+
     # --- passthrough simple optional fields ---
     for key in ["flags", "tags", "meta", "exception", "hashes"]:
         cleaned_ag[key] = ag.get(key, None)

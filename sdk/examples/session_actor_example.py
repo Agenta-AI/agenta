@@ -10,7 +10,10 @@ This example demonstrates:
 import agenta as ag
 
 # Initialize Agenta SDK
-ag.init(api_key="your-api-key-here", host="https://cloud.agenta.ai")
+ag.init(
+    host="https://cloud.agenta.ai",
+    api_key="your-api-key-here",
+)
 
 
 @ag.instrument()
@@ -19,12 +22,12 @@ async def process_chat_message(message: str, user_id: str):
     # Set session and actor information on the current span
     ag.tracing.store_session(
         session_id="chat-session-123",
-        session_type="chat",
+        session_type="chat",  # Valid types: "chat", "task", "unknown"
     )
 
     ag.tracing.store_actor(
         actor_id=user_id,
-        actor_type="person",
+        actor_type="person",  # Valid types: "user", "person", "agent", "unknown"
     )
 
     # Your application logic here
@@ -33,7 +36,6 @@ async def process_chat_message(message: str, user_id: str):
     return response
 
 
-@ag.instrument()
 async def chat_workflow():
     """Example workflow showing session tracking across multiple calls."""
     # All nested calls will inherit the session/actor from baggage
