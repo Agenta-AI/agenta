@@ -33,8 +33,9 @@ class AgentaSingleton:
         self.scope_id = None
 
         # Cached scope information for URL building
-        self._workspace_id: Optional[str] = None
-        self._project_id: Optional[str] = None
+        self.organization_id: Optional[str] = None
+        self.workspace_id: Optional[str] = None
+        self.project_id: Optional[str] = None
 
     def __new__(cls):
         if not cls._instance:
