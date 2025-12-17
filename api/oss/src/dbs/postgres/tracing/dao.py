@@ -1156,9 +1156,9 @@ class TracingDAO(TracingDAOInterface):
             # Select distinct session IDs from JSONB
             stmt = (
                 select(
-                    distinct(SpanDBE.attributes["ag"]["session"]["id"].as_string()).label(
-                        "session_id"
-                    )
+                    distinct(
+                        SpanDBE.attributes["ag"]["session"]["id"].as_string()
+                    ).label("session_id")
                 )
                 .filter(SpanDBE.project_id == project_id)
                 .filter(SpanDBE.attributes["ag"]["session"].has_key("id"))

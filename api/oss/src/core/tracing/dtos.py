@@ -523,5 +523,3 @@ class SimpleTraceQuery(BaseModel):
 
     references: Optional[SimpleTraceReferences] = None
     links: Optional[SimpleTraceLinks] = None
-
-
