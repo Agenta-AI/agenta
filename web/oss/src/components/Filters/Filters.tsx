@@ -1,6 +1,12 @@
 import {useMemo, useState} from "react"
 
-import {ArrowClockwiseIcon, CaretDown, Funnel, Plus, Trash} from "@phosphor-icons/react"
+import {
+    ArrowClockwiseIcon,
+    CaretDownIcon,
+    FunnelIcon,
+    PlusIcon,
+    TrashIcon,
+} from "@phosphor-icons/react"
 import {
     Button,
     Divider,
@@ -1163,7 +1169,7 @@ const Filters: React.FC<Props> = ({
                             const renderAddFeedbackButton = () => (
                                 <Button
                                     type="text"
-                                    icon={<Plus size={14} />}
+                                    icon={<PlusIcon size={14} />}
                                     onClick={() =>
                                         setAnnotationValue((prev) => ({
                                             ...(prev ?? {}),
@@ -1245,7 +1251,7 @@ const Filters: React.FC<Props> = ({
                                                               field?.label ??
                                                               "Field")}
                                                     </span>
-                                                    <CaretDown size={14} />
+                                                    <CaretDownIcon size={14} />
                                                 </Button>
                                             </Dropdown>
 
@@ -1447,7 +1453,7 @@ const Filters: React.FC<Props> = ({
                                                     labelRender={(label) =>
                                                         !label.value ? "Condition" : label.label
                                                     }
-                                                    suffixIcon={<CaretDown size={14} />}
+                                                    suffixIcon={<CaretDownIcon size={14} />}
                                                     onChange={(value) =>
                                                         onFilterChange({
                                                             columnName: "operator",
@@ -1484,7 +1490,7 @@ const Filters: React.FC<Props> = ({
                                                                 handleEvaluatorChange(value)
                                                             }
                                                             allowClear
-                                                            suffixIcon={<CaretDown size={14} />}
+                                                            suffixIcon={<CaretDownIcon size={14} />}
                                                             optionFilterProp="label"
                                                             getPopupContainer={(t) =>
                                                                 getWithinPopover(t)
@@ -1501,7 +1507,7 @@ const Filters: React.FC<Props> = ({
 
                                                         <Button
                                                             type="link"
-                                                            icon={<Trash size={14} />}
+                                                            icon={<TrashIcon size={14} />}
                                                             onClick={removeEvaluator}
                                                         />
                                                     </div>
@@ -1509,7 +1515,7 @@ const Filters: React.FC<Props> = ({
                                                     <Space>
                                                         <Button
                                                             type="text"
-                                                            icon={<Plus size={14} />}
+                                                            icon={<PlusIcon size={14} />}
                                                             onClick={() =>
                                                                 setAnnotationValue((prev) => ({
                                                                     ...(prev ?? {}),
@@ -1550,7 +1556,7 @@ const Filters: React.FC<Props> = ({
                                                         })
                                                     }
                                                     placeholder={valuePlaceholder}
-                                                    suffixIcon={<CaretDown size={14} />}
+                                                    suffixIcon={<CaretDownIcon size={14} />}
                                                     popupMatchSelectWidth
                                                     disabled={item.isPermanent}
                                                     status={valueHasError ? "error" : undefined}
@@ -1576,7 +1582,7 @@ const Filters: React.FC<Props> = ({
                                                         })
                                                     }
                                                     placeholder={valuePlaceholder}
-                                                    suffixIcon={<CaretDown size={14} />}
+                                                    suffixIcon={<CaretDownIcon size={14} />}
                                                     popupMatchSelectWidth
                                                     disabled={item.isPermanent}
                                                     status={valueHasError ? "error" : undefined}
@@ -1647,7 +1653,7 @@ const Filters: React.FC<Props> = ({
                                                         {label: "Number", value: "number"},
                                                         {label: "Boolean", value: "boolean"},
                                                     ]}
-                                                    suffixIcon={<CaretDown size={14} />}
+                                                    suffixIcon={<CaretDownIcon size={14} />}
                                                     popupMatchSelectWidth
                                                     disabled={item.isPermanent}
                                                     getPopupContainer={(t) => getWithinPopover(t)}
@@ -1668,7 +1674,7 @@ const Filters: React.FC<Props> = ({
                                                 ) && (
                                                     <Button
                                                         type="link"
-                                                        icon={<Trash size={14} />}
+                                                        icon={<TrashIcon size={14} />}
                                                         onClick={() => onDeleteFilter(idx)}
                                                     />
                                                 )}
@@ -1702,7 +1708,7 @@ const Filters: React.FC<Props> = ({
                                                                 val as string | string[],
                                                             )
                                                         }}
-                                                        suffixIcon={<CaretDown size={14} />}
+                                                        suffixIcon={<CaretDownIcon size={14} />}
                                                         optionFilterProp="label"
                                                         getPopupContainer={(t) =>
                                                             getWithinPopover(t)
@@ -1720,7 +1726,7 @@ const Filters: React.FC<Props> = ({
                                                         value={currentFeedback?.operator}
                                                         options={feedbackOperatorOptions}
                                                         onChange={handleFeedbackOperatorChange}
-                                                        suffixIcon={<CaretDown size={14} />}
+                                                        suffixIcon={<CaretDownIcon size={14} />}
                                                         getPopupContainer={(t) =>
                                                             getWithinPopover(t)
                                                         }
@@ -1741,7 +1747,7 @@ const Filters: React.FC<Props> = ({
                                                                 {label: "false", value: false},
                                                             ]}
                                                             onChange={handleFeedbackValueChange}
-                                                            suffixIcon={<CaretDown size={14} />}
+                                                            suffixIcon={<CaretDownIcon size={14} />}
                                                             getPopupContainer={(t) =>
                                                                 getWithinPopover(t)
                                                             }
@@ -1779,7 +1785,7 @@ const Filters: React.FC<Props> = ({
                                                                 value as AnnotationFeedbackValueType,
                                                             )
                                                         }
-                                                        suffixIcon={<CaretDown size={14} />}
+                                                        suffixIcon={<CaretDownIcon size={14} />}
                                                         getPopupContainer={(t) =>
                                                             getWithinPopover(t)
                                                         }
@@ -1794,7 +1800,7 @@ const Filters: React.FC<Props> = ({
 
                                                     <Button
                                                         type="link"
-                                                        icon={<Trash size={14} />}
+                                                        icon={<TrashIcon size={14} />}
                                                         onClick={removeFeedback}
                                                     />
                                                 </div>
@@ -1808,7 +1814,7 @@ const Filters: React.FC<Props> = ({
 
                         <Button
                             type="dashed"
-                            icon={<Plus size={14} />}
+                            icon={<PlusIcon size={14} />}
                             onClick={() => setFilter([...filter, createEmptyFilter()])}
                             className="mt-2"
                         >
@@ -1852,19 +1858,22 @@ const Filters: React.FC<Props> = ({
             }
         >
             <Button
-                icon={<Funnel size={14} />}
                 onClick={() => setIsFilterOpen(true)}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 px-2"
                 {...buttonProps}
             >
-                Filters
-                {sanitizedFilters.filter(({field, operator}) => field && operator).length > 0 && (
-                    <CustomAntdBadge
-                        count={
-                            sanitizedFilters.filter(({field, operator}) => field && operator).length
-                        }
-                    />
-                )}
+                <div className="flex items-center gap-1">
+                    <FunnelIcon size={14} />
+                    {sanitizedFilters.filter(({field, operator}) => field && operator).length >
+                        0 && (
+                        <CustomAntdBadge
+                            count={
+                                sanitizedFilters.filter(({field, operator}) => field && operator)
+                                    .length
+                            }
+                        />
+                    )}
+                </div>
             </Button>
         </Popover>
     )

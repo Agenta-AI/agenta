@@ -158,11 +158,7 @@ const AppWithVariants = memo(
                             ) : (
                                 <Content
                                     className={clsx("flex gap-4", "h-[calc(100%-30px)]", {
-                                        "p-6 pb-0 mb-8": !(
-                                            isHumanEval ||
-                                            isEvaluator ||
-                                            isTestsets
-                                        ),
+                                        "pb-0 mb-8": !(isHumanEval || isEvaluator || isTestsets),
                                         "flex flex-col min-h-0 grow":
                                             isHumanEval || isEvaluator || isTestsets,
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
