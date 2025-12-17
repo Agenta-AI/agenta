@@ -16,10 +16,7 @@ import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/at
 import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms/dirtyState"
 import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {useAppId} from "@/oss/hooks/useAppId"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
-import {useQueryParam} from "@/oss/hooks/useQuery"
-import useURL from "@/oss/hooks/useURL"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {
     derivePromptsFromSpec,

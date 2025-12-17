@@ -1,23 +1,24 @@
 import React, {useCallback, useMemo, useState} from "react"
 
+import {MagnifyingGlass} from "@phosphor-icons/react"
+import {Button, Divider, Dropdown, Input, Typography} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
-import {Button, Divider, Dropdown, Input, Typography} from "antd"
-import {MagnifyingGlass} from "@phosphor-icons/react"
 
+import LLMIconMap from "@/oss/components/LLMIcons"
 import {getPromptById, getLLMConfig} from "@/oss/components/Playground/context/promptShape"
 import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
-import LLMIconMap from "@/oss/components/LLMIcons"
 
 import AddButton from "../../../assets/AddButton"
 import {
     addPromptMessageMutationAtomFamily,
     addPromptToolMutationAtomFamily,
 } from "../../../state/atoms/promptMutations"
+import {TOOL_PROVIDERS_META} from "../../PlaygroundTool/assets"
 import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
+
 import TemplateFormatSelector from "./TemplateFormatSelector"
 import toolsSpecs from "./tools.specs.json"
-import {TOOL_PROVIDERS_META} from "../../PlaygroundTool/assets"
 
 interface Props {
     variantId: string

@@ -267,13 +267,12 @@ export const saveVariantMutationAtom = atom(
             const waitResult = await set(waitForNewRevisionAfterMutationAtom, {
                 variantId: savedVariant.variantId || currentVariant.variantId || variantId,
                 prevRevisionId: variantId,
+                timeoutMs: 10_000,
             })
 
             if (waitResult.newestRevisionId && waitResult.newestRevisionId !== variantId) {
                 const newRevisionId = waitResult.newestRevisionId
                 const previousRevisionId = variantId
-
-                let logicalIdsForNewRevision: string[] = []
 
                 const currentDisplayedVariants = get(selectedVariantsAtom)
                 const updatedVariants = currentDisplayedVariants.map((id) =>
@@ -295,7 +294,13 @@ export const saveVariantMutationAtom = atom(
                 set(clearLocalCustomPropsForRevisionAtomFamily(variantId))
                 return {
                     success: true,
-                    variant: savedVariant,
+                    // Ensure consumers (e.g. Commit modal) get the *new revision id*
+                    // even if the backend returns a parent-variant payload.
+                    variant: {
+                        ...(savedVariant as any),
+                        id: newRevisionId,
+                        variantId: (savedVariant as any)?.variantId || currentVariant.variantId,
+                    } as any,
                     message: `Variant saved successfully`,
                 }
             }
@@ -308,7 +313,12 @@ export const saveVariantMutationAtom = atom(
             set(clearLocalCustomPropsForRevisionAtomFamily(variantId))
             return {
                 success: true,
-                variant: savedVariant,
+                // No revision swap detected; keep the current revision id stable for callers.
+                variant: {
+                    ...(savedVariant as any),
+                    id: variantId,
+                    variantId: (savedVariant as any)?.variantId || currentVariant.variantId,
+                } as any,
                 message: "Variant saved successfully",
             }
         } catch (error) {

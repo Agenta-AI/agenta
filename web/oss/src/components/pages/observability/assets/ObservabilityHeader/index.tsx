@@ -35,7 +35,6 @@ const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: 
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
 const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
-    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isScrolled, setIsScrolled] = useState(false)
 
     const {
@@ -47,13 +46,11 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         setTraceTabs,
         filters,
         setFilters,
-        sort,
         setSort,
         fetchTraces,
         fetchAnnotations,
         selectedRowKeys,
         setTestsetDrawerData,
-        editColumns,
         setEditColumns,
     } = useObservability()
     const queryClient = useAtomValue(queryClientAtom)

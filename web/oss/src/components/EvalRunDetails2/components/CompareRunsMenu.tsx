@@ -336,7 +336,7 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                     const createdLabel = item.createdAt
                         ? dayjs(item.createdAt).format("DD MMM YYYY")
                         : ""
-                    const resolvedTestsetNames =
+                    const _resolvedTestsetNames =
                         item.testsetNames.length > 0
                             ? item.testsetNames
                             : item.structure.testsetIds

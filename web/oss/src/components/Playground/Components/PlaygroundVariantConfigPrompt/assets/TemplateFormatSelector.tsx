@@ -1,28 +1,29 @@
 import {useMemo} from "react"
 
+import clsx from "clsx"
 import {useAtom} from "jotai"
 
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
+import {
+    promptTemplateFormatAtomFamily,
+    type PromptTemplateFormat,
+} from "@/oss/components/Playground/state/atoms"
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import type {
     BaseOption,
     OptionGroup,
     SelectOptions,
     StringMetadata,
 } from "@/oss/lib/shared/variant/genericTransformer/types"
-import {
-    promptTemplateFormatAtomFamily,
-    type PromptTemplateFormat,
-} from "@/oss/components/Playground/state/atoms"
+
 import SimpleDropdownSelect from "../../PlaygroundVariantPropertyControl/assets/SimpleDropdownSelect"
-import clsx from "clsx"
 
 interface TemplateFormatSelectorProps {
     variantId: string
     disabled?: boolean
 }
 
-type TemplateOption = {
+interface TemplateOption {
     value: PromptTemplateFormat
     label: string
 }

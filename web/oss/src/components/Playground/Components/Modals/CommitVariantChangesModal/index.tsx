@@ -7,13 +7,13 @@ import {Resizable} from "react-resizable"
 
 import {message} from "@/oss/components/AppMessageContext"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {
     revisionListAtom,
     saveVariantMutationAtom,
     selectedVariantsAtom,
     variantByRevisionIdAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
+import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 import {createVariantMutationAtom} from "../../../state/atoms/variantCrudMutations"
@@ -60,6 +60,11 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
     const onClose = useCallback(() => {
         onCancel?.({} as any)
+        // Always clear swap waiters when closing to avoid getting stuck
+        // if the expected selection change never happens.
+        setWaitForRevisionId(undefined)
+        setWaitForVariantId(undefined)
+        setIsMutating(false)
         setSelectedCommitType({
             type: "version",
         })
@@ -194,6 +199,9 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     )
 
     const onSaveVariantChanges = useCallback(async () => {
+        let nextWaitForRevisionId: string | undefined
+        let nextWaitForVariantId: string | undefined
+
         try {
             setIsMutating(true)
 
@@ -215,6 +223,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
                     // Wait for the selected revision to reflect the new revision id
                     if (result.variant?.id) {
+                        nextWaitForRevisionId = result.variant.id
                         setWaitForRevisionId(result.variant.id)
                     }
                 }
@@ -249,6 +258,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
                     // Wait for the selected revision to belong to the newly created variant id
                     if (newVariantId) {
+                        nextWaitForVariantId = newVariantId
                         setWaitForVariantId(newVariantId)
                     }
                 }
@@ -259,7 +269,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         } finally {
             // Only close immediately if we're not waiting for the UI to reflect the swap
             // (Keep isMutating true while waiting to prevent interactions)
-            if (!waitForRevisionId && !waitForVariantId) {
+            if (!nextWaitForRevisionId && !nextWaitForVariantId) {
                 setIsMutating(false)
                 onClose()
             }
@@ -274,8 +284,6 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         variantId,
         commitType,
         handleDeployAfterCommit,
-        waitForRevisionId,
-        waitForVariantId,
         onClose,
     ])
 

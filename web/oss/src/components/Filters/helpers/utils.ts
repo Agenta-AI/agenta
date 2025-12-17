@@ -1,20 +1,11 @@
 import {TreeSelectProps} from "antd"
-import {
-    CustomValueType,
-    FilterGroup,
-    FilterLeaf,
-    FilterMenuNode,
-    RowValidation,
-    SelectOption,
-} from "../types"
-import {
-    getOperator,
-    valueShapeFor,
-} from "@/oss/components/pages/observability/assets/filters/operatorRegistry"
-import {FilterItem} from "../types"
-import {Filter, FilterConditions} from "@/oss/lib/Types"
+
+import {getOperator} from "@/oss/components/pages/observability/assets/filters/operatorRegistry"
+import {FilterConditions} from "@/oss/lib/Types"
+
 import {FieldConfig} from "../../pages/observability/assets/filters/fieldAdapter"
-import {normalizeFilter, toUIValue} from "../../pages/observability/assets/filters/valueCodec"
+import {FilterItem} from "../types"
+import {CustomValueType, FilterGroup, FilterLeaf, FilterMenuNode, SelectOption} from "../types"
 
 export const CUSTOM_FIELD_VALUE = "__custom__"
 

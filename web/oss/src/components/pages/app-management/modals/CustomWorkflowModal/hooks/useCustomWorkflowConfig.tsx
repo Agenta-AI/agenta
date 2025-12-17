@@ -10,13 +10,13 @@ import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {removeTrailingSlash} from "@/oss/lib/shared/variant"
 import {createAndStartTemplate, ServiceType} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
+import {appCreationStatusAtom} from "@/oss/state/appCreation/status"
 import {
     openCustomWorkflowModalAtom,
     closeCustomWorkflowModalAtom,
 } from "@/oss/state/customWorkflow/modalAtoms"
 import {customWorkflowValuesAtomFamily} from "@/oss/state/customWorkflow/modalAtoms"
 import {useProfileData} from "@/oss/state/profile"
-import {appCreationStatusAtom} from "@/oss/state/appCreation/status"
 
 import {useCustomWorkflowConfigProps} from "./types"
 

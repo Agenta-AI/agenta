@@ -1,9 +1,12 @@
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import React, {useEffect, useMemo} from "react"
+
+import clsx from "clsx"
+
+import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+
 import {LoadEvaluatorPresetProps} from "./assets/types"
 import LoadEvaluatorPresetContent from "./components/LoadEvaluatorPresetContent"
 import LoadEvaluatorPresetFooter from "./components/LoadEvaluatorPresetFooter"
-import clsx from "clsx"
 
 const LoadEvaluatorPreset = ({
     settingsPresets,

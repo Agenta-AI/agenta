@@ -64,7 +64,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
     // Optimized state management with atoms
     const [searchTerm, setSearchTerm] = useAtom(deploymentSearchAtom)
     // Keep some local state for now to avoid breaking existing functionality
-    const [selectedRevisionRow, setSelectedRevisionRow] = useAtom(selectedRevisionRowAtom)
+    const [, setSelectedRevisionRow] = useAtom(selectedRevisionRowAtom)
     const [selectedVariantRevisionIdToRevert, setSelectedVariantRevisionIdToRevert] = useAtom(
         selectedVariantRevisionIdToRevertAtom,
     )
