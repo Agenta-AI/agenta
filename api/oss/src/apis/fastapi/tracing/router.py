@@ -167,7 +167,7 @@ class TracingRouter:
         )
 
         self.router.add_api_route(
-            "/sessions",
+            "/sessions/query",
             self.list_sessions,
             methods=["POST"],
             operation_id="list_sessions",
@@ -177,7 +177,7 @@ class TracingRouter:
         )
 
         self.router.add_api_route(
-            "/users",
+            "/users/query",
             self.list_users,
             methods=["POST"],
             operation_id="list_users",

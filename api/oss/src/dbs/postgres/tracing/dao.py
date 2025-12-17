@@ -1157,12 +1157,12 @@ class TracingDAO(TracingDAOInterface):
                 # Select distinct session IDs from JSONB
                 stmt = (
                     select(
-                        distinct(SpanDBE.attributes["ag.session.id"].as_string()).label(
+                        distinct(SpanDBE.attributes["ag"]["session"]["id"].as_string()).label(
                             "session_id"
                         )
                     )
                     .filter(SpanDBE.project_id == project_id)
-                    .filter(SpanDBE.attributes.has_key("ag.session.id"))
+                    .filter(SpanDBE.attributes["ag"]["session"].has_key("id"))
                 )
 
                 # Apply windowing
@@ -1208,12 +1208,12 @@ class TracingDAO(TracingDAOInterface):
                 # Select distinct user IDs from JSONB
                 stmt = (
                     select(
-                        distinct(SpanDBE.attributes["ag.user.id"].as_string()).label(
+                        distinct(SpanDBE.attributes["ag"]["user"]["id"].as_string()).label(
                             "user_id"
                         )
                     )
                     .filter(SpanDBE.project_id == project_id)
-                    .filter(SpanDBE.attributes.has_key("ag.user.id"))
+                    .filter(SpanDBE.attributes["ag"]["user"].has_key("id"))
                 )
 
                 # Apply windowing
