@@ -112,7 +112,7 @@ response = requests.post(
         "Content-Type": "application/json",
         "Authorization": f"ApiKey {os.environ['AGENTA_API_KEY']}",
         # highlight-next-line
-        "Baggage": f"ag.session.id={session_id},ag.session.type=chat,ag.actor.id={user_id},ag.actor.type=user"
+        "Baggage": f"ag.session.id={session_id},ag.user.id={user_id}"
     },
     json={
         "environment": "development",
@@ -124,4 +124,4 @@ response = requests.post(
 )
 ```
 
-All requests with the same session ID will be grouped together in the observability dashboard. You can also track actors (users) to see who is interacting with your application. 
+All requests with the same session ID will be grouped together in the observability dashboard. You can also track users to see who is interacting with your application. 

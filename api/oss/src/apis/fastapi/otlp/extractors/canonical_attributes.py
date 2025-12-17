@@ -23,7 +23,7 @@ class SpanFeatures(BaseModel):
     flags: Dict[str, Any] = Field(default_factory=dict)
     tags: Dict[str, Any] = Field(default_factory=dict)
     session: Dict[str, Any] = Field(default_factory=dict)
-    actor: Dict[str, Any] = Field(default_factory=dict)
+    user: Dict[str, Any] = Field(default_factory=dict)
 
 
 class EventData(BaseModel):

@@ -58,7 +58,7 @@ OPENINFERENCE_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
     ("reranker.top_k", "ag.meta.reranker.top_k"),
     # Session and User
     ("session.id", "ag.session.id"),
-    ("user.id", "ag.actor.id"),
+    ("user.id", "ag.user.id"),
     ("tag.tags", "ag.meta.tags"),
     # Tool Definition/Execution (assuming these are on TOOL spans)
     ("tool.description", "ag.meta.tool.description"),

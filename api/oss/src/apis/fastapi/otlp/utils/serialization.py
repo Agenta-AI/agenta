@@ -14,7 +14,7 @@ NAMESPACE_PREFIX_FEATURE_MAPPING = {
     "ag.links.": "links",
     "ag.exception.": "exception",
     "ag.session.": "session",
-    "ag.actor.": "actor",
+    "ag.user.": "user",
 }
 
 
