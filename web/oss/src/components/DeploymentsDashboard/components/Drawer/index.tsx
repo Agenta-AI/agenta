@@ -134,7 +134,7 @@ const DeploymentsDrawerContent = ({
             </div>
             {drawerVariantId && (
                 <>
-                    <Divider type="vertical" className="h-full m-0" />
+                    <Divider orientation="vertical" className="h-full m-0" />
                     <DrawerDetails revisionId={drawerVariantId} />
                 </>
             )}

@@ -412,7 +412,7 @@ const LoadTestsetModalContent = ({
                 />
             </div>
 
-            <Divider type="vertical" className="m-0 h-full" />
+            <Divider orientation="vertical" className="m-0 h-full" />
 
             <div className="flex flex-col gap-4 flex-1 overflow-x-auto">
                 <div className="flex items-start justify-between gap-4">

@@ -134,7 +134,7 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
                 </Button>
             </div>
 
-            <Divider className="m-0" type="horizontal" />
+            <Divider className="m-0" orientation="horizontal" />
 
             <div className="max-h-64 overflow-y-auto flex flex-col p-1">
                 {filteredToolGroups.length > 0 ? (
