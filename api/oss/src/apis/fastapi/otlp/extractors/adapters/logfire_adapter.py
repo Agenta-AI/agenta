@@ -19,7 +19,6 @@ GENAI_SEMCONV_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
     # Core Data
     ("gen_ai.request.model", "ag.meta.request.model"),
     ("gen_ai.conversation.id", "ag.session.id"),
-    ("gen_ai.agent.id", "ag.user.id"),
     ("gen_ai.output.type", "ag.meta.output.type"),
     ("gen_ai.request.max_tokens", "ag.meta.request.max_tokens"),
     ("gen_ai.request.temperature", "ag.meta.request.temperature"),
