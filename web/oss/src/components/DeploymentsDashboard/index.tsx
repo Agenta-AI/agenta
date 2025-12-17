@@ -64,7 +64,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
     // Optimized state management with atoms
     const [searchTerm, setSearchTerm] = useAtom(deploymentSearchAtom)
     // Keep some local state for now to avoid breaking existing functionality
-    const [selectedRevisionRow, setSelectedRevisionRow] = useAtom(selectedRevisionRowAtom)
+    const [, setSelectedRevisionRow] = useAtom(selectedRevisionRowAtom)
     const [selectedVariantRevisionIdToRevert, setSelectedVariantRevisionIdToRevert] = useAtom(
         selectedVariantRevisionIdToRevertAtom,
     )
@@ -81,7 +81,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
     // Deep-link handling moved to DeploymentsDrawerWrapper
 
     return (
-        <Space direction="vertical" size={24}>
+        <Space orientation="vertical" size={24}>
             <Flex align="center" justify="space-between">
                 <Typography.Text className={classes.title}>
                     {envRevisions?.name || selectedEnvName}

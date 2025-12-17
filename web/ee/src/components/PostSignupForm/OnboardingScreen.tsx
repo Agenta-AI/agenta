@@ -9,6 +9,7 @@ import {
     SetupTracingModalContent,
     useStyles as useTracingStyles,
 } from "@/oss/components/pages/app-management/modals/SetupTracingModal"
+import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {JSSTheme} from "@/oss/lib/Types"
 import {waitForWorkspaceContext, buildPostLoginPath} from "@/oss/state/url/postLoginRedirect"
@@ -111,6 +112,7 @@ export const OnboardingScreen = () => {
     const [view, setView] = useState<ViewState>("selection")
     const router = useRouter()
     const posthog = usePostHogAg()
+    const _url = useURL() // Keep hook call for potential future use
 
     const handleSelection = async (selection: "trace" | "eval" | "test_prompt") => {
         posthog?.capture?.("onboarding_selection_v1", {

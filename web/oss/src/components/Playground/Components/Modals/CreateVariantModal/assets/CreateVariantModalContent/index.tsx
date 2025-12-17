@@ -81,7 +81,8 @@ const CreateVariantModalContent = ({
                             validateStatus={
                                 nameExists
                                     ? "error"
-                                    : newVariantName.length > 0 && !isVariantNameInputValid(newVariantName)
+                                    : newVariantName.length > 0 &&
+                                        !isVariantNameInputValid(newVariantName)
                                       ? "error"
                                       : newVariantName.length === 0
                                         ? "success"
@@ -90,7 +91,8 @@ const CreateVariantModalContent = ({
                             help={
                                 nameExists
                                     ? "Variant name already exists"
-                                    : newVariantName.length > 0 && !isVariantNameInputValid(newVariantName)
+                                    : newVariantName.length > 0 &&
+                                        !isVariantNameInputValid(newVariantName)
                                       ? "Variant name must contain only letters, numbers, underscore, or dash"
                                       : ""
                             }

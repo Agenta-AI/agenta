@@ -1,12 +1,12 @@
 import {atom} from "jotai"
-import {selectAtom, atomFamily} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
 
 import {appsQueryAtom} from "@/oss/state/app/atoms/fetcher"
 import {orgsQueryAtom, selectedOrgQueryAtom} from "@/oss/state/org/selectors/org"
 import {profileQueryAtom} from "@/oss/state/profile/selectors/user"
 import {projectsQueryAtom} from "@/oss/state/project/selectors/project"
 
-import {variantsQueryAtom, variantRevisionsQueryFamily} from "./variant/atoms/fetcher"
+import {variantsQueryAtom} from "./variant/atoms/fetcher"
 
 // Centralised, reuse-safe status atoms. These are created once at module load
 // and can be imported anywhere without recreating selector instances each render.

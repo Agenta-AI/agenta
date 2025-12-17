@@ -251,32 +251,6 @@ const LegacyTestsetsCell = memo(({runId, projectURL}: MetadataCellProps) => {
     return <TestsetTagList ids={testsetIds} projectURL={projectURL ?? undefined} runId={runId} />
 })
 
-const ScenarioCountCell = ({runId}: MetadataCellProps) => {
-    const selection = useAtomValueWithSchedule(
-        useMemo(
-            () =>
-                previewRunMetricStatsSelectorFamily({
-                    runId,
-                    metricKey: "attributes.ag.metrics.tokens.cumulative.total",
-                }),
-            [runId],
-        ),
-        {priority: LOW_PRIORITY},
-    )
-    if (selection.state === "loading") {
-        return <Typography.Text type="secondary">…</Typography.Text>
-    }
-    if (selection.state === "hasError") {
-        return <Typography.Text type="secondary">—</Typography.Text>
-    }
-    const count = selection.stats?.count
-    return (
-        <Typography.Text>
-            {typeof count === "number" ? count.toLocaleString() : "—"}
-        </Typography.Text>
-    )
-}
-
 const formatCurrency = (value: number | undefined | null) => {
     if (typeof value !== "number" || !Number.isFinite(value)) return "—"
     return new Intl.NumberFormat(undefined, {style: "currency", currency: "USD"}).format(value)
@@ -314,7 +288,7 @@ const extractTopCategories = (stats: BasicStats | undefined, limit = 3) => {
         .slice(0, limit)
         .map((entry) => ({
             label: formatCategoryLabel(entry.label),
-            count: Number(entry.value) ?? 0,
+            count: Number(entry.value) || 0,
         }))
 }
 

@@ -7,13 +7,12 @@ import {Resizable} from "react-resizable"
 
 import {message} from "@/oss/components/AppMessageContext"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {
     revisionListAtom,
     saveVariantMutationAtom,
     selectedVariantsAtom,
-    variantByRevisionIdAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
+import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 import {createVariantMutationAtom} from "../../../state/atoms/variantCrudMutations"
@@ -45,9 +44,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
     // Track loading state for mutations
     const [isMutating, setIsMutating] = useState(false)
-    // Defer closing the modal until the UI actually swaps to target
+    // Wait for state to settle before closing
     const [waitForRevisionId, setWaitForRevisionId] = useState<string | undefined>(undefined)
-    const [waitForVariantId, setWaitForVariantId] = useState<string | undefined>(undefined)
 
     const [selectedCommitType, setSelectedCommitType] = useState<SelectedCommitType>({
         type: "version",
@@ -60,6 +58,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
     const onClose = useCallback(() => {
         onCancel?.({} as any)
+        setIsMutating(false)
+        setWaitForRevisionId(undefined)
         setSelectedCommitType({
             type: "version",
         })
@@ -68,12 +68,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         setSelectedEnvironment(null)
     }, [onCancel])
 
-    // Observe current selected revision(s) to know when swap completes
+    // Observe current selected revision(s) to know when state settles
     const selectedRevisionIds = useAtomValue(selectedVariantsAtom)
-    const currentSelectedRevisionId = selectedRevisionIds?.[0] || ""
-    const currentSelectedVariant = useAtomValue(
-        variantByRevisionIdAtomFamily(currentSelectedRevisionId),
-    )
 
     // Track viewport to clamp the resizable modal
     useEffect(() => {
@@ -114,28 +110,16 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         }))
     }, [viewport, minConstraints, computedMaxWidth, computedMaxHeight])
 
-    // Close when the swap we wait for is satisfied
+    // Close when the state settles with the new revision
     useEffect(() => {
-        if (waitForRevisionId && selectedRevisionIds?.includes(waitForRevisionId)) {
+        if (!waitForRevisionId) return
+
+        // Wait for the state to reflect the new revision
+        if (selectedRevisionIds?.includes(waitForRevisionId)) {
             setIsMutating(false)
             onClose()
-            setWaitForRevisionId(undefined)
-        } else if (
-            waitForVariantId &&
-            currentSelectedVariant?._parentVariant?.id &&
-            currentSelectedVariant?._parentVariant?.id === waitForVariantId
-        ) {
-            setIsMutating(false)
-            onClose()
-            setWaitForVariantId(undefined)
         }
-    }, [
-        selectedRevisionIds,
-        currentSelectedVariant?._parentVariant?.id,
-        waitForRevisionId,
-        waitForVariantId,
-        onClose,
-    ])
+    }, [selectedRevisionIds, waitForRevisionId, onClose])
 
     const handleDeployAfterCommit = useCallback(
         async (resultVariant?: any) => {
@@ -144,21 +128,15 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             }
 
             try {
-                const variantLike = resultVariant || currentSelectedVariant || {}
                 const variantIdForDeployment =
-                    variantLike?.variant_id ||
-                    variantLike?.variantId ||
-                    variantLike?._parentVariant ||
-                    variant?.variantId ||
-                    currentSelectedVariant?._parentVariant ||
-                    currentSelectedVariant?.variantId
+                    resultVariant?.variant_id ||
+                    resultVariant?.variantId ||
+                    variant?.variantId
 
                 const revisionIdForDeployment =
                     resultVariant?.id ||
                     resultVariant?.revision_id ||
                     waitForRevisionId ||
-                    waitForVariantId ||
-                    currentSelectedVariant?.id ||
                     variantId
 
                 if (!variantIdForDeployment) {
@@ -180,17 +158,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 message.error("Failed to deploy to the selected environment.")
             }
         },
-        [
-            shouldDeploy,
-            selectedEnvironment,
-            publish,
-            note,
-            currentSelectedVariant,
-            variant,
-            waitForRevisionId,
-            waitForVariantId,
-            variantId,
-        ],
+        [shouldDeploy, selectedEnvironment, publish, note, variant, variantId, waitForRevisionId],
     )
 
     const onSaveVariantChanges = useCallback(async () => {
@@ -205,7 +173,6 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 })
 
                 if (result?.success) {
-                    // Reset commit-ready state after successful commit
                     onSuccess?.({
                         revisionId: result.variant?.id,
                         variantId: result.variant?.variantId,
@@ -213,9 +180,10 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
                     await handleDeployAfterCommit(result.variant)
 
-                    // Wait for the selected revision to reflect the new revision id
+                    // Wait for the state to settle with the new revision
                     if (result.variant?.id) {
                         setWaitForRevisionId(result.variant.id)
+                        return // Don't close yet, let useEffect handle it
                     }
                 }
             } else if (selectedCommitType?.type === "variant" && selectedCommitType?.name) {
@@ -226,43 +194,39 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                     note,
                     callback: (newVariant, state) => {
                         // For new variant creation, switch to display ONLY the newly created variant
-                        // This is different from revision creation where we stay on the same variant
-                        state.selected = [newVariant.id]
-                        state.variants = [newVariant.id]
+                        // Note: state is a mock object created by the mutation atom, not the full PlaygroundState
+                        ;(state as any).selected = [newVariant.id]
+                        ;(state as any).variants = [newVariant.id]
                     },
                 })
 
                 if (result?.success) {
-                    // For variant creation, we get a variant object back, not a revision
-                    // The variant creation atom handles finding the matching revision and updating the URL
-                    // We just need to pass the variant ID to the onSuccess callback
-                    const newVariantId = result.variant?.variant_id
+                    const newVariantId = result.variant?.variantId
+                    const newRevisionId = result.variant?.id
 
-                    // The onSuccess callback doesn't need a revisionId for variant creation
-                    // since the variant creation atom handles the UI switch via URL update
                     onSuccess?.({
-                        revisionId: undefined, // Will be determined by variant creation atom
+                        revisionId: newRevisionId,
                         variantId: newVariantId,
                     })
 
                     await handleDeployAfterCommit(result.variant)
 
-                    // Wait for the selected revision to belong to the newly created variant id
-                    if (newVariantId) {
-                        setWaitForVariantId(newVariantId)
+                    // Wait for the state to settle with the new revision (same as version commits)
+                    if (newRevisionId) {
+                        setWaitForRevisionId(newRevisionId)
+                        return // Don't close yet, let useEffect handle it
                     }
                 }
             }
+
+            // If we get here without setting a wait state, close immediately
+            setIsMutating(false)
+            onClose()
         } catch (error) {
             console.error("Failed to commit variant changes:", error)
             message.error("We couldn't save your changes. Please try again.")
-        } finally {
-            // Only close immediately if we're not waiting for the UI to reflect the swap
-            // (Keep isMutating true while waiting to prevent interactions)
-            if (!waitForRevisionId && !waitForVariantId) {
-                setIsMutating(false)
-                onClose()
-            }
+            setIsMutating(false)
+            onClose()
         }
     }, [
         selectedCommitType,
@@ -274,8 +238,6 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         variantId,
         commitType,
         handleDeployAfterCommit,
-        waitForRevisionId,
-        waitForVariantId,
         onClose,
     ])
 
@@ -337,7 +299,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 maxWidth: maxConstraints[0],
             }}
             styles={{
-                content: {
+                container: {
                     display: "flex",
                     flexDirection: "column",
                     height: "100%",

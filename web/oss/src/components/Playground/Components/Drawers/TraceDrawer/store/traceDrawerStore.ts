@@ -1,7 +1,7 @@
 import {atom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 import {atomWithImmer} from "jotai-immer"
 import {atomWithQuery} from "jotai-tanstack-query"
-import {atomWithStorage} from "jotai/utils"
 
 import {attachAnnotationsToTraces} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
@@ -18,7 +18,7 @@ import {SpanLink, TracesResponse} from "@/oss/services/tracing/types"
 import {getOrgValues} from "@/oss/state/org"
 
 export type TraceDrawerSpanLink = SpanLink & {key?: string}
-type AnnotationLinkTarget = {
+interface AnnotationLinkTarget {
     trace_id: string
     span_id: string
     key?: string
@@ -532,7 +532,7 @@ export const traceDrawerIsLinkedViewAtom = atom((get) => {
 // ------------------------------------------------------------------
 
 const getReferences = (trace: TracesWithAnnotations) => {
-    const allReferences: Array<{key?: string; value: Record<string, any>}> = []
+    const allReferences: {key?: string; value: Record<string, any>}[] = []
 
     const traverseObject = (obj: Record<string, any>, path = "") => {
         if (!obj || typeof obj !== "object") return
@@ -658,7 +658,7 @@ export const linksAndReferencesAtom = atom<{
         []) as AnnotationDto[]
 
     annotations.forEach((annotation) => {
-        const annotationLinks = Object.values(annotation?.links || {}) as Array<Record<string, any>>
+        const annotationLinks = Object.values(annotation?.links || {}) as Record<string, any>[]
         const annotationKey = annotation?.meta?.name || annotation?.id
         const annotationType = annotation?.origin || annotation?.kind
 
