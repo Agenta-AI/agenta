@@ -277,7 +277,7 @@ const NewEvaluationModalInner = ({
                 return false
             }
 
-            const variantInputs = revisions
+            const _variantInputs = revisions
                 .map((rev) => {
                     const store = getDefaultStore()
                     const flags = store.get(variantFlagsAtomFamily({revisionId: rev.id})) as any

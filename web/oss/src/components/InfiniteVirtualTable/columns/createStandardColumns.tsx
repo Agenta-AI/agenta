@@ -249,7 +249,11 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
             }
 
             return (
-                <Dropdown trigger={["click"]} overlayStyle={{width: 200}} menu={{items: menuItems}}>
+                <Dropdown
+                    trigger={["click"]}
+                    styles={{root: {width: 200}}}
+                    menu={{items: menuItems}}
+                >
                     <Tooltip title="Actions">
                         <Button
                             onClick={(e) => e.stopPropagation()}

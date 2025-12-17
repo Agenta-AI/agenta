@@ -5,19 +5,19 @@ import {Button, Popover, Space, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
+import EvaluatorDetailsPopover from "@/oss/components/pages/observability/drawer/components/EvaluatorDetailsPopover"
 import CustomAntdTag from "@/oss/components/ui/CustomAntdTag"
 import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {projectIdAtom} from "@/oss/state/project"
-import {Evaluator} from "@/oss/lib/Types"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
+import {Evaluator} from "@/oss/lib/Types"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {useStyles} from "./assets/styles"
 import NoTraceAnnotations from "./components/NoTraceAnnotations"
-import EvaluatorDetailsPopover from "@/oss/components/pages/observability/drawer/components/EvaluatorDetailsPopover"
 
 interface TraceAnnotationsProps {
     annotations: AnnotationDto[]
@@ -25,13 +25,13 @@ interface TraceAnnotationsProps {
 
 type AnnotationCategory = "metric" | "note" | "extra"
 
-type AnnotationChipEntry = {
+interface AnnotationChipEntry {
     annotations: {value: any; user: string}[]
     average?: number
     category: AnnotationCategory
 }
 
-type AnnotationGroup = {
+interface AnnotationGroup {
     refId: string
     evaluator?: Evaluator | EvaluatorPreviewDto | null
     metrics: Record<string, AnnotationChipEntry>
@@ -99,7 +99,7 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
             }
 
             const outputs = (annotation.data?.outputs || {}) as Record<string, any>
-            const categories: Array<[AnnotationCategory, Record<string, any>]> = [
+            const categories: [AnnotationCategory, Record<string, any>][] = [
                 ["note", outputs.notes || {}],
                 ["extra", outputs.extra || {}],
             ]

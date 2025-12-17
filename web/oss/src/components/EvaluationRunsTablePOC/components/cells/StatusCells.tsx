@@ -1,7 +1,8 @@
 import {Tooltip, Typography} from "antd"
 
-import type {EvaluationRunTableRow} from "../../types"
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
+
+import type {EvaluationRunTableRow} from "../../types"
 
 type AntBadgeStatus = "success" | "processing" | "default" | "error" | "warning"
 

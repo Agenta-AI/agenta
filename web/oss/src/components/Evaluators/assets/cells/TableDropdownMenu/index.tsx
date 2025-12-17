@@ -1,7 +1,7 @@
 import {memo, useMemo} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
-import {GearSix, PencilSimpleLine, Trash} from "@phosphor-icons/react"
+import {PencilSimpleLine, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
 
 import {TableDropdownMenuProps} from "./types"
@@ -45,7 +45,7 @@ const TableDropdownMenu = ({
     }, [category, record])
 
     return (
-        <Dropdown trigger={["click"]} menu={{items}} overlayStyle={{width: 150}}>
+        <Dropdown trigger={["click"]} menu={{items}} styles={{root: {width: 150}}}>
             <Button
                 type="text"
                 icon={<MoreOutlined />}

@@ -118,7 +118,7 @@ const DeploymentDrawer = ({
                         </Space>
 
                         {selectedEnvironment.deployed_variant_name && (
-                            <Space direction="horizontal">
+                            <Space orientation="horizontal">
                                 <Tooltip
                                     title={
                                         isDemo()

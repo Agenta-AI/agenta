@@ -2,9 +2,9 @@ import {useEffect, useMemo} from "react"
 
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
+import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
-import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 
 import {revisionListAtom, variantByRevisionIdAtomFamily} from "../../state/atoms"
 

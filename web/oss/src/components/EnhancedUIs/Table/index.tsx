@@ -1,4 +1,5 @@
 import {useMemo, useCallback, useRef, type RefObject, forwardRef, JSX} from "react"
+
 import {DownOutlined} from "@ant-design/icons"
 import {Table} from "antd"
 import {ColumnsType} from "antd/es/table"
@@ -33,7 +34,7 @@ const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: bo
 
     // Container ref used to measure available space for optional virtualization
     const containerRef = useRef<HTMLDivElement | null>(null)
-    const {height: containerHeight, width: containerWidth} = useResizeObserver({
+    const {height: containerHeight} = useResizeObserver({
         // Always pass the ref object; the hook handles `current` being null
         ref: containerRef as RefObject<HTMLElement>,
         box: "border-box",
