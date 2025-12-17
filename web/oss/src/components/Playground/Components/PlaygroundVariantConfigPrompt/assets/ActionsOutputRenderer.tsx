@@ -202,7 +202,7 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
                         onOpenChange={setIsDropdownOpen}
                         trigger={["click"]}
                         menu={{items: []}}
-                        dropdownRender={() => dropdownContent}
+                        popupRender={() => dropdownContent}
                         placement="bottomLeft"
                     >
                         <AddButton
