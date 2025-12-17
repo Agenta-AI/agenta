@@ -55,7 +55,7 @@ def example_with_baggage_headers():
     import requests
 
     headers = {
-        "Authorization": "Bearer your-api-key",
+        "Authorization": "ApiKey your-api-key",
         "Content-Type": "application/json",
         # Session and user information in Baggage header
         "Baggage": "ag.session.id=chat-session-123,ag.user.id=user-456",
