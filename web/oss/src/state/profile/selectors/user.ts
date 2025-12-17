@@ -1,8 +1,7 @@
+import type {AxiosError} from "axios"
 import {eagerAtom} from "jotai-eager"
 import {atomWithQuery} from "jotai-tanstack-query"
 import Router from "next/router"
-
-import type {AxiosError} from "axios"
 
 import {User} from "@/oss/lib/Types"
 import {fetchProfile} from "@/oss/services/api"

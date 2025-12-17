@@ -8,6 +8,7 @@ import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
 import useURL from "@/oss/hooks/useURL"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {ListAppsItem} from "@/oss/lib/Types"
+
 import {getAppTypeIcon} from "../../prompts/assets/iconHelpers"
 
 interface AppTableProps {

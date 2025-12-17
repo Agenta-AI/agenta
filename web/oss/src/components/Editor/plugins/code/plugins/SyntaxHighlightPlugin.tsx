@@ -13,7 +13,6 @@ import {
     NodeKey,
     $getNodeByKey,
     RangeSelection,
-    $getRoot,
     COMMAND_PRIORITY_LOW,
 } from "lexical"
 
@@ -459,13 +458,11 @@ export function SyntaxHighlightPlugin({
                 }
 
                 // Check if any bracket-related nodes were mutated
-                let shouldAnalyzeBrackets = false
                 for (const [nodeKey, mutation] of mutatedNodes) {
                     log(`  → Node ${nodeKey}: ${mutation}`)
 
                     // If a node was destroyed, we need to re-analyze brackets
                     if (mutation === "destroyed") {
-                        shouldAnalyzeBrackets = true
                         log("🚨 Node destroyed - triggering bracket re-analysis")
                     }
                 }

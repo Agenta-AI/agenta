@@ -14,7 +14,6 @@ import {waitForValidURL} from "@/oss/state/url"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 
-import {getEnv} from "./dynamicEnv"
 import {getErrorMessage} from "./errorHandler"
 import {isEE} from "./isEE"
 
@@ -480,7 +479,7 @@ export const convertToStringOrJson = (value: any) => {
 }
 
 // Helper function to convert base64 data to object URL
-export type FileAttachment = {
+export interface FileAttachment {
     filename: string
     data: string
     format?: string

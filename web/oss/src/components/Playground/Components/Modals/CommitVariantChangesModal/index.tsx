@@ -7,13 +7,13 @@ import {Resizable} from "react-resizable"
 
 import {message} from "@/oss/components/AppMessageContext"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {
     revisionListAtom,
     saveVariantMutationAtom,
     selectedVariantsAtom,
     variantByRevisionIdAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
+import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 import {createVariantMutationAtom} from "../../../state/atoms/variantCrudMutations"

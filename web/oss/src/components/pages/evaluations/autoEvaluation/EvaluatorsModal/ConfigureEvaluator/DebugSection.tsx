@@ -745,7 +745,7 @@ const DebugSection = ({
         [selectedTestset, selectedTestcase.testcase],
     )
 
-    const variantOutputEditorKey = useMemo(
+    const _variantOutputEditorKey = useMemo(
         () =>
             `variant-output-${selectedVariant?.variantId ?? "none"}-${JSON.stringify(
                 selectedTestcase.testcase ?? {},
@@ -753,7 +753,7 @@ const DebugSection = ({
         [selectedVariant?.variantId, selectedTestcase.testcase],
     )
 
-    const traceEditorKey = useMemo(
+    const _traceEditorKey = useMemo(
         () =>
             `trace-${selectedVariant?.variantId ?? "none"}-${JSON.stringify(
                 traceTree.trace ?? {},
@@ -761,7 +761,7 @@ const DebugSection = ({
         [selectedVariant?.variantId, traceTree.trace],
     )
 
-    const evaluatorOutputEditorKey = useMemo(
+    const _evaluatorOutputEditorKey = useMemo(
         () =>
             `evaluator-output-${selectedEvaluator.key}-${JSON.stringify(
                 selectedTestcase.testcase ?? {},

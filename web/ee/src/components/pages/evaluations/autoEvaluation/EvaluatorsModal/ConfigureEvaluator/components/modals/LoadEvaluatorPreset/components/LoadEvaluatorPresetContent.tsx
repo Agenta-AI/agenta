@@ -1,8 +1,11 @@
 import React, {useMemo, useState} from "react"
-import {LoadEvaluatorPresetContentProps} from "../assets/types"
+
 import {Menu, Divider, Typography, Input} from "antd"
+
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {SettingsPreset} from "@/oss/lib/Types"
+
+import {LoadEvaluatorPresetContentProps} from "../assets/types"
 
 const LoadEvaluatorPresetContent = ({
     settingsPresets,

@@ -4,9 +4,9 @@ import {Card, Dropdown, Button, Typography, Tag} from "antd"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
+import useURL from "@/oss/hooks/useURL"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {JSSTheme, ListAppsItem} from "@/oss/lib/Types"
-import useURL from "@/oss/hooks/useURL"
 
 const {Text} = Typography
 

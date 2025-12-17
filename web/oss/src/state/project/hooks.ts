@@ -7,7 +7,8 @@ import {projectsQueryAtom} from "./selectors/project"
 import {cacheLastUsedProjectId, projectAtom, projectsAtom, projectIdAtom} from "./selectors/project"
 
 export const useProjectData = () => {
-    const [{data: projects, isPending, isLoading, refetch}] = useAtom(projectsQueryAtom)
+    const [{data: projects, isPending: _isPending, isLoading, refetch: _refetch}] =
+        useAtom(projectsQueryAtom)
     const project = useAtomValue(projectAtom)
     const projectId = useAtomValue(projectIdAtom)
     const isProjectId = !!projectId

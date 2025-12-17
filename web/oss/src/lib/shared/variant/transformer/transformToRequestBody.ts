@@ -483,7 +483,7 @@ export function toRequestBodyChat(args: {
         prompts,
         customProperties,
         appType,
-        variables,
+        variables: _variables,
         spec,
         routePath,
         revisionId,

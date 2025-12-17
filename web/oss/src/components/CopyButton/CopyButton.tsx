@@ -1,9 +1,9 @@
 import {ComponentProps, useState} from "react"
 
+import {Check, Copy} from "@phosphor-icons/react"
 import {Button, notification} from "antd"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {Check, Copy} from "@phosphor-icons/react"
 
 interface Props {
     text: string

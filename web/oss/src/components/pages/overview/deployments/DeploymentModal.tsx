@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback} from "react"
 
 import {Rocket} from "@phosphor-icons/react"
 import {Modal, Typography} from "antd"
@@ -44,7 +44,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const DeploymentModal = ({
     selectedEnvironment,
     selectedVariant,
-    loadEnvironments,
+    loadEnvironments: _loadEnvironments,
     setIsDeploymentModalOpen,
     ...props
 }: DeploymentModalProps) => {
