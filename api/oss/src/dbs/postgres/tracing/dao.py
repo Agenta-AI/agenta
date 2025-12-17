@@ -1138,7 +1138,7 @@ class TracingDAO(TracingDAOInterface):
 
         return buckets
 
-    ### SESSIONS AND ACTORS
+    ### SESSIONS AND USERS
 
     @suppress_exceptions(default=[])
     async def sessions(
