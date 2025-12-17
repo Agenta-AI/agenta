@@ -1,10 +1,10 @@
 import React, {useMemo} from "react"
 
-import {HomeFilled} from "@ant-design/icons"
 import {
     CaretDownIcon,
     FolderDashedIcon,
     FolderIcon,
+    HouseIcon,
     PencilSimpleLineIcon,
     SquaresFourIcon,
     TrashIcon,
@@ -157,7 +157,7 @@ const PromptsBreadcrumb = ({
                         type="link"
                         className={`w-5 h-5 m-0 ${classes.homeButton}`}
                         size="small"
-                        icon={<HomeFilled style={{fontSize: 16, color: "#BDC7D1"}} />}
+                        icon={<HouseIcon weight="fill" color={"#1C2C3D"} size={14} />}
                     />
                 ),
                 onClick: () => onFolderChange?.(null),

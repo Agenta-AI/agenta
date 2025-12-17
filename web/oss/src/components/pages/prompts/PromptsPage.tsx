@@ -25,7 +25,7 @@ import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreati
 import {useProfileData} from "@/oss/state/profile"
 
 import {getAppTypeIcon} from "./assets/iconHelpers"
-import {FolderTreeItem, FolderTreeNode, slugify} from "./assets/utils"
+import {FolderTreeItem, slugify} from "./assets/utils"
 import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
 import MoveFolderModal from "./modals/MoveFolderModal"
 import DeleteFolderModal from "./modals/DeleteFolderModal"
@@ -48,6 +48,7 @@ import {usePromptsColumns} from "./hooks/usePromptsColumns"
 import {PromptsTableSection} from "./components/PromptsTableSection"
 import {promptsDatasetStore, promptsTableMetaAtom} from "./store"
 import {PromptsTableRow} from "./types"
+import PageLayout from "../../PageLayout/PageLayout"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -778,11 +779,7 @@ const PromptsPage = () => {
     })
 
     return (
-        <div className="flex flex-col gap-4 grow w-full min-h-0 p-6">
-            <Title className="!m-0" level={2}>
-                Prompts
-            </Title>
-
+        <PageLayout className="grow min-h-0" title="Prompts">
             <PromptsBreadcrumb
                 foldersById={foldersById}
                 currentFolderId={currentFolderId}
@@ -886,7 +883,7 @@ const PromptsPage = () => {
 
             <DeleteAppModal />
             <EditAppModal />
-        </div>
+        </PageLayout>
     )
 }
 
