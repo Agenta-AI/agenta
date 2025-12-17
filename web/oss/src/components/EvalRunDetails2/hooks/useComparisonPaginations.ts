@@ -92,7 +92,20 @@ const useComparisonPaginations = ({compareSlots, pageSize}: UseComparisonPaginat
 
             // Create loadNextPage function that manipulates atoms directly via store
             const loadNextPage = () => {
-                const {paginationInfo, totalRows} = pagination
+                // Read fresh values from store at call time to avoid stale closures
+                const paginationInfoAtom =
+                    evaluationPreviewTableStore.atoms.paginationInfoAtomFamily({
+                        scopeId,
+                        pageSize,
+                    })
+                const combinedRowsAtom = evaluationPreviewTableStore.atoms.combinedRowsAtomFamily({
+                    scopeId,
+                    pageSize,
+                })
+
+                const paginationInfo = store.get(paginationInfoAtom)
+                const rows = store.get(combinedRowsAtom)
+                const totalRows = rows.length
 
                 if (
                     !paginationInfo.hasMore ||
