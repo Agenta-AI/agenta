@@ -1,18 +1,19 @@
 import {atom} from "jotai"
-import {runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
-import {isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
-import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
-import {playgroundLoadingAtom} from "@/oss/state/loadingSelectors"
-import {getCurrentRunId, totalCountFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
-import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
-import {evaluatorsQueryAtomFamily} from "@/oss/state/evaluators"
+
+import {activePreviewRunIdAtom} from "@/oss/components/EvalRunDetails2/atoms/run"
 import {
     ALLOWED_ONLINE_EVALUATOR_KEYS,
     ENABLE_CORRECT_ANSWER_KEY_FILTER,
 } from "@/oss/components/pages/evaluations/onlineEvaluation/constants"
 import {collectEvaluatorCandidates} from "@/oss/components/pages/evaluations/onlineEvaluation/utils/evaluatorDetails"
+import {isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
+import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import type {EvaluatorConfig} from "@/oss/lib/Types"
 import type {SimpleEvaluationPayload} from "@/oss/services/onlineEvaluations/api"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
+import {evaluatorsQueryAtomFamily} from "@/oss/state/evaluators"
+import {runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
+import {playgroundLoadingAtom} from "@/oss/state/loadingSelectors"
 
 // ********************************* PLAYGROUND ATOMS ********************************* //
 /**
@@ -44,9 +45,10 @@ export const isPlaygroundOnboardingRunableAtom = atom((get) => {
 // ********************************* ONLINE EVALUATION ATOMS ********************************* //
 
 export const isOnlineEvaluationScenarioAvailableAtom = atom((get) => {
-    const runId = getCurrentRunId()
-    const scenarioCount = get(totalCountFamily(runId))
-    return scenarioCount > 0
+    // Check if user is on an evaluation run page (has a run ID)
+    // This is sufficient for onboarding purposes
+    const runId = get(activePreviewRunIdAtom)
+    return !!runId
 })
 
 // This atom is used to determine if the user have evaluators available to run online evaluation
@@ -139,11 +141,11 @@ export const isHumanEvaluatorAvailableAtom = atom((get) => {
 
 // ********************************* GENERAL EVALUATION ATOMS ********************************* //
 export const isUserInRunPageAtom = atom((get) => {
-    const runId = getCurrentRunId()
+    const runId = get(activePreviewRunIdAtom)
     return !!runId
 })
 
-export type DemoOnlineEvaluationContext = {
+export interface DemoOnlineEvaluationContext {
     evaluation: SimpleEvaluationPayload
     evaluatorConfig: EvaluatorConfig
     queryId: string

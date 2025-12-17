@@ -1,8 +1,8 @@
 import {getDefaultStore} from "jotai"
-import {eagerAtom} from "jotai-eager"
 import {selectAtom} from "jotai/utils"
+import {eagerAtom} from "jotai-eager"
 
-import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
+import {previewEvalTypeAtom} from "@/oss/components/EvalRunDetails2/state/evalType"
 import {lastVisitedEvaluationAtom} from "@/oss/components/pages/evaluations/state/lastVisitedEvaluationAtom"
 import type {AppStateSnapshot, RouteLayer} from "@/oss/state/appState"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
@@ -10,6 +10,7 @@ import {selectedOrgAtom} from "@/oss/state/org/selectors/org"
 
 import {recentAppIdAtom} from "../app"
 import type {UserOnboardingStatus} from "../onboarding/types"
+
 import {resolveOnboardingSection} from "./resolveURLSection"
 
 export interface URLState {
@@ -195,7 +196,7 @@ const baseUrlLocationAtom = selectAtom(
 
 export const urlLocationAtom = eagerAtom<URLLocationState>((get) => {
     const location = get(baseUrlLocationAtom)
-    const evalType = get(evalTypeAtom)
+    const evalType = get(previewEvalTypeAtom)
     const lastVisitedEvaluation = get(lastVisitedEvaluationAtom)
 
     return {

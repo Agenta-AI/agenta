@@ -1,12 +1,12 @@
 import {getDefaultStore} from "jotai"
 
-import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
+import {previewEvalTypeAtom} from "@/oss/components/EvalRunDetails2/state/evalType"
 import {lastVisitedEvaluationAtom} from "@/oss/components/pages/evaluations/state/lastVisitedEvaluationAtom"
 
 import {ONBOARDING_SECTIONS, TOUR_STEP_KEY_MAPPER} from "../onboarding/assets/constants"
 import {UserOnboardingStatus} from "../onboarding/types"
 
-export type ResolveOnboardingSectionOptions = {
+export interface ResolveOnboardingSectionOptions {
     evalType?: string | null
     lastVisitedEvaluation?: string | null
 }
@@ -23,7 +23,7 @@ const resolveEvaluationSection = (
     }
 
     const store = getDefaultStore()
-    const evalType = options?.evalType ?? store.get(evalTypeAtom)
+    const evalType = options?.evalType ?? store.get(previewEvalTypeAtom)
     const lastVisited = options?.lastVisitedEvaluation ?? store.get(lastVisitedEvaluationAtom)
 
     if (evalType === "online" || lastVisited?.includes("online")) return "onlineEvaluation"
