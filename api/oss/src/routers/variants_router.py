@@ -348,7 +348,6 @@ async def get_variant_revisions(
     #     model=AppVariantRevision,
     #     is_list=True,
     # )
-    
     app_variant_revisions = None
 
     if app_variant_revisions is not None:
