@@ -168,9 +168,9 @@ class TracingRouter:
 
         self.router.add_api_route(
             "/sessions",
-            self.get_sessions,
+            self.list_sessions,
             methods=["POST"],
-            operation_id="get_sessions",
+            operation_id="list_sessions",
             status_code=status.HTTP_200_OK,
             response_model=SessionIdsResponse,
             response_model_exclude_none=True,
@@ -178,9 +178,9 @@ class TracingRouter:
 
         self.router.add_api_route(
             "/users",
-            self.get_users,
+            self.list_users,
             methods=["POST"],
-            operation_id="get_users",
+            operation_id="list_users",
             status_code=status.HTTP_200_OK,
             response_model=UserIdsResponse,
             response_model_exclude_none=True,
@@ -704,7 +704,7 @@ class TracingRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=SessionIdsResponse())
-    async def get_sessions(
+    async def list_sessions(
         self,
         request: Request,
         sessions_query_request: SessionsQueryRequest,
@@ -723,7 +723,7 @@ class TracingRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=UserIdsResponse())
-    async def get_users(
+    async def list_users(
         self,
         request: Request,
         users_query_request: UsersQueryRequest,

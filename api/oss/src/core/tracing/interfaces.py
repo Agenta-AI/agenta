@@ -157,8 +157,6 @@ class TracingDAOInterface(ABC):
     ) -> List[OTelFlatSpan]:
         raise NotImplementedError
 
-    ### SESSIONS AND ACTORS
-
     ### ANALYTICS
 
     @abstractmethod
@@ -181,6 +179,8 @@ class TracingDAOInterface(ABC):
         specs: List[MetricSpec],
     ) -> List[MetricsBucket]:
         raise NotImplementedError
+
+    ### SESSIONS AND USERS
 
     @abstractmethod
     async def sessions(
