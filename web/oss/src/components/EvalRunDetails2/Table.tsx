@@ -30,6 +30,7 @@ import {resolveScenarioColumnValue} from "./export/columnResolvers"
 import {buildGroupMap, resolveScenarioColumnLabel} from "./export/labelResolvers"
 import {buildExportMetadata} from "./export/types"
 import type {ScenarioColumnExportMetadata} from "./export/types"
+import useComparisonPaginations from "./hooks/useComparisonPaginations"
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"
 import useRowHeightMenuItems from "./hooks/useRowHeightMenuItems"
@@ -76,32 +77,11 @@ const EvalRunDetailsTable = ({
         [compareRunIds],
     )
 
-    // Call hooks individually (React hooks rule - cannot call in loops)
-    const comparePagination0 = useInfiniteTablePagination<PreviewTableRow>({
-        store: evaluationPreviewTableStore,
-        scopeId: compareSlots[0],
+    // Use custom hook to handle multiple comparison paginations
+    const comparePaginations = useComparisonPaginations({
+        compareSlots,
         pageSize,
     })
-    const comparePagination1 = useInfiniteTablePagination<PreviewTableRow>({
-        store: evaluationPreviewTableStore,
-        scopeId: compareSlots[1],
-        pageSize,
-    })
-    const comparePagination2 = useInfiniteTablePagination<PreviewTableRow>({
-        store: evaluationPreviewTableStore,
-        scopeId: compareSlots[2],
-        pageSize,
-    })
-    const comparePagination3 = useInfiniteTablePagination<PreviewTableRow>({
-        store: evaluationPreviewTableStore,
-        scopeId: compareSlots[3],
-        pageSize,
-    })
-
-    const comparePaginations = useMemo(
-        () => [comparePagination0, comparePagination1, comparePagination2, comparePagination3],
-        [comparePagination0, comparePagination1, comparePagination2, comparePagination3],
-    )
 
     const compareRowsBySlot = useMemo(
         () => comparePaginations.map((pagination) => pagination.rows),
