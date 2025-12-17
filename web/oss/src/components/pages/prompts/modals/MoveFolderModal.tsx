@@ -1,8 +1,10 @@
-import {JSSTheme} from "@/oss/lib/Types"
+import React from "react"
+
 import {Modal, Space, Tree} from "antd"
 import {DataNode} from "antd/es/tree"
-import React from "react"
 import {createUseStyles} from "react-jss"
+
+import {JSSTheme} from "@/oss/lib/Types"
 
 interface MoveFolderModalProps {
     itemName?: string | null

@@ -1,5 +1,6 @@
-import {Input, Modal} from "antd"
 import React, {Dispatch, SetStateAction} from "react"
+
+import {Input, Modal} from "antd"
 
 export interface FolderModalState {
     name: string

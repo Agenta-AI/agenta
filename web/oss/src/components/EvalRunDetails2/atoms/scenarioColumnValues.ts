@@ -127,7 +127,7 @@ const EMPTY_RESULT: ScenarioStepValueResult = {
     error: undefined,
 }
 
-const EMPTY_TESTCASE_STATE: QueryState<PreviewTestCase | null> = {
+const _EMPTY_TESTCASE_STATE: QueryState<PreviewTestCase | null> = {
     data: undefined,
     isLoading: false,
     isFetching: false,

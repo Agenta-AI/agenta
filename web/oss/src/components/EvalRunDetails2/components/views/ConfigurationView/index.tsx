@@ -2,7 +2,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {ReactNode, UIEvent} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Card, Skeleton, Typography} from "antd"
+import {Button, Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
@@ -30,7 +30,7 @@ import {SectionCard, SectionSkeleton} from "./components/SectionPrimitives"
 import TestsetSection from "./components/TestsetSection"
 import {hasQueryReference} from "./utils"
 
-const {Text, Title} = Typography
+const {Text} = Typography
 
 interface ConfigurationViewProps {
     runId: string

@@ -151,7 +151,7 @@ const RunActionsCell = ({
     const isStoppedByStatus = stopStatusTokens.some((token) =>
         normalizedStatusString.includes(token),
     )
-    const isOnlineStopped = isStoppedFlag || isStoppedByStatus
+    const _isOnlineStopped = isStoppedFlag || isStoppedByStatus
 
     const canStopOnline = Boolean(
         isOnlineEvaluation && runId && isActive && !isClosed && !record.__isSkeleton,

@@ -76,15 +76,37 @@ const EvalRunDetailsTable = ({
         [compareRunIds],
     )
 
-    const comparePaginations = compareSlots.map((slotRunId) =>
-        useInfiniteTablePagination<PreviewTableRow>({
-            store: evaluationPreviewTableStore,
-            scopeId: slotRunId,
-            pageSize,
-        }),
+    // Call hooks individually (React hooks rule - cannot call in loops)
+    const comparePagination0 = useInfiniteTablePagination<PreviewTableRow>({
+        store: evaluationPreviewTableStore,
+        scopeId: compareSlots[0],
+        pageSize,
+    })
+    const comparePagination1 = useInfiniteTablePagination<PreviewTableRow>({
+        store: evaluationPreviewTableStore,
+        scopeId: compareSlots[1],
+        pageSize,
+    })
+    const comparePagination2 = useInfiniteTablePagination<PreviewTableRow>({
+        store: evaluationPreviewTableStore,
+        scopeId: compareSlots[2],
+        pageSize,
+    })
+    const comparePagination3 = useInfiniteTablePagination<PreviewTableRow>({
+        store: evaluationPreviewTableStore,
+        scopeId: compareSlots[3],
+        pageSize,
+    })
+
+    const comparePaginations = useMemo(
+        () => [comparePagination0, comparePagination1, comparePagination2, comparePagination3],
+        [comparePagination0, comparePagination1, comparePagination2, comparePagination3],
     )
 
-    const compareRowsBySlot = comparePaginations.map((pagination) => pagination.rows)
+    const compareRowsBySlot = useMemo(
+        () => comparePaginations.map((pagination) => pagination.rows),
+        [comparePaginations],
+    )
 
     const {columnResult} = usePreviewTableData({runId})
 

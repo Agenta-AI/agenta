@@ -350,11 +350,9 @@ const Filters: React.FC<Props> = ({
                               : [item.value]
                         for (const candidate of matches) {
                             if (!candidate.referenceProperty) continue
+                            const refProp = candidate.referenceProperty
                             const hasMatch = valuesArray.some(
-                                (entry) =>
-                                    entry &&
-                                    typeof entry === "object" &&
-                                    candidate.referenceProperty! in entry,
+                                (entry) => entry && typeof entry === "object" && refProp in entry,
                             )
                             if (hasMatch) return candidate
                         }

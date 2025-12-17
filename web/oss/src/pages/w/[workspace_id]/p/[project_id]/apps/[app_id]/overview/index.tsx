@@ -27,7 +27,7 @@ const LatestEvaluationRunsTable: any = dynamic(() =>
     import("@/oss/components/EvaluationRunsTablePOC").then((m) => m.LatestEvaluationRunsTable),
 )
 
-const {Title, Text} = Typography
+const {Text} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {

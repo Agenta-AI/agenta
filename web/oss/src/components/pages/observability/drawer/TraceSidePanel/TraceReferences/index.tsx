@@ -3,6 +3,8 @@ import {useMemo} from "react"
 import {Space, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import useEvaluatorNavigation from "@/oss/components/pages/observability/drawer/hooks/useEvaluatorNavigation"
+import {linksAndReferencesAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import {
     ApplicationReferenceLabel,
     EvaluatorReferenceLabel,
@@ -10,8 +12,6 @@ import {
     TestsetTag,
     VariantReferenceLabel,
 } from "@/oss/components/References"
-import useEvaluatorNavigation from "@/oss/components/pages/observability/drawer/hooks/useEvaluatorNavigation"
-import {linksAndReferencesAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import useURL from "@/oss/hooks/useURL"
 import {projectIdAtom} from "@/oss/state/project"
 
