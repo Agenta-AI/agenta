@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {ArrowClockwise, Database, Export} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space} from "antd"
@@ -35,8 +35,8 @@ const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: 
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
 const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
-    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isScrolled, setIsScrolled] = useState(false)
+    const [isRefreshButtonLoading, setIsRefreshButtonLoading] = useState(false)
 
     const {
         traces,
@@ -47,16 +47,14 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         setTraceTabs,
         filters,
         setFilters,
-        sort,
         setSort,
-        fetchTraces,
-        fetchAnnotations,
         selectedRowKeys,
         setTestsetDrawerData,
-        editColumns,
         setEditColumns,
     } = useObservability()
     const queryClient = useAtomValue(queryClientAtom)
+
+    const isRefreshLoading = isLoading || isRefreshButtonLoading
 
     const attributeKeyOptions = useMemo(() => buildAttributeKeyTreeOptions(traces), [traces])
     const filterColumns = useMemo(
@@ -237,6 +235,17 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         }
     }, [traces, columns])
 
+    const onReloadTraces = useCallback(() => {
+        // intentional implementation to force show loading state when faster refreshes occur
+        setIsRefreshButtonLoading(true)
+        setTimeout(() => {
+            setIsRefreshButtonLoading(false)
+        }, 400)
+
+        queryClient.invalidateQueries({queryKey: ["traces"]})
+        queryClient.invalidateQueries({queryKey: ["annotations"]})
+    }, [setIsRefreshButtonLoading, queryClient])
+
     return (
         <>
             <section
@@ -256,14 +265,14 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                                 icon={
                                     <ArrowClockwise
                                         size={14}
-                                        className={clsx("mt-[0.8px]", {"animate-spin": isLoading})}
+                                        className={clsx("mt-[0.8px]", {
+                                            "animate-spin": isRefreshLoading,
+                                        })}
                                     />
                                 }
-                                onClick={() => {
-                                    fetchAnnotations()
-                                    fetchTraces()
-                                }}
+                                onClick={onReloadTraces}
                                 tooltipProps={{title: "Refresh data"}}
+                                loading={isRefreshLoading}
                             />
                         )}
                         <Input.Search
