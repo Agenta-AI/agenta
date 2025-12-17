@@ -46,7 +46,7 @@ def generate_questions(title, content):
 
     try:
         response = completion(
-            model="gpt-3.5-turbo-0125",  # Using the latest model that supports JSON mode
+            model="gpt-5",  # Using the latest model that supports JSON mode
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},

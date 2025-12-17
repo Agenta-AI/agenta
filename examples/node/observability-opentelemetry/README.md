@@ -65,4 +65,3 @@ See [SEMANTIC_CONVENTIONS.md](./SEMANTIC_CONVENTIONS.md) for detailed documentat
 ## View Your Traces
 
 After running the example, log in to [Agenta](https://cloud.agenta.ai) and navigate to the Observability section to see your traces!
-
