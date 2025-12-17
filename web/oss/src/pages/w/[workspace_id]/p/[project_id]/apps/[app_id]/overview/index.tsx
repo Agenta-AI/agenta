@@ -54,7 +54,11 @@ const AppDetailsSection = memo(() => {
 
                 <Dropdown
                     trigger={["click"]}
-                    overlayStyle={{width: 180}}
+                    styles={{
+                        root: {
+                            width: 180,
+                        },
+                    }}
                     menu={{
                         items: [
                             ...(currentApp?.app_type === "custom"

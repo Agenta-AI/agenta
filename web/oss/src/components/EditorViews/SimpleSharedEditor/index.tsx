@@ -210,7 +210,11 @@ const SimpleSharedEditorContent = ({
                                 {...formatDropdownProps}
                                 placement="bottomRight"
                                 trigger={["click"]}
-                                overlayStyle={{width: 120}}
+                                styles={{
+                                    root: {
+                                        width: 120,
+                                    },
+                                }}
                                 menu={{
                                     items: menuItems,
                                     selectable: true,

@@ -68,7 +68,11 @@ const AppCard: React.FC<{
                 extra={
                     <Dropdown
                         trigger={["click"]}
-                        overlayStyle={{width: 180}}
+                        styles={{
+                            root: {
+                                width: 180,
+                            },
+                        }}
                         menu={{
                             items: [
                                 {

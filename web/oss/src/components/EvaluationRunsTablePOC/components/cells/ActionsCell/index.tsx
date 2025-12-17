@@ -343,7 +343,7 @@ const RunActionsCell = ({
 
     return (
         <div className={CELL_CLASS}>
-            <Dropdown trigger={["click"]} menu={{items}} overlayStyle={{width: 200}}>
+            <Dropdown trigger={["click"]} menu={{items}} styles={{root: {width: 200}}}>
                 <Tooltip title="Actions">{button}</Tooltip>
             </Dropdown>
         </div>

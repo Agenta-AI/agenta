@@ -45,7 +45,7 @@ const TableDropdownMenu = ({
     }, [category, record])
 
     return (
-        <Dropdown trigger={["click"]} menu={{items}} overlayStyle={{width: 150}}>
+        <Dropdown trigger={["click"]} menu={{items}} styles={{root: {width: 150}}}>
             <Button
                 type="text"
                 icon={<MoreOutlined />}

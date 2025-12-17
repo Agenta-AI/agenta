@@ -163,6 +163,8 @@ export const addVariantMutationAtom = atom(
                     displayedVariantsAfterSwap: updatedVariants,
                 })
 
+                // Update atom directly for immediate reactivity, then sync to URL
+                set(selectedVariantsAtom, updatedVariants)
                 void writePlaygroundSelectionToQuery(updatedVariants)
 
                 // Clear draft state for the base revision used to create the new variant
@@ -179,7 +181,11 @@ export const addVariantMutationAtom = atom(
 
                 return {
                     success: true,
-                    variant: createVariantResponse,
+                    variant: {
+                        ...createVariantResponse,
+                        // Include the revision ID we waited for so the modal can use it
+                        id: newestRevisionId,
+                    } as any,
                     message: `Variant "${variantName}" created successfully`,
                 }
             }
@@ -278,7 +284,8 @@ export const saveVariantMutationAtom = atom(
                 const updatedVariants = currentDisplayedVariants.map((id) =>
                     id === variantId ? newRevisionId : id,
                 )
-                // Update selected variants by pushing the change to the URL listener
+                // Update atom directly for immediate reactivity, then sync to URL
+                set(selectedVariantsAtom, updatedVariants)
                 void writePlaygroundSelectionToQuery(updatedVariants)
                 duplicateChatHistoryForRevision({
                     get,

@@ -134,7 +134,11 @@ const TableSettingsDropdown = <RowType extends object>({
                     setDropdownOpen(open)
                 }}
                 menu={{items: menuItems}}
-                overlayStyle={{minWidth: 180}}
+                styles={{
+                    root: {
+                        minWidth: 180,
+                    },
+                }}
             >
                 <Tooltip title="Table settings">
                     <Button

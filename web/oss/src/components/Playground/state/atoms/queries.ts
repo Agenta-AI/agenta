@@ -59,6 +59,7 @@ export const waitForNewRevisionAfterMutationAtom = atom(
             const check = () => {
                 const newest = store.get(newestRevisionForVariantIdAtomFamily(variantId)) as any
                 const newestId = newest?.id || null
+
                 if (!newestId) return
                 if (!prevRevisionId || newestId !== prevRevisionId) {
                     if (unsubscribe) unsubscribe()
@@ -98,11 +99,29 @@ export const waitForNewRevisionAfterMutationAtom = atom(
 
 /**
  * Consolidated query invalidation atom
+ * Invalidates queries and forces fresh refetch with cache busting
  */
 export const invalidatePlaygroundQueriesAtom = atom(null, async () => {
+    // First invalidate to mark as stale
     await Promise.all([
         queryClient.invalidateQueries({queryKey: ["variants"]}),
         queryClient.invalidateQueries({queryKey: ["variantRevisions"]}),
         queryClient.invalidateQueries({queryKey: ["appVariants"]}),
+    ])
+
+    // Then refetch with type: 'all' to bypass cache
+    await Promise.all([
+        queryClient.refetchQueries({
+            queryKey: ["variants"],
+            type: "all", // Refetch both active and inactive queries
+        }),
+        queryClient.refetchQueries({
+            queryKey: ["variantRevisions"],
+            type: "all",
+        }),
+        queryClient.refetchQueries({
+            queryKey: ["appVariants"],
+            type: "all",
+        }),
     ])
 })

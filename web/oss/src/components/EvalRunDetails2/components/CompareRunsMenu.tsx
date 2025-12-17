@@ -107,7 +107,7 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
             trigger={[]}
             placement="bottomRight"
             destroyOnHidden
-            overlayStyle={{minWidth: 360, maxHeight: 440}}
+            styles={{root: {minWidth: 360, maxHeight: 440}}}
             content={
                 open && availability.canCompare ? (
                     <CompareRunsPopoverContent runId={runId} availability={availability} />

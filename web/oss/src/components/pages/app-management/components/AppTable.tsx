@@ -63,7 +63,11 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
                 return (
                     <Dropdown
                         trigger={["click"]}
-                        overlayStyle={{width: 180}}
+                        styles={{
+                            root: {
+                                width: 180,
+                            },
+                        }}
                         menu={{
                             items: [
                                 {
