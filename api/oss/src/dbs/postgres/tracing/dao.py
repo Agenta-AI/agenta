@@ -31,9 +31,6 @@ from oss.src.core.tracing.dtos import (
     MetricsBucket,
     Condition,
     ListOperator,
-    #
-    SessionsQuery,
-    ActorsQuery,
 )
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
