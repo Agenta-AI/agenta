@@ -193,7 +193,7 @@ class TracingDAOInterface(ABC):
         session: Optional[SessionsQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[UUID]:
+    ) -> List[str]:
         raise NotImplementedError
 
     @abstractmethod
@@ -205,5 +205,5 @@ class TracingDAOInterface(ABC):
         actor: Optional[ActorsQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[UUID]:
+    ) -> List[str]:
         raise NotImplementedError

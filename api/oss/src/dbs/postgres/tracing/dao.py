@@ -1152,7 +1152,7 @@ class TracingDAO(TracingDAOInterface):
         session: Optional[SessionsQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[UUID]:
+    ) -> List[str]:
         """Query unique session IDs, filtering by type with windowing support."""
         try:
             async with engine.tracing_session() as _session:
@@ -1197,14 +1197,11 @@ class TracingDAO(TracingDAOInterface):
                 result = await _session.execute(stmt)
                 rows = result.all()
 
-                # Convert session_id strings to UUIDs
+                # Return session IDs as strings
                 session_ids = []
                 for row in rows:
-                    try:
-                        session_ids.append(UUID(row.session_id))
-                    except (ValueError, AttributeError):
-                        # Skip invalid UUIDs
-                        log.warn(f"Skipping invalid session_id: {row.session_id}")
+                    if row.session_id:
+                        session_ids.append(str(row.session_id))
 
                 return session_ids
 
@@ -1222,7 +1219,7 @@ class TracingDAO(TracingDAOInterface):
         actor: Optional[ActorsQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[UUID]:
+    ) -> List[str]:
         """Query unique actor IDs, filtering by type with windowing support."""
         try:
             async with engine.tracing_session() as _session:
@@ -1266,14 +1263,11 @@ class TracingDAO(TracingDAOInterface):
                 result = await _session.execute(stmt)
                 rows = result.all()
 
-                # Convert actor_id strings to UUIDs
+                # Return actor IDs as strings
                 actor_ids = []
                 for row in rows:
-                    try:
-                        actor_ids.append(UUID(row.actor_id))
-                    except (ValueError, AttributeError):
-                        # Skip invalid UUIDs
-                        log.warn(f"Skipping invalid actor_id: {row.actor_id}")
+                    if row.actor_id:
+                        actor_ids.append(str(row.actor_id))
 
                 return actor_ids
 

@@ -166,6 +166,26 @@ class TracingRouter:
             response_model_exclude_none=True,
         )
 
+        self.router.add_api_route(
+            "/sessions/query",
+            self.query_sessions,
+            methods=["POST"],
+            operation_id="query_sessions",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionIdsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/actors/query",
+            self.query_actors,
+            methods=["POST"],
+            operation_id="query_actors",
+            status_code=status.HTTP_200_OK,
+            response_model=ActorIdsResponse,
+            response_model_exclude_none=True,
+        )
+
     ### HELPERS
 
     async def _upsert(
