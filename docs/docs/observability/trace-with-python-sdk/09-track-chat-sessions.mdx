@@ -25,7 +25,7 @@ import agenta as ag
 
 @ag.instrument()
 def process_message(message: str, session_id: str):
-    # Set session ID and optionally session type
+    # Set session ID
     ag.tracing.store_session(
         session_id=session_id,
     )
@@ -35,17 +35,17 @@ def process_message(message: str, session_id: str):
     return response
 ```
 
-You can also set actor (user) information to track who is interacting:
+You can also set user information to track who is interacting:
 
 ```python
 @ag.instrument()
 def process_message(message: str, session_id: str, user_id: str):
     # Set session information
-    ag.tracing.store_session(session_id=session_id, session_type="chat")
+    ag.tracing.store_session(session_id=session_id)
 
-    # Set actor information
-    ag.tracing.store_actor(
-        actor_id=user_id,
+    # Set user information
+    ag.tracing.store_user(
+        user_id=user_id,
     )
 
     response = generate_response(message)
