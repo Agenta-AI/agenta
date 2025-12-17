@@ -11,7 +11,7 @@ const generate = async () => {
     const data = ${params};
     const headers = {
         "Content-Type": "application/json",
-        "Authorization": "ApiKey ${apiKey}"${isChat ? ',\n        "Baggage": "ag.session.id=your_session_id" // Optional: track chat sessions' : " // Add your API key here"}
+        "Authorization": "ApiKey ${apiKey}", // Add your API key here${isChat ? '\n        "Baggage": "ag.session.id=your_session_id" // Optional: track chat sessions' : ""}
     };
 
     const response = await axios.post(url, data, { headers });
