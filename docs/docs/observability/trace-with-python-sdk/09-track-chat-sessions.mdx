@@ -18,16 +18,36 @@ A session represents a conversation or interaction that spans multiple traces. W
 
 ## Setting session IDs
 
-Use `ag.tracing.store_meta()` to set a session ID on your spans. 
+Use `ag.tracing.store_session()` to set session information on your spans.
 
 ```python
 import agenta as ag
 
 @ag.instrument()
 def process_message(message: str, session_id: str):
-    ag.tracing.store_meta({"session_id": session_id})
-    
+    # Set session ID and optionally session type
+    ag.tracing.store_session(
+        session_id=session_id,
+    )
+
     # Your processing logic
+    response = generate_response(message)
+    return response
+```
+
+You can also set actor (user) information to track who is interacting:
+
+```python
+@ag.instrument()
+def process_message(message: str, session_id: str, user_id: str):
+    # Set session information
+    ag.tracing.store_session(session_id=session_id, session_type="chat")
+
+    # Set actor information
+    ag.tracing.store_actor(
+        actor_id=user_id,
+    )
+
     response = generate_response(message)
     return response
 ```

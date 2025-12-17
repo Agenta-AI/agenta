@@ -9,7 +9,7 @@ When building chat applications or multi-turn workflows, you often need to group
 
 ## Setting session attributes
 
-Add session IDs to spans using the `ag.meta.session_id` attribute. Agenta recognizes this attribute and groups all spans with the same value together.
+Add session IDs to spans using the `ag.session.id` attribute. Agenta recognizes this attribute and groups all spans with the same value together.
 
 ```typescript
 import { trace } from '@opentelemetry/api';
@@ -20,8 +20,8 @@ function processChatMessage(message: string, sessionId: string) {
   return tracer.startActiveSpan('process_message', (span) => {
     try {
       // Set session ID attribute
-      span.setAttribute('ag.meta.session_id', sessionId);
-      
+      span.setAttribute('ag.session.id', sessionId);
+
       // Your processing logic
       const response = generateResponse(message);
       return response;

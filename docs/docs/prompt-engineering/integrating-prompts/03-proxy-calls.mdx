@@ -104,6 +104,7 @@ import requests
 import os
 
 session_id = "chat_session_123"
+user_id = "user-456"
 
 response = requests.post(
     "https://cloud.agenta.ai/services/completion/run",
@@ -111,7 +112,7 @@ response = requests.post(
         "Content-Type": "application/json",
         "Authorization": f"ApiKey {os.environ['AGENTA_API_KEY']}",
         # highlight-next-line
-        "Baggage": f"ag.meta.session_id={session_id}"
+        "Baggage": f"ag.session.id={session_id},ag.session.type=chat,ag.actor.id={user_id},ag.actor.type=user"
     },
     json={
         "environment": "development",
@@ -123,4 +124,4 @@ response = requests.post(
 )
 ```
 
-All requests with the same session ID will be grouped together in the observability dashboard. 
+All requests with the same session ID will be grouped together in the observability dashboard. You can also track actors (users) to see who is interacting with your application. 
