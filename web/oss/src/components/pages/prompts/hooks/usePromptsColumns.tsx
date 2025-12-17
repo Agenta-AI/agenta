@@ -1,20 +1,18 @@
 import {JSX, useMemo} from "react"
 
-import {Dropdown, Button, MenuProps, Tag} from "antd"
-import {ColumnsType} from "antd/es/table"
 import {FolderFilled, MoreOutlined} from "@ant-design/icons"
-
 import {
     FolderDashedIcon,
-    FolderIcon,
     GearSixIcon,
     NoteIcon,
     PencilSimpleIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
+import {Dropdown, Button, MenuProps, Tag} from "antd"
+import {ColumnsType} from "antd/es/table"
 
-import {ListAppsItem} from "@/oss/lib/Types"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import {ListAppsItem} from "@/oss/lib/Types"
 
 import {FolderTreeNode} from "../assets/utils"
 import {PromptsTableRow} from "../types"

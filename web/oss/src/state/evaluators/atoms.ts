@@ -1,8 +1,10 @@
+import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
 import {
     EvaluatorDto,
@@ -317,4 +319,49 @@ export const evaluatorsQueryAtomFamily = atomFamily(
                 enabled,
             }
         }),
+)
+
+/**
+ * Derived atom that filters out archived evaluators.
+ * Use this instead of filtering locally in components.
+ */
+export const nonArchivedEvaluatorsAtom = atom((get) => {
+    const evaluators = get(evaluatorsAtom)
+    return evaluators.filter((item) => (item as any).archived !== true)
+})
+
+/**
+ * Query atom family that finds an evaluator by key.
+ * First checks the regular evaluators list. If not found there,
+ * fetches all evaluators including archived ones.
+ */
+export const evaluatorByKeyAtomFamily = atomFamily((evaluatorKey: string | null) =>
+    atomWithQuery<Evaluator | null>((get) => {
+        const projectId = get(projectIdAtom)
+        const user = get(userAtom) as {id?: string} | null
+        const evaluators = get(evaluatorsAtom)
+
+        const foundInRegular = evaluatorKey
+            ? evaluators.find((item) => item.key === evaluatorKey)
+            : null
+
+        // Only fetch archived if evaluator not found and initial load complete
+        const needsArchivedFetch = Boolean(evaluatorKey && !foundInRegular && evaluators.length > 0)
+
+        return {
+            queryKey: ["evaluator-by-key", evaluatorKey, "include-archived"] as const,
+            queryFn: async () => {
+                if (!evaluatorKey) return null
+                const all = await fetchAllEvaluators(true)
+                return all.find((item) => item.key === evaluatorKey) ?? null
+            },
+            staleTime: 60_000,
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
+            refetchOnMount: false,
+            retry: false,
+            enabled: needsArchivedFetch && Boolean(projectId && user?.id),
+            placeholderData: foundInRegular ?? undefined,
+        }
+    }),
 )

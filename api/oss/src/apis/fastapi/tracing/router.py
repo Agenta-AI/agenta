@@ -27,8 +27,18 @@ from oss.src.apis.fastapi.tracing.models import (
     AnalyticsResponse,
 )
 from oss.src.core.tracing.service import TracingService
-from oss.src.core.tracing.utils import FilteringException
+from oss.src.core.tracing.utils import (
+    FilteringException,
+    calculate_and_propagate_metrics,
+)
+
+# TYPE_CHECKING to avoid circular import at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 from oss.src.core.tracing.dtos import (
+    OTelLink,
     OTelLinks,
     OTelSpan,
     OTelFlatSpans,
@@ -43,13 +53,18 @@ from oss.src.core.tracing.dtos import (
 
 log = get_module_logger(__name__)
 
+if is_ee():
+    from ee.src.utils.entitlements import check_entitlements, Counter
+
 
 class TracingRouter:
     def __init__(
         self,
         tracing_service: TracingService,
+        tracing_worker: "TracingWorker",
     ):
         self.service = tracing_service
+        self.worker = tracing_worker
 
         self.router = APIRouter()
 
@@ -153,10 +168,11 @@ class TracingRouter:
         self,
         project_id: UUID,
         user_id: UUID,
+        organization_id: UUID,
         #
         spans: Optional[OTelFlatSpans] = None,
         traces: Optional[OTelTraceTree] = None,
-        strict: Optional[bool] = False,
+        sync: bool = False,
     ) -> OTelLinks:
         _spans: Dict[str, Union[OTelSpan, OTelFlatSpans]] = dict()
 
@@ -188,26 +204,53 @@ class TracingRouter:
 
         span_dtos = parse_spans_from_request(_spans)
 
-        if strict:
-            links = (
-                await self.service.create(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    span_dtos=span_dtos,
-                )
-                or []
+        # Calculate and propagate costs/tokens BEFORE batching
+        # This ensures complete trace trees for proper metric propagation
+        span_dtos = calculate_and_propagate_metrics(span_dtos)
+
+        if sync:
+            # Synchronous path for low-volume, user-facing operations
+            # (annotations, invocations) - check entitlements inline and write directly
+            if is_ee():
+                # Count root spans (traces) for entitlements check
+                delta = sum(1 for span_dto in span_dtos if span_dto.parent_id is None)
+                if delta > 0:
+                    allowed, _, _ = await check_entitlements(  # type: ignore
+                        organization_id=organization_id,
+                        key=Counter.TRACES,  # type: ignore
+                        delta=delta,
+                        use_cache=False,  # Authoritative DB check
+                    )
+                    if not allowed:
+                        raise HTTPException(
+                            status_code=429,
+                            detail="Trace quota exceeded for organization",
+                        )
+
+            # Write directly to database (synchronous)
+            await self.service.create(
+                project_id=project_id,
+                user_id=user_id,
+                span_dtos=span_dtos,
             )
         else:
-            links = (
-                await self.service.update(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    span_dtos=span_dtos,
-                )
-                or []
+            # Async path for high-volume operations (observability, evaluations)
+            # Publish to Redis Streams for async processing with entitlements check
+            await self.worker.publish_to_stream(
+                organization_id=organization_id,
+                project_id=project_id,
+                user_id=user_id,
+                span_dtos=span_dtos,
             )
+
+        # Generate links from span_dtos to return to client
+        links = [
+            OTelLink(
+                trace_id=str(span_dto.trace_id),
+                span_id=str(span_dto.span_id),
+            )
+            for span_dto in span_dtos
+        ]
 
         return links
 
@@ -218,6 +261,7 @@ class TracingRouter:
         self,
         request: Request,
         trace_request: OTelTracingRequest,
+        sync: bool = False,
     ) -> OTelLinksResponse:
         spans = None
 
@@ -272,10 +316,11 @@ class TracingRouter:
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
+            organization_id=UUID(request.state.organization_id),
             #
             spans=trace_request.spans,
             traces=trace_request.traces,
-            strict=True,
+            sync=sync,
         )
 
         link_response = OTelLinksResponse(
@@ -331,6 +376,7 @@ class TracingRouter:
         trace_request: OTelTracingRequest,
         #
         trace_id: str,
+        sync: bool = False,
     ) -> OTelLinksResponse:
         spans = None
 
@@ -385,10 +431,11 @@ class TracingRouter:
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
+            organization_id=UUID(request.state.organization_id),
             #
             spans=trace_request.spans,
             traces=trace_request.traces,
-            strict=False,
+            sync=sync,
         )
 
         link_response = OTelLinksResponse(
@@ -437,10 +484,10 @@ class TracingRouter:
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
+            organization_id=UUID(request.state.organization_id),
             #
             spans=spans_request.spans,
             traces=spans_request.traces,
-            strict=True,
         )
 
         link_response = OTelLinksResponse(
