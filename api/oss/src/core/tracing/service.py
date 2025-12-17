@@ -13,9 +13,6 @@ from oss.src.core.tracing.dtos import (
     MetricSpec,
     MetricsBucket,
     #
-    SessionsQuery,
-    ActorsQuery,
-    #
     Windowing,
 )
 
