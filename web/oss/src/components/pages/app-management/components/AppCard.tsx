@@ -4,9 +4,9 @@ import {Card, Dropdown, Button, Typography, Tag} from "antd"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
+import useURL from "@/oss/hooks/useURL"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {JSSTheme, ListAppsItem} from "@/oss/lib/Types"
-import useURL from "@/oss/hooks/useURL"
 
 const {Text} = Typography
 
@@ -68,7 +68,11 @@ const AppCard: React.FC<{
                 extra={
                     <Dropdown
                         trigger={["click"]}
-                        overlayStyle={{width: 180}}
+                        styles={{
+                            root: {
+                                width: 180,
+                            },
+                        }}
                         menu={{
                             items: [
                                 {

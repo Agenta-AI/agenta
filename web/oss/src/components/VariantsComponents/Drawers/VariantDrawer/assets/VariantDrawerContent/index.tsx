@@ -16,10 +16,7 @@ import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/at
 import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms/dirtyState"
 import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {useAppId} from "@/oss/hooks/useAppId"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
-import {useQueryParam} from "@/oss/hooks/useQuery"
-import useURL from "@/oss/hooks/useURL"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {
     derivePromptsFromSpec,
@@ -352,7 +349,7 @@ const VariantDrawerContent = ({
                 )}
 
                 {deployedIn?.length > 0 && (
-                    <Space direction="vertical">
+                    <Space orientation="vertical">
                         <Text className="font-medium">Deployment</Text>
                         <div className="flex flex-col gap-1">
                             {deployedIn.map((env, idx) => (

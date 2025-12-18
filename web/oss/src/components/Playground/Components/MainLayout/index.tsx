@@ -125,7 +125,7 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
                 <Splitter
                     key={`${isComparisonView ? "comparison" : "single"}-splitter`}
                     className="h-full"
-                    layout={isComparisonView ? "vertical" : "horizontal"}
+                    orientation={isComparisonView ? "vertical" : "horizontal"}
                 >
                     <SplitterPanel
                         defaultSize="50%"

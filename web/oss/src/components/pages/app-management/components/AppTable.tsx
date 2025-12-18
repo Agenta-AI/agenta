@@ -8,6 +8,7 @@ import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
 import useURL from "@/oss/hooks/useURL"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {ListAppsItem} from "@/oss/lib/Types"
+
 import {getAppTypeIcon} from "../../prompts/assets/iconHelpers"
 
 interface AppTableProps {
@@ -62,7 +63,11 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
                 return (
                     <Dropdown
                         trigger={["click"]}
-                        overlayStyle={{width: 180}}
+                        styles={{
+                            root: {
+                                width: 180,
+                            },
+                        }}
                         menu={{
                             items: [
                                 {

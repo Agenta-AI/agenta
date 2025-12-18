@@ -4,8 +4,8 @@ import {useFloating, autoUpdate, offset, flip, shift} from "@floating-ui/react"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {createPortal} from "react-dom"
 
-import {$getActiveLanguage} from "../utils/language"
 import type {CodeLanguage} from "../types"
+import {$getActiveLanguage} from "../utils/language"
 import {validateAll} from "../utils/validationUtils"
 
 import {$getEditorCodeAsString} from "./RealTimeValidationPlugin"

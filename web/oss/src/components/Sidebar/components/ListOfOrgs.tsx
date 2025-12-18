@@ -188,7 +188,11 @@ const ListOfOrgs = ({
                             trigger={["click"]}
                             placement="bottomRight"
                             destroyOnHidden
-                            overlayStyle={{zIndex: 2000}}
+                            styles={{
+                                root: {
+                                    zIndex: 2000,
+                                },
+                            }}
                             onOpenChange={setOrganizationDropdownOpen}
                             className={clsx({"flex items-center justify-center": collapsed})}
                             menu={{

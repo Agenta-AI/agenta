@@ -1,3 +1,10 @@
+import {
+    EvaluatorInputInterface,
+    EvaluatorMappingInput,
+    EvaluatorMappingOutput,
+    EvaluatorOutputInterface,
+} from "@agenta/oss/src/lib/types_ee"
+
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {getProjectValues} from "@/oss/state/project"
@@ -8,13 +15,6 @@ import {getProjectValues} from "@/oss/state/project"
 //  - create: POST data to server
 //  - update: PUT data to server
 //  - delete: DELETE data from server
-
-import {
-    EvaluatorInputInterface,
-    EvaluatorMappingInput,
-    EvaluatorMappingOutput,
-    EvaluatorOutputInterface,
-} from "@agenta/oss/src/lib/types_ee"
 
 export const createEvaluatorDataMapping = async (
     config: EvaluatorMappingInput,

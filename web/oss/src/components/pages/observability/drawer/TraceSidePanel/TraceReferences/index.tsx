@@ -3,6 +3,8 @@ import {useMemo} from "react"
 import {Space, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import useEvaluatorNavigation from "@/oss/components/pages/observability/drawer/hooks/useEvaluatorNavigation"
+import {linksAndReferencesAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import {
     ApplicationReferenceLabel,
     EvaluatorReferenceLabel,
@@ -10,8 +12,6 @@ import {
     TestsetTag,
     VariantReferenceLabel,
 } from "@/oss/components/References"
-import useEvaluatorNavigation from "@/oss/components/pages/observability/drawer/hooks/useEvaluatorNavigation"
-import {linksAndReferencesAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import useURL from "@/oss/hooks/useURL"
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -127,12 +127,12 @@ const TraceReferences = () => {
     }
 
     return (
-        <Space direction="vertical" size={12} className="w-full">
+        <Space orientation="vertical" size={12} className="w-full">
             {Object.entries(groupedReferences || {}).map(([key, refs]) => {
                 const displayLabel = labelMap[key]
                 if (!displayLabel) return null
                 return (
-                    <Space key={key} direction="vertical" size={6} className="w-full">
+                    <Space key={key} orientation="vertical" size={6} className="w-full">
                         <Typography.Text className={classes.title}>{displayLabel}</Typography.Text>
                         <div className="flex flex-col gap-1">
                             {refs?.map((ref, index) => {

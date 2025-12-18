@@ -15,7 +15,6 @@ import {
     CloudArrowUp,
     ChatCircle,
     Gauge,
-    SquaresFourIcon,
 } from "@phosphor-icons/react"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"

@@ -52,7 +52,7 @@ const getSafeName = (col: ColumnGroupType<RecordType> | ColumnType<RecordType>) 
     }
 }
 
-const EditColumns = <RecordType extends unknown>({
+const EditColumns = <RecordType,>({
     uniqueKey,
     excludes = [],
     columns,

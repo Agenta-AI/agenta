@@ -42,8 +42,8 @@ const DeploymentConfirmationModalContent = ({
             ? "Are you sure you want to deploy"
             : "Are you sure you want to revert?"
     return (
-        <Space direction="vertical" size={16} className="w-full">
-            <Space direction="vertical" size={4}>
+        <Space orientation="vertical" size={16} className="w-full">
+            <Space orientation="vertical" size={4}>
                 <Typography.Text>{confirmationText}</Typography.Text>
 
                 {variant && (

@@ -171,7 +171,6 @@ export const SearchPlugin = ({
                             // Let's only scroll if we navigated (currentResultIndex changed) OR first search?
                             // This effect runs on both.
                             // Basic scroll is fine.
-                            const rect = range.getBoundingClientRect()
                             // Simple check if visible?
                             element.scrollIntoView({
                                 block: "center",

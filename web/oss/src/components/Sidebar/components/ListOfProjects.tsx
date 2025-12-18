@@ -474,7 +474,11 @@ const ListOfProjects = ({
                         trigger={["click"]}
                         placement={collapsed ? "bottomLeft" : "bottomRight"}
                         destroyOnHidden
-                        overlayStyle={{zIndex: 2000}}
+                        styles={{
+                            root: {
+                                zIndex: 2000,
+                            },
+                        }}
                         onOpenChange={setProjectDropdownOpen}
                         className={clsx({"flex items-center justify-center": collapsed})}
                         menu={{

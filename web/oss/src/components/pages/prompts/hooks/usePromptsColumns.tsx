@@ -177,7 +177,11 @@ export const usePromptsColumns = ({
                     return (
                         <Dropdown
                             trigger={["click"]}
-                            overlayStyle={{width: 180}}
+                            styles={{
+                                root: {
+                                    width: 180,
+                                },
+                            }}
                             menu={{items: isFolder ? folderActions : appActions}}
                         >
                             <Button

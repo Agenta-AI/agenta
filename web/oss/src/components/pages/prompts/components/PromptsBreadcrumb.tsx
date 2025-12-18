@@ -173,7 +173,11 @@ const PromptsBreadcrumb = ({
                         <span>{folder.name}</span>
                         <Dropdown
                             trigger={["click"]}
-                            overlayStyle={{width: 200}}
+                            styles={{
+                                root: {
+                                    width: 200,
+                                },
+                            }}
                             menu={{
                                 items: actionItems,
                             }}

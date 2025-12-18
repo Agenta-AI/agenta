@@ -7,19 +7,19 @@ import JSON5 from "json5"
 import {v4 as uuidv4} from "uuid"
 
 import {EditorProvider} from "@/oss/components/Editor/Editor"
+import LLMIconMap from "@/oss/components/LLMIcons"
 import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
-import LLMIconMap from "@/oss/components/LLMIcons"
 
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControl/assets/PlaygroundVariantPropertyControlWrapper"
 import PromptMessageContentOptions from "../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
 import SharedEditor from "../SharedEditor"
 
 import {TOOL_PROVIDERS_META, TOOL_SCHEMA} from "./assets"
-import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 
-export type ToolFunction = {
+export interface ToolFunction {
     name?: string
     description?: string
     [k: string]: any

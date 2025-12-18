@@ -40,24 +40,24 @@ export enum StatusCode {
 
 export type SpanAttributes = Record<string, unknown>
 
-export type SpanEvent = {
+export interface SpanEvent {
     name: string
     timestamp: string | number
     attributes?: SpanAttributes
 }
 
-export type SpanLink = {
+export interface SpanLink {
     trace_id: string
     span_id: string
     attributes?: SpanAttributes
 }
 
-export type SpanHash = {
+export interface SpanHash {
     id: string
     attributes?: SpanAttributes
 }
 
-export type SpanReference = {
+export interface SpanReference {
     id?: string
     type?: string
     attributes?: SpanAttributes
@@ -65,7 +65,7 @@ export type SpanReference = {
 
 // --- MAIN SPAN ENTITY --------------------------------------------------------
 
-export type TraceSpan = {
+export interface TraceSpan {
     trace_id: string
     span_id: string
     parent_id?: string
@@ -108,13 +108,13 @@ export interface TraceSpanNode extends TraceSpan {
 
 // --- RESPONSE WRAPPER --------------------------------------------------------
 
-export type TracesResponse = {
+export interface TracesResponse {
     version?: string
     count: number
     traces: Record<string, {spans: Record<string, TraceSpan>}>
 }
 
-export type SpansResponse = {
+export interface SpansResponse {
     version?: string
     count: number
     spans: TraceSpan[]

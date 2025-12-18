@@ -111,7 +111,11 @@ export const PromptsTableSection = ({
 
                     <Dropdown
                         trigger={["click"]}
-                        overlayStyle={{width: 200}}
+                        styles={{
+                            root: {
+                                width: 200,
+                            },
+                        }}
                         placement="bottomLeft"
                         menu={{items: menuItems}}
                     >

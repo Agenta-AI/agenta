@@ -20,7 +20,7 @@ export const useDropdownItems = ({
     projects,
     interactive,
 }: UseDropdownItemsProps) => {
-    const {projectURL} = useURL()
+    const {projectURL: _projectURL} = useURL()
 
     const filteredOrgs = useMemo(() => {
         return projects.flatMap((project) =>
