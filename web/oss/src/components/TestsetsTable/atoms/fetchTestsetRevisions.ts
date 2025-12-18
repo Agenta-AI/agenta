@@ -62,20 +62,29 @@ export const fetchTestsetRevisions = async ({
         const data = response.data
         const revisions = data?.testset_revisions ?? []
 
-        // Filter out v0 revisions (initial commits) and map to typed objects
-        return revisions
-            .filter((revision: any) => revision.version !== "0" && revision.version !== 0)
-            .map((revision: any) => ({
-                id: revision.id,
-                testset_id: revision.testset_id ?? revision.artifact_id,
-                version: revision.version,
-                message: revision.message,
-                created_at: revision.created_at,
-                updated_at: revision.updated_at,
-                created_by_id: revision.created_by_id,
-                flags: revision.flags,
-                data: revision.data,
-            }))
+        // Map to typed objects first
+        const mappedRevisions = revisions.map((revision: any) => ({
+            id: revision.id,
+            testset_id: revision.testset_id ?? revision.artifact_id,
+            version: revision.version,
+            message: revision.message,
+            created_at: revision.created_at,
+            updated_at: revision.updated_at,
+            created_by_id: revision.created_by_id,
+            flags: revision.flags,
+            data: revision.data,
+        }))
+
+        // Only filter out v0 if there are other revisions (v1+)
+        // If v0 is the only revision, show it so user can edit and create v1
+        const isV0 = (r: TestsetRevision) => r.version === "0" || String(r.version) === "0"
+        const hasNonV0Revisions = mappedRevisions.some((r: TestsetRevision) => !isV0(r))
+
+        if (hasNonV0Revisions) {
+            return mappedRevisions.filter((r: TestsetRevision) => !isV0(r))
+        }
+
+        return mappedRevisions
     } catch (error) {
         console.error("[TestsetsTable] Failed to fetch testset revisions:", error)
         return []

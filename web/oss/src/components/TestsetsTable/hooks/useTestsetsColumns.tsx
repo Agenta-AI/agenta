@@ -4,11 +4,11 @@ import {GearSix, Note, Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
-import {formatDate} from "@/oss/lib/helpers/dateTimeHelper"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import type {TestsetCreationMode} from "@/oss/lib/Types"
+import {formatDate} from "@/oss/lib/helpers/dateTimeHelper"
 
 import type {TestsetTableRow} from "../atoms/tableStore"
+import LatestCommitMessage from "../components/LatestCommitMessage"
 
 export interface UseTestsetsColumnsParams {
     onViewDetails: (record: TestsetTableRow) => void
@@ -33,6 +33,18 @@ export const useTestsetsColumns = ({
                 onHeaderCell: () => ({
                     style: {minWidth: 220},
                 }),
+            },
+            {
+                title: "Commit Message",
+                key: "commit_message",
+                width: 200,
+                onHeaderCell: () => ({
+                    style: {minWidth: 150},
+                }),
+                render: (_, record) => {
+                    if (record.__isSkeleton) return null
+                    return <LatestCommitMessage testsetId={record.id} />
+                },
             },
             {
                 title: "Date Modified",
