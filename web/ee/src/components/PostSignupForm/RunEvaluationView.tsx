@@ -1,8 +1,7 @@
 import {useState} from "react"
 
-import {Book, CodeBlock, Play} from "@phosphor-icons/react"
-import {Typography, Space, Button} from "antd"
-import {useRouter} from "next/router"
+import {Book, Play} from "@phosphor-icons/react"
+import {Typography, Button} from "antd"
 
 import ApiKeyInput from "@/oss/components/pages/app-management/components/ApiKeyInput"
 import {TracingCodeComponent} from "@/oss/components/pages/app-management/modals/SetupTracingModal/components/TracingCodeComponent"
@@ -70,7 +69,6 @@ if __name__ == "__main__":
 
 export const RunEvaluationView = () => {
     const [apiKeyValue, setApiKeyValue] = useState("")
-    const router = useRouter()
 
     return (
         <div className="flex flex-col gap-8">

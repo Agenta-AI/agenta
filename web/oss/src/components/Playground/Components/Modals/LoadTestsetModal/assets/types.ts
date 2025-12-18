@@ -1,5 +1,6 @@
-import {Testset} from "@/oss/lib/Types"
 import {ModalProps} from "antd"
+
+import {Testset} from "@/oss/lib/Types"
 
 export interface LoadTestsetModalProps extends ModalProps {
     setTestsetData: React.Dispatch<React.SetStateAction<Record<string, any>[] | null>>

@@ -2,8 +2,8 @@ import {useMemo} from "react"
 
 import {SelectProps} from "antd"
 
-import type {Evaluator} from "@/oss/lib/Types"
 import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
+import type {Evaluator} from "@/oss/lib/Types"
 
 import {
     ALLOWED_ONLINE_EVALUATOR_KEYS,

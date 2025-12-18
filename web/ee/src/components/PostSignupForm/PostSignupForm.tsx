@@ -400,7 +400,7 @@ const PostSignupForm = () => {
                 >
                     {isMultiple ? (
                         <Checkbox.Group>
-                            <Space direction="vertical">
+                            <Space orientation="vertical">
                                 {choices.map((choice: string) => (
                                     <Checkbox key={choice} value={choice}>
                                         {choice}
@@ -410,7 +410,7 @@ const PostSignupForm = () => {
                         </Checkbox.Group>
                     ) : (
                         <Radio.Group>
-                            <Space direction="vertical" className="w-full">
+                            <Space orientation="vertical" className="w-full">
                                 {choices.map((choice: string) => (
                                     <Radio key={choice} value={choice}>
                                         {choice}

@@ -21,7 +21,7 @@ export const environmentsAtom = selectAtom(
     deepEqual,
 )
 
-export const useEnvironments = ({}: UseEnvironmentOptions = {}) => {
+export const useEnvironments = (_options: UseEnvironmentOptions = {}) => {
     // atom selectors already scope to current app / project, so we can ignore appId here
     const environments = useAtomValue(environmentsAtom)
     const loadable = useAtomValue(environmentsLoadableAtom) as any

@@ -7,9 +7,8 @@ import {inputRowsByIdAtom} from "@/oss/state/generation/entities"
  * Variables Selectors (newPlayground)
  * Canonical variables are sourced from normalized input rows only.
  */
-export const variablesByRevisionSelectorFamily = atomFamily((params: {revisionId: string}) =>
+export const variablesByRevisionSelectorFamily = atomFamily((_params: {revisionId: string}) =>
     atom((get) => {
-        const {revisionId} = params
         const rows = get(inputRowsByIdAtom) as Record<string, any>
         const all: any[] = []
         for (const row of Object.values(rows || {})) {

@@ -27,7 +27,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     const exception = useAtomValue(spanExceptionAtomFamily(activeTrace))
 
     return (
-        <Space direction="vertical" size={24} className="w-full">
+        <Space orientation="vertical" size={24} className="w-full">
             {metaConfig && (
                 <Space style={{flexWrap: "wrap"}}>
                     {Object.entries(metaConfig)
@@ -47,7 +47,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             )}
 
             {inputs ? (
-                <Space direction="vertical" className="w-full" size={24}>
+                <Space orientation="vertical" className="w-full" size={24}>
                     {inputs?.prompt &&
                     Array.isArray(inputs?.prompt) &&
                     inputs?.prompt.length > 0 &&
@@ -124,7 +124,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             ) : null}
 
             {outputs ? (
-                <Space direction="vertical" className="w-full" size={24}>
+                <Space orientation="vertical" className="w-full" size={24}>
                     {outputs?.completion &&
                     Array.isArray(outputs?.completion) &&
                     outputs?.completion.length > 0 &&
@@ -194,7 +194,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             ) : null}
 
             {internals && (
-                <Space direction="vertical" className="w-full" size={24}>
+                <Space orientation="vertical" className="w-full" size={24}>
                     {nodeType !== "chat" && (
                         <AccordionTreePanel
                             label={"internals"}
@@ -206,7 +206,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             )}
 
             {exception && (
-                <Space direction="vertical" className="w-full" size={24}>
+                <Space orientation="vertical" className="w-full" size={24}>
                     <AccordionTreePanel
                         label={"Exception"}
                         value={exception}

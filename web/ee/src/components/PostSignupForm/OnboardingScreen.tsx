@@ -1,7 +1,7 @@
 import {useState} from "react"
 
 import {ArrowLeft, Code, TreeView, Rocket} from "@phosphor-icons/react"
-import {Typography, Card, Button, Space} from "antd"
+import {Typography, Card, Button} from "antd"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
@@ -16,7 +16,7 @@ import {waitForWorkspaceContext, buildPostLoginPath} from "@/oss/state/url/postL
 
 import {RunEvaluationView} from "./RunEvaluationView"
 
-const {Title, Text} = Typography
+const {Title} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     card: {
@@ -112,7 +112,7 @@ export const OnboardingScreen = () => {
     const [view, setView] = useState<ViewState>("selection")
     const router = useRouter()
     const posthog = usePostHogAg()
-    const {buildUrl} = useURL()
+    const _url = useURL() // Keep hook call for potential future use
 
     const handleSelection = async (selection: "trace" | "eval" | "test_prompt") => {
         posthog?.capture?.("onboarding_selection_v1", {

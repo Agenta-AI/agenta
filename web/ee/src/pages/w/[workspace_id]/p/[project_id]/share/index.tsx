@@ -3,7 +3,6 @@ import {useEffect, useRef} from "react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import ProtectedRoute from "@/oss/components/ProtectedRoute/ProtectedRoute"
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
 import useURL from "@/oss/hooks/useURL"
 import {EvaluationType} from "@/oss/lib/enums"
@@ -18,6 +17,8 @@ const EvaluationShare: React.FC = () => {
     const {changeSelectedOrg, selectedOrg, loading} = useOrgData()
     const called = useRef(false)
     const {baseAppURL} = useURL()
+    // variants from global store - must be at component level (React hooks rule)
+    const allVariants = useAtomValue(variantsAtom)
 
     useEffect(() => {
         const {app, org, variants: variantIds, testset, type} = router.query
@@ -31,8 +32,6 @@ const EvaluationShare: React.FC = () => {
                 }
                 called.current = true
 
-                // variants from global store
-                const allVariants = useAtomValue(variantsAtom)
                 const variants = variantIds
                     .map((id) => allVariants.find((item) => item.variantId === id))
                     .filter((item) => item !== undefined) as Variant[]

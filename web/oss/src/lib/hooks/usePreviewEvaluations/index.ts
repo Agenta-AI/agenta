@@ -1,3 +1,4 @@
+/* eslint-disable import/order */
 import {useCallback, useEffect, useMemo} from "react"
 
 import {useAtomValue, useSetAtom} from "jotai"
@@ -17,15 +18,11 @@ import {createEvaluationRunConfig} from "@/oss/services/evaluationRuns/api"
 import {CreateEvaluationRunInput} from "@/oss/services/evaluationRuns/api/types"
 import {fetchTestset} from "@/oss/services/testsets/api"
 import {getProjectValues} from "@/oss/state/project"
-import {
-    prefetchProjectVariantConfigs,
-    setProjectVariantReferencesAtom,
-} from "@/oss/state/projectVariantConfig"
+import {setProjectVariantReferencesAtom} from "@/oss/state/projectVariantConfig"
 import {usePreviewTestsetsData, useTestsetsData} from "@/oss/state/testset"
 
 import {primePreviewRunCache} from "./assets/previewRunBatcher"
 import {fetchPreviewRunsShared} from "./assets/previewRunsRequest"
-import useEnrichEvaluationRun from "./assets/utils"
 import {collectProjectVariantReferences} from "./projectVariantConfigs"
 
 const EMPTY_RUNS: any[] = []
@@ -283,7 +280,7 @@ const usePreviewEvaluations = ({
      * Hook to fetch testsets data.
      */
     const {testsets} = useTestsetsData()
-    const {testsets: previewTestsets} = usePreviewTestsetsData()
+    const {testsets: _previewTestsets} = usePreviewTestsetsData()
 
     /**
      * Helper to create scenarios for a given run and testset.

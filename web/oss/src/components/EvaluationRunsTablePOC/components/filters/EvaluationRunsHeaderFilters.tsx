@@ -442,11 +442,6 @@ const EvaluationRunsHeaderFilters = () => {
                 buttonType={filtersButtonState.buttonType as "default" | "primary"}
                 onOpenChange={handleFiltersOpenChange}
                 popoverProps={{
-                    overlayStyle: {
-                        backgroundColor: "transparent",
-                        boxShadow: "none",
-                        padding: 0,
-                    },
                     arrow: false,
                     styles: {
                         body: {
@@ -454,6 +449,11 @@ const EvaluationRunsHeaderFilters = () => {
                             backgroundColor: "transparent",
                             boxShadow: "none",
                             border: "none",
+                        },
+                        root: {
+                            backgroundColor: "transparent",
+                            boxShadow: "none",
+                            padding: 0,
                         },
                     },
                 }}

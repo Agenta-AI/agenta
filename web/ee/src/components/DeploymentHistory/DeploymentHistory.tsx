@@ -265,7 +265,7 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
 
                                     <Divider className={classes.divider} />
 
-                                    <Space direction="vertical">
+                                    <Space orientation="vertical">
                                         <div>
                                             <Text strong>Modified By: </Text>
                                             <Text>{item.modified_by}</Text>
@@ -304,7 +304,7 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
                                         title="Model Parameters"
                                         className={classes.promptHistoryCard}
                                     >
-                                        <Space direction="vertical">
+                                        <Space orientation="vertical">
                                             <>
                                                 {Object.entries(showDeployment.parameters).map(
                                                     ([key, value], index) => {

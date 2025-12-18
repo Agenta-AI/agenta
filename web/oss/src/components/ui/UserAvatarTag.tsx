@@ -1,6 +1,5 @@
 import {memo} from "react"
 
-import {Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {variantUserDisplayNameAtomFamily} from "@/oss/state/variant/selectors/variant"

@@ -30,6 +30,7 @@ import {resolveScenarioColumnValue} from "./export/columnResolvers"
 import {buildGroupMap, resolveScenarioColumnLabel} from "./export/labelResolvers"
 import {buildExportMetadata} from "./export/types"
 import type {ScenarioColumnExportMetadata} from "./export/types"
+import useComparisonPaginations from "./hooks/useComparisonPaginations"
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"
 import useRowHeightMenuItems from "./hooks/useRowHeightMenuItems"
@@ -76,15 +77,16 @@ const EvalRunDetailsTable = ({
         [compareRunIds],
     )
 
-    const comparePaginations = compareSlots.map((slotRunId) =>
-        useInfiniteTablePagination<PreviewTableRow>({
-            store: evaluationPreviewTableStore,
-            scopeId: slotRunId,
-            pageSize,
-        }),
-    )
+    // Use custom hook to handle multiple comparison paginations
+    const comparePaginations = useComparisonPaginations({
+        compareSlots,
+        pageSize,
+    })
 
-    const compareRowsBySlot = comparePaginations.map((pagination) => pagination.rows)
+    const compareRowsBySlot = useMemo(
+        () => comparePaginations.map((pagination) => pagination.rows),
+        [comparePaginations],
+    )
 
     const {columnResult} = usePreviewTableData({runId})
 

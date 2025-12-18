@@ -285,7 +285,7 @@ const SharedGenerationResultUtils = ({
                         </div>
                     }
                     popoverContent={
-                        <Space direction="vertical">
+                        <Space orientation="vertical">
                             <Space>
                                 <div>{formattedPrompts}</div>
                                 <div>Prompt tokens</div>

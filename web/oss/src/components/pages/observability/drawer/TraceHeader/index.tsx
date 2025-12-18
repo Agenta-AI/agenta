@@ -4,12 +4,12 @@ import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {
     traceDrawerBackTargetAtom,
     traceDrawerIsLinkedViewAtom,
     setTraceDrawerTraceAtom,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
+import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
 import {
     isSpansResponse,
@@ -22,8 +22,8 @@ import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {useObservability} from "@/oss/state/newObservability"
 import buildTraceQueryParams from "@/oss/state/newObservability/utils/buildTraceQueryParams"
 
-import {TraceHeaderProps, NavState, NavSource} from "./assets/types"
 import {getTraceIdFromNode, getSpanIdFromNode, getNodeTimestamp, toISOString} from "./assets/helper"
+import {TraceHeaderProps, NavState, NavSource} from "./assets/types"
 
 const TraceHeader = ({
     activeTrace: propActiveTrace,

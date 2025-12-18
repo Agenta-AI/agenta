@@ -28,7 +28,7 @@ const titleize = (value: string) =>
         .replace(/[_\-.]+/g, " ")
         .replace(/\s+/g, " ")
         .trim()
-        .replace(/\w/g, (char) => char.toUpperCase())
+        .replace(/\b\w/g, (char) => char.toUpperCase())
 
 const sanitizeReferenceValue = (value: unknown) =>
     typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined

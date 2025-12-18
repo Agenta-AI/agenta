@@ -1,6 +1,6 @@
+import {produce} from "immer"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-import {produce} from "immer"
 
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 
