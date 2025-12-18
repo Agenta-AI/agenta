@@ -577,6 +577,8 @@ def parse_testset_revision_retrieve_request_from_params(
     testset_revision_id: Optional[UUID] = Query(None),
     testset_revision_slug: Optional[str] = Query(None),
     testset_revision_version: Optional[str] = Query(None),
+    #
+    include_testcases: Optional[bool] = Query(None),
 ):
     testset_ref = (
         Reference(
@@ -610,6 +612,7 @@ def parse_testset_revision_retrieve_request_from_params(
         testset_ref=testset_ref,
         testset_variant_ref=testset_variant_ref,
         testset_revision_ref=testset_revision_ref,
+        include_testcases=include_testcases,
     )
 
 
@@ -617,11 +620,13 @@ def parse_testset_revision_retrieve_request_from_body(
     testset_ref: Optional[Reference] = None,
     testset_variant_ref: Optional[Reference] = None,
     testset_revision_ref: Optional[Reference] = None,
+    include_testcases: Optional[bool] = None,
 ) -> TestsetRevisionRetrieveRequest:
     return TestsetRevisionRetrieveRequest(
         testset_ref=testset_ref,
         testset_variant_ref=testset_variant_ref,
         testset_revision_ref=testset_revision_ref,
+        include_testcases=include_testcases,
     )
 
 

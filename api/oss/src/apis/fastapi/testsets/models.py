@@ -103,10 +103,12 @@ class TestsetVariantsResponse(BaseModel):
 
 class TestsetRevisionCreateRequest(BaseModel):
     testset_revision: TestsetRevisionCreate
+    include_testcases: Optional[bool] = None
 
 
 class TestsetRevisionEditRequest(BaseModel):
     testset_revision: TestsetRevisionEdit
+    include_testcases: Optional[bool] = None
 
 
 class TestsetRevisionQueryRequest(BaseModel):
@@ -119,16 +121,25 @@ class TestsetRevisionQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
+    include_testcases: Optional[bool] = None
 
 
 class TestsetRevisionCommitRequest(BaseModel):
     testset_revision_commit: TestsetRevisionCommit
+    include_testcases: Optional[bool] = None
 
 
 class TestsetRevisionRetrieveRequest(BaseModel):
     testset_ref: Optional[Reference] = None
     testset_variant_ref: Optional[Reference] = None
     testset_revision_ref: Optional[Reference] = None
+    include_testcases: Optional[bool] = None
+
+
+class TestsetRevisionLogRequest(BaseModel):
+    testset: TestsetLog
+    depth: Optional[int] = None
+    include_testcases: Optional[bool] = None
 
 
 class TestsetRevisionResponse(BaseModel):
