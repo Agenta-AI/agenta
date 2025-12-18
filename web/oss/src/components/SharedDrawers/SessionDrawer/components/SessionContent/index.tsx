@@ -1,10 +1,11 @@
+import {Typography} from "antd"
 import clsx from "clsx"
 
-import {SessionContentProps} from "./types"
-import {Typography} from "antd"
-import SessionMessagePanel from "../SessionMessagePanel"
 import useSessionDrawer from "../../hooks/useSessionDrawer"
 import SessionContentSummary from "../SessionContentSummary"
+import SessionMessagePanel from "../SessionMessagePanel"
+
+import {SessionContentProps} from "./types"
 
 const SessionContent = ({}: SessionContentProps) => {
     const {activeSession} = useSessionDrawer()

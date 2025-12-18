@@ -7,6 +7,8 @@ import {useAtomValue} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
 
 import CustomTreeComponent from "@/oss/components/CustomUIs/CustomTreeComponent"
+import {filterTree} from "@/oss/components/pages/observability/assets/utils"
+import AvatarTreeContent from "@/oss/components/pages/observability/components/AvatarTreeContent"
 import {StatusCode, TraceSpanNode} from "@/oss/services/tracing/types"
 import {
     formattedSpanCostAtomFamily,
@@ -14,8 +16,6 @@ import {
     formattedSpanTokensAtomFamily,
 } from "@/oss/state/newObservability"
 
-import {filterTree} from "@/oss/components/pages/observability/assets/utils"
-import AvatarTreeContent from "@/oss/components/pages/observability/components/AvatarTreeContent"
 import useTraceDrawer from "../../hooks/useTraceDrawer"
 import TraceTreeSettings from "../TraceTreeSettings"
 

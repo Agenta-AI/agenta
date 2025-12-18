@@ -1,5 +1,5 @@
-import { ButtonProps } from "antd"
-import { KeyValuePair } from "tailwindcss/types/config"
+import {ButtonProps} from "antd"
+import {KeyValuePair} from "tailwindcss/types/config"
 
 export interface AddToTestsetButtonProps extends ButtonProps {
     label?: string

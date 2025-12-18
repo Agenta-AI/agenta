@@ -4,6 +4,7 @@ import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {useObservability} from "@/oss/state/newObservability"
 
 import ObservabilityHeader from "../ObservabilityHeader"
+
 import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
 
 const SessionsTable = () => {

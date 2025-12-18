@@ -25,9 +25,10 @@ import {
     getLatency,
     getTokens,
 } from "@/oss/state/newObservability/selectors/tracing"
-import {ObservabilityHeaderProps} from "../../assets/types"
+
 import {buildAttributeKeyTreeOptions} from "../../assets/filters/attributeKeyOptions"
 import getFilterColumns from "../../assets/getFilterColumns"
+import {ObservabilityHeaderProps} from "../../assets/types"
 
 const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})

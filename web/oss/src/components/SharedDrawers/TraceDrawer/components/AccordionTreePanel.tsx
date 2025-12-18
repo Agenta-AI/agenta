@@ -24,10 +24,10 @@ import EditorWrapper, {
 import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
 import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 import {SearchPlugin} from "@/oss/components/Editor/plugins/search/SearchPlugin"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {JSSTheme} from "@/oss/lib/Types"
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 const ImagePreview = dynamic(() => import("@/oss/components/Common/ImagePreview"), {ssr: false})
 
 type AccordionTreePanelProps = {

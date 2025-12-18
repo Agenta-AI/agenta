@@ -1,17 +1,18 @@
-import {Button, Collapse, CollapseProps, Tag, Typography} from "antd"
 import {useRef} from "react"
 
+import {Database} from "@phosphor-icons/react"
+import {Button, Collapse, CollapseProps, Tag, Typography} from "antd"
+import clsx from "clsx"
+import {useAtomValue} from "jotai"
+
+import {EditorProvider} from "@/oss/components/Editor/Editor"
+import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import EnhancedTooltip from "@/oss/components/EnhancedUIs/Tooltip"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 
-import {Database} from "@phosphor-icons/react"
-import clsx from "clsx"
 import AnnotateDrawerButton from "../../../AnnotateDrawer/assets/AnnotateDrawerButton"
 import TraceAnnotations from "../../../TraceDrawer/components/TraceSidePanel/TraceAnnotations"
-import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
-import {EditorProvider} from "@/oss/components/Editor/Editor"
 import {isAnnotationVisibleAtom} from "../../store/sessionDrawerStore"
-import {useAtomValue} from "jotai"
 
 interface SessionMessagePanelProps extends CollapseProps {
     value: Record<string, any> | string | any[]

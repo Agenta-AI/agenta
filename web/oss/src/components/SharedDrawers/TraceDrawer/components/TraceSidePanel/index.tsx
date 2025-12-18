@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import {Collapse, CollapseProps, Skeleton, Typography} from "antd"
+import clsx from "clsx"
 import {createUseStyles} from "react-jss"
 
 import {JSSTheme} from "@/oss/lib/Types"
@@ -8,7 +9,6 @@ import {TracesWithAnnotations} from "@/oss/services/observability/types"
 
 import useTraceDrawer from "../../hooks/useTraceDrawer"
 
-import clsx from "clsx"
 import TraceAnnotations from "./TraceAnnotations"
 import TraceDetails from "./TraceDetails"
 import TraceLinkedSpans from "./TraceLinkedSpans"

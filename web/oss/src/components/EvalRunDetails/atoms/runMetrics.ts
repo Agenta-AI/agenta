@@ -1,6 +1,6 @@
 import {atom, Atom} from "jotai"
-import {atomWithQuery} from "jotai-tanstack-query"
 import {atomFamily, loadable} from "jotai/utils"
+import {atomWithQuery} from "jotai-tanstack-query"
 
 import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/run"
 import axios from "@/oss/lib/api/assets/axiosConfig"

@@ -7,6 +7,7 @@ import {useQueryParamState} from "@/oss/state/appState"
 import {clearTraceParamAtom} from "@/oss/state/url"
 
 import {closeTraceDrawerAtom, isDrawerOpenAtom} from "../store/traceDrawerStore"
+
 import TraceDrawerContent from "./TraceDrawerContent"
 
 const TraceDrawer = () => {

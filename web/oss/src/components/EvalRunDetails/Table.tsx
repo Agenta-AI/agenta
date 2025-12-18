@@ -17,6 +17,8 @@ import {
     type TableExportColumnContext,
 } from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
 
+import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPaginations"
+
 import {MAX_COMPARISON_RUNS, compareRunIdsAtom, getComparisonColor} from "./atoms/compare"
 import {runDisplayNameAtomFamily} from "./atoms/runDerived"
 import type {EvaluationTableColumn} from "./atoms/table"
@@ -29,13 +31,11 @@ import {
 import {resolveScenarioColumnValue} from "./export/columnResolvers"
 import {buildGroupMap, resolveScenarioColumnLabel} from "./export/labelResolvers"
 import type {ScenarioColumnExportMetadata} from "./export/types"
-
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"
 import useRowHeightMenuItems from "./hooks/useRowHeightMenuItems"
 import {scenarioRowHeightAtom} from "./state/rowHeight"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
-import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPaginations"
 
 type TableRowData = PreviewTableRow
 

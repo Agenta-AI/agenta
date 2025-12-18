@@ -1,12 +1,12 @@
 import {atom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 import {atomWithImmer} from "jotai-immer"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import sessionsMock from "../assets/dummyChatSessions.json"
-import {atomWithStorage} from "jotai/utils"
 
 // ---------- Types ----------
-type ChatSessionTurn = {
+interface ChatSessionTurn {
     turn_index: number
     user_message: {content: string; timestamp: string}
     assistant_message: {content: string; timestamp: string; finish_reason?: string}
@@ -18,7 +18,7 @@ type ChatSessionTurn = {
     evaluations?: any[]
 }
 
-type ChatSession = {
+interface ChatSession {
     session_id: string
     title: string
     application: {id: string; slug: string}
@@ -45,7 +45,7 @@ type ChatSession = {
     aggregated_evaluator_metrics?: Record<string, any>
 }
 
-type ChatSessionsResponse = {
+interface ChatSessionsResponse {
     sessions: ChatSession[]
 }
 

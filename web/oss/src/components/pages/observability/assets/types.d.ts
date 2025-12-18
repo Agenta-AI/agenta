@@ -5,7 +5,7 @@ import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 export interface ObservabilityHeaderProps {
     columns: ColumnsType<any>
-    componentType: 'traces' | 'sessions'
+    componentType: "traces" | "sessions"
 }
 
 export type AvatarTreeContentProps = {

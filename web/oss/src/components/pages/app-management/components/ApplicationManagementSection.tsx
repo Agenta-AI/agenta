@@ -7,9 +7,9 @@ import {useSetAtom} from "jotai"
 import {createUseStyles} from "react-jss"
 import {useLocalStorage} from "usehooks-ts"
 
-import NoResultsFound from "@/oss/components/Placeholders/NoResultsFound/NoResultsFound"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
+import NoResultsFound from "@/oss/components/Placeholders/NoResultsFound/NoResultsFound"
 import usePagination from "@/oss/hooks/usePagination"
 import {JSSTheme, ListAppsItem} from "@/oss/lib/Types"
 

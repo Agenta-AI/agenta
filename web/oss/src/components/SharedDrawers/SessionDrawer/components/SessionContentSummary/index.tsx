@@ -1,6 +1,8 @@
 import {Typography} from "antd"
-import useSessionDrawer from "../../hooks/useSessionDrawer"
+
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
+
+import useSessionDrawer from "../../hooks/useSessionDrawer"
 
 const SessionContentSummary = () => {
     const {activeSession} = useSessionDrawer()

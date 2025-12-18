@@ -37,8 +37,8 @@ const AnnotateDrawerButton = ({
                     label={label}
                     icon={icon && <PencilSimpleLine size={14} />}
                     onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
+                        e.preventDefault()
+                        e.stopPropagation()
                         setIsDrawerOpen(true)
                     }}
                     {...props}

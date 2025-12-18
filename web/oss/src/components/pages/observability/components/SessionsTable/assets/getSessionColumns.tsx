@@ -1,16 +1,16 @@
 import {Tag} from "antd"
 
+import {EnhancedColumnType} from "@/oss/components/EnhancedUIs/Table/types"
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
+
 import CostCell from "../../CostCell"
 import DurationCell from "../../DurationCell"
 import TimestampCell from "../../TimestampCell"
 import UsageCell from "../../UsageCell"
 
-import {EnhancedColumnType} from "@/oss/components/EnhancedUIs/Table/types"
-
-export type SessionRow = {
+export interface SessionRow {
     session_id: string
     traces?: number
     first_input?: any

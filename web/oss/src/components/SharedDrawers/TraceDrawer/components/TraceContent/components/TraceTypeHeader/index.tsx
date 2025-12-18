@@ -1,21 +1,21 @@
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
-import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
-import {Button, Tag, Tooltip, Typography} from "antd"
-import dynamic from "next/dynamic"
+import {useMemo, useState} from "react"
 
-import clsx from "clsx"
-
-import {KeyValuePair} from "@/oss/lib/Types"
-import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
 import {DeleteOutlined} from "@ant-design/icons"
 import {SidebarSimple} from "@phosphor-icons/react"
+import {Button, Tag, Tooltip, Typography} from "antd"
+import clsx from "clsx"
 import {useAtomValue} from "jotai"
-import {useMemo, useState} from "react"
+import dynamic from "next/dynamic"
+
+import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
+import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
+import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
+import {KeyValuePair} from "@/oss/lib/Types"
+import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
 
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
 
 import {TraceTypeHeaderProps} from "./types"
-import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
 
 const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
     ssr: false,

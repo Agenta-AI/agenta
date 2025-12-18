@@ -6,12 +6,12 @@ import clsx from "clsx"
 import {useLocalStorage} from "usehooks-ts"
 
 import CustomTreeComponent from "@/oss/components/CustomUIs/CustomTreeComponent"
+import {filterTree} from "@/oss/components/pages/observability/assets/utils"
 import {StatusCode, TraceSpanNode} from "@/oss/services/tracing/types"
 
-import {filterTree} from "@/oss/components/pages/observability/assets/utils"
+import TraceTreeSettings from "../../../TraceDrawer/components/TraceTreeSettings"
 import {useSessionDrawer} from "../../hooks/useSessionDrawer"
 
-import TraceTreeSettings from "../../../TraceDrawer/components/TraceTreeSettings"
 import {SessionTreeProps} from "./assets/types"
 
 const SessionTree = ({selected, setSelected}: SessionTreeProps) => {

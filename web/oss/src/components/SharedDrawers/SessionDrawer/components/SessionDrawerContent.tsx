@@ -22,7 +22,7 @@ interface TraceDrawerContentProps {
 
 const SessionDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerContentProps) => {
     const [selected, setSelected] = useState<string>("")
-    
+
     return (
         <div className="h-full w-full flex flex-col">
             <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-colorSplit">
