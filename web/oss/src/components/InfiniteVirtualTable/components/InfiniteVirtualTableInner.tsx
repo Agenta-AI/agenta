@@ -27,8 +27,8 @@ import useContainerResize from "../hooks/useContainerResize"
 import useExpandableRows from "../hooks/useExpandableRows"
 import useHeaderViewportVisibility from "../hooks/useHeaderViewportVisibility"
 import useInfiniteScroll from "../hooks/useInfiniteScroll"
-import useSmartResizableColumns from "../hooks/useSmartResizableColumns"
 import useScrollContainer from "../hooks/useScrollContainer"
+import useSmartResizableColumns from "../hooks/useSmartResizableColumns"
 import useTableKeyboardShortcuts from "../hooks/useTableKeyboardShortcuts"
 import useTableRowSelection from "../hooks/useTableRowSelection"
 import ColumnVisibilityProvider from "../providers/ColumnVisibilityProvider"
@@ -383,10 +383,14 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             if (typeof rawX === "number" || typeof rawX === "string") {
                 return rawX
             }
-            if (Number.isFinite(computedScrollX) && computedScrollX > 0) {
-                return computedScrollX
-            }
-            return scrollX > 0 ? scrollX : undefined
+            // Use the larger of computedScrollX or scrollX (container width)
+            // This ensures columns fill available space when total < container
+            // and enables horizontal scroll when total > container
+            const computed =
+                Number.isFinite(computedScrollX) && computedScrollX > 0 ? computedScrollX : 0
+            const container = scrollX > 0 ? scrollX : 0
+            const maxWidth = Math.max(computed, container)
+            return maxWidth > 0 ? maxWidth : undefined
         })()
 
         if (resolvedY === undefined || resolvedY <= 0) {

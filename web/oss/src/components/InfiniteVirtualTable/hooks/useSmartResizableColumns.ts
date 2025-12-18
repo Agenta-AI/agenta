@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState, type HTMLAttributes} from "react"
+import {useCallback, useMemo, useRef, useState, type HTMLAttributes} from "react"
 
 import type {ColumnsType, ColumnType} from "antd/es/table"
 import {useAtom} from "jotai"
@@ -80,9 +80,6 @@ export const useSmartResizableColumns = <RowType>({
     const [userResizedWidths, setUserResizedWidths] = useAtom(widthsAtom)
     const [isResizing, setIsResizing] = useState(false)
     const columnMetaRef = useRef<Record<string, ColumnMeta>>({})
-    const previousContainerWidthRef = useRef<number>(containerWidth)
-    // Store initial calculated widths for non-resized columns
-    const initialWidthsRef = useRef<Record<string, number>>({})
 
     // Extract column metadata
     const analyzeColumns = useCallback(
@@ -101,8 +98,7 @@ export const useSmartResizableColumns = <RowType>({
                           ? col.minWidth
                           : DEFAULT_COLUMN_WIDTH
 
-                const resolvedMinWidth =
-                    typeof col.minWidth === "number" ? col.minWidth : minWidth
+                const resolvedMinWidth = typeof col.minWidth === "number" ? col.minWidth : minWidth
 
                 const maxWidthValue = hasMaxWidth ? (col as any).maxWidth : undefined
 
@@ -124,26 +120,29 @@ export const useSmartResizableColumns = <RowType>({
         (columnsMeta: ColumnMeta[]): Record<string, number> => {
             const result: Record<string, number> = {}
 
+            // Check if ANY column has been user-resized
+            const hasAnyUserResize = columnsMeta.some((c) => userResizedWidths[c.key] !== undefined)
+
             // 1. Separate columns by type
             const fixedPositionCols = columnsMeta.filter((c) => c.isFixed)
             const constrainedCols = columnsMeta.filter((c) => !c.isFixed && c.hasMaxWidth)
             const flexibleCols = columnsMeta.filter((c) => !c.isFixed && !c.hasMaxWidth)
 
-            // 2. Calculate fixed widths
-            let usedWidth = selectionColumnWidth
+            // 2. Calculate fixed widths (these never change)
+            let fixedWidth = selectionColumnWidth
 
             // Fixed position columns use their width (or user-resized width)
             for (const col of fixedPositionCols) {
                 const width = userResizedWidths[col.key] ?? col.width
                 result[col.key] = width
-                usedWidth += width
+                fixedWidth += width
             }
 
             // Constrained columns use their maxWidth
             for (const col of constrainedCols) {
                 const width = col.maxWidth!
                 result[col.key] = width
-                usedWidth += width
+                fixedWidth += width
             }
 
             // 3. Calculate widths for flexible columns
@@ -152,50 +151,35 @@ export const useSmartResizableColumns = <RowType>({
             }
 
             // Available space for flexible columns
-            const availableWidth = containerWidth - usedWidth
+            const availableForFlexible = containerWidth - fixedWidth
 
-            // Calculate total weight (sum of default widths)
-            const totalWeight = flexibleCols.reduce((sum, col) => sum + col.width, 0)
-
-            // Calculate initial widths for all flexible columns (proportionally)
-            // Store these as "baseline" widths that don't change when user resizes
-            const needsInitialCalc = Object.keys(initialWidthsRef.current).length === 0
-
-            if (needsInitialCalc) {
-                // Distribute available space proportionally
+            // KEY BEHAVIOR CHANGE:
+            // Once ANY column has been user-resized, ALL flexible columns should use
+            // either their user-resized width or their default width (not redistribute).
+            // This prevents other columns from shrinking when one is expanded.
+            if (hasAnyUserResize) {
+                // Use user-resized width if available, otherwise use default width
                 for (const col of flexibleCols) {
-                    const proportion = col.width / totalWeight
-                    const computedWidth = availableWidth * proportion
-                    // Store the computed width (respecting minimum)
-                    initialWidthsRef.current[col.key] = Math.max(computedWidth, col.minWidth)
+                    const width = userResizedWidths[col.key] ?? col.width
+                    result[col.key] = Math.max(width, col.minWidth)
                 }
+                return result
             }
 
-            // Apply widths: use user-resized if available, otherwise use initial width
+            // No user resizes yet - distribute space proportionally to fill container
+            // This is the initial state before any manual resizing
+            const totalWeight = flexibleCols.reduce((sum, col) => sum + col.width, 0)
+
             for (const col of flexibleCols) {
-                if (userResizedWidths[col.key] !== undefined) {
-                    // User has resized this column - use exact user width (respecting minimum)
-                    result[col.key] = Math.max(userResizedWidths[col.key], col.minWidth)
-                } else {
-                    // Not user-resized - use the initial calculated width
-                    result[col.key] = initialWidthsRef.current[col.key] ?? col.minWidth
-                }
+                const proportion = col.width / totalWeight
+                const computedWidth = availableForFlexible * proportion
+                result[col.key] = Math.max(computedWidth, col.minWidth)
             }
 
             return result
         },
-        [containerWidth, selectionColumnWidth, userResizedWidths],
+        [containerWidth, selectionColumnWidth, userResizedWidths, minWidth],
     )
-
-    // Detect container width changes and recalculate initial widths
-    useEffect(() => {
-        if (!enabled) return
-        if (previousContainerWidthRef.current !== containerWidth) {
-            // Container resized - reset initial widths to recalculate proportions
-            initialWidthsRef.current = {}
-            previousContainerWidthRef.current = containerWidth
-        }
-    }, [containerWidth, enabled])
 
     const commitWidth = useCallback(
         (colKey: string, width: number) => {
@@ -220,11 +204,10 @@ export const useSmartResizableColumns = <RowType>({
     )
 
     const handleResize = useCallback(
-        (_colKey: string) =>
-            (_: unknown, _size: {size: {width: number}}) => {
-                // During drag, don't commit to state to avoid jank
-                // ResizableTitle handles visual feedback
-            },
+        (_colKey: string) => (_: unknown, _size: {size: {width: number}}) => {
+            // During drag, don't commit to state to avoid jank
+            // ResizableTitle handles visual feedback
+        },
         [],
     )
 

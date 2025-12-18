@@ -50,9 +50,14 @@ export interface ActionItem<T> {
     hidden?: (record: T) => boolean
 }
 
+export interface ActionDivider<T> {
+    type: "divider"
+    hidden?: (record: T) => boolean
+}
+
 export interface ActionsColumnDef<T> {
     type: "actions"
-    items: (ActionItem<T> | {type: "divider"})[]
+    items: (ActionItem<T> | ActionDivider<T>)[]
     width?: number
     /** Maximum width for the actions column */
     maxWidth?: number
@@ -198,6 +203,11 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
 
             items.forEach((item) => {
                 if ("type" in item && item.type === "divider") {
+                    const dividerItem = item as ActionDivider<T>
+                    // Skip if hidden
+                    if (dividerItem.hidden?.(record)) {
+                        return
+                    }
                     menuItems.push({type: "divider"})
                     return
                 }

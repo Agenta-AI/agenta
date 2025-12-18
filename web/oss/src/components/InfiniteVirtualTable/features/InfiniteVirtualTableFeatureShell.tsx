@@ -164,6 +164,12 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      */
     dataSource?: Row[]
     /**
+     * Jotai store to use for the table. When provided, the table will use this store
+     * instead of creating an isolated one. Useful when cells need to read from
+     * atoms in a shared store (e.g., entity atoms).
+     */
+    store?: InfiniteVirtualTableProps<Row>["store"]
+    /**
      * Ref to access the underlying Ant Design Table instance.
      * Useful for programmatic scrolling via `tableRef.current?.scrollTo({ index })`.
      */
@@ -244,6 +250,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         expandable,
         dataSource,
         tableRef,
+        store,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
 
@@ -539,7 +546,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             >
                 {beforeTable}
                 <InfiniteVirtualTable<Row>
-                    useIsolatedStore
+                    useIsolatedStore={!store}
+                    store={store}
                     columns={columns}
                     dataSource={dataSource ?? pagination.rows}
                     loadMore={handleLoadMore}
