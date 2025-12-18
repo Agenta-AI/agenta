@@ -28,7 +28,7 @@ const CloudScripts = () => {
                 ></script>
             </Head>
             <div className="container">
-                <Script src="/__env.js" strategy="beforeInteractive" />
+                <Script src="/__env.js" strategy="afterInteractive" />
             </div>
         </>
     )

@@ -59,12 +59,12 @@ export const toDisplayable = (value: unknown): string | null => {
 export const hasQueryReference = (reference: Record<string, unknown>): boolean =>
     Boolean(
         reference &&
-            (reference.queryId ||
-                reference.querySlug ||
-                reference.queryRevisionId ||
-                reference.queryRevisionSlug ||
-                reference.queryVariantId ||
-                reference.queryVariantSlug),
+        (reference.queryId ||
+            reference.querySlug ||
+            reference.queryRevisionId ||
+            reference.queryRevisionSlug ||
+            reference.queryVariantId ||
+            reference.queryVariantSlug),
     )
 
 export const formatSamplingRate = (rate: unknown): string => {

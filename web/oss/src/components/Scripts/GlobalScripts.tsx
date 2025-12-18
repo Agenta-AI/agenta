@@ -20,7 +20,7 @@ const GlobalScripts = () => {
                 <link rel="shortcut icon" href="/assets/favicon.ico" />
             </Head>
 
-            <Script src="/__env.js" strategy="beforeInteractive" />
+            <Script src="/__env.js" strategy="afterInteractive" />
         </>
     )
 }
