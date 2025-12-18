@@ -126,10 +126,11 @@ async def _upsert_entities(
                 for testcases_data in simple_evaluation_data.testset_steps:
                     if isinstance(testcases_data, List):
                         if all(isinstance(step, Dict) for step in testcases_data):
-                            testset_revision_id = await acreate_testset(
+                            created_revision = await acreate_testset(
                                 data=testcases_data,
                             )
-                            testset_steps[str(testset_revision_id)] = "custom"
+                            if created_revision and created_revision.id:
+                                testset_steps[str(created_revision.id)] = "custom"
 
             simple_evaluation_data.testset_steps = testset_steps
 
@@ -215,14 +216,15 @@ async def _retrieve_entities(
     Dict[UUID, EvaluatorRevision],
 ]:
     testset_revisions: Dict[UUID, TestsetRevision] = {}
-    # for testset_revision_id, origin in simple_evaluation_data.testset_steps.items():
-    #     testset_revision = await retrieve_testset(
-    #         testset_revision_id=testset_revision_id,
-    #     )
-    for testset_id, origin in simple_evaluation_data.testset_steps.items():
+    for testset_ref, origin in simple_evaluation_data.testset_steps.items():
         testset_revision = await aretrieve_testset(
-            testset_id=testset_id,
+            testset_revision_id=testset_ref,
         )
+
+        if not testset_revision or not testset_revision.id:
+            testset_revision = await aretrieve_testset(
+                testset_id=testset_ref,
+            )
 
         if not testset_revision or not testset_revision.id:
             continue
