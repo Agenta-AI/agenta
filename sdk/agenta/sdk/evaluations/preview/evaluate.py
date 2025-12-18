@@ -308,6 +308,32 @@ async def aevaluate(
         "────────────────────────────────────────────────────────────────────────────"
     )
 
+    # Normalize testset_steps to revision ids (no JIT transfers in backend)
+    if simple_evaluation_data.testset_steps and isinstance(
+        simple_evaluation_data.testset_steps, dict
+    ):
+        normalized_testset_steps: Dict[str, Origin] = {}
+        for testset_id_str, origin in simple_evaluation_data.testset_steps.items():
+            try:
+                testset_uuid = UUID(str(testset_id_str))
+            except Exception:
+                continue
+
+            testset_revision = await aretrieve_testset(
+                testset_revision_id=testset_uuid,
+            )
+
+            if not testset_revision or not testset_revision.id:
+                # Fallback: treat as testset_id (latest revision)
+                testset_revision = await aretrieve_testset(
+                    testset_id=testset_uuid,
+                )
+
+            if testset_revision and testset_revision.id:
+                normalized_testset_steps[str(testset_revision.id)] = origin
+
+        simple_evaluation_data.testset_steps = normalized_testset_steps
+
     suffix = _timestamp_suffix()
     name = f"{name}{suffix}"
 
