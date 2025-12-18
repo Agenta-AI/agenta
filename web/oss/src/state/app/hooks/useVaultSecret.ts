@@ -106,10 +106,13 @@ export const useVaultSecret = () => {
 
     /**
      * Computed loading state considering both data fetching and migration
+     * Note: We only check migrationStatus.migrating, not !migrationStatus.migrated
+     * This is because the vault query is enabled regardless of migration status,
+     * and we want to show data as soon as it's fetched, not wait for migration to complete
      */
     const loading = useMemo(() => {
-        return vaultQuery.isPending || migrationStatus.migrating || !migrationStatus.migrated
-    }, [vaultQuery.isPending, migrationStatus.migrating, migrationStatus.migrated])
+        return vaultQuery.isPending || migrationStatus.migrating
+    }, [vaultQuery.isPending, migrationStatus.migrating])
 
     return {
         loading,
