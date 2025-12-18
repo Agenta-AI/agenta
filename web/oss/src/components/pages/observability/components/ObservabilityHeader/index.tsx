@@ -45,13 +45,11 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
         setTraceTabs,
         filters,
         setFilters,
-        sort,
         setSort,
         fetchTraces,
         fetchAnnotations,
         selectedRowKeys,
         setTestsetDrawerData,
-        editColumns,
         setEditColumns,
     } = useObservability()
     const queryClient = useAtomValue(queryClientAtom)

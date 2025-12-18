@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import {TreeStructureIcon} from "@phosphor-icons/react"
 import {Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -8,7 +9,6 @@ import {
     setTraceDrawerTraceAtom,
     TraceDrawerSpanLink,
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {TreeStructureIcon} from "@phosphor-icons/react"
 
 const TraceLinkedSpans = () => {
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)

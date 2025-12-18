@@ -131,7 +131,11 @@ const Testset = () => {
                 return (
                     <Dropdown
                         trigger={["click"]}
-                        overlayStyle={{width: 180}}
+                        styles={{
+                            root: {
+                                width: 180,
+                            },
+                        }}
                         menu={{
                             items: [
                                 {
@@ -204,7 +208,7 @@ const Testset = () => {
     ]
 
     return (
-        <>
+        <div className="w-full p-6 flex flex-col">
             <section className="w-full flex flex-col gap-6 mb-2">
                 <div className={classes.headerText}>
                     <Typography.Title level={4}>Testsets</Typography.Title>
@@ -291,7 +295,7 @@ const Testset = () => {
                     setIsCreateTestsetModalOpen(false)
                 }}
             />
-        </>
+        </div>
     )
 }
 

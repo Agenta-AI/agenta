@@ -9,18 +9,23 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 )
 
 from oss.src.utils.env import env
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
+from oss.src.utils.common import is_ee
 
 from oss.src.apis.fastapi.otlp.models import CollectStatusResponse
 from oss.src.apis.fastapi.otlp.opentelemetry.otlp import parse_otlp_stream
 from oss.src.apis.fastapi.otlp.utils.processing import parse_from_otel_span_dto
-
-from oss.src.core.tracing.service import TracingService
+from oss.src.core.tracing.utils import calculate_and_propagate_metrics
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
+
+# TYPE_CHECKING to avoid circular import at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 
 MAX_OTLP_BATCH_SIZE = env.AGENTA_OTLP_MAX_BATCH_BYTES
@@ -33,9 +38,9 @@ log = get_module_logger(__name__)
 class OTLPRouter:
     def __init__(
         self,
-        tracing_service: TracingService,
+        tracing_worker: "TracingWorker",
     ):
-        self.tracing = tracing_service
+        self.worker = tracing_worker
 
         self.sdk_router = APIRouter()
         self.router = APIRouter()
@@ -156,46 +161,80 @@ class OTLPRouter:
             )
 
         # -------------------------------------------------------------------- #
-        # Update meter with internal traces count (EE only)
+        # Layer 1 Soft Check: Validate quota using cached meter
         # -------------------------------------------------------------------- #
-        if is_ee() and check_entitlements and Counter:  # type: ignore
-            delta = sum([1 for s in spans if s and s.parent_id is None])
-            check, _, _ = await check_entitlements(
-                organization_id=request.state.organization_id,
-                key=Counter.TRACES,
-                delta=delta,
-            )
-            if not check:
+        if is_ee() and spans:
+            try:
+                delta = sum(1 for span in spans if span.parent_id is None)
+
+                if delta > 0:
+                    allowed, _, _ = await check_entitlements(
+                        organization_id=UUID(request.state.organization_id),
+                        key=Counter.TRACES,
+                        delta=delta,
+                        use_cache=True,
+                    )
+
+                    if not allowed:
+                        log.warning(
+                            "[OTLP] Soft meter check failed - quota exceeded",
+                            org_id=str(request.state.organization_id),
+                            delta=delta,
+                        )
+                        err_status = ProtoStatus(
+                            message="You have reached your monthly quota limit. Please upgrade your plan to continue."
+                        )
+                        return Response(
+                            content=err_status.SerializeToString(),
+                            media_type="application/x-protobuf",
+                            status_code=status.HTTP_403_FORBIDDEN,
+                        )
+
+            except Exception as e:
+                log.warning(
+                    f"[OTLP] Soft meter check failed with exception: {e}",
+                    org_id=str(request.state.organization_id),
+                    exc_info=True,
+                )
+
+        # -------------------------------------------------------------------- #
+        # Calculate and propagate costs/tokens BEFORE batching
+        # This ensures complete trace trees for proper metric propagation
+        # -------------------------------------------------------------------- #
+        if spans:
+            try:
+                spans = calculate_and_propagate_metrics(spans)
+            except Exception as e:
+                log.error(
+                    f"[OTLP] Failed to calculate metrics: {e}",
+                    exc_info=True,
+                )
+                # Continue without metrics rather than failing the entire request
+
+        # -------------------------------------------------------------------- #
+        # Write spans to Redis Streams for async processing
+        # Layer 2 Hard Check and database storage deferred to worker
+        # -------------------------------------------------------------------- #
+        if spans:
+            try:
+                await self.worker.publish_to_stream(
+                    organization_id=UUID(request.state.organization_id),
+                    project_id=UUID(request.state.project_id),
+                    user_id=UUID(request.state.user_id),
+                    span_dtos=spans,
+                )
+            except Exception as e:
+                log.error(
+                    f"[OTLP] Failed to write spans to Redis Stream: {e}",
+                    exc_info=True,
+                )
                 err_status = ProtoStatus(
-                    message="You have reached your quota limit. "
-                    "Please upgrade your plan to continue."
+                    message="Failed to queue spans for processing."
                 )
                 return Response(
                     content=err_status.SerializeToString(),
                     media_type="application/x-protobuf",
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
-
-        # -------------------------------------------------------------------- #
-        # Store internal spans
-        # -------------------------------------------------------------------- #
-        try:
-            await self.tracing.create(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                span_dtos=spans,
-            )
-        except Exception:
-            log.warn(
-                "Failed to create spans from project %s with error:",
-                request.state.project_id,
-                exc_info=True,
-            )
-            for span in spans:
-                log.warn(
-                    "Span: [%s] %s",
-                    span.trace_id,
-                    span,
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
         # -------------------------------------------------------------------- #

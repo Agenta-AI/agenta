@@ -9,7 +9,7 @@ url = "${uri}"
 params = ${params}
 headers = {
     "Content-Type": "application/json",    
-    "Authorization": "ApiKey ${apiKey}", # Add your API key here${isChat ? '\n    "Baggage": "ag.meta.session_id=your_session_id", # Optional: track chat sessions' : ""}
+    "Authorization": "ApiKey ${apiKey}", # Add your API key here${isChat ? '\n    "Baggage": "ag.session.id=your_session_id", # Optional: track chat sessions' : ""}
 }
 
 response = requests.post(url, json=params, headers=headers)

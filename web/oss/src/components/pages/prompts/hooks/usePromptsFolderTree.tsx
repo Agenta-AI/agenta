@@ -1,13 +1,14 @@
 import {useCallback, useMemo, useState} from "react"
+
+import {FolderOpenOutlined} from "@ant-design/icons"
 import {DataNode} from "antd/es/tree"
 
 import {ListAppsItem} from "@/oss/lib/Types"
 import {Folder} from "@/oss/services/folders/types"
 
+import {getAppTypeIcon} from "../assets/iconHelpers"
 import {FolderTreeItem, buildFolderTree} from "../assets/utils"
 import {PromptsTableRow} from "../types"
-import {getAppTypeIcon} from "../assets/iconHelpers"
-import {FolderFilled, FolderOpenOutlined} from "@ant-design/icons"
 
 interface UsePromptsFolderTreeProps {
     foldersData?: {folders?: Folder[]} | null

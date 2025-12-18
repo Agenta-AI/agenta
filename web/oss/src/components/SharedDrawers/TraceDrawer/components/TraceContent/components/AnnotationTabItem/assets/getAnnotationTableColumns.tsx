@@ -1,13 +1,14 @@
+import {TreeStructure} from "@phosphor-icons/react"
+import {Button} from "antd"
+import {Table} from "antd"
 import {ColumnsType} from "antd/es/table"
+import {getDefaultStore} from "jotai"
 
-import CustomAntdTag from "@/oss/components/CustomUIs/CustomAntdTag"
-import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
-import {setTraceDrawerTraceAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+import CustomAntdTag from "@/oss/components/ui/CustomAntdTag"
+import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {TreeStructure} from "@phosphor-icons/react"
-import {Button, Table} from "antd"
-import {getDefaultStore} from "jotai"
+import {setTraceDrawerTraceAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
 export const getAnnotationTableColumns = (
     reference: string,

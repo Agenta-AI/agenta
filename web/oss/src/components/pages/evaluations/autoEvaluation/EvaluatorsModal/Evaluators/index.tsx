@@ -3,12 +3,13 @@ import {useMemo, useState} from "react"
 import {CloseOutlined, PlusOutlined} from "@ant-design/icons"
 import {Cards, Table} from "@phosphor-icons/react"
 import {Button, Divider, Flex, Input, Radio, Space, Spin, Typography} from "antd"
-import {useAtom} from "jotai"
+import {useAtomValue} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {getEvaluatorTags} from "@/oss/lib/evaluations/legacy"
 import {Evaluator, EvaluatorConfig, JSSTheme} from "@/oss/lib/Types"
+import {nonArchivedEvaluatorsAtom} from "@/oss/state/evaluators"
 
 import EvaluatorCard from "./EvaluatorCard"
 import EvaluatorList from "./EvaluatorList"
@@ -78,9 +79,19 @@ const Evaluators = ({
 }: EvaluatorsProps) => {
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
-    const evaluatorTags = getEvaluatorTags()
-    const evaluators = useAtom(evaluatorsAtom)[0]
+    const baseEvaluatorTags = getEvaluatorTags()
+    const evaluators = useAtomValue(evaluatorsAtom)
+    const nonArchivedEvaluators = useAtomValue(nonArchivedEvaluatorsAtom)
     const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
+
+    // Filter tags to only show those that have evaluators
+    const evaluatorTags = useMemo(() => {
+        const tagsWithEvaluators = new Set<string>()
+        nonArchivedEvaluators.forEach((item) => {
+            item.tags.forEach((tag) => tagsWithEvaluators.add(tag))
+        })
+        return baseEvaluatorTags.filter((tag) => tagsWithEvaluators.has(tag.value))
+    }, [baseEvaluatorTags, nonArchivedEvaluators])
 
     const updatedEvaluatorConfigs = useMemo(() => {
         return evaluatorConfigs.map((config) => {
@@ -134,7 +145,7 @@ const Evaluators = ({
                             <Radio.Button value={"view_all"} className="text-nowrap">
                                 View all
                             </Radio.Button>
-                            <Divider type="vertical" className="h-7 !mx-1" />
+                            <Divider orientation="vertical" className="h-7 !mx-1" />
                             {evaluatorTags.map((val, idx) => (
                                 <Radio.Button key={idx} value={val.value} className="text-nowrap">
                                     {val.label}

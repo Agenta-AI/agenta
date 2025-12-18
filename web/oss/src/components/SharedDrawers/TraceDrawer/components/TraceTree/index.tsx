@@ -174,7 +174,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                     <Button icon={<SlidersHorizontal size={14} />} type="text" size="small" />
                 </Popover>
             </div>
-            <Divider type="horizontal" className="m-0" />
+            <Divider orientation="horizontal" className="m-0" />
 
             <CustomTreeComponent
                 data={filteredTree}

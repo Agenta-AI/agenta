@@ -4,7 +4,6 @@ import {Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
 import {
     LinkedSpanRow,
@@ -13,10 +12,11 @@ import {
     linkedSpanTracesQueryAtom,
     setTraceDrawerTraceAtom,
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
 
-type LinkedSpansTabItemProps = {
+interface LinkedSpansTabItemProps {
     isActive: boolean
 }
 
@@ -47,7 +47,7 @@ const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     return Array.from(slugs)
 }
 
-const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
+const LinkedSpansTabItem = ({isActive: _isActive}: LinkedSpansTabItemProps) => {
     const linkTargets = useAtomValue(linkedSpanTargetsAtom)
     const linkedSpans = useAtomValue(linkedSpansAtom)
     const linkedSpansQuery = useAtomValue(linkedSpanTracesQueryAtom)

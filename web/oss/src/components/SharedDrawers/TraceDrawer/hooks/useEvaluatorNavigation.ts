@@ -6,7 +6,7 @@ import {useRouter} from "next/router"
 import {closeTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import useURL from "@/oss/hooks/useURL"
 
-type NavigationTarget = {
+interface NavigationTarget {
     href: string
     type: "human" | "auto"
 }

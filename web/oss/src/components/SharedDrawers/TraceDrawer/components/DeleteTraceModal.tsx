@@ -4,9 +4,9 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {Modal} from "antd"
 import {useSetAtom} from "jotai"
 
-import {closeTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {deletePreviewTrace} from "@/oss/services/tracing/api"
 import {useObservability} from "@/oss/state/newObservability"
+import { closeTraceDrawerAtom } from "../store/traceDrawerStore"
 
 type DeleteTraceModalProps = {
     setSelectedTraceId: (val: string) => void

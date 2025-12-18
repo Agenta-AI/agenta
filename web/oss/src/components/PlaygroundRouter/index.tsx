@@ -12,7 +12,7 @@ const PlaygroundRouter = () => {
     const shouldRender = useAtomValue(shouldRenderPlaygroundAtom)
     if (!shouldRender)
         return (
-            <div className="w-full h-[calc(100dvh-70px)] flex items-center justify-center grow">
+            <div className="w-full h-[calc(100dvh-75px)] flex items-center justify-center grow">
                 <CustomWorkflowBanner showInPlayground layout="card" />
             </div>
         )

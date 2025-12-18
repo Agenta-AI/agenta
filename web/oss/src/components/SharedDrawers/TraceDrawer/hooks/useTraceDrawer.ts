@@ -16,7 +16,7 @@ export const useTraceDrawer = () => {
     const annotationsQuery = useAtomValue(traceDrawerAnnotationsQueryAtom)
 
     const traces = useAtomValue(senitizedTracesAtom)
-    const flatAnnotatedTraces = useAtomValue(traceDrawerFlatAnnotatedTracesAtom)
+    const _flatAnnotatedTraces = useAtomValue(traceDrawerFlatAnnotatedTracesAtom)
     const resolvedActiveSpanId = useAtomValue(traceDrawerResolvedActiveSpanIdAtom)
     const getTraceById = useAtomValue(traceDrawerGetTraceByIdAtom)
 

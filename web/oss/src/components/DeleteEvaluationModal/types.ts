@@ -1,5 +1,5 @@
-import type {ModalProps} from "antd"
 import type {QueryKey} from "@tanstack/react-query"
+import type {ModalProps} from "antd"
 
 export type DeleteEvaluationKind = "auto" | "human" | "online" | "custom"
 

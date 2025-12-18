@@ -2,6 +2,12 @@ const intlNumber = new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 2,
 })
 
+const intlCompactNumber = new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    compactDisplay: "short",
+    maximumFractionDigits: 1,
+})
+
 const intlCurrency = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -22,6 +28,10 @@ const handleNullOrUndefined = <T, R extends string>(
 
 export const formatNumber = (value: number | undefined | null) => {
     return handleNullOrUndefined(value, intlNumber.format)
+}
+
+export const formatCompactNumber = (value: number | undefined | null) => {
+    return handleNullOrUndefined(value, intlCompactNumber.format)
 }
 
 export const formatCurrency = (value: number | undefined | null) => {

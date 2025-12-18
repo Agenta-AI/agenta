@@ -209,7 +209,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
 
                         {customOptionSelected && (
                             <>
-                                <Divider className="!m-0 !h-[340px]" type="vertical" />
+                                <Divider className="!m-0 !h-[340px]" orientation="vertical" />
 
                                 <div className="flex-1 flex flex-col justify-between pt-2">
                                     <div>

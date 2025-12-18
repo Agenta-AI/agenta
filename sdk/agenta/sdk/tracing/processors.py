@@ -1,5 +1,4 @@
 from threading import Lock
-from typing import Dict, List, Optional
 
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.utils.logging import get_module_logger
@@ -12,6 +11,10 @@ from opentelemetry.sdk.trace.export import (
     SpanExporter,
 )
 from opentelemetry.trace import SpanContext
+
+from agenta.sdk.utils.logging import get_module_logger
+
+from agenta.sdk.contexts.tracing import TracingContext
 
 log = get_module_logger(__name__)
 
@@ -64,11 +67,9 @@ class TraceProcessor(SpanProcessor):
 
         baggage = get_baggage(parent_context)
 
-        # Copy any `ag.*` baggage entries onto the span attributes so they can be
-        # used for filtering and grouping (for example `ag.meta.session_id`).
-        for key, value in baggage.items():
+        for key in baggage.keys():
             if key.startswith("ag."):
-                span.set_attribute(key, value)
+                span.set_attribute(key, baggage[key])
 
         context = TracingContext.get()
 

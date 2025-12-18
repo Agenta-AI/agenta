@@ -1,5 +1,3 @@
-import {Typography} from "antd"
-
 import {
     useRunRowReferences,
     useRunRowSummary,
@@ -31,7 +29,7 @@ const PreviewTestsetCellContent = ({
     const canFetch = Boolean(runId)
     const {
         summary,
-        testsetNames,
+        testsetNames: _testsetNames,
         stepReferences,
         isLoading: summaryLoading,
     } = useRunRowSummary(record, isVisible)

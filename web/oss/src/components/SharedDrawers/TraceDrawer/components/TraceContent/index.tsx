@@ -6,9 +6,9 @@ import {useAtom} from "jotai"
 
 import {traceSidePanelOpenAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
-import AccordionTreePanel from "@/oss/components/SharedDrawers/TraceDrawer/components/AccordionTreePanel"
-
+import AccordionTreePanel from "../../components/AccordionTreePanel"
 import TraceSidePanel from "../TraceSidePanel"
+
 import {useStyles} from "./assets/styles"
 import {TraceContentProps} from "./assets/types"
 import AnnotationTabItem from "./components/AnnotationTabItem"
@@ -63,6 +63,7 @@ const TraceContent = ({
                             value={rawPayload as any}
                             enableFormatSwitcher
                             fullEditorHeight
+                            enableSearch
                         />
                     ),
                 },
@@ -84,6 +85,7 @@ const TraceContent = ({
                         value={{...filteredTrace}}
                         enableFormatSwitcher
                         fullEditorHeight
+                        enableSearch
                     />
                 ),
             },

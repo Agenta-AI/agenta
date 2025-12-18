@@ -61,7 +61,7 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({
                         </div>
                     }
                     popoverContent={
-                        <Space direction="vertical">
+                        <Space orientation="vertical">
                             <Space>
                                 <div>{formattedPrompts}</div>
                                 <div>Prompt tokens</div>
