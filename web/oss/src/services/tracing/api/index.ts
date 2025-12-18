@@ -1,4 +1,4 @@
-import {getBaseUrl, fetchJson, ensureProjectId, ensureAppId} from "@/oss/lib/api/assets/fetchClient"
+import {ensureAppId, ensureProjectId, fetchJson, getBaseUrl} from "@/oss/lib/api/assets/fetchClient"
 import {getProjectValues} from "@/oss/state/project"
 
 import {rangeToIntervalMinutes, tracingToGeneration} from "../lib/helpers"
@@ -55,6 +55,37 @@ export const deletePreviewTrace = async (traceId: string) => {
     if (projectId) url.searchParams.set("project_id", projectId)
 
     return fetchJson(url, {method: "DELETE"})
+}
+
+export const fetchSessions = async (params: {
+    appId?: string
+    windowing?: {
+        oldest?: string
+        newest?: string
+    }
+    cursor?: string
+}) => {
+    const base = getBaseUrl()
+    const projectId = ensureProjectId()
+    const applicationId = params.appId ? ensureAppId(params.appId) : undefined
+
+    const url = new URL(`${base}/preview/tracing/sessions/query`)
+    if (projectId) url.searchParams.set("project_id", projectId)
+    if (applicationId) url.searchParams.set("application_id", applicationId)
+
+    const payload: Record<string, any> = {}
+    if (params.windowing) {
+        payload.windowing = params.windowing
+    }
+    if (params.cursor) {
+        payload.cursor = params.cursor
+    }
+
+    return fetchJson(url, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+    })
 }
 
 export const fetchGenerationsDashboardData = async (

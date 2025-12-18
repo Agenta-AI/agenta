@@ -1,5 +1,6 @@
-import {atomFamily} from "jotai/utils"
+import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
+import {atomFamily} from "jotai/utils"
 
 import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
 import axios from "@/oss/lib/api/assets/axiosConfig"

@@ -12,9 +12,9 @@ import {
     linkedSpanTracesQueryAtom,
     setTraceDrawerTraceAtom,
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
+import EnhancedTooltip from "@/oss/components/EnhancedUIs/Tooltip"
 
 interface LinkedSpansTabItemProps {
     isActive: boolean
@@ -89,7 +89,7 @@ const LinkedSpansTabItem = ({isActive: _isActive}: LinkedSpansTabItemProps) => {
                 const spanId = record.span_id || ""
                 const shortId = spanId ? spanId.split("-")[0] : "-"
                 return (
-                    <TooltipWithCopyAction copyText={spanId} title="Copy span id">
+                    <EnhancedTooltip copyText={spanId} title="Copy span id">
                         <Tag
                             bordered={false}
                             className="font-mono bg-[#0517290F]"
@@ -97,7 +97,7 @@ const LinkedSpansTabItem = ({isActive: _isActive}: LinkedSpansTabItemProps) => {
                         >
                             # {shortId}
                         </Tag>
-                    </TooltipWithCopyAction>
+                    </EnhancedTooltip>
                 )
             },
         }

@@ -1,4 +1,6 @@
 from threading import Lock
+from typing import Dict, List, Optional
+
 
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.utils.logging import get_module_logger
