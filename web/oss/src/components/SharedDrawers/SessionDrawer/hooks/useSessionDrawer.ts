@@ -1,5 +1,7 @@
 import {useAtomValue} from "jotai"
 
+import {sessionsLoadingAtom, sessionsSpansAtom} from "@/oss/state/newObservability/atoms/queries"
+
 import {
     activeChatSessionAtom,
     activeChatSessionSummaryAtom,
@@ -8,7 +10,7 @@ import {
     chatSessionsQueryAtom,
     traceDrawerActiveSpanIdAtom,
     traceDrawerTraceIdAtom,
-} from "@/oss/components/SharedDrawers/SessionDrawer/store/sessionDrawerStore"
+} from "../store/sessionDrawerStore"
 
 export const useSessionDrawer = () => {
     const sessionId = useAtomValue(traceDrawerTraceIdAtom)
@@ -19,6 +21,10 @@ export const useSessionDrawer = () => {
     const activeTurn = useAtomValue(activeChatTurnAtom)
     const sessionSummary = useAtomValue(activeChatSessionSummaryAtom)
 
+    const spansMap = useAtomValue(sessionsSpansAtom)
+    const sessionSpans = (sessionId && spansMap[sessionId]) || []
+    const isLoading = useAtomValue(sessionsLoadingAtom)
+
     return {
         sessionId,
         activeTurnId,
@@ -26,7 +32,8 @@ export const useSessionDrawer = () => {
         activeSession,
         activeTurn,
         sessionSummary,
-        isLoading: Boolean(sessionsQuery.isLoading),
+        sessionSpans,
+        isLoading,
         error: sessionsQuery.error,
     }
 }

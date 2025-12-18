@@ -1,26 +1,24 @@
-import {Tag} from "antd"
-
 import {EnhancedColumnType} from "@/oss/components/EnhancedUIs/Table/types"
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
-import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 
-import CostCell from "../../CostCell"
-import DurationCell from "../../DurationCell"
-import TimestampCell from "../../TimestampCell"
-import UsageCell from "../../UsageCell"
+import {
+    DurationCell,
+    EndTimeCell,
+    FirstInputCell,
+    LastOutputCell,
+    SessionIdCell,
+    StartTimeCell,
+    TotalCostCell,
+    TotalLatencyCell,
+    TotalUsageCell,
+    TracesCountCell,
+} from "../components/Cells"
+
+import {Key} from "react"
 
 export interface SessionRow {
     session_id: string
-    traces?: number
-    first_input?: any
-    last_output?: any
-    start_time?: string | number
-    end_time?: string | number
-    duration_ms?: number | null
-    total_latency_ms?: number | null
-    total_usage?: number | null
-    total_cost?: number | null
+    key?: Key
+    isSkeleton?: boolean
 }
 
 export const getSessionColumns = (): EnhancedColumnType<SessionRow>[] => [
@@ -31,16 +29,7 @@ export const getSessionColumns = (): EnhancedColumnType<SessionRow>[] => [
         width: 180,
         minWidth: 180,
         fixed: "left",
-        render: (sessionId: string) => {
-            const shortId = sessionId ? sessionId.split("-")[0] : "-"
-            return (
-                <TooltipWithCopyAction copyText={sessionId || ""} title="Copy session id">
-                    <Tag className="font-mono bg-[#0517290F]" bordered={false}>
-                        # {shortId}
-                    </Tag>
-                </TooltipWithCopyAction>
-            )
-        },
+        render: (sessionId: string) => <SessionIdCell sessionId={sessionId} />,
     },
     {
         title: "Traces",
@@ -48,6 +37,7 @@ export const getSessionColumns = (): EnhancedColumnType<SessionRow>[] => [
         key: "traces",
         width: 120,
         minWidth: 120,
+        render: (_, record) => <TracesCountCell sessionId={record.session_id} />,
     },
     {
         title: "First input",
@@ -55,16 +45,7 @@ export const getSessionColumns = (): EnhancedColumnType<SessionRow>[] => [
         key: "first_input",
         width: 320,
         minWidth: 240,
-        render: (_, record) => {
-            const inputs = record.first_input
-            const {data: sanitized} = sanitizeDataWithBlobUrls(inputs)
-            return (
-                <TruncatedTooltipTag
-                    children={inputs ? getStringOrJson(sanitized) : ""}
-                    placement="bottom"
-                />
-            )
-        },
+        render: (_, record) => <FirstInputCell sessionId={record.session_id} />,
     },
     {
         title: "Last output",
@@ -72,15 +53,7 @@ export const getSessionColumns = (): EnhancedColumnType<SessionRow>[] => [
         key: "last_output",
         width: 320,
         minWidth: 240,
-        render: (_, record) => {
-            const outputs = record.last_output
-            return (
-                <TruncatedTooltipTag
-                    children={outputs ? getStringOrJson(outputs) : ""}
-                    placement="bottom"
-                />
-            )
-        },
+        render: (_, record) => <LastOutputCell sessionId={record.session_id} />,
     },
     {
         title: "Start time",
@@ -88,7 +61,7 @@ export const getSessionColumns = (): EnhancedColumnType<SessionRow>[] => [
         key: "start_time",
         width: 200,
         minWidth: 200,
-        render: (_, record) => <TimestampCell timestamp={record.start_time} />,
+        render: (_, record) => <StartTimeCell sessionId={record.session_id} />,
     },
     {
         title: "End time",
@@ -96,7 +69,7 @@ export const getSessionColumns = (): EnhancedColumnType<SessionRow>[] => [
         key: "end_time",
         width: 200,
         minWidth: 200,
-        render: (_, record) => <TimestampCell timestamp={record.end_time} />,
+        render: (_, record) => <EndTimeCell sessionId={record.session_id} />,
     },
     {
         title: "Duration",
@@ -104,7 +77,7 @@ export const getSessionColumns = (): EnhancedColumnType<SessionRow>[] => [
         key: "duration_ms",
         width: 120,
         minWidth: 120,
-        render: (_, record) => <DurationCell ms={record.duration_ms ?? null} />,
+        render: (_, record) => <DurationCell sessionId={record.session_id} />,
     },
     {
         title: "Total Latency",
@@ -112,7 +85,7 @@ export const getSessionColumns = (): EnhancedColumnType<SessionRow>[] => [
         key: "total_latency_ms",
         width: 140,
         minWidth: 140,
-        render: (_, record) => <DurationCell ms={record.total_latency_ms ?? null} />,
+        render: (_, record) => <TotalLatencyCell sessionId={record.session_id} />,
     },
     {
         title: "Total Usage",
@@ -120,7 +93,7 @@ export const getSessionColumns = (): EnhancedColumnType<SessionRow>[] => [
         key: "total_usage",
         width: 120,
         minWidth: 120,
-        render: (_, record) => <UsageCell tokens={record.total_usage ?? null} />,
+        render: (_, record) => <TotalUsageCell sessionId={record.session_id} />,
     },
     {
         title: "Total Cost",
@@ -128,6 +101,6 @@ export const getSessionColumns = (): EnhancedColumnType<SessionRow>[] => [
         key: "total_cost",
         width: 120,
         minWidth: 120,
-        render: (_, record) => <CostCell cost={record.total_cost ?? null} />,
+        render: (_, record) => <TotalCostCell sessionId={record.session_id} />,
     },
 ]

@@ -1,16 +1,23 @@
 import {useMemo} from "react"
 
+import {useAtomValue} from "jotai"
+
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
-import {useObservability} from "@/oss/state/newObservability"
+import {sessionIdsAtom, useObservability} from "@/oss/state/newObservability"
 
 import ObservabilityHeader from "../ObservabilityHeader"
 
-import {getSessionColumns} from "./assets/getSessionColumns"
+import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
 
 const SessionsTable = () => {
     const {isLoading, selectedRowKeys, setSelectedRowKeys} = useObservability()
-
+    const sessionIds = useAtomValue(sessionIdsAtom)
     const columns = useMemo(() => getSessionColumns(), [])
+
+    const dataSource: SessionRow[] = useMemo(
+        () => sessionIds.map((id) => ({session_id: id})),
+        [sessionIds],
+    )
 
     const rowSelection = {
         selectedRowKeys,
@@ -27,7 +34,7 @@ const SessionsTable = () => {
                     uniqueKey="observability-sessions-table"
                     rowKey="session_id"
                     columns={columns}
-                    dataSource={[]}
+                    dataSource={dataSource}
                     loading={isLoading}
                     rowSelection={{
                         type: "checkbox",
