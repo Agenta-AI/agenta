@@ -37,7 +37,7 @@ from oss.src.core.testsets.dtos import (
     TestsetCreate,
     TestsetEdit,
     TestsetQuery,
-    TestsetLog,
+    TestsetRevisionsLog,
     #
     TestsetVariant,
     TestsetVariantCreate,
@@ -802,14 +802,13 @@ class TestsetsService:
         *,
         project_id: UUID,
         #
-        testset_log: TestsetLog,
-        depth: Optional[int] = None,
+        testset_revisions_log: TestsetRevisionsLog,
         include_testcases: Optional[bool] = None,
     ) -> List[TestsetRevision]:
         revisions = await self.testsets_dao.log_revisions(
             project_id=project_id,
             #
-            revisions_log=testset_log,
+            revisions_log=testset_revisions_log,
         )
 
         if not revisions:

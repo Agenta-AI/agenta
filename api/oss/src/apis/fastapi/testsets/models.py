@@ -11,7 +11,7 @@ from oss.src.core.testsets.dtos import (
     TestsetCreate,
     TestsetEdit,
     TestsetQuery,
-    TestsetLog,
+    TestsetRevisionsLog,
     #
     TestsetVariant,
     TestsetVariantCreate,
@@ -50,10 +50,6 @@ class TestsetQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
-
-
-class TestsetLogRequest(BaseModel):
-    testset: TestsetLog
 
 
 class TestsetResponse(BaseModel):
@@ -136,9 +132,8 @@ class TestsetRevisionRetrieveRequest(BaseModel):
     include_testcases: Optional[bool] = None
 
 
-class TestsetRevisionLogRequest(BaseModel):
-    testset: TestsetLog
-    depth: Optional[int] = None
+class TestsetRevisionsLogRequest(BaseModel):
+    testset_revision: TestsetRevisionsLog
     include_testcases: Optional[bool] = None
 
 

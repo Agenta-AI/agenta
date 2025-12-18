@@ -198,7 +198,7 @@ Authorization: {{authorization}}
 # - testcases field is null for all revisions
 
 # ----------------------------------------------------------------------------
-# SCENARIO 6: POST /revisions/log - BY testset ref
+# SCENARIO 6: POST /revisions/log - BY testset ID (artifact-level)
 # ----------------------------------------------------------------------------
 
 ###
@@ -208,10 +208,8 @@ Content-Type: application/json
 Authorization: {{authorization}}
 
 {
-    "testset": {
-        "testset_ref": {
-            "id": "{{testset_id}}"
-        }
+    "testset_revision": {
+        "testset_id": "{{testset_id}}"
     }
 }
 
@@ -229,10 +227,8 @@ Content-Type: application/json
 Authorization: {{authorization}}
 
 {
-    "testset": {
-        "testset_ref": {
-            "id": "{{testset_id}}"
-        }
+    "testset_revision": {
+        "testset_id": "{{testset_id}}"
     },
     "include_testcases": false
 }

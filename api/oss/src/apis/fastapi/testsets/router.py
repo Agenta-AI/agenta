@@ -64,7 +64,6 @@ from oss.src.apis.fastapi.testsets.models import (
     TestsetCreateRequest,
     TestsetEditRequest,
     TestsetQueryRequest,
-    TestsetLogRequest,
     TestsetResponse,
     TestsetsResponse,
     #
@@ -79,7 +78,7 @@ from oss.src.apis.fastapi.testsets.models import (
     TestsetRevisionQueryRequest,
     TestsetRevisionRetrieveRequest,
     TestsetRevisionCommitRequest,
-    TestsetRevisionLogRequest,
+    TestsetRevisionsLogRequest,
     TestsetRevisionResponse,
     TestsetRevisionsResponse,
     #
@@ -991,7 +990,7 @@ class TestsetsRouter:
         self,
         request: Request,
         *,
-        testset_revision_log_request: TestsetRevisionLogRequest,
+        testset_revisions_log_request: TestsetRevisionsLogRequest,
     ) -> TestsetRevisionsResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1004,9 +1003,8 @@ class TestsetsRouter:
         testset_revisions = await self.testsets_service.log_testset_revisions(
             project_id=UUID(request.state.project_id),
             #
-            testset_log=testset_revision_log_request.testset,
-            depth=testset_revision_log_request.depth,
-            include_testcases=testset_revision_log_request.include_testcases,
+            testset_revisions_log=testset_revisions_log_request.testset_revision,
+            include_testcases=testset_revisions_log_request.include_testcases,
         )
 
         testset_revisions_response = TestsetRevisionsResponse(
