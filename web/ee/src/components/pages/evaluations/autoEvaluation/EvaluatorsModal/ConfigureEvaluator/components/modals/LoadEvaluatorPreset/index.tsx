@@ -15,16 +15,15 @@ const LoadEvaluatorPreset = ({
     applySettingsValues,
     ...modalProps
 }: LoadEvaluatorPresetProps) => {
-    const [selectedPresetKey, setSelectedPresetKey] = React.useState<string>(
-        () => selectedSettingsPreset?.key ?? settingsPresets[0]?.key ?? "",
-    )
+    const defaultPresetKey = selectedSettingsPreset?.key ?? settingsPresets[0]?.key ?? ""
+
+    const [selectedPresetKey, setSelectedPresetKey] = React.useState<string>(defaultPresetKey)
 
     useEffect(() => {
-        if (!modalProps.open) return
-        setSelectedPresetKey(
-            (prev) => prev || selectedSettingsPreset?.key || settingsPresets[0]?.key || "",
-        )
-    }, [modalProps.open, settingsPresets, selectedSettingsPreset])
+        if (modalProps.open && !selectedPresetKey) {
+            setSelectedPresetKey(defaultPresetKey)
+        }
+    }, [modalProps.open, defaultPresetKey, selectedPresetKey])
 
     const selectedPreset = useMemo(
         () => settingsPresets.find((p) => p.key === selectedPresetKey) ?? null,
