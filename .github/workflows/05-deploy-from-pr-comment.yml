@@ -1,0 +1,213 @@
+name: Deploy from PR Comment
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  deploy:
+    name: Trigger Deployment
+    # Only run on PR comments that start with /deploy
+    if: |
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/deploy')
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Parse deploy command
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = context.payload.comment.body.trim();
+            const lines = comment.split('\n')[0]; // Only first line
+            const parts = lines.split(/\s+/);
+            
+            // Expected: /deploy <environment> [component] [--flags]
+            // e.g., /deploy staging
+            // e.g., /deploy demo api-only
+            // e.g., /deploy beta web-only --migration-check
+            
+            const environments = ['staging', 'demo', 'beta'];
+            const components = ['all-components', 'all-but-web', 'api-only', 'web-only', 'services-only', 'none'];
+            
+            let environment = null;
+            let component = 'all-components'; // default
+            let migrationCheck = false;
+            let apiTag = '';
+            let webTag = '';
+            let servicesTag = '';
+            
+            for (const part of parts.slice(1)) { // Skip '/deploy'
+              if (environments.includes(part)) {
+                environment = part;
+              } else if (components.includes(part)) {
+                component = part;
+              } else if (part === '--migration-check') {
+                migrationCheck = true;
+              } else if (part.startsWith('--api-tag=')) {
+                apiTag = part.replace('--api-tag=', '');
+              } else if (part.startsWith('--web-tag=')) {
+                webTag = part.replace('--web-tag=', '');
+              } else if (part.startsWith('--services-tag=')) {
+                servicesTag = part.replace('--services-tag=', '');
+              }
+            }
+            
+            if (!environment) {
+              core.setFailed('Missing environment. Usage: /deploy <staging|demo|beta> [component] [--flags]');
+              return;
+            }
+            
+            // Map environment to workflow file
+            const workflowMap = {
+              'beta': '22-deploy-to-cloud-beta.yml',
+              'staging': '23-deploy-to-cloud-staging.yml',
+              'demo': '24-deploy-to-cloud-demo.yml'
+            };
+            
+            core.setOutput('environment', environment);
+            core.setOutput('component', component);
+            core.setOutput('workflow', workflowMap[environment]);
+            core.setOutput('migration_check', migrationCheck);
+            core.setOutput('api_tag', apiTag);
+            core.setOutput('web_tag', webTag);
+            core.setOutput('services_tag', servicesTag);
+            
+            console.log(`Environment: ${environment}`);
+            console.log(`Component: ${component}`);
+            console.log(`Workflow: ${workflowMap[environment]}`);
+            console.log(`Migration check: ${migrationCheck}`);
+
+      - name: Get PR branch
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.issue.number
+            });
+            
+            const branch = pr.data.head.ref;
+            const sha = pr.data.head.sha.substring(0, 7);
+            
+            core.setOutput('branch', branch);
+            core.setOutput('sha', sha);
+            
+            console.log(`PR Branch: ${branch}`);
+            console.log(`PR SHA: ${sha}`);
+
+      - name: Add reaction to comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket'
+            });
+
+      - name: Trigger deployment workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PRIVATE_REPO_PAT }}
+          script: |
+            const environment = '${{ steps.parse.outputs.environment }}';
+            const component = '${{ steps.parse.outputs.component }}';
+            const workflow = '${{ steps.parse.outputs.workflow }}';
+            const branch = '${{ steps.pr.outputs.branch }}';
+            const migrationCheck = '${{ steps.parse.outputs.migration_check }}' === 'true';
+            const apiTag = '${{ steps.parse.outputs.api_tag }}';
+            const webTag = '${{ steps.parse.outputs.web_tag }}';
+            const servicesTag = '${{ steps.parse.outputs.services_tag }}';
+            
+            console.log(`Triggering ${workflow} with branch: ${branch}, component: ${component}`);
+            
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'Agenta-AI',
+              repo: 'agenta_cloud',
+              workflow_id: workflow,
+              ref: 'main',
+              inputs: {
+                'public-branch': branch,
+                'components-to-deploy': component,
+                'migration-check': String(migrationCheck),
+                'database-switch': 'false',
+                'include-tracing': 'false',
+                'rollback-tag': 'skip',
+                'api-tag': apiTag,
+                'web-tag': webTag,
+                'services-tag': servicesTag
+              }
+            });
+            
+            console.log('✅ Deployment triggered successfully!');
+
+      - name: Post success comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const environment = '${{ steps.parse.outputs.environment }}';
+            const component = '${{ steps.parse.outputs.component }}';
+            const branch = '${{ steps.pr.outputs.branch }}';
+            const sha = '${{ steps.pr.outputs.sha }}';
+            
+            const envUrls = {
+              'staging': 'https://staging.agenta.ai',
+              'demo': 'https://demo.agenta.ai',
+              'beta': 'https://beta.agenta.ai'
+            };
+            
+            const body = `🚀 **Deployment triggered!**
+            
+            | Parameter | Value |
+            |-----------|-------|
+            | Environment | \`${environment}\` |
+            | Branch | \`${branch}\` (${sha}) |
+            | Components | \`${component}\` |
+            
+            🔗 [View deployment workflow](https://github.com/Agenta-AI/agenta_cloud/actions)
+            🌐 Environment URL: ${envUrls[environment] || 'N/A'}
+            
+            _Deployment takes ~5-10 minutes. Check the workflow link for progress._`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: body
+            });
+
+      - name: Post failure comment
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `❌ **Deployment failed to trigger**
+            
+            Please check the [workflow logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.
+            
+            **Usage:**
+            \`\`\`
+            /deploy <environment> [component] [--flags]
+            
+            Environments: staging, demo, beta
+            Components: all-components (default), all-but-web, api-only, web-only, services-only
+            Flags: --migration-check, --api-tag=<tag>, --web-tag=<tag>, --services-tag=<tag>
+            \`\`\`
+            
+            **Examples:**
+            - \`/deploy staging\` - Deploy all components to staging
+            - \`/deploy demo api-only\` - Deploy only API to demo
+            - \`/deploy beta web-only --migration-check\` - Deploy web to beta with migration check
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: body
+            });
