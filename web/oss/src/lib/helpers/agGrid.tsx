@@ -11,9 +11,10 @@ type ComponentType = <TData = any>(
 
 const AgGridReact = dynamic(
     async (): Promise<ComponentType> => {
-        const ClientSideRowModelModule = await import(
-            "@ag-grid-community/client-side-row-model"
-        ).then((module) => module.ClientSideRowModelModule)
+        const ClientSideRowModelModule =
+            await import("@ag-grid-community/client-side-row-model").then(
+                (module) => module.ClientSideRowModelModule,
+            )
         const CsvExportModule = await import("@ag-grid-community/csv-export").then(
             (module) => module.CsvExportModule,
         )
