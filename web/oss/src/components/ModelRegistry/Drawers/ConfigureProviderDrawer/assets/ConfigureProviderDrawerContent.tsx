@@ -8,7 +8,7 @@ import SelectLLMProvider from "@/oss/components/SelectLLMProvider"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
-import {PROVIDER_KINDS, PROVIDER_LABELS, SecretDTOProvider} from "@/oss/lib/Types"
+import {PROVIDER_KINDS, SecretDTOProvider} from "@/oss/lib/Types"
 
 import LabelInput from "../../../assets/LabelInput"
 
@@ -33,7 +33,7 @@ type FieldAttributes =
     | {kind: "textarea"; rows?: number; monospace?: boolean}
     | {kind: "json"; rows?: number; monospace?: boolean; strict?: boolean}
 
-type FieldWithAttributes = {
+interface FieldWithAttributes {
     attributes?: FieldAttributes
     key: string
     label: string

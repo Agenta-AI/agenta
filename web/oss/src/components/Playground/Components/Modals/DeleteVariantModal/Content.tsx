@@ -33,9 +33,9 @@ const DeleteVariantContent = ({variantId, onClose}: Props) => {
         parentVariantDisplayNameAtomFamily(parentVariantId || ""),
     )
 
-    const {variantName, isMutating} = useMemo(() => {
+    const {_variantName, isMutating} = useMemo(() => {
         return {
-            variantName: (parentDisplayName as string) || "-",
+            _variantName: (parentDisplayName as string) || "-",
             isMutating: (variant as any)?.__isMutating || false,
         }
     }, [parentDisplayName, variant])

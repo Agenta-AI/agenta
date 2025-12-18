@@ -39,7 +39,7 @@ const HelpAndSupportSection = () => {
 
     return (
         <div className="mt-10 mb-20 flex flex-col gap-4">
-            <Space direction="vertical" size={8}>
+            <Space orientation="vertical" size={8}>
                 <Title level={2}>Have a question?</Title>
                 <Text>Checkout our docs or send us a message on slack.</Text>
             </Space>

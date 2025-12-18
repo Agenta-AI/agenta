@@ -1,9 +1,10 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+
+import {DeleteOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {
     Button,
     Checkbox,
     Flex,
-    Form,
     FormInstance,
     Input,
     InputNumber,
@@ -14,9 +15,7 @@ import {
     Tooltip,
     Modal,
 } from "antd"
-import {DeleteOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {createUseStyles} from "react-jss"
-import {useLocalStorage} from "usehooks-ts"
 
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {JSSTheme} from "@/oss/lib/Types"
@@ -299,7 +298,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                     </Tooltip>
                 </Flex>
 
-                <Space direction="vertical" style={{width: "100%"}} size="middle">
+                <Space orientation="vertical" style={{width: "100%"}} size="middle">
                     {/* Response Format */}
                     <div>
                         <div

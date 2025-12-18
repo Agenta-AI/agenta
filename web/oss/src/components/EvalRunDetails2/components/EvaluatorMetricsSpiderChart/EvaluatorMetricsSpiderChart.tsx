@@ -169,7 +169,9 @@ const EvaluatorMetricsSpiderChart = ({
                                 if (d.type === "binary") {
                                     const valueLabel = `${pct.toFixed(2)}% / 100%`
                                     return [
-                                        <span style={{color, fontWeight: 600}}>{valueLabel}</span>,
+                                        <span key="value" style={{color, fontWeight: 600}}>
+                                            {valueLabel}
+                                        </span>,
                                         styledName,
                                     ]
                                 }
@@ -178,7 +180,7 @@ const EvaluatorMetricsSpiderChart = ({
                                 const valueColor = {color, fontWeight: 600}
                                 if (String(d?.subject).toLowerCase().includes("duration")) {
                                     return [
-                                        <span style={valueColor}>
+                                        <span key="value" style={valueColor}>
                                             {`${formatLatency(raw)} / ${formatLatency(d?.maxScore)}`}
                                         </span>,
                                         styledName,
@@ -186,16 +188,17 @@ const EvaluatorMetricsSpiderChart = ({
                                 }
                                 if (String(d?.subject).toLowerCase().includes("cost")) {
                                     return [
-                                        <span style={valueColor}>
+                                        <span key="value" style={valueColor}>
                                             {`${formatCurrency(raw)} / ${formatCurrency(d?.maxScore)}`}
                                         </span>,
                                         styledName,
                                     ]
                                 }
                                 return [
-                                    <span style={valueColor}>{`${format3Sig(raw)} / ${format3Sig(
-                                        d?.maxScore,
-                                    )}`}</span>,
+                                    <span
+                                        key="value"
+                                        style={valueColor}
+                                    >{`${format3Sig(raw)} / ${format3Sig(d?.maxScore)}`}</span>,
                                     styledName,
                                 ]
                             } catch (error) {

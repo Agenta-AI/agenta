@@ -17,10 +17,7 @@ import useURL from "@/oss/hooks/useURL"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
 import {selectedVariantsCountAtom} from "@/oss/state/variant/atoms/selection"
-import {
-    recentRevisionsAtom,
-    recentRevisionsTableRowsAtom,
-} from "@/oss/state/variant/selectors/variant"
+import {recentRevisionsTableRowsAtom} from "@/oss/state/variant/selectors/variant"
 
 const {Title} = Typography
 

@@ -31,7 +31,7 @@ const PlaygroundVariantHistoryHeaderMenu: React.FC<PlaygroundVariantHistoryHeade
         [],
     )
     return (
-        <Dropdown trigger={["click"]} overlayStyle={{width: 170}} menu={{items}} {...props}>
+        <Dropdown trigger={["click"]} styles={{root: {width: 170}}} menu={{items}} {...props}>
             <Button icon={<DotsThreeVertical size={14} />} type="text" />
         </Dropdown>
     )

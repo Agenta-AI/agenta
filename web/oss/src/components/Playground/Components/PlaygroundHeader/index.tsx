@@ -115,7 +115,11 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
                     {currentApp?.app_type === "custom" ? (
                         <Dropdown
                             trigger={["click"]}
-                            overlayStyle={{width: 180}}
+                            styles={{
+                                root: {
+                                    width: 180,
+                                },
+                            }}
                             menu={{
                                 items: [
                                     ...[
