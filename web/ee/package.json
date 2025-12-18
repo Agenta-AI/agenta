@@ -1,6 +1,6 @@
 {
     "name": "@agenta/ee",
-    "version": "0.69.3",
+    "version": "0.69.5",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -19,11 +19,6 @@
         "types:watch": "tsc -w"
     },
     "dependencies": {
-        "@ag-grid-community/client-side-row-model": "^32.3.4",
-        "@ag-grid-community/core": "^32.3.4",
-        "@ag-grid-community/csv-export": "^32.3.4",
-        "@ag-grid-community/react": "^32.3.4",
-        "@ag-grid-community/styles": "^32.3.4",
         "@agenta/oss": "workspace:../oss",
         "@ant-design/colors": "^7.2.1",
         "@ant-design/cssinjs": "^2.0.1",

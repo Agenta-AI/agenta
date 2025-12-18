@@ -278,3 +278,40 @@ body {
         }
     }
 }
+
+/* Testsets table - vertically center cell content */
+.agenta-testsets-table .ant-table-tbody .ant-table-cell {
+    display: flex !important;
+    align-items: center !important;
+    height: 100% !important;
+    vertical-align: middle !important;
+    & > span {
+        vertical-align: middle !important;
+    }
+    & > div.flex {
+        height: 100% !important;
+        align-items: center !important;
+    }
+}
+
+/* Testcases table - fix selection column width */
+.agenta-testcases-table .ant-table-selection-column {
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+}
+
+/* Ensure header selection cell matches body width and has no extra padding */
+.agenta-testcases-table .ant-table-thead .ant-table-selection-column {
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* Force the first colgroup column (selection column) to 48px */
+.agenta-testcases-table .ant-table table colgroup col:first-child {
+    width: 48px !important;
+    max-width: 48px !important;
+}

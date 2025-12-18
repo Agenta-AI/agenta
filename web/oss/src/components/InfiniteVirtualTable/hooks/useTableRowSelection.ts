@@ -21,6 +21,7 @@ const useTableRowSelection = <RecordType>(
             type = "checkbox",
             fixed,
             renderCell,
+            onCell: customOnCell,
         } = rowSelection
 
         return {
@@ -28,10 +29,21 @@ const useTableRowSelection = <RecordType>(
             columnWidth: columnWidth ?? 48,
             selectedRowKeys,
             fixed,
-            onCell: () => ({
-                align: "center" as const,
-                className: "flex flex-col items-center justify-center",
-            }),
+            onCell: (record: RecordType, index?: number) => {
+                const baseProps = {
+                    align: "center" as const,
+                    className: "flex flex-col items-center justify-center",
+                }
+                if (customOnCell) {
+                    const customProps = customOnCell(record, index)
+                    return {
+                        ...baseProps,
+                        ...customProps,
+                        className: `${baseProps.className} ${customProps.className || ""}`.trim(),
+                    }
+                }
+                return baseProps
+            },
             onChange,
             getCheckboxProps,
             renderCell,

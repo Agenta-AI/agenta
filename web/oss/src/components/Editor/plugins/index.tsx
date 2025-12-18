@@ -70,6 +70,7 @@ const EditorPlugins = ({
     autoFocus,
     handleUpdate,
     initialValue,
+    value,
     validationSchema,
     tokens,
     templateFormat,
@@ -125,7 +126,7 @@ const EditorPlugins = ({
                     <CodeEditorPlugin
                         editorId={id}
                         validationSchema={validationSchema}
-                        initialValue={initialValue}
+                        initialValue={value !== undefined ? value : initialValue}
                         language={language}
                         debug={debug}
                         additionalCodePlugins={additionalCodePlugins}

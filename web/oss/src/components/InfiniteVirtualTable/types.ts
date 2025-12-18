@@ -145,6 +145,8 @@ export interface InfiniteVirtualTableRowSelection<RecordType> {
         index: number,
         originNode: React.ReactNode,
     ) => React.ReactNode
+    /** Custom cell props for the selection column */
+    onCell?: (record: RecordType, index?: number) => React.TdHTMLAttributes<HTMLTableCellElement>
 }
 
 export interface InfiniteVirtualTableKeyboardSelectionShortcuts {

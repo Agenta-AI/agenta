@@ -25,7 +25,7 @@ const EvaluationShare: React.FC = () => {
 
         //1. check all the required params are present
         if (app && org && testset && type && Array.isArray(variantIds) && !loading) {
-            const executor = async () => {
+            const Executor = async () => {
                 //make sure this is only called once
                 if (called.current) {
                     return
@@ -71,10 +71,10 @@ const EvaluationShare: React.FC = () => {
             if (selectedOrg?.id !== org) {
                 //2. change the selected org to the one in the query
                 changeSelectedOrg(org as string, () => {
-                    executor()
+                    Executor()
                 })
             } else {
-                executor()
+                Executor()
             }
         }
     }, [router.query, loading])

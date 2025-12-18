@@ -1,5 +1,6 @@
 import {$createRangeSelection, $setSelection} from "lexical"
 
+import {$createBase64Node, isBase64String, parseBase64String} from "../nodes/Base64Node"
 import {$createCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {$createCodeTabNode} from "../nodes/CodeTabNode"
@@ -260,7 +261,14 @@ export function $createNodeForLineWithTabs(line: string, language: CodeLanguage)
     // Tokenize the rest of the line
     const tokens = tokenizeCodeLine(rest, language)
     tokens.forEach((token) => {
-        codeLine.append($createCodeHighlightNode(token.content, token.type, false, null))
+        // Check if this is a base64 string token - create Base64Node for collapsed display
+        if (token.type === "string" && isBase64String(token.content)) {
+            const parsed = parseBase64String(token.content)
+            const base64Node = $createBase64Node(parsed.fullValue, parsed.mimeType, token.type)
+            codeLine.append(base64Node)
+        } else {
+            codeLine.append($createCodeHighlightNode(token.content, token.type, false, null))
+        }
     })
     return codeLine
 }

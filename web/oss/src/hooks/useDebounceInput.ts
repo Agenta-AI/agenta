@@ -2,8 +2,6 @@ import {useState, useEffect, useRef} from "react"
 
 import {useDebounceValue} from "usehooks-ts"
 
-import useLazyEffect from "./useLazyEffect"
-
 /**
  * A custom hook that provides debounced input handling with synchronized local and parent state.
  *
@@ -56,41 +54,37 @@ export function useDebounceInput<T>(
     delay = 300,
     defaultValue: T,
 ) {
-    const [localValue, setLocalValue] = useState<T>(value ?? defaultValue)
-    const [query, setQuery] = useDebounceValue(localValue, delay)
-    const lastEmittedRef = useRef<T | undefined>(undefined)
+    const initialValue = value ?? defaultValue
+    const [localValue, setLocalValue] = useState<T>(initialValue)
+    const [debouncedValue, setDebouncedValue] = useDebounceValue(localValue, delay)
+    // Initialize lastEmittedRef to the initial value to prevent emitting on mount
+    const lastEmittedRef = useRef<T>(initialValue)
 
-    // Emit only when debounced value differs from the latest controlled value
-    // and hasn't been emitted already. This prevents update feedback loops.
-    useLazyEffect(() => {
-        const controlled = value ?? defaultValue
-        const shouldEmit = query !== controlled && query !== lastEmittedRef.current
+    // For immediate mode (delay=0), emit directly when localValue changes
+    // For debounced mode, emit when debouncedValue changes
+    const valueToEmit = delay === 0 ? localValue : debouncedValue
+
+    // Emit only when value differs from what was last emitted.
+    // This prevents update feedback loops while ensuring user changes are always emitted.
+    useEffect(() => {
+        const shouldEmit = valueToEmit !== lastEmittedRef.current
         if (shouldEmit) {
-            lastEmittedRef.current = query
-            onChange?.(query)
+            lastEmittedRef.current = valueToEmit
+            onChange?.(valueToEmit)
         }
-    }, [query, value, defaultValue])
+    }, [valueToEmit, onChange])
 
     // Sync down stream changes from the controlled value but avoid wiping user input
     // when value is temporarily undefined/null during upstream recalculations.
     useEffect(() => {
         if (value === undefined || value === null) return
-        setQuery(value)
+        // Update lastEmittedRef to prevent re-emitting the same value we just received
+        lastEmittedRef.current = value
+        setDebouncedValue(value)
         setLocalValue((prevValue) => {
             return value !== prevValue ? value : prevValue
         })
     }, [value])
-
-    // // Immediate emit on clears to avoid stale values when users submit quickly after deleting
-    // useEffect(() => {
-    //     const controlled = value ?? defaultValue
-    //     const isCleared = (localValue as any) === ""
-    //     if (isCleared && localValue !== controlled && localValue !== lastEmittedRef.current) {
-    //         lastEmittedRef.current = localValue
-    //         onChange?.(localValue)
-    //     }
-    //     // eslint-disable-next-line react-hooks/exhaustive-deps
-    // }, [localValue])
 
     return [localValue, setLocalValue] as const
 }
