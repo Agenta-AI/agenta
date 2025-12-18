@@ -2,7 +2,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {SwapOutlined} from "@ant-design/icons"
-import {Rocket} from "@phosphor-icons/react"
+import {CodeSimpleIcon, Rocket} from "@phosphor-icons/react"
 import {Button, Flex, Input, Radio, Space, Tabs, Typography} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -225,7 +225,7 @@ const VariantsDashboard = () => {
                     <Button
                         type="primary"
                         disabled={!envRevisions}
-                        icon={<Rocket size={14} className="mt-[3px]" />}
+                        icon={<CodeSimpleIcon size={14} />}
                         onClick={() =>
                             openDeploymentsDrawer({
                                 initialWidth: 1200,

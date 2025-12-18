@@ -1,7 +1,7 @@
 import {type FC, useEffect} from "react"
 
-import {CloudArrowUp} from "@phosphor-icons/react"
-import {Button, Flex, Input, Space, Typography} from "antd"
+import {CloudArrowUpIcon, CodeSimpleIcon} from "@phosphor-icons/react"
+import {Button, Input, Space, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {createUseStyles} from "react-jss"
 
@@ -81,31 +81,13 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
     // Deep-link handling moved to DeploymentsDrawerWrapper
 
     return (
-        <Space orientation="vertical" size={24}>
-            <Flex align="center" justify="space-between">
-                <Typography.Text className={classes.title}>
-                    {envRevisions?.name || selectedEnvName}
-                </Typography.Text>
-                <Space>
-                    <Button
-                        icon={<CloudArrowUp />}
-                        onClick={() =>
-                            openSelectDeployVariantModal({variants, envRevisions: envRevisions})
-                        }
-                    >
-                        Deploy variant
-                    </Button>
-                    <Button
-                        type="primary"
-                        onClick={() => envRevisions && openDeploymentsDrawer({initialWidth: 720})}
-                    >
-                        Use API
-                    </Button>
-                </Space>
-            </Flex>
+        <Space direction="vertical" size={8}>
+            <Typography.Text className={classes.title}>
+                {envRevisions?.name || selectedEnvName}
+            </Typography.Text>
 
             <div className="flex flex-col gap-2">
-                <div>
+                <div className="flex items-center justify-between">
                     <Input.Search
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -113,6 +95,26 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                         allowClear
                         className="w-[400px]"
                     />
+
+                    <Space>
+                        <Button
+                            icon={<CloudArrowUpIcon />}
+                            onClick={() =>
+                                openSelectDeployVariantModal({variants, envRevisions: envRevisions})
+                            }
+                        >
+                            Deploy
+                        </Button>
+                        <Button
+                            type="primary"
+                            icon={<CodeSimpleIcon size={14} />}
+                            onClick={() =>
+                                envRevisions && openDeploymentsDrawer({initialWidth: 720})
+                            }
+                        >
+                            Use API
+                        </Button>
+                    </Space>
                 </div>
 
                 <DeploymentTable
