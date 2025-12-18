@@ -415,6 +415,26 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
 
     cleaned_ag["references"] = cleaned_references or None
 
+    # --- session ---
+    session_dict = ag.get("session")
+    if session_dict and isinstance(session_dict, dict):
+        cleaned_session = {}
+        if "id" in session_dict:
+            cleaned_session["id"] = session_dict["id"]
+        cleaned_ag["session"] = cleaned_session if cleaned_session else None
+    else:
+        cleaned_ag["session"] = None
+
+    # --- user ---
+    user_dict = ag.get("user")
+    if user_dict and isinstance(user_dict, dict):
+        cleaned_user = {}
+        if "id" in user_dict:
+            cleaned_user["id"] = user_dict["id"]
+        cleaned_ag["user"] = cleaned_user if cleaned_user else None
+    else:
+        cleaned_ag["user"] = None
+
     # --- passthrough simple optional fields ---
     for key in ["flags", "tags", "meta", "exception", "hashes"]:
         cleaned_ag[key] = ag.get(key, None)
