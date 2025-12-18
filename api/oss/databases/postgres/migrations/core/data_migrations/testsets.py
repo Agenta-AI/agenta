@@ -2,8 +2,9 @@ import json
 import uuid
 import asyncio
 import traceback
+import re
 from uuid import UUID, uuid4
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import click
 from sqlalchemy.future import select
@@ -76,9 +77,18 @@ async def _fetch_project_owner(
     return UUID(owner) if owner is not None else None
 
 
-def _parse_chat_column(value) -> Optional[List]:
-    """Parse a stringified chat/messages column into a list, otherwise None."""
-    if isinstance(value, list):
+CHAT_KEYS: Tuple[str, ...] = ("messages", "chat")
+EXPECTED_KEYS: Tuple[str, ...] = ("correct_answer",)
+
+CORRECT_ANSWER_LIKE_RE = re.compile(
+    r'^\s*\{\s*"content"\s*:\s*".*?"\s*,\s*"role"\s*:\s*".*?"',
+    re.DOTALL,
+)
+
+
+def _parse_json_column(value, allowed_types: Tuple[type, ...]) -> Optional[object]:
+    """Parse a stringified JSON column into allowed types; returns None if no change."""
+    if isinstance(value, allowed_types):
         return None
 
     if not isinstance(value, str):
@@ -89,29 +99,55 @@ def _parse_chat_column(value) -> Optional[List]:
     except Exception:
         return None
 
-    if isinstance(parsed, list):
+    if isinstance(parsed, allowed_types):
         return parsed
 
     return None
 
 
-def _jsonify_chat_columns(testcases: Optional[List[Testcase]]) -> bool:
-    """Mutate testcase.data in-place, converting stringified chat/messages to lists."""
+def _jsonify_testcase_fields(testcases: Optional[List[Testcase]]) -> bool:
+    """
+    Mutate testcase.data in-place, converting:
+    - chat/messages strings → list
+    - expected/ground-truth strings → dict/list (usually dict)
+    """
     if not testcases:
         return False
 
     changed = False
+    expected_parsed = False
 
     for testcase in testcases:
         data = getattr(testcase, "data", None)
         if not isinstance(data, dict):
             continue
 
-        for key in ("messages", "chat"):
-            parsed = _parse_chat_column(data.get(key))
+        for key in CHAT_KEYS:
+            parsed = _parse_json_column(data.get(key), (list,))
             if parsed is not None:
                 data[key] = parsed
                 changed = True
+
+        for key in EXPECTED_KEYS:
+            parsed = _parse_json_column(data.get(key), (dict, list))
+            if parsed is not None:
+                data[key] = parsed
+                changed = True
+                expected_parsed = True
+
+        if not expected_parsed:
+            for field_key, value in data.items():
+                if not isinstance(value, str):
+                    continue
+                if not CORRECT_ANSWER_LIKE_RE.match(value):
+                    continue
+
+                parsed = _parse_json_column(value, (dict,))
+                if parsed is not None:
+                    data[field_key] = parsed
+                    changed = True
+                    expected_parsed = True
+                    break
 
     return changed
 
@@ -123,8 +159,8 @@ async def _commit_jsonified_revision(
     testset_id: UUID,
 ) -> bool:
     """
-    Fetch latest revision for the given testset and, if chat columns are stringified,
-    commit a new revision with jsonified chat/messages.
+    Fetch latest revision for the given testset and, if chat/expected columns are stringified,
+    commit a new revision with jsonified data.
     """
     testset_variant = await testsets_service.fetch_testset_variant(
         project_id=project_id,
@@ -148,7 +184,7 @@ async def _commit_jsonified_revision(
 
     testcases: List[Testcase] = testset_revision.data.testcases or []
 
-    if not _jsonify_chat_columns(testcases):
+    if not _jsonify_testcase_fields(testcases):
         return False
 
     testset_revision_slug = uuid4().hex[-12:]
@@ -219,7 +255,6 @@ async def migration_old_testsets_to_new_testsets(
         )
 
         while offset < total_testsets:
-            # STEP 1: Fetch evaluator configurations with non-null project_id
             result = await connection.execute(
                 select(DeprecatedTestsetDB)
                 .filter(DeprecatedTestsetDB.project_id.isnot(None))
@@ -231,10 +266,8 @@ async def migration_old_testsets_to_new_testsets(
             if not testsets_rows:
                 break
 
-            # Process and transfer records to testset workflows
             for testset in testsets_rows:
                 try:
-                    # STEP 2: Get owner from project_id
                     owner = await _fetch_project_owner(
                         project_id=testset.project_id,  # type: ignore
                         connection=connection,
@@ -249,7 +282,6 @@ async def migration_old_testsets_to_new_testsets(
                         )
                         continue
 
-                    # STEP 3: Migrate records using transfer_* util function
                     new_testset = await simple_testsets_service.transfer(
                         project_id=testset.project_id,
                         user_id=owner,
@@ -265,7 +297,6 @@ async def migration_old_testsets_to_new_testsets(
                         )
                         continue
 
-                    # STEP 4: If latest revision has stringified chat/messages, json-ify and commit
                     try:
                         jsonified = await _commit_jsonified_revision(
                             project_id=testset.project_id,
@@ -294,7 +325,6 @@ async def migration_old_testsets_to_new_testsets(
                     skipped_records += 1
                     continue
 
-            # Update progress tracking for current batch
             batch_migrated = len(testsets_rows)
             offset += DEFAULT_BATCH_SIZE
             total_migrated += batch_migrated
@@ -306,7 +336,6 @@ async def migration_old_testsets_to_new_testsets(
                 )
             )
 
-        # Update progress tracking for all batches
         remaining_records = total_testsets - total_migrated
         click.echo(click.style(f"Total migrated: {total_migrated}", fg="yellow"))
         click.echo(click.style(f"Skipped records: {skipped_records}", fg="yellow"))
