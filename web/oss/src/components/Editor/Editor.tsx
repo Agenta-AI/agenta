@@ -62,6 +62,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
         {
             id = uuidv4(),
             initialValue = "",
+            value,
             onChange,
             placeholder = "Enter some text...",
             singleLine = false,
@@ -275,7 +276,14 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 editor.registerCommand(
                     ON_HYDRATE_FROM_REMOTE_CONTENT,
                     ({hydrateWithRemoteContent}) => {
-                        if (editor.isEditable() && isInitRef.current) return false
+                        // Allow re-hydration if content differs (for undo/redo support)
+                        const currentContent = $getRoot().getTextContent()
+                        const contentChanged = currentContent !== hydrateWithRemoteContent
+
+                        // Skip if editor is editable, already initialized, and content hasn't changed
+                        if (editor.isEditable() && isInitRef.current && !contentChanged) {
+                            return false
+                        }
                         isInitRef.current = true
                         if (hydrateWithRemoteContent) {
                             $convertFromMarkdownString(
@@ -294,16 +302,26 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
 
         const lastHydratedRef = useRef<string>("")
 
+        // Use controlled value if provided, otherwise fall back to initialValue
+        const effectiveValue = value !== undefined ? value : initialValue
+
         useEffect(() => {
             if (codeOnly) return
-            const next = initialValue || ""
-            if (lastHydratedRef.current === next) return
+            const next = effectiveValue || ""
+            // Compare with actual editor content, not just last hydrated value
+            // This ensures undo/redo works even when reverting to a previously hydrated value
+            let currentContent = ""
+            editor.getEditorState().read(() => {
+                currentContent = $getRoot().getTextContent()
+            })
+            // Skip if content already matches (no change needed)
+            if (currentContent === next) return
             lastHydratedRef.current = next
             editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
                 hydrateWithRemoteContent: next,
                 parentId: "",
             })
-        }, [initialValue])
+        }, [effectiveValue])
 
         return (
             <div className="editor-container w-full overflow-hidden relative min-h-[inherit]">
@@ -337,6 +355,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             placeholder={placeholder}
                             handleUpdate={handleUpdate}
                             initialValue={initialValue}
+                            value={value}
                             validationSchema={validationSchema}
                             tokens={tokens}
                             additionalCodePlugins={additionalCodePlugins}
@@ -443,6 +462,7 @@ export const EditorProvider = ({
 const Editor = ({
     id = uuidv4(),
     initialValue = "",
+    value,
     disabled = false,
     className,
     onChange,
@@ -483,6 +503,7 @@ const Editor = ({
                     id={id}
                     customRender={customRender}
                     initialValue={initialValue}
+                    value={value}
                     onChange={onChange}
                     placeholder={placeholder}
                     singleLine={singleLine}
@@ -542,6 +563,7 @@ const Editor = ({
                         customRender={customRender}
                         id={id}
                         initialValue={initialValue}
+                        value={value}
                         onChange={onChange}
                         placeholder={placeholder}
                         singleLine={singleLine}

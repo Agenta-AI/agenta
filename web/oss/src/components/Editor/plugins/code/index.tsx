@@ -247,16 +247,18 @@ function InsertInitialCodeBlockPlugin({
 
                             root.append(existingCodeBlock)
                             line.selectStart()
-                        } else if (hasFocus && editor.isEditable()) {
+                        } else if (hasFocus && editor.isEditable() && !payload.forceUpdate) {
                             // Don't update if editor has focus and is editable (user is typing)
                             // But allow updates for read-only editors (like diff view)
+                            // Also allow forceUpdate for undo/redo operations
                             return
                         }
 
                         // Default processing for JSON/YAML content
                         const currentTextValue = $getEditorCodeAsString()
                         log("INITIAL VALUE CHANGED - CURRENT TEXT VALUE", {currentTextValue})
-                        if (currentTextValue) {
+                        // Skip semantic equality check if forceUpdate is true (for undo/redo)
+                        if (currentTextValue && !payload.forceUpdate) {
                             try {
                                 const currentObjectValue = JSON5.parse(currentTextValue)
                                 const incomingObjectValue =
@@ -566,6 +568,28 @@ function InsertInitialCodeBlockPlugin({
 
         prevInitialRef.current = initialValue
 
+        // Check if this is an external update (undo/redo) by comparing with current editor content
+        // If the incoming value differs from what's in the editor, force the update
+        let forceUpdate = false
+        editor.getEditorState().read(() => {
+            const currentEditorContent = $getEditorCodeAsString()
+            if (currentEditorContent) {
+                try {
+                    const currentParsed = safeJson5Parse(currentEditorContent)
+                    const incomingParsed = safeJson5Parse(initialValue)
+                    // If editor content differs from incoming value, this is an external update
+                    if (!isEqual(currentParsed, incomingParsed)) {
+                        forceUpdate = true
+                    }
+                } catch {
+                    // If parsing fails, compare as strings
+                    if (currentEditorContent.trim() !== initialValue.trim()) {
+                        forceUpdate = true
+                    }
+                }
+            }
+        })
+
         // Dispatch event to allow other plugins to handle the content
         let defaultPrevented = false
         const payload: InitialContentPayload = {
@@ -575,9 +599,10 @@ function InsertInitialCodeBlockPlugin({
                 defaultPrevented = true
             },
             isDefaultPrevented: () => defaultPrevented,
+            forceUpdate,
         }
 
-        log("INITIAL VALUE CHANGED", {initialValue})
+        log("INITIAL VALUE CHANGED", {initialValue, forceUpdate})
         editor.dispatchCommand(INITIAL_CONTENT_COMMAND, payload)
     }, [initialValue, language])
 
