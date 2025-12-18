@@ -1,13 +1,17 @@
-import {useMemo, useState} from "react"
+import {useMemo} from "react"
 
 import {Chats, TreeStructure} from "@phosphor-icons/react"
 import {Tabs, Typography} from "antd"
 
+import {useQueryParamState} from "@/oss/state/appState"
+
 import ObservabilityTable from "./components/ObservabilityTable"
+import ObservabilityUrlSyncer from "./components/ObservabilityUrlSyncer"
 import SessionsTable from "./components/SessionsTable"
 
 const ObservabilityTabs = () => {
-    const [activeTab, setActiveTab] = useState<"traces" | "sessions">("traces")
+    const [tabParam, setTabParam] = useQueryParamState("tab", "traces")
+    const activeTab = (tabParam as "traces" | "sessions") || "traces"
 
     const tabItems = useMemo(() => {
         const size = 14
@@ -36,13 +40,10 @@ const ObservabilityTabs = () => {
 
     return (
         <div className="flex flex-col gap-6">
+            <ObservabilityUrlSyncer />
             <div className="flex items-center justify-between">
                 <Typography.Text className="text-[16px] font-medium">Observability</Typography.Text>
-                <Tabs
-                    activeKey={activeTab}
-                    onChange={(key) => setActiveTab(key as "traces" | "sessions")}
-                    items={tabItems}
-                />
+                <Tabs activeKey={activeTab} onChange={(key) => setTabParam(key)} items={tabItems} />
             </div>
 
             {activeTab === "traces" ? <ObservabilityTable /> : <SessionsTable />}

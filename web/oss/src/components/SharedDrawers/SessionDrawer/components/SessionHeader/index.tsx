@@ -4,12 +4,14 @@ import {useAtom} from "jotai"
 
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 
+import useSessionDrawer from "../../hooks/useSessionDrawer"
 import {isAnnotationVisibleAtom} from "../../store/sessionDrawerStore"
 
 import {getTraceIdFromNode} from "./assets/helper"
 import {SessionHeaderProps} from "./assets/types"
 
 const SessionHeader = ({}: SessionHeaderProps) => {
+    const {sessionId} = useSessionDrawer()
     const [isAnnotationVisible, setIsAnnotationVisible] = useAtom(isAnnotationVisibleAtom)
     const displayTrace = "something"
 
@@ -22,12 +24,9 @@ const SessionHeader = ({}: SessionHeaderProps) => {
                 </div>
 
                 <Typography.Text className="text-sm font-medium">Session</Typography.Text>
-                <TooltipWithCopyAction
-                    copyText={getTraceIdFromNode(displayTrace) || ""}
-                    title="Copy trace id"
-                >
+                <TooltipWithCopyAction copyText={sessionId || ""} title="Copy trace id">
                     <Tag className="font-mono bg-[#0517290F]" bordered={false}>
-                        # {getTraceIdFromNode(displayTrace) || "-"}
+                        # {sessionId || "-"}
                     </Tag>
                 </TooltipWithCopyAction>
             </div>

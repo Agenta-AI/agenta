@@ -1,3 +1,4 @@
+import {useAtomValue} from "jotai"
 import {useMemo} from "react"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
@@ -11,8 +12,6 @@ const SessionsTable = () => {
     const {isLoading, selectedRowKeys, setSelectedRowKeys} = useObservability()
 
     const columns = useMemo(() => getSessionColumns(), [])
-
-    const sessions: SessionRow[] = []
 
     const rowSelection = {
         selectedRowKeys,
@@ -29,7 +28,7 @@ const SessionsTable = () => {
                     uniqueKey="observability-sessions-table"
                     rowKey="session_id"
                     columns={columns}
-                    dataSource={sessions}
+                    dataSource={[]}
                     loading={isLoading}
                     rowSelection={{
                         type: "checkbox",

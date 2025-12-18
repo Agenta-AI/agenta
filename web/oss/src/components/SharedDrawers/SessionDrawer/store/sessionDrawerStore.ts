@@ -167,3 +167,97 @@ export const activeChatSessionSummaryAtom = atom((get) => {
 
 // mutate visibility of annotations
 export const isAnnotationVisibleAtom = atomWithStorage("chat-session-annotation-ui", true)
+
+const SESSION_ID_PATTERNS = ["session_id", "session.id", "sessionid", "sessionId", "session-id"]
+
+const normalizeSegment = (segment: string) =>
+    segment
+        .replace(/\[(\d+)\]/g, ".$1")
+        .replace(/["']/g, "")
+        .toLowerCase()
+
+const pathMatchesSessionId = (pathSegments: string[]) => {
+    if (!pathSegments.length) return false
+
+    const normalized = pathSegments.map(normalizeSegment)
+    const joined = normalized.join(".")
+
+    if (SESSION_ID_PATTERNS.some((pattern) => joined.includes(pattern))) {
+        return true
+    }
+
+    for (let index = 0; index < normalized.length - 1; index += 1) {
+        const current = normalized[index]
+        const next = normalized[index + 1]
+
+        if (current.includes("session") && next === "id") {
+            return true
+        }
+    }
+
+    return false
+}
+
+const deepSearchForSessionId = (
+    node: unknown,
+    path: string[],
+    visited: WeakSet<object>,
+): string | null => {
+    if (node === null || typeof node !== "object") {
+        return null
+    }
+
+    if (visited.has(node as object)) {
+        return null
+    }
+    visited.add(node as object)
+
+    if (Array.isArray(node)) {
+        for (let index = 0; index < node.length; index += 1) {
+            const found = deepSearchForSessionId(node[index], [...path, String(index)], visited)
+            if (found) return found
+        }
+        return null
+    }
+
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+        const nextPath = [...path, key]
+
+        if (
+            pathMatchesSessionId(nextPath) &&
+            value != null &&
+            (typeof value === "string" || typeof value === "number")
+        ) {
+            return String(value)
+        }
+
+        const found =
+            typeof value === "object" && value !== null
+                ? deepSearchForSessionId(value, nextPath, visited)
+                : null
+
+        if (found) return found
+    }
+
+    return null
+}
+
+// Helper to extract session_id from trace by traversing all nested attributes
+export const getSessionIdFromTrace = (trace: unknown): string | null => {
+    if (trace === null || typeof trace !== "object") return null
+
+    try {
+        return deepSearchForSessionId(trace, [], new WeakSet<object>())
+    } catch {
+        return null
+    }
+}
+
+// Helper to check if a trace is a chat session (has session_id in attributes)
+export const isChatSessionTrace = (trace: unknown): boolean => {
+    try {
+        return Boolean(getSessionIdFromTrace(trace))
+    } catch {
+        return false
+    }
+}

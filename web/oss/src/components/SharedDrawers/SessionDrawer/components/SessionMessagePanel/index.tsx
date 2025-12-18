@@ -1,15 +1,17 @@
-import {useRef} from "react"
+import {useMemo, useRef} from "react"
 
-import {Database} from "@phosphor-icons/react"
-import {Button, Collapse, CollapseProps, Tag, Typography} from "antd"
+import {Collapse, CollapseProps, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
+import {KeyValuePair} from "tailwindcss/types/config"
 
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import EnhancedTooltip from "@/oss/components/EnhancedUIs/Tooltip"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
+import {spanAgDataAtomFamily} from "@/oss/state/newObservability"
 
+import AddToTestsetButton from "../../../AddToTestsetDrawer/components/AddToTestsetButton"
 import AnnotateDrawerButton from "../../../AnnotateDrawer/assets/AnnotateDrawerButton"
 import TraceAnnotations from "../../../TraceDrawer/components/TraceSidePanel/TraceAnnotations"
 import {isAnnotationVisibleAtom} from "../../store/sessionDrawerStore"
@@ -29,9 +31,21 @@ const SessionMessagePanel = ({
     ...props
 }: SessionMessagePanelProps) => {
     const isAnnotationVisible = useAtomValue(isAnnotationVisibleAtom)
+    const activeTraceData = useAtomValue(spanAgDataAtomFamily(trace))
     const editorRef = useRef<HTMLDivElement>(null)
     const sanitizedValue = ""
     const isStringValue = true
+
+    const testsetData = useMemo(() => {
+        if (!trace?.key) return [] as {data: KeyValuePair; key: string; id: number}[]
+        return [
+            {
+                data: activeTraceData as KeyValuePair,
+                key: trace.key,
+                id: 1,
+            },
+        ]
+    }, [trace?.key, activeTraceData])
 
     const collapse = (
         <Collapse
@@ -91,18 +105,13 @@ const SessionMessagePanel = ({
                     ),
                     extra: (
                         <div className="flex items-center gap-2">
-                            <Button
+                            <AddToTestsetButton
                                 className="flex items-center"
-                                onClick={(e) => {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                }}
-                                // disabled={!activeTrace?.key}
+                                label="Add to testset"
                                 size="small"
-                            >
-                                <Database size={14} />
-                                Add to testset
-                            </Button>
+                                testsetData={testsetData}
+                                disabled={!trace?.key}
+                            />
 
                             <AnnotateDrawerButton
                                 label="Annotate"

@@ -1,15 +1,15 @@
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
-import {selectAtom, atomFamily} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
 import {atomWithInfiniteQuery, atomWithQuery} from "jotai-tanstack-query"
+import {atomFamily, selectAtom} from "jotai/utils"
 
 import {
     normalizeReferenceValue,
     parseReferenceKey,
 } from "@/oss/components/pages/observability/assets/filters/referenceUtils"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {formatLatency, formatCurrency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
+import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {
     attachAnnotationsToTraces,
     groupAnnotationsByReferenceId,
@@ -18,7 +18,6 @@ import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transforme
 import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
-import type {_AgentaRootsResponse} from "@/oss/services/observability/types"
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
 import {
     isSpansResponse,
@@ -34,12 +33,12 @@ import {projectIdAtom} from "@/oss/state/project"
 import {sessionExistsAtom} from "../../session"
 
 import {
-    sortAtom,
     filtersAtom,
-    traceTabsAtom,
-    selectedTraceIdAtom,
-    selectedNodeAtom,
     limitAtom,
+    selectedNodeAtom,
+    selectedTraceIdAtom,
+    sortAtom,
+    traceTabsAtom,
 } from "./controls"
 
 // Traces query ----------------------------------------------------------------
@@ -599,4 +598,81 @@ export const formattedCostAtomFamily = atomFamily((cost?: number) =>
 
 export const formattedUsageAtomFamily = atomFamily((tokens?: number) =>
     atom(() => formatTokenUsage(tokens)),
+)
+
+// Session queries -------------------------------------------------------------
+export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
+    const appId = get(selectedAppIdAtom)
+    const sort = get(sortAtom)
+    const projectId = get(projectIdAtom)
+
+    const windowing: {oldest?: string; newest?: string} = {}
+
+    // if (sort?.type === "standard" && sort.sorted) {
+    //     windowing.oldest = sort.sorted
+    // } else if (
+    //     sort?.type === "custom" &&
+    //     (sort.customRange?.startTime || sort.customRange?.endTime)
+    // ) {
+    //     const {startTime, endTime} = sort.customRange
+    //     if (startTime) windowing.oldest = startTime
+    //     if (endTime) windowing.newest = endTime
+    // }
+
+    const sessionExists = get(sessionExistsAtom)
+
+    return {
+        queryKey: ["sessions", projectId, appId, windowing],
+        initialPageParam: undefined as string | undefined,
+
+        queryFn: async ({pageParam}: {pageParam?: string}) => {
+            const {fetchSessions} = await import("@/oss/services/tracing/api")
+
+            const response: any = await fetchSessions({
+                appId: (appId as string) || undefined,
+                windowing: Object.keys(windowing).length > 0 ? windowing : undefined,
+                cursor: pageParam,
+            })
+
+            return {
+                session_ids: response.session_ids || [],
+                count: response.count || 0,
+                nextCursor: response.next_cursor as string | undefined,
+            }
+        },
+        enabled: sessionExists && Boolean(appId || projectId),
+
+        getNextPageParam: (lastPage: any) => {
+            return lastPage.nextCursor || undefined
+        },
+
+        refetchOnWindowFocus: false,
+    }
+})
+
+export const sessionIdsAtom = selectAtom(
+    sessionsQueryAtom,
+    (query) => {
+        const pages = query.data?.pages ?? []
+        if (!pages.length) return []
+
+        const seen = new Set<string>()
+        const deduped: string[] = []
+
+        pages.forEach((page: any) => {
+            page.session_ids.forEach((sessionId: string) => {
+                if (!sessionId || seen.has(sessionId)) return
+                seen.add(sessionId)
+                deduped.push(sessionId)
+            })
+        })
+
+        return deduped
+    },
+    deepEqual,
+)
+
+export const sessionCountAtom = selectAtom(
+    sessionsQueryAtom,
+    (query) => (query.data?.pages?.[0] as any)?.count ?? 0,
 )
