@@ -19,11 +19,6 @@
         "types:watch": "tsc -w"
     },
     "dependencies": {
-        "@ag-grid-community/client-side-row-model": "^32.3.4",
-        "@ag-grid-community/core": "^32.3.4",
-        "@ag-grid-community/csv-export": "^32.3.4",
-        "@ag-grid-community/react": "^32.3.4",
-        "@ag-grid-community/styles": "^32.3.4",
         "@agenta/web-tests": "workspace:../tests",
         "@ant-design/colors": "^7.2.0",
         "@ant-design/cssinjs": "^1.22.1",
@@ -129,7 +124,8 @@
         "use-animation-frame": "^0.2.1",
         "usehooks-ts": "^3.1.1",
         "uuid": "^11.1.0",
-        "uuidjs": "^5.1.0"
+        "uuidjs": "^5.1.0",
+        "zod": "^4.1.13"
     },
     "devDependencies": {
         "@swc-jotai/debug-label": "^0.4.0",
