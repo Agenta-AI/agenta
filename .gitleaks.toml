@@ -34,6 +34,12 @@ regexes = [
   # ----------------------------------------------------------------------------
 ]
 
+[[rules]]
+id = "agenta-api-key"
+description = "Detected Agenta API Key"
+regex = '''ApiKey\s+[a-zA-Z0-9]{8}\.[a-f0-9]{64}'''
+keywords = ["ApiKey"]
+
 # USEFUL GITLEAKS COMMANDS
 # gitleaks --config .gitleaks.toml --exit-code 1 --verbose git
 # gitleaks --config .gitleaks.toml --exit-code 1 --verbose detect --no-git

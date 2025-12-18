@@ -19,6 +19,8 @@ export interface PromptMessageContentOptionsProps {
     allowFileUpload?: boolean
     uploadCount?: number
     hideMarkdownToggle?: boolean
+    /** When true, only render the minimize control */
+    showMinimizeOnly?: boolean
     /** Whether the component is in view-only mode or in mutable mode */
     viewOnly?: boolean
 }
