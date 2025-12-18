@@ -16,6 +16,8 @@ import {EditorProvider} from "@/oss/components/Editor/Editor"
 import SimpleDropdownSelect from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/SimpleDropdownSelect"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 
+import MarkdownToggleButton from "./MarkdownToggleButton"
+
 /** Content part types for complex message content */
 export interface TextContentPart {
     type: "text"
@@ -885,6 +887,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                             }
                             headerRight={
                                 <div className="flex items-center gap-1">
+                                    <MarkdownToggleButton id={`chat-msg-${index}`} />
                                     {allowFileUpload && !disabled && (
                                         <AttachmentButton
                                             onAddImage={(url) => handleAddImage(index, url)}
