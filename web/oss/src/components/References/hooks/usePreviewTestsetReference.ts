@@ -99,10 +99,10 @@ export const usePreviewTestsetReference = (
     const hasReference = Boolean(reference)
     const isLoading = Boolean(
         enabled &&
-        effectiveProjectId &&
-        testsetId &&
-        !hasReference &&
-        (query?.isLoading || query?.isFetching || query?.isPending),
+            effectiveProjectId &&
+            testsetId &&
+            !hasReference &&
+            (query?.isLoading || query?.isFetching || query?.isPending),
     )
 
     return {reference, isLoading}

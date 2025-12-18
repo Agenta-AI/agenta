@@ -119,7 +119,7 @@ export const EnvironmentReferenceLabel = memo(
         const ref = query.data
         const isDeleted = Boolean(
             query.isError ||
-            ((environmentId || environmentSlug) && !ref?.name && !ref?.slug && !ref?.id),
+                ((environmentId || environmentSlug) && !ref?.name && !ref?.slug && !ref?.id),
         )
         const label = isDeleted
             ? "Deleted"

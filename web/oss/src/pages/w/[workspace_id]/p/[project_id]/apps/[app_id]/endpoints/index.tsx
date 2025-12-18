@@ -138,14 +138,22 @@ export default function VariantEndpoint() {
     const variants = data?.variants
 
     // Set the variant to the variant deployed in the selected environment
-    // If no environment is selected, default to the first variant
-    const variant =
-        selectedEnvironment
-            ? (variants || []).find(
-                  (variant) =>
-                      variant.variantId === selectedEnvironment.deployed_app_variant_revision_id,
-              ) || (variants?.[0] ?? null)
-            : variants?.[0] ?? null
+    const [variant, setVariant] = useState<Variant | null>(null)
+    useEffect(() => {
+        if (!selectedEnvironment) return
+        const variant = (variants || []).find(
+            (variant) => variant.variantId === selectedEnvironment.deployed_app_variant_revision_id,
+        )
+        if (!variant) return
+
+        setVariant(variant)
+    }, [selectedEnvironment, variants])
+
+    useEffect(() => {
+        if (variants && variants.length > 0) {
+            setVariant(variants[0])
+        }
+    }, [variants, appId])
 
     const {inputParams} = variant || {}
 
