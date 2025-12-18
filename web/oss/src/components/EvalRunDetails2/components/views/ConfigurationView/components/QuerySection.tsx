@@ -14,7 +14,7 @@ import {QueryReferenceLabel} from "../../../references"
 import {formatSamplingRate, stringifyError} from "../utils"
 
 import {ReadOnlyContainer} from "./CopyableFields"
-import {SectionCard, SectionHeaderRow} from "./SectionPrimitives"
+import {SectionHeaderRow} from "./SectionPrimitives"
 
 const {Text} = Typography
 const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})

@@ -308,7 +308,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 activeKey={activePanel || "appPanel"}
                 onChange={handlePanelChange as any}
                 items={items}
-                tabPosition="left"
+                tabPlacement="left"
                 className={clsx([
                     classes.tabsContainer,
                     "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",

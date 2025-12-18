@@ -3,7 +3,7 @@ import {FilterConditions} from "@/oss/lib/Types"
 export type ScalarType = "string" | "number" | "exists"
 export type ValueShape = "none" | "single" | "list" | "range"
 
-export type OperatorDef = {
+export interface OperatorDef {
     id: FilterConditions
     label: string
     forTypes: ScalarType[]

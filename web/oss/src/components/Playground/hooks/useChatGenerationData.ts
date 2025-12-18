@@ -1,10 +1,3 @@
-import {useMemo} from "react"
-
-import {useAtomValue} from "jotai"
-
-import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms/variants"
-import {chatTurnsByIdAtom, inputRowIdsAtom} from "@/oss/state/generation/entities"
-
 // /**
 //  * Simplified hook backed by normalized entities
 //  * - inputRows derived from inputRowIdsAtom

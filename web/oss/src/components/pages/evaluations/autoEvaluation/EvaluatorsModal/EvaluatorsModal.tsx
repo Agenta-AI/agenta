@@ -169,11 +169,15 @@ const EvaluatorsModal = ({
             footer={null}
             closeIcon={null}
             title={null}
-            height="85vh"
             width="90vw"
             className="[&_>_div]:!h-full [&_.ant-modal-content]:!h-full !overflow-y-hidden min-w-[600px] max-w-[95vw] min-h-[600px]"
             classNames={{body: "!h-full !overflow-auto"}}
             maskClosable={false}
+            styles={{
+                container: {
+                    height: "85vh",
+                },
+            }}
             {...modalProps}
         >
             <div

@@ -145,7 +145,7 @@ const Evaluators = ({
                             <Radio.Button value={"view_all"} className="text-nowrap">
                                 View all
                             </Radio.Button>
-                            <Divider type="vertical" className="h-7 !mx-1" />
+                            <Divider orientation="vertical" className="h-7 !mx-1" />
                             {evaluatorTags.map((val, idx) => (
                                 <Radio.Button key={idx} value={val.value} className="text-nowrap">
                                     {val.label}

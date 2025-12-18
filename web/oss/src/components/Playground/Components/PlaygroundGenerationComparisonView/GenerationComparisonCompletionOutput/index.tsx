@@ -10,10 +10,7 @@ import TypingIndicator from "../../../assets/TypingIndicator"
 import GenerationCompletion from "../../PlaygroundGenerations/assets/GenerationCompletion"
 import ErrorPanel from "../../PlaygroundGenerations/assets/GenerationCompletionRow/ErrorPanel"
 import GenerationResponsePanel from "../../PlaygroundGenerations/assets/GenerationCompletionRow/GenerationResponsePanel"
-import {
-    RunningPlaceholder,
-    ClickRunPlaceholder,
-} from "../../PlaygroundGenerations/assets/ResultPlaceholder"
+import {ClickRunPlaceholder} from "../../PlaygroundGenerations/assets/ResultPlaceholder"
 
 import type {GenerationComparisonCompletionOutputProps} from "./types"
 

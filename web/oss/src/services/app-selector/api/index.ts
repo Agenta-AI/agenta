@@ -1,6 +1,5 @@
 import Router from "next/router"
 
-import useURL from "@/oss/hooks/useURL"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {fetchJson} from "@/oss/lib/api/assets/fetchClient"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
