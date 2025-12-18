@@ -77,13 +77,37 @@ async def _fetch_project_owner(
     return UUID(owner) if owner is not None else None
 
 
-CHAT_KEYS: Tuple[str, ...] = ("messages", "chat")
-EXPECTED_KEYS: Tuple[str, ...] = ("correct_answer",)
+INPUT_KEYS: Tuple[str, ...] = ("messages",)
+OUTPUT_KEYS: Tuple[str, ...] = ("correct_answer",)
 
 CORRECT_ANSWER_LIKE_RE = re.compile(
     r'^\s*\{\s*"content"\s*:\s*".*?"\s*,\s*"role"\s*:\s*".*?"',
     re.DOTALL,
 )
+
+
+def _parse_messages(value) -> Optional[List]:
+    """Parse chat/messages into a list where each item has role and content."""
+    if isinstance(value, list):
+        parsed = value
+    else:
+        if not isinstance(value, str) or not value.strip().startswith("["):
+            return None
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            return None
+
+    if not isinstance(parsed, list):
+        return None
+
+    if not all(
+        isinstance(item, dict) and "role" in item and "content" in item
+        for item in parsed
+    ):
+        return None
+
+    return parsed
 
 
 def _parse_json_column(value, allowed_types: Tuple[type, ...]) -> Optional[object]:
@@ -105,6 +129,28 @@ def _parse_json_column(value, allowed_types: Tuple[type, ...]) -> Optional[objec
     return None
 
 
+def _parse_expected(value) -> Optional[object]:
+    """Parse expected/answer fields; must contain role+content."""
+    parsed = _parse_json_column(value, (dict, list))
+    if parsed is None:
+        return None
+
+    if isinstance(parsed, dict):
+        return parsed if ("role" in parsed and "content" in parsed) else None
+
+    if isinstance(parsed, list):
+        return (
+            parsed
+            if all(
+                isinstance(item, dict) and "role" in item and "content" in item
+                for item in parsed
+            )
+            else None
+        )
+
+    return None
+
+
 def _jsonify_testcase_fields(testcases: Optional[List[Testcase]]) -> bool:
     """
     Mutate testcase.data in-place, converting:
@@ -115,39 +161,23 @@ def _jsonify_testcase_fields(testcases: Optional[List[Testcase]]) -> bool:
         return False
 
     changed = False
-    expected_parsed = False
 
     for testcase in testcases:
         data = getattr(testcase, "data", None)
         if not isinstance(data, dict):
             continue
 
-        for key in CHAT_KEYS:
-            parsed = _parse_json_column(data.get(key), (list,))
+        for key in INPUT_KEYS:
+            parsed = _parse_messages(data.get(key))
             if parsed is not None:
                 data[key] = parsed
                 changed = True
 
-        for key in EXPECTED_KEYS:
-            parsed = _parse_json_column(data.get(key), (dict, list))
-            if parsed is not None:
-                data[key] = parsed
-                changed = True
-                expected_parsed = True
-
-        if not expected_parsed:
-            for field_key, value in data.items():
-                if not isinstance(value, str):
-                    continue
-                if not CORRECT_ANSWER_LIKE_RE.match(value):
-                    continue
-
-                parsed = _parse_json_column(value, (dict,))
-                if parsed is not None:
-                    data[field_key] = parsed
-                    changed = True
-                    expected_parsed = True
-                    break
+        # Only parse explicit correct_answer if present
+        parsed_expected = _parse_expected(data.get("correct_answer"))
+        if parsed_expected is not None:
+            data["correct_answer"] = parsed_expected
+            changed = True
 
     return changed
 
