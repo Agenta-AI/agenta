@@ -31,10 +31,8 @@ export const useCrispChat = () => {
     }, [isVisible, updateVisibility, isCrispEnabled])
 
     useEffect(() => {
-        if (isCrispEnabled) {
-            Crisp.chat.hide()
-        }
-    }, [isCrispEnabled])
+        updateVisibility(false)
+    }, [updateVisibility])
 
     return {
         isVisible,
