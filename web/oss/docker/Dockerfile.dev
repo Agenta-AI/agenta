@@ -17,6 +17,8 @@ RUN PNPM_VERSION=$(cat package.json | jq -r '.packageManager | split("@")[1]') &
 
 COPY oss/package.json ./oss/yarn.lock* ./oss/package-lock.json* ./oss/pnpm-lock.yaml* ./oss/.npmrc* ./oss/
 COPY ./pnpm-workspace.yaml ./turbo.json ./
+# Copy patches directory before running pnpm i
+COPY ./patches /app/patches/
 RUN pnpm i
 
 COPY tsconfig.json .

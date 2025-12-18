@@ -37,7 +37,8 @@ const GenerationChatTurnNormalized = ({
     className,
     hideUserMessage = false,
     messageProps,
-}: Props) => {
+    enableTourTargets = false,
+}: Props & {enableTourTargets?: boolean}) => {
     const displayedVariantIds = useAtomValue(displayedVariantsAtom)
     const setAddTurn = useSetAtom(addChatTurnAtom)
     const runTurn = useSetAtom(runChatTurnAtom)
@@ -103,6 +104,9 @@ const GenerationChatTurnNormalized = ({
         displayAssistantValue,
         toolMessages.length > 0,
     )
+    const outputPanelId = enableTourTargets ? "tour-playground-output-panel" : undefined
+    const resultUtilsId = enableTourTargets ? "tour-playground-result-utils" : undefined
+    const traceButtonId = enableTourTargets ? "tour-playground-trace-button" : undefined
 
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
@@ -115,6 +119,7 @@ const GenerationChatTurnNormalized = ({
                     messageOptionProps={{
                         allowFileUpload: true,
                     }}
+                    containerId={enableTourTargets ? "tour-chat-user-message" : undefined}
                     messageProps={messageProps}
                 />
             ) : null}
@@ -137,7 +142,16 @@ const GenerationChatTurnNormalized = ({
                         kind="assistant"
                         className="w-full"
                         headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
-                        footer={result ? <GenerationResultUtils result={result as any} /> : null}
+                        containerId={outputPanelId}
+                        footer={
+                            result ? (
+                                <GenerationResultUtils
+                                    result={result as any}
+                                    tourTargetId={resultUtilsId}
+                                    traceButtonTourId={traceButtonId}
+                                />
+                            ) : null
+                        }
                         messageProps={messageProps}
                     />
                     {variantId

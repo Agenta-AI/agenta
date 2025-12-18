@@ -30,6 +30,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         className: clsx({
                             "[&_.ant-menu-submenu-arrow]:hidden [&_.ant-menu-title-content]:hidden":
                                 collapsed,
+                            "tour-help-docs-link": item.key === "help-docs-link",
                         }),
                         disabled: item.isCloudFeature || item.disabled,
                         onTitleClick: item.onClick,
@@ -90,6 +91,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
     return (
         <Menu
             mode={mode}
+            triggerSubMenuAction="click"
             items={transformItems(items)}
             {...(mode === "inline" ? {inlineCollapsed: collapsed} : {})}
             {...menuProps}
