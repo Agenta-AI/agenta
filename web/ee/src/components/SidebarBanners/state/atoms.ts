@@ -6,6 +6,7 @@ import {BannerConfig} from "@/oss/components/SidebarBanners/types"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {Plan} from "@/oss/lib/Types"
+import {urlAtom, URLState} from "@/oss/state/url"
 
 import {subscriptionQueryAtom} from "../../../state/billing/atoms"
 
@@ -55,6 +56,10 @@ export const eeBannersAtom = atom((get): BannerConfig[] => {
         return []
     }
 
+    // Get projectURL to construct full paths for relative navigation
+    const url = get(urlAtom) as URLState
+    const projectURL = url.projectURL || ""
+
     const banners: BannerConfig[] = []
 
     // Trial banner (non-dismissible) - highest priority
@@ -70,7 +75,7 @@ export const eeBannersAtom = atom((get): BannerConfig[] => {
             description: `${trialText}. Upgrade today to keep pro plan features.`,
             action: {
                 label: "Upgrade now",
-                href: "/settings?tab=billing",
+                href: `${projectURL}/settings?tab=billing`,
             },
         })
     }
@@ -85,7 +90,7 @@ export const eeBannersAtom = atom((get): BannerConfig[] => {
                 "Create unlimited applications & run unlimited evaluations. Upgrade today and get more out of Agenta.",
             action: {
                 label: "Upgrade",
-                href: "/settings?tab=billing",
+                href: `${projectURL}/settings?tab=billing`,
             },
         })
     }
