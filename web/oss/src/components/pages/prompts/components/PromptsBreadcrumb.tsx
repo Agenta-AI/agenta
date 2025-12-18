@@ -150,6 +150,7 @@ const PromptsBreadcrumb = ({
     )
 
     const items: BreadcrumbProps["items"] = useMemo(() => {
+        const isAtRoot = !currentFolderId
         const base: BreadcrumbProps["items"] = [
             {
                 title: (
@@ -157,7 +158,13 @@ const PromptsBreadcrumb = ({
                         type="link"
                         className={`w-5 h-5 m-0 ${classes.homeButton}`}
                         size="small"
-                        icon={<HouseIcon weight="fill" color={"#1C2C3D"} size={14} />}
+                        icon={
+                            <HouseIcon
+                                weight={isAtRoot ? "fill" : "regular"}
+                                color={"#1C2C3D"}
+                                size={14}
+                            />
+                        }
                     />
                 ),
                 onClick: () => onFolderChange?.(null),
@@ -199,7 +206,7 @@ const PromptsBreadcrumb = ({
         })
 
         return base
-    }, [actionItems, folderChain, onFolderChange])
+    }, [actionItems, currentFolderId, folderChain, onFolderChange])
 
     return <Breadcrumb items={items} className={classes.container} />
 }
