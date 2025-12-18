@@ -3,7 +3,7 @@ import {ComponentProps, ReactNode, useState} from "react"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {Button, Divider, Drawer} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {envRevisionsAtom} from "@/oss/components/DeploymentsDashboard/atoms"
@@ -12,6 +12,7 @@ import {JSSTheme} from "@/oss/lib/Types"
 import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 import UseApiContent from "../../assets/UseApiContent"
+import {openSelectDeployVariantModalAtom} from "../../modals/store/deploymentModalsStore"
 
 import DrawerDetails from "./assets/DrawerDetails"
 import DrawerTitle from "./assets/DrawerTitle"
@@ -98,6 +99,10 @@ const DeploymentsDrawerContent = ({
 }: DeploymentsDrawerProps) => {
     const variants = useAtomValue(revisionListAtom) || []
     const envRevisions = useAtomValue(envRevisionsAtom)
+    const openSelectDeployVariantModal = useSetAtom(openSelectDeployVariantModalAtom)
+    const handleOpenSelectDeployVariantModal = () =>
+        openSelectDeployVariantModal({variants, envRevisions: envRevisions})
+
     return (
         <div className="flex h-full">
             <div className={`flex-1 overflow-auto ${mainContentClassName}`}>
@@ -118,7 +123,7 @@ const DeploymentsDrawerContent = ({
                 >
                     {envRevisions ? (
                         <UseApiContent
-                            handleOpenSelectDeployVariantModal={() => close()}
+                            handleOpenSelectDeployVariantModal={handleOpenSelectDeployVariantModal}
                             variants={variants}
                             revisionId={drawerVariantId}
                             selectedEnvironment={envRevisions}
@@ -134,7 +139,7 @@ const DeploymentsDrawerContent = ({
             </div>
             {drawerVariantId && (
                 <>
-                    <Divider orientation="vertical" className="h-full m-0" />
+                    <Divider type="vertical" className="h-full m-0" />
                     <DrawerDetails revisionId={drawerVariantId} />
                 </>
             )}

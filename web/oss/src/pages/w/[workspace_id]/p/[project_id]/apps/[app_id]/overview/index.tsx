@@ -16,6 +16,7 @@ import DeploymentOverview from "@/oss/components/pages/overview/deployments/Depl
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
 import type {JSSTheme} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app"
+import PageLayout from "@/oss/components/PageLayout/PageLayout"
 
 const CustomWorkflowHistory: any = dynamic(
     () => import("@/oss/components/pages/app-management/drawers/CustomWorkflowHistory"),
@@ -49,7 +50,7 @@ const AppDetailsSection = memo(() => {
     })
     return (
         <>
-            <Space className="justify-between">
+            <Space className="flex items-center gap-3">
                 <Text className="!m-0 text-[16px] font-medium">{currentApp?.app_name || ""}</Text>
 
                 <Dropdown
@@ -111,7 +112,7 @@ const OverviewPage = () => {
 
     return (
         <>
-            <div className={clsx(classes.container, "flex flex-col gap-10")}>
+            <PageLayout className="gap-8">
                 <AppDetailsSection />
                 <ObservabilityOverview />
                 <DeploymentOverview />
@@ -129,7 +130,7 @@ const OverviewPage = () => {
                     appId={appId}
                     appScoped
                 />
-            </div>
+            </PageLayout>
 
             <CustomWorkflowHistory
                 open={isCustomWorkflowHistoryDrawerOpen}
