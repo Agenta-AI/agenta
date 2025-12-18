@@ -136,7 +136,7 @@ export const EnvironmentReferenceLabel = memo(
             ? null
             : (explicitHref ??
               (projectURL && targetAppId && resolvedSlug
-                  ? `${projectURL}/apps/${targetAppId}/deployments?selectedEnvName=${encodeURIComponent(
+                  ? `${projectURL}/apps/${targetAppId}/variants?tab=deployments&selectedEnvName=${encodeURIComponent(
                         resolvedSlug,
                     )}`
                   : null))

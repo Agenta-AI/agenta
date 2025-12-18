@@ -19,8 +19,9 @@ const DeploymentOverview = () => {
     const handleCardClick = useCallback(
         (env: Environment) => {
             router.push({
-                pathname: `${appURL}/deployments`,
+                pathname: `${appURL}/variants`,
                 query: {
+                    tab: "deployments",
                     selectedEnvName: env.name,
                 },
             })

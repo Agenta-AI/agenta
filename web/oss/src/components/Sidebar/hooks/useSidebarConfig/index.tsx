@@ -128,14 +128,6 @@ export const useSidebarConfig = () => {
             disabled: !hasProjectURL,
         },
         {
-            key: "app-deployments-link",
-            title: "Deployments",
-            link: `${appURL || recentlyVisitedAppURL}/deployments`,
-            isHidden: !currentApp && !recentlyVisitedAppId,
-            icon: <CloudArrowUp size={16} />,
-            disabled: !hasProjectURL,
-        },
-        {
             key: "settings-link",
             title: "Settings",
             link: `${projectURL}/settings`,
