@@ -216,6 +216,42 @@ class Tracing(metaclass=Singleton):
                         namespace="metrics",
                     )
 
+    def store_session(
+        self,
+        session_id: Optional[str] = None,
+        span: Optional[Span] = None,
+    ):
+        """Set session attributes on the current span.
+
+        Args:
+            session_id: Unique identifier for the session
+            span: Optional span to set attributes on (defaults to current span)
+        """
+        with suppress():
+            if span is None:
+                span = self.get_current_span()
+
+            if session_id:
+                span.set_attribute("id", session_id, namespace="session")
+
+    def store_user(
+        self,
+        user_id: Optional[str] = None,
+        span: Optional[Span] = None,
+    ):
+        """Set user attributes on the current span.
+
+        Args:
+            user_id: Unique identifier for the user
+            span: Optional span to set attributes on (defaults to current span)
+        """
+        with suppress():
+            if span is None:
+                span = self.get_current_span()
+
+            if user_id:
+                span.set_attribute("id", user_id, namespace="user")
+
     def is_inline_trace_ready(
         self,
         trace_id: Optional[int] = None,

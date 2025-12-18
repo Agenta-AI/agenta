@@ -340,16 +340,13 @@ async def get_variant_revisions(
         "variant_id": variant_id,
     }
 
-    # TODO: Fix caching and revert this @jp
-    # app_variant_revisions = await get_cache(
-    #     project_id=request.state.project_id,
-    #     namespace="get_variant_revisions",
-    #     key=cache_key,
-    #     model=AppVariantRevision,
-    #     is_list=True,
-    # )
-    
-    app_variant_revisions = None
+    app_variant_revisions = await get_cache(
+        project_id=request.state.project_id,
+        namespace="get_variant_revisions",
+        key=cache_key,
+        model=AppVariantRevision,
+        is_list=True,
+    )
 
     if app_variant_revisions is not None:
         return app_variant_revisions

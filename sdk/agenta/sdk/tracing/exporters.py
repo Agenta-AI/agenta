@@ -122,6 +122,7 @@ class OTLPExporter(OTLPSpanExporter):
                     #     "[SPAN]  [EXPORT]",
                     #     trace_id=UUID(int=trace_id).hex,
                     #     span_id=UUID(int=span_id).hex[-16:],
+                    #     span_attributes=_span.attributes,
                     # )
 
                 serialized_spans.append(super().export(_spans))

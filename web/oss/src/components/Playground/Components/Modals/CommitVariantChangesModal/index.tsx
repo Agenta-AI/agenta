@@ -129,9 +129,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
             try {
                 const variantIdForDeployment =
-                    resultVariant?.variant_id ||
-                    resultVariant?.variantId ||
-                    variant?.variantId
+                    resultVariant?.variant_id || resultVariant?.variantId || variant?.variantId
 
                 const revisionIdForDeployment =
                     resultVariant?.id ||
