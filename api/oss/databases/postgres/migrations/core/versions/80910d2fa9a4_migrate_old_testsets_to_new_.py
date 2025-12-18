@@ -1,7 +1,7 @@
 """migrate old testsets to new testsets data structure
 
 Revision ID: 80910d2fa9a4
-Revises: ...
+Revises: 7a3d1c4f5b6a
 Create Date: 2025-07-25 07:35:57.319449
 
 """
@@ -15,7 +15,7 @@ from oss.databases.postgres.migrations.core.data_migrations.testsets import (
 
 # revision identifiers, used by Alembic.
 revision: str = "80910d2fa9a4"
-down_revision: Union[str, None] = "..."
+down_revision: Union[str, None] = "7a3d1c4f5b6a"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

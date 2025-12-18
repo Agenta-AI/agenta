@@ -1,7 +1,9 @@
+import json
 import uuid
 import asyncio
 import traceback
-from typing import Optional
+from uuid import UUID, uuid4
+from typing import Optional, List
 
 import click
 from sqlalchemy.future import select
@@ -20,7 +22,10 @@ from oss.src.dbs.postgres.testsets.dbes import (
     TestsetRevisionDBE,
 )
 from oss.src.dbs.postgres.git.dao import GitDAO
+from oss.src.core.shared.dtos import Reference
+from oss.src.core.testcases.dtos import Testcase
 from oss.src.core.testcases.service import TestcasesService
+from oss.src.core.testsets.dtos import TestsetRevisionCommit, TestsetRevisionData
 from oss.src.models.deprecated_models import DeprecatedTestsetDB
 from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
 
@@ -69,6 +74,121 @@ async def _fetch_project_owner(
     return owner
 
 
+def _parse_chat_column(value) -> Optional[List]:
+    """Parse a stringified chat/messages column into a list, otherwise None."""
+    if isinstance(value, list):
+        return None
+
+    if not isinstance(value, str):
+        return None
+
+    try:
+        parsed = json.loads(value)
+    except Exception:
+        return None
+
+    if isinstance(parsed, list):
+        return parsed
+
+    return None
+
+
+def _jsonify_chat_columns(testcases: Optional[List[Testcase]]) -> bool:
+    """Mutate testcase.data in-place, converting stringified chat/messages to lists."""
+    if not testcases:
+        return False
+
+    changed = False
+
+    for testcase in testcases:
+        data = getattr(testcase, "data", None)
+        if not isinstance(data, dict):
+            continue
+
+        for key in ("messages", "chat"):
+            parsed = _parse_chat_column(data.get(key))
+            if parsed is not None:
+                data[key] = parsed
+                changed = True
+
+    return changed
+
+
+async def _commit_jsonified_revision(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    testset_id: UUID,
+) -> bool:
+    """
+    Fetch latest revision for the given testset and, if chat columns are stringified,
+    commit a new revision with jsonified chat/messages.
+    """
+    testset_variant = await testsets_service.fetch_testset_variant(
+        project_id=project_id,
+        testset_ref=Reference(id=testset_id),
+    )
+
+    if not testset_variant:
+        return False
+
+    testset_revision = await testsets_service.fetch_testset_revision(
+        project_id=project_id,
+        testset_variant_ref=Reference(id=testset_variant.id),
+    )
+
+    if (
+        not testset_revision
+        or not testset_revision.data
+        or not testset_revision.data.testcases
+    ):
+        return False
+
+    testcases: List[Testcase] = testset_revision.data.testcases or []
+
+    if not _jsonify_chat_columns(testcases):
+        return False
+
+    testset_revision_slug = uuid4().hex[-12:]
+
+    testset_revision_commit = TestsetRevisionCommit(
+        slug=testset_revision_slug,
+        #
+        name=testset_revision.name,
+        description=testset_revision.description,
+        #
+        tags=testset_revision.tags,
+        meta=testset_revision.meta,
+        flags=testset_revision.flags,
+        #
+        data=TestsetRevisionData(
+            testcases=testcases,
+        ),
+        #
+        testset_id=testset_variant.testset_id,
+        testset_variant_id=testset_variant.id,
+    )
+
+    committed_revision = await testsets_service.commit_testset_revision(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        testset_revision_commit=testset_revision_commit,
+    )
+
+    if not committed_revision:
+        return False
+
+    click.echo(
+        click.style(
+            f"Committed jsonified chat/messages revision for testset {testset_id}",
+            fg="green",
+        )
+    )
+
+    return True
+
+
 async def migration_old_testsets_to_new_testsets(
     connection: AsyncConnection,
 ):
@@ -77,6 +197,7 @@ async def migration_old_testsets_to_new_testsets(
         offset = 0
         total_migrated = 0
         skipped_records = 0
+        chat_jsonified = 0
 
         # Count total rows with a non-null project_id
         total_query = (
@@ -142,6 +263,24 @@ async def migration_old_testsets_to_new_testsets(
                         )
                         continue
 
+                    # STEP 4: If latest revision has stringified chat/messages, json-ify and commit
+                    try:
+                        jsonified = await _commit_jsonified_revision(
+                            project_id=testset.project_id,
+                            user_id=owner,
+                            testset_id=testset.id,
+                        )
+                        if jsonified:
+                            chat_jsonified += 1
+                    except Exception as e:
+                        click.echo(
+                            click.style(
+                                f"Failed to jsonify chat/messages for testset {testset.id}: {str(e)}",
+                                fg="red",
+                            )
+                        )
+                        click.echo(click.style(traceback.format_exc(), fg="red"))
+
                 except Exception as e:
                     click.echo(
                         click.style(
@@ -171,6 +310,12 @@ async def migration_old_testsets_to_new_testsets(
         click.echo(click.style(f"Skipped records: {skipped_records}", fg="yellow"))
         click.echo(
             click.style(f"Records left to migrate: {remaining_records}", fg="yellow")
+        )
+        click.echo(
+            click.style(
+                f"Revisions jsonified (chat/messages): {chat_jsonified}",
+                fg="yellow",
+            )
         )
 
     except Exception as e:
