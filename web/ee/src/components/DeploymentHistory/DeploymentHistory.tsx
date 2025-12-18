@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {DeploymentRevisionConfig, DeploymentRevisions} from "@agenta/oss/src/lib/types_ee"
 import {Button, Card, Divider, Space, Typography, notification} from "antd"
 import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
@@ -14,8 +15,6 @@ import {
     createRevertDeploymentRevision,
     fetchAllDeploymentRevisions,
 } from "@/oss/services/deploymentVersioning/api"
-
-import {DeploymentRevisionConfig, DeploymentRevisions} from "@agenta/oss/src/lib/types_ee"
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)

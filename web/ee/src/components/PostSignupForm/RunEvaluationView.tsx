@@ -1,9 +1,11 @@
 import {useState} from "react"
-import {Typography, Space, Button} from "antd"
+
 import {Book, CodeBlock, Play} from "@phosphor-icons/react"
-import {TracingCodeComponent} from "@/oss/components/pages/app-management/modals/SetupTracingModal/components/TracingCodeComponent"
-import ApiKeyInput from "@/oss/components/pages/app-management/components/ApiKeyInput"
+import {Typography, Space, Button} from "antd"
 import {useRouter} from "next/router"
+
+import ApiKeyInput from "@/oss/components/pages/app-management/components/ApiKeyInput"
+import {TracingCodeComponent} from "@/oss/components/pages/app-management/modals/SetupTracingModal/components/TracingCodeComponent"
 
 const {Title, Text} = Typography
 
