@@ -221,6 +221,43 @@
     --scenario-row-height: 280px;
 }
 
+/* Testcase table row height control */
+.agenta-testcase-table .ant-table-tbody > tr > td {
+    padding: 0 !important;
+    vertical-align: top;
+    background-color: #fff;
+}
+
+.testcase-table-cell {
+    width: 100%;
+    height: var(--testcase-row-height, 160px);
+    min-height: var(--testcase-row-height, 160px);
+    max-height: var(--testcase-row-height, 160px);
+    padding: var(--testcase-cell-padding, 12px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: var(--testcase-cell-gap, 8px);
+    overflow: hidden;
+    position: relative;
+}
+
+/* Testcase row height variants */
+.agenta-testcase-table--row-small {
+    --testcase-row-height: 80px;
+    --testcase-cell-padding: 8px;
+    --testcase-cell-gap: 4px;
+}
+
+.agenta-testcase-table--row-medium {
+    --testcase-row-height: 160px;
+}
+
+.agenta-testcase-table--row-large {
+    --testcase-row-height: 280px;
+}
+
 .scenario-table-text {
     font-size: 13px;
     line-height: 1.6;
