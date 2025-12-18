@@ -155,6 +155,7 @@ const ObservabilityDashboard = () => {
         onChange: (keys: React.Key[]) => {
             setSelectedRowKeys(keys)
         },
+        columnWidth: 48,
     }
 
     const showTableLoading = isLoading && traces.length === 0
