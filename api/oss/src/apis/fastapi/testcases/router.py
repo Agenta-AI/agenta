@@ -12,6 +12,10 @@ from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 from oss.src.core.testcases.service import (
     TestcasesService,
 )
+from oss.src.core.testsets.service import (
+    TestsetsService,
+)
+from oss.src.core.shared.dtos import Reference
 
 from oss.src.apis.fastapi.testcases.models import (
     TestcasesQueryRequest,
@@ -36,8 +40,10 @@ class TestcasesRouter:
         self,
         *,
         testcases_service: TestcasesService,
+        testsets_service: TestsetsService,
     ):
         self.testcases_service = testcases_service
+        self.testsets_service = testsets_service
         self.router = APIRouter()
 
         # TESTCASES ------------------------------------------------------------
@@ -121,12 +127,25 @@ class TestcasesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        # If testset_revision_id is provided, fetch testcase_ids from the revision
+        testcase_ids = testcases_query_request.testcase_ids
+        if testcases_query_request.testset_revision_id:
+            testset_revision = await self.testsets_service.fetch_testset_revision(
+                project_id=UUID(request.state.project_id),
+                testset_revision_ref=Reference(id=testcases_query_request.testset_revision_id),
+            )
+            if testset_revision and testset_revision.data and testset_revision.data.testcase_ids:
+                testcase_ids = testset_revision.data.testcase_ids
+            else:
+                # Revision not found or has no testcases
+                return TestcasesResponse(count=0, testcases=[], windowing=None)
+
         testcases = await self.testcases_service.fetch_testcases(
             project_id=UUID(request.state.project_id),
             #
-            testcase_ids=testcases_query_request.testcase_ids,
+            testcase_ids=testcase_ids,
             #
-            testset_id=testcases_query_request.testset_id,
+            testset_id=testcases_query_request.testset_id if not testcases_query_request.testset_revision_id else None,
             #
             windowing=testcases_query_request.windowing,
         )
