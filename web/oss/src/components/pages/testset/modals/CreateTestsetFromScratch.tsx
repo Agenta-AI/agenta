@@ -2,10 +2,12 @@ import {useMemo, useState} from "react"
 
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Input, Typography} from "antd"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import {message} from "@/oss/components/AppMessageContext"
+import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import useURL from "@/oss/hooks/useURL"
 import {JSSTheme, KeyValuePair, testset, TestsetCreationMode} from "@/oss/lib/Types"
 import {createNewTestset, fetchTestset, updateTestset} from "@/oss/services/testsets/api"
@@ -49,6 +51,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
     )
     const [isLoading, setIsLoading] = useState(false)
     const {mutate} = useTestsetsData()
+    const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
 
     const handleCreateTestset = async (data?: KeyValuePair[]) => {
         setIsLoading(true)
@@ -56,9 +59,19 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
             const rowData = data
             const response = await createNewTestset(testsetName, rowData)
 
+            // Revalidate both legacy testsets data and the new table store
             await mutate()
+            setRefreshTrigger((prev) => prev + 1)
             message.success("Testset created successfully")
-            router.push(`${projectURL}/testsets/${response.data.id}`)
+            // Navigate to v1 revision page (URL format: /testsets/{revisionId})
+            const revisionId = response.data.revisionId
+            if (revisionId) {
+                router.push(`${projectURL}/testsets/${revisionId}`)
+            } else {
+                // Fallback to testset ID if no revision ID
+                const testsetId = response.data.testset?.id || response.data.id
+                router.push(`${projectURL}/testsets/${testsetId}`)
+            }
         } catch (error) {
             console.error("Error saving testset:", error)
             message.error("Failed to create Testset. Please try again!")
