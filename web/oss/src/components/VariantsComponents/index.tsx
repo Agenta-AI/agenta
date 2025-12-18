@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {SwapOutlined} from "@ant-design/icons"
 import {Rocket} from "@phosphor-icons/react"
@@ -17,7 +17,10 @@ import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {useQueryParamState} from "@/oss/state/appState"
 import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {selectedVariantsCountAtom} from "@/oss/state/variant/atoms/selection"
+import {
+    selectedVariantsCountAtom,
+    variantTableSelectionAtomFamily,
+} from "@/oss/state/variant/atoms/selection"
 import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {deployedVariantByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
@@ -33,6 +36,9 @@ import {
 } from "./Modals/VariantComparisonModal/store/comparisonModalStore"
 import DeploymentsDashboard from "../DeploymentsDashboard"
 import VariantsTable from "./Table"
+import DeployVariantButton from "../Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
+import {envRevisionsAtom} from "../DeploymentsDashboard/atoms"
+import {openDeploymentsDrawerAtom} from "../DeploymentsDashboard/modals/store/deploymentDrawerStore"
 
 // Comparison modal is opened via atoms; no local deploy/delete modals here
 
@@ -59,6 +65,19 @@ const VariantsDashboard = () => {
         [appId, selectedEnv],
     )
     const {data: envRevisions} = useAtomValue(deploymentRevisionsAtom)
+    const setEnvRevisions = useSetAtom(envRevisionsAtom)
+    const openDeploymentsDrawer = useSetAtom(openDeploymentsDrawerAtom)
+    const selectionScope = "variants/dashboard"
+    const selectedRowKeys = useAtomValue(variantTableSelectionAtomFamily(selectionScope))
+    const selectedRevisionId = useMemo(() => {
+        const key = selectedRowKeys?.[0]
+        return key ? String(key) : undefined
+    }, [selectedRowKeys])
+
+    useEffect(() => {
+        setEnvRevisions(envRevisions)
+    }, [envRevisions, setEnvRevisions])
+
     const baseRows = useMemo(() => {
         const store = getDefaultStore()
         return (revisions || []).map((r: any) => {
@@ -109,7 +128,6 @@ const VariantsDashboard = () => {
     }, [filteredRows, displayMode])
 
     // Selection/compare using global atoms with a stable scope
-    const selectionScope = "variants/dashboard"
     const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))
     const openComparisonModal = useSetAtom(openComparisonModalAtom)
     const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
@@ -197,12 +215,25 @@ const VariantsDashboard = () => {
                         Compare
                     </Button>
 
+                    <DeployVariantButton
+                        type="default"
+                        label="Deploy"
+                        disabled={!selectedRevisionId}
+                        revisionId={selectedRevisionId}
+                    />
+
                     <Button
+                        type="primary"
+                        disabled={!envRevisions}
                         icon={<Rocket size={14} className="mt-[3px]" />}
-                        onMouseEnter={prefetchPlayground}
-                        onClick={() => handleNavigation()}
+                        onClick={() =>
+                            openDeploymentsDrawer({
+                                initialWidth: 1200,
+                                revisionId: selectedRevisionId,
+                            })
+                        }
                     >
-                        Playground
+                        Use API
                     </Button>
                 </div>
             </div>
