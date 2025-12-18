@@ -1,9 +1,6 @@
 import {atom} from "jotai"
 
 import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
-import {appChatModeAtom} from "@/oss/components/Playground/state/atoms/app"
-import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {
     inputRowsByIdFamilyAtom,
@@ -21,22 +18,10 @@ import {
     chatTurnIdsByBaselineAtom,
     messageSchemaMetadataAtom,
 } from "@/oss/state/generation/entities"
-import {
-    addChatTurnAtom,
-    attachAssistantToLastTurnAtom,
-    setLastUserContentAtom,
-} from "@/oss/state/newPlayground/chat/actions"
-import {
-    extractAllMessagesFromRows,
-    normalizeMessagesFromField,
-} from "@/oss/state/newPlayground/chat/parsers"
+import {normalizeMessagesFromField} from "@/oss/state/newPlayground/chat/parsers"
 import {buildUserMessage} from "@/oss/state/newPlayground/helpers/messageFactory"
 
-import {
-    displayedVariantsAtom,
-    displayedVariantsVariablesAtom,
-    schemaInputKeysAtom,
-} from "../../variants"
+import {displayedVariantsAtom} from "../../variants"
 
 // Helper constants and utilities
 const MESSAGE_FIELD_KEYS = new Set([

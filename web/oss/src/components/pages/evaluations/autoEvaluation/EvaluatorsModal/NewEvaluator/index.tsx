@@ -117,7 +117,7 @@ const NewEvaluator = ({
                             onChange={(e) => setSelectedEvaluatorCategory(e.target.value)}
                         >
                             <Radio.Button value={"view_all"}>View all</Radio.Button>
-                            <Divider type="vertical" className="h-7" />
+                            <Divider orientation="vertical" className="h-7" />
                             {evaluatorTags.map((val, idx) => (
                                 <Radio.Button key={idx} value={val.value}>
                                     {val.label}

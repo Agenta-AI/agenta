@@ -65,7 +65,7 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
 })
 
 const logProjects = process.env.NEXT_PUBLIC_LOG_PROJECT_ATOMS === "true"
-const debugProjectSelection = process.env.NEXT_PUBLIC_APP_STATE_DEBUG === "true"
+const _debugProjectSelection = process.env.NEXT_PUBLIC_APP_STATE_DEBUG === "true"
 logAtom(projectsQueryAtom, "projectsQueryAtom", logProjects)
 
 const EmptyProjects: ProjectsResponse[] = []
@@ -74,7 +74,7 @@ export const projectsAtom = atom((get) => {
     return (res as any)?.data ?? EmptyProjects
 })
 
-const projectBelongsToWorkspace = (project: ProjectsResponse, workspaceId: string) => {
+const _projectBelongsToWorkspace = (project: ProjectsResponse, workspaceId: string) => {
     if (project.workspace_id && project.workspace_id === workspaceId) return true
     if (project.organization_id && project.organization_id === workspaceId) return true
     return false

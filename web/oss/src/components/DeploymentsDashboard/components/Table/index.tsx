@@ -7,7 +7,7 @@ import Image from "next/image"
 
 import EmptyComponent from "@/oss/components/EmptyComponent"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
-import {useQuery, useQueryParam} from "@/oss/hooks/useQuery"
+import {useQuery} from "@/oss/hooks/useQuery"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 import {variantsLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 

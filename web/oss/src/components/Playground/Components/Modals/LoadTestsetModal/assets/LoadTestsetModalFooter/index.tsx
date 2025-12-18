@@ -1,8 +1,11 @@
-import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
+import {memo, useCallback, useMemo} from "react"
+
 import {Play} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
-import {memo, useCallback, useMemo} from "react"
+
+import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
+
 import {useTestsetInputsAnalysis} from "../../hooks/useTestsetInputsAnalysis"
 import {LoadTestsetModalFooterProps} from "../types"
 

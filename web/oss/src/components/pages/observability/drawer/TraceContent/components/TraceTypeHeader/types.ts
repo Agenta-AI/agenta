@@ -1,7 +1,8 @@
-import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {Dispatch, SetStateAction} from "react"
 
-export type TraceTypeHeaderProps = {
+import {TraceSpanNode} from "@/oss/services/tracing/types"
+
+export interface TraceTypeHeaderProps {
     activeTrace: TraceSpanNode | undefined
     error: any
     traces?: TraceSpanNode[]

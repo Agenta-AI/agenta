@@ -71,7 +71,11 @@ const EvaluatorList = ({
                     <Dropdown
                         trigger={["click"]}
                         placement="bottomRight"
-                        overlayStyle={{width: 180}}
+                        styles={{
+                            root: {
+                                width: 180,
+                            },
+                        }}
                         menu={{
                             items: [
                                 {

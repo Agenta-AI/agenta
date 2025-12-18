@@ -179,14 +179,14 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
         fixed: "left",
     }
     return (
-        <Space direction="vertical" size={16} className="w-full">
+        <Space orientation="vertical" size={16} className="w-full">
             {Object.entries(groupedByReference).length > 0 ? (
                 Object.entries(groupedByReference).map(([key, annotations]) => {
                     const [slug, kind] = key.split("::")
                     const evaluator = annotations?.[0]?.evaluator
                     const evaluatorName = evaluator?.name || slug
                     return (
-                        <Space direction="vertical" key={key} className="w-full @container">
+                        <Space orientation="vertical" key={key} className="w-full @container">
                             <div className="w-full flex items-center justify-between">
                                 <EvaluatorDetailsPopover evaluator={evaluator} fallbackLabel={slug}>
                                     <Typography.Text className="font-medium">
