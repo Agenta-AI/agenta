@@ -35,7 +35,7 @@ local_cache: TTLCache = TTLCache(maxsize=4096, ttl=AGENTA_CACHE_LOCAL_TTL)
 # decode_responses=False: orjson operates on bytes for 3x performance vs json
 r = Redis.from_url(
     url=env.REDIS_URI_VOLATILE,
-    decode_responses=True,
+    decode_responses=False,
     socket_timeout=0.5,  # read/write timeout
 )
 
@@ -182,11 +182,7 @@ async def _try_get_and_maybe_renew(
                 value=raw if CACHE_DEBUG_VALUE else "***",
             )
 
-        # Convert to bytes if Redis returned a string (decode_responses=True)
-        if isinstance(raw, str):
-            raw = raw.encode("utf-8")
-
-        # Populate local cache from Redis hit
+        # Populate local cache from Redis hit (raw is bytes from decode_responses=False)
         local_cache[cache_name] = raw
 
         data = _deserialize(raw, model=model, is_list=is_list)
@@ -477,9 +473,17 @@ async def invalidate_cache(
 
             # Clear from local cache (pattern matching)
             # Pattern is like "cache:p:PROJECT:u:USER:*:*"
-            # We need to strip everything after the last concrete value
-            # So we remove ":*:*" or any trailing ":*" patterns
-            local_prefix = cache_name.rstrip("*:") + ":"
+            # We need to convert Redis wildcard pattern to a prefix match
+            # Strategy: Find the last concrete segment before wildcards start
+            parts = cache_name.split(":")
+            # Find the first part that contains "*"
+            concrete_parts = []
+            for part in parts:
+                if "*" in part:
+                    break
+                concrete_parts.append(part)
+            # Reconstruct prefix with trailing colon
+            local_prefix = ":".join(concrete_parts) + ":" if concrete_parts else ""
             local_keys_deleted = 0
 
             if CACHE_DEBUG:
@@ -488,7 +492,7 @@ async def invalidate_cache(
                 for lk in list(local_cache.keys()):
                     log.debug(f"[cache] INVALIDATE local_cache_key={lk}")
 
-            for local_key in local_cache.keys():
+            for local_key in list(local_cache.keys()):
                 if local_key.startswith(local_prefix):
                     local_cache.pop(local_key, None)
                     local_keys_deleted += 1
