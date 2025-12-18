@@ -5,11 +5,10 @@ import {AreaChart} from "@tremor/react"
 import {Spin, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
+import WidgetCard from "@/oss/components/pages/observability/dashboard/widgetCard"
 import {formatCompactNumber, formatCurrency, formatNumber} from "@/oss/lib/helpers/formatters"
 import {JSSTheme} from "@/oss/lib/Types"
-
-import {useObservabilityDashboard} from "../../../../state/observability"
-import WidgetCard from "../../observability/dashboard/widgetCard"
+import {useObservabilityDashboard} from "@/oss/state/observability"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
