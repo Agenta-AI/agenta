@@ -1,4 +1,4 @@
-import React, {useMemo} from "react"
+import React, {useEffect, useMemo} from "react"
 
 import clsx from "clsx"
 
@@ -15,8 +15,16 @@ const LoadEvaluatorPreset = ({
     applySettingsValues,
     ...modalProps
 }: LoadEvaluatorPresetProps) => {
-    const defaultPresetKey = selectedSettingsPreset?.key ?? settingsPresets[0]?.key ?? ""
-    const [selectedPresetKey, setSelectedPresetKey] = React.useState<string>(defaultPresetKey)
+    const [selectedPresetKey, setSelectedPresetKey] = React.useState<string>(
+        () => selectedSettingsPreset?.key ?? settingsPresets[0]?.key ?? "",
+    )
+
+    useEffect(() => {
+        if (!modalProps.open) return
+        setSelectedPresetKey(
+            (prev) => prev || selectedSettingsPreset?.key || settingsPresets[0]?.key || "",
+        )
+    }, [modalProps.open, settingsPresets, selectedSettingsPreset])
 
     const selectedPreset = useMemo(
         () => settingsPresets.find((p) => p.key === selectedPresetKey) ?? null,
@@ -45,7 +53,6 @@ const LoadEvaluatorPreset = ({
                     handleLoadPreset={handleLoadPreset}
                 />
             }
-            afterClose={() => setSelectedPresetKey(defaultPresetKey)}
             {...modalProps}
         >
             <LoadEvaluatorPresetContent
