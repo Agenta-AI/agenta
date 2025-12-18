@@ -1,4 +1,3 @@
-import {useAtomValue} from "jotai"
 import {useMemo} from "react"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
@@ -6,7 +5,7 @@ import {useObservability} from "@/oss/state/newObservability"
 
 import ObservabilityHeader from "../ObservabilityHeader"
 
-import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
+import {getSessionColumns} from "./assets/getSessionColumns"
 
 const SessionsTable = () => {
     const {isLoading, selectedRowKeys, setSelectedRowKeys} = useObservability()
