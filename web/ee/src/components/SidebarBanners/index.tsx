@@ -1,10 +1,8 @@
 import {memo, useEffect} from "react"
 
+import OssSidebarBanners from "@agenta/oss/src/components/SidebarBanners"
+import {additionalBannersAtom} from "@agenta/oss/src/components/SidebarBanners/state/atoms"
 import {useAtomValue, useSetAtom} from "jotai"
-
-// Import directly from OSS using relative path to avoid EE path alias resolution
-import OssSidebarBanners from "../../../../oss/src/components/SidebarBanners"
-import {additionalBannersAtom} from "../../../../oss/src/components/SidebarBanners/state/atoms"
 
 import {eeBannersAtom} from "./state/atoms"
 
