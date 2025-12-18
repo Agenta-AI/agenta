@@ -7,13 +7,13 @@ import Link from "next/link"
 import {useRouter} from "next/router"
 import semver from "semver"
 
+import useURL from "@/oss/hooks/useURL"
 import {currentAppAtom} from "@/oss/state/app"
 
 import packageJsonData from "../../../../package.json"
 
 import {DEPRECATION_VERSION} from "./assets/constants"
 import {CustomWorkflowBannerProps} from "./types"
-import useURL from "@/oss/hooks/useURL"
 
 const {Text} = Typography
 

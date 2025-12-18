@@ -151,7 +151,7 @@ const RunActionsCell = ({
     const isStoppedByStatus = stopStatusTokens.some((token) =>
         normalizedStatusString.includes(token),
     )
-    const isOnlineStopped = isStoppedFlag || isStoppedByStatus
+    const _isOnlineStopped = isStoppedFlag || isStoppedByStatus
 
     const canStopOnline = Boolean(
         isOnlineEvaluation && runId && isActive && !isClosed && !record.__isSkeleton,
@@ -343,7 +343,7 @@ const RunActionsCell = ({
 
     return (
         <div className={CELL_CLASS}>
-            <Dropdown trigger={["click"]} menu={{items}} overlayStyle={{width: 200}}>
+            <Dropdown trigger={["click"]} menu={{items}} styles={{root: {width: 200}}}>
                 <Tooltip title="Actions">{button}</Tooltip>
             </Dropdown>
         </div>

@@ -1,5 +1,6 @@
-import {SettingsPreset} from "@/oss/lib/Types"
 import {ModalProps} from "antd"
+
+import {SettingsPreset} from "@/oss/lib/Types"
 
 export interface LoadEvaluatorPresetProps extends ModalProps {
     settingsPresets: SettingsPreset[]

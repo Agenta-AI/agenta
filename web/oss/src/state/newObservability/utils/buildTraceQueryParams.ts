@@ -1,5 +1,6 @@
-import {Filter} from "@/oss/lib/Types"
 import {SortResult} from "@/oss/components/Filters/Sort"
+import {Filter} from "@/oss/lib/Types"
+
 import {TraceTabTypes} from "../atoms/controls"
 
 const toNumber = (value: unknown): number | undefined => {

@@ -5,9 +5,11 @@ import {FileArchive} from "@phosphor-icons/react"
 import {Button, Input, Typography, Upload} from "antd"
 import clsx from "clsx"
 
-import {useStyles} from "../PromptImageUpload/assets/styles"
-import {PromptDocumentUploadProps, PromptDocumentUploadPropertyProps} from "./types"
 import {isBase64, dataUriToObjectUrl, isUrl} from "@/oss/lib/helpers/utils"
+
+import {useStyles} from "../PromptImageUpload/assets/styles"
+
+import {PromptDocumentUploadProps, PromptDocumentUploadPropertyProps} from "./types"
 
 const {Dragger} = Upload
 const MAX_FILE_SIZE = 8 * 1024 * 1024 // 8MB

@@ -34,7 +34,7 @@ export const vaultMigrationAtom = atom({
  */
 export const vaultSecretsQueryAtom = atomWithQuery((get) => {
     const user = get(userAtom)
-    const migrationStatus = get(vaultMigrationAtom)
+    const _migrationStatus = get(vaultMigrationAtom)
     const projectId = get(projectIdAtom)
 
     return {

@@ -5,8 +5,8 @@ import {Modal} from "antd"
 import {useSetAtom} from "jotai"
 
 import {closeTraceDrawerAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
-import {useObservability} from "@/oss/state/newObservability"
 import {deletePreviewTrace} from "@/oss/services/tracing/api"
+import {useObservability} from "@/oss/state/newObservability"
 
 type DeleteTraceModalProps = {
     setSelectedTraceId: (val: string) => void

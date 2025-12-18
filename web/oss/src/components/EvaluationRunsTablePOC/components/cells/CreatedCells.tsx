@@ -1,7 +1,5 @@
 import {memo} from "react"
 
-import {Typography} from "antd"
-
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 
 import {useRunRowSummary} from "../../context/RunRowDataContext"

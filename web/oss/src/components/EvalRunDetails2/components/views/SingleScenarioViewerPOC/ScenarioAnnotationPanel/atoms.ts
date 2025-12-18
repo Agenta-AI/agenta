@@ -215,7 +215,7 @@ export const unannotatedSlugsAtom = atom((get) => {
 
 /** Baseline metrics computed from annotations and evaluator schemas */
 export const baselineMetricsAtom = atom((get) => {
-    const scenarioId = get(currentScenarioIdAtom)
+    const _scenarioId = get(currentScenarioIdAtom)
     const annotations = get(scenarioAnnotationsAtom)
     const unannotatedSlugs = get(unannotatedSlugsAtom)
     const evaluatorMap = get(evaluatorMapAtom)
@@ -247,7 +247,7 @@ export const baselineMetricsAtom = atom((get) => {
 
 /** Effective metrics = baseline merged with user edits */
 export const effectiveMetricsAtom = atom((get) => {
-    const scenarioId = get(currentScenarioIdAtom)
+    const _scenarioId = get(currentScenarioIdAtom)
     const baseline = get(baselineMetricsAtom)
     const edits = get(currentMetricEditsAtom)
 

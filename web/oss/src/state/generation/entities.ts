@@ -4,7 +4,6 @@
 import {produce} from "immer"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
-import {atomFamily as jotaiAtomFamily} from "jotai/utils"
 
 import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
 import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
@@ -13,14 +12,8 @@ import {
     isComparisonViewAtom,
 } from "@/oss/components/Playground/state/atoms/variants"
 import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms/variants"
-import {
-    getAllMetadata,
-    getMetadataLazy,
-    metadataAtom,
-    metadataSelectorFamily,
-} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {metadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {buildUserMessage} from "@/oss/state/newPlayground/helpers/messageFactory"
 
 import {selectedAppIdAtom} from "../app"
