@@ -25,6 +25,10 @@ from oss.src.apis.fastapi.tracing.models import (
     OTelTracingResponse,
     OldAnalyticsResponse,
     AnalyticsResponse,
+    SessionsQueryRequest,
+    SessionIdsResponse,
+    UsersQueryRequest,
+    UserIdsResponse,
 )
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.utils import (
@@ -159,6 +163,26 @@ class TracingRouter:
             operation_id="fetch_new_analytics",
             status_code=status.HTTP_200_OK,
             response_model=AnalyticsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/sessions/query",
+            self.list_sessions,
+            methods=["POST"],
+            operation_id="list_sessions",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionIdsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/users/query",
+            self.list_users,
+            methods=["POST"],
+            operation_id="list_users",
+            status_code=status.HTTP_200_OK,
+            response_model=UserIdsResponse,
             response_model_exclude_none=True,
         )
 
@@ -677,3 +701,41 @@ class TracingRouter:
             query=query,
             specs=specs,
         )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SessionIdsResponse())
+    async def list_sessions(
+        self,
+        request: Request,
+        sessions_query_request: SessionsQueryRequest,
+    ):
+        session_ids = await self.service.sessions(
+            project_id=request.state.project_id,
+            windowing=sessions_query_request.windowing,
+        )
+
+        session_ids_response = SessionIdsResponse(
+            count=len(session_ids) if session_ids else 0,
+            session_ids=session_ids,
+        )
+
+        return session_ids_response
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=UserIdsResponse())
+    async def list_users(
+        self,
+        request: Request,
+        users_query_request: UsersQueryRequest,
+    ):
+        user_ids = await self.service.users(
+            project_id=request.state.project_id,
+            windowing=users_query_request.windowing,
+        )
+
+        user_ids_response = UserIdsResponse(
+            count=len(user_ids) if user_ids else 0,
+            user_ids=user_ids,
+        )
+
+        return user_ids_response
