@@ -1,12 +1,12 @@
 import {useEffect, useMemo} from "react"
 
-import {Typography} from "antd"
 import dynamic from "next/dynamic"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useProjectData} from "@/oss/state/project"
+import PageLayout from "@/oss/components/PageLayout/PageLayout"
 
 const Secrets = dynamic(() => import("@/oss/components/pages/settings/Secrets/Secrets"), {
     ssr: false,
@@ -77,14 +77,7 @@ const Settings: React.FC = () => {
         }
     }, [tab])
 
-    return (
-        <main className="flex flex-col gap-4">
-            <Typography.Title level={4} className="!font-medium !m-0">
-                {title}
-            </Typography.Title>
-            {content}
-        </main>
-    )
+    return <PageLayout title={title}>{content}</PageLayout>
 }
 
 export default () => <Settings />

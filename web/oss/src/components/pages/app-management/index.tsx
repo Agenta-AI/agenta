@@ -161,7 +161,7 @@ const AppManagement: React.FC = () => {
 
     return (
         <>
-            <PageLayout className={`${classes.container} gap-6`}>
+            <PageLayout className={`${classes.container} gap-8`}>
                 {error ? (
                     <ResultComponent status={"error"} title="Failed to load" />
                 ) : (
