@@ -112,8 +112,9 @@ const ObservabilityDashboard = () => {
     useEffect(() => {
         if (traceParam && traceParam !== selectedTraceId) {
             setSelectedTraceId(traceParam)
+            return
         }
-        if (!traceParam) {
+        if (!traceParam && !selectedTraceId) {
             setTraceDrawerActiveSpan(null)
             setSpanParam(undefined, {shallow: true})
         }
@@ -207,19 +208,20 @@ const ObservabilityDashboard = () => {
                             setSelectedNode(record.span_id)
                             const isSpanView = traceTabs === "span"
 
-                            const targetTraceId =
+                            const targetTraceId = String(
                                 record.trace_id ||
-                                (record as any)?.invocationIds?.trace_id ||
-                                (record as any)?.node?.trace_id ||
-                                (record as any)?.root?.id ||
-                                (record as any)?.traceId ||
-                                (record as any)?.trace?.id ||
-                                record.span_id ||
-                                null
+                                    (record as any)?.invocationIds?.trace_id ||
+                                    (record as any)?.node?.trace_id ||
+                                    (record as any)?.root?.id ||
+                                    (record as any)?.traceId ||
+                                    (record as any)?.trace?.id ||
+                                    record.span_id ||
+                                    "",
+                            )
 
                             const targetSpanId = isSpanView
-                                ? record.span_id || null
-                                : record.span_id || null
+                                ? String(record.span_id || "")
+                                : String(record.span_id || "")
 
                             if (!targetTraceId) {
                                 console.warn(
@@ -230,12 +232,12 @@ const ObservabilityDashboard = () => {
                             }
 
                             setSelectedTraceId(targetTraceId)
-                            setTraceDrawerActiveSpan(targetSpanId)
-                            setTraceParam(targetTraceId, {shallow: true})
+                            setTraceDrawerActiveSpan(targetSpanId || null)
+                            setTraceParam(targetTraceId)
                             if (targetSpanId) {
-                                setSpanParam(targetSpanId, {shallow: true})
+                                setSpanParam(targetSpanId)
                             } else {
-                                setSpanParam(undefined, {shallow: true})
+                                setSpanParam(undefined)
                             }
                         },
                     })}
