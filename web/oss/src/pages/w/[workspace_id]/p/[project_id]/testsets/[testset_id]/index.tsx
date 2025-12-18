@@ -1,7 +1,7 @@
-import {TestcasesTable} from "@/oss/components/TestcasesTable"
+import {TestcasesTableNew} from "@/oss/components/TestcasesTableNew"
 
 const TestsetDisplay = () => {
-    return <TestcasesTable mode="edit" />
+    return <TestcasesTableNew mode="edit" />
 }
 
 export default TestsetDisplay
