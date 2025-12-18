@@ -114,7 +114,7 @@ class AgentaSingleton:
 
         try:
             assert _api_url and isinstance(_api_url, str), (
-                "API URL is required. Please provide a valid API URL or set AGENTA_API_URL environment variable."
+                "API URL is required. Please set AGENTA_API_URL environment variable or pass api_url parameter in ag.init()."
             )
             self.host = _host
             self.api_url = _api_url
@@ -131,6 +131,11 @@ class AgentaSingleton:
             or config.get("api_key")
             or None  # NO FALLBACK
         )
+
+        if self.api_key is None:
+            log.error(
+                "API key is required. Please set AGENTA_API_KEY environment variable or pass api_key parameter in ag.init()."
+            )
 
         log.info("Agenta -     API URL: %s", self.api_url)
 
