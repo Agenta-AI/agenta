@@ -1,4 +1,9 @@
 name: Deploy from PR Comment
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  actions: write
 
 on:
   issue_comment:
