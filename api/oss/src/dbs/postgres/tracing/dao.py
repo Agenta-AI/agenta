@@ -1137,3 +1137,95 @@ class TracingDAO(TracingDAOInterface):
         # ---------
 
         return buckets
+
+    ### SESSIONS AND USERS
+
+    @suppress_exceptions(default=[])
+    async def sessions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[str]:
+        """Query unique session IDs with windowing support."""
+        async with engine.tracing_session() as session:
+            # TIMEOUT
+            await session.execute(TIMEOUT_STMT)
+
+            # Select distinct session IDs from JSONB
+            stmt = (
+                select(
+                    distinct(
+                        SpanDBE.attributes["ag"]["session"]["id"].as_string()
+                    ).label("session_id")
+                )
+                .filter(SpanDBE.project_id == project_id)
+                .filter(SpanDBE.attributes["ag"]["session"].has_key("id"))
+            )
+
+            # Apply windowing
+            if windowing:
+                stmt = apply_windowing(
+                    stmt=stmt,
+                    DBE=SpanDBE,
+                    attribute="start_time",
+                    order="descending",
+                    windowing=windowing,
+                )
+
+            result = await session.execute(stmt)
+            rows = result.all()
+
+            # Return session IDs as strings
+            session_ids = []
+            for row in rows:
+                if row.session_id:
+                    session_ids.append(str(row.session_id))
+
+            return session_ids
+
+    @suppress_exceptions(default=[])
+    async def users(
+        self,
+        *,
+        project_id: UUID,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[str]:
+        """Query unique user IDs with windowing support."""
+        async with engine.tracing_session() as session:
+            # TIMEOUT
+            await session.execute(TIMEOUT_STMT)
+
+            # Select distinct user IDs from JSONB
+            stmt = (
+                select(
+                    distinct(SpanDBE.attributes["ag"]["user"]["id"].as_string()).label(
+                        "user_id"
+                    )
+                )
+                .filter(SpanDBE.project_id == project_id)
+                .filter(SpanDBE.attributes["ag"]["user"].has_key("id"))
+            )
+
+            # Apply windowing
+            if windowing:
+                stmt = apply_windowing(
+                    stmt=stmt,
+                    DBE=SpanDBE,
+                    attribute="start_time",
+                    order="descending",
+                    windowing=windowing,
+                )
+
+            result = await session.execute(stmt)
+            rows = result.all()
+
+            # Return user IDs as strings
+            user_ids = []
+            for row in rows:
+                if row.user_id:
+                    user_ids.append(str(row.user_id))
+
+            return user_ids
