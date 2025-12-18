@@ -27,7 +27,7 @@ export const invalidateTraceBatcherCache = () => {
 const resolveEffectiveRunId = (get: any, runId?: string | null) =>
     runId ?? get(activePreviewRunIdAtom) ?? undefined
 
-const debugTraceValue = (() => {
+const _debugTraceValue = (() => {
     const enabled = process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true"
     const seen = new Set<string>()
     return (message: string, payload: Record<string, unknown>, options?: {onceKey?: string}) => {
@@ -63,7 +63,7 @@ const summarizeShape = (value: unknown): string => {
     return typeof value
 }
 
-const summarizeTraceData = (trace: TraceData | null | undefined): Record<string, unknown> => {
+const _summarizeTraceData = (trace: TraceData | null | undefined): Record<string, unknown> => {
     if (!trace) {
         return {state: trace === null ? "null" : "undefined"}
     }
@@ -325,7 +325,7 @@ export const traceValueAtomFamily = atomFamily(
                     if (!loggedRawTraces.has(rawKey)) {
                         loggedRawTraces.add(rawKey)
 
-                        const spans = Object.entries(
+                        const _spans = Object.entries(
                             (queryState.data as any)?.tree?.data?.spans ?? {},
                         ).map(([spanId, spanData]: [string, any]) => ({
                             spanId,

@@ -2,10 +2,8 @@
 // These provide shapes similar to legacy selectors but read from normalized state.
 
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
 
 import {appTypeAtom} from "@/oss/components/Playground/state/atoms/app"
-import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms/variants"
 
 import {
     inputRowIdsAtom,
@@ -13,11 +11,6 @@ import {
     chatSessionsByIdAtom,
     chatTurnIdsAtom,
 } from "./entities"
-import {
-    rowVariablesAtomFamily,
-    rowResponsesAtomFamily,
-    assistantMessageAtomFamily,
-} from "./selectors"
 
 // Unifies row ids used for generation rendering across modes
 // - completion: inputRowIdsAtom

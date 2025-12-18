@@ -47,6 +47,11 @@ const NewEvaluationModal = <Preview extends boolean = true>({
             width={1200}
             className={classes.modalContainer}
             confirmLoading={submitLoading}
+            styles={{
+                container: {
+                    height: 800,
+                },
+            }}
             {...props}
         >
             <NewEvaluationModalInner

@@ -1,8 +1,11 @@
 import React, {useMemo, useState} from "react"
-import {LoadEvaluatorPresetContentProps} from "../assets/types"
+
 import {Menu, Divider, Typography, Input} from "antd"
+
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {SettingsPreset} from "@/oss/lib/Types"
+
+import {LoadEvaluatorPresetContentProps} from "../assets/types"
 
 const LoadEvaluatorPresetContent = ({
     settingsPresets,
@@ -42,7 +45,7 @@ const LoadEvaluatorPresetContent = ({
                 />
             </div>
 
-            <Divider type="vertical" className="m-0 h-full" />
+            <Divider orientation="vertical" className="m-0 h-full" />
 
             <div className="flex flex-col gap-4 flex-1 h-full overflow-y-auto">
                 <div className="flex items-start justify-between gap-4 sticky top-0 z-10">

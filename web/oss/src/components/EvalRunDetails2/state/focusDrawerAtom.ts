@@ -2,8 +2,8 @@ import {atom} from "jotai"
 import {atomWithImmer} from "jotai-immer"
 
 import {compareRunIdsAtom} from "../atoms/compare"
-import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
 import type {PreviewTableRow} from "../atoms/tableRows"
+import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
 
 export interface FocusTarget {
     focusRunId: string | null

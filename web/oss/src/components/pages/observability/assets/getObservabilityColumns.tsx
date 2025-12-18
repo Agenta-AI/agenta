@@ -5,6 +5,13 @@ import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {
+    getCost,
+    getLatency,
+    getTokens,
+    getTraceInputs,
+    getTraceOutputs,
+} from "@/oss/state/newObservability"
 
 import CostCell from "../components/CostCell"
 import DurationCell from "../components/DurationCell"
@@ -13,13 +20,6 @@ import NodeNameCell from "../components/NodeNameCell"
 import StatusRenderer from "../components/StatusRenderer"
 import TimestampCell from "../components/TimestampCell"
 import UsageCell from "../components/UsageCell"
-import {
-    getCost,
-    getLatency,
-    getTokens,
-    getTraceInputs,
-    getTraceOutputs,
-} from "@/oss/state/newObservability"
 
 interface ObservabilityColumnsProps {
     evaluatorSlugs: string[]

@@ -22,7 +22,7 @@ const ConfigureEvaluatorSkeleton = () => {
                 </div>
             </div>
 
-            <Divider type="vertical" className="!h-[85vh]" />
+            <Divider orientation="vertical" className="!h-[85vh]" />
 
             <div className="flex flex-col gap-4 w-[50%]">
                 <div className="flex flex-col gap-2">

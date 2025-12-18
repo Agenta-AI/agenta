@@ -27,7 +27,11 @@ const SimpleDropdownSelect = ({
             disabled={disabled}
             menu={{items: menuItems}}
             trigger={["click"]}
-            overlayStyle={{width: 150}}
+            styles={{
+                root: {
+                    width: 150,
+                },
+            }}
         >
             <Button
                 className={clsx(

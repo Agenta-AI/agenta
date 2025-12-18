@@ -1,7 +1,6 @@
 import {useCallback, useMemo} from "react"
 
 import {Typography} from "antd"
-import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {
@@ -11,7 +10,6 @@ import {
 import ColumnVisibilityPopoverContentBase, {
     type ColumnVisibilityNodeMeta,
 } from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent"
-import {evaluatorReferenceAtomFamily} from "@/oss/components/References/atoms/entityReferences"
 import {
     getEvaluatorMetricBlueprintAtom,
     type EvaluatorMetricGroupBlueprint,
@@ -145,56 +143,12 @@ const ColumnVisibilityPopoverContent = ({
 
 export default ColumnVisibilityPopoverContent
 
-const nullEvaluatorReferenceAtom = atom(null)
-
 const OUTPUT_METRIC_PATH_PREFIX = /^attributes\.ag\.data\.outputs\.?/i
 
 const stripOutputsNamespace = (value?: string | null) => {
     if (!value) return null
     const stripped = value.replace(OUTPUT_METRIC_PATH_PREFIX, "")
     return stripped.length ? stripped : "output"
-}
-
-const MetricGroupLabel = ({
-    group,
-    fallbackLabel,
-    projectId,
-}: {
-    group: EvaluatorMetricGroupBlueprint
-    fallbackLabel: string
-    projectId: string | null
-}) => {
-    const primaryDescriptor = group.columns[0]
-    const slug = primaryDescriptor?.evaluatorRef?.slug ?? group.id ?? null
-    const evaluatorId = primaryDescriptor?.evaluatorRef?.id ?? group.referenceId ?? null
-
-    const referenceAtom = useMemo(() => {
-        if (!projectId || (!slug && !evaluatorId)) {
-            return nullEvaluatorReferenceAtom
-        }
-        return evaluatorReferenceAtomFamily({
-            projectId,
-            slug: slug ?? undefined,
-            id: evaluatorId ?? undefined,
-        })
-    }, [evaluatorId, projectId, slug])
-
-    const evaluatorReference = useAtomValueWithSchedule(referenceAtom, {
-        priority: LOW_PRIORITY,
-    })?.data
-    const label =
-        evaluatorReference?.name ??
-        group.label ??
-        fallbackLabel ??
-        evaluatorReference?.slug ??
-        slug ??
-        "Evaluator"
-
-    return (
-        <Typography.Text className="font-semibold" ellipsis>
-            {label}
-        </Typography.Text>
-    )
 }
 
 const MetricColumnLabel = ({

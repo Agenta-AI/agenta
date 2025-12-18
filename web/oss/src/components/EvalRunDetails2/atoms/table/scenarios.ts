@@ -272,7 +272,7 @@ export const tableScenarioRowsQueryAtomFamily = atomFamily(
                         throw new Error("tableScenarioRowsQueryAtomFamily requires a run id")
                     }
 
-                    const requestId = `${runId}:${cursor ?? "root"}:${queryRequestCounter++}`
+                    const _requestId = `${runId}:${cursor ?? "root"}:${queryRequestCounter++}`
 
                     const result = await fetchEvaluationScenarioWindow({
                         projectId,
