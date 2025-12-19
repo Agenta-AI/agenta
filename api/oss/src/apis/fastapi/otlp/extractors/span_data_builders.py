@@ -147,6 +147,9 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
         attributes.update(**{f"ag.tags.{k}": v for k, v in features.tags.items()})
         attributes.update(**{f"ag.meta.{k}": v for k, v in features.meta.items()})
 
+        attributes.update(**{f"ag.session.{k}": v for k, v in features.session.items()})
+        attributes.update(**{f"ag.user.{k}": v for k, v in features.user.items()})
+
         attributes.update(**{f"ag.references.{k}": v for k, v in features.refs.items()})
 
         # Transform legacy reference keys to new naming convention
