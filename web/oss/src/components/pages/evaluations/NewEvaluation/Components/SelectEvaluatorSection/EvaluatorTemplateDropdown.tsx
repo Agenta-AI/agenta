@@ -128,6 +128,11 @@ const EvaluatorTemplateDropdown = ({
 
     const popoverContent = (
         <div className="w-[380px]">
+            <div className="px-4 pt-3 pb-0">
+                <Typography.Text className="text-[14px] leading-[22px] font-[500]">
+                    Select evaluator type
+                </Typography.Text>
+            </div>
             <Tabs
                 items={tabItems}
                 activeKey={activeTab}
@@ -149,7 +154,6 @@ const EvaluatorTemplateDropdown = ({
             content={popoverContent}
             placement="bottomRight"
             arrow={false}
-            title="Select evaluator type"
             overlayInnerStyle={{padding: 0}}
         >
             <span className={className}>{trigger || defaultTrigger}</span>
