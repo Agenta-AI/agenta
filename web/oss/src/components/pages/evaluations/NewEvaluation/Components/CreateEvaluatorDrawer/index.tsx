@@ -12,7 +12,7 @@
  * - openEvaluatorDrawerAtom: action to open drawer with an evaluator
  * - closeEvaluatorDrawerAtom: action to close drawer and reset state
  */
-import {memo, useCallback} from "react"
+import {memo, useCallback, useEffect, useState} from "react"
 
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -42,6 +42,12 @@ const CreateEvaluatorDrawer = ({onEvaluatorCreated}: CreateEvaluatorDrawerProps)
     const isOpen = useAtomValue(evaluatorDrawerOpenAtom)
     const editValues = useAtomValue(playgroundEditValuesAtom)
     const closeDrawer = useSetAtom(closeEvaluatorDrawerAtom)
+    const [isTestPanelOpen, setIsTestPanelOpen] = useState(false)
+
+    // Reset drawer-only UI state when opening/closing
+    useEffect(() => {
+        if (!isOpen) setIsTestPanelOpen(false)
+    }, [isOpen])
 
     const handleClose = useCallback(() => {
         closeDrawer()
@@ -60,7 +66,7 @@ const CreateEvaluatorDrawer = ({onEvaluatorCreated}: CreateEvaluatorDrawerProps)
         <EnhancedDrawer
             open={isOpen}
             onClose={handleClose}
-            width={1200}
+            width={isTestPanelOpen ? "clamp(1155px, 92vw, 1600px)" : 800}
             destroyOnHidden
             title={null}
             closable={false}
@@ -71,6 +77,9 @@ const CreateEvaluatorDrawer = ({onEvaluatorCreated}: CreateEvaluatorDrawerProps)
                     onClose={handleClose}
                     onSuccess={handleSuccess}
                     containerClassName="flex flex-col w-full h-[calc(100vh-56px)]"
+                    uiVariant="drawer"
+                    isTestPanelOpen={isTestPanelOpen}
+                    onToggleTestPanel={() => setIsTestPanelOpen((v) => !v)}
                 />
             )}
         </EnhancedDrawer>
