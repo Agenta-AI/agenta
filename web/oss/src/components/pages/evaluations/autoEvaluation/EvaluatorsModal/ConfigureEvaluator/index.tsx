@@ -8,13 +8,7 @@ import {createUseStyles} from "react-jss"
 
 import {message} from "@/oss/components/AppMessageContext"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {
-    EvaluationSettingsTemplate,
-    JSSTheme,
-    SettingsPreset,
-    testset,
-    Variant,
-} from "@/oss/lib/Types"
+import {EvaluationSettingsTemplate, JSSTheme, SettingsPreset} from "@/oss/lib/Types"
 import {
     CreateEvaluationConfigData,
     createEvaluatorConfig,
@@ -55,22 +49,13 @@ const DebugSection: any = dynamic(
  * Props for ConfigureEvaluator
  *
  * Most state is now managed via atoms (see ./state/atoms.ts).
- * These props are for:
- * - Callbacks that need to be provided by parent
- * - Data that comes from queries (variants, testsets)
- * - Layout customization
+ * DebugSection fetches its own variants/testsets data internally.
  */
 interface ConfigureEvaluatorProps {
     /** Callback when back button is clicked */
     onClose: () => void
     /** Callback after successful save */
     onSuccess: () => void
-    /** Available variants for testing (from query) */
-    variants: Variant[] | null
-    /** Available testsets for testing (from query) */
-    testsets: testset[] | null
-    /** Optional app ID override (defaults to route app or first app) */
-    appId?: string | null
     /** Optional container class for height customization (e.g., drawer vs page) */
     containerClassName?: string
 }
@@ -124,27 +109,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const ConfigureEvaluator = ({
-    onClose,
-    onSuccess,
-    variants,
-    testsets,
-    appId: appIdOverride,
-    containerClassName,
-}: ConfigureEvaluatorProps) => {
+const ConfigureEvaluator = ({onClose, onSuccess, containerClassName}: ConfigureEvaluatorProps) => {
     const routeAppId = useAppId()
     const apps = useAppList()
-    const appId = appIdOverride ?? routeAppId ?? apps?.[0].app_id
+    const appId = routeAppId ?? apps?.[0]?.app_id
     const classes = useStyles()
-
-    // DEBUG: Log variants prop received
-    console.log("[ConfigureEvaluator] variants prop:", {
-        variants: variants,
-        variantsLength: variants?.length,
-        variantsIds: variants?.map((v: any) => v.variantId),
-        testsets: testsets?.length,
-        appId,
-    })
 
     // ================================================================
     // ATOMS - Read state from playground atoms
@@ -528,11 +497,7 @@ const ConfigureEvaluator = ({
 
                         {/* Debug Section Content - without its own title */}
                         <div className="p-4">
-                            <DebugSection
-                                testsets={testsets}
-                                variants={variants}
-                                debugEvaluator={true}
-                            />
+                            <DebugSection />
                         </div>
                     </div>
                 </div>

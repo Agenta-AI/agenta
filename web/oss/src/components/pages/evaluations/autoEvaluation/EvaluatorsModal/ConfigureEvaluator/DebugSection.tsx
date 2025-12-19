@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * DebugSection - Test evaluator configuration
  *
@@ -14,6 +13,10 @@
  * - playgroundTraceTreeAtom: Trace output from running variant
  * - playgroundEvaluatorAtom: Current evaluator being configured
  * - playgroundFormRefAtom: Form instance for reading settings
+ *
+ * Data fetching:
+ * - Testsets: fetched internally via useTestsetsData()
+ * - Variants: fetched internally via useAppVariantRevisions()
  */
 import {useEffect, useMemo, useRef, useState} from "react"
 
@@ -56,7 +59,7 @@ import {
     fromBaseResponseToTraceSpanType,
     transformTraceTreeToJson,
 } from "@/oss/lib/transformers"
-import {BaseResponse, ChatMessage, JSSTheme, Parameter, testset, Variant} from "@/oss/lib/Types"
+import {BaseResponse, ChatMessage, JSSTheme, Parameter, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
 import {
     createEvaluatorDataMapping,
@@ -70,7 +73,6 @@ import {
     transformedPromptsAtomFamily,
 } from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
-import {useProjectData} from "@/oss/state/project/hooks"
 import {useTestsetsData} from "@/oss/state/testset"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
@@ -87,19 +89,9 @@ import {
 import {buildVariantFromRevision} from "./variantUtils"
 
 /**
- * Props for DebugSection
- *
- * Most state is now managed via atoms (see ./state/atoms.ts).
- * These props are for data that comes from queries (variants, testsets).
+ * DebugSection has no required props - it fetches all data internally
+ * and reads state from atoms.
  */
-interface DebugSectionProps {
-    /** Available testsets for loading testcases (from query) */
-    testsets: testset[] | null
-    /** Available variants for running (from query) */
-    variants: Variant[] | null
-    /** Whether debug mode is enabled */
-    debugEvaluator?: boolean
-}
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     "@global": {
@@ -161,31 +153,16 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const LAST_APP_KEY = "agenta:lastAppId"
 const LAST_VARIANT_KEY = "agenta:lastVariantId"
 
-const DebugSection = ({
-    testsets: testsetsFromProps,
-    variants: variantsFromProps,
-    debugEvaluator = true,
-}: DebugSectionProps) => {
+const DebugSection = () => {
     const appId = useAppId()
     const classes = useStyles()
     const uriObject = useAtomValue(appUriInfoAtom)
     const appSchema = useAtomValue(appSchemaAtom)
     const {apps: availableApps = []} = useAppsData()
-    const {projectId} = useProjectData()
 
-    // Fetch testsets internally if not provided via props
+    // Fetch testsets internally
     const {testsets: fetchedTestsets} = useTestsetsData()
-    const testsets = testsetsFromProps ?? fetchedTestsets ?? []
-
-    // DEBUG: Log props received
-    console.log("[DebugSection] Data sources:", {
-        testsetsFromProps: testsetsFromProps?.length,
-        fetchedTestsets: fetchedTestsets?.length,
-        effectiveTestsets: testsets?.length,
-        variantsFromProps: variantsFromProps?.length,
-        projectId,
-        debugEvaluator,
-    })
+    const testsets = fetchedTestsets ?? []
 
     // ================================================================
     // ATOMS - Read/write state from playground atoms
@@ -201,16 +178,6 @@ const DebugSection = ({
     const selectedEvaluator = useAtomValue(playgroundEvaluatorAtom)
     const form = useAtomValue(playgroundFormRefAtom)
 
-    // DEBUG: Log atom states
-    console.log("[DebugSection] Atom states:", {
-        _selectedVariant: _selectedVariant,
-        _selectedVariantId: (_selectedVariant as any)?.variantId,
-        _selectedVariantRevisions: (_selectedVariant as any)?.revisions?.length,
-        selectedTestcase: selectedTestcase,
-        selectedTestset: selectedTestset,
-        selectedEvaluator: selectedEvaluator?.key,
-        formExists: !!form,
-    })
     const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
     const [outputResult, setOutputResult] = useState("")
     const [isLoadingResult, setIsLoadingResult] = useState(false)
@@ -221,10 +188,6 @@ const DebugSection = ({
     const [openTestcaseModal, setOpenTestcaseModal] = useState(false)
     const [dropdownOpen, setDropdownOpen] = useState(false)
 
-    // DEBUG: Log modal state changes
-    useEffect(() => {
-        console.log("[DebugSection] openVariantModal changed:", openVariantModal)
-    }, [openVariantModal])
     const [variantStatus, setVariantStatus] = useState({
         success: false,
         error: false,
@@ -242,76 +205,35 @@ const DebugSection = ({
         return firstApp?.app_id ?? ""
     }, [_selectedVariant?.appId, appId, availableApps])
 
-    console.log("[DebugSection] defaultAppId:", {
-        defaultAppId,
-        fromVariant: _selectedVariant?.appId,
-        fromRouteAppId: appId,
-        fromAvailableApps: availableApps?.[0]?.app_id,
-        availableAppsCount: availableApps?.length,
-    })
-
-    const {
-        revisionMap: defaultRevisionMap,
-        isLoading: isLoadingRevisions,
-        variants: revisionVariants,
-    } = useAppVariantRevisions(defaultAppId || null)
-
-    console.log("[DebugSection] revisionMap:", {
-        defaultAppId,
-        projectId,
-        queryEnabled: Boolean(defaultAppId && projectId),
-        revisionMapKeys: defaultRevisionMap ? Object.keys(defaultRevisionMap) : null,
-        isLoadingRevisions,
-        revisionVariantsCount: revisionVariants?.length,
-    })
+    const {revisionMap: defaultRevisionMap} = useAppVariantRevisions(defaultAppId || null)
 
     const selectedVariant = useMemo(() => {
-        console.log("[DebugSection] Computing selectedVariant from _selectedVariant:", {
-            _selectedVariant,
-            hasRevisions: !!(_selectedVariant as any)?.revisions?.length,
-        })
         if (!_selectedVariant) return undefined
         // If the variant has revisions, get the most recent one
         const revs = (_selectedVariant as any)?.revisions || []
         if (revs.length > 0) {
-            const result = revs.sort(
-                (a: any, b: any) => b.updatedAtTimestamp - a.updatedAtTimestamp,
-            )[0]
-            console.log("[DebugSection] selectedVariant (from revisions):", result)
-            return result
+            return revs.sort((a: any, b: any) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
         }
         // Otherwise, return the variant itself (it may already be a revision or simple variant)
-        console.log("[DebugSection] selectedVariant (direct):", _selectedVariant)
         return _selectedVariant
     }, [_selectedVariant])
 
     const fallbackVariant = useMemo(() => {
-        console.log("[DebugSection] Computing fallbackVariant:", {
-            hasSelectedVariant: !!_selectedVariant,
-            defaultAppId,
-            revisionMapKeys: defaultRevisionMap ? Object.keys(defaultRevisionMap) : null,
-        })
         if (_selectedVariant || !defaultAppId) return null
         const revisionLists = Object.values(defaultRevisionMap || {})
-        console.log("[DebugSection] revisionLists:", revisionLists.length)
         if (!revisionLists.length) return null
         const revisions = revisionLists[0]
         if (!revisions || revisions.length === 0) return null
         const baseVariant = buildVariantFromRevision(revisions[0], defaultAppId)
         baseVariant.revisions = [...revisions]
-        console.log("[DebugSection] fallbackVariant computed:", baseVariant?.variantId)
         return baseVariant
     }, [_selectedVariant, defaultAppId, defaultRevisionMap])
 
+    // Variants are derived from the fallback (fetched internally)
     const derivedVariants = useMemo(() => {
-        console.log("[DebugSection] Computing derivedVariants:", {
-            variantsFromProps: variantsFromProps?.length,
-            hasFallbackVariant: !!fallbackVariant,
-        })
-        if (variantsFromProps && variantsFromProps.length > 0) return variantsFromProps
         if (fallbackVariant) return [fallbackVariant]
         return []
-    }, [variantsFromProps, fallbackVariant])
+    }, [fallbackVariant])
 
     // Resolve current application object for display
     const selectedApp = useMemo(() => {
@@ -321,7 +243,7 @@ const DebugSection = ({
 
     // Initialize from localStorage (remember last app/variant) with fallbacks
     useEffect(() => {
-        // if parent already set a specific variant, respect it
+        // if already have a selected variant, respect it
         if (_selectedVariant) return
 
         const storedAppId =
@@ -331,22 +253,19 @@ const DebugSection = ({
 
         let nextVariant: Variant | null = null
 
-        // 1) Try to find an existing variant matching stored ids among provided or fallback variants
-        const searchPool: Variant[] = [
-            ...(variantsFromProps || []),
-            ...(derivedVariants || []),
-        ].filter(Boolean) as Variant[]
+        // Search among derived variants (fetched internally)
+        const searchPool: Variant[] = derivedVariants.filter(Boolean) as Variant[]
 
         if (storedVariantId) {
             nextVariant = searchPool.find((v) => (v as any)?.variantId === storedVariantId) || null
         }
 
-        // 2) If not found by variant, but we have an app id, try first variant under that app
+        // If not found by variant, but we have an app id, try first variant under that app
         if (!nextVariant && storedAppId) {
             nextVariant = searchPool.find((v) => (v as any)?.appId === storedAppId) || null
         }
 
-        // 3) Finally fall back to first available variant in our computed list
+        // Fall back to first available variant
         if (!nextVariant && searchPool.length > 0) {
             nextVariant = searchPool[0]
         }
@@ -354,7 +273,7 @@ const DebugSection = ({
         if (nextVariant) {
             setSelectedVariant(nextVariant)
         }
-    }, [_selectedVariant, variantsFromProps, derivedVariants, setSelectedVariant])
+    }, [_selectedVariant, derivedVariants, setSelectedVariant])
 
     // Persist whenever the working selectedVariant changes
     useEffect(() => {
@@ -368,20 +287,11 @@ const DebugSection = ({
         }
     }, [_selectedVariant])
 
+    // Set initial variant from derived variants if none selected
     useEffect(() => {
-        console.log("[DebugSection] Variant init effect running:", {
-            hasSelectedVariant: !!_selectedVariant,
-            derivedVariantsLength: derivedVariants.length,
-            firstDerivedVariant: derivedVariants[0],
-        })
         if (_selectedVariant) return
         if (derivedVariants.length > 0) {
-            console.log(
-                "[DebugSection] Setting initial variant from derivedVariants:",
-                derivedVariants[0],
-            )
             setSelectedVariant(derivedVariants[0])
-            return
         }
     }, [_selectedVariant, derivedVariants, setSelectedVariant])
 
@@ -563,23 +473,11 @@ const DebugSection = ({
     }
 
     const handleRunVariant = async () => {
-        console.log("[DebugSection] handleRunVariant called", {
-            availableAppsLength: availableApps.length,
-            derivedVariantsLength: derivedVariants.length,
-            selectedTestcase: selectedTestcase,
-            selectedVariant: selectedVariant,
-            selectedVariantId: selectedVariant?.variantId,
-        })
         if (availableApps.length === 0 && derivedVariants.length === 0) {
-            console.log("[DebugSection] No apps or variants available")
             message.info("Create an app first to run a variant.")
             return
         }
         if (!selectedTestcase.testcase || !selectedVariant) {
-            console.log("[DebugSection] Missing testcase or variant", {
-                hasTestcase: !!selectedTestcase.testcase,
-                hasVariant: !!selectedVariant,
-            })
             return
         }
         const controller = new AbortController()
@@ -999,10 +897,7 @@ const DebugSection = ({
                                     size="small"
                                     disabled={!selectedTestcase.testcase}
                                     loading={isRunningVariant}
-                                    onClick={() => {
-                                        console.log("[DebugSection] Run button clicked")
-                                        handleRunVariant()
-                                    }}
+                                    onClick={handleRunVariant}
                                 >
                                     <div
                                         className="flex items-center gap-2"
@@ -1018,10 +913,7 @@ const DebugSection = ({
                                 </Button>
                                 <Dropdown
                                     open={dropdownOpen}
-                                    onOpenChange={(open) => {
-                                        console.log("[DebugSection] Dropdown onOpenChange:", open)
-                                        setDropdownOpen(open)
-                                    }}
+                                    onOpenChange={setDropdownOpen}
                                     menu={{
                                         items: [
                                             {
@@ -1031,9 +923,7 @@ const DebugSection = ({
                                             },
                                         ],
                                         onClick: (info) => {
-                                            console.log("[DebugSection] Menu onClick:", info)
                                             if (info.key === "change_variant") {
-                                                console.log("[DebugSection] Opening variant modal")
                                                 setDropdownOpen(false)
                                                 setOpenVariantModal(true)
                                             }
@@ -1191,23 +1081,17 @@ const DebugSection = ({
             <EvaluatorVariantModal
                 variants={derivedVariants}
                 open={openVariantModal}
-                onCancel={() => {
-                    console.log("[DebugSection] Modal cancelled")
-                    setOpenVariantModal(false)
-                }}
+                onCancel={() => setOpenVariantModal(false)}
                 setSelectedVariant={(v) => {
-                    console.log("[DebugSection] setSelectedVariant from modal:", {
-                        variant: v,
-                        variantId: (v as any)?.variantId,
-                        revisions: (v as any)?.revisions?.length,
-                    })
                     setSelectedVariant(v)
-                    // eager persist on selection from modal
+                    // Persist selection to localStorage
                     try {
                         if ((v as any)?.appId) localStorage.setItem(LAST_APP_KEY, (v as any).appId)
                         if ((v as any)?.variantId)
                             localStorage.setItem(LAST_VARIANT_KEY, (v as any).variantId)
-                    } catch {}
+                    } catch {
+                        // Ignore storage errors
+                    }
                 }}
                 selectedVariant={selectedVariant}
                 selectedTestsetId={selectedTestset}

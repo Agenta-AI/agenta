@@ -129,16 +129,7 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
         )
     }
 
-    // DebugSection fetches its own variants and testsets
-    // We pass null to let it handle data fetching internally
-    return (
-        <ConfigureEvaluator
-            onClose={navigateBack}
-            onSuccess={handleSuccess}
-            variants={null}
-            testsets={null}
-        />
-    )
+    return <ConfigureEvaluator onClose={navigateBack} onSuccess={handleSuccess} />
 }
 
 export default ConfigureEvaluatorPage
