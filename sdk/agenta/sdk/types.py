@@ -1,15 +1,27 @@
 import json
+import re
 from dataclasses import dataclass
-from typing import List, Union, Optional, Dict, Literal, Any
+from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, Union
 
-from pydantic import ConfigDict, BaseModel, HttpUrl
-from pydantic import BaseModel, Field, model_validator, AliasChoices
-
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    model_validator,
+)
 from starlette.responses import StreamingResponse
 
-
+from agenta.client.backend.types import AgentaNodeDto, AgentaNodesResponse  # noqa: F401
 from agenta.sdk.assets import supported_llm_models
-from agenta.client.backend.types import AgentaNodesResponse, AgentaNodeDto
+
+try:
+    import jsonpath  # ✅ use module API
+    from jsonpath import JSONPointer  # pointer class is fine to use
+except Exception:
+    jsonpath = None
+    JSONPointer = None
 
 
 @dataclass
@@ -491,18 +503,6 @@ class TemplateFormatError(PromptTemplateError):
         self.original_error = original_error
         super().__init__(message)
 
-
-import json
-import re
-from typing import Any, Dict, Iterable, Tuple, Optional
-
-# --- Optional dependency: python-jsonpath (provides JSONPath + JSON Pointer) ---
-try:
-    import jsonpath  # ✅ use module API
-    from jsonpath import JSONPointer  # pointer class is fine to use
-except Exception:
-    jsonpath = None
-    JSONPointer = None
 
 # ========= Scheme detection =========
 
