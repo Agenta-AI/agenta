@@ -200,7 +200,9 @@ const TestcaseCellContent = memo(({value, maxLines}: TestcaseCellContentProps) =
     const {parsed: jsonValue, isJson} = useMemo(() => tryParseJson(value), [value])
     const displayValue = useMemo(() => normalizeValue(value), [value])
 
-    if (value === undefined || value === null) {
+    // Handle empty values (null, undefined, empty string) - render placeholder
+    // The testcase-table-cell class ensures proper height from CSS variables
+    if (value === undefined || value === null || value === "") {
         return (
             <div className="testcase-table-cell">
                 <Text type="secondary" className="text-xs">

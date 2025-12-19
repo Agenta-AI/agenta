@@ -1,9 +1,10 @@
-import {memo, useCallback} from "react"
+import {memo, useMemo} from "react"
 
-import {Skeleton} from "antd"
+import {useAtomValue} from "jotai"
 
-import {useEntityCached, useEntityMutation} from "@/oss/state/entities"
+import {useEntityMutation} from "@/oss/state/entities"
 import {testcaseStore} from "@/oss/state/entities/testcase/store"
+import {testcaseCellAtomFamily} from "@/oss/state/entities/testcase/testcaseEntity"
 
 import TestcaseCellContent from "./TestcaseCellContent"
 
@@ -42,27 +43,13 @@ export const TestcaseCell = memo(function TestcaseCell({
     columnKey,
     maxLines,
     render,
-    onMissing,
 }: TestcaseCellProps) {
-    // Read from entity atom (no fetching - cache only)
-    const testcase = useEntityCached(testcaseStore, testcaseId)
-
-    // Get current value
-    const value = testcase?.[columnKey]
-
-    // Report missing entity for batch fetch
-    if (!testcase && onMissing) {
-        onMissing(testcaseId)
-    }
-
-    // Show skeleton while entity is not in cache
-    if (!testcase) {
-        return (
-            <div className="testcase-table-cell">
-                <Skeleton.Input size="small" active style={{width: "100%", height: 20}} />
-            </div>
-        )
-    }
+    // Read cell value from atom (checks entity store first, then server snapshot)
+    const cellAtom = useMemo(
+        () => testcaseCellAtomFamily({id: testcaseId, column: columnKey}),
+        [testcaseId, columnKey],
+    )
+    const value = useAtomValue(cellAtom)
 
     // Use custom render if provided
     if (render) {

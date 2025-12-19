@@ -18,12 +18,12 @@ export interface TestcaseRevisionResponse {
     testset_id: string
     parent_testset_id?: string | null
     version?: number
-    testcases: Array<{
+    testcases: {
         id: string
         testset_id: string
         created_at: string
         data: Record<string, unknown>
-    }>
+    }[]
 }
 
 /**

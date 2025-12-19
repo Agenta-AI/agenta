@@ -5,7 +5,6 @@ import {
     testcasesResponseSchema,
     flattenTestcase,
     type Testcase,
-    type FlattenedTestcase,
     type TestcasesQueryRequest,
 } from "./schema"
 import type {FetchTestcasesParams, FetchTestcasesResponse} from "./store"

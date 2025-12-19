@@ -1,36 +1,34 @@
 import {memo} from "react"
 
 import {Tooltip} from "antd"
+import {useAtomValue} from "jotai"
 
-import {useEntityMetadata} from "@/oss/state/entities"
-import {testcaseStore} from "@/oss/state/entities/testcase/store"
+import {isTestcaseDirtyAtomFamily} from "@/oss/state/entities/testcase/dirtyState"
 
 interface TestcaseSelectionCellProps {
     testcaseId: string | undefined
+    rowIndex: number
     originNode: React.ReactNode
 }
 
 /**
- * Custom selection cell that shows tooltip for dirty rows
+ * Custom selection cell that shows tooltip with row index
+ * Also shows dirty indicator for rows with unsaved changes
+ * Uses isTestcaseDirtyAtomFamily which compares entity data vs server cache
  */
 const TestcaseSelectionCell = memo(function TestcaseSelectionCell({
     testcaseId,
+    rowIndex,
     originNode,
 }: TestcaseSelectionCellProps) {
-    const metadata = useEntityMetadata(testcaseStore, testcaseId || "")
-    const isDirty = metadata?.isDirty ?? false
+    // Use the derived dirty atom that compares entity data vs server cache
+    const isDirty = useAtomValue(isTestcaseDirtyAtomFamily(testcaseId || ""))
 
-    if (!isDirty) {
-        return <>{originNode}</>
-    }
+    // Build tooltip title - always show row number, add dirty indicator if needed
+    const tooltipTitle = isDirty ? `Row ${rowIndex + 1} (unsaved changes)` : `Row ${rowIndex + 1}`
 
     return (
-        <Tooltip
-            title="This row has unsaved changes"
-            mouseEnterDelay={0.3}
-            mouseLeaveDelay={0}
-            placement="right"
-        >
+        <Tooltip title={tooltipTitle} mouseEnterDelay={0.3} mouseLeaveDelay={0} placement="right">
             <div className="flex items-center justify-center w-full h-full">{originNode}</div>
         </Tooltip>
     )

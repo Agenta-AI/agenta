@@ -1,15 +1,17 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import {ArrowsOut, CaretDoubleRight, CaretDown, CaretUp, Copy} from "@phosphor-icons/react"
-import {Button, Dropdown, Segmented, Tooltip} from "antd"
+import {Button, Dropdown, Segmented, Space, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import type {EditableTableColumn} from "@/oss/components/InfiniteVirtualTable/hooks/useEditableTable"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {useEntityCached, useEntityMutation} from "@/oss/state/entities"
-import {testcaseDraftStore} from "@/oss/state/entities/testcase/draftStore"
-import {testcaseStore} from "@/oss/state/entities/testcase/store"
+import type {Column} from "@/oss/state/entities/testcase/columnState"
+import {
+    discardDraftAtom,
+    testcaseEntityAtomFamily,
+    testcaseHasDraftAtomFamily,
+} from "@/oss/state/entities/testcase/testcaseEntity"
 
 import TestcaseEditDrawerContent, {
     type TestcaseEditDrawerContentRef,
@@ -22,7 +24,7 @@ interface TestcaseEditDrawerProps {
     onClose: () => void
     /** Testcase ID (reads from entity atom) */
     testcaseId: string | null
-    columns: EditableTableColumn[]
+    columns: Column[]
     isNewRow: boolean
     afterOpenChange?: (open: boolean) => void
     /** Navigate to previous testcase */
@@ -56,84 +58,40 @@ const TestcaseEditDrawer = ({
     onSaveTestset,
     isSavingTestset = false,
 }: TestcaseEditDrawerProps) => {
-    // Read testcase from entity atom (server state)
-    const testcase = useEntityCached(testcaseStore, testcaseId || "")
+    // Read testcase from entity atom (server state + local draft)
+    const testcaseAtom = useMemo(() => testcaseEntityAtomFamily(testcaseId || ""), [testcaseId])
+    const testcase = useAtomValue(testcaseAtom)
 
-    // Draft store atoms
-    const initDraft = useSetAtom(testcaseDraftStore.initDraft)
-    const discardDraft = useSetAtom(testcaseDraftStore.discardDraft)
-    const commitDraft = useSetAtom(testcaseDraftStore.commitDraft)
+    // Check if entity has local edits
+    const hasDraftAtom = useMemo(() => testcaseHasDraftAtomFamily(testcaseId || ""), [testcaseId])
+    const isDirty = useAtomValue(hasDraftAtom)
 
-    // Draft state for current testcase
-    const draft = useAtomValue(testcaseDraftStore.draft(testcaseId || ""))
-    const original = useAtomValue(testcaseDraftStore.original(testcaseId || ""))
-    const isDirty = useAtomValue(testcaseDraftStore.isDirty(testcaseId || ""))
-
-    // Entity mutation for restoring on discard
-    const {update: entityUpdate} = useEntityMutation(testcaseStore)
-
-    // Track if we've initialized the draft for this drawer session
-    const hasInitializedRef = useRef(false)
-
-    // Initialize draft only when drawer first opens (not on every testcase data change)
-    useEffect(() => {
-        if (open && testcaseId && testcase && !hasInitializedRef.current) {
-            initDraft({id: testcaseId, entity: testcase})
-            hasInitializedRef.current = true
-        }
-        // Reset when drawer closes or testcaseId changes
-        if (!open || !testcaseId) {
-            hasInitializedRef.current = false
-        }
-    }, [open, testcaseId, testcase, initDraft])
+    // Discard draft action
+    const discardDraft = useSetAtom(discardDraftAtom)
 
     const [editMode, setEditMode] = useState<EditMode>("fields")
     const [isIdCopied, setIsIdCopied] = useState(false)
     const contentRef = useRef<TestcaseEditDrawerContentRef>(null)
 
-    // Apply changes: commit draft and sync to entity store, then close
+    // Apply changes and close (draft is already in entity atom, just close)
     const handleApply = useCallback(() => {
-        if (testcaseId && draft) {
-            // Sync draft to entity store
-            contentRef.current?.handleSave()
-            // Commit draft (make current the new original, clear history)
-            commitDraft(testcaseId)
-        }
         onClose()
-    }, [testcaseId, draft, commitDraft, onClose])
+    }, [onClose])
 
     // Apply changes and save entire testset (commit revision)
     const handleSaveTestset = useCallback(async () => {
-        if (testcaseId && draft) {
-            contentRef.current?.handleSave()
-            commitDraft(testcaseId)
-        }
         if (onSaveTestset) {
             await onSaveTestset()
         }
-    }, [testcaseId, draft, commitDraft, onSaveTestset])
+    }, [onSaveTestset])
 
-    // Clear entity dirty flag
-    const clearDirty = useSetAtom(testcaseStore.clearDirtyAtom)
-
-    // Discard changes made in THIS drawer session only
-    // If no changes were made in this session (isDirty is false), just close without reverting
+    // Discard changes and close
     const handleCancel = useCallback(() => {
         if (testcaseId && isDirty) {
-            // Only revert if changes were made in this session
-            if (original) {
-                // Restore entity store to the state when drawer opened
-                entityUpdate({id: testcaseId, updates: original})
-            }
-            // Clear the entity store's dirty flag only if we reverted
-            clearDirty(testcaseId)
-        }
-        if (testcaseId) {
-            // Always discard the draft (clears undo/redo history for this session)
             discardDraft(testcaseId)
         }
         onClose()
-    }, [testcaseId, original, isDirty, entityUpdate, discardDraft, clearDirty, onClose])
+    }, [testcaseId, isDirty, discardDraft, onClose])
 
     const handleCopyId = useCallback(async () => {
         if (!testcaseId) return
@@ -146,54 +104,69 @@ const TestcaseEditDrawer = ({
         return (
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-1">
+                    {/* Expand to full screen */}
+                    <Tooltip title="Open in full screen">
+                        <Button type="text" size="small" icon={<ArrowsOut size={14} />} disabled />
+                    </Tooltip>
+
                     {/* Close drawer */}
                     <Button
                         type="text"
                         size="small"
-                        icon={<CaretDoubleRight size={16} />}
-                        onClick={onClose}
+                        icon={<CaretDoubleRight size={14} />}
+                        onClick={handleCancel}
                     />
-                    {/* Expand control */}
-                    <Button type="text" size="small" icon={<ArrowsOut size={16} />} />
-                    {/* Navigation arrows */}
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<CaretUp size={16} />}
-                        onClick={onPrevious}
-                        disabled={!hasPrevious}
-                    />
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<CaretDown size={16} />}
-                        onClick={onNext}
-                        disabled={!hasNext}
-                    />
-                    {/* Testcase number with copy ID */}
-                    {testcaseId && (
-                        <Tooltip title={isIdCopied ? "Copied!" : "Click to copy ID"}>
+
+                    {/* Navigation */}
+                    {(onPrevious || onNext) && (
+                        <div className="flex items-center">
                             <Button
                                 type="text"
                                 size="small"
+                                icon={<CaretUp size={14} />}
+                                disabled={!hasPrevious}
+                                onClick={onPrevious}
+                            />
+                            <Button
+                                type="text"
+                                size="small"
+                                icon={<CaretDown size={14} />}
+                                disabled={!hasNext}
+                                onClick={onNext}
+                            />
+                        </div>
+                    )}
+
+                    {/* Title */}
+                    <span className="font-medium text-sm">
+                        {isNewRow ? "New Testcase" : `Testcase ${testcaseNumber ?? ""}`}
+                    </span>
+
+                    {/* Copy ID */}
+                    {testcaseId && !isNewRow && (
+                        <Tooltip title={isIdCopied ? "Copied!" : "Copy ID"}>
+                            <Button
+                                type="text"
+                                size="small"
+                                icon={<Copy size={14} />}
                                 onClick={handleCopyId}
-                                className="flex items-center gap-1"
-                            >
-                                Testcase #{testcaseNumber ?? "?"}
-                                <Copy size={14} />
-                            </Button>
+                            />
                         </Tooltip>
                     )}
                 </div>
-                <Segmented
-                    size="small"
-                    value={editMode}
-                    onChange={(value) => setEditMode(value as EditMode)}
-                    options={[
-                        {label: "Fields", value: "fields"},
-                        {label: "JSON", value: "json"},
-                    ]}
-                />
+
+                {/* Edit mode toggle */}
+                <div className="flex items-center gap-2">
+                    <Segmented
+                        size="small"
+                        value={editMode}
+                        onChange={(value) => setEditMode(value as EditMode)}
+                        options={[
+                            {label: "Fields", value: "fields"},
+                            {label: "JSON", value: "json"},
+                        ]}
+                    />
+                </div>
             </div>
         )
     }, [
@@ -206,7 +179,8 @@ const TestcaseEditDrawer = ({
         handleCopyId,
         isIdCopied,
         testcaseNumber,
-        onClose,
+        handleCancel,
+        isNewRow,
     ])
 
     return (
@@ -214,7 +188,7 @@ const TestcaseEditDrawer = ({
             title={title}
             open={open}
             onClose={handleCancel}
-            width={600}
+            size="large"
             closeIcon={null}
             closeOnLayoutClick={false}
             afterOpenChange={afterOpenChange}
@@ -226,13 +200,16 @@ const TestcaseEditDrawer = ({
             footer={
                 <div className="w-full flex items-center justify-end gap-3">
                     <Button onClick={handleCancel}>Cancel</Button>
-                    <div>
-                        <Dropdown.Button
+                    <Space.Compact>
+                        <Button
                             type="primary"
                             onClick={handleApply}
                             disabled={!isDirty}
                             loading={isSavingTestset}
-                            icon={<CaretUp size={14} />}
+                        >
+                            Apply and Continue Editing
+                        </Button>
+                        <Dropdown
                             placement="topRight"
                             menu={{
                                 items: [
@@ -244,13 +221,13 @@ const TestcaseEditDrawer = ({
                                 ],
                             }}
                         >
-                            Apply and Continue Editing
-                        </Dropdown.Button>
-                    </div>
+                            <Button type="primary" icon={<CaretUp size={14} />} />
+                        </Dropdown>
+                    </Space.Compact>
                 </div>
             }
         >
-            {open && testcaseId && draft && (
+            {open && testcaseId && testcase && (
                 <TestcaseEditDrawerContent
                     ref={contentRef}
                     testcaseId={testcaseId}

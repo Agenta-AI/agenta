@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {DownOutlined, MoreOutlined, PlusOutlined} from "@ant-design/icons"
-import {UploadOutlined} from "@ant-design/icons"
 import {Link, PencilSimple, Trash} from "@phosphor-icons/react"
 import {
     Button,
@@ -15,7 +14,6 @@ import {
     Tag,
     Tooltip,
     Typography,
-    Upload,
 } from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -34,7 +32,7 @@ import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
-import {testcaseStore} from "@/oss/state/entities/testcase/store"
+import {isTestcaseDirtyAtomFamily} from "@/oss/state/entities/testcase/dirtyState"
 import {projectIdAtom} from "@/oss/state/project"
 
 import AlertPopup from "../AlertPopup/AlertPopup"
@@ -172,13 +170,14 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     )
 
     // Pagination - use real callbacks from hook
+    // Note: rowRefs contains {id, key, __isNew} - cells read data from entity atoms
     const tablePagination = useMemo(
         () => ({
-            rows: table.filteredTestcases,
+            rows: table.rowRefs,
             loadNextPage: table.loadNextPage,
             resetPages: table.resetPages,
         }),
-        [table.filteredTestcases, table.loadNextPage, table.resetPages],
+        [table.rowRefs, table.loadNextPage, table.resetPages],
     )
 
     // Get the global Jotai store so entity atoms are accessible inside the table
@@ -193,10 +192,10 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                       onChange: setSelectedRowKeys,
                       columnWidth: 48,
                       onCell: (record: TestcaseTableRow) => {
-                          // Access entity metadata directly from store to check dirty state
+                          // Use isTestcaseDirtyAtomFamily which compares entity data vs server cache
+                          // This correctly handles column renames with infinite scrolling
                           if (record.id) {
-                              const allEntities = globalStore.get(testcaseStore.entitiesAtom)
-                              const isDirty = allEntities[record.id]?.metadata?.isDirty ?? false
+                              const isDirty = globalStore.get(isTestcaseDirtyAtomFamily(record.id))
                               if (isDirty) {
                                   return {
                                       // Use inline style to override hover styles
@@ -209,9 +208,15 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                       renderCell: (
                           _value: boolean,
                           record: TestcaseTableRow,
-                          _index: number,
+                          index: number,
                           originNode: React.ReactNode,
-                      ) => <TestcaseSelectionCell testcaseId={record.id} originNode={originNode} />,
+                      ) => (
+                          <TestcaseSelectionCell
+                              testcaseId={record.id}
+                              rowIndex={index}
+                              originNode={originNode}
+                          />
+                      ),
                   }
                 : undefined,
         [mode, selectedRowKeys, globalStore],
@@ -519,7 +524,32 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
             .sort((a, b) => b.version - a.version)
             .map((revision) => ({
                 key: revision.id,
-                label: `v${revision.version}`,
+                label: (
+                    <div className="flex flex-col gap-0.5 py-1">
+                        <div className="flex items-center gap-2">
+                            <span className="font-medium">v{revision.version}</span>
+                            {revision.created_at && (
+                                <Typography.Text type="secondary" className="text-xs">
+                                    {new Date(revision.created_at).toLocaleDateString()}
+                                </Typography.Text>
+                            )}
+                        </div>
+                        {revision.message && (
+                            <Typography.Text
+                                type="secondary"
+                                className="text-xs truncate max-w-[200px]"
+                                title={revision.message}
+                            >
+                                {revision.message}
+                            </Typography.Text>
+                        )}
+                        {revision.author && (
+                            <div className="text-xs">
+                                <UserReference userId={revision.author} />
+                            </div>
+                        )}
+                    </div>
+                ),
                 onClick: () =>
                     router.push(`${projectURL}/testsets/${revision.id}`, undefined, {
                         shallow: true,
@@ -610,7 +640,10 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         {table.testsetName || "Testset"}
                     </Typography.Title>
                     <Dropdown
-                        menu={{items: revisionMenuItems}}
+                        menu={{
+                            items: revisionMenuItems,
+                            style: {maxHeight: 400, overflowY: "auto"},
+                        }}
                         trigger={["click"]}
                         disabled={table.loadingRevisions || revisionMenuItems.length === 0}
                     >
@@ -723,19 +756,11 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                     </Button>
                 )}
                 <Button
-                    type="primary"
-                    onClick={handleSaveTestset}
-                    loading={table.isSaving}
-                    disabled={!table.hasUnsavedChanges || mode === "view"}
-                >
-                    Commit
-                </Button>
-                <Button
                     onClick={handleAddTestcase}
                     icon={<PlusOutlined />}
                     disabled={mode === "view"}
                 >
-                    Add Row
+                    Row
                 </Button>
                 <Button
                     onClick={() => {
@@ -745,23 +770,16 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                     icon={<PlusOutlined />}
                     disabled={mode === "view"}
                 >
-                    Add Column
+                    Column
                 </Button>
-                <Tooltip title="Duplicate rows will be automatically removed">
-                    <Upload
-                        accept=".csv,.json"
-                        showUploadList={false}
-                        beforeUpload={(file) => {
-                            handleAppendFromFile(file)
-                            return false
-                        }}
-                        disabled={mode === "view"}
-                    >
-                        <Button icon={<UploadOutlined />} disabled={mode === "view"}>
-                            Append from File
-                        </Button>
-                    </Upload>
-                </Tooltip>
+                <Button
+                    type="primary"
+                    onClick={handleSaveTestset}
+                    loading={table.isSaving}
+                    disabled={!table.hasUnsavedChanges || mode === "view"}
+                >
+                    Commit
+                </Button>
             </Space>
         ),
         [
@@ -776,7 +794,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     )
 
     // Loading state
-    if (table.isLoading && table.testcases.length === 0) {
+    if (table.isLoading && table.rowRefs.length === 0) {
         return (
             <div className="flex flex-col h-full w-full p-6 gap-4">
                 <Skeleton.Input active style={{width: 200, height: 32}} />
@@ -875,7 +893,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                     0,
                     ...table.availableRevisions.map((r) => Number(r.version)),
                 )}
-                changesSummary={isCommitModalOpen ? table.getChangesSummary() : undefined}
+                changesSummary={isCommitModalOpen ? table.changesSummary : undefined}
             />
 
             {/* Add Column Modal */}

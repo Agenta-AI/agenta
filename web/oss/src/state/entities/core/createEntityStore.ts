@@ -72,6 +72,8 @@ export function createEntityStore<
         fetchedAt: Date.now(),
         isStale: false,
         isDirty: false,
+        isNew: false,
+        isDeleted: false,
         ...partial,
     })
 
@@ -234,6 +236,160 @@ export function createEntityStore<
     })
 
     // =========================================================================
+    // NEW/DELETED ENTITY MANAGEMENT
+    // =========================================================================
+
+    /**
+     * Create a new entity (not yet saved to server)
+     * Sets isNew: true, isDirty: true
+     */
+    const createEntityAtom = atom(null, (get, set, entity: TEntity) => {
+        const processed = processEntity(entity)
+
+        set(entitiesAtom, (prev) => ({
+            ...prev,
+            [processed.id]: {
+                data: processed,
+                metadata: createMetadata({
+                    isNew: true,
+                    isDirty: true,
+                }),
+            },
+        }))
+    })
+
+    /**
+     * Mark entity as deleted (soft delete)
+     * Sets isDeleted: true
+     */
+    const markDeletedAtom = atom(null, (get, set, id: string) => {
+        set(entitiesAtom, (prev) => {
+            const existing = prev[id]
+            if (!existing) return prev
+
+            return {
+                ...prev,
+                [id]: {
+                    ...existing,
+                    metadata: {
+                        ...existing.metadata,
+                        isDeleted: true,
+                    },
+                },
+            }
+        })
+    })
+
+    /**
+     * Unmark entity as deleted (restore)
+     */
+    const unmarkDeletedAtom = atom(null, (get, set, id: string) => {
+        set(entitiesAtom, (prev) => {
+            const existing = prev[id]
+            if (!existing) return prev
+
+            return {
+                ...prev,
+                [id]: {
+                    ...existing,
+                    metadata: {
+                        ...existing.metadata,
+                        isDeleted: false,
+                    },
+                },
+            }
+        })
+    })
+
+    /**
+     * Remove a new entity entirely (for undoing add before save)
+     * Only removes if entity isNew: true
+     */
+    const removeNewEntityAtom = atom(null, (get, set, id: string) => {
+        set(entitiesAtom, (prev) => {
+            const existing = prev[id]
+            if (!existing || !existing.metadata.isNew) return prev
+
+            const next = {...prev}
+            delete next[id]
+            return next
+        })
+    })
+
+    /**
+     * Clear all new/deleted flags (after successful save)
+     * Also removes entities that were marked as deleted
+     */
+    const clearNewDeletedAtom = atom(null, (get, set) => {
+        set(entitiesAtom, (prev) => {
+            const next: Record<string, StoredEntity<TEntity>> = {}
+
+            Object.entries(prev).forEach(([id, stored]) => {
+                // Skip deleted entities (they're gone after save)
+                if (stored.metadata.isDeleted) return
+
+                // Clear isNew flag on saved entities
+                next[id] = {
+                    ...stored,
+                    metadata: {
+                        ...stored.metadata,
+                        isNew: false,
+                        isDirty: false,
+                    },
+                }
+            })
+
+            return next
+        })
+    })
+
+    // =========================================================================
+    // DERIVED SELECTORS FOR NEW/DELETED
+    // =========================================================================
+
+    /**
+     * Get all new entity IDs (not yet saved to server)
+     */
+    const newEntityIdsAtom = atom((get) => {
+        const entities = get(entitiesAtom)
+        return Object.entries(entities)
+            .filter(([_, stored]) => stored.metadata.isNew && !stored.metadata.isDeleted)
+            .map(([id]) => id)
+    })
+
+    /**
+     * Get all deleted entity IDs (marked for deletion)
+     */
+    const deletedEntityIdsAtom = atom((get) => {
+        const entities = get(entitiesAtom)
+        return new Set(
+            Object.entries(entities)
+                .filter(([_, stored]) => stored.metadata.isDeleted)
+                .map(([id]) => id),
+        )
+    })
+
+    /**
+     * Get all new entities (full data)
+     */
+    const newEntitiesAtom = atom((get) => {
+        const entities = get(entitiesAtom)
+        return Object.values(entities)
+            .filter((stored) => stored.metadata.isNew && !stored.metadata.isDeleted)
+            .map((stored) => stored.data)
+    })
+
+    /**
+     * Check if there are any new or deleted entities
+     */
+    const hasNewOrDeletedAtom = atom((get) => {
+        const entities = get(entitiesAtom)
+        return Object.values(entities).some(
+            (stored) => stored.metadata.isNew || stored.metadata.isDeleted,
+        )
+    })
+
+    // =========================================================================
     // QUERIES
     // =========================================================================
 
@@ -363,6 +519,19 @@ export function createEntityStore<
         upsertManyAtom,
         removeAtom,
         updateAtom,
+
+        // New/Deleted entity management
+        createEntityAtom,
+        markDeletedAtom,
+        unmarkDeletedAtom,
+        removeNewEntityAtom,
+        clearNewDeletedAtom,
+
+        // New/Deleted selectors
+        newEntityIdsAtom,
+        deletedEntityIdsAtom,
+        newEntitiesAtom,
+        hasNewOrDeletedAtom,
 
         // Utility atoms
         invalidateAtom,
