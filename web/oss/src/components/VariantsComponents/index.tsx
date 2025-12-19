@@ -14,6 +14,7 @@ import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
+import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useQueryParamState} from "@/oss/state/appState"
 import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
@@ -74,6 +75,26 @@ const VariantsDashboard = () => {
         const key = selectedRowKeys?.[0]
         return key ? String(key) : undefined
     }, [selectedRowKeys])
+
+    const registryHref = useMemo(() => {
+        if (!appId || !baseAppURL) return null
+        return `${baseAppURL}/${appId}/variants`
+    }, [appId, baseAppURL])
+
+    const tabBreadcrumbLabel = activeTab === "deployments" ? "Deployments" : "Variants"
+
+    useBreadcrumbsEffect(
+        {
+            breadcrumbs: {
+                appPage: {
+                    label: "Registry",
+                    ...(registryHref ? {href: registryHref} : {}),
+                },
+                appPageDetail: {label: tabBreadcrumbLabel},
+            },
+        },
+        [registryHref, tabBreadcrumbLabel],
+    )
 
     useEffect(() => {
         setEnvRevisions(envRevisions)
