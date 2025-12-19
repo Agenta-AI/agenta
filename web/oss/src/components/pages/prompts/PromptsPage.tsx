@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Typography, message} from "antd"
+import {message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -56,8 +56,6 @@ const CreateAppStatusModal: any = dynamic(
 const AddAppFromTemplatedModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/AddAppFromTemplateModal"),
 )
-
-const {Title} = Typography
 
 const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
     name: "",

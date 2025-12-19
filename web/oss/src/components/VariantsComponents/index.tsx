@@ -2,7 +2,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {SwapOutlined} from "@ant-design/icons"
-import {CodeSimpleIcon, Rocket} from "@phosphor-icons/react"
+import {CodeSimpleIcon} from "@phosphor-icons/react"
 import {Button, Flex, Input, Radio, Space, Tabs, Typography} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"

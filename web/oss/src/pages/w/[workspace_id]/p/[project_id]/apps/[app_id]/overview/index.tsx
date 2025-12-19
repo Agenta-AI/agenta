@@ -4,10 +4,8 @@ import {memo, useState} from "react"
 import {MoreOutlined} from "@ant-design/icons"
 import {PencilLine, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Typography} from "antd"
-import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
-import {createUseStyles} from "react-jss"
 
 import PageLayout from "@/oss/components/PageLayout/PageLayout"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
@@ -15,7 +13,6 @@ import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/moda
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
-import type {JSSTheme} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app"
 
 const CustomWorkflowHistory: any = dynamic(
@@ -29,16 +26,6 @@ const LatestEvaluationRunsTable: any = dynamic(() =>
 )
 
 const {Text} = Typography
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    container: {
-        "& h1": {
-            fontSize: theme.fontSizeHeading4,
-            fontWeight: theme.fontWeightMedium,
-            lineHeight: theme.lineHeightHeading4,
-        },
-    },
-}))
 
 const AppDetailsSection = memo(() => {
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
@@ -104,7 +91,6 @@ const AppDetailsSection = memo(() => {
 })
 
 const OverviewPage = () => {
-    const classes = useStyles()
     const {currentApp} = useAppsData()
     const appId = currentApp?.app_id ?? null
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =

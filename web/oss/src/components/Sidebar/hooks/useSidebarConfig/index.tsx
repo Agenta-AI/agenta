@@ -12,7 +12,6 @@ import {
     TreeView,
     Lightning,
     Rocket,
-    CloudArrowUp,
     ChatCircle,
     Gauge,
 } from "@phosphor-icons/react"

@@ -8,7 +8,7 @@ import VariantNameCell from "@/oss/components/VariantNameCell"
 import {Environment} from "@/oss/lib/Types"
 import {deployedRevisionByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
-import EnvironmentTagLabel, {deploymentStatusColors} from "../EnvironmentTagLabel"
+import EnvironmentTagLabel from "../EnvironmentTagLabel"
 
 import {useDeploymentCardStyles} from "./styles"
 
@@ -19,9 +19,6 @@ type DeploymentCardProps = {
 
 const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
     const classes = useDeploymentCardStyles()
-
-    const getBorderColor = (envName: string) =>
-        deploymentStatusColors[envName.toLowerCase()]?.textColor
 
     const envName = env?.name ?? ""
     const revisionAtom = useMemo(() => deployedRevisionByEnvironmentAtomFamily(envName), [envName])
