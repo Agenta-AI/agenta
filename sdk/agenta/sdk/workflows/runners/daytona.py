@@ -1,12 +1,14 @@
 import os
 import json
-from typing import Any, Dict, Union, Optional
-
-from daytona import Daytona, DaytonaConfig, Sandbox
+from typing import Any, Dict, Union, Optional, TYPE_CHECKING
 
 from agenta.sdk.workflows.runners.base import CodeRunner
+from agenta.sdk.utils.lazy import _load_daytona
 
 from agenta.sdk.utils.logging import get_module_logger
+
+if TYPE_CHECKING:
+    from daytona import Daytona, Sandbox
 
 log = get_module_logger(__name__)
 
@@ -57,7 +59,7 @@ class DaytonaRunner(CodeRunner):
             return
 
         self._initialized = True
-        self.daytona: Optional[Daytona] = None
+        self.daytona = None
         self._validate_config()
 
     def _validate_config(self) -> None:
@@ -77,6 +79,8 @@ class DaytonaRunner(CodeRunner):
             return
 
         try:
+            Daytona, DaytonaConfig, _, _ = _load_daytona()
+
             # Get configuration with fallbacks
             api_url = os.getenv("DAYTONA_API_URL") or "https://app.daytona.io/api"
             api_key = os.getenv("DAYTONA_API_KEY")
@@ -92,7 +96,7 @@ class DaytonaRunner(CodeRunner):
         except Exception as e:
             raise RuntimeError(f"Failed to initialize Daytona client: {e}")
 
-    def _create_sandbox(self) -> Any:
+    def _create_sandbox(self) -> "Sandbox":
         """Create a new sandbox for this run from snapshot."""
         try:
             if self.daytona is None:
@@ -106,7 +110,7 @@ class DaytonaRunner(CodeRunner):
                     "Set it to the Daytona sandbox ID or snapshot name you want to use."
                 )
 
-            from daytona import CreateSandboxFromSnapshotParams
+            _, _, _, CreateSandboxFromSnapshotParams = _load_daytona()
 
             sandbox = self.daytona.create(
                 CreateSandboxFromSnapshotParams(
@@ -145,7 +149,7 @@ class DaytonaRunner(CodeRunner):
             Float score between 0 and 1, or None if execution fails
         """
         self._initialize_client()
-        sandbox: Sandbox = self._create_sandbox()
+        sandbox = self._create_sandbox()
 
         try:
             # Prepare all parameters as a single dict

@@ -14,26 +14,14 @@ from uuid import UUID
 from pydantic import BaseModel, HttpUrl, ValidationError
 from os import environ
 
-from starlette.responses import (
-    Response as StarletteResponse,
-    StreamingResponse,
-)
-
 if TYPE_CHECKING:
     from fastapi import Request, HTTPException, Body
+    from starlette.responses import Response as StarletteResponse, StreamingResponse
 else:
     # Lazy imports - only loaded when @entrypoint or @route is used
     Request = None
     HTTPException = None
     Body = None
-
-from agenta.sdk.middleware.mock import MockMiddleware
-from agenta.sdk.middleware.inline import InlineMiddleware
-from agenta.sdk.middleware.vault import VaultMiddleware
-from agenta.sdk.middleware.config import ConfigMiddleware
-from agenta.sdk.middleware.otel import OTelMiddleware
-from agenta.sdk.middleware.auth import AuthHTTPMiddleware
-from agenta.sdk.middleware.cors import CORSMiddleware
 
 from agenta.sdk.contexts.routing import (
     routing_context_manager,
@@ -47,6 +35,7 @@ from agenta.sdk.router import router
 from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.helpers import get_current_version
+from agenta.sdk.utils.lazy import _load_fastapi, _load_starlette_responses
 from agenta.sdk.types import (
     MultipleChoice,
     BaseResponse,
@@ -66,16 +55,23 @@ class _LazyApp:
 
     _app = None
 
-    def __getattr__(self, name):
+    def _get_app(self):
         if self._app is None:
-            from fastapi import FastAPI
+            fastapi = _load_fastapi()
+            from agenta.sdk.router import get_router
 
-            self._app = FastAPI(
+            self._app = fastapi.FastAPI(
                 docs_url=f"{AGENTA_RUNTIME_PREFIX}/docs",  # Swagger UI
                 openapi_url=f"{AGENTA_RUNTIME_PREFIX}/openapi.json",  # OpenAPI schema
             )
-            self._app.include_router(router, prefix=AGENTA_RUNTIME_PREFIX)
-        return getattr(self._app, name)
+            self._app.include_router(get_router(), prefix=AGENTA_RUNTIME_PREFIX)
+        return self._app
+
+    def __getattr__(self, name):
+        return getattr(self._get_app(), name)
+
+    async def __call__(self, scope, receive, send):
+        return await self._get_app()(scope, receive, send)
 
 
 app = _LazyApp()  # type: ignore
@@ -163,16 +159,16 @@ class entrypoint:
         config_schema: Optional[BaseModel] = None,
     ):
         # Lazy import fastapi components - only loaded when decorator is used
-        from fastapi import Request, HTTPException, Body
+        fastapi = _load_fastapi()
 
         self.func = func
         self.route_path = route_path
         self.config_schema = config_schema
 
         # Store for use in methods
-        self._Request = Request
-        self._HTTPException = HTTPException
-        self._Body = Body
+        self._Request = fastapi.Request
+        self._HTTPException = fastapi.HTTPException
+        self._Body = fastapi.Body
 
         signature_parameters = signature(func).parameters
         config, default_parameters = self.parse_config()
@@ -180,6 +176,14 @@ class entrypoint:
         ### --- Middleware --- #
         if not entrypoint._middleware:
             entrypoint._middleware = True
+            from agenta.sdk.middleware.mock import MockMiddleware
+            from agenta.sdk.middleware.inline import InlineMiddleware
+            from agenta.sdk.middleware.vault import VaultMiddleware
+            from agenta.sdk.middleware.config import ConfigMiddleware
+            from agenta.sdk.middleware.otel import OTelMiddleware
+            from agenta.sdk.middleware.auth import AuthHTTPMiddleware
+            from agenta.sdk.middleware.cors import CORSMiddleware
+
             app.add_middleware(MockMiddleware)
             app.add_middleware(InlineMiddleware)
             app.add_middleware(VaultMiddleware)
@@ -398,6 +402,8 @@ class entrypoint:
         result: Any,
         inline: bool,
     ):
+        StarletteResponse, StreamingResponse = _load_starlette_responses()
+
         data = None
         content_type = "text/plain"
 

@@ -18,7 +18,6 @@ from .sdk.decorators.running import (
 )
 from .sdk.decorators.serving import app, route
 from .sdk.decorators.tracing import instrument
-from .sdk.litellm import litellm as callbacks
 from .sdk.managers.apps import AppManager
 from .sdk.managers.config import ConfigManager
 from .sdk.managers.deployment import DeploymentManager
@@ -55,6 +54,14 @@ async_api = AsyncAgentaApi
 
 tracing = DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing  # type: ignore
 tracer = get_tracer(tracing)
+
+
+def __getattr__(name: str):
+    if name == "callbacks":
+        from .sdk.litellm import litellm as callbacks
+
+        return callbacks
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
 def init(

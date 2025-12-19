@@ -5,6 +5,7 @@ from typing import Optional, Type, TypeVar, Dict, Any, Union
 from pydantic import BaseModel
 
 from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.lazy import _load_yaml
 from agenta.sdk.managers.shared import SharedManager
 from agenta.sdk.contexts.routing import RoutingContext
 
@@ -173,7 +174,7 @@ class ConfigManager:
         """
         file_path = Path(filename)
 
-        import yaml  # Lazy import - only loaded when reading YAML files
+        yaml = _load_yaml()
 
         with open(file_path, "r", encoding="utf-8") as file:
             parameters = yaml.safe_load(file)
