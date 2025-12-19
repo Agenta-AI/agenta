@@ -24,25 +24,27 @@ exclude = [
 
 [tool.poetry.dependencies]
 python = "^3.11"
-#
-fastapi = ">=0.125"
+
+# Core dependencies (always loaded)
 pydantic = "^2"
-python-dotenv = "^1"
-importlib-metadata = "^8"
 httpx = "^0.28"
-pyyaml = "^6"
-toml = "^0.10"
-litellm = "^1"
-jinja2 = "^3"
-python-jsonpath = "^2"
+structlog = "^25"
+
+# Tracing dependencies (core feature, always loaded)
 opentelemetry-api = "^1"
 opentelemetry-sdk = "^1"
 opentelemetry-instrumentation = "^0.59b0"
-opentelemetry-exporter-otlp-proto-http ="^1"
-structlog = "^25"
-restrictedpython =  { version = "^8", python = ">=3.11, <3.14" }
-openai = "^2"
-daytona = "^0.125.0"
+opentelemetry-exporter-otlp-proto-http = "^1"
+
+# Lazy-loaded dependencies (imported only when used)
+fastapi = ">=0.125"  # Only for serving (@app, @route decorators)
+litellm = "^1"  # Only for LLM operations (prompt handlers)
+jinja2 = "^3"  # Only for jinja2 templating
+pyyaml = "^6"  # Only for YAML config files (ConfigManager.get_from_yaml)
+python-jsonpath = "^2"  # Only for JSONPath expressions (try/except wrapped)
+openai = "^2"  # Only for OpenAI-specific workflows
+restrictedpython = { version = "^8", python = ">=3.11, <3.14" }  # Only for sandboxed code execution
+daytona = "^0.125.0"  # Only for Daytona sandbox runner
 
 
 [tool.poetry.group.dev.dependencies]

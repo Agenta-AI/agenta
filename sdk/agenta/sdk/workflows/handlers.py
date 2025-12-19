@@ -7,8 +7,6 @@ import math
 
 import httpx
 
-import litellm
-
 from pydantic import BaseModel, Field
 from openai import AsyncOpenAI, OpenAIError
 from difflib import SequenceMatcher
@@ -47,17 +45,22 @@ from agenta.sdk.workflows.errors import (
 )
 
 from agenta.sdk.litellm import mockllm
-from agenta.sdk.litellm.litellm import litellm_handler
-
-litellm.logging = False
-litellm.set_verbose = False
-litellm.drop_params = True
-# litellm.turn_off_message_logging = True
-mockllm.litellm = litellm
-
-litellm.callbacks = [litellm_handler()]
-
 log = get_module_logger(__name__)
+
+
+def _configure_litellm():
+    """Lazy configuration of litellm - only imported when needed."""
+    import litellm
+    from agenta.sdk.litellm.litellm import litellm_handler
+
+    litellm.logging = False
+    litellm.set_verbose = False
+    litellm.drop_params = True
+    # litellm.turn_off_message_logging = True
+    mockllm.litellm = litellm
+    litellm.callbacks = [litellm_handler()]
+
+    return litellm
 
 
 async def _compute_embedding(openai: Any, model: str, input: str) -> List[float]:
@@ -861,6 +864,9 @@ async def auto_ai_critique_v0(
         )
 
     _outputs = None
+
+    # Lazy import and configure litellm
+    litellm = _configure_litellm()
 
     # --------------------------------------------------------------------------
     litellm.openai_key = openai_api_key
