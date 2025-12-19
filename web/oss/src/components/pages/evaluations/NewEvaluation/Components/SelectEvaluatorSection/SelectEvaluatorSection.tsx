@@ -15,6 +15,8 @@ import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
 
 import type {SelectEvaluatorSectionProps} from "../../types"
 
+import EvaluatorTemplateDropdown from "./EvaluatorTemplateDropdown"
+
 const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
     ssr: false,
 })
@@ -44,6 +46,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     evaluators: propsEvaluators,
     evaluatorConfigs: propsEvaluatorConfigs,
     selectedAppId,
+    onSelectTemplate,
     ...props
 }: SelectEvaluatorSectionProps & {preview?: Preview}) => {
     const {projectURL} = useURL()
@@ -242,12 +245,16 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                     <Space>
-                        <Button
-                            icon={<PlusOutlined />}
-                            onClick={() => router.push(evaluatorsRegistryUrl)}
-                        >
-                            Create new
-                        </Button>
+                        {!preview && onSelectTemplate ? (
+                            <EvaluatorTemplateDropdown onSelect={onSelectTemplate} />
+                        ) : (
+                            <Button
+                                icon={<PlusOutlined />}
+                                onClick={() => router.push(evaluatorsRegistryUrl)}
+                            >
+                                Create new
+                            </Button>
+                        )}
                     </Space>
                 </div>
 

@@ -82,6 +82,8 @@ export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
     handlePanelChange: (key: string | string[]) => void
     preview?: boolean
     selectedAppId?: string
+    /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
+    onSelectTemplate?: (evaluator: Evaluator) => void
 }
 
 export interface AdvancedSettingsProps {
