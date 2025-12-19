@@ -31,7 +31,7 @@ const DeploymentOverview = () => {
 
     return (
         <div className={clsx(["flex flex-col gap-2", "[&_>_div_h1.ant-typography]:text-xs"])}>
-            <Title level={2} className="!m-0">
+            <Title level={3} className="!m-0">
                 Deployment
             </Title>
 

@@ -25,7 +25,7 @@ const LatestEvaluationRunsTable: any = dynamic(() =>
     import("@/oss/components/EvaluationRunsTablePOC").then((m) => m.LatestEvaluationRunsTable),
 )
 
-const {Text} = Typography
+const {Title} = Typography
 
 const AppDetailsSection = memo(() => {
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
@@ -38,7 +38,9 @@ const AppDetailsSection = memo(() => {
     return (
         <>
             <Space className="flex items-center gap-3">
-                <Text className="!m-0 text-[16px] font-medium">{currentApp?.app_name || ""}</Text>
+                <Title level={3} className="!m-0">
+                    {currentApp?.app_name || ""}
+                </Title>
 
                 <Dropdown
                     trigger={["click"]}

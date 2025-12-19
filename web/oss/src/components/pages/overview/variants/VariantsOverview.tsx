@@ -49,12 +49,7 @@ const VariantsOverview = () => {
     return (
         <div className={clsx(["flex flex-col gap-2", "[&_>_div_h1.ant-typography]:text-xs"])}>
             <div className="flex items-center justify-between">
-                <Space>
-                    <Title>Recent Prompts</Title>
-                    <Button>
-                        <Link href={`${appURL}/variants`}>View all</Link>
-                    </Button>
-                </Space>
+                <Title level={3}>Recent Prompts</Title>
 
                 <Space>
                     <Button
@@ -104,6 +99,9 @@ const VariantsOverview = () => {
                     handleNavigation(record)
                 }}
             />
+            <Button className="w-fit self-end">
+                <Link href={`${appURL}/variants`}>View all</Link>
+            </Button>
         </div>
     )
 }

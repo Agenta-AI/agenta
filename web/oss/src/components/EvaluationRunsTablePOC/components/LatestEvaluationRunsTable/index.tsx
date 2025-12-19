@@ -42,7 +42,7 @@ const LatestEvaluationRunsTable = ({
         if (!title) return null
         return (
             <div className="flex items-center gap-3 [&_>_h1.ant-typography]:text-xs">
-                <Typography.Title>{title}</Typography.Title>
+                <Typography.Title level={3}>{title}</Typography.Title>
                 {viewAllHref ? (
                     <Link href={viewAllHref} className="ml-2" prefetch>
                         <Button type="default">View all</Button>
