@@ -111,12 +111,14 @@ const OverviewPage = () => {
                     evaluationKind="auto"
                     appId={appId}
                     appScoped
+                    withContainerStyles={false}
                 />
                 <LatestEvaluationRunsTable
                     title="Human Evaluations"
                     evaluationKind="human"
                     appId={appId}
                     appScoped
+                    withContainerStyles={false}
                 />
             </PageLayout>
 

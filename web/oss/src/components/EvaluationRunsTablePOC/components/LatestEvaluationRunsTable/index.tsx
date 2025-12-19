@@ -20,6 +20,8 @@ interface LatestEvaluationRunsTableProps {
     viewAllHref?: string
     /** When true, scopes the table to the provided appId */
     appScoped?: boolean
+    /** When false, removes default padding/border/shadow from the table container */
+    withContainerStyles?: boolean
 }
 
 const LatestEvaluationRunsTable = ({
@@ -32,6 +34,7 @@ const LatestEvaluationRunsTable = ({
     title,
     viewAllHref,
     appScoped = false,
+    withContainerStyles = true,
 }: LatestEvaluationRunsTableProps) => {
     const router = useRouter()
     const [isActive, setIsActive] = useState(false)
@@ -86,7 +89,10 @@ const LatestEvaluationRunsTable = ({
                     enableInfiniteScroll={false}
                     autoHeight={false}
                     headerTitle={headerTitle}
-                    className="border border-gray-100 rounded-lg px-2 py-4 bg-white shadow-sm"
+                    className={clsx(
+                        withContainerStyles &&
+                            "border border-gray-100 rounded-lg px-2 py-4 bg-white shadow-sm",
+                    )}
                 />
             </EvaluationRunsTableStoreProvider>
 
