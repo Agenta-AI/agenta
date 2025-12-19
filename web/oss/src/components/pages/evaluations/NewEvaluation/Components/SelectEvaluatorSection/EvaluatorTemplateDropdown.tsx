@@ -2,7 +2,7 @@ import {memo, useCallback, useMemo, useState} from "react"
 
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Dropdown, Empty, Skeleton, Tabs, Tag, Typography} from "antd"
+import {Button, Empty, Popover, Skeleton, Tabs, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -100,7 +100,7 @@ const EvaluatorTemplateDropdown = ({
                             onClick={() => handleTemplateSelect(item)}
                             className={clsx(
                                 "border-0 border-b border-solid border-gray-200 last:border-b-0",
-                                "min-h-[56px] flex flex-col justify-center gap-1 py-2 px-3",
+                                "min-h-[56px] flex flex-col justify-center gap-1 py-2 px-4",
                                 "cursor-pointer group hover:bg-gray-50 transition-colors",
                             )}
                         >
@@ -126,19 +126,14 @@ const EvaluatorTemplateDropdown = ({
         )
     }
 
-    const dropdownContent = (
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 w-[380px]">
-            <div className="px-3 pt-3 pb-1">
-                <Typography.Text strong className="text-sm">
-                    Select evaluator type
-                </Typography.Text>
-            </div>
+    const popoverContent = (
+        <div className="w-[380px]">
             <Tabs
                 items={tabItems}
                 activeKey={activeTab}
                 onChange={handleTabChange}
                 size="small"
-                className="[&_.ant-tabs-nav]:px-3 [&_.ant-tabs-nav]:mb-0 [&_.ant-tabs-tab]:text-xs [&_.ant-tabs-tab]:py-2"
+                className="[&_.ant-tabs-nav]:px-4 [&_.ant-tabs-nav]:mb-0 [&_.ant-tabs-tab]:text-xs [&_.ant-tabs-tab]:py-2 border-b border-gray-100"
             />
             {renderDropdownContent()}
         </div>
@@ -147,15 +142,18 @@ const EvaluatorTemplateDropdown = ({
     const defaultTrigger = <Button icon={<PlusOutlined />}>Create new</Button>
 
     return (
-        <Dropdown
+        <Popover
             open={open}
             onOpenChange={setOpen}
             trigger={["click"]}
-            dropdownRender={() => dropdownContent}
+            content={popoverContent}
             placement="bottomRight"
+            arrow={false}
+            title="Select evaluator type"
+            overlayInnerStyle={{padding: 0}}
         >
             <span className={className}>{trigger || defaultTrigger}</span>
-        </Dropdown>
+        </Popover>
     )
 }
 
