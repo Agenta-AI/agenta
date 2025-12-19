@@ -2,20 +2,13 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {ArrowLeft, Info} from "@phosphor-icons/react"
 import {Button, Form, Input, Space, Tag, Tooltip, Typography} from "antd"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
 import {message} from "@/oss/components/AppMessageContext"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {
-    EvaluationSettingsTemplate,
-    Evaluator,
-    EvaluatorConfig,
-    JSSTheme,
-    SettingsPreset,
-    testset,
-    Variant,
-} from "@/oss/lib/Types"
+import {EvaluationSettingsTemplate, JSSTheme, SettingsPreset, testset, Variant} from "@/oss/lib/Types"
 import {
     CreateEvaluationConfigData,
     createEvaluatorConfig,
@@ -25,6 +18,16 @@ import {useAppList} from "@/oss/state/app"
 
 import AdvancedSettings from "./AdvancedSettings"
 import {DynamicFormField} from "./DynamicFormField"
+import {
+    commitPlaygroundAtom,
+    playgroundEditValuesAtom,
+    playgroundEvaluatorAtom,
+    playgroundFormRefAtom,
+    playgroundIsCloneModeAtom,
+    playgroundIsEditModeAtom,
+    playgroundSelectedTestcaseAtom,
+    playgroundTraceTreeAtom,
+} from "./state/atoms"
 
 const LoadEvaluatorPreset = dynamic(
     () =>
@@ -42,32 +45,28 @@ const DebugSection: any = dynamic(
     {ssr: false},
 )
 
+/**
+ * Props for ConfigureEvaluator
+ *
+ * Most state is now managed via atoms (see ./state/atoms.ts).
+ * These props are for:
+ * - Callbacks that need to be provided by parent
+ * - Data that comes from queries (variants, testsets)
+ * - Layout customization
+ */
 interface ConfigureEvaluatorProps {
-    setCurrent: React.Dispatch<React.SetStateAction<number>>
-    handleOnCancel: () => void
+    /** Callback when back button is clicked */
+    onClose: () => void
+    /** Callback after successful save */
     onSuccess: () => void
-    selectedEvaluator: Evaluator
+    /** Available variants for testing (from query) */
     variants: Variant[] | null
+    /** Available testsets for testing (from query) */
     testsets: testset[] | null
-    selectedTestcase: {
-        testcase: Record<string, any> | null
-    }
-    setSelectedVariant: React.Dispatch<React.SetStateAction<Variant | null>>
-    selectedVariant: Variant | null
-    editMode: boolean
-    editEvalEditValues: EvaluatorConfig | null
-    setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
-    setEditMode: (value: React.SetStateAction<boolean>) => void
-    cloneConfig: boolean
-    setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
-    setSelectedTestcase: React.Dispatch<
-        React.SetStateAction<{
-            testcase: Record<string, any> | null
-        }>
-    >
-    setSelectedTestset: React.Dispatch<React.SetStateAction<string>>
-    selectedTestset: string
+    /** Optional app ID override (defaults to route app or first app) */
     appId?: string | null
+    /** Optional container class for height customization (e.g., drawer vs page) */
+    containerClassName?: string
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -120,43 +119,46 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const ConfigureEvaluator = ({
-    setCurrent,
-    selectedEvaluator,
-    handleOnCancel,
+    onClose,
+    onSuccess,
     variants,
     testsets,
-    onSuccess,
-    selectedTestcase,
-    selectedVariant,
-    setSelectedVariant,
-    editMode,
-    editEvalEditValues,
-    setEditEvalEditValues,
-    setEditMode,
-    cloneConfig,
-    setCloneConfig,
-    setSelectedTestcase,
-    selectedTestset,
-    setSelectedTestset,
     appId: appIdOverride,
+    containerClassName,
 }: ConfigureEvaluatorProps) => {
     const routeAppId = useAppId()
     const apps = useAppList()
     const appId = appIdOverride ?? routeAppId ?? apps?.[0].app_id
     const classes = useStyles()
 
+    // ================================================================
+    // ATOMS - Read state from playground atoms
+    // ================================================================
+    const selectedEvaluator = useAtomValue(playgroundEvaluatorAtom)
+    const editMode = useAtomValue(playgroundIsEditModeAtom)
+    const cloneConfig = useAtomValue(playgroundIsCloneModeAtom)
+    const [editEvalEditValues, setEditEvalEditValues] = useAtom(playgroundEditValuesAtom)
+    // These are read-only here; DebugSection manages updates via atoms
+    const selectedTestcase = useAtomValue(playgroundSelectedTestcaseAtom)
+    const traceTree = useAtomValue(playgroundTraceTreeAtom)
+    const setFormRef = useSetAtom(playgroundFormRefAtom)
+    const commitPlayground = useSetAtom(commitPlaygroundAtom)
+
+    // ================================================================
+    // LOCAL STATE - UI-only state that doesn't need to be shared
+    // ================================================================
     const [isLoadEvaluatorPresetsModalOpen, setIsLoadEvaluatorPresetsModalOpen] = useState(false)
     const [selectedSettingsPreset, setSelectedSettingsPreset] = useState<SettingsPreset | null>(
         null,
     )
-
     const [form] = Form.useForm()
     const [submitLoading, setSubmitLoading] = useState(false)
-    const [traceTree, setTraceTree] = useState<{
-        trace: Record<string, any> | string | null
-    }>({
-        trace: null,
-    })
+
+    // Store form ref in atom so DebugSection can access it
+    useEffect(() => {
+        setFormRef(form)
+        return () => setFormRef(null)
+    }, [form, setFormRef])
 
     // Watch form name field for display in header
     const formName = Form.useWatch("name", form)
@@ -274,7 +276,7 @@ const ConfigureEvaluator = ({
     const onSubmit = async (values: CreateEvaluationConfigData) => {
         try {
             setSubmitLoading(true)
-            if (!selectedEvaluator.key) throw new Error("No selected key")
+            if (!selectedEvaluator?.key) throw new Error("No selected key")
             const settingsValues = values.settings_values || {}
 
             const jsonSchemaFieldPath: (string | number)[] = ["settings_values", "json_schema"]
@@ -319,29 +321,31 @@ const ConfigureEvaluator = ({
 
             const data = {
                 ...values,
-                evaluator_key: selectedEvaluator.key,
+                evaluator_key: selectedEvaluator!.key,
                 settings_values: settingsValues,
             }
 
             if (editMode) {
                 await updateEvaluatorConfig(editEvalEditValues?.id!, data)
 
-                setEditEvalEditValues((previous) =>
-                    previous
-                        ? {
-                              ...previous,
-                              ...data,
-                              settings_values: settingsValues,
-                          }
-                        : previous,
-                )
+                // Update atom with merged values
+                const updatedConfig = editEvalEditValues
+                    ? {
+                          ...editEvalEditValues,
+                          ...data,
+                          settings_values: settingsValues,
+                      }
+                    : null
+                if (updatedConfig) {
+                    commitPlayground(updatedConfig)
+                }
             } else {
                 const response = await createEvaluatorConfig(appId, data)
                 const createdConfig = response?.data
 
                 if (createdConfig) {
-                    setEditEvalEditValues(createdConfig)
-                    setEditMode(true)
+                    // Use commitPlayground to update state and switch to edit mode
+                    commitPlayground(createdConfig)
                 }
             }
 
@@ -374,9 +378,16 @@ const ConfigureEvaluator = ({
         }
     }, [editMode, cloneConfig, editEvalEditValues, form])
 
+    // Guard: if no evaluator selected, show nothing (shouldn't happen in normal flow)
+    if (!selectedEvaluator) {
+        return null
+    }
+
     return (
         <>
-            <section className="flex flex-col w-full h-[calc(100vh-84px)]">
+            <section
+                className={containerClassName ?? "flex flex-col w-full h-[calc(100vh-84px)]"}
+            >
                 {/* Top Header - grey like playground */}
                 <div className="flex items-center justify-between gap-4 px-2.5 py-2 border-0 border-b border-solid border-gray-200 sticky top-0 z-20 bg-[#FAFAFB]">
                     <div className="flex items-center gap-2">
@@ -384,12 +395,7 @@ const ConfigureEvaluator = ({
                             icon={<ArrowLeft size={14} />}
                             className="flex items-center justify-center"
                             size="small"
-                            onClick={() => {
-                                setCurrent(0)
-                                setEditMode(false)
-                                setCloneConfig(false)
-                                setEditEvalEditValues(null)
-                            }}
+                            onClick={onClose}
                         />
                         <Typography.Text className="text-[16px] leading-[18px] font-[600]">
                             {editMode ? "Edit evaluator" : "Configure evaluator"}
@@ -510,19 +516,9 @@ const ConfigureEvaluator = ({
                         {/* Debug Section Content - without its own title */}
                         <div className="p-4">
                             <DebugSection
-                                selectedEvaluator={selectedEvaluator}
-                                selectedTestcase={selectedTestcase}
-                                selectedVariant={selectedVariant}
-                                setTraceTree={setTraceTree}
-                                debugEvaluator={true}
-                                form={form}
                                 testsets={testsets}
-                                traceTree={traceTree}
                                 variants={variants}
-                                setSelectedVariant={setSelectedVariant}
-                                setSelectedTestcase={setSelectedTestcase}
-                                selectedTestset={selectedTestset}
-                                setSelectedTestset={setSelectedTestset}
+                                debugEvaluator={true}
                             />
                         </div>
                     </div>

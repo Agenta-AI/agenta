@@ -1,5 +1,21 @@
 // @ts-nocheck
-import {Dispatch, SetStateAction, useEffect, useMemo, useRef, useState} from "react"
+/**
+ * DebugSection - Test evaluator configuration
+ *
+ * This component handles testing evaluators by:
+ * 1. Loading testcases from testsets
+ * 2. Running a variant to generate output
+ * 3. Running the evaluator on the output
+ *
+ * State is managed via atoms (see ./state/atoms.ts):
+ * - playgroundSelectedTestcaseAtom: Selected testcase data
+ * - playgroundSelectedVariantAtom: Selected variant for testing
+ * - playgroundSelectedTestsetIdAtom: Selected testset ID
+ * - playgroundTraceTreeAtom: Trace output from running variant
+ * - playgroundEvaluatorAtom: Current evaluator being configured
+ * - playgroundFormRefAtom: Form instance for reading settings
+ */
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {
     CheckCircleOutlined,
@@ -8,9 +24,9 @@ import {
     MoreOutlined,
 } from "@ant-design/icons"
 import {Database, Lightning, Play} from "@phosphor-icons/react"
-import {Button, Dropdown, Flex, FormInstance, Space, Tabs, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Flex, Space, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
@@ -34,7 +50,6 @@ import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
 import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {buildNodeTree, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {
     buildNodeTreeV3,
@@ -44,7 +59,6 @@ import {
 import {
     BaseResponse,
     ChatMessage,
-    Evaluator,
     JSSTheme,
     Parameter,
     testset,
@@ -67,34 +81,29 @@ import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
+import {
+    playgroundEvaluatorAtom,
+    playgroundFormRefAtom,
+    playgroundSelectedTestcaseAtom,
+    playgroundSelectedTestsetIdAtom,
+    playgroundSelectedVariantAtom,
+    playgroundTraceTreeAtom,
+} from "./state/atoms"
 import {buildVariantFromRevision} from "./variantUtils"
 
+/**
+ * Props for DebugSection
+ *
+ * Most state is now managed via atoms (see ./state/atoms.ts).
+ * These props are for data that comes from queries (variants, testsets).
+ */
 interface DebugSectionProps {
-    selectedTestcase: {
-        testcase: Record<string, any> | null
-    }
-    selectedVariant: EnhancedVariant
+    /** Available testsets for loading testcases (from query) */
     testsets: testset[] | null
-    traceTree: {
-        trace: Record<string, any> | string | null
-    }
-    setTraceTree: Dispatch<
-        SetStateAction<{
-            trace: Record<string, any> | string | null
-        }>
-    >
-    selectedEvaluator: Evaluator
-    form: FormInstance<any>
-    debugEvaluator: boolean
-    setSelectedVariant: Dispatch<SetStateAction<Variant | null>>
+    /** Available variants for running (from query) */
     variants: Variant[] | null
-    setSelectedTestcase: Dispatch<
-        SetStateAction<{
-            testcase: Record<string, any> | null
-        }>
-    >
-    setSelectedTestset: Dispatch<SetStateAction<string>>
-    selectedTestset: string
+    /** Whether debug mode is enabled */
+    debugEvaluator?: boolean
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -157,26 +166,37 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const LAST_APP_KEY = "agenta:lastAppId"
 const LAST_VARIANT_KEY = "agenta:lastVariantId"
 
-const DebugSection = ({
-    selectedTestcase,
-    selectedVariant: _selectedVariant,
-    testsets,
-    traceTree,
-    setTraceTree,
-    selectedEvaluator,
-    form,
-    debugEvaluator,
-    variants,
-    setSelectedVariant,
-    setSelectedTestcase,
-    selectedTestset,
-    setSelectedTestset,
-}: DebugSectionProps) => {
+const DebugSection = ({testsets, variants, debugEvaluator = true}: DebugSectionProps) => {
     const appId = useAppId()
     const classes = useStyles()
     const uriObject = useAtomValue(appUriInfoAtom)
     const appSchema = useAtomValue(appSchemaAtom)
     const {apps: availableApps = []} = useAppsData()
+
+    // ================================================================
+    // ATOMS - Read/write state from playground atoms
+    // ================================================================
+    const selectedTestcase = useAtomValue(playgroundSelectedTestcaseAtom)
+    const setSelectedTestcase = useSetAtom(playgroundSelectedTestcaseAtom)
+    const _selectedVariant = useAtomValue(playgroundSelectedVariantAtom)
+    const setSelectedVariant = useSetAtom(playgroundSelectedVariantAtom)
+    const selectedTestset = useAtomValue(playgroundSelectedTestsetIdAtom)
+    const setSelectedTestset = useSetAtom(playgroundSelectedTestsetIdAtom)
+    const traceTree = useAtomValue(playgroundTraceTreeAtom)
+    const setTraceTree = useSetAtom(playgroundTraceTreeAtom)
+    const selectedEvaluator = useAtomValue(playgroundEvaluatorAtom)
+    const form = useAtomValue(playgroundFormRefAtom)
+
+    // DEBUG: Log atom states
+    console.log("[DebugSection] Atom states:", {
+        _selectedVariant: _selectedVariant,
+        _selectedVariantId: (_selectedVariant as any)?.variantId,
+        _selectedVariantRevisions: (_selectedVariant as any)?.revisions?.length,
+        selectedTestcase: selectedTestcase,
+        selectedTestset: selectedTestset,
+        selectedEvaluator: selectedEvaluator?.key,
+        formExists: !!form,
+    })
     const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
     const [outputResult, setOutputResult] = useState("")
     const [isLoadingResult, setIsLoadingResult] = useState(false)
@@ -185,6 +205,11 @@ const DebugSection = ({
     const [variantResult, setVariantResult] = useState("")
     const [openVariantModal, setOpenVariantModal] = useState(false)
     const [openTestcaseModal, setOpenTestcaseModal] = useState(false)
+
+    // DEBUG: Log modal state changes
+    useEffect(() => {
+        console.log("[DebugSection] openVariantModal changed:", openVariantModal)
+    }, [openVariantModal])
     const [variantStatus, setVariantStatus] = useState({
         success: false,
         error: false,
@@ -205,9 +230,21 @@ const DebugSection = ({
     const {revisionMap: defaultRevisionMap} = useAppVariantRevisions(defaultAppId || null)
 
     const selectedVariant = useMemo(() => {
-        const revs = _selectedVariant?.revisions || []
-        const variant = revs?.sort((a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
-        return variant
+        console.log("[DebugSection] Computing selectedVariant from _selectedVariant:", {
+            _selectedVariant,
+            hasRevisions: !!((_selectedVariant as any)?.revisions?.length),
+        })
+        if (!_selectedVariant) return undefined
+        // If the variant has revisions, get the most recent one
+        const revs = (_selectedVariant as any)?.revisions || []
+        if (revs.length > 0) {
+            const result = revs.sort((a: any, b: any) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
+            console.log("[DebugSection] selectedVariant (from revisions):", result)
+            return result
+        }
+        // Otherwise, return the variant itself (it may already be a revision or simple variant)
+        console.log("[DebugSection] selectedVariant (direct):", _selectedVariant)
+        return _selectedVariant
     }, [_selectedVariant])
 
     const fallbackVariant = useMemo(() => {
@@ -289,6 +326,14 @@ const DebugSection = ({
         }
     }, [_selectedVariant, derivedVariants, setSelectedVariant])
 
+    // Initialize testset selection when testsets are available
+    useEffect(() => {
+        if (selectedTestset) return // Already have a selection
+        if (testsets?.length) {
+            setSelectedTestset(testsets[0]._id)
+        }
+    }, [testsets, selectedTestset, setSelectedTestset])
+
     // Variant flags (custom/chat) from global atoms for the selected revision
     const flags = useAtomValue(
         useMemo(
@@ -344,7 +389,7 @@ const DebugSection = ({
         Boolean(value) && typeof value === "object" && !Array.isArray(value)
 
     const fetchEvalMapper = async () => {
-        if (!baseResponseData || !selectedTestcase.testcase) return
+        if (!baseResponseData || !selectedTestcase.testcase || !selectedEvaluator || !form) return
 
         try {
             setEvalOutputStatus({success: false, error: false})
@@ -459,11 +504,25 @@ const DebugSection = ({
     }
 
     const handleRunVariant = async () => {
+        console.log("[DebugSection] handleRunVariant called", {
+            availableAppsLength: availableApps.length,
+            derivedVariantsLength: derivedVariants.length,
+            selectedTestcase: selectedTestcase,
+            selectedVariant: selectedVariant,
+            selectedVariantId: selectedVariant?.variantId,
+        })
         if (availableApps.length === 0 && derivedVariants.length === 0) {
+            console.log("[DebugSection] No apps or variants available")
             message.info("Create an app first to run a variant.")
             return
         }
-        if (!selectedTestcase.testcase || !selectedVariant) return
+        if (!selectedTestcase.testcase || !selectedVariant) {
+            console.log("[DebugSection] Missing testcase or variant", {
+                hasTestcase: !!selectedTestcase.testcase,
+                hasVariant: !!selectedVariant,
+            })
+            return
+        }
         const controller = new AbortController()
         abortControllersRef.current = controller
 
@@ -763,15 +822,20 @@ const DebugSection = ({
 
     const _evaluatorOutputEditorKey = useMemo(
         () =>
-            `evaluator-output-${selectedEvaluator.key}-${JSON.stringify(
+            `evaluator-output-${selectedEvaluator?.key ?? "none"}-${JSON.stringify(
                 selectedTestcase.testcase ?? {},
             )}`,
-        [selectedEvaluator.key, selectedTestcase.testcase],
+        [selectedEvaluator?.key, selectedTestcase.testcase],
     )
 
     // Helper to print "App / Variant" nicely
     const appName = selectedApp?.name || selectedApp?.app_name || "app"
     const variantName = selectedVariant?.variantName || "variant"
+
+    // Guard: if no evaluator selected, show nothing (shouldn't happen in normal flow)
+    if (!selectedEvaluator) {
+        return null
+    }
 
     return (
         <section className="flex flex-col gap-4 h-full pb-10 w-full">
@@ -815,13 +879,13 @@ const DebugSection = ({
                             className={`${classes.editor} h-full`}
                             editorType="border"
                             initialValue={getStringOrJson(
-                                selectedTestcase.testcase ? formatJson(selectedTestcase) : "",
+                                selectedTestcase.testcase ? formatJson(selectedTestcase.testcase) : "",
                             )}
                             handleChange={(value) => {
                                 try {
                                     if (value) {
                                         const parsedValue = JSON.parse(value)
-                                        setSelectedTestcase(parsedValue)
+                                        setSelectedTestcase({testcase: parsedValue})
                                     }
                                 } catch (error) {
                                     console.error("Failed to parse testcase JSON", error)
@@ -873,7 +937,10 @@ const DebugSection = ({
                                 className="w-fit"
                                 disabled={!selectedTestcase.testcase}
                                 size="small"
-                                onClick={handleRunVariant}
+                                onClick={() => {
+                                    console.log("[DebugSection] Run button clicked")
+                                    handleRunVariant()
+                                }}
                                 loading={isRunningVariant}
                                 icon={<MoreOutlined />}
                                 menu={{
@@ -881,9 +948,11 @@ const DebugSection = ({
                                         {
                                             key: "change_variant",
                                             icon: <Lightning />,
-                                            // Updated copy
                                             label: "Change application",
-                                            onClick: () => setOpenVariantModal(true),
+                                            onClick: () => {
+                                                console.log("[DebugSection] Change application clicked, opening modal")
+                                                setOpenVariantModal(true)
+                                            },
                                         },
                                     ],
                                 }}
@@ -1044,8 +1113,16 @@ const DebugSection = ({
             <EvaluatorVariantModal
                 variants={derivedVariants}
                 open={openVariantModal}
-                onCancel={() => setOpenVariantModal(false)}
+                onCancel={() => {
+                    console.log("[DebugSection] Modal cancelled")
+                    setOpenVariantModal(false)
+                }}
                 setSelectedVariant={(v) => {
+                    console.log("[DebugSection] setSelectedVariant from modal:", {
+                        variant: v,
+                        variantId: (v as any)?.variantId,
+                        revisions: (v as any)?.revisions?.length,
+                    })
                     setSelectedVariant(v)
                     // eager persist on selection from modal
                     try {
