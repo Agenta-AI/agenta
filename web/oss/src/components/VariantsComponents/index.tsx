@@ -121,7 +121,7 @@ const VariantsDashboard = () => {
             const children = sorted.slice(1)
             groups.push({
                 ...latest,
-                _parentVariant: true,
+                _isParentRow: true,
                 children,
             })
         })
