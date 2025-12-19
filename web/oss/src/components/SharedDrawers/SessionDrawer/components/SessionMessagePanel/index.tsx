@@ -55,7 +55,7 @@ const SessionMessagePanel = ({
             className={clsx(
                 "border border-solid border-colorBorder overflow-hidden",
                 "[&_.ant-collapse-header]:bg-[#05172905] [&_.ant-collapse-header]:border-0 [&_.ant-collapse-header]:border-b [&_.ant-collapse-header]:border-solid [&_.ant-collapse-header]:border-colorSplit",
-                "[&_.ant-collapse-content]:!bg-white [&_.ant-collapse-content-box]:!p-0",
+                "[&_.ant-collapse-body]:!bg-white [&_.ant-collapse-body]:!p-0",
             )}
             items={[
                 {
@@ -116,6 +116,7 @@ const SessionMessagePanel = ({
 
                             <AnnotateDrawerButton
                                 label="Annotate"
+                                size="small"
                                 data={trace?.annotations || []}
                                 traceSpanIds={{
                                     traceId: trace?.trace_id,

@@ -5,6 +5,7 @@ import {
     sessionAnnotatedTracesAtom,
     sessionDrawerActiveSpanIdAtom,
     sessionDrawerSessionIdAtom,
+    sessionStatsAtom,
 } from "../store/sessionDrawerStore"
 
 export const useSessionDrawer = () => {
@@ -12,12 +13,14 @@ export const useSessionDrawer = () => {
     const activeSpanId = useAtomValue(sessionDrawerActiveSpanIdAtom)
     const sessionTraces = useAtomValue(sessionAnnotatedTracesAtom)
     const isLoading = useAtomValue(isSessionDrawerLoadingAtom)
+    const aggregatedStats = useAtomValue(sessionStatsAtom)
 
     return {
         sessionId,
         activeSpanId,
         sessionTraces,
         isLoading,
+        aggregatedStats,
     }
 }
 

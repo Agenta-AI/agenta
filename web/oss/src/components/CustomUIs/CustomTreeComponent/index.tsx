@@ -2,7 +2,6 @@ import React, {useState} from "react"
 
 import {MinusSquareOutlined, PlusSquareOutlined} from "@ant-design/icons"
 
-import {_AgentaRootsResponse} from "@/oss/services/observability/types"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 import {TreeContent} from "../../SharedDrawers/TraceDrawer/components/TraceTree"
@@ -60,7 +59,9 @@ const TreeNodeComponent: React.FC<{
     isRoot?: boolean
 }> = ({node, isLast, settings, selectedKey, onSelect, isRoot = false}) => {
     const classes = useStyles()
-    const [expanded, setExpanded] = useState(true)
+    const [expanded, setExpanded] = useState(
+        typeof (node as any).expanded === "boolean" ? (node as any).expanded : true,
+    )
     const hasChildren = node.children && node.children.length > 0
 
     const toggle = () => setExpanded((prev) => !prev)
