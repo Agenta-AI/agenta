@@ -30,21 +30,21 @@ pydantic = "^2"
 httpx = "^0.28"
 structlog = "^25"
 
-# Tracing dependencies (core feature, always loaded)
+# Tracing dependencies (core feature, always loaded for now)
 opentelemetry-api = "^1"
 opentelemetry-sdk = "^1"
 opentelemetry-instrumentation = "^0.59b0"
 opentelemetry-exporter-otlp-proto-http = "^1"
 
 # Lazy-loaded dependencies (imported only when used)
-fastapi = ">=0.125"  # Only for serving (@app, @route decorators)
-litellm = "^1"  # Only for LLM operations (prompt handlers)
-jinja2 = "^3"  # Only for jinja2 templating
-pyyaml = "^6"  # Only for YAML config files (ConfigManager.get_from_yaml)
-python-jsonpath = "^2"  # Only for JSONPath expressions (try/except wrapped)
-openai = "^2"  # Only for OpenAI-specific workflows
-restrictedpython = { version = "^8", python = ">=3.11, <3.14" }  # Only for sandboxed code execution
-daytona = "^0.125.0"  # Only for Daytona sandbox runner
+fastapi = ">=0.125"
+pyyaml = "^6"
+litellm = "^1"
+openai = "^2"
+jinja2 = "^3"
+python-jsonpath = "^2"
+restrictedpython = { version = "^8", python = ">=3.11, <3.14" }
+daytona = "^0.125.0"
 
 
 [tool.poetry.group.dev.dependencies]
