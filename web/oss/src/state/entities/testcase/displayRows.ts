@@ -87,15 +87,6 @@ export const displayRowRefsAtom = atom((get): DisplayRowRef[] => {
         })
     })
 
-    console.log(
-        "[displayRowRefsAtom] total:",
-        refs.length,
-        "new:",
-        newIds.length,
-        "server:",
-        serverIds.length,
-    )
-
     return refs
 })
 

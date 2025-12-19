@@ -2,8 +2,6 @@ import {memo, useMemo} from "react"
 
 import {useAtomValue} from "jotai"
 
-import {useEntityMutation} from "@/oss/state/entities"
-import {testcaseStore} from "@/oss/state/entities/testcase/store"
 import {testcaseCellAtomFamily} from "@/oss/state/entities/testcase/testcaseEntity"
 
 import TestcaseCellContent from "./TestcaseCellContent"
@@ -59,28 +57,3 @@ export const TestcaseCell = memo(function TestcaseCell({
     // Default: use TestcaseCellContent for smart rendering
     return <TestcaseCellContent value={value} maxLines={maxLines} />
 })
-
-/**
- * Hook to get mutation functions for testcase entities
- */
-export function useTestcaseMutation() {
-    const {update, upsert, remove, invalidate} = useEntityMutation(testcaseStore)
-
-    const updateField = useCallback(
-        (testcaseId: string, columnKey: string, value: unknown) => {
-            update({
-                id: testcaseId,
-                updates: {[columnKey]: value},
-            })
-        },
-        [update],
-    )
-
-    return {
-        updateField,
-        update,
-        upsert,
-        remove,
-        invalidate,
-    }
-}

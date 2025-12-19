@@ -117,27 +117,11 @@ export interface UseTestcasesTableResult {
     /** Update search term */
     setSearchTerm: (term: string) => void
 
-    // Pagination
-    /** Load next page of testcases */
-    loadNextPage: () => void
-    /** Reset and refetch all pages */
-    resetPages: () => void
-    /** Whether there are more pages to load */
-    hasMorePages: boolean
-    /** Whether currently fetching next page */
-    isFetchingNextPage: boolean
-    /** Server-side total count */
-    serverTotalCount: number
-
     // Revisions
     /** Available revisions for this testset */
-    availableRevisions: {id: string; version: number; created_at: string}[]
+    availableRevisions: {id: string; version: number; created_at?: string | null}[]
     /** Whether revisions are loading */
     loadingRevisions: boolean
-
-    // Refetch
-    /** Manually refetch revision data */
-    refetch: () => void
 }
 
 /**

@@ -32,7 +32,7 @@ import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
-import {isTestcaseDirtyAtomFamily} from "@/oss/state/entities/testcase/dirtyState"
+import {testcaseIsDirtyAtom} from "@/oss/state/entities/testcase/dirtyState"
 import {projectIdAtom} from "@/oss/state/project"
 
 import AlertPopup from "../AlertPopup/AlertPopup"
@@ -169,17 +169,6 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
         [revisionIdParam],
     )
 
-    // Pagination - use real callbacks from hook
-    // Note: rowRefs contains {id, key, __isNew} - cells read data from entity atoms
-    const tablePagination = useMemo(
-        () => ({
-            rows: table.rowRefs,
-            loadNextPage: table.loadNextPage,
-            resetPages: table.resetPages,
-        }),
-        [table.rowRefs, table.loadNextPage, table.resetPages],
-    )
-
     // Get the global Jotai store so entity atoms are accessible inside the table
     const globalStore = useMemo(() => getDefaultStore(), [])
 
@@ -192,10 +181,9 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                       onChange: setSelectedRowKeys,
                       columnWidth: 48,
                       onCell: (record: TestcaseTableRow) => {
-                          // Use isTestcaseDirtyAtomFamily which compares entity data vs server cache
-                          // This correctly handles column renames with infinite scrolling
+                          // Check if testcase has unsaved changes
                           if (record.id) {
-                              const isDirty = globalStore.get(isTestcaseDirtyAtomFamily(record.id))
+                              const isDirty = globalStore.get(testcaseIsDirtyAtom(record.id))
                               if (isDirty) {
                                   return {
                                       // Use inline style to override hover styles
@@ -793,12 +781,73 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
         ],
     )
 
-    // Loading state
+    // Loading state - matches actual table layout
     if (table.isLoading && table.rowRefs.length === 0) {
         return (
             <div className="flex flex-col h-full w-full p-6 gap-4">
-                <Skeleton.Input active style={{width: 200, height: 32}} />
-                <Skeleton active paragraph={{rows: 10}} />
+                {/* Header row: title + version + actions */}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Skeleton.Input active style={{width: 280, height: 32}} />
+                        <Skeleton.Button active style={{width: 50, height: 24}} />
+                        <Skeleton.Button active style={{width: 40, height: 22}} />
+                    </div>
+                </div>
+
+                {/* Description */}
+                <Skeleton.Input active style={{width: 500, height: 20}} />
+
+                {/* Controls row: search + actions */}
+                <div className="flex items-center justify-between">
+                    <Skeleton.Input active style={{width: 256, height: 32}} />
+                    <div className="flex items-center gap-2">
+                        <Skeleton.Button active style={{width: 70, height: 32}} />
+                        <Skeleton.Button active style={{width: 80, height: 32}} />
+                        <Skeleton.Button active style={{width: 80, height: 32}} />
+                    </div>
+                </div>
+
+                {/* Table skeleton */}
+                <div className="flex-1 border rounded-md overflow-hidden">
+                    {/* Table header */}
+                    <div className="flex border-b bg-gray-50 p-2 gap-4">
+                        <div style={{width: 32, flexShrink: 0}}>
+                            <Skeleton.Input active style={{width: 32, height: 20}} />
+                        </div>
+                        <div className="flex-1">
+                            <Skeleton.Input active block style={{height: 20}} />
+                        </div>
+                        <div className="flex-1">
+                            <Skeleton.Input active block style={{height: 20}} />
+                        </div>
+                        <div className="flex-1">
+                            <Skeleton.Input active block style={{height: 20}} />
+                        </div>
+                        <div className="flex-1">
+                            <Skeleton.Input active block style={{height: 20}} />
+                        </div>
+                    </div>
+                    {/* Table rows */}
+                    {Array.from({length: 8}).map((_, i) => (
+                        <div key={i} className="flex border-b p-3 gap-4">
+                            <div style={{width: 32, flexShrink: 0}}>
+                                <Skeleton.Input active style={{width: 32, height: 16}} />
+                            </div>
+                            <div className="flex-1">
+                                <Skeleton.Input active block style={{height: 60}} />
+                            </div>
+                            <div className="flex-1">
+                                <Skeleton.Input active block style={{height: 60}} />
+                            </div>
+                            <div className="flex-1">
+                                <Skeleton.Input active block style={{height: 60}} />
+                            </div>
+                            <div className="flex-1">
+                                <Skeleton.Input active block style={{height: 60}} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         )
     }
@@ -825,7 +874,6 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 )}
                 tableProps={tableProps}
                 rowSelection={rowSelection}
-                pagination={tablePagination}
                 useSettingsDropdown
                 settingsDropdownMenuItems={rowHeight.menuItems}
                 resizableColumns
@@ -855,6 +903,16 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 onOk={handleRenameConfirm}
                 onCancel={() => setIsRenameModalOpen(false)}
                 okText="Save"
+                afterOpenChange={(open) => {
+                    if (open) {
+                        // Focus input after modal animation completes
+                        const input = document.querySelector(
+                            ".testset-rename-modal-input input",
+                        ) as HTMLInputElement
+                        input?.focus()
+                        input?.select()
+                    }
+                }}
             >
                 <div className="flex flex-col gap-4">
                     <div>
@@ -862,10 +920,10 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                             Name
                         </Typography.Text>
                         <Input
+                            className="testset-rename-modal-input"
                             value={editModalName}
                             onChange={(e) => setEditModalName(e.target.value)}
                             placeholder="Testset name"
-                            autoFocus
                         />
                     </div>
                     <div>
@@ -905,14 +963,23 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 okText="Add"
                 okButtonProps={{disabled: !newColumnName.trim()}}
                 destroyOnHidden
+                afterOpenChange={(open) => {
+                    if (open) {
+                        // Focus input after modal animation completes
+                        const input = document.querySelector(
+                            ".add-column-modal-input input",
+                        ) as HTMLInputElement
+                        input?.focus()
+                    }
+                }}
             >
                 <div className="py-2">
                     <Typography.Text className="block mb-2">Column name:</Typography.Text>
                     <Input
+                        className="add-column-modal-input"
                         value={newColumnName}
                         onChange={(e) => setNewColumnName(e.target.value)}
                         placeholder="Enter column name"
-                        autoFocus
                         onPressEnter={handleAddColumn}
                     />
                 </div>

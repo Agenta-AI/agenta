@@ -3,7 +3,7 @@ import {memo, useEffect} from "react"
 import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {latestRevisionAtomFamily, requestLatestRevisionAtom} from "../atoms/latestRevisionStore"
+import {latestRevisionAtomFamily, requestLatestRevisionAtom} from "@/oss/state/entities/testset"
 
 interface LatestCommitMessageProps {
     testsetId: string

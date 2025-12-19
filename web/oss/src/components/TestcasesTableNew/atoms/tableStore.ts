@@ -1,4 +1,4 @@
-import {atom} from "jotai"
+import {atom, getDefaultStore} from "jotai"
 import {atomWithStorage} from "jotai/vanilla/utils"
 
 import {
@@ -6,8 +6,15 @@ import {
     type BaseTableMeta,
     type InfiniteTableRowBase,
 } from "@/oss/components/InfiniteVirtualTable"
+import type {InfiniteTableFetchResult} from "@/oss/components/InfiniteVirtualTable/types"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {cleanupOnRevisionChangeAtom} from "@/oss/state/entities/testcase/atomCleanup"
+import {resetColumnsAtom} from "@/oss/state/entities/testcase/columnState"
+import {initializeV0DraftAtom} from "@/oss/state/entities/testcase/editSession"
+import {revisionQueryAtom} from "@/oss/state/entities/testcase/queries"
+import {flattenTestcase, testcasesResponseSchema} from "@/oss/state/entities/testcase/schema"
+import {setTestcaseIdsAtom} from "@/oss/state/entities/testcase/testcaseEntity"
 import {projectIdAtom} from "@/oss/state/project"
 
 /**
@@ -70,30 +77,48 @@ export const testcasesTableMetaAtom = atom<TestcaseTableMeta>((get) => {
     }
 })
 
+const PAGE_SIZE = 50
+
 /**
- * Fetch all testcases from a revision
- * Returns all testcases at once (no pagination)
+ * Fetch testcases for a revision
  */
-async function fetchTestcasesFromRevision(revisionId: string) {
-    const apiUrl = getAgentaApiUrl()
-    const url = `${apiUrl}/preview/testsets/${revisionId}`
+async function fetchTestcasesForTable(
+    projectId: string,
+    revisionId: string,
+    cursor: string | null,
+    limit: number,
+): Promise<InfiniteTableFetchResult<TestcaseTableRow>> {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/testcases/query`,
+        {
+            testset_revision_id: revisionId,
+            windowing: {
+                limit,
+                ...(cursor && {next: cursor}),
+            },
+        },
+        {params: {project_id: projectId}},
+    )
 
-    const response = await axios.get<TestcaseRevisionResponse>(url)
-    const revision = response.data
+    // Validate response with Zod
+    const validated = testcasesResponseSchema.parse(response.data)
 
-    // Flatten testcases into table rows
-    const rows: TestcaseTableRow[] = revision.testcases.map((tc, index) => ({
-        key: tc.id || `tc-${index}`,
-        __isSkeleton: false,
-        id: tc.id,
-        testset_id: tc.testset_id,
-        created_at: tc.created_at,
-        ...tc.data,
-    }))
+    // Flatten testcases for table display
+    const rows = validated.testcases.map((tc) => {
+        const flattened = flattenTestcase(tc)
+        return {
+            ...flattened,
+            key: flattened.id,
+        } as TestcaseTableRow
+    })
 
     return {
         rows,
-        revision,
+        totalCount: validated.count,
+        hasMore: Boolean(validated.windowing?.next),
+        nextOffset: rows.length,
+        nextCursor: validated.windowing?.next || null,
+        nextWindowing: null,
     }
 }
 
@@ -114,9 +139,8 @@ const {datasetStore} = createSimpleTableStore<
         } as Omit<TestcaseTableRow, "key" | "__isSkeleton">,
         getRowId: (row) => row.id || row.key.toString(),
     },
-    fetchData: async ({meta}) => {
-        // Revision-based model: fetch entire revision (all testcases)
-        if (!meta.revisionId) {
+    fetchData: async ({meta, limit, cursor}) => {
+        if (!meta.projectId || !meta.revisionId) {
             return {
                 rows: [],
                 totalCount: 0,
@@ -127,32 +151,86 @@ const {datasetStore} = createSimpleTableStore<
             }
         }
 
-        const {rows} = await fetchTestcasesFromRevision(meta.revisionId)
+        const result = await fetchTestcasesForTable(
+            meta.projectId,
+            meta.revisionId,
+            cursor,
+            limit || PAGE_SIZE,
+        )
 
-        // Apply client-side search filtering
-        let filteredRows = rows
+        // Hydrate entity atoms with fetched IDs
+        // This populates testcaseIdsAtom so columns can be derived
+        const store = getDefaultStore()
+        const ids = result.rows.map((row) => row.id).filter(Boolean) as string[]
+        if (ids.length > 0) {
+            store.set(setTestcaseIdsAtom, ids)
+        }
+
+        // Apply client-side search filtering if searchTerm exists
         if (meta.searchTerm) {
             const searchLower = meta.searchTerm.toLowerCase()
-            filteredRows = rows.filter((row) => {
-                // Search across all fields
-                return Object.values(row).some((value) =>
+            const filteredRows = result.rows.filter((row) =>
+                Object.values(row).some((value) =>
                     String(value || "")
                         .toLowerCase()
                         .includes(searchLower),
-                )
-            })
+                ),
+            )
+            return {
+                ...result,
+                rows: filteredRows,
+                totalCount: filteredRows.length,
+            }
         }
 
-        return {
-            rows: filteredRows,
-            totalCount: filteredRows.length,
-            hasMore: false, // All data loaded at once
-            nextOffset: null,
-            nextCursor: null,
-            nextWindowing: null,
-        }
+        return result
     },
     isEnabled: (meta) => Boolean(meta?.projectId && meta?.revisionId),
 })
 
 export const testcasesDatasetStore = datasetStore
+
+// ============================================================================
+// REVISION CHANGE EFFECT ATOM
+// Consolidates all side effects when revision changes
+// ============================================================================
+
+/**
+ * Track previous revision ID for detecting changes
+ */
+const previousRevisionIdAtom = atom<string | null>(null)
+
+/**
+ * Effect atom that runs all side effects when revision changes
+ * - Sets the revision ID (single source of truth)
+ * - Cleanup old testcase atoms (memory management)
+ * - Reset column state
+ * - Initialize v0 draft for empty testsets
+ *
+ * Use with atomEffect or call from a single useEffect in the component
+ */
+export const revisionChangeEffectAtom = atom(null, (get, set, newRevisionId: string | null) => {
+    const previousRevisionId = get(previousRevisionIdAtom)
+
+    // Always set the revision ID (this is the entry point from URL)
+    set(testcasesRevisionIdAtom, newRevisionId)
+
+    // Skip side effects if revision hasn't changed
+    if (previousRevisionId === newRevisionId) return
+
+    // Update tracked revision
+    set(previousRevisionIdAtom, newRevisionId)
+
+    // 1. Cleanup old testcase atoms (prevents memory leaks)
+    set(cleanupOnRevisionChangeAtom, newRevisionId)
+
+    // 2. Reset column state
+    set(resetColumnsAtom)
+
+    // 3. Initialize v0 draft after revision query completes
+    // This is deferred - we check if revision query is done
+    const revisionQuery = get(revisionQueryAtom)
+    if (!revisionQuery.isPending && newRevisionId) {
+        set(initializeV0DraftAtom)
+    }
+})

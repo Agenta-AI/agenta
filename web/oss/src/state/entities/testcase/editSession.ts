@@ -1,8 +1,9 @@
 import {atom} from "jotai"
 
+import {currentRevisionIdAtom} from "../testset"
+
 import {addColumnAtom, currentColumnsAtom} from "./columnState"
-import {currentRevisionIdAtom, revisionQueryAtom, testsetIdAtom} from "./queries"
-import {testcaseStore} from "./store"
+import {revisionQueryAtom, testsetIdAtom} from "./queries"
 import {
     addNewEntityIdAtom,
     newEntityIdsAtom,
@@ -11,7 +12,7 @@ import {
 } from "./testcaseEntity"
 
 // Re-export for backward compatibility
-export {currentRevisionIdAtom}
+export {currentRevisionIdAtom} from "../testset"
 
 // ============================================================================
 // V0 DRAFT INITIALIZATION
@@ -51,8 +52,8 @@ export const shouldInitializeV0DraftAtom = atom((get) => {
         return {shouldInit: false, needsReset: false, revisionId}
     }
 
-    // Check conditions (revisionVersion may be string or number from API)
-    const isV0 = revisionVersion === 0 || revisionVersion === "0"
+    // Check conditions - version is normalized to number by Zod schema
+    const isV0 = revisionVersion === 0
     const hasNoServerData = serverIds.length === 0
     const hasNoLocalData = newIds.length === 0 && columns.length === 0
 
@@ -92,21 +93,14 @@ export const initializeV0DraftAtom = atom(null, (get, set) => {
     // Add example column
     set(addColumnAtom, "input")
 
-    // Add example row with empty data using new architecture
+    // Add example row with empty data
     const newRowId = `new-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 
-    // Add to new entity IDs (new architecture)
+    // Add to new entity IDs
     set(addNewEntityIdAtom, newRowId)
 
     // Create draft for the new entity
     set(testcaseDraftAtomFamily(newRowId), {
-        id: newRowId,
-        testset_id: testsetId,
-        input: "",
-    })
-
-    // Also add to old store for backward compatibility
-    set(testcaseStore.createEntityAtom, {
         id: newRowId,
         testset_id: testsetId,
         input: "",

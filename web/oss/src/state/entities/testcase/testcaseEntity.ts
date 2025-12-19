@@ -8,6 +8,7 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
+import {atomFamilyRegistry} from "./atomCleanup"
 import {
     pendingAddedColumnsAtom,
     pendingColumnRenamesAtom,
@@ -31,7 +32,6 @@ export const testcaseIdsAtom = atom<string[]>([])
  * Set testcase IDs (called by hook when paginated data arrives)
  */
 export const setTestcaseIdsAtom = atom(null, (get, set, ids: string[]) => {
-    console.log("[setTestcaseIdsAtom] Setting", ids.length, "IDs")
     set(testcaseIdsAtom, ids)
 })
 
@@ -156,7 +156,6 @@ const testcaseBatchFetcher = createBatchFetcher<
                         results.set(key, byId.get(id) ?? null)
                     })
                 } catch (error) {
-                    console.error("[testcaseBatchFetcher] Batch fetch failed:", error)
                     // Set null for all failed requests
                     keys.forEach((key) => results.set(key, null))
                 }
@@ -531,38 +530,13 @@ export const discardAllDraftsAtom = atom(null, (get, set) => {
 
 // ============================================================================
 // BATCH UPDATES
-// Uses jotai-transaction for atomic batch updates to avoid N re-renders
+// Uses synchronous batch updates to avoid N re-renders
 // ============================================================================
 
 /**
- * Batch update multiple testcases atomically
- * All updates are staged and committed in a single transaction
- * This prevents N re-renders when updating N testcases (e.g., column rename)
- */
-export const batchUpdateTestcasesAtom = atom(
-    null,
-    (get, set, updates: {id: string; updates: Partial<FlattenedTestcase>}[]) => {
-        // Import dynamically to avoid issues if not installed
-        import("jotai-transaction").then(({beginTransaction, commitTransaction}) => {
-            const transaction = beginTransaction()
-
-            for (const {id, updates: entityUpdates} of updates) {
-                const current = get(testcaseEntityAtomFamily(id))
-                if (!current) continue
-
-                const updated = {...current, ...entityUpdates}
-                transaction.set(testcaseDraftAtomFamily(id), updated)
-            }
-
-            commitTransaction(transaction)
-        })
-    },
-)
-
-/**
- * Synchronous batch update using direct store access
- * For cases where async import is not suitable
+ * Batch update multiple testcases
  * Keys with undefined values are deleted from the entity
+ * Jotai automatically batches synchronous sets in the same tick
  */
 export const batchUpdateTestcasesSyncAtom = atom(
     null,
@@ -708,3 +682,17 @@ export const testcaseCellAtomFamily = atomFamily(
         }),
     (a, b) => a.id === b.id && a.column === b.column,
 )
+
+// ============================================================================
+// REGISTER ATOM FAMILIES FOR CLEANUP
+// Allows atomCleanup.ts to clean up atoms when switching revisions
+// ============================================================================
+
+// Register all atomFamily instances for cleanup
+atomFamilyRegistry.testcaseQuery = testcaseQueryAtomFamily
+atomFamilyRegistry.testcaseDraft = testcaseDraftAtomFamily
+atomFamilyRegistry.testcaseEntity = testcaseEntityAtomFamily
+atomFamilyRegistry.testcaseHasDraft = testcaseHasDraftAtomFamily
+atomFamilyRegistry.testcaseServerState = testcaseServerStateAtomFamily
+atomFamilyRegistry.testcaseIsDirty = testcaseIsDirtyAtomFamily
+atomFamilyRegistry.testcaseCell = testcaseCellAtomFamily

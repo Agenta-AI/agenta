@@ -153,14 +153,24 @@ const EditableColumnHeader = ({
                 onCancel={() => setIsRenameModalOpen(false)}
                 okText="Rename"
                 destroyOnHidden
+                afterOpenChange={(open) => {
+                    if (open) {
+                        // Focus input after modal animation completes
+                        const input = document.querySelector(
+                            ".rename-column-modal-input input",
+                        ) as HTMLInputElement
+                        input?.focus()
+                        input?.select()
+                    }
+                }}
             >
                 <div className="py-2">
                     <Typography.Text className="block mb-2">Column name:</Typography.Text>
                     <Input
+                        className="rename-column-modal-input"
                         value={newName}
                         onChange={(e) => setNewName(e.target.value)}
                         placeholder="Enter column name"
-                        autoFocus
                         onPressEnter={handleRename}
                     />
                 </div>

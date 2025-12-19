@@ -6,37 +6,34 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
+import {
+    currentRevisionIdAtom,
+    fetchRevision,
+    revisionsListQueryAtomFamily,
+    type Revision,
+    type RevisionListItem,
+} from "../testset"
+
 import {flattenTestcase, testcasesResponseSchema, type FlattenedTestcase} from "./schema"
 
 // ============================================================================
 // QUERY ATOMS
-// Uses atomWithQuery for reactive data fetching with Jotai + TanStack Query
+// Uses API functions and context from testset module
 // ============================================================================
 
-/**
- * Current revision ID context - set by the hook/component
- */
-export const currentRevisionIdAtom = atom<string | null>(null)
+// Re-export currentRevisionIdAtom from testset for backward compatibility
+export {currentRevisionIdAtom} from "../testset"
 
 /**
- * Revision data response type
+ * Revision data response type (re-export for backward compatibility)
  */
-export interface RevisionData {
-    id: string
-    testset_id: string
-    version: number
-    description?: string
-    message?: string
-    author?: string
-    created_at?: string
-    updated_at?: string
-}
+export type RevisionData = Revision
 
 /**
  * Query atom for fetching revision metadata
- * Uses placeholderData to keep previous data while loading new revision
+ * Uses fetchRevision from testset module
  */
-export const revisionQueryAtom = atomWithQuery<RevisionData | null>((get) => {
+export const revisionQueryAtom = atomWithQuery<Revision | null>((get) => {
     const projectId = get(projectIdAtom)
     const revisionId = get(currentRevisionIdAtom)
 
@@ -44,11 +41,7 @@ export const revisionQueryAtom = atomWithQuery<RevisionData | null>((get) => {
         queryKey: ["testset-revision", projectId, revisionId],
         queryFn: async () => {
             if (!projectId || !revisionId) return null
-            const response = await axios.get(
-                `${getAgentaApiUrl()}/preview/testsets/revisions/${revisionId}`,
-                {params: {project_id: projectId}},
-            )
-            return response.data?.testset_revision ?? null
+            return fetchRevision({id: revisionId, projectId})
         },
         enabled: Boolean(projectId && revisionId),
         staleTime: 30_000,
@@ -92,47 +85,21 @@ export const testsetNameQueryAtom = atomWithQuery<string>((get) => {
 })
 
 /**
- * Revision list item type
+ * Revision list item type (re-export for backward compatibility)
  */
-export interface RevisionListItem {
-    id: string
-    version: number
-    created_at: string
-    message?: string
-    author?: string
-}
+export type {RevisionListItem} from "../testset"
 
 /**
  * Query atom for fetching available revisions
+ * Uses revisionsListQueryAtomFamily from testset entity module
+ * This ensures revisions are hydrated into the entity cache
  */
-export const revisionsListQueryAtom = atomWithQuery<RevisionListItem[]>((get) => {
-    const projectId = get(projectIdAtom)
+export const revisionsListQueryAtom = atom((get) => {
     const testsetId = get(testsetIdAtom)
-
-    return {
-        queryKey: ["testset-revisions", projectId, testsetId],
-        queryFn: async () => {
-            if (!projectId || !testsetId) return []
-            const response = await axios.post(
-                `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
-                {
-                    testset_refs: [{id: testsetId}],
-                    windowing: {limit: 100},
-                },
-                {params: {project_id: projectId}},
-            )
-            const revisions = response.data?.testset_revisions ?? []
-            return revisions.map((rev: any) => ({
-                id: rev.id,
-                version: rev.version ?? 0,
-                created_at: rev.created_at,
-                message: rev.message,
-                author: rev.author,
-            }))
-        },
-        enabled: Boolean(projectId && testsetId),
-        staleTime: 60_000,
+    if (!testsetId) {
+        return {data: [] as RevisionListItem[], isPending: false, isError: false}
     }
+    return get(revisionsListQueryAtomFamily(testsetId))
 })
 
 /**
@@ -218,11 +185,12 @@ export const testsetMetadataAtom = atom((get): TestsetMetadata | null => {
         testsetId: revision.testset_id,
         testsetName: nameQuery.data ?? "",
         revisionVersion: revision.version,
-        description: revision.description,
-        commitMessage: revision.message,
-        author: revision.author,
-        createdAt: revision.created_at,
-        updatedAt: revision.updated_at,
+        // Note: description is stored at testset level, not revision level
+        description: undefined,
+        commitMessage: revision.message ?? undefined,
+        author: revision.author ?? undefined,
+        createdAt: revision.created_at ?? undefined,
+        updatedAt: revision.updated_at ?? undefined,
     }
 })
 
