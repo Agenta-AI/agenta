@@ -1,16 +1,14 @@
-"""OpenAI LLM-as-a-Judge evaluators.
+"""OpenAI SDK evaluators.
 
-These evaluators make actual OpenAI API calls to evaluate outputs.
+Simple tests to verify OpenAI SDK availability and basic functionality.
 Requires: pip install openai
 Requires: OPENAI_API_KEY environment variable or passed in app_params
 """
 
-from .factual_accuracy import evaluate as factual_accuracy
-from .response_relevance import evaluate as response_relevance
-from .coherence_quality import evaluate as coherence_quality
+from .dependency_check import evaluate as openai_available
+from .exact_match import evaluate as openai_exact_match
 
 __all__ = [
-    'factual_accuracy',
-    'response_relevance',
-    'coherence_quality',
+    "dependency_check",
+    "exact_match",
 ]

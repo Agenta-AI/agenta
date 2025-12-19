@@ -108,10 +108,31 @@ class DaytonaRunner(CodeRunner):
 
             from daytona import CreateSandboxFromSnapshotParams
 
+            # Get Agenta API URL and key from singleton or environment
+            import agenta
+
+            agenta_api_url = (
+                agenta.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_url
+                or os.getenv("AGENTA_API_URL")
+                or ""
+            )
+            agenta_api_key = (
+                agenta.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_key
+                or os.getenv("AGENTA_API_KEY")
+                or ""
+            )
+
             sandbox = self.daytona.create(
                 CreateSandboxFromSnapshotParams(
                     snapshot=snapshot_id,
                     ephemeral=True,
+                    env_vars=dict(
+                        OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", ""),
+                        AGENTA_API_URL=agenta_api_url,
+                        AGENTA_API_KEY=agenta_api_key,
+                        # AGENTA_API_URL="https://cloud.agenta.ai/api",
+                        # AGENTA_API_KEY="your-api-key-here",
+                    ),
                 )
             )
 
