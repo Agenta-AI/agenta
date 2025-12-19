@@ -1,16 +1,19 @@
 import {useMemo} from "react"
 
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {sessionIdsAtom, useObservability} from "@/oss/state/newObservability"
+import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 
 import ObservabilityHeader from "../ObservabilityHeader"
 
 import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
+import { SessionDrawer } from "@/oss/components/SharedDrawers/SessionDrawer"
 
 const SessionsTable = () => {
     const {isLoading, selectedRowKeys, setSelectedRowKeys} = useObservability()
+    const openSessionDrawer = useSetAtom(openSessionDrawerWithUrlAtom)
     const sessionIds = useAtomValue(sessionIdsAtom)
     const columns = useMemo(() => getSessionColumns(), [])
 
@@ -41,8 +44,13 @@ const SessionsTable = () => {
                         columnWidth: 48,
                         ...rowSelection,
                     }}
+                    onRow={(record) => ({
+                        onClick: () => openSessionDrawer({sessionId: record.session_id}),
+                        className: "cursor-pointer",
+                    })}
                 />
             </div>
+            <SessionDrawer />
         </div>
     )
 }

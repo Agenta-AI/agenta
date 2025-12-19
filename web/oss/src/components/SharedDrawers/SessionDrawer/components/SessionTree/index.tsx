@@ -7,7 +7,7 @@ import {useLocalStorage} from "usehooks-ts"
 
 import CustomTreeComponent from "@/oss/components/CustomUIs/CustomTreeComponent"
 import {filterTree} from "@/oss/components/pages/observability/assets/utils"
-import {StatusCode, TraceSpanNode} from "@/oss/services/tracing/types"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 import TraceTreeSettings from "../../../TraceDrawer/components/TraceTreeSettings"
 import {useSessionDrawer} from "../../hooks/useSessionDrawer"
@@ -22,54 +22,11 @@ const SessionTree = ({selected, setSelected}: SessionTreeProps) => {
         cost: true,
         tokens: true,
     })
-    const {activeSession} = useSessionDrawer()
+    const {sessionTraces} = useSessionDrawer()
 
-    const buildNodeFromTrace = (node: any): TraceSpanNode => {
-        const spanId = node?.span_id || node?.trace_id || node?.id || node?.node?.id
-        const name = node?.span_name || node?.node?.name || node?.name || "span"
-        const status =
-            node?.status_code || node?.status || node?.status?.code || StatusCode.STATUS_CODE_UNSET
-
-        const children = Array.isArray(node?.children)
-            ? node.children.map((child: any) => buildNodeFromTrace(child))
-            : []
-
-        return {
-            span_id: spanId,
-            span_name: name,
-            status_code: status,
-            children,
-            metrics: node?.metrics,
-            attributes: node?.attributes,
-        } as TraceSpanNode
-    }
-
-    const turnsTree = useMemo(() => {
-        if (!activeSession) return undefined
-
-        return activeSession.turns.map((turn) => {
-            const spanId = `turn-${turn.turn_index}`
-            const status =
-                turn.status === "error" ? StatusCode.STATUS_CODE_ERROR : StatusCode.STATUS_CODE_OK
-
-            const children =
-                Array.isArray(turn.trace?.children) && turn.trace?.children.length
-                    ? turn.trace.children.map((child: any) => buildNodeFromTrace(child))
-                    : []
-
-            return {
-                span_id: spanId,
-                span_name: `Turn ${turn.turn_index}: ${turn.assistant_message?.content?.slice(0, 48) || "response"}`,
-                status_code: status,
-                metrics: {
-                    latency_ms: turn.latency_ms,
-                    cost_usd: turn.cost_usd,
-                    tokens: turn.usage?.total_tokens,
-                },
-                children,
-            } as TraceSpanNode
-        }) as TraceSpanNode[]
-    }, [activeSession])
+    const turnsTree: TraceSpanNode[] = useMemo(() => {
+        return sessionTraces || []
+    }, [sessionTraces])
 
     const treeRoot = useMemo(() => {
         if (!turnsTree || !turnsTree.length) return undefined
@@ -96,7 +53,7 @@ const SessionTree = ({selected, setSelected}: SessionTreeProps) => {
                 />
 
                 <Popover
-                    classNames={{body: "!p-0 w-[180px]"}}
+                    overlayInnerStyle={{padding: 0, width: 180}}
                     trigger="click"
                     content={
                         <TraceTreeSettings

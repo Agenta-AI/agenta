@@ -22,6 +22,7 @@ interface SessionMessagePanelProps extends CollapseProps {
     enableFormatSwitcher?: boolean
     bgColor?: string
     fullEditorHeight?: boolean
+    trace?: any
 }
 
 const SessionMessagePanel = ({
@@ -76,7 +77,7 @@ const SessionMessagePanel = ({
                         <div className="w-full flex gap-2">
                             <div className="w-full flex flex-col gap-2 p-4">
                                 <div className="flex flex-col gap-2">
-                                    {incomingValue?.map((val: any) => {
+                                    {(incomingValue as any[])?.map((val: any) => {
                                         return (
                                             <div ref={editorRef}>
                                                 <SimpleSharedEditor
@@ -115,7 +116,6 @@ const SessionMessagePanel = ({
 
                             <AnnotateDrawerButton
                                 label="Annotate"
-                                size="small"
                                 data={trace?.annotations || []}
                                 traceSpanIds={{
                                     traceId: trace?.trace_id,

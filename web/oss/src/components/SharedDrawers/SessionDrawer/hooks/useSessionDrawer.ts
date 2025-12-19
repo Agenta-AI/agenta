@@ -1,40 +1,23 @@
 import {useAtomValue} from "jotai"
 
-import {sessionsLoadingAtom, sessionsSpansAtom} from "@/oss/state/newObservability/atoms/queries"
-
 import {
-    activeChatSessionAtom,
-    activeChatSessionSummaryAtom,
-    activeChatTurnAtom,
-    chatSessionsAtom,
-    chatSessionsQueryAtom,
-    traceDrawerActiveSpanIdAtom,
-    traceDrawerTraceIdAtom,
+    isSessionDrawerLoadingAtom,
+    sessionAnnotatedTracesAtom,
+    sessionDrawerActiveSpanIdAtom,
+    sessionDrawerSessionIdAtom,
 } from "../store/sessionDrawerStore"
 
 export const useSessionDrawer = () => {
-    const sessionId = useAtomValue(traceDrawerTraceIdAtom)
-    const activeTurnId = useAtomValue(traceDrawerActiveSpanIdAtom)
-    const sessionsQuery = useAtomValue(chatSessionsQueryAtom)
-    const sessions = useAtomValue(chatSessionsAtom)
-    const activeSession = useAtomValue(activeChatSessionAtom)
-    const activeTurn = useAtomValue(activeChatTurnAtom)
-    const sessionSummary = useAtomValue(activeChatSessionSummaryAtom)
-
-    const spansMap = useAtomValue(sessionsSpansAtom)
-    const sessionSpans = (sessionId && spansMap[sessionId]) || []
-    const isLoading = useAtomValue(sessionsLoadingAtom)
+    const sessionId = useAtomValue(sessionDrawerSessionIdAtom)
+    const activeSpanId = useAtomValue(sessionDrawerActiveSpanIdAtom)
+    const sessionTraces = useAtomValue(sessionAnnotatedTracesAtom)
+    const isLoading = useAtomValue(isSessionDrawerLoadingAtom)
 
     return {
         sessionId,
-        activeTurnId,
-        sessions,
-        activeSession,
-        activeTurn,
-        sessionSummary,
-        sessionSpans,
+        activeSpanId,
+        sessionTraces,
         isLoading,
-        error: sessionsQuery.error,
     }
 }
 

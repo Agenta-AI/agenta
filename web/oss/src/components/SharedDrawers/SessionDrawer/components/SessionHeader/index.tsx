@@ -1,4 +1,4 @@
-import {CaretUp, CaretDown, SidebarSimple} from "@phosphor-icons/react"
+import {CaretDown, CaretUp, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
 import {useAtom} from "jotai"
 
@@ -7,10 +7,7 @@ import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import useSessionDrawer from "../../hooks/useSessionDrawer"
 import {isAnnotationVisibleAtom} from "../../store/sessionDrawerStore"
 
-import {getTraceIdFromNode} from "./assets/helper"
-import {SessionHeaderProps} from "./assets/types"
-
-const SessionHeader = ({}: SessionHeaderProps) => {
+const SessionHeader = () => {
     const {sessionId} = useSessionDrawer()
     const [isAnnotationVisible, setIsAnnotationVisible] = useAtom(isAnnotationVisibleAtom)
     const displayTrace = "something"
