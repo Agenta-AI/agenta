@@ -14,9 +14,9 @@
  * @see /AGENTS.md for state management guidelines
  */
 
+import type {FormInstance} from "antd"
 import {atom} from "jotai"
 import {atomWithReset, RESET} from "jotai/utils"
-import type {FormInstance} from "antd"
 
 import type {Evaluator, EvaluatorConfig, Variant} from "@/oss/lib/Types"
 

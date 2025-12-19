@@ -2,13 +2,19 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {ArrowLeft, Info} from "@phosphor-icons/react"
 import {Button, Form, Input, Space, Tag, Tooltip, Typography} from "antd"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
 import {message} from "@/oss/components/AppMessageContext"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {EvaluationSettingsTemplate, JSSTheme, SettingsPreset, testset, Variant} from "@/oss/lib/Types"
+import {
+    EvaluationSettingsTemplate,
+    JSSTheme,
+    SettingsPreset,
+    testset,
+    Variant,
+} from "@/oss/lib/Types"
 import {
     CreateEvaluationConfigData,
     createEvaluatorConfig,
@@ -146,7 +152,7 @@ const ConfigureEvaluator = ({
     const selectedEvaluator = useAtomValue(playgroundEvaluatorAtom)
     const editMode = useAtomValue(playgroundIsEditModeAtom)
     const cloneConfig = useAtomValue(playgroundIsCloneModeAtom)
-    const [editEvalEditValues, setEditEvalEditValues] = useAtom(playgroundEditValuesAtom)
+    const editEvalEditValues = useAtomValue(playgroundEditValuesAtom)
     // These are read-only here; DebugSection manages updates via atoms
     const selectedTestcase = useAtomValue(playgroundSelectedTestcaseAtom)
     const traceTree = useAtomValue(playgroundTraceTreeAtom)
@@ -394,9 +400,7 @@ const ConfigureEvaluator = ({
 
     return (
         <>
-            <section
-                className={containerClassName ?? "flex flex-col w-full h-[calc(100vh-84px)]"}
-            >
+            <section className={containerClassName ?? "flex flex-col w-full h-[calc(100vh-84px)]"}>
                 {/* Top Header - grey like playground */}
                 <div className="flex items-center justify-between gap-4 px-2.5 py-2 border-0 border-b border-solid border-gray-200 sticky top-0 z-20 bg-[#FAFAFB]">
                     <div className="flex items-center gap-2">

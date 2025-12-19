@@ -56,14 +56,7 @@ import {
     fromBaseResponseToTraceSpanType,
     transformTraceTreeToJson,
 } from "@/oss/lib/transformers"
-import {
-    BaseResponse,
-    ChatMessage,
-    JSSTheme,
-    Parameter,
-    testset,
-    Variant,
-} from "@/oss/lib/Types"
+import {BaseResponse, ChatMessage, JSSTheme, Parameter, testset, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
 import {
     createEvaluatorDataMapping,
@@ -275,13 +268,15 @@ const DebugSection = ({
     const selectedVariant = useMemo(() => {
         console.log("[DebugSection] Computing selectedVariant from _selectedVariant:", {
             _selectedVariant,
-            hasRevisions: !!((_selectedVariant as any)?.revisions?.length),
+            hasRevisions: !!(_selectedVariant as any)?.revisions?.length,
         })
         if (!_selectedVariant) return undefined
         // If the variant has revisions, get the most recent one
         const revs = (_selectedVariant as any)?.revisions || []
         if (revs.length > 0) {
-            const result = revs.sort((a: any, b: any) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
+            const result = revs.sort(
+                (a: any, b: any) => b.updatedAtTimestamp - a.updatedAtTimestamp,
+            )[0]
             console.log("[DebugSection] selectedVariant (from revisions):", result)
             return result
         }
@@ -943,7 +938,9 @@ const DebugSection = ({
                             className={`${classes.editor} h-full`}
                             editorType="border"
                             initialValue={getStringOrJson(
-                                selectedTestcase.testcase ? formatJson(selectedTestcase.testcase) : "",
+                                selectedTestcase.testcase
+                                    ? formatJson(selectedTestcase.testcase)
+                                    : "",
                             )}
                             handleChange={(value) => {
                                 try {
