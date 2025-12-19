@@ -20,7 +20,7 @@ import {nonArchivedEvaluatorsAtom} from "@/oss/state/evaluators"
 interface EvaluatorTemplateDropdownProps {
     /** Callback when an evaluator template is selected */
     onSelect: (evaluator: Evaluator) => void
-    /** Custom trigger element (defaults to "Create new" button) */
+    /** Custom trigger element (defaults to "Create new evaluator" button) */
     trigger?: React.ReactNode
     /** Additional class name for the trigger wrapper */
     className?: string
@@ -144,7 +144,7 @@ const EvaluatorTemplateDropdown = ({
         </div>
     )
 
-    const defaultTrigger = <Button icon={<PlusOutlined />}>Create new</Button>
+    const defaultTrigger = <Button icon={<PlusOutlined />}>Create new evaluator</Button>
 
     return (
         <Popover
