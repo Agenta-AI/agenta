@@ -209,12 +209,17 @@ export const importTestsetsViaEndpoint = async (formData: FormData) => {
 export const deleteTestsets = async (ids: string[]) => {
     const {projectId} = getProjectValues()
 
-    const response = await axios({
-        method: "delete",
-        url: `${getAgentaApiUrl()}/testsets?project_id=${projectId}`,
-        data: {testset_ids: ids},
-    })
-    return response.data
+    // Archive each testset using the new preview API
+    const results = await Promise.all(
+        ids.map((id) =>
+            axios.post(
+                `${getAgentaApiUrl()}/preview/simple/testsets/${id}/archive`,
+                {},
+                {params: {project_id: projectId}},
+            ),
+        ),
+    )
+    return results.map((r) => r.data)
 }
 
 /**
@@ -281,6 +286,7 @@ export async function patchTestsetRevision(
     message?: string,
     baseRevisionId?: string,
     description?: string,
+    name?: string,
 ) {
     const {projectId} = getProjectValues()
 
@@ -291,6 +297,7 @@ export async function patchTestsetRevision(
                 testset_id: testsetId,
                 base_revision_id: baseRevisionId,
                 message: message || "Patched testset revision",
+                name,
                 description,
                 operations: {
                     update: operations.update?.map((tc) => ({

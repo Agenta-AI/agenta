@@ -9,6 +9,7 @@ import {
     renameColumnAtom,
 } from "@/oss/state/entities/testcase/columnState"
 import {displayRowRefsAtom} from "@/oss/state/entities/testcase/displayRows"
+import {initializeV0DraftAtom} from "@/oss/state/entities/testcase/editSession"
 import {
     addTestcaseAtom,
     appendTestcasesAtom,
@@ -28,17 +29,19 @@ import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
 import {updateTestcaseAtom} from "@/oss/state/entities/testcase/testcaseEntity"
 import {
     changesSummaryAtom,
-    currentDescriptionAtom,
-    currentTestsetNameAtom,
-    descriptionChangedAtom,
     hasUnsavedChangesAtom,
-    setLocalDescriptionAtom,
-    setLocalTestsetNameAtom,
-    testsetNameChangedAtom,
+    revisionDraftAtomFamily,
+    revisionEntityAtomFamily,
+    revisionHasDraftAtomFamily,
 } from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
-import {revisionChangeEffectAtom, testcasesSearchTermAtom} from "../atoms/tableStore"
+import {
+    revisionChangeEffectAtom,
+    syncRowIdsToEntityAtom,
+    testcaseRowIdsAtom,
+    testcasesSearchTermAtom,
+} from "../atoms/tableStore"
 
 import type {TestcaseTableRow, UseTestcasesTableOptions, UseTestcasesTableResult} from "./types"
 
@@ -96,13 +99,48 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     // Save state
     const [isSaving, setIsSaving] = useState(false)
 
-    // Testset metadata atoms - local edits stored in atoms
-    const setLocalName = useSetAtom(setLocalTestsetNameAtom)
-    const setLocalDesc = useSetAtom(setLocalDescriptionAtom)
-    const testsetName = useAtomValue(currentTestsetNameAtom)
-    const description = useAtomValue(currentDescriptionAtom)
-    const testsetNameChanged = useAtomValue(testsetNameChangedAtom)
-    const descriptionChanged = useAtomValue(descriptionChangedAtom)
+    // Revision entity - uses entity pattern directly
+    // Server data merged with local draft
+    const revisionEntity = useAtomValue(
+        revisionId ? revisionEntityAtomFamily(revisionId) : revisionEntityAtomFamily(""),
+    )
+    const _hasDraft = useAtomValue(
+        revisionId ? revisionHasDraftAtomFamily(revisionId) : revisionHasDraftAtomFamily(""),
+    )
+    const setDraft = useSetAtom(
+        revisionId ? revisionDraftAtomFamily(revisionId) : revisionDraftAtomFamily(""),
+    )
+
+    // Query atoms - reactive data fetching via atomWithQuery
+    const revisionQuery = useAtomValue(revisionQueryAtom)
+    const testsetNameQuery = useAtomValue(testsetNameQueryAtom)
+    const revisionsListQuery = useAtomValue(revisionsListQueryAtom)
+
+    // Derived values from entity
+    // For v0, revision name may be empty, so fall back to testset name from query
+    const testsetName = revisionEntity?.name || testsetNameQuery.data || ""
+    const description = revisionEntity?.description ?? ""
+
+    // Write functions using entity draft pattern
+    const setLocalName = useCallback(
+        (name: string) => {
+            setDraft((prev) => ({...prev, name}))
+        },
+        [setDraft],
+    )
+    const setLocalDesc = useCallback(
+        (desc: string) => {
+            setDraft((prev) => ({...prev, description: desc}))
+        },
+        [setDraft],
+    )
+
+    // Dirty state from draft
+    const getDraft = useAtomValue(
+        revisionId ? revisionDraftAtomFamily(revisionId) : revisionDraftAtomFamily(""),
+    )
+    const testsetNameChanged = getDraft?.name !== undefined
+    const descriptionChanged = getDraft?.description !== undefined
 
     // Set revision context and run all side effects via consolidated effect atom
     // This handles: setting revision ID, cleanup, column reset, v0 draft init
@@ -111,10 +149,24 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         runRevisionChangeEffect(revisionId ?? null)
     }, [revisionId, runRevisionChangeEffect])
 
-    // Query atoms - reactive data fetching via atomWithQuery
-    const revisionQuery = useAtomValue(revisionQueryAtom)
-    const testsetNameQuery = useAtomValue(testsetNameQueryAtom)
-    const revisionsListQuery = useAtomValue(revisionsListQueryAtom)
+    // Sync row IDs from datasetStore to entity atoms
+    // This runs AFTER the query settles and data is in the cache
+    const rowIds = useAtomValue(testcaseRowIdsAtom)
+    const syncRowIds = useSetAtom(syncRowIdsToEntityAtom)
+    useEffect(() => {
+        if (rowIds.length > 0) {
+            syncRowIds()
+        }
+    }, [rowIds, syncRowIds])
+
+    // Initialize v0 draft when revision query completes (for new testsets)
+    // This is the single point of initialization for v0 revisions
+    const initializeV0Draft = useSetAtom(initializeV0DraftAtom)
+    useEffect(() => {
+        if (!revisionQuery.isPending && revisionId && revisionQuery.data) {
+            initializeV0Draft()
+        }
+    }, [revisionQuery.isPending, revisionQuery.data, revisionId, initializeV0Draft])
 
     // Extract data from query atoms
     const testsetId = useAtomValue(testsetIdAtom)

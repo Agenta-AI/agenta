@@ -395,25 +395,54 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     // Max lines from row height config (already computed by useRowHeight)
     const maxLinesForRowHeight = rowHeight.maxLines
 
+    // Skeleton columns to show while loading (when actual columns are empty)
+    const skeletonColumns = useMemo(
+        () => [
+            {key: "__skeleton_1", name: "--"},
+            {key: "__skeleton_2", name: "--"},
+            {key: "__skeleton_3", name: "--"},
+        ],
+        [],
+    )
+
     // Columns definition
     // Use TestcaseCell for entity-aware rendering (reads from entity atoms in global store)
     const columns = useMemo(() => {
         const isEditable = mode === "edit"
-        const dataColumns = table.columns.map((col) => ({
+
+        // Use skeleton columns if actual columns are empty (loading state)
+        const columnsToRender = table.columns.length > 0 ? table.columns : skeletonColumns
+        const isShowingSkeleton = table.columns.length === 0
+
+        const dataColumns = columnsToRender.map((col) => ({
             type: "text" as const,
             key: col.key,
-            title: isEditable ? (
-                <EditableColumnHeader
-                    columnKey={col.key}
-                    columnName={col.name}
-                    onRename={table.renameColumn}
-                    onDelete={table.deleteColumn}
-                />
-            ) : (
-                col.name
-            ),
+            title:
+                isEditable && !isShowingSkeleton ? (
+                    <EditableColumnHeader
+                        columnKey={col.key}
+                        columnName={col.name}
+                        onRename={table.renameColumn}
+                        onDelete={table.deleteColumn}
+                    />
+                ) : (
+                    col.name
+                ),
             width: 200,
             render: (value: unknown, record: TestcaseTableRow) => {
+                // Show skeleton for skeleton rows or when showing skeleton columns
+                if (record.__isSkeleton || isShowingSkeleton) {
+                    // Use row height to determine skeleton height (subtract padding)
+                    const skeletonHeight = Math.max(24, rowHeight.heightPx - 32)
+                    return (
+                        <Skeleton.Input
+                            active
+                            size="small"
+                            className="w-full"
+                            style={{height: skeletonHeight, minHeight: skeletonHeight}}
+                        />
+                    )
+                }
                 // If record has id, use entity-aware cell that reads from atom
                 if (record.id) {
                     return (

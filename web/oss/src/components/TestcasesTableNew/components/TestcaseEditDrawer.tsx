@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {ArrowsOut, CaretDoubleRight, CaretDown, CaretUp, Copy} from "@phosphor-icons/react"
 import {Button, Dropdown, Segmented, Space, Tooltip} from "antd"
@@ -7,8 +7,9 @@ import {useAtomValue, useSetAtom} from "jotai"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
+import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
 import {
-    discardDraftAtom,
+    testcaseDraftAtomFamily,
     testcaseEntityAtomFamily,
     testcaseHasDraftAtomFamily,
 } from "@/oss/state/entities/testcase/testcaseEntity"
@@ -66,8 +67,19 @@ const TestcaseEditDrawer = ({
     const hasDraftAtom = useMemo(() => testcaseHasDraftAtomFamily(testcaseId || ""), [testcaseId])
     const isDirty = useAtomValue(hasDraftAtom)
 
-    // Discard draft action
-    const discardDraft = useSetAtom(discardDraftAtom)
+    // Draft setter for restoring session state
+    const setDraft = useSetAtom(testcaseDraftAtomFamily(testcaseId || ""))
+
+    // Capture draft state when drawer opens (for session-based cancel)
+    const [sessionStartDraft, setSessionStartDraft] = useState<FlattenedTestcase | null>(null)
+
+    // Capture the current draft when drawer opens
+    useEffect(() => {
+        if (open && testcaseId) {
+            // Capture the current entity state (server + draft merged) as the session start point
+            setSessionStartDraft(testcase ? {...testcase} : null)
+        }
+    }, [open, testcaseId])
 
     const [editMode, setEditMode] = useState<EditMode>("fields")
     const [isIdCopied, setIsIdCopied] = useState(false)
@@ -85,13 +97,14 @@ const TestcaseEditDrawer = ({
         }
     }, [onSaveTestset])
 
-    // Discard changes and close
+    // Discard session changes and close (restore to state when drawer opened)
     const handleCancel = useCallback(() => {
-        if (testcaseId && isDirty) {
-            discardDraft(testcaseId)
+        if (testcaseId) {
+            // Restore to the state when drawer opened (not discard entirely)
+            setDraft(sessionStartDraft)
         }
         onClose()
-    }, [testcaseId, isDirty, discardDraft, onClose])
+    }, [testcaseId, sessionStartDraft, setDraft, onClose])
 
     const handleCopyId = useCallback(async () => {
         if (!testcaseId) return

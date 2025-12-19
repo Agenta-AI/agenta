@@ -1,8 +1,7 @@
 import {atom} from "jotai"
 
-import {currentTestsetIdAtom} from "../testset/testsetMetadata"
-
 import {addColumnAtom, currentColumnsAtom} from "./columnState"
+import {testsetIdAtom} from "./queries"
 import type {FlattenedTestcase} from "./schema"
 import {
     addNewEntityIdAtom,
@@ -57,7 +56,7 @@ export interface AddTestcaseResult {
  * Creates a row with all current columns initialized to empty strings
  */
 export const addTestcaseAtom = atom(null, (get, set): AddTestcaseResult => {
-    const testsetId = get(currentTestsetIdAtom) || ""
+    const testsetId = get(testsetIdAtom) || ""
     const columns = get(currentColumnsAtom)
 
     const newRowId = `new-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -91,7 +90,7 @@ export const appendTestcasesAtom = atom(
     (get, set, rows: Record<string, unknown>[]): number => {
         if (!rows.length) return 0
 
-        const testsetId = get(currentTestsetIdAtom) || ""
+        const testsetId = get(testsetIdAtom) || ""
         const columns = get(currentColumnsAtom)
         const serverIds = get(testcaseIdsAtom)
         const newIds = get(newEntityIdsAtom)

@@ -44,7 +44,9 @@ export const revisionQueryAtom = atomWithQuery<Revision | null>((get) => {
             return fetchRevision({id: revisionId, projectId})
         },
         enabled: Boolean(projectId && revisionId),
-        staleTime: 30_000,
+        // Revisions are immutable - never stale
+        staleTime: Infinity,
+        gcTime: Infinity,
         placeholderData: keepPreviousData,
     }
 })
@@ -80,7 +82,9 @@ export const testsetNameQueryAtom = atomWithQuery<string>((get) => {
             return testsets[0]?.name ?? ""
         },
         enabled: Boolean(projectId && testsetId),
-        staleTime: 60_000,
+        // Testset name is immutable for a given testset
+        staleTime: Infinity,
+        gcTime: Infinity,
     }
 })
 

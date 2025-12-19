@@ -280,7 +280,8 @@ body {
 }
 
 /* Testsets table - vertically center cell content */
-.agenta-testsets-table .ant-table-tbody .ant-table-cell {
+/* Exclude the empty placeholder row's cells */
+.agenta-testsets-table .ant-table-tbody > tr:not(.ant-table-placeholder) > .ant-table-cell {
     display: flex !important;
     align-items: center !important;
     height: 100% !important;
@@ -292,6 +293,12 @@ body {
         height: 100% !important;
         align-items: center !important;
     }
+}
+
+/* Ensure empty state placeholder displays correctly */
+.agenta-testsets-table .ant-table-placeholder .ant-table-cell {
+    display: table-cell !important;
+    text-align: center !important;
 }
 
 /* Testcases table - fix selection column width */

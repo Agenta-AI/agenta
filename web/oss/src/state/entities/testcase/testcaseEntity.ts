@@ -1,4 +1,3 @@
-import type {InfiniteData} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -24,15 +23,28 @@ import {flattenTestcase, testcaseSchema, type FlattenedTestcase} from "./schema"
 
 /**
  * List of testcase IDs to display
- * Set by paginated query when data arrives
+ * Accumulated by paginated query as pages load
  */
 export const testcaseIdsAtom = atom<string[]>([])
 
 /**
- * Set testcase IDs (called by hook when paginated data arrives)
+ * Append testcase IDs (called by fetchData when paginated data arrives)
+ * Appends new IDs to existing list to support infinite scroll
  */
 export const setTestcaseIdsAtom = atom(null, (get, set, ids: string[]) => {
-    set(testcaseIdsAtom, ids)
+    const existing = get(testcaseIdsAtom)
+    const existingSet = new Set(existing)
+    const newIds = ids.filter((id) => !existingSet.has(id))
+    if (newIds.length > 0) {
+        set(testcaseIdsAtom, [...existing, ...newIds])
+    }
+})
+
+/**
+ * Reset testcase IDs (called when revision changes)
+ */
+export const resetTestcaseIdsAtom = atom(null, (_get, set) => {
+    set(testcaseIdsAtom, [])
 })
 
 // ============================================================================
@@ -172,19 +184,22 @@ const testcaseBatchFetcher = createBatchFetcher<
 
 // ============================================================================
 // PAGINATED CACHE LOOKUP
-// Helper to find testcase in paginated query cache
+// Helper to find testcase in datasetStore's TanStack Query cache
 // ============================================================================
 
-interface PaginatedPage {
-    testcases: FlattenedTestcase[]
-    count: number
+interface DatasetStorePage {
+    rows: FlattenedTestcase[]
+    totalCount: number
     nextCursor: string | null
     hasMore: boolean
 }
 
 /**
- * Look up a testcase in the paginated query cache
+ * Look up a testcase in the datasetStore's paginated query cache
  * Returns the testcase if found, undefined otherwise
+ *
+ * The datasetStore uses query keys like:
+ * ["testcases-table", scopeId, cursor, limit, offset, windowing.next, windowing.stop, metaKey]
  */
 const findInPaginatedCache = (
     queryClient: ReturnType<
@@ -192,20 +207,19 @@ const findInPaginatedCache = (
     > extends (...args: infer _A) => infer _R
         ? import("@tanstack/react-query").QueryClient
         : never,
-    projectId: string,
-    revisionId: string,
+    _projectId: string,
+    _revisionId: string,
     testcaseId: string,
 ): FlattenedTestcase | undefined => {
-    // Try to find in paginated cache
-    const paginatedData = queryClient.getQueryData<InfiniteData<PaginatedPage>>([
-        "testcases-paginated",
-        projectId,
-        revisionId,
-    ])
+    // Get all queries that match the testcases-table key prefix
+    const queries = queryClient.getQueriesData<DatasetStorePage>({
+        queryKey: ["testcases-table"],
+    })
 
-    if (paginatedData?.pages) {
-        for (const page of paginatedData.pages) {
-            const found = page.testcases.find((tc) => tc.id === testcaseId)
+    // Search through all cached pages for the testcase
+    for (const [_queryKey, data] of queries) {
+        if (data?.rows) {
+            const found = data.rows.find((row) => row.id === testcaseId)
             if (found) {
                 return found
             }
@@ -252,8 +266,9 @@ export const testcaseQueryAtomFamily = atomFamily((testcaseId: string) =>
             initialData: cachedData ?? undefined,
             // Only fetch if not in cache
             enabled: Boolean(projectId && testcaseId && !cachedData),
-            staleTime: 60_000,
-            gcTime: 5 * 60_000,
+            // Testcases are immutable - never stale, never gc
+            staleTime: Infinity,
+            gcTime: Infinity,
         }
     }),
 )
@@ -431,9 +446,10 @@ export const testcaseIsDirtyAtomFamily = atomFamily((testcaseId: string) =>
 
             // Check pending additions (server doesn't have the column yet)
             const pendingAdded = get(pendingAddedColumnsAtom)
-            if (pendingAdded.size > 0) {
-                // Any pending addition means dirty (column schema changed)
-                return true
+            for (const columnKey of pendingAdded) {
+                if (!(columnKey in serverRecord)) {
+                    return true // Server doesn't have this added column
+                }
             }
 
             return false

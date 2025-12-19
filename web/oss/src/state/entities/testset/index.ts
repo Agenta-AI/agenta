@@ -34,7 +34,7 @@ export {
     type RevisionDetailParams,
 } from "./store"
 
-// Revision entity atoms
+// Revision entity atoms (use these directly instead of wrapper atoms)
 export {
     // Revisions list query (for dropdown)
     revisionsListQueryAtomFamily,
@@ -42,28 +42,16 @@ export {
     requestLatestRevisionAtom,
     latestRevisionAtomFamily,
     clearLatestRevisionCacheAtom,
+    // Entity pattern atoms - use these directly
+    revisionEntityAtomFamily,
+    revisionDraftAtomFamily,
+    revisionHasDraftAtomFamily,
+    clearRevisionDraftAtom,
     type LatestRevisionInfo,
 } from "./revisionEntity"
 
-// Testset metadata management (uses revisionDraftAtomFamily - same pattern as testcases)
-export {
-    // Context
-    currentRevisionIdAtom,
-    // Current values (from revision entity: server + draft merged)
-    currentTestsetNameAtom,
-    currentDescriptionAtom,
-    // Write atoms (update revision draft)
-    setLocalTestsetNameAtom,
-    setLocalDescriptionAtom,
-    resetMetadataDraftAtom,
-    // Dirty state
-    testsetNameChangedAtom,
-    descriptionChangedAtom,
-    hasMetadataChangesAtom,
-    // Derived
-    currentTestsetIdAtom,
-    currentRevisionVersionAtom,
-} from "./testsetMetadata"
+// Re-export currentRevisionIdAtom from revisionContext for backward compatibility
+export {testcasesRevisionIdAtom as currentRevisionIdAtom} from "@/oss/components/TestcasesTableNew/atoms/revisionContext"
 
 // Dirty state (revision-level + aggregate testcase dirty states)
 export {
@@ -71,6 +59,8 @@ export {
     hasAnyTestcaseDirtyAtom,
     hasUnsavedChangesAtom,
     changesSummaryAtom,
+    hasMetadataChangesAtom,
+    testsetNameChangedAtom,
     type ChangesSummary,
 } from "./dirtyState"
 

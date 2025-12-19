@@ -184,8 +184,9 @@ export const revisionQueryAtomFamily = atomFamily(
                     return revisionBatchFetcher({projectId, revisionId})
                 },
                 enabled: Boolean(projectId && revisionId && isValidUUID(revisionId)),
-                staleTime: 60_000,
-                gcTime: 5 * 60_000,
+                // Revisions are immutable - never stale, never gc
+                staleTime: Infinity,
+                gcTime: Infinity,
             }
         }),
     (a, b) => a === b,
@@ -264,7 +265,8 @@ export const revisionsListQueryAtomFamily = atomFamily(
                     }))
                 },
                 enabled: Boolean(projectId && testsetId),
-                staleTime: 60_000,
+                // Revisions list can change when new revisions are created
+                staleTime: 30_000,
             }
         }),
     (a, b) => a === b,

@@ -80,8 +80,9 @@ export const revisionStore = createEntityStore<
 >({
     name: "revision",
     schema: revisionSchema,
-    staleTime: 60_000, // 1 minute
-    gcTime: 5 * 60_000, // 5 minutes
+    // Revisions are immutable - never stale, never gc
+    staleTime: Infinity,
+    gcTime: Infinity,
 
     extractEntities: (response) => response.testset_revisions,
 

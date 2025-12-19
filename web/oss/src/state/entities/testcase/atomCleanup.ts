@@ -1,6 +1,11 @@
 import {atom} from "jotai"
 
-import {testcaseIdsAtom} from "./testcaseEntity"
+import {
+    clearDeletedIdsAtom,
+    clearNewEntityIdsAtom,
+    resetTestcaseIdsAtom,
+    testcaseIdsAtom,
+} from "./testcaseEntity"
 
 // ============================================================================
 // ATOM FAMILY CLEANUP
@@ -88,24 +93,30 @@ const previousRevisionIdAtom = atom<string | null>(null)
  * }, [revisionId, cleanupOnRevisionChange])
  * ```
  */
-export const cleanupOnRevisionChangeAtom = atom(
-    null,
-    (get, set, newRevisionId: string | null) => {
-        const previousRevisionId = get(previousRevisionIdAtom)
+export const cleanupOnRevisionChangeAtom = atom(null, (get, set, newRevisionId: string | null) => {
+    const previousRevisionId = get(previousRevisionIdAtom)
 
-        // Skip if revision hasn't changed
-        if (previousRevisionId === newRevisionId) return
+    // Skip if revision hasn't changed
+    if (previousRevisionId === newRevisionId) return
 
-        // If we have a previous revision, cleanup its testcases
-        if (previousRevisionId !== null) {
-            const oldTestcaseIds = get(testcaseIdsAtom)
-            cleanupTestcaseAtomsBatch(oldTestcaseIds)
-        }
+    // If we have a previous revision, cleanup its testcases
+    if (previousRevisionId !== null) {
+        const oldTestcaseIds = get(testcaseIdsAtom)
+        cleanupTestcaseAtomsBatch(oldTestcaseIds)
+    }
 
-        // Update tracked revision
-        set(previousRevisionIdAtom, newRevisionId)
-    },
-)
+    // Reset testcase IDs for new revision
+    set(resetTestcaseIdsAtom)
+
+    // Clear new entity IDs (client-created rows from previous revision)
+    set(clearNewEntityIdsAtom)
+
+    // Clear deleted entity IDs (soft-deleted rows from previous revision)
+    set(clearDeletedIdsAtom)
+
+    // Update tracked revision
+    set(previousRevisionIdAtom, newRevisionId)
+})
 
 /**
  * Write-only atom to force cleanup of all current testcase atoms

@@ -1,5 +1,7 @@
 import {atom} from "jotai"
 
+import {testcasesRevisionIdAtom} from "@/oss/components/TestcasesTableNew/atoms/revisionContext"
+
 import {currentColumnsAtom, hasColumnChangesAtom} from "../testcase/columnState"
 import {
     deletedEntityIdsAtom,
@@ -11,11 +13,6 @@ import {
 } from "../testcase/testcaseEntity"
 
 import {revisionHasDraftAtomFamily} from "./revisionEntity"
-import {
-    currentRevisionIdAtom,
-    hasMetadataChangesAtom,
-    testsetNameChangedAtom,
-} from "./testsetMetadata"
 
 // ============================================================================
 // REVISION-LEVEL DIRTY STATE
@@ -26,9 +23,27 @@ import {
  * Check if the current revision has any draft changes
  */
 export const revisionIsDirtyAtom = atom((get) => {
-    const revisionId = get(currentRevisionIdAtom)
+    const revisionId = get(testcasesRevisionIdAtom)
     if (!revisionId) return false
     return get(revisionHasDraftAtomFamily(revisionId))
+})
+
+/**
+ * Check if any metadata has changed (name/description via revision draft)
+ */
+export const hasMetadataChangesAtom = atom((get) => {
+    const revisionId = get(testcasesRevisionIdAtom)
+    if (!revisionId) return false
+    return get(revisionHasDraftAtomFamily(revisionId))
+})
+
+/**
+ * Check if name has changed (via revision draft)
+ */
+export const testsetNameChangedAtom = atom((get) => {
+    // Name changes are tracked in revision draft - if draft exists with name, it's changed
+    // For now, just check if revision has any draft (simplified)
+    return get(hasMetadataChangesAtom)
 })
 
 /**

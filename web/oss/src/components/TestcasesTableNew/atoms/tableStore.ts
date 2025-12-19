@@ -1,4 +1,4 @@
-import {atom, getDefaultStore} from "jotai"
+import {atom} from "jotai"
 import {atomWithStorage} from "jotai/vanilla/utils"
 
 import {
@@ -10,12 +10,26 @@ import type {InfiniteTableFetchResult} from "@/oss/components/InfiniteVirtualTab
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {cleanupOnRevisionChangeAtom} from "@/oss/state/entities/testcase/atomCleanup"
-import {resetColumnsAtom} from "@/oss/state/entities/testcase/columnState"
-import {initializeV0DraftAtom} from "@/oss/state/entities/testcase/editSession"
-import {revisionQueryAtom} from "@/oss/state/entities/testcase/queries"
+import {
+    clearPendingAddedColumnsAtom,
+    clearPendingDeletedColumnsAtom,
+    clearPendingRenamesAtom,
+    resetColumnsAtom,
+} from "@/oss/state/entities/testcase/columnState"
+import {testsetIdAtom as _testsetIdAtom} from "@/oss/state/entities/testcase/queries"
 import {flattenTestcase, testcasesResponseSchema} from "@/oss/state/entities/testcase/schema"
-import {setTestcaseIdsAtom} from "@/oss/state/entities/testcase/testcaseEntity"
+import {
+    deletedEntityIdsAtom,
+    newEntityIdsAtom,
+    setTestcaseIdsAtom,
+    testcaseDraftAtomFamily,
+} from "@/oss/state/entities/testcase/testcaseEntity"
 import {projectIdAtom} from "@/oss/state/project"
+
+import {testcasesRevisionIdAtom} from "./revisionContext"
+
+// Re-export for backward compatibility
+export {testcasesRevisionIdAtom} from "./revisionContext"
 
 /**
  * API response from /preview/testsets/{testset_id}
@@ -55,9 +69,6 @@ export interface TestcaseTableMeta extends BaseTableMeta {
 
 // Atom for search term (persisted in session storage)
 export const testcasesSearchTermAtom = atomWithStorage<string>("testcases-search-term", "")
-
-// Atom for revision ID (from URL)
-export const testcasesRevisionIdAtom = atom<string | null>(null)
 
 // Atom to trigger a refresh
 export const testcasesRefreshTriggerAtom = atom(0)
@@ -122,7 +133,42 @@ async function fetchTestcasesForTable(
     }
 }
 
-// Create the dataset store
+// ============================================================================
+// CLIENT ROWS ATOM
+// Provides client-side rows (unsaved drafts) to the IVT store
+// ============================================================================
+
+/**
+ * Atom that provides client-created rows to the IVT store
+ * Converts entity IDs to table row format
+ */
+const clientTestcaseRowsAtom = atom<TestcaseTableRow[]>((get) => {
+    const newEntityIds = get(newEntityIdsAtom)
+
+    if (newEntityIds.length === 0) {
+        return []
+    }
+
+    // Create row objects for new entities (only if draft exists)
+    const newRows: TestcaseTableRow[] = []
+    for (const id of newEntityIds) {
+        const draft = get(testcaseDraftAtomFamily(id))
+        // Only include rows that have a draft - skip if draft was cleared
+        if (draft) {
+            newRows.push({
+                ...draft,
+                key: id,
+                __isSkeleton: false,
+                __isNew: true,
+            } as TestcaseTableRow)
+        }
+    }
+
+    // Reverse so newest rows appear first
+    return newRows.reverse()
+})
+
+// Create the dataset store with client rows support
 const {datasetStore} = createSimpleTableStore<
     TestcaseTableRow,
     TestcaseTableRow,
@@ -139,6 +185,10 @@ const {datasetStore} = createSimpleTableStore<
         } as Omit<TestcaseTableRow, "key" | "__isSkeleton">,
         getRowId: (row) => row.id || row.key.toString(),
     },
+    // Provide client rows atom for IVT to merge with server rows
+    clientRowsAtom: clientTestcaseRowsAtom,
+    // Provide deleted IDs atom to filter out soft-deleted rows
+    excludeRowIdsAtom: deletedEntityIdsAtom,
     fetchData: async ({meta, limit, cursor}) => {
         if (!meta.projectId || !meta.revisionId) {
             return {
@@ -157,14 +207,6 @@ const {datasetStore} = createSimpleTableStore<
             cursor,
             limit || PAGE_SIZE,
         )
-
-        // Hydrate entity atoms with fetched IDs
-        // This populates testcaseIdsAtom so columns can be derived
-        const store = getDefaultStore()
-        const ids = result.rows.map((row) => row.id).filter(Boolean) as string[]
-        if (ids.length > 0) {
-            store.set(setTestcaseIdsAtom, ids)
-        }
 
         // Apply client-side search filtering if searchTerm exists
         if (meta.searchTerm) {
@@ -191,6 +233,50 @@ const {datasetStore} = createSimpleTableStore<
 export const testcasesDatasetStore = datasetStore
 
 // ============================================================================
+// ROWS TO ENTITY IDS SYNC ATOM
+// Watches datasetStore rows and hydrates testcaseIdsAtom when data arrives
+// ============================================================================
+
+/**
+ * Derived atom that extracts SERVER IDs from the datasetStore's rows
+ * This runs AFTER the query settles and data is in the cache
+ * Excludes client-created rows (new rows) - those are tracked in newEntityIdsAtom
+ */
+export const testcaseRowIdsAtom = atom((get) => {
+    const meta = get(testcasesTableMetaAtom)
+    if (!meta.revisionId) return []
+
+    const scopeId = `testcases-${meta.revisionId}`
+    const rowsAtom = datasetStore.atoms.rowsAtom({scopeId, pageSize: PAGE_SIZE})
+    const rows = get(rowsAtom)
+
+    // Filter out skeleton rows, new rows (client-created), and extract IDs
+    // New rows have __isNew flag or IDs starting with "new-"
+    const ids = rows
+        .filter((row) => {
+            if (row.__isSkeleton) return false
+            if (row.__isNew) return false
+            if (!row.id) return false
+            if (typeof row.id === "string" && row.id.startsWith("new-")) return false
+            return true
+        })
+        .map((row) => row.id as string)
+
+    return ids
+})
+
+/**
+ * Effect atom that syncs row IDs to testcaseIdsAtom
+ * Call this from a useEffect or atomEffect to keep entity atoms in sync
+ */
+export const syncRowIdsToEntityAtom = atom(null, (get, set) => {
+    const ids = get(testcaseRowIdsAtom)
+    if (ids.length > 0) {
+        set(setTestcaseIdsAtom, ids)
+    }
+})
+
+// ============================================================================
 // REVISION CHANGE EFFECT ATOM
 // Consolidates all side effects when revision changes
 // ============================================================================
@@ -204,8 +290,9 @@ const previousRevisionIdAtom = atom<string | null>(null)
  * Effect atom that runs all side effects when revision changes
  * - Sets the revision ID (single source of truth)
  * - Cleanup old testcase atoms (memory management)
- * - Reset column state
- * - Initialize v0 draft for empty testsets
+ * - Reset column state and pending column changes
+ *
+ * Note: v0 initialization is handled separately in useTestcasesTable
  *
  * Use with atomEffect or call from a single useEffect in the component
  */
@@ -227,10 +314,8 @@ export const revisionChangeEffectAtom = atom(null, (get, set, newRevisionId: str
     // 2. Reset column state
     set(resetColumnsAtom)
 
-    // 3. Initialize v0 draft after revision query completes
-    // This is deferred - we check if revision query is done
-    const revisionQuery = get(revisionQueryAtom)
-    if (!revisionQuery.isPending && newRevisionId) {
-        set(initializeV0DraftAtom)
-    }
+    // 3. Clear pending column changes from previous revision
+    set(clearPendingRenamesAtom)
+    set(clearPendingDeletedColumnsAtom)
+    set(clearPendingAddedColumnsAtom)
 })

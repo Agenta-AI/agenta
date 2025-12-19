@@ -19,8 +19,9 @@ export const revisionSchema = z.object({
     // Parent testset
     testset_id: z.string(),
 
-    // Name (displayed as "testset name" in UI)
+    // Header fields (from Header mixin)
     name: z.string().nullable().optional(),
+    description: z.string().nullable().optional(),
 
     // Version number (0 = draft, 1+ = committed)
     version: z.union([z.number(), z.string()]).transform((v) => {
@@ -28,16 +29,17 @@ export const revisionSchema = z.object({
         return typeof v === "string" ? parseInt(v, 10) : v
     }),
 
-    // Commit message (set when creating revision)
-    message: z.string().nullable().optional(),
+    // Commit fields (from Commit mixin)
+    author: z.string().nullable().optional(),
+    date: z.string().nullable().optional(),
+    message: z.string().nullable().optional(), // Commit message
 
     // Lifecycle timestamps
     created_at: z.string().nullable().optional(),
     updated_at: z.string().nullable().optional(),
 
-    // Author
+    // Author (alias for created_by_id in some responses)
     created_by_id: z.string().nullable().optional(),
-    author: z.string().nullable().optional(), // Alias used in some responses
 
     // Flags for quick checks
     flags: z
