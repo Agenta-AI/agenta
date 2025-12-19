@@ -166,19 +166,23 @@ const CommitTestsetModal = ({
                 </div>
 
                 {hasDiffData && (
-                    <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#E0E7EF] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
-                        <div className="border-b border-[#E2E8F0] px-4 py-3 shrink-0">
-                            <Text className="text-sm font-medium text-[#0F172A]">
+                    <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#FAFBFC]">
+                        <div className="flex items-center justify-between border-b border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 shrink-0">
+                            <Text className="text-xs font-semibold text-[#475569] uppercase tracking-wide">
                                 Changes preview
                             </Text>
+                            <Text className="text-xs text-[#94A3B8]">
+                                {displaySummary.modifiedCount || 0} change
+                                {(displaySummary.modifiedCount || 0) !== 1 ? "s" : ""}
+                            </Text>
                         </div>
-                        <div className="flex-1 overflow-auto p-3">
+                        <div className="flex-1 overflow-auto">
                             <DiffView
                                 key={`${displaySummary.originalData?.length}-${displaySummary.modifiedData?.length}`}
                                 original={displaySummary.originalData}
                                 modified={displaySummary.modifiedData}
                                 language="json"
-                                className="h-full rounded-lg border border-[#E2E8F0]"
+                                className="h-full"
                                 showErrors
                                 enableFolding
                             />

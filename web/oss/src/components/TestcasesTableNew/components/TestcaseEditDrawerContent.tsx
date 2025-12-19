@@ -6,12 +6,13 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {ChatMessageList, SimpleChatMessage} from "@/oss/components/ChatMessageEditor"
 import {EditorProvider} from "@/oss/components/Editor/Editor"
-import type {EditableTableColumn} from "@/oss/components/InfiniteVirtualTable/hooks/useEditableTable"
 import SimpleDropdownSelect from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/SimpleDropdownSelect"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
-import {useEntityMutation} from "@/oss/state/entities"
-import {testcaseDraftStore} from "@/oss/state/entities/testcase/draftStore"
-import {testcaseStore} from "@/oss/state/entities/testcase/store"
+import type {Column} from "@/oss/state/entities/testcase/columnState"
+import {
+    testcaseEntityAtomFamily,
+    updateTestcaseAtom,
+} from "@/oss/state/entities/testcase/testcaseEntity"
 
 import TestcaseFieldHeader from "./TestcaseFieldHeader"
 
@@ -30,7 +31,7 @@ export interface TestcaseEditDrawerContentRef {
 interface TestcaseEditDrawerContentProps {
     /** Testcase ID (reads from draft store) */
     testcaseId: string
-    columns: EditableTableColumn[]
+    columns: Column[]
     isNewRow: boolean
     onClose: () => void
     editMode: EditMode
@@ -41,23 +42,23 @@ const TestcaseEditDrawerContent = forwardRef<
     TestcaseEditDrawerContentRef,
     TestcaseEditDrawerContentProps
 >(({testcaseId, columns, isNewRow, onClose, editMode, onEditModeChange}, ref) => {
-    // Entity mutation hook (for syncing draft to entity store on save)
-    const {update: entityUpdate} = useEntityMutation(testcaseStore)
+    // Read testcase from entity atom (same source as cells)
+    const testcaseAtom = useMemo(() => testcaseEntityAtomFamily(testcaseId), [testcaseId])
+    const testcase = useAtomValue(testcaseAtom)
 
-    // Draft store - read draft and update function
-    const draft = useAtomValue(testcaseDraftStore.draft(testcaseId))
-    const updateDraft = useSetAtom(testcaseDraftStore.updateDraft(testcaseId))
+    // Update testcase (creates draft if needed)
+    const updateTestcase = useSetAtom(updateTestcaseAtom)
 
-    // Derive form values from draft (single source of truth for editing)
+    // Derive form values from testcase (single source of truth for editing)
     const formValues = useMemo(() => {
-        if (!draft) return {}
+        if (!testcase) return {}
         const values: Record<string, string> = {}
         columns.forEach((col) => {
-            const value = draft[col.key]
+            const value = testcase[col.key]
             values[col.key] = value != null ? String(value) : ""
         })
         return values
-    }, [draft, columns])
+    }, [testcase, columns])
 
     // Per-field mode tracking (text or json)
     const [fieldModes, setFieldModes] = useState<Record<string, FieldMode>>({})
@@ -219,12 +220,12 @@ const TestcaseEditDrawerContent = forwardRef<
         }
     }, [])
 
-    // Initialize field modes when draft changes (on open or testcase switch)
+    // Initialize field modes when testcase changes (on open or testcase switch)
     useEffect(() => {
-        if (!draft) return
+        if (!testcase) return
         const initialFieldModes: Record<string, FieldMode> = {}
         columns.forEach((col) => {
-            const value = draft[col.key]
+            const value = testcase[col.key]
             const stringValue = value != null ? String(value) : ""
             const dataType = detectDataType(stringValue)
             // JSON objects can only be shown in raw mode
@@ -244,47 +245,32 @@ const TestcaseEditDrawerContent = forwardRef<
         [formValues, formatForJsonDisplay],
     )
 
-    // Handle JSON editor change - update both draft and entity store
+    // Handle JSON editor change - update entity (creates draft if needed)
     const handleJsonChange = useCallback(
         (value: string) => {
             const parsed = parseFromJsonDisplay(value)
             if (parsed) {
-                // Update draft (for undo/redo and discard)
-                updateDraft((d) => {
-                    Object.assign(d, parsed)
-                })
-                // Also update entity store (for table row updates)
-                entityUpdate({id: testcaseId, updates: parsed})
+                updateTestcase({id: testcaseId, updates: parsed})
             }
         },
-        [parseFromJsonDisplay, updateDraft, entityUpdate, testcaseId],
+        [parseFromJsonDisplay, updateTestcase, testcaseId],
     )
 
-    // Handle field change - update both draft and entity store
+    // Handle field change - update entity (creates draft if needed)
     const handleFieldChange = useCallback(
         (columnKey: string, value: string) => {
-            // Update draft (for undo/redo and discard)
-            updateDraft((d) => {
-                d[columnKey] = value
-            })
-            // Also update entity store (for table row updates)
-            entityUpdate({id: testcaseId, updates: {[columnKey]: value}})
+            updateTestcase({id: testcaseId, updates: {[columnKey]: value}})
         },
-        [updateDraft, entityUpdate, testcaseId],
+        [updateTestcase, testcaseId],
     )
 
-    // Handle chat messages change - update both draft and entity store
+    // Handle chat messages change - update entity (creates draft if needed)
     const handleMessagesChange = useCallback(
         (columnKey: string, messages: SimpleChatMessage[]) => {
             const value = JSON.stringify(messages)
-            // Update draft (for undo/redo and discard)
-            updateDraft((d) => {
-                d[columnKey] = value
-            })
-            // Also update entity store (for table row updates)
-            entityUpdate({id: testcaseId, updates: {[columnKey]: value}})
+            updateTestcase({id: testcaseId, updates: {[columnKey]: value}})
         },
-        [updateDraft, entityUpdate, testcaseId],
+        [updateTestcase, testcaseId],
     )
 
     // Parse a single message object into SimpleChatMessage format
@@ -397,16 +383,11 @@ const TestcaseEditDrawerContent = forwardRef<
         [fieldModes],
     )
 
-    // Handle save - sync draft to entity store
+    // Handle save - no-op since edits are already in entity atom
     const handleSave = useCallback(() => {
-        if (!draft) return
-
-        // Sync draft to entity store (changes visible in table and other views)
-        entityUpdate({
-            id: testcaseId,
-            updates: draft,
-        })
-    }, [testcaseId, draft, entityUpdate])
+        // Edits are already saved to testcaseDraftAtomFamily via updateTestcase
+        // No additional action needed
+    }, [])
 
     // Expose save handler to parent via ref
     useImperativeHandle(ref, () => ({handleSave}), [handleSave])

@@ -16,6 +16,10 @@ export interface EntityMetadata {
     fetchedAt: number
     isStale: boolean
     isDirty: boolean
+    /** Entity created locally, not yet saved to server */
+    isNew: boolean
+    /** Entity marked for deletion */
+    isDeleted: boolean
 }
 
 /**
@@ -86,6 +90,19 @@ export interface EntityStore<
     upsertManyAtom: WritableAtom<null, [TEntity[]], void>
     removeAtom: WritableAtom<null, [string], void>
     updateAtom: WritableAtom<null, [{id: string; updates: Partial<TEntity>}], void>
+
+    // New/Deleted entity management
+    createEntityAtom: WritableAtom<null, [TEntity], void>
+    markDeletedAtom: WritableAtom<null, [string], void>
+    unmarkDeletedAtom: WritableAtom<null, [string], void>
+    removeNewEntityAtom: WritableAtom<null, [string], void>
+    clearNewDeletedAtom: WritableAtom<null, [], void>
+
+    // New/Deleted selectors
+    newEntityIdsAtom: Atom<string[]>
+    deletedEntityIdsAtom: Atom<Set<string>>
+    newEntitiesAtom: Atom<TEntity[]>
+    hasNewOrDeletedAtom: Atom<boolean>
 
     // Utility atoms
     invalidateAtom: WritableAtom<null, [string | string[]], void>

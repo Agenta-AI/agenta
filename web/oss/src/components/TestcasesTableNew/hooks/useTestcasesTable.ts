@@ -1,289 +1,60 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {keepPreviousData, useInfiniteQuery, useQuery} from "@tanstack/react-query"
+import {keepPreviousData, useInfiniteQuery} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {useEditableTable, type EditableTableColumn} from "@/oss/components/InfiniteVirtualTable"
-import type {InfiniteTableRowBase} from "@/oss/components/InfiniteVirtualTable/types"
-import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {
-    patchTestsetRevision,
-    updateTestset,
-    type TestsetRevisionPatchOperations,
-} from "@/oss/services/testsets/api"
-import {testcaseDraftStore} from "@/oss/state/entities/testcase/draftStore"
-import {unflattenTestcase} from "@/oss/state/entities/testcase/schema"
+    addColumnAtom,
+    currentColumnsAtom,
+    deleteColumnAtom,
+    renameColumnAtom,
+    resetColumnsAtom,
+} from "@/oss/state/entities/testcase/columnState"
+import {changesSummaryAtom, hasUnsavedChangesAtom} from "@/oss/state/entities/testcase/dirtyState"
+import {displayRowRefsAtom} from "@/oss/state/entities/testcase/displayRows"
 import {
-    flattenTestcase,
-    testcasesResponseSchema,
-    type FlattenedTestcase,
-} from "@/oss/state/entities/testcase/schema"
+    currentRevisionIdAtom,
+    initializeV0DraftAtom,
+} from "@/oss/state/entities/testcase/editSession"
+import {
+    addTestcaseAtom,
+    appendTestcasesAtom,
+    clearChangesAtom,
+    deleteTestcasesAtom,
+    saveTestsetAtom,
+} from "@/oss/state/entities/testcase/mutations"
+import {
+    currentRevisionIdAtom as queryCurrentRevisionIdAtom,
+    fetchTestcasesPage,
+    metadataLoadingAtom,
+    revisionQueryAtom,
+    revisionsListQueryAtom,
+    testsetIdAtom,
+    testsetMetadataAtom,
+    testsetNameQueryAtom,
+} from "@/oss/state/entities/testcase/queries"
+import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
 import {testcaseStore} from "@/oss/state/entities/testcase/store"
+import {setTestcaseIdsAtom} from "@/oss/state/entities/testcase/testcaseEntity"
+import {
+    currentDescriptionAtom,
+    currentTestsetNameAtom,
+    descriptionChangedAtom,
+    setLocalDescriptionAtom,
+    setLocalTestsetNameAtom,
+    testsetNameChangedAtom,
+} from "@/oss/state/entities/testcase/testsetMetadata"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
-/** Page size for testcases pagination */
-const PAGE_SIZE = 50
+import type {TestcaseTableRow, UseTestcasesTableOptions, UseTestcasesTableResult} from "./types"
 
-/**
- * Testcase row type for the table
- * Extends InfiniteTableRowBase for compatibility with useEditableTable
- */
-export interface TestcaseTableRow extends InfiniteTableRowBase {
-    id?: string
-    testset_id?: string
-    created_at?: string
-    [key: string]: unknown
-}
-
-/**
- * Configuration options for the testcases table hook
- */
-export interface UseTestcasesTableOptions {
-    /** Revision ID (the URL param - what we're viewing/editing) */
-    revisionId?: string | null
-}
-
-/**
- * Testset metadata (name, parent testset ID)
- */
-export interface TestsetMetadata {
-    /** Parent testset ID (used for saving) */
-    testsetId: string
-    /** Testset name */
-    testsetName: string
-    /** Current revision version */
-    revisionVersion?: number
-    /** Testset description */
-    description?: string
-    /** Commit message for this revision */
-    commitMessage?: string
-    /** Author of this revision */
-    author?: string
-    /** Created date */
-    createdAt?: string
-    /** Updated date */
-    updatedAt?: string
-}
-
-/**
- * Return type for the useTestcasesTable hook
- */
-export interface UseTestcasesTableResult {
-    // Data
-    /** List of testcases to display (with local edits applied) */
-    testcases: TestcaseTableRow[]
-    /** List of testcase IDs (for entity atom access) */
-    testcaseIds: string[]
-    /** Derived column definitions */
-    columns: EditableTableColumn[]
-    /** Loading state */
-    isLoading: boolean
-    /** Error state */
-    error: Error | null
-
-    // Metadata
-    /** Testset metadata (name, testsetId, revisionVersion, description) */
-    metadata: TestsetMetadata | null
-    /** Testset name (editable) */
-    testsetName: string
-    /** Update testset name */
-    setTestsetName: (name: string) => void
-    /** Whether testset name has changed */
-    testsetNameChanged: boolean
-    /** Testset description (editable) */
-    description: string
-    /** Update testset description */
-    setDescription: (description: string) => void
-    /** Whether description has changed */
-    descriptionChanged: boolean
-
-    // Stats
-    /** Total count of testcases (after filtering) */
-    totalCount: number
-
-    // Local mutations (tracked in state, saved via bulk commit)
-    /** Update a testcase field (local only) */
-    updateTestcase: (rowKey: string, columnKey: string, value: unknown) => void
-    /** Delete testcases by row keys */
-    deleteTestcases: (rowKeys: string[]) => void
-    /** Add a new testcase row */
-    addTestcase: () => TestcaseTableRow
-    /** Append multiple testcases from parsed data. Returns count of added rows (duplicates removed). */
-    appendTestcases: (rows: Record<string, unknown>[]) => number
-    /** Add a new column */
-    addColumn: (columnName: string) => boolean
-    /** Rename a column */
-    renameColumn: (oldName: string, newName: string) => boolean
-    /** Delete a column */
-    deleteColumn: (columnName: string) => void
-
-    // Save (creates new revision)
-    /** Save all changes (creates new testset revision). Returns new revision ID on success, null on failure. */
-    saveTestset: (commitMessage?: string) => Promise<string | null>
-    /** Whether save is in progress */
-    isSaving: boolean
-    /** Whether there are unsaved changes */
-    hasUnsavedChanges: boolean
-    /** Clear all local changes */
-    clearChanges: () => void
-    /** Get summary of pending changes for commit modal */
-    getChangesSummary: () => {
-        modifiedCount: number
-        addedCount: number
-        deletedCount: number
-        nameChanged: boolean
-        descriptionChanged: boolean
-        originalData?: string
-        modifiedData?: string
-    }
-
-    // Search/Filter
-    /** Current search term */
-    searchTerm: string
-    /** Update search term */
-    setSearchTerm: (term: string) => void
-    /** Filtered testcases based on search */
-    filteredTestcases: TestcaseTableRow[]
-
-    // Pagination
-    /** Load next page of testcases */
-    loadNextPage: () => void
-    /** Reset and refetch all pages */
-    resetPages: () => void
-    /** Whether there are more pages to load */
-    hasMorePages: boolean
-    /** Whether currently fetching next page */
-    isFetchingNextPage: boolean
-    /** Server-side total count */
-    serverTotalCount: number
-
-    // Revisions
-    /** Available revisions for this testset */
-    availableRevisions: {id: string; version: number; created_at: string}[]
-    /** Whether revisions are loading */
-    loadingRevisions: boolean
-
-    // Refetch
-    /** Manually refetch revision data */
-    refetch: () => void
-}
-
-/**
- * System columns that should not be displayed or edited
- */
-const SYSTEM_COLUMNS = [
-    "id",
-    "key",
-    "testset_id",
-    "set_id",
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "created_by_id",
-    "updated_by_id",
-    "deleted_by_id",
-    "flags",
-    "tags",
-    "meta",
-    "__isSkeleton",
-    "testcase_dedup_id",
-]
-
-/**
- * Fetch revision metadata from API (no testcases - just metadata)
- */
-async function fetchRevision(projectId: string, revisionId: string) {
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/${revisionId}`,
-        {params: {project_id: projectId}},
-    )
-    return response.data?.testset_revision
-}
-
-/**
- * Paginated testcases response
- */
-interface TestcasesPage {
-    testcases: FlattenedTestcase[]
-    count: number
-    nextCursor: string | null
-    hasMore: boolean
-}
-
-/**
- * Fetch paginated testcases using /preview/testcases/query endpoint
- * Uses testset_revision_id to fetch testcases for a specific revision
- */
-async function fetchTestcasesPage(
-    projectId: string,
-    revisionId: string,
-    cursor: string | null,
-): Promise<TestcasesPage> {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testcases/query`,
-        {
-            testset_revision_id: revisionId,
-            windowing: {
-                limit: PAGE_SIZE,
-                ...(cursor && {next: cursor}),
-            },
-        },
-        {params: {project_id: projectId}},
-    )
-
-    // Validate response with Zod
-    const validated = testcasesResponseSchema.parse(response.data)
-
-    // Flatten testcases for table display
-    const flattenedTestcases = validated.testcases.map(flattenTestcase)
-
-    return {
-        testcases: flattenedTestcases,
-        count: validated.count,
-        nextCursor: validated.windowing?.next || null,
-        hasMore: Boolean(validated.windowing?.next),
-    }
-}
-
-/**
- * Fetch testset metadata (name) from API
- */
-async function fetchTestsetName(projectId: string, testsetId: string): Promise<string> {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/query`,
-        {
-            testset_refs: [{id: testsetId}],
-            windowing: {limit: 1},
-        },
-        {params: {project_id: projectId}},
-    )
-    const testsets = response.data?.testsets ?? []
-    return testsets[0]?.name ?? ""
-}
-
-/**
- * Fetch all revisions for a testset (using already-known testsetId)
- */
-async function fetchRevisionsByTestsetId(
-    projectId: string,
-    testsetId: string,
-): Promise<{id: string; version: number; created_at: string}[]> {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
-        {
-            testset_refs: [{id: testsetId}],
-            windowing: {limit: 100},
-        },
-        {params: {project_id: projectId}},
-    )
-    const revisions = response.data?.testset_revisions ?? []
-    return revisions.map((rev: any) => ({
-        id: rev.id,
-        version: rev.version ?? 0,
-        created_at: rev.created_at,
-    }))
-}
+// Re-export types for external consumers
+export type {
+    TestcaseTableRow,
+    TestsetMetadata,
+    UseTestcasesTableOptions,
+    UseTestcasesTableResult,
+} from "./types"
 
 /**
  * Main hook for testcases table state management
@@ -323,100 +94,75 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     // Search state
     const [searchTerm, setSearchTerm] = useState("")
 
-    // Testset name state
-    const [localTestsetName, setLocalTestsetName] = useState<string | null>(null)
-
     // Save state
     const [isSaving, setIsSaving] = useState(false)
 
-    /**
-     * Fetch revision data using React Query
-     */
-    const revisionQuery = useQuery({
-        queryKey: ["testset-revision", projectId, revisionId],
-        queryFn: async () => {
-            if (!projectId || !revisionId) return null
-            return fetchRevision(projectId, revisionId)
-        },
-        enabled: Boolean(projectId && revisionId),
-        staleTime: 30_000,
-        placeholderData: keepPreviousData,
-    })
+    // Testset metadata atoms - local edits stored in atoms
+    const setLocalName = useSetAtom(setLocalTestsetNameAtom)
+    const setLocalDesc = useSetAtom(setLocalDescriptionAtom)
+    const testsetName = useAtomValue(currentTestsetNameAtom)
+    const description = useAtomValue(currentDescriptionAtom)
+    const testsetNameChanged = useAtomValue(testsetNameChangedAtom)
+    const descriptionChanged = useAtomValue(descriptionChangedAtom)
 
-    // Extract data from revision
-    const revision = revisionQuery.data
-    const testsetId = revision?.testset_id
-    const revisionVersion = revision?.version
-
-    /**
-     * Fetch testset name (uses testsetId from revision - no duplicate call)
-     */
-    const testsetNameQuery = useQuery({
-        queryKey: ["testset-name", projectId, testsetId],
-        queryFn: async () => {
-            if (!projectId || !testsetId) return ""
-            return fetchTestsetName(projectId, testsetId)
-        },
-        enabled: Boolean(projectId && testsetId),
-        staleTime: 60_000,
-    })
-
-    /**
-     * Fetch available revisions (uses testsetId from revision - no duplicate call)
-     */
-    const revisionsQuery = useQuery({
-        queryKey: ["testset-revisions", projectId, testsetId],
-        queryFn: async () => {
-            if (!projectId || !testsetId) return []
-            return fetchRevisionsByTestsetId(projectId, testsetId)
-        },
-        enabled: Boolean(projectId && testsetId),
-        staleTime: 60_000,
-    })
-
-    const fetchedTestsetName = testsetNameQuery.data ?? ""
-    const testsetName = localTestsetName ?? fetchedTestsetName
-    const testsetNameChanged = localTestsetName !== null && localTestsetName !== fetchedTestsetName
-    const availableRevisions = revisionsQuery.data ?? []
-    const loadingRevisions = revisionsQuery.isLoading
-
-    // Description from revision
-    const fetchedDescription = revision?.description ?? ""
-    const [localDescription, setLocalDescription] = useState<string | null>(null)
-    const description = localDescription ?? fetchedDescription
-    const descriptionChanged = localDescription !== null && localDescription !== fetchedDescription
-
-    // Reset local name/description state when revision changes
+    // Set revision context for query atoms FIRST (before reading query atoms)
+    const setQueryRevisionId = useSetAtom(queryCurrentRevisionIdAtom)
     useEffect(() => {
-        setLocalTestsetName(null)
-        setLocalDescription(null)
-    }, [revisionId])
+        setQueryRevisionId(revisionId ?? null)
+    }, [revisionId, setQueryRevisionId])
+
+    // Query atoms - reactive data fetching via atomWithQuery
+    const revisionQuery = useAtomValue(revisionQueryAtom)
+    const testsetNameQuery = useAtomValue(testsetNameQueryAtom)
+    const revisionsListQuery = useAtomValue(revisionsListQueryAtom)
+
+    // Extract data from query atoms
+    const testsetId = useAtomValue(testsetIdAtom)
+    const availableRevisions = revisionsListQuery.data ?? []
+    const loadingRevisions = revisionsListQuery.isPending
+
+    // Metadata from query atoms (automatically updates when queries complete)
+    const metadata = useAtomValue(testsetMetadataAtom)
+    const metadataLoading = useAtomValue(metadataLoadingAtom)
+
+    // Entity store - for local edits only (server data lives in serverTestcasesAtom)
+    const updateEntity = useSetAtom(testcaseStore.updateAtom)
 
     /**
      * Paginated testcases query using useInfiniteQuery
      * Uses revisionId to fetch testcases for the specific revision being viewed
+     * Hydrates entity store when data arrives (per entity store pattern from README)
      */
+    const queryEnabled = Boolean(projectId && revisionId)
+
     const testcasesQuery = useInfiniteQuery({
         queryKey: ["testcases-paginated", projectId, revisionId],
         queryFn: async ({pageParam}) => {
             if (!projectId || !revisionId) {
                 return {testcases: [], count: 0, nextCursor: null, hasMore: false}
             }
-            return fetchTestcasesPage(projectId, revisionId, pageParam)
+            const result = await fetchTestcasesPage(projectId, revisionId, pageParam)
+            // NOTE: We don't upsertMany here anymore.
+            // Server data goes to serverTestcasesAtom (for display + dirty comparison)
+            // Entity store only gets data when user creates/edits rows
+            return result
         },
         initialPageParam: null as string | null,
         getNextPageParam: (lastPage) => lastPage.nextCursor,
-        enabled: Boolean(projectId && revisionId),
+        enabled: queryEnabled,
         staleTime: 30_000,
         placeholderData: keepPreviousData,
     })
 
     /**
-     * Flatten all pages into a single array of testcases
+     * Extract testcase IDs from all pages
      */
-    const allTestcases = useMemo(() => {
+    const testcaseIds = useMemo(() => {
         if (!testcasesQuery.data?.pages) return []
-        return testcasesQuery.data.pages.flatMap((page) => page.testcases)
+        return testcasesQuery.data.pages
+            .flatMap((page) => page.testcases)
+            .map((tc) => tc.id)
+            .filter(Boolean) as string[]
     }, [testcasesQuery.data?.pages])
 
     /**
@@ -445,379 +191,122 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         testcasesQuery.refetch()
     }, [testcasesQuery])
 
-    /**
-     * Transform flattened testcases to table rows
-     */
-    const serverRows = useMemo<TestcaseTableRow[]>(() => {
-        const rows = allTestcases.map((tc, index) => {
-            const {created_at, ...rest} = tc
-            return {
-                ...rest,
-                key: tc.id || `row-${index}`,
-                id: tc.id,
-                testset_id: tc.testset_id || testsetId,
-                created_at: created_at ?? undefined,
-                __isSkeleton: false,
-            } as TestcaseTableRow
-        })
-        return rows
-    }, [allTestcases, testsetId])
-
-    /**
-     * Entity store hydration - populate entity atoms from paginated testcases
-     */
-    const upsertMany = useSetAtom(testcaseStore.upsertManyAtom)
-    const upsert = useSetAtom(testcaseStore.upsertAtom)
-    const updateEntity = useSetAtom(testcaseStore.updateAtom)
-    const clearAllEntities = useSetAtom(testcaseStore.clearAllAtom)
-    const clearAllDirty = useSetAtom(testcaseStore.clearAllDirtyAtom)
-    const allEntities = useAtomValue(testcaseStore.entitiesAtom)
-
-    // Draft store - for clearing drafts when discarding changes
-    const clearAllDrafts = useSetAtom(testcaseDraftStore.clearAllDrafts)
-
-    // Track which testcases have been hydrated to avoid duplicates
-    const hydratedIdsRef = useRef<Set<string>>(new Set())
-
-    // Track column renames for migrating newly loaded pages
-    // Maps oldColumnName -> newColumnName (supports chained renames: a->b->c stored as a->c)
-    const columnRenamesRef = useRef<Map<string, string>>(new Map())
-
+    // Set testcase IDs when data arrives (triggers entity atom initialization)
+    const setTestcaseIds = useSetAtom(setTestcaseIdsAtom)
     useEffect(() => {
-        if (allTestcases.length > 0) {
-            // Only hydrate new testcases (not already in store)
-            const newTestcases = allTestcases.filter(
-                (tc) => tc.id && !hydratedIdsRef.current.has(tc.id),
-            )
-            if (newTestcases.length > 0) {
-                // Apply any pending column renames to new data before hydrating
-                const migratedTestcases = newTestcases.map((tc) => {
-                    if (columnRenamesRef.current.size === 0) return tc
-                    const migrated = {...tc}
-                    columnRenamesRef.current.forEach((newName, oldName) => {
-                        if (oldName in migrated) {
-                            ;(migrated as Record<string, unknown>)[newName] = (
-                                migrated as Record<string, unknown>
-                            )[oldName]
-                            delete (migrated as Record<string, unknown>)[oldName]
-                        }
-                    })
-                    return migrated as FlattenedTestcase
-                })
-                upsertMany(migratedTestcases)
-                newTestcases.forEach((tc) => {
-                    if (tc.id) hydratedIdsRef.current.add(tc.id)
-                })
-            }
+        if (testcaseIds.length > 0) {
+            setTestcaseIds(testcaseIds)
         }
-    }, [allTestcases, upsertMany, allEntities])
+    }, [testcaseIds, setTestcaseIds])
 
-    // Reset hydrated IDs, column renames, and clear entity store when revision changes
-    // This ensures entities from previous revision don't persist
+    // Set revision context for all revision-scoped atoms
+    // This is the ONLY thing needed - atoms are automatically scoped by revision
+    const setCurrentRevisionId = useSetAtom(currentRevisionIdAtom)
     useEffect(() => {
-        hydratedIdsRef.current = new Set()
-        columnRenamesRef.current = new Map()
-        clearAllEntities()
-        clearAllDirty()
-    }, [revisionId, clearAllEntities, clearAllDirty])
+        setCurrentRevisionId(revisionId ?? null)
+    }, [revisionId, setCurrentRevisionId])
 
-    /**
-     * Track testcase IDs (for entity atom access)
-     */
-    const testcaseIds = useMemo(() => {
-        return allTestcases.map((tc) => tc.id).filter(Boolean) as string[]
-    }, [allTestcases])
+    // =========================================================================
+    // COLUMN STATE (from atoms instead of useEditableTable)
+    // Columns are derived directly from entity/server data - no useEffect sync needed
+    // =========================================================================
+    const columns = useAtomValue(currentColumnsAtom)
+    const addColumn = useSetAtom(addColumnAtom)
+    const deleteColumn = useSetAtom(deleteColumnAtom)
+    const renameColumnAction = useSetAtom(renameColumnAtom)
+    const resetColumns = useSetAtom(resetColumnsAtom)
 
-    /**
-     * Dirty state tracking - which testcases have been modified
-     */
-    const [_modifiedTestcaseIds, setModifiedTestcaseIds] = useState<Set<string>>(new Set())
+    // =========================================================================
+    // DISPLAY ROW REFS (optimized - only IDs, cells read from entity atoms)
+    // =========================================================================
+    const displayRowRefs = useAtomValue(displayRowRefsAtom)
 
-    /**
-     * Editable table hook - handles all local edit state
-     */
-    const [editState, editActions] = useEditableTable<TestcaseTableRow>({
-        systemFields: SYSTEM_COLUMNS,
-        createNewRow: () => ({
-            testset_id: testsetId || "",
-            created_at: new Date().toISOString(),
-        }),
-    })
-
-    // Track the revision ID that columns were derived from
-    // This prevents re-deriving columns from stale placeholder data
-    const columnsForRevisionRef = useRef<string | null>(null)
-
-    // Reset all editable table state when revision changes
-    // This resets columns, local edits, new rows, deleted rows
-    const resetAllState = editActions.resetAllState
+    // Reset column state when revision changes
     useEffect(() => {
-        resetAllState()
-        // Reset the columns revision tracker so columns will be re-derived
-        columnsForRevisionRef.current = null
-    }, [revisionId, resetAllState])
+        resetColumns()
+    }, [revisionId, resetColumns])
 
-    // Derive columns from first row - only when we have fresh data for current revision
-    const deriveColumnsFromRow = editState.deriveColumnsFromRow
-    const isPlaceholderData = testcasesQuery.isPlaceholderData
+    // Initialize v0 draft (empty testset gets starter column + row)
+    const initializeV0Draft = useSetAtom(initializeV0DraftAtom)
     useEffect(() => {
-        // Don't derive columns from placeholder (stale) data
-        if (isPlaceholderData) return
-        // Don't derive if we already derived for this revision
-        if (columnsForRevisionRef.current === revisionId) return
-        // Derive columns from first row if we have data
-        if (serverRows.length > 0 && editState.columns.length === 0) {
-            deriveColumnsFromRow(serverRows[0])
-            columnsForRevisionRef.current = revisionId ?? null
+        // Only run after both testcases and revision queries complete
+        if (!testcasesQuery.isLoading && !revisionQuery.isPending) {
+            initializeV0Draft()
         }
-    }, [serverRows, editState.columns.length, deriveColumnsFromRow, isPlaceholderData, revisionId])
-
-    // Track if we've initialized draft for v0
-    const v0DraftInitializedRef = useRef(false)
-
-    // Reset v0 draft flag when revision changes
-    useEffect(() => {
-        v0DraftInitializedRef.current = false
-    }, [revisionId])
+    }, [testcasesQuery.isLoading, revisionQuery.isPending, initializeV0Draft])
 
     /**
-     * Initialize draft state for v0 revisions with no testcases
-     * Creates an example column and row so user can start editing immediately
+     * Row refs for table display
+     * Filtering by search term is handled at the component level
+     * since row refs don't contain cell data (cells read from entity atoms)
      */
-    useEffect(() => {
-        // Only for v0 revisions with no server data
-        const isV0 =
-            revisionVersion === 0 || revisionVersion === "0" || String(revisionVersion) === "0"
-        const hasNoServerData = serverRows.length === 0 && !testcasesQuery.isLoading
-        const hasNoLocalData = editState.newRows.length === 0 && editState.columns.length === 0
-
-        if (
-            isV0 &&
-            hasNoServerData &&
-            hasNoLocalData &&
-            !v0DraftInitializedRef.current &&
-            testsetId
-        ) {
-            v0DraftInitializedRef.current = true
-
-            // Add example column
-            editActions.addColumn("input")
-
-            // Add example row with empty data
-            const newRow = editActions.addRow()
-
-            // Set initial value for the example column
-            if (newRow.id) {
-                editActions.editCell(newRow.id, "input", "")
-
-                // Create entity in store for drawer flow
-                const flattenedRow: FlattenedTestcase = {
-                    id: newRow.id,
-                    testset_id: testsetId,
-                    input: "",
-                }
-                upsert(flattenedRow)
-            }
-        }
-    }, [
-        revisionVersion,
-        serverRows.length,
-        testcasesQuery.isLoading,
-        editState.newRows.length,
-        editState.columns.length,
-        testsetId,
-        editActions,
-        upsert,
-    ])
-
-    /**
-     * Get display rows with edits applied
-     */
-    const displayRows = useMemo(() => {
-        return editActions.getDisplayRows(serverRows)
-    }, [editActions, serverRows])
-
-    /**
-     * Filter rows based on search term
-     */
-    const filteredTestcases = useMemo(() => {
-        if (!searchTerm.trim()) {
-            return displayRows
-        }
-
-        const lowerSearch = searchTerm.toLowerCase()
-        return displayRows.filter((row) => {
-            return editState.columns.some((col) => {
-                const value = row[col.key]
-                if (value == null) return false
-                return String(value).toLowerCase().includes(lowerSearch)
-            })
-        })
-    }, [displayRows, searchTerm, editState.columns])
-
-    const totalCount = filteredTestcases.length
-
-    // Reset dirty state when revision changes
-    useEffect(() => {
-        setLocalTestsetName(null)
-        setModifiedTestcaseIds(new Set())
-    }, [revisionId])
+    const totalCount = displayRowRefs.length
 
     /**
      * Update a testcase cell
+     * Uses entity store updateAtom
      */
     const updateTestcase = useCallback(
         (rowKey: string, columnKey: string, value: unknown) => {
-            editActions.editCell(rowKey, columnKey, value)
+            updateEntity({
+                id: rowKey,
+                updates: {[columnKey]: value} as Partial<FlattenedTestcase>,
+            })
         },
-        [editActions],
+        [updateEntity],
     )
 
     /**
-     * Delete testcases
+     * Delete testcases - uses deleteTestcasesAtom
      */
+    const executeDeleteTestcases = useSetAtom(deleteTestcasesAtom)
     const deleteTestcases = useCallback(
-        (rowKeys: string[]) => {
-            editActions.deleteRows(rowKeys)
-        },
-        [editActions],
+        (rowKeys: string[]) => executeDeleteTestcases(rowKeys),
+        [executeDeleteTestcases],
     )
 
     /**
-     * Rename a column - also migrates data in entity store and tracks for future pages
+     * Rename a column - uses renameColumnAtom
      */
     const renameColumn = useCallback(
-        (oldName: string, newName: string): boolean => {
-            // First, rename in the editable table state
-            const success = editActions.renameColumn(oldName, newName)
-            if (!success) return false
-
-            const trimmedNewName = newName.trim()
-
-            // Track the rename for future page loads (infinite scroll)
-            // Handle chained renames: if we already have x->oldName, update to x->newName
-            const existingOldName = Array.from(columnRenamesRef.current.entries()).find(
-                ([, v]) => v === oldName,
-            )?.[0]
-            if (existingOldName) {
-                // Update existing chain: originalName -> newName
-                columnRenamesRef.current.set(existingOldName, trimmedNewName)
-            } else {
-                // New rename: oldName -> newName
-                columnRenamesRef.current.set(oldName, trimmedNewName)
-            }
-
-            // Then, migrate data in the entity store for all entities
-            // This ensures existing row data is preserved under the new column key
-            // Use updateEntity to properly set isDirty flag, then clean up old key
-            Object.entries(allEntities).forEach(([entityId, stored]) => {
-                if (stored?.data && oldName in stored.data) {
-                    const oldValue = (stored.data as Record<string, unknown>)[oldName]
-                    // First, add the new column with the old value (this sets isDirty)
-                    updateEntity({
-                        id: entityId,
-                        updates: {
-                            [trimmedNewName]: oldValue,
-                        } as Partial<FlattenedTestcase>,
-                    })
-                }
-            })
-
-            return true
-        },
-        [editActions, allEntities, updateEntity],
+        (oldName: string, newName: string): boolean => renameColumnAction({oldName, newName}),
+        [renameColumnAction],
     )
 
     /**
-     * Add a new testcase
-     * Also adds to entity store so dirty indicator shows
+     * Add a new testcase - uses addTestcaseAtom
      */
-    const addTestcase = useCallback(() => {
-        const newRow = editActions.addRow()
-        // Add to entity store as dirty so indicator shows
-        if (newRow.id) {
-            const flattenedRow: FlattenedTestcase = {
-                id: newRow.id,
-                testset_id: testsetId || "",
-                ...Object.fromEntries(
-                    editState.columns.map((col) => [col.key, newRow[col.key] ?? ""]),
-                ),
-            }
-            upsert(flattenedRow)
+    const executeAddTestcase = useSetAtom(addTestcaseAtom)
+    const addTestcase = useCallback((): TestcaseTableRow => {
+        const result = executeAddTestcase()
+        return {
+            ...result.data,
+            key: result.id,
+            __isSkeleton: false,
+            __isNew: true,
         }
-        return newRow
-    }, [editActions, testsetId, editState.columns, upsert])
+    }, [executeAddTestcase])
 
     /**
-     * Append multiple testcases from parsed data
-     * Removes duplicates by comparing JSON stringified data
-     * @returns Count of rows actually added (after deduplication)
+     * Append multiple testcases - uses appendTestcasesAtom
      */
+    const executeAppendTestcases = useSetAtom(appendTestcasesAtom)
     const appendTestcases = useCallback(
-        (rows: Record<string, unknown>[]): number => {
-            if (!rows.length) return 0
-
-            // Get existing row data for deduplication
-            // Use allTestcases (server data) and editState.newRows (locally added rows)
-            const existingDataSet = new Set<string>()
-            const allRows = [...allTestcases, ...(editState.newRows || [])]
-            for (const row of allRows) {
-                // Extract only data columns (exclude id, testset_id, created_at)
-                const dataOnly: Record<string, unknown> = {}
-                for (const col of editState.columns) {
-                    dataOnly[col.key] = row[col.key]
-                }
-                existingDataSet.add(JSON.stringify(dataOnly))
-            }
-
-            // Add new columns from incoming data if they don't exist
-            const existingColumnKeys = new Set(editState.columns.map((c) => c.key))
-            for (const row of rows) {
-                for (const key of Object.keys(row)) {
-                    if (!existingColumnKeys.has(key)) {
-                        editActions.addColumn(key)
-                        existingColumnKeys.add(key)
-                    }
-                }
-            }
-
-            // Add rows that aren't duplicates
-            let addedCount = 0
-            for (const row of rows) {
-                const rowDataStr = JSON.stringify(row)
-                if (!existingDataSet.has(rowDataStr)) {
-                    const newRow = editActions.addRow()
-                    // Set values for each column
-                    for (const [key, value] of Object.entries(row)) {
-                        if (newRow.id) {
-                            editActions.editCell(newRow.id, key, value)
-                        }
-                    }
-                    // Add to entity store
-                    if (newRow.id) {
-                        const flattenedRow: FlattenedTestcase = {
-                            id: newRow.id,
-                            testset_id: testsetId || "",
-                            ...row,
-                        }
-                        upsert(flattenedRow)
-                    }
-                    existingDataSet.add(rowDataStr)
-                    addedCount++
-                }
-            }
-
-            return addedCount
-        },
-        [editActions, allTestcases, editState.newRows, editState.columns, testsetId, upsert],
+        (rows: Record<string, unknown>[]): number => executeAppendTestcases(rows),
+        [executeAppendTestcases],
     )
 
     /**
-     * Save all changes - creates new revision using patch API
-     * Only sends delta changes (update/create/delete) instead of full snapshot
-     * This is safe for infinite scrolling since it doesn't require all data to be loaded
+     * Clear all local changes - uses clearChangesAtom
+     */
+    const executeClearChanges = useSetAtom(clearChangesAtom)
+    const clearChanges = useCallback(() => executeClearChanges(), [executeClearChanges])
+
+    /**
+     * Save all changes - uses saveTestsetAtom mutation
      * @returns New revision ID on success, null on failure
      */
+    const executeSave = useSetAtom(saveTestsetAtom)
     const saveTestset = useCallback(
         async (commitMessage?: string): Promise<string | null> => {
             if (!projectId || !testsetId) {
@@ -825,353 +314,55 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
                 return null
             }
 
-            if (!testsetName.trim()) {
-                console.error("[useTestcasesTable] Testset name is required")
-                return null
-            }
-
             setIsSaving(true)
             try {
-                // Build patch operations from local changes
-                const operations: TestsetRevisionPatchOperations = {}
-
-                // Get current column keys to filter data (handles column renames)
-                const currentColumnKeys = new Set(editState.columns.map((c) => c.key))
-
-                // 1. Collect updated testcases (dirty entities in store)
-                const updatedTestcases = testcaseIds
-                    .filter((id) => {
-                        const stored = allEntities[id]
-                        return stored?.metadata?.isDirty && !editState.deletedRowIds.has(id)
-                    })
-                    .map((id) => {
-                        const stored = allEntities[id]
-                        if (!stored?.data) return null
-                        const unflattened = unflattenTestcase(stored.data)
-                        // Filter data to only include current columns (handles column renames)
-                        const filteredData: Record<string, unknown> = {}
-                        if (unflattened.data) {
-                            for (const key of Object.keys(unflattened.data)) {
-                                if (currentColumnKeys.has(key)) {
-                                    filteredData[key] = unflattened.data[key]
-                                }
-                            }
-                        }
-                        return {
-                            id: unflattened.id!,
-                            data: filteredData,
-                        }
-                    })
-                    .filter(Boolean) as {id: string; data: Record<string, unknown>}[]
-
-                if (updatedTestcases.length > 0) {
-                    operations.update = updatedTestcases
-                }
-
-                // 2. Collect new testcases from local edit state
-                // Note: New rows may have been edited via the drawer, which updates the entity store
-                // So we need to get the data from the entity store if available
-                const newTestcases = editState.newRows.map((row) => {
-                    const rowId = row.id || row.key
-                    // Check if this new row has been edited in the entity store
-                    const entityData = rowId ? allEntities[rowId as string]?.data : null
-                    if (entityData) {
-                        // Use data from entity store (has drawer edits)
-                        const unflattened = unflattenTestcase(entityData)
-                        // Filter data to only include current columns (handles column renames)
-                        const filteredData: Record<string, unknown> = {}
-                        if (unflattened.data) {
-                            for (const key of Object.keys(unflattened.data)) {
-                                if (currentColumnKeys.has(key)) {
-                                    filteredData[key] = unflattened.data[key]
-                                }
-                            }
-                        }
-                        return {data: filteredData}
-                    }
-                    // Fallback to row data (for rows not edited via drawer)
-                    // Filter to only include current columns
-                    const filteredData: Record<string, unknown> = {}
-                    for (const col of editState.columns) {
-                        if (col.key in row) {
-                            filteredData[col.key] = (row as Record<string, unknown>)[col.key]
-                        }
-                    }
-                    return {data: filteredData}
+                const result = await executeSave({
+                    projectId,
+                    testsetId,
+                    revisionId,
+                    commitMessage,
                 })
 
-                if (newTestcases.length > 0) {
-                    operations.create = newTestcases
-                }
-
-                // 3. Collect deleted testcase IDs
-                const deletedIds = Array.from(editState.deletedRowIds)
-
-                if (deletedIds.length > 0) {
-                    operations.delete = deletedIds
-                }
-
-                // Update testset name if changed (using legacy API for now)
-                if (testsetNameChanged) {
-                    await updateTestset(testsetId, testsetName, [])
-                }
-
-                // Check if there are any operations to apply
-                const hasOperations =
-                    (operations.update?.length ?? 0) > 0 ||
-                    (operations.create?.length ?? 0) > 0 ||
-                    (operations.delete?.length ?? 0) > 0
-
-                if (!hasOperations && !testsetNameChanged && !descriptionChanged) {
-                    // No changes to save, return current revision ID
-                    return revisionId || null
-                }
-
-                // Patch revision with delta changes
-                // Pass current revisionId as base so patches apply to the viewed revision, not latest
-                const response = await patchTestsetRevision(
-                    testsetId,
-                    operations,
-                    commitMessage || undefined, // Use provided commit message or let backend use default
-                    revisionId ?? undefined, // Base revision ID - the one currently being viewed
-                    descriptionChanged ? description : undefined, // Only pass description if changed
-                )
-
-                if (response?.testset_revision) {
-                    const newRevisionId = response.testset_revision.id as string
-
-                    // Clear local edit state
-                    editActions.clearLocalState()
-                    setLocalTestsetName(null)
-                    setLocalDescription(null)
-                    setModifiedTestcaseIds(new Set())
-
-                    // Clear entire entity store so new revision loads fresh
-                    clearAllEntities()
-
-                    // Clear hydrated IDs so new data will be re-hydrated
-                    hydratedIdsRef.current = new Set()
-
+                if (result.success && result.newRevisionId) {
                     // Invalidate revisions query so the list updates
-                    revisionsQuery.refetch()
-
-                    // Return the new revision ID so caller can navigate to it
-                    return newRevisionId
+                    // Note: atomWithQuery doesn't expose refetch - use queryClient.invalidateQueries instead
+                    return result.newRevisionId
                 }
+
+                if (result.error) {
+                    throw result.error
+                }
+
                 return null
-            } catch (error) {
-                console.error("[useTestcasesTable] Failed to save testset:", error)
-                throw error
             } finally {
                 setIsSaving(false)
             }
         },
-        [
-            projectId,
-            testsetId,
-            testsetName,
-            testsetNameChanged,
-            testcaseIds,
-            allEntities,
-            editState.deletedRowIds,
-            editState.newRows,
-            editActions,
-            clearAllEntities,
-            revisionId,
-            revisionsQuery,
-        ],
+        [projectId, testsetId, revisionId, executeSave],
     )
 
     /**
-     * Clear all local changes
-     */
-    const clearChanges = useCallback(() => {
-        editActions.clearLocalState()
-        setLocalTestsetName(null)
-        setLocalDescription(null)
-        setModifiedTestcaseIds(new Set())
-
-        // Clear column rename tracking (columns will be re-derived from original data)
-        columnRenamesRef.current = new Map()
-
-        // Clear all drafts from the draft store (used by drawer editor)
-        clearAllDrafts()
-
-        // Re-hydrate entities from server data (cached in React Query)
-        // This restores original values without a network request
-        if (allTestcases.length > 0) {
-            const testcasesToRestore = allTestcases.filter((tc) => tc.id)
-            if (testcasesToRestore.length > 0) {
-                upsertMany(testcasesToRestore)
-                // Clear dirty flags after re-hydrating (upsert sets isDirty: true)
-                clearAllDirty()
-            }
-        }
-    }, [editActions, allTestcases, upsertMany, clearAllDirty, clearAllDrafts])
-
-    /**
      * Get summary of pending changes for commit modal
+     * Now derived from changesSummaryAtom - no useCallback needed
      */
-    const getChangesSummary = useCallback(() => {
-        // Count modified testcases (dirty entities in store)
-        const modifiedCount = testcaseIds.filter((id) => {
-            const stored = allEntities[id]
-            return stored?.metadata?.isDirty && !editState.deletedRowIds.has(id)
-        }).length
-
-        // Count new testcases
-        const addedCount = editState.newRows.length
-
-        // Count deleted testcases
-        const deletedCount = editState.deletedRowIds.size
-
-        // Build diff data - show only meaningful field changes
-        let originalData: string | undefined
-        let modifiedData: string | undefined
-
-        // Get current column keys to filter data (handles column renames)
-        const currentColumnKeys = new Set(editState.columns.map((c) => c.key))
-
-        // Helper to extract only user data fields (exclude metadata, only include current columns)
-        const extractUserFields = (
-            data: Record<string, unknown> | undefined,
-            useCurrentColumns = true,
-        ) => {
-            if (!data) return {}
-            const metadataFields = [
-                "id",
-                "key",
-                "testset_id",
-                "set_id",
-                "created_at",
-                "updated_at",
-                "deleted_at",
-                "created_by_id",
-                "updated_by_id",
-                "deleted_by_id",
-                "flags",
-                "tags",
-                "meta",
-                "__isSkeleton",
-            ]
-            const result: Record<string, unknown> = {}
-            for (const [key, value] of Object.entries(data)) {
-                if (metadataFields.includes(key)) continue
-                // For modified data, only include current columns (handles column renames)
-                if (useCurrentColumns && !currentColumnKeys.has(key)) continue
-                result[key] = value
-            }
-            return result
-        }
-
-        // Collect changes for diff view - show before/after for each change
-        const originalChanges: Record<string, unknown>[] = []
-        const modifiedChanges: Record<string, unknown>[] = []
-
-        // Modified testcases - show original vs modified
-        testcaseIds.forEach((id) => {
-            const stored = allEntities[id]
-            if (stored?.metadata?.isDirty && !editState.deletedRowIds.has(id)) {
-                // Find original data from server cache
-                const originalTestcase = allTestcases.find((tc) => tc.id === id)
-                // For original, don't filter by current columns (show old column names)
-                const originalFields = extractUserFields(
-                    originalTestcase as Record<string, unknown>,
-                    false,
-                )
-                // For modified, filter by current columns (only show renamed columns)
-                const modifiedFields = extractUserFields(
-                    stored.data as Record<string, unknown>,
-                    true,
-                )
-
-                originalChanges.push({_type: "modified", ...originalFields})
-                modifiedChanges.push({_type: "modified", ...modifiedFields})
-            }
-        })
-
-        // New testcases
-        editState.newRows.forEach((row) => {
-            const rowId = row.id || row.key
-            const entityData = rowId ? allEntities[rowId as string]?.data : null
-            const fields = extractUserFields((entityData || row) as Record<string, unknown>)
-
-            // No original for new rows
-            modifiedChanges.push({_type: "added", ...fields})
-        })
-
-        // Deleted testcases
-        editState.deletedRowIds.forEach((id) => {
-            const originalTestcase = allTestcases.find((tc) => tc.id === id)
-            const originalFields = extractUserFields(originalTestcase as Record<string, unknown>)
-
-            originalChanges.push({_type: "deleted", ...originalFields})
-        })
-
-        // Only show diff if there are testcase changes
-        if (originalChanges.length > 0 || modifiedChanges.length > 0) {
-            originalData = JSON.stringify(originalChanges, null, 2)
-            modifiedData = JSON.stringify(modifiedChanges, null, 2)
-        }
-
-        return {
-            modifiedCount,
-            addedCount,
-            deletedCount,
-            nameChanged: testsetNameChanged,
-            descriptionChanged,
-            originalData,
-            modifiedData,
-        }
-    }, [
-        testcaseIds,
-        allEntities,
-        allTestcases,
-        editState.deletedRowIds,
-        editState.newRows,
-        testsetNameChanged,
-        descriptionChanged,
-    ])
+    const changesSummary = useAtomValue(changesSummaryAtom)
 
     /**
-     * Check if any entities in the store are dirty
+     * Check if there are any unsaved changes
+     * Uses entity-level hasUnsavedChangesAtom which combines:
+     * - Cell edits (entity vs server comparison)
+     * - Column changes (current vs server column keys)
+     * - Edit session (new/deleted rows)
+     * - Metadata changes (name/description)
      */
-    const hasEntityStoreDirty = useMemo(() => {
-        return Object.values(allEntities).some((stored) => stored.metadata?.isDirty)
-    }, [allEntities])
-
-    /**
-     * Calculate unsaved changes - includes entity store dirty state
-     */
-    const hasUnsavedChanges =
-        editState.hasUnsavedChanges ||
-        testsetNameChanged ||
-        descriptionChanged ||
-        hasEntityStoreDirty
-
-    /**
-     * Build metadata object
-     */
-    const metadata: TestsetMetadata | null = testsetId
-        ? {
-              testsetId,
-              testsetName: fetchedTestsetName,
-              revisionVersion,
-              description: fetchedDescription,
-              commitMessage: revision?.message,
-              author: revision?.author,
-              createdAt: revision?.created_at,
-              updatedAt: revision?.updated_at,
-          }
-        : null
+    const hasUnsavedChanges = useAtomValue(hasUnsavedChangesAtom)
 
     return {
-        // Data
-        testcases: filteredTestcases,
+        // Data - row refs (optimized: cells read from entity atoms)
+        rowRefs: displayRowRefs,
         testcaseIds, // IDs for entity atom access
-        columns: editState.columns,
-        isLoading:
-            revisionQuery.isLoading || testsetNameQuery.isLoading || testcasesQuery.isLoading,
+        columns,
+        isLoading: metadataLoading || testcasesQuery.isLoading,
         error: (revisionQuery.error ||
             testsetNameQuery.error ||
             testcasesQuery.error) as Error | null,
@@ -1179,10 +370,10 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         // Metadata
         metadata,
         testsetName,
-        setTestsetName: setLocalTestsetName,
+        setTestsetName: setLocalName,
         testsetNameChanged,
         description,
-        setDescription: setLocalDescription,
+        setDescription: setLocalDesc,
         descriptionChanged,
 
         // Stats
@@ -1193,21 +384,20 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         deleteTestcases,
         addTestcase,
         appendTestcases,
-        addColumn: editActions.addColumn,
+        addColumn,
         renameColumn,
-        deleteColumn: editActions.deleteColumn,
+        deleteColumn,
 
         // Save
         saveTestset,
         isSaving,
         hasUnsavedChanges,
         clearChanges,
-        getChangesSummary,
+        changesSummary,
 
         // Search/Filter
         searchTerm,
         setSearchTerm,
-        filteredTestcases,
 
         // Pagination
         loadNextPage,
@@ -1221,6 +411,10 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         loadingRevisions,
 
         // Refetch
-        refetch: revisionQuery.refetch,
+        refetch: () => {
+            // Refetch is handled by invalidating the query - atomWithQuery doesn't expose refetch directly
+            // For now, just refetch testcases
+            testcasesQuery.refetch()
+        },
     }
 }
