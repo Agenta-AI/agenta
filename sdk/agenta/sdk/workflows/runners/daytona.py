@@ -5,6 +5,7 @@ from typing import Any, Dict, Union, Optional
 from daytona import Daytona, DaytonaConfig, Sandbox
 
 from agenta.sdk.workflows.runners.base import CodeRunner
+from agenta.sdk.contexts.running import RunningContext
 
 from agenta.sdk.utils.logging import get_module_logger
 
@@ -108,19 +109,12 @@ class DaytonaRunner(CodeRunner):
 
             from daytona import CreateSandboxFromSnapshotParams
 
-            # Get Agenta API URL and key from singleton or environment
+            # Get Agenta API URL and key from request context, then env, then singleton.
             import agenta
 
-            agenta_api_url = (
-                agenta.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_url
-                or os.getenv("AGENTA_API_URL")
-                or ""
-            )
-            agenta_api_key = (
-                agenta.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_key
-                or os.getenv("AGENTA_API_KEY")
-                or ""
-            )
+            agenta_host = agenta.DEFAULT_AGENTA_SINGLETON_INSTANCE.host or ""
+            # agenta_host = "https://xxx.ngrok-free.app"
+            agenta_credentials = RunningContext.get().credentials or ""
 
             sandbox = self.daytona.create(
                 CreateSandboxFromSnapshotParams(
@@ -128,10 +122,8 @@ class DaytonaRunner(CodeRunner):
                     ephemeral=True,
                     env_vars=dict(
                         OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", ""),
-                        AGENTA_API_URL=agenta_api_url,
-                        AGENTA_API_KEY=agenta_api_key,
-                        # AGENTA_API_URL="https://cloud.agenta.ai/api",
-                        # AGENTA_API_KEY="your-api-key-here",
+                        AGENTA_HOST=agenta_host,
+                        AGENTA_CREDENTIALS=agenta_credentials,
                     ),
                 )
             )
