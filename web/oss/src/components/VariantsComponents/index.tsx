@@ -2,7 +2,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {SwapOutlined} from "@ant-design/icons"
-import {CodeSimpleIcon, Rocket} from "@phosphor-icons/react"
+import {CodeSimpleIcon} from "@phosphor-icons/react"
 import {Button, Flex, Input, Radio, Space, Tabs, Typography} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -14,31 +14,32 @@ import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
+import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useQueryParamState} from "@/oss/state/appState"
+import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
 import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {deployedVariantByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 import {
     selectedVariantsCountAtom,
     variantTableSelectionAtomFamily,
 } from "@/oss/state/variant/atoms/selection"
-import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
-import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
-import {deployedVariantByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 import {
     modelNameByRevisionIdAtomFamily,
     revisionListAtom,
     variantDisplayNameByIdAtomFamily,
 } from "@/oss/state/variant/selectors/variant"
 
+import DeploymentsDashboard from "../DeploymentsDashboard"
+import {envRevisionsAtom} from "../DeploymentsDashboard/atoms"
+import {openDeploymentsDrawerAtom} from "../DeploymentsDashboard/modals/store/deploymentDrawerStore"
+import DeployVariantButton from "../Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
+
 import {
     openComparisonModalAtom,
     comparisonSelectionScopeAtom,
 } from "./Modals/VariantComparisonModal/store/comparisonModalStore"
-import DeploymentsDashboard from "../DeploymentsDashboard"
 import VariantsTable from "./Table"
-import DeployVariantButton from "../Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
-import {envRevisionsAtom} from "../DeploymentsDashboard/atoms"
-import {openDeploymentsDrawerAtom} from "../DeploymentsDashboard/modals/store/deploymentDrawerStore"
 
 // Comparison modal is opened via atoms; no local deploy/delete modals here
 
@@ -120,7 +121,7 @@ const VariantsDashboard = () => {
             const children = sorted.slice(1)
             groups.push({
                 ...latest,
-                _parentVariant: true,
+                _isParentRow: true,
                 children,
             })
         })

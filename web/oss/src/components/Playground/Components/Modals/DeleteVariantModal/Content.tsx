@@ -2,52 +2,107 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Trash} from "@phosphor-icons/react"
 import {Button, Spin, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore, useSetAtom} from "jotai"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {
     deleteVariantMutationAtom,
     variantByRevisionIdAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
-import VariantNameCell from "@/oss/components/VariantNameCell"
+import {queryClient} from "@/oss/lib/api/queryClient"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
+import {deleteSingleVariant} from "@/oss/services/playground/api"
+import {revisionsByVariantIdAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 import {parentVariantDisplayNameAtomFamily} from "@/oss/state/variant/selectors/variant"
 
 const {Text} = Typography
 
 interface Props {
-    variantId: string
+    revisionIds: string[]
     onClose: () => void
 }
 
-const DeleteVariantContent = ({variantId, onClose}: Props) => {
-    // Focused atom family to avoid subscribing to a large list
-    const variant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
+interface VariantGroup {
+    variantId: string
+    selectedIds: string[]
+    totalIds: string[]
+    displayName: string
+    deleteEntireVariant: boolean
+}
+
+const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
+    const store = getDefaultStore()
     const deleteVariant = useSetAtom(deleteVariantMutationAtom)
 
     const [checking, setChecking] = useState(true)
     const [canDelete, setCanDelete] = useState<boolean | null>(null)
+    const [isMutating, setIsMutating] = useState(false)
 
-    // Derive parent variant id from revision to resolve display name
-    const parentVariantId = (variant?._parentVariant ?? variant?.variantId) as string | undefined
-    const parentDisplayName = useAtomValue(
-        parentVariantDisplayNameAtomFamily(parentVariantId || ""),
+    const uniqueRevisionIds = useMemo(
+        () => Array.from(new Set([revisionIds].flat().filter(Boolean))) as string[],
+        [revisionIds],
     )
 
-    const {_variantName, isMutating} = useMemo(() => {
-        return {
-            _variantName: (parentDisplayName as string) || "-",
-            isMutating: (variant as any)?.__isMutating || false,
-        }
-    }, [parentDisplayName, variant])
+    const resolvedRevisions = useMemo(
+        () =>
+            uniqueRevisionIds
+                .map((id) => store.get(variantByRevisionIdAtomFamily(id)))
+                .filter(Boolean) as any[],
+        [store, uniqueRevisionIds],
+    )
 
-    // On mount, verify if resource is eligible for deletion
+    const variantGroups = useMemo(() => {
+        const groups: Record<string, VariantGroup> = {}
+
+        resolvedRevisions.forEach((rev: any) => {
+            const variantId = (rev?._parentVariant as string) || (rev?.variantId as string)
+            if (!variantId) return
+
+            const existing = groups[variantId]
+            const selectedIds = [...(existing?.selectedIds || []), rev.id].filter(
+                Boolean,
+            ) as string[]
+            const totalIds = existing?.totalIds || []
+            const displayName =
+                existing?.displayName ??
+                ((store.get(parentVariantDisplayNameAtomFamily(variantId)) as string) || "-")
+
+            groups[variantId] = {
+                variantId,
+                selectedIds,
+                totalIds,
+                displayName,
+                deleteEntireVariant: false,
+            }
+        })
+
+        Object.values(groups).forEach((group) => {
+            const allRevisions = (store.get(revisionsByVariantIdAtomFamily(group.variantId)) ||
+                []) as any[]
+            const totalIds = allRevisions.map((r: any) => r.id).filter(Boolean) as string[]
+            group.totalIds = totalIds.length > 0 ? totalIds : group.selectedIds
+            const selectedSet = new Set(group.selectedIds)
+            group.deleteEntireVariant =
+                group.totalIds.length > 0 && group.totalIds.every((id) => selectedSet.has(id))
+        })
+
+        return groups
+    }, [resolvedRevisions, store])
+
     useEffect(() => {
         let mounted = true
+        const variantIds = Object.keys(variantGroups)
+        if (variantIds.length === 0) {
+            setCanDelete(false)
+            setChecking(false)
+            return
+        }
+
         ;(async () => {
             try {
                 const ok = await checkIfResourceValidForDeletion({
                     resourceType: "variant",
-                    resourceIds: [variantId],
+                    resourceIds: variantIds,
                 })
                 if (mounted) setCanDelete(ok)
             } catch (e) {
@@ -56,30 +111,75 @@ const DeleteVariantContent = ({variantId, onClose}: Props) => {
                 if (mounted) setChecking(false)
             }
         })()
+
         return () => {
             mounted = false
         }
-    }, [variantId])
+    }, [variantGroups])
+
+    const deletionPlan = useMemo(() => {
+        const variants: string[] = []
+        const revisions = new Set<string>()
+
+        Object.values(variantGroups).forEach((group) => {
+            if (group.deleteEntireVariant) {
+                variants.push(group.variantId)
+            } else {
+                group.selectedIds.forEach((id) => revisions.add(id))
+            }
+        })
+
+        return {variants, revisions: Array.from(revisions)}
+    }, [variantGroups])
+
+    const targetVariantCount = Math.max(
+        deletionPlan.variants.length,
+        Object.keys(variantGroups).length,
+    )
+    const totalSelectedCount = uniqueRevisionIds.length
+    const isBulkDelete = deletionPlan.variants.length > 0 || totalSelectedCount > 1
 
     const onDeleteVariant = useCallback(async () => {
+        setIsMutating(true)
         try {
-            const res = (await deleteVariant({variantId})) as any
-            if (res?.success) {
-                onClose()
-            } else {
-                console.error("Failed to delete variant:", res?.error || "unknown error")
+            for (const variantId of deletionPlan.variants) {
+                await deleteSingleVariant(variantId)
             }
+
+            for (const id of deletionPlan.revisions) {
+                const res = await deleteVariant(id)
+                if (!res?.success) {
+                    throw new Error(res?.error || "Failed to delete revision")
+                }
+            }
+
+            if (deletionPlan.variants.length > 0) {
+                await Promise.all([
+                    queryClient.invalidateQueries({queryKey: ["variants"]}),
+                    queryClient.invalidateQueries({queryKey: ["variantRevisions"]}),
+                ])
+            }
+
+            message.success(
+                deletionPlan.variants.length > 0
+                    ? "Deleted selected variants successfully"
+                    : "Deleted selected revision(s) successfully",
+            )
+            onClose()
         } catch (error) {
-            console.error("Failed to delete variant:", error)
+            console.error("Failed to delete variant(s):", error)
+            message.error(error instanceof Error ? error.message : "Failed to delete variant(s)")
+        } finally {
+            setIsMutating(false)
         }
-    }, [deleteVariant, variantId, onClose])
+    }, [deletionPlan, deleteVariant, onClose])
 
     // Loading state during pre-check
     if (checking) {
         return (
             <div className="flex items-center gap-3 py-6">
                 <Spin />
-                <Text>Checking if this variant can be deleted…</Text>
+                <Text>Checking if the selected item(s) can be deleted…</Text>
             </div>
         )
     }
@@ -88,7 +188,9 @@ const DeleteVariantContent = ({variantId, onClose}: Props) => {
     if (canDelete === false) {
         return (
             <section className="flex flex-col gap-4">
-                <Text>This variant cannot be deleted because it is currently in use.</Text>
+                <Text>
+                    One or more variants cannot be deleted because they are currently in use.
+                </Text>
                 <div className="flex items-center justify-end">
                     <Button type="primary" onClick={onClose}>
                         Close
@@ -98,15 +200,44 @@ const DeleteVariantContent = ({variantId, onClose}: Props) => {
         )
     }
 
-    // Ready state
     return (
         <section className="flex flex-col gap-5">
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                    <Text>You are about to delete:</Text>
-                    <VariantNameCell revisionId={variantId} showBadges />
+                    <Text>
+                        You are about to delete {targetVariantCount} variant
+                        {targetVariantCount === 1 ? "" : "s"}
+                        {deletionPlan.revisions.length > 0 &&
+                            ` (${deletionPlan.revisions.length} revision${
+                                deletionPlan.revisions.length === 1 ? "" : "s"
+                            })`}
+                        .
+                    </Text>
+                    <Text type="secondary">
+                        Selected revisions: {totalSelectedCount}. This action cannot be undone.
+                    </Text>
                 </div>
-                <Text>This action is not reversible. Deleting the revision will also</Text>
+
+                <div className="flex flex-col gap-2">
+                    {Object.values(variantGroups).map((group) => (
+                        <div
+                            key={group.variantId}
+                            className="flex items-center justify-between rounded-md bg-gray-50 px-3 py-2"
+                        >
+                            <div className="flex flex-col">
+                                <Text strong>{group.displayName}</Text>
+                                <Text type="secondary">Variant ID: {group.variantId}</Text>
+                            </div>
+                            <Text>
+                                {group.deleteEntireVariant
+                                    ? "All revisions will be removed"
+                                    : `${group.selectedIds.length} of ${
+                                          group.totalIds.length || group.selectedIds.length
+                                      } revisions`}
+                            </Text>
+                        </div>
+                    ))}
+                </div>
             </div>
 
             <div className="flex items-center justify-end gap-2">
@@ -115,10 +246,11 @@ const DeleteVariantContent = ({variantId, onClose}: Props) => {
                     type="primary"
                     danger
                     loading={isMutating}
+                    disabled={isMutating || totalSelectedCount === 0}
                     icon={<Trash size={14} />}
                     onClick={onDeleteVariant}
                 >
-                    Delete
+                    {isBulkDelete ? "Delete selected" : "Delete"}
                 </Button>
             </div>
         </section>
