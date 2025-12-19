@@ -44,6 +44,16 @@ class LocalRunner(CodeRunner):
         # Add the __import__ built-in function to the local builtins
         local_builtins["__import__"] = __import__
 
+        # Add common Python types needed for evaluators
+        local_builtins["dict"] = dict
+        local_builtins["list"] = list
+        local_builtins["tuple"] = tuple
+        local_builtins["set"] = set
+        local_builtins["str"] = str
+        local_builtins["int"] = int
+        local_builtins["float"] = float
+        local_builtins["bool"] = bool
+
         # Define supported packages
         allowed_imports = [
             "math",
@@ -73,7 +83,11 @@ class LocalRunner(CodeRunner):
         }
 
         # Compile the code in a restricted environment
-        byte_code = compile_restricted(code, filename="<inline>", mode="exec")
+        byte_code = compile_restricted(
+            code,
+            filename="<inline>",
+            mode="exec",
+        )
 
         # Call the evaluation function, extract the result if it exists
         # and is a float between 0 and 1

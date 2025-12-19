@@ -51,9 +51,6 @@ export function AutoFormatAndValidateOnPastePlugin() {
 
                 log("Paste detected", pastedText.substring(0, 50))
                 log("[AutoFormatAndValidateOnPastePlugin] Raw Paste:", pastedText)
-                const language: "json" | "yaml" = pastedText.trim().startsWith("{")
-                    ? "json"
-                    : "yaml"
 
                 // Unify valid and invalid content handling
                 event.preventDefault()
@@ -107,6 +104,11 @@ export function AutoFormatAndValidateOnPastePlugin() {
                     log("Paste: No parentBlock", {currentLine})
                     return false
                 }
+
+                // Get the actual language from the CodeBlock node, or default to "code"
+                const language = $isCodeBlockNode(parentBlock)
+                    ? parentBlock.getLanguage()
+                    : "code"
                 log("Paste: Initial selection state", {
                     selection,
                     anchorNode,
@@ -202,15 +204,39 @@ export function AutoFormatAndValidateOnPastePlugin() {
                 const textAfterCursor = anchorNode.getTextContent().slice(anchorOffset)
                 const hasContentAfter = textAfterCursor.trim().length > 0
 
-                // Strip all leading whitespace from pasted lines first
-                const strippedLines = lines.map((line) => line.replace(/^\s+/, ""))
+                // For Python/code: NO TRANSFORMATION - paste exactly as-is
+                // For JSON/YAML: convert tabs to spaces (2:1), recalculate indentation based on braces
+                let properlyIndentedLines: string[]
 
-                // Calculate proper indentation levels for each line
-                const indentLevels = calculateMultiLineIndentation(
-                    strippedLines,
-                    baseIndentLevel,
-                    language,
-                )
+                if (language === "json" || language === "yaml") {
+                    // Convert tabs to spaces first (2 spaces for JSON/YAML)
+                    const spacedLines = lines.map((line) => line.replace(/\t/g, "  "))
+
+                    // Strip all leading whitespace from pasted lines
+                    const strippedLines = spacedLines.map((line) => line.replace(/^\s+/, ""))
+
+                    // Calculate proper indentation levels for each line
+                    const indentLevels = calculateMultiLineIndentation(
+                        strippedLines,
+                        baseIndentLevel,
+                        language,
+                    )
+
+                    // Apply calculated indentation using tabs
+                    properlyIndentedLines = strippedLines.map((line, index) => {
+                        let indentLevel = indentLevels[index]
+
+                        if (index === 0 && !!totalTextBeforeCursor) {
+                            return line
+                        }
+
+                        const result = "\t".repeat(indentLevel) + line
+                        return result
+                    })
+                } else {
+                    // For code/Python: NO TRANSFORMATION AT ALL - exact paste
+                    properlyIndentedLines = lines
+                }
 
                 log("Paste: Cursor context analysis", {
                     anchorOffset,
@@ -219,35 +245,12 @@ export function AutoFormatAndValidateOnPastePlugin() {
                     hasContentBefore,
                     hasContentAfter,
                     currentLineText,
-                    indentLevels,
                     baseIndentLevel,
                     currentLine,
                 })
 
-                // Apply calculated indentation to each line, with special handling for inline paste
-                const properlyIndentedLines = strippedLines.map((line, index) => {
-                    let indentLevel = indentLevels[index]
-
-                    // Special case: if pasting inline (has content before cursor) and this is the first line,
-                    // don't add any indentation since it continues the current line
-
-                    // Check if there's content before the cursor on the same line [for the first line]
-                    // current `hasContentBefore`
-                    // const _hasContentBefore = index === 0 ? totalTextBeforeCursor : false
-                    if (index === 0 && !!totalTextBeforeCursor) {
-                        // For inline paste, the first line should have NO leading whitespace at all
-                        // This prevents $createNodeForLineWithTabs from creating tab nodes in the middle of content
-                        return line
-                    }
-
-                    const result = "\t".repeat(indentLevel) + line
-                    return result
-                })
-
                 log("Paste: Lines with calculated indentation", {
                     originalLines: lines,
-                    strippedLines,
-                    indentLevels,
                     properlyIndentedLines,
                     baseIndentLevel,
                     language,

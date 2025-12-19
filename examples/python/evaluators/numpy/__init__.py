@@ -1,13 +1,13 @@
-"""NumPy-based numerical evaluators."""
+"""NumPy-based evaluators.
 
-from .cosine_similarity import evaluate as cosine_similarity
-from .statistical_accuracy import evaluate as statistical_accuracy
-from .array_transformation import evaluate as array_transformation
-from .matrix_operations import evaluate as matrix_operations
+Simple tests to verify NumPy availability and basic functionality.
+Requires: pip install numpy
+"""
+
+from .numpy_available import evaluate as numpy_available
+from .numpy_dummy import evaluate as array_sum_match
 
 __all__ = [
-    'cosine_similarity',
-    'statistical_accuracy',
-    'array_transformation',
-    'matrix_operations',
+    "numpy_available",
+    "numpy_dummy",
 ]
