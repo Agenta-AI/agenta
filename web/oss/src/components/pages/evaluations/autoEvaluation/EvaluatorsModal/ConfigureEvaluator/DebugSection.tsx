@@ -77,6 +77,8 @@ import {
     transformedPromptsAtomFamily,
 } from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
+import {useProjectData} from "@/oss/state/project/hooks"
+import {useTestsetsData} from "@/oss/state/testset"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
@@ -166,12 +168,31 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const LAST_APP_KEY = "agenta:lastAppId"
 const LAST_VARIANT_KEY = "agenta:lastVariantId"
 
-const DebugSection = ({testsets, variants, debugEvaluator = true}: DebugSectionProps) => {
+const DebugSection = ({
+    testsets: testsetsFromProps,
+    variants: variantsFromProps,
+    debugEvaluator = true,
+}: DebugSectionProps) => {
     const appId = useAppId()
     const classes = useStyles()
     const uriObject = useAtomValue(appUriInfoAtom)
     const appSchema = useAtomValue(appSchemaAtom)
     const {apps: availableApps = []} = useAppsData()
+    const {projectId} = useProjectData()
+
+    // Fetch testsets internally if not provided via props
+    const {testsets: fetchedTestsets} = useTestsetsData()
+    const testsets = testsetsFromProps ?? fetchedTestsets ?? []
+
+    // DEBUG: Log props received
+    console.log("[DebugSection] Data sources:", {
+        testsetsFromProps: testsetsFromProps?.length,
+        fetchedTestsets: fetchedTestsets?.length,
+        effectiveTestsets: testsets?.length,
+        variantsFromProps: variantsFromProps?.length,
+        projectId,
+        debugEvaluator,
+    })
 
     // ================================================================
     // ATOMS - Read/write state from playground atoms
@@ -205,6 +226,7 @@ const DebugSection = ({testsets, variants, debugEvaluator = true}: DebugSectionP
     const [variantResult, setVariantResult] = useState("")
     const [openVariantModal, setOpenVariantModal] = useState(false)
     const [openTestcaseModal, setOpenTestcaseModal] = useState(false)
+    const [dropdownOpen, setDropdownOpen] = useState(false)
 
     // DEBUG: Log modal state changes
     useEffect(() => {
@@ -227,7 +249,28 @@ const DebugSection = ({testsets, variants, debugEvaluator = true}: DebugSectionP
         return firstApp?.app_id ?? ""
     }, [_selectedVariant?.appId, appId, availableApps])
 
-    const {revisionMap: defaultRevisionMap} = useAppVariantRevisions(defaultAppId || null)
+    console.log("[DebugSection] defaultAppId:", {
+        defaultAppId,
+        fromVariant: _selectedVariant?.appId,
+        fromRouteAppId: appId,
+        fromAvailableApps: availableApps?.[0]?.app_id,
+        availableAppsCount: availableApps?.length,
+    })
+
+    const {
+        revisionMap: defaultRevisionMap,
+        isLoading: isLoadingRevisions,
+        variants: revisionVariants,
+    } = useAppVariantRevisions(defaultAppId || null)
+
+    console.log("[DebugSection] revisionMap:", {
+        defaultAppId,
+        projectId,
+        queryEnabled: Boolean(defaultAppId && projectId),
+        revisionMapKeys: defaultRevisionMap ? Object.keys(defaultRevisionMap) : null,
+        isLoadingRevisions,
+        revisionVariantsCount: revisionVariants?.length,
+    })
 
     const selectedVariant = useMemo(() => {
         console.log("[DebugSection] Computing selectedVariant from _selectedVariant:", {
@@ -248,21 +291,32 @@ const DebugSection = ({testsets, variants, debugEvaluator = true}: DebugSectionP
     }, [_selectedVariant])
 
     const fallbackVariant = useMemo(() => {
+        console.log("[DebugSection] Computing fallbackVariant:", {
+            hasSelectedVariant: !!_selectedVariant,
+            defaultAppId,
+            revisionMapKeys: defaultRevisionMap ? Object.keys(defaultRevisionMap) : null,
+        })
         if (_selectedVariant || !defaultAppId) return null
         const revisionLists = Object.values(defaultRevisionMap || {})
+        console.log("[DebugSection] revisionLists:", revisionLists.length)
         if (!revisionLists.length) return null
         const revisions = revisionLists[0]
         if (!revisions || revisions.length === 0) return null
         const baseVariant = buildVariantFromRevision(revisions[0], defaultAppId)
         baseVariant.revisions = [...revisions]
+        console.log("[DebugSection] fallbackVariant computed:", baseVariant?.variantId)
         return baseVariant
     }, [_selectedVariant, defaultAppId, defaultRevisionMap])
 
     const derivedVariants = useMemo(() => {
-        if (variants && variants.length > 0) return variants
+        console.log("[DebugSection] Computing derivedVariants:", {
+            variantsFromProps: variantsFromProps?.length,
+            hasFallbackVariant: !!fallbackVariant,
+        })
+        if (variantsFromProps && variantsFromProps.length > 0) return variantsFromProps
         if (fallbackVariant) return [fallbackVariant]
         return []
-    }, [variants, fallbackVariant])
+    }, [variantsFromProps, fallbackVariant])
 
     // Resolve current application object for display
     const selectedApp = useMemo(() => {
@@ -283,9 +337,10 @@ const DebugSection = ({testsets, variants, debugEvaluator = true}: DebugSectionP
         let nextVariant: Variant | null = null
 
         // 1) Try to find an existing variant matching stored ids among provided or fallback variants
-        const searchPool: Variant[] = [...(variants || []), ...(derivedVariants || [])].filter(
-            Boolean,
-        ) as Variant[]
+        const searchPool: Variant[] = [
+            ...(variantsFromProps || []),
+            ...(derivedVariants || []),
+        ].filter(Boolean) as Variant[]
 
         if (storedVariantId) {
             nextVariant = searchPool.find((v) => (v as any)?.variantId === storedVariantId) || null
@@ -304,7 +359,7 @@ const DebugSection = ({testsets, variants, debugEvaluator = true}: DebugSectionP
         if (nextVariant) {
             setSelectedVariant(nextVariant)
         }
-    }, [_selectedVariant, variants, derivedVariants, setSelectedVariant])
+    }, [_selectedVariant, variantsFromProps, derivedVariants, setSelectedVariant])
 
     // Persist whenever the working selectedVariant changes
     useEffect(() => {
@@ -319,8 +374,17 @@ const DebugSection = ({testsets, variants, debugEvaluator = true}: DebugSectionP
     }, [_selectedVariant])
 
     useEffect(() => {
+        console.log("[DebugSection] Variant init effect running:", {
+            hasSelectedVariant: !!_selectedVariant,
+            derivedVariantsLength: derivedVariants.length,
+            firstDerivedVariant: derivedVariants[0],
+        })
         if (_selectedVariant) return
         if (derivedVariants.length > 0) {
+            console.log(
+                "[DebugSection] Setting initial variant from derivedVariants:",
+                derivedVariants[0],
+            )
             setSelectedVariant(derivedVariants[0])
             return
         }
@@ -933,43 +997,60 @@ const DebugSection = ({testsets, variants, debugEvaluator = true}: DebugSectionP
                                 Cancel
                             </Button>
                         ) : (
-                            <Dropdown.Button
-                                className="w-fit"
-                                disabled={!selectedTestcase.testcase}
-                                size="small"
-                                onClick={() => {
-                                    console.log("[DebugSection] Run button clicked")
-                                    handleRunVariant()
-                                }}
-                                loading={isRunningVariant}
-                                icon={<MoreOutlined />}
-                                menu={{
-                                    items: [
-                                        {
-                                            key: "change_variant",
-                                            icon: <Lightning />,
-                                            label: "Change application",
-                                            onClick: () => {
-                                                console.log("[DebugSection] Change application clicked, opening modal")
-                                                setOpenVariantModal(true)
-                                            },
-                                        },
-                                    ],
-                                }}
-                            >
-                                <div
-                                    className="flex items-center gap-2"
-                                    key={
-                                        selectedVariant?.variantId ||
-                                        selectedVariant?.variantName ||
-                                        "default"
-                                    }
+                            <Space.Compact>
+                                <Button
+                                    size="small"
+                                    disabled={!selectedTestcase.testcase}
+                                    loading={isRunningVariant}
+                                    onClick={() => {
+                                        console.log("[DebugSection] Run button clicked")
+                                        handleRunVariant()
+                                    }}
                                 >
-                                    <Play />
-                                    {/* Show "App / Variant" */}
-                                    Run application ({appName}/{variantName})
-                                </div>
-                            </Dropdown.Button>
+                                    <div
+                                        className="flex items-center gap-2"
+                                        key={
+                                            selectedVariant?.variantId ||
+                                            selectedVariant?.variantName ||
+                                            "default"
+                                        }
+                                    >
+                                        <Play />
+                                        Run application ({appName}/{variantName})
+                                    </div>
+                                </Button>
+                                <Dropdown
+                                    open={dropdownOpen}
+                                    onOpenChange={(open) => {
+                                        console.log("[DebugSection] Dropdown onOpenChange:", open)
+                                        setDropdownOpen(open)
+                                    }}
+                                    menu={{
+                                        items: [
+                                            {
+                                                key: "change_variant",
+                                                icon: <Lightning />,
+                                                label: "Change application",
+                                            },
+                                        ],
+                                        onClick: (info) => {
+                                            console.log("[DebugSection] Menu onClick:", info)
+                                            if (info.key === "change_variant") {
+                                                console.log("[DebugSection] Opening variant modal")
+                                                setDropdownOpen(false)
+                                                setOpenVariantModal(true)
+                                            }
+                                        },
+                                    }}
+                                    trigger={["click"]}
+                                >
+                                    <Button
+                                        size="small"
+                                        icon={<MoreOutlined />}
+                                        disabled={!selectedTestcase.testcase}
+                                    />
+                                </Dropdown>
+                            </Space.Compact>
                         )}
                     </div>
 

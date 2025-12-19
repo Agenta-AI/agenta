@@ -131,6 +131,15 @@ const ConfigureEvaluator = ({
     const appId = appIdOverride ?? routeAppId ?? apps?.[0].app_id
     const classes = useStyles()
 
+    // DEBUG: Log variants prop received
+    console.log("[ConfigureEvaluator] variants prop:", {
+        variants: variants,
+        variantsLength: variants?.length,
+        variantsIds: variants?.map((v: any) => v.variantId),
+        testsets: testsets?.length,
+        appId,
+    })
+
     // ================================================================
     // ATOMS - Read state from playground atoms
     // ================================================================

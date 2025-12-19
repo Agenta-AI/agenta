@@ -8,6 +8,7 @@
  * - Cleaning up atoms when leaving the page
  *
  * The actual UI is rendered by ConfigureEvaluator which reads from atoms.
+ * DebugSection handles its own data fetching for variants and testsets.
  */
 import {useCallback, useEffect, useMemo} from "react"
 
@@ -22,14 +23,10 @@ import {
     initPlaygroundAtom,
     resetPlaygroundAtom,
 } from "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
-import {useAppId} from "@/oss/hooks/useAppId"
 import useURL from "@/oss/hooks/useURL"
-import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
-import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
-import {Evaluator, Variant, testset} from "@/oss/lib/Types"
+import {Evaluator} from "@/oss/lib/Types"
 import {evaluatorByKeyAtomFamily} from "@/oss/state/evaluators"
-import {useTestsetsData} from "@/oss/state/testset"
 
 import ConfigureEvaluatorSkeleton from "./assets/ConfigureEvaluatorSkeleton"
 
@@ -69,11 +66,6 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
     const evaluatorFromRegular = evaluators.find((item) => item.key === evaluatorKey)
     const evaluator = evaluatorFromRegular ?? evaluatorQuery.data ?? null
     const isLoadingEvaluatorByKey = evaluatorQuery.isPending && !evaluatorFromRegular
-
-    const {testsets} = useTestsetsData()
-    const {variants: variantData} = useStatelessVariants({lightLoading: true})
-    const variants = useMemo(() => groupVariantsByParent(variantData, true), [variantData])
-    const appId = useAppId()
 
     const isLoading = isLoadingEvaluators || isLoadingEvaluatorConfigs || isLoadingEvaluatorByKey
 
@@ -137,13 +129,14 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
         )
     }
 
+    // DebugSection fetches its own variants and testsets
+    // We pass null to let it handle data fetching internally
     return (
         <ConfigureEvaluator
             onClose={navigateBack}
             onSuccess={handleSuccess}
-            variants={(variants as Variant[]) || []}
-            testsets={(testsets as testset[]) || []}
-            appId={appId}
+            variants={null}
+            testsets={null}
         />
     )
 }
