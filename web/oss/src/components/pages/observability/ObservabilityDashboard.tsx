@@ -11,10 +11,10 @@ import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
 
 import {filterColumns} from "../../Filters/EditColumns/assets/helper"
+import PageLayout from "../../PageLayout/PageLayout"
 import ResizableTitle from "../../ResizableTitle"
 
 import {getObservabilityColumns} from "./assets/getObservabilityColumns"
-import PageLayout from "../../PageLayout/PageLayout"
 
 const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})

@@ -21,6 +21,8 @@ import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreati
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 
+import PageLayout from "../../PageLayout/PageLayout"
+
 import {getTemplateKey, timeout} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
@@ -28,7 +30,6 @@ import GetStartedSection from "./components/GetStartedSection"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
 import ProjectHeaderActions from "./components/ProjectHeaderActions"
 import useCustomWorkflowConfig from "./modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-import PageLayout from "../../PageLayout/PageLayout"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),

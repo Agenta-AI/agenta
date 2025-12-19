@@ -2,11 +2,11 @@ import {useEffect, useMemo} from "react"
 
 import dynamic from "next/dynamic"
 
+import PageLayout from "@/oss/components/PageLayout/PageLayout"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useProjectData} from "@/oss/state/project"
-import PageLayout from "@/oss/components/PageLayout/PageLayout"
 
 const Secrets = dynamic(() => import("@/oss/components/pages/settings/Secrets/Secrets"), {
     ssr: false,

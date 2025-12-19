@@ -17,6 +17,8 @@ import {deleteEvaluatorConfig} from "@/oss/services/evaluations/api"
 import {deleteHumanEvaluator} from "@/oss/services/evaluators"
 import {useProjectData} from "@/oss/state/project/hooks"
 
+import PageLayout from "../PageLayout/PageLayout"
+
 import {
     DEFAULT_EVALUATOR_TAB,
     EVALUATOR_TABLE_STORAGE_PREFIX,
@@ -27,7 +29,6 @@ import {EvaluatorCategory, EvaluatorRegistryRow} from "./assets/types"
 import DeleteEvaluatorsModal from "./components/DeleteEvaluatorsModal"
 import SelectEvaluatorModal from "./components/SelectEvaluatorModal"
 import useEvaluatorsRegistryData from "./hooks/useEvaluatorsRegistryData"
-import PageLayout from "../PageLayout/PageLayout"
 
 const AnnotateDrawer = dynamic(
     () => import("@/oss/components/pages/observability/drawer/AnnotateDrawer"),

@@ -1,7 +1,7 @@
 import {ReactNode} from "react"
 
-import classNames from "classnames"
 import {Typography} from "antd"
+import classNames from "classnames"
 
 interface PageLayoutProps {
     title?: ReactNode

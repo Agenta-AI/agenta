@@ -9,6 +9,7 @@ import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
+import PageLayout from "@/oss/components/PageLayout/PageLayout"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
@@ -16,7 +17,6 @@ import DeploymentOverview from "@/oss/components/pages/overview/deployments/Depl
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
 import type {JSSTheme} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app"
-import PageLayout from "@/oss/components/PageLayout/PageLayout"
 
 const CustomWorkflowHistory: any = dynamic(
     () => import("@/oss/components/pages/app-management/drawers/CustomWorkflowHistory"),
