@@ -159,6 +159,20 @@ const NewEvaluationModalInner = ({
         setActivePanel(key as string)
     }, [])
 
+    // Handler for when a new evaluator config is created via the inline drawer
+    const handleEvaluatorCreated = useCallback(
+        async (configId?: string) => {
+            // Refetch evaluator configs to get the newly created one
+            await evaluationData.refetchEvaluatorConfigs()
+
+            // Auto-select the newly created evaluator config
+            if (configId) {
+                setSelectedEvalConfigs((prev) => [...prev, configId])
+            }
+        },
+        [evaluationData],
+    )
+
     // Track focus on any input within modal to avoid overriding user typing
     useEffect(() => {
         function handleFocusIn(e: FocusEvent) {
@@ -521,6 +535,7 @@ const NewEvaluationModalInner = ({
             selectedAppId={selectedAppId}
             onSelectApp={handleAppSelection}
             appSelectionDisabled={isAppScoped}
+            onEvaluatorCreated={handleEvaluatorCreated}
         />
     )
 }

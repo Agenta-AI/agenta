@@ -3,16 +3,21 @@ import {type FC, memo, useCallback, useMemo} from "react"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Input, Typography, Tabs, Tag} from "antd"
 import clsx from "clsx"
+import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import useFocusInput from "@/oss/hooks/useFocusInput"
 import useURL from "@/oss/hooks/useURL"
+import type {Evaluator} from "@/oss/lib/Types"
 
+import {openEvaluatorDrawerAtom} from "../../autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
 import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
 
 const SelectAppSection = dynamic(() => import("./SelectAppSection"), {ssr: false})
+
+const CreateEvaluatorDrawer = dynamic(() => import("./CreateEvaluatorDrawer"), {ssr: false})
 
 const SelectEvaluatorSection = dynamic(
     () => import("./SelectEvaluatorSection/SelectEvaluatorSection"),
@@ -60,6 +65,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     selectedAppId,
     onSelectApp,
     appSelectionDisabled,
+    onSelectTemplate,
+    onEvaluatorCreated,
     ...props
 }) => {
     const classes = useStyles()
@@ -68,9 +75,20 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     const appSelectionComplete = Boolean(selectedAppId)
     const hasAppOptions = appOptions.length > 0
 
+    const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
+
     const handleCreateApp = useCallback(() => {
         redirectUrl()
     }, [redirectUrl])
+
+    // Handler for opening the evaluator creation drawer
+    const handleSelectTemplate = useCallback(
+        (evaluator: Evaluator) => {
+            openEvaluatorDrawer({evaluator, mode: "create"})
+            onSelectTemplate?.(evaluator)
+        },
+        [openEvaluatorDrawer, onSelectTemplate],
+    )
 
     const selectedTestset = useMemo(
         () => testsets.find((ts) => ts._id === selectedTestsetId) || null,
@@ -235,6 +253,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         evaluators={evaluators as any}
                         evaluatorConfigs={evaluatorConfigs}
                         selectedAppId={selectedAppId}
+                        onSelectTemplate={handleSelectTemplate}
                         className="pt-2"
                     />
                 ) : (
@@ -288,34 +307,40 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         appSelectionDisabled,
         hasAppOptions,
         handleCreateApp,
+        handleSelectTemplate,
     ])
 
     return (
-        <div className="flex flex-col w-full gap-4 h-full overflow-hidden">
-            <div className="flex flex-col gap-2">
-                <Typography.Text className="font-medium">Evaluation name</Typography.Text>
-                <Input
-                    ref={inputRef}
-                    placeholder="Enter a name"
-                    value={evaluationName}
-                    onChange={(e) => {
-                        setEvaluationName(e.target.value)
-                    }}
+        <>
+            <div className="flex flex-col w-full gap-4 h-full overflow-hidden">
+                <div className="flex flex-col gap-2">
+                    <Typography.Text className="font-medium">Evaluation name</Typography.Text>
+                    <Input
+                        ref={inputRef}
+                        placeholder="Enter a name"
+                        value={evaluationName}
+                        onChange={(e) => {
+                            setEvaluationName(e.target.value)
+                        }}
+                    />
+                </div>
+
+                <Tabs
+                    activeKey={activePanel || "appPanel"}
+                    onChange={handlePanelChange as any}
+                    items={items}
+                    tabPlacement="left"
+                    className={clsx([
+                        classes.tabsContainer,
+                        "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
+                        "[&_.ant-tabs-nav]:!w-[240px]",
+                    ])}
                 />
             </div>
 
-            <Tabs
-                activeKey={activePanel || "appPanel"}
-                onChange={handlePanelChange as any}
-                items={items}
-                tabPlacement="left"
-                className={clsx([
-                    classes.tabsContainer,
-                    "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
-                    "[&_.ant-tabs-nav]:!w-[240px]",
-                ])}
-            />
-        </div>
+            {/* Inline evaluator creation drawer */}
+            <CreateEvaluatorDrawer onEvaluatorCreated={onEvaluatorCreated} />
+        </>
     )
 }
 

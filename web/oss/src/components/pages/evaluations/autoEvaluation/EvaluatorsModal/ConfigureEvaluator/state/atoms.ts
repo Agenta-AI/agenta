@@ -237,6 +237,48 @@ export const cloneCurrentConfigAtom = atom(null, (get, set) => {
 })
 
 // ================================================================
+// DRAWER STATE
+// These manage the inline drawer in the evaluation creation modal
+// ================================================================
+
+/**
+ * Controls whether the inline evaluator creation drawer is open
+ * Used by the NewEvaluation modal to show/hide the ConfigureEvaluator drawer
+ */
+export const evaluatorDrawerOpenAtom = atomWithReset<boolean>(false)
+
+/**
+ * Action to open the drawer with a specific evaluator template
+ * This combines opening the drawer AND initializing the playground
+ */
+export const openEvaluatorDrawerAtom = atom(
+    null,
+    (
+        get,
+        set,
+        payload: {
+            evaluator: Evaluator
+            existingConfig?: EvaluatorConfig | null
+            mode?: PlaygroundMode
+        },
+    ) => {
+        // Initialize the playground with the evaluator
+        set(initPlaygroundAtom, payload)
+        // Open the drawer
+        set(evaluatorDrawerOpenAtom, true)
+    },
+)
+
+/**
+ * Action to close the drawer and reset playground state
+ */
+export const closeEvaluatorDrawerAtom = atom(null, (get, set) => {
+    set(evaluatorDrawerOpenAtom, false)
+    // Reset playground state when closing
+    set(resetPlaygroundAtom)
+})
+
+// ================================================================
 // DERIVED STATE HELPERS
 // ================================================================
 

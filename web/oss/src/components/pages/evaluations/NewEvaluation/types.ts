@@ -51,6 +51,10 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     selectedAppId: string
     onSelectApp: (value: string) => void
     appSelectionDisabled?: boolean
+    /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
+    onSelectTemplate?: (evaluator: Evaluator) => void
+    /** Callback when a new evaluator config is created via the inline drawer. Used to refresh the list and auto-select. */
+    onEvaluatorCreated?: (configId?: string) => void
 }
 
 export interface SelectVariantSectionProps extends HTMLProps<HTMLDivElement> {
