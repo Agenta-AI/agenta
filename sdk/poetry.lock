@@ -266,18 +266,18 @@ files = [
 
 [[package]]
 name = "boto3"
-version = "1.42.12"
+version = "1.42.13"
 description = "The AWS SDK for Python"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "boto3-1.42.12-py3-none-any.whl", hash = "sha256:8112e1beb5978bb455ea4b41a9ef26fc408f6340d8ff69ef93dded4f80fd53e9"},
-    {file = "boto3-1.42.12.tar.gz", hash = "sha256:649b134d25b278c24fcc8b3f94519de3884283b7848dc32f42b0ffdd9d19ce99"},
+    {file = "boto3-1.42.13-py3-none-any.whl", hash = "sha256:9d6aad3fa8b90567006bf7b32efa26489fc306fbe63946eaf57b72356a45761d"},
+    {file = "boto3-1.42.13.tar.gz", hash = "sha256:4c9a62dcb5c3f905630fe99fb4b81131da84c5c92eedcc81a89cbd924c1c524f"},
 ]
 
 [package.dependencies]
-botocore = ">=1.42.12,<1.43.0"
+botocore = ">=1.42.13,<1.43.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.16.0,<0.17.0"
 
@@ -286,14 +286,14 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "botocore"
-version = "1.42.12"
+version = "1.42.13"
 description = "Low-level, data-driven core of boto 3."
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "botocore-1.42.12-py3-none-any.whl", hash = "sha256:4f163880350f6d831857ce5d023875b7c6534be862e5affd9fcf82b8d1ab3537"},
-    {file = "botocore-1.42.12.tar.gz", hash = "sha256:1f9f63c3d6bb1f768519da30d6018706443c5d8af5472274d183a4945f3d81f8"},
+    {file = "botocore-1.42.13-py3-none-any.whl", hash = "sha256:b750b2de4a2478db9718a02395cb9da8698901ba02378d60037d6369ecb6bb88"},
+    {file = "botocore-1.42.13.tar.gz", hash = "sha256:7e4cf14bd5719b60600fb45d2bb3ae140feb3c182a863b93093aafce7f93cfee"},
 ]
 
 [package.dependencies]
@@ -469,22 +469,22 @@ markers = {main = "platform_system == \"Windows\"", dev = "platform_system == \"
 
 [[package]]
 name = "daytona"
-version = "0.121.0"
+version = "0.125.0"
 description = "Python SDK for Daytona"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "daytona-0.121.0-py3-none-any.whl", hash = "sha256:33b92a33729d8866606571cb6924c05d7d471dd281ca1440a5c2342e3f65a737"},
-    {file = "daytona-0.121.0.tar.gz", hash = "sha256:7ef327645ea64c99319217a3491ea26878da2e3b9891f53e15878eaaf25f20ec"},
+    {file = "daytona-0.125.0-py3-none-any.whl", hash = "sha256:d28d11843274d24dea12cb35b8fc43fb541fca9bbbec598ca6ab6f3931122c56"},
+    {file = "daytona-0.125.0.tar.gz", hash = "sha256:c93bf767639f43e2aebb386bd8c35a3ffdc5e7150978ebf2c30cd8e40e8dfb52"},
 ]
 
 [package.dependencies]
 aiofiles = ">=24.1.0,<24.2.0"
-daytona-api-client = "0.121.0"
-daytona-api-client-async = "0.121.0"
-daytona-toolbox-api-client = "0.121.0"
-daytona-toolbox-api-client-async = "0.121.0"
+daytona-api-client = "0.125.0"
+daytona-api-client-async = "0.125.0"
+daytona-toolbox-api-client = "0.125.0"
+daytona-toolbox-api-client-async = "0.125.0"
 Deprecated = ">=1.2.18,<2.0.0"
 environs = ">=10.0.0,<15.0.0"
 httpx = ">=0.28.0,<0.29.0"
@@ -496,14 +496,14 @@ websockets = ">=15.0.0,<16.0.0"
 
 [[package]]
 name = "daytona-api-client"
-version = "0.121.0"
+version = "0.125.0"
 description = "Daytona"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_api_client-0.121.0-py3-none-any.whl", hash = "sha256:01fa21e8366436a55ef41c1830a14e3587dbaaf707100403207df29930859693"},
-    {file = "daytona_api_client-0.121.0.tar.gz", hash = "sha256:9af863df12ad561b4609363fde11d96bd1e3e867ec1d7e1858cb78b9783d1df8"},
+    {file = "daytona_api_client-0.125.0-py3-none-any.whl", hash = "sha256:1b0d898380a8b0a5a28c5ca40014595c8eb0d00233bc593d9a122768ad157aaa"},
+    {file = "daytona_api_client-0.125.0.tar.gz", hash = "sha256:8bfb7398ae6b85f092e65b4b7c9c2bc8d535c3924f3fd4d188641ff472b7a004"},
 ]
 
 [package.dependencies]
@@ -514,14 +514,14 @@ urllib3 = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "daytona-api-client-async"
-version = "0.121.0"
+version = "0.125.0"
 description = "Daytona"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_api_client_async-0.121.0-py3-none-any.whl", hash = "sha256:de7c90046c2edb38f9010cd3379d703f6473ef706ea9c22e6300c110fb50f391"},
-    {file = "daytona_api_client_async-0.121.0.tar.gz", hash = "sha256:81f93bd4b26d1c4cb76844a516ce2eeb2610342142360ffd7b658c7115fba4cf"},
+    {file = "daytona_api_client_async-0.125.0-py3-none-any.whl", hash = "sha256:0e8dcb5612e18d3c6a74107be9ab3594bd3b29566d1507c04d9bb75a183c8398"},
+    {file = "daytona_api_client_async-0.125.0.tar.gz", hash = "sha256:1f58d911c735fa0c70f4fd9ded3b0fb9ed61e5b4d7f1d780129539fe0db2927e"},
 ]
 
 [package.dependencies]
@@ -534,14 +534,14 @@ urllib3 = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "daytona-toolbox-api-client"
-version = "0.121.0"
+version = "0.125.0"
 description = "Daytona Daemon API"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_toolbox_api_client-0.121.0-py3-none-any.whl", hash = "sha256:9d121959b446b85e5cdf00eaa15a2bdc2af8d61cae121bef50b940ebc73f5cad"},
-    {file = "daytona_toolbox_api_client-0.121.0.tar.gz", hash = "sha256:b248652d2279562bc199943d240f6feb18c9f116040e778376961d5d9fb5e043"},
+    {file = "daytona_toolbox_api_client-0.125.0-py3-none-any.whl", hash = "sha256:ad82810b79c4bc6a2c873c0cd4649776c740d0dc3fbe2a4c1023b0fc293ad5c6"},
+    {file = "daytona_toolbox_api_client-0.125.0.tar.gz", hash = "sha256:448acd18e4fc6515ed5d2623c18bdf9dc6ffa161d8effb0a5dfc899b9d534345"},
 ]
 
 [package.dependencies]
@@ -552,14 +552,14 @@ urllib3 = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "daytona-toolbox-api-client-async"
-version = "0.121.0"
+version = "0.125.0"
 description = "Daytona Daemon API"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_toolbox_api_client_async-0.121.0-py3-none-any.whl", hash = "sha256:b7e5a09ce06f4e1a918ad852e3b191bb9d6fdfb142d9c32d39d0a253b4c096fe"},
-    {file = "daytona_toolbox_api_client_async-0.121.0.tar.gz", hash = "sha256:9829d79be0c78689f6164e5386d15f2bc11c357330d6223df80448b51e987696"},
+    {file = "daytona_toolbox_api_client_async-0.125.0-py3-none-any.whl", hash = "sha256:16ec23e7115837fc7b3bd1a15796f2b36f6bc612830b72b4869090254cd92462"},
+    {file = "daytona_toolbox_api_client_async-0.125.0.tar.gz", hash = "sha256:c4d9b38113307f4e1ca2d78329aca58e14bf6decfa746aac01f9c9111ebd3a20"},
 ]
 
 [package.dependencies]
@@ -2043,14 +2043,14 @@ typing-extensions = {version = "*", markers = "python_full_version < \"3.13\""}
 
 [[package]]
 name = "openai"
-version = "2.13.0"
+version = "2.14.0"
 description = "The official Python library for the openai API"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "openai-2.13.0-py3-none-any.whl", hash = "sha256:746521065fed68df2f9c2d85613bb50844343ea81f60009b60e6a600c9352c79"},
-    {file = "openai-2.13.0.tar.gz", hash = "sha256:9ff633b07a19469ec476b1e2b5b26c5ef700886524a7a72f65e6f0b5203142d5"},
+    {file = "openai-2.14.0-py3-none-any.whl", hash = "sha256:7ea40aca4ffc4c4a776e77679021b47eec1160e341f42ae086ba949c9dcc9183"},
+    {file = "openai-2.14.0.tar.gz", hash = "sha256:419357bedde9402d23bf8f2ee372fca1985a73348debba94bddff06f19459952"},
 ]
 
 [package.dependencies]
@@ -2733,6 +2733,13 @@ optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
+    {file = "PyYAML-6.0.3-cp38-cp38-macosx_10_13_x86_64.whl", hash = "sha256:c2514fceb77bc5e7a2f7adfaa1feb2fb311607c9cb518dbc378688ec73d8292f"},
+    {file = "PyYAML-6.0.3-cp38-cp38-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:9c57bb8c96f6d1808c030b1687b9b5fb476abaa47f0db9c0101f5e9f394e97f4"},
+    {file = "PyYAML-6.0.3-cp38-cp38-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:efd7b85f94a6f21e4932043973a7ba2613b059c4a000551892ac9f1d11f5baf3"},
+    {file = "PyYAML-6.0.3-cp38-cp38-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:22ba7cfcad58ef3ecddc7ed1db3409af68d023b7f940da23c6c2a1890976eda6"},
+    {file = "PyYAML-6.0.3-cp38-cp38-musllinux_1_2_x86_64.whl", hash = "sha256:6344df0d5755a2c9a276d4473ae6b90647e216ab4757f8426893b5dd2ac3f369"},
+    {file = "PyYAML-6.0.3-cp38-cp38-win32.whl", hash = "sha256:3ff07ec89bae51176c0549bc4c63aa6202991da2d9a6129d7aef7f1407d3f295"},
+    {file = "PyYAML-6.0.3-cp38-cp38-win_amd64.whl", hash = "sha256:5cf4e27da7e3fbed4d6c3d8e797387aaad68102272f8f9752883bc32d61cb87b"},
     {file = "pyyaml-6.0.3-cp310-cp310-macosx_10_13_x86_64.whl", hash = "sha256:214ed4befebe12df36bcc8bc2b64b396ca31be9304b8f59e25c11cf94a4c033b"},
     {file = "pyyaml-6.0.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:02ea2dfa234451bbb8772601d7b8e426c2bfa197136796224e50e35a78777956"},
     {file = "pyyaml-6.0.3-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:b30236e45cf30d2b8e7b3e85881719e98507abed1011bf463a8fa23e9c3e98a8"},
@@ -3802,4 +3809,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "24070c245593e33b14db9d7b942e1410ffbdb4cd855240083bc1495f6c5e4a66"
+content-hash = "e2f143d0dd99522510d23608f6fc540252e5c0cfd172843a7e46bf6b5e63ce6a"

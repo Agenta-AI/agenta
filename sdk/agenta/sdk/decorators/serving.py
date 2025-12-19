@@ -1,4 +1,4 @@
-from typing import Type, Any, Callable, Dict, Optional, Tuple, List
+from typing import Type, Any, Callable, Dict, Optional, Tuple, List, TYPE_CHECKING
 from inspect import (
     iscoroutinefunction,
     isgenerator,
@@ -18,7 +18,14 @@ from starlette.responses import (
     Response as StarletteResponse,
     StreamingResponse,
 )
-from fastapi import Body, FastAPI, HTTPException, Request
+
+if TYPE_CHECKING:
+    from fastapi import Request, HTTPException, Body
+else:
+    # Lazy imports - only loaded when @entrypoint or @route is used
+    Request = None
+    HTTPException = None
+    Body = None
 
 from agenta.sdk.middleware.mock import MockMiddleware
 from agenta.sdk.middleware.inline import InlineMiddleware
@@ -53,12 +60,25 @@ log = get_module_logger(__name__)
 
 AGENTA_RUNTIME_PREFIX = environ.get("AGENTA_RUNTIME_PREFIX", "")
 
-app = FastAPI(
-    docs_url=f"{AGENTA_RUNTIME_PREFIX}/docs",  # Swagger UI
-    openapi_url=f"{AGENTA_RUNTIME_PREFIX}/openapi.json",  # OpenAPI schema
-)
+# Lazy FastAPI initialization
+class _LazyApp:
+    """Lazy wrapper for FastAPI app - only imported when accessed."""
 
-app.include_router(router, prefix=AGENTA_RUNTIME_PREFIX)
+    _app = None
+
+    def __getattr__(self, name):
+        if self._app is None:
+            from fastapi import FastAPI
+
+            self._app = FastAPI(
+                docs_url=f"{AGENTA_RUNTIME_PREFIX}/docs",  # Swagger UI
+                openapi_url=f"{AGENTA_RUNTIME_PREFIX}/openapi.json",  # OpenAPI schema
+            )
+            self._app.include_router(router, prefix=AGENTA_RUNTIME_PREFIX)
+        return getattr(self._app, name)
+
+
+app = _LazyApp()  # type: ignore
 
 
 class PathValidator(BaseModel):
@@ -142,9 +162,17 @@ class entrypoint:
         route_path: str = "",
         config_schema: Optional[BaseModel] = None,
     ):
+        # Lazy import fastapi components - only loaded when decorator is used
+        from fastapi import Request, HTTPException, Body
+
         self.func = func
         self.route_path = route_path
         self.config_schema = config_schema
+
+        # Store for use in methods
+        self._Request = Request
+        self._HTTPException = HTTPException
+        self._Body = Body
 
         signature_parameters = signature(func).parameters
         config, default_parameters = self.parse_config()
@@ -179,7 +207,7 @@ class entrypoint:
                 request.state.config["parameters"] is None
                 or request.state.config["references"] is None
             ):
-                raise HTTPException(
+                raise self._HTTPException(
                     status_code=400,
                     detail="Config not found based on provided references.",
                 )
@@ -320,12 +348,12 @@ class entrypoint:
 
     async def execute_wrapper(
         self,
-        request: Request,
+        request: "Request",  # type: ignore
         *args,
         **kwargs,
     ):
         if not request:
-            raise HTTPException(status_code=500, detail="Missing 'request'.")
+            raise self._HTTPException(status_code=500, detail="Missing 'request'.")
 
         state = request.state
         traceparent = state.otel.get("traceparent")
@@ -474,7 +502,7 @@ class entrypoint:
                 span_id,
             ) = await self.fetch_inline_trace(inline)
 
-        raise HTTPException(
+        raise self._HTTPException(
             status_code=status_code,
             detail=dict(
                 message=str(error),
@@ -586,7 +614,7 @@ class entrypoint:
             Parameter(
                 "request",
                 kind=Parameter.POSITIONAL_OR_KEYWORD,
-                annotation=Request,
+                annotation=self._Request,
             ),
             *original_sig.parameters.values(),
         ]
@@ -649,7 +677,7 @@ class entrypoint:
                 name=self._config_key,
                 kind=Parameter.KEYWORD_ONLY,
                 annotation=type(config_instance),  # Get the actual class type
-                default=Body(config_instance),  # Use the instance directly
+                default=self._Body(config_instance),  # Use the instance directly
             )
         )
 
@@ -663,7 +691,7 @@ class entrypoint:
                 Parameter(
                     name,
                     Parameter.KEYWORD_ONLY,
-                    default=Body(..., embed=True),
+                    default=self._Body(..., embed=True),
                     annotation=param.default.__class__.__bases__[
                         0
                     ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
