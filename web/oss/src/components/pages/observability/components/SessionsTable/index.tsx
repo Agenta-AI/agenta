@@ -3,13 +3,13 @@ import {useMemo} from "react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
+import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
 import {sessionIdsAtom, useObservability} from "@/oss/state/newObservability"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 
 import ObservabilityHeader from "../ObservabilityHeader"
 
 import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
-import { SessionDrawer } from "@/oss/components/SharedDrawers/SessionDrawer"
 
 const SessionsTable = () => {
     const {isLoading, selectedRowKeys, setSelectedRowKeys} = useObservability()

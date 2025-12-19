@@ -2,7 +2,6 @@ import {
     normalizeReferenceValue,
     parseReferenceKey,
 } from "@/oss/components/pages/observability/assets/filters/referenceUtils"
-
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
 import {
     isSpansResponse,

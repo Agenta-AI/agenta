@@ -1,6 +1,8 @@
-import {sessionUsageAtomFamily} from "@/oss/state/newObservability/atoms/queries"
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
+
+import {sessionUsageAtomFamily} from "@/oss/state/newObservability/atoms/queries"
+
 import UsageCellDisplay from "../../../UsageCell"
 
 export const TotalUsageCell = ({sessionId}: {sessionId: string}) => {

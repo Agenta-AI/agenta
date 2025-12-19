@@ -1,3 +1,4 @@
+import {ConsoleSqlOutlined} from "@ant-design/icons"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 // import {atomWithImmer} from "jotai-immer" // Not using immer for now to keep it simple or use it if complexity grows
@@ -22,7 +23,6 @@ import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {getOrgValues} from "@/oss/state/org"
 import {projectIdAtom} from "@/oss/state/project"
 import {sessionExistsAtom} from "@/oss/state/session"
-import { ConsoleSqlOutlined } from "@ant-design/icons"
 
 // ---------- Types ----------
 export interface SessionDrawerState {

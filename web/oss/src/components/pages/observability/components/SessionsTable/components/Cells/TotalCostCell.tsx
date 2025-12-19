@@ -1,6 +1,8 @@
-import {sessionCostAtomFamily} from "@/oss/state/newObservability/atoms/queries"
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
+
+import {sessionCostAtomFamily} from "@/oss/state/newObservability/atoms/queries"
+
 import CostCellDisplay from "../../../CostCell"
 
 export const TotalCostCell = ({sessionId}: {sessionId: string}) => {

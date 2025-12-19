@@ -1,6 +1,7 @@
-import {sessionTraceCountAtomFamily} from "@/oss/state/newObservability/atoms/queries"
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
+
+import {sessionTraceCountAtomFamily} from "@/oss/state/newObservability/atoms/queries"
 
 export const TracesCountCell = ({sessionId}: {sessionId: string}) => {
     const traceCount = useAtomValue(sessionTraceCountAtomFamily(sessionId))

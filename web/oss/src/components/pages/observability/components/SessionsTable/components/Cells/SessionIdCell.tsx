@@ -1,5 +1,6 @@
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import {Tag} from "antd"
+
+import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 
 export const SessionIdCell = ({sessionId}: {sessionId: string}) => {
     const shortId = sessionId ? sessionId.split("-")[0] : "-"

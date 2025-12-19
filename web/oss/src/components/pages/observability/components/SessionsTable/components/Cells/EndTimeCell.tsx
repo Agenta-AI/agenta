@@ -1,6 +1,8 @@
-import {sessionTimeRangeAtomFamily} from "@/oss/state/newObservability/atoms/queries"
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
+
+import {sessionTimeRangeAtomFamily} from "@/oss/state/newObservability/atoms/queries"
+
 import TimestampCell from "../../../TimestampCell"
 
 export const EndTimeCell = ({sessionId}: {sessionId: string}) => {

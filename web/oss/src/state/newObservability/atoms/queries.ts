@@ -1,8 +1,8 @@
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
+import {atomFamily, selectAtom} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
 import {atomWithInfiniteQuery, atomWithQuery} from "jotai-tanstack-query"
-import {atomFamily, selectAtom} from "jotai/utils"
 
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
@@ -545,9 +545,7 @@ export const sessionFirstInputAtomFamily = atomFamily((sessionId: string) =>
         if (!sorted.length) return undefined
         const firstTrace = sorted[0]
         console.log("firstTrace", firstTrace)
-        return (
-            firstTrace.attributes?.ag?.data?.inputs
-        )
+        return firstTrace.attributes?.ag?.data?.inputs
     }),
 )
 
@@ -556,9 +554,7 @@ export const sessionLastOutputAtomFamily = atomFamily((sessionId: string) =>
         const sorted = get(sessionSortedTracesAtomFamily(sessionId))
         if (!sorted.length) return undefined
         const lastTrace = sorted[sorted.length - 1]
-        return (
-            lastTrace.attributes?.ag?.data?.outputs
-        )
+        return lastTrace.attributes?.ag?.data?.outputs
     }),
 )
 

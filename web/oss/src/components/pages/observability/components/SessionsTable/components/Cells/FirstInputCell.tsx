@@ -1,8 +1,9 @@
+import {Skeleton} from "antd"
+import {useAtomValue} from "jotai"
+
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {sessionFirstInputAtomFamily} from "@/oss/state/newObservability/atoms/queries"
-import {Skeleton} from "antd"
-import {useAtomValue} from "jotai"
 
 export const FirstInputCell = ({sessionId}: {sessionId: string}) => {
     const firstInput = useAtomValue(sessionFirstInputAtomFamily(sessionId))
@@ -15,7 +16,7 @@ export const FirstInputCell = ({sessionId}: {sessionId: string}) => {
             children={firstInput ? getStringOrJson(sanitized) : ""}
             placement="bottom"
             tagProps={{
-                className: "max-w-[300px] truncate"
+                className: "max-w-[300px] truncate",
             }}
         />
     )

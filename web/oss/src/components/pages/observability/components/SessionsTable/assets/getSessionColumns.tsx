@@ -1,3 +1,5 @@
+import {Key} from "react"
+
 import {EnhancedColumnType} from "@/oss/components/EnhancedUIs/Table/types"
 
 import {
@@ -12,8 +14,6 @@ import {
     TotalUsageCell,
     TracesCountCell,
 } from "../components/Cells"
-
-import {Key} from "react"
 
 export interface SessionRow {
     session_id: string

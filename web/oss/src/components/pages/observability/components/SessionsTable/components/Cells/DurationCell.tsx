@@ -1,6 +1,8 @@
-import {sessionDurationAtomFamily} from "@/oss/state/newObservability/atoms/queries"
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
+
+import {sessionDurationAtomFamily} from "@/oss/state/newObservability/atoms/queries"
+
 import DurationCellDisplay from "../../../DurationCell" // Reusing presentation
 
 export const DurationCell = ({sessionId}: {sessionId: string}) => {

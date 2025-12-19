@@ -1,8 +1,9 @@
+import {Skeleton} from "antd"
+import {useAtomValue} from "jotai"
+
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {sessionLastOutputAtomFamily} from "@/oss/state/newObservability/atoms/queries"
-import {Skeleton} from "antd"
-import {useAtomValue} from "jotai"
 
 export const LastOutputCell = ({sessionId}: {sessionId: string}) => {
     const lastOutput = useAtomValue(sessionLastOutputAtomFamily(sessionId))
