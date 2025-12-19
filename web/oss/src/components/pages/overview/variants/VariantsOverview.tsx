@@ -49,7 +49,9 @@ const VariantsOverview = () => {
     return (
         <div className={clsx(["flex flex-col gap-2", "[&_>_div_h1.ant-typography]:text-xs"])}>
             <div className="flex items-center justify-between">
-                <Title level={3}>Recent Prompts</Title>
+                <Title level={3} className="!m-0">
+                    Recent Prompts
+                </Title>
 
                 <Space>
                     <Button
@@ -65,6 +67,7 @@ const VariantsOverview = () => {
                     </Button>
 
                     <Button
+                        type="primary"
                         icon={<Rocket size={14} className="mt-[3px]" />}
                         onClick={() => handleNavigation()}
                     >
@@ -99,9 +102,11 @@ const VariantsOverview = () => {
                     handleNavigation(record)
                 }}
             />
-            <Button className="w-fit self-end">
-                <Link href={`${appURL}/variants`}>View all</Link>
-            </Button>
+            <div className="flex justify-end">
+                <Link href={`${appURL}/variants`} prefetch className="underline">
+                    View all prompts →
+                </Link>
+            </div>
         </div>
     )
 }

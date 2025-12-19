@@ -157,12 +157,12 @@ const EvaluationRunsCreateButton = () => {
                     </Space.Compact>
                 ) : (
                     <Button
-                        type="primary"
+                        type="default"
                         icon={<Plus size={16} />}
                         disabled={!createEnabled}
                         onClick={handlePrimaryClick}
                     >
-                        New Evaluation
+                        Create New
                     </Button>
                 )}
             </div>

@@ -3,6 +3,8 @@ import {useEffect, useMemo, useState} from "react"
 import {Button, Typography} from "antd"
 import clsx from "clsx"
 import Link from "next/link"
+import {useRouter} from "next/router"
+import {ArrowRight} from "@phosphor-icons/react"
 
 import EvaluationRunsTableStoreProvider from "../../providers/EvaluationRunsTableStoreProvider"
 import type {EvaluationRunKind} from "../../types"
@@ -32,28 +34,37 @@ const LatestEvaluationRunsTable = ({
     viewAllHref,
     appScoped = false,
 }: LatestEvaluationRunsTableProps) => {
+    const router = useRouter()
     const [isActive, setIsActive] = useState(false)
 
     useEffect(() => {
         setIsActive(true)
     }, [])
 
-    const headerTitle = useMemo(() => {
-        if (!title) return null
-        return (
-            <div className="flex items-center gap-3 [&_>_h1.ant-typography]:text-xs">
-                <Typography.Title level={3}>{title}</Typography.Title>
-                {viewAllHref ? (
-                    <Link href={viewAllHref} className="ml-2" prefetch>
-                        <Button type="default">View all</Button>
-                    </Link>
-                ) : null}
-            </div>
-        )
-    }, [title, viewAllHref])
+    const headerTitle = useMemo(
+        () =>
+            title ? (
+                <div className="flex items-center gap-3 [&_>_h1.ant-typography]:text-xs">
+                    <Typography.Title level={3} className="!m-0">
+                        {title}
+                    </Typography.Title>
+                </div>
+            ) : null,
+        [title],
+    )
+
+    const resolvedViewAllHref = useMemo(() => {
+        if (viewAllHref) return viewAllHref
+        const workspaceId = router.query.workspace_id
+        const projectId = router.query.project_id
+        const appIdParam = router.query.app_id ?? appId
+        if (!workspaceId || !projectId || !appIdParam) return null
+        const basePath = `/w/${workspaceId}/p/${projectId}/apps/${appIdParam}/evaluations`
+        return `${basePath}?kind=${evaluationKind}`
+    }, [appId, evaluationKind, router.query, viewAllHref])
 
     return (
-        <div className={clsx("flex flex-col gap-3", className)}>
+        <div className={clsx("flex flex-col gap-2", className)}>
             <EvaluationRunsTableStoreProvider
                 overrides={{
                     evaluationKind,
@@ -79,6 +90,14 @@ const LatestEvaluationRunsTable = ({
                     className="border border-gray-100 rounded-lg px-2 py-4 bg-white shadow-sm"
                 />
             </EvaluationRunsTableStoreProvider>
+
+            {resolvedViewAllHref ? (
+                <div className="flex justify-end">
+                    <Link href={resolvedViewAllHref} prefetch className="underline">
+                        {title} →
+                    </Link>
+                </div>
+            ) : null}
         </div>
     )
 }
