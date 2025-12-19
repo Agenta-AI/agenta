@@ -1,10 +1,9 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {Button, Typography} from "antd"
+import {Typography} from "antd"
 import clsx from "clsx"
 import Link from "next/link"
 import {useRouter} from "next/router"
-import {ArrowRight} from "@phosphor-icons/react"
 
 import EvaluationRunsTableStoreProvider from "../../providers/EvaluationRunsTableStoreProvider"
 import type {EvaluationRunKind} from "../../types"
