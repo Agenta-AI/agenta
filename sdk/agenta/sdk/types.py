@@ -496,13 +496,8 @@ import json
 import re
 from typing import Any, Dict, Iterable, Tuple, Optional
 
-# --- Optional dependency: python-jsonpath (provides JSONPath + JSON Pointer) ---
-try:
-    import jsonpath  # ✅ use module API
-    from jsonpath import JSONPointer  # pointer class is fine to use
-except Exception:
-    jsonpath = None
-    JSONPointer = None
+from agenta.sdk.utils.lazy import _load_jinja2, _load_jsonpath
+
 
 # ========= Scheme detection =========
 
@@ -545,7 +540,8 @@ def resolve_dot_notation(expr: str, data: dict) -> object:
 
 
 def resolve_json_path(expr: str, data: dict) -> object:
-    if jsonpath is None:
+    json_path, _ = _load_jsonpath()
+    if json_path is None:
         raise ImportError("python-jsonpath is required for json-path ($...)")
 
     if not (expr == "$" or expr.startswith("$.") or expr.startswith("$[")):
@@ -555,15 +551,16 @@ def resolve_json_path(expr: str, data: dict) -> object:
         )
 
     # Use package-level APIf
-    results = jsonpath.findall(expr, data)  # always returns a list
+    results = json_path.findall(expr, data)  # always returns a list
     return results[0] if len(results) == 1 else results
 
 
 def resolve_json_pointer(expr: str, data: Dict[str, Any]) -> Any:
     """Resolve a JSON Pointer; returns a single value."""
-    if JSONPointer is None:
+    _, json_pointer = _load_jsonpath()
+    if json_pointer is None:
         raise ImportError("python-jsonpath is required for json-pointer (/...)")
-    return JSONPointer(expr).resolve(data)
+    return json_pointer(expr).resolve(data)
 
 
 def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
@@ -631,12 +628,10 @@ def compute_truly_unreplaced(original: set, rendered: str) -> set:
 
 def missing_lib_hints(unreplaced: set) -> Optional[str]:
     """Suggest installing python-jsonpath if placeholders indicate json-path or json-pointer usage."""
-    if any(expr.startswith("$") or expr.startswith("/") for expr in unreplaced) and (
-        jsonpath is None or JSONPointer is None
-    ):
-        return (
-            "Install python-jsonpath to enable json-path ($...) and json-pointer (/...)"
-        )
+    if any(expr.startswith("$") or expr.startswith("/") for expr in unreplaced):
+        json_path, json_pointer = _load_jsonpath()
+        if json_path is None or json_pointer is None:
+            return "Install python-jsonpath to enable json-path ($...) and json-pointer (/...)"
     return None
 
 
@@ -688,7 +683,7 @@ class PromptTemplate(BaseModel):
                 return content.format(**kwargs)
 
             elif self.template_format == "jinja2":
-                from jinja2 import Template, TemplateError
+                Template, TemplateError = _load_jinja2()
 
                 try:
                     return Template(content).render(**kwargs)

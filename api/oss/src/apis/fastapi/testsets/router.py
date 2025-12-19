@@ -4,7 +4,7 @@ from json import loads, JSONDecodeError
 from io import BytesIO
 
 import orjson
-import pandas as pd
+import polars as pl
 from pydantic import ValidationError
 
 from fastapi.responses import StreamingResponse
@@ -1834,7 +1834,7 @@ class SimpleTestsetsRouter:
 
         elif file_type.lower() == "csv":
             buffer = BytesIO()
-            pd.DataFrame(testcases_data).to_csv(buffer, index=False)
+            pl.DataFrame(testcases_data).write_csv(buffer)
             buffer.seek(0)
 
             return StreamingResponse(

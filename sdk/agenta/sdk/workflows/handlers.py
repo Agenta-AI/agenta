@@ -7,13 +7,16 @@ import math
 
 import httpx
 
-import litellm
-
 from pydantic import BaseModel, Field
-from openai import AsyncOpenAI, OpenAIError
 from difflib import SequenceMatcher
 
 from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.lazy import (
+    _load_jinja2,
+    _load_jsonpath,
+    _load_litellm,
+    _load_openai,
+)
 
 from agenta.sdk.litellm import mockllm
 from agenta.sdk.types import PromptTemplate, Message
@@ -46,18 +49,24 @@ from agenta.sdk.workflows.errors import (
     PromptCompletionV0Error,
 )
 
-from agenta.sdk.litellm import mockllm
-from agenta.sdk.litellm.litellm import litellm_handler
-
-litellm.logging = False
-litellm.set_verbose = False
-litellm.drop_params = True
-# litellm.turn_off_message_logging = True
-mockllm.litellm = litellm
-
-litellm.callbacks = [litellm_handler()]
-
 log = get_module_logger(__name__)
+
+
+def _configure_litellm():
+    """Lazy configuration of litellm - only imported when needed."""
+    litellm = _load_litellm()
+    if not litellm:
+        raise ImportError("litellm is required for completion handling.")
+    from agenta.sdk.litellm.litellm import litellm_handler
+
+    litellm.logging = False
+    litellm.set_verbose = False
+    litellm.drop_params = True
+    # litellm.turn_off_message_logging = True
+    mockllm.litellm = litellm
+    litellm.callbacks = [litellm_handler()]
+
+    return litellm
 
 
 async def _compute_embedding(openai: Any, model: str, input: str) -> List[float]:
@@ -80,12 +89,7 @@ import json
 import re
 from typing import Any, Dict, Iterable, Tuple, Optional
 
-try:
-    import jsonpath  # ✅ use module API
-    from jsonpath import JSONPointer  # pointer class is fine to use
-except Exception:
-    jsonpath = None
-    JSONPointer = None
+
 
 # ========= Scheme detection =========
 
@@ -128,7 +132,8 @@ def resolve_dot_notation(expr: str, data: dict) -> object:
 
 
 def resolve_json_path(expr: str, data: dict) -> object:
-    if jsonpath is None:
+    json_path, _ = _load_jsonpath()
+    if json_path is None:
         raise ImportError("python-jsonpath is required for json-path ($...)")
 
     if not (expr == "$" or expr.startswith("$.") or expr.startswith("$[")):
@@ -138,15 +143,16 @@ def resolve_json_path(expr: str, data: dict) -> object:
         )
 
     # Use package-level APIf
-    results = jsonpath.findall(expr, data)  # always returns a list
+    results = json_path.findall(expr, data)  # always returns a list
     return results[0] if len(results) == 1 else results
 
 
 def resolve_json_pointer(expr: str, data: Dict[str, Any]) -> Any:
     """Resolve a JSON Pointer; returns a single value."""
-    if JSONPointer is None:
+    _, json_pointer = _load_jsonpath()
+    if json_pointer is None:
         raise ImportError("python-jsonpath is required for json-pointer (/...)")
-    return JSONPointer(expr).resolve(data)
+    return json_pointer(expr).resolve(data)
 
 
 def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
@@ -214,12 +220,10 @@ def compute_truly_unreplaced(original: set, rendered: str) -> set:
 
 def missing_lib_hints(unreplaced: set) -> Optional[str]:
     """Suggest installing python-jsonpath if placeholders indicate json-path or json-pointer usage."""
-    if any(expr.startswith("$") or expr.startswith("/") for expr in unreplaced) and (
-        jsonpath is None or JSONPointer is None
-    ):
-        return (
-            "Install python-jsonpath to enable json-path ($...) and json-pointer (/...)"
-        )
+    if any(expr.startswith("$") or expr.startswith("/") for expr in unreplaced):
+        json_path, json_pointer = _load_jsonpath()
+        if json_path is None or json_pointer is None:
+            return "Install python-jsonpath to enable json-path ($...) and json-pointer (/...)"
     return None
 
 
@@ -233,7 +237,7 @@ def _format_with_template(
         return content.format(**kwargs)
 
     elif format == "jinja2":
-        from jinja2 import Template, TemplateError
+        Template, TemplateError = _load_jinja2()
 
         try:
             return Template(content).render(**kwargs)
@@ -861,6 +865,9 @@ async def auto_ai_critique_v0(
         )
 
     _outputs = None
+
+    # Lazy import and configure litellm
+    litellm = _configure_litellm()
 
     # --------------------------------------------------------------------------
     litellm.openai_key = openai_api_key
@@ -1646,6 +1653,7 @@ async def auto_semantic_similarity_v0(
     _outputs = None
 
     # --------------------------------------------------------------------------
+    AsyncOpenAI, OpenAIError = _load_openai()
     try:
         openai = AsyncOpenAI(api_key=openai_api_key)
     except OpenAIError as e:

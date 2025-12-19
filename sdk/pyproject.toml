@@ -24,25 +24,27 @@ exclude = [
 
 [tool.poetry.dependencies]
 python = "^3.11"
-#
-fastapi = ">=0.125"
+
+# Core dependencies (always loaded)
 pydantic = "^2"
-python-dotenv = "^1"
-importlib-metadata = "^8"
 httpx = "^0.28"
-pyyaml = "^6"
-toml = "^0.10"
-litellm = "^1"
-jinja2 = "^3"
-python-jsonpath = "^2"
+structlog = "^25"
+
+# Tracing dependencies (core feature, always loaded for now)
 opentelemetry-api = "^1"
 opentelemetry-sdk = "^1"
 opentelemetry-instrumentation = "^0.59b0"
-opentelemetry-exporter-otlp-proto-http ="^1"
-structlog = "^25"
-restrictedpython =  { version = "^8", python = ">=3.11, <3.14" }
+opentelemetry-exporter-otlp-proto-http = "^1"
+
+# Lazy-loaded dependencies (imported only when used)
+fastapi = ">=0.125"
+pyyaml = "^6"
+litellm = "^1"
 openai = "^2"
-daytona = "^0.121.0"
+jinja2 = "^3"
+python-jsonpath = "^2"
+restrictedpython = { version = "^8", python = ">=3.11, <3.14" }
+daytona = "^0.125.0"
 
 
 [tool.poetry.group.dev.dependencies]
