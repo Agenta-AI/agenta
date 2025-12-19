@@ -13,6 +13,81 @@ This document outlines the plan to simplify the evaluator creation flow during e
 
 ---
 
+## Progress Summary
+
+### ✅ Checkpoint 2: COMPLETED - Refactor Evaluator Playground to Use Atoms
+
+**Status**: Fully implemented and tested.
+
+**What was done**:
+
+1. **Created atoms** (`web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms.ts`):
+   - `playgroundSessionAtom` - Unique session ID for cache invalidation
+   - `playgroundEvaluatorAtom` - Current evaluator template
+   - `playgroundIsEditModeAtom` - Edit vs create mode
+   - `playgroundIsCloneModeAtom` - Clone mode flag
+   - `playgroundEditValuesAtom` - Existing config being edited
+   - `playgroundFormRefAtom` - Form instance reference
+   - `playgroundSelectedVariantAtom` - Variant for testing
+   - `playgroundSelectedTestsetIdAtom` - Testset ID
+   - `playgroundSelectedTestcaseAtom` - Testcase for testing
+   - `playgroundTraceTreeAtom` - Trace output from variant run
+   - `initPlaygroundAtom` - Action to initialize all state
+   - `resetPlaygroundAtom` - Action to clear all state
+   - `commitPlaygroundAtom` - Action to save and update state
+
+2. **Refactored ConfigureEvaluator** (`index.tsx`):
+   - **Before**: 18+ props
+   - **After**: 3 props (`onClose`, `onSuccess`, `containerClassName`)
+   - Reads all state from atoms
+   - Removed debug console.logs
+   - Removed `@ts-nocheck`
+
+3. **Refactored DebugSection** (`DebugSection.tsx`):
+   - **Before**: 3 props (`testsets`, `variants`, `debugEvaluator`)
+   - **After**: 0 props - fully self-sufficient
+   - Fetches testsets via `useTestsetsData()`
+   - Fetches variants via `useAppVariantRevisions(defaultAppId)`
+   - Reads/writes state from atoms
+   - Removed debug console.logs
+   - Removed `@ts-nocheck`
+   - Fixed Ant Design `Dropdown.Button` deprecation - now uses `Space.Compact` + `Dropdown` + `Button`
+
+4. **Updated EvaluatorsModal** (`EvaluatorsModal.tsx`):
+   - Removed unused state: `selectedTestcase`, `selectedVariant`, `selectedTestset`
+   - Removed unused imports: `groupVariantsByParent`, `useStatelessVariants`, `Variant`, `useTestsetsData`
+   - Added `initPlaygroundAtom` and `resetPlaygroundAtom` for atom lifecycle
+   - Initializes atoms when evaluator is selected
+   - Resets atoms when modal closes
+   - Removed `@ts-nocheck`
+
+5. **Updated ConfigureEvaluatorPage** (`web/oss/src/components/Evaluators/components/ConfigureEvaluator/index.tsx`):
+   - Simplified to only pass `onClose` and `onSuccess` to ConfigureEvaluator
+
+**Key Architecture Decisions**:
+
+1. **Singleton atoms**: Only one evaluator playground can be active at a time (page OR drawer, not both)
+2. **Self-sufficient DebugSection**: Fetches its own data, making it reusable in any context
+3. **initPlaygroundAtom pattern**: Supports both modal and page contexts with different initialization params:
+   ```typescript
+   // From modal (EvaluatorsModal)
+   initPlayground({
+       evaluator: selectedEvaluator,
+       editMode,
+       cloneMode: cloneConfig,
+       editValues: editEvalEditValues,
+   })
+
+   // From page (ConfigureEvaluatorPage)
+   initPlayground({
+       evaluator: evaluator as Evaluator,
+       existingConfig: existingConfig ?? undefined,
+       mode: existingConfig ? "edit" : "create",
+   })
+   ```
+
+---
+
 ## Goals
 
 1. **Context Preservation**: Users stay in the evaluation modal while creating evaluators
@@ -55,15 +130,16 @@ Evaluation Modal → Click "Create new" → Dropdown shows evaluator types
 | `web/oss/src/components/pages/evaluations/NewEvaluation/Components/SelectEvaluatorSection/SelectEvaluatorSection.tsx` | Evaluator selection with "Create new" button | **Modify**: Add dropdown here |
 | `web/oss/src/components/pages/evaluations/NewEvaluation/types.ts` | TypeScript types | May need new types |
 
-### Evaluator Playground Components
+### Evaluator Playground Components (REFACTORED ✅)
 
-| File | Purpose | Lines | Props |
-|------|---------|-------|-------|
-| `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/index.tsx` | Main playground component | 545 | 18 props |
-| `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection.tsx` | Test evaluator section | 1076 | 13 props |
-| `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DynamicFormField.tsx` | Form field renderer | - | - |
-| `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/AdvancedSettings.tsx` | Collapsed advanced settings | - | - |
-| `web/oss/src/components/Evaluators/components/ConfigureEvaluator/index.tsx` | Page wrapper for playground | 176 | - |
+| File | Purpose | Props (After Refactor) |
+|------|---------|------------------------|
+| `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/index.tsx` | Main playground component | 3 props: `onClose`, `onSuccess`, `containerClassName?` |
+| `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection.tsx` | Test evaluator section | 0 props - self-sufficient |
+| `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms.ts` | **NEW** - Jotai atoms for playground state | N/A |
+| `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DynamicFormField.tsx` | Form field renderer | - |
+| `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/AdvancedSettings.tsx` | Collapsed advanced settings | - |
+| `web/oss/src/components/Evaluators/components/ConfigureEvaluator/index.tsx` | Page wrapper for playground | - |
 
 ### Evaluator Template Selection
 
@@ -84,6 +160,7 @@ Evaluation Modal → Click "Create new" → Dropdown shows evaluator types
 
 | File | Purpose |
 |------|---------|
+| `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms.ts` | **NEW** - Playground atoms |
 | `web/oss/src/state/evaluators/atoms.ts` | `evaluatorConfigsQueryAtomFamily`, `evaluatorsQueryAtomFamily`, `nonArchivedEvaluatorsAtom` |
 | `web/oss/src/lib/hooks/useFetchEvaluatorsData/index.ts` | SWR-based fetching hook (legacy) |
 
@@ -108,40 +185,43 @@ NewEvaluationModal
     └── EvaluatorTestPanel (uses atoms, renders DebugSection) [expandable]
 ```
 
-### State Architecture
+### State Architecture (IMPLEMENTED ✅)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                  Evaluator Playground Atoms                  │
-│                  (NEW - shared by page & drawer)            │
+│     (web/oss/.../ConfigureEvaluator/state/atoms.ts)         │
 ├─────────────────────────────────────────────────────────────┤
-│ Core State:                                                 │
-│   selectedEvaluatorAtom      - Current evaluator template   │
-│   editModeAtom               - Edit vs create mode          │
-│   editEvalValuesAtom         - Existing config being edited │
-│   cloneModeAtom              - Clone mode flag              │
-│                                                             │
-│ Form State:                                                 │
-│   evaluatorFormAtom          - Form instance reference      │
-│   formValuesAtom             - Current form values          │
+│ Core State (atomWithReset for easy cleanup):                │
+│   playgroundSessionAtom         - Session ID for invalidate │
+│   playgroundEvaluatorAtom       - Current evaluator template│
+│   playgroundIsEditModeAtom      - Edit vs create mode       │
+│   playgroundIsCloneModeAtom     - Clone mode flag           │
+│   playgroundEditValuesAtom      - Existing config values    │
+│   playgroundFormRefAtom         - Form instance reference   │
 │                                                             │
 │ Test Section State:                                         │
-│   selectedTestcaseAtom       - Testcase for testing         │
-│   selectedVariantAtom        - Variant for testing          │
-│   selectedTestsetIdAtom      - Testset ID                   │
-│   traceTreeAtom              - Trace output from variant    │
+│   playgroundSelectedVariantAtom - Variant for testing       │
+│   playgroundSelectedTestsetIdAtom - Testset ID              │
+│   playgroundSelectedTestcaseAtom - Testcase for testing     │
+│   playgroundTraceTreeAtom       - Trace output from variant │
 │                                                             │
-│ Query Atoms:                                                │
-│   testsetsQueryAtom          - Available testsets           │
-│   variantsQueryAtom          - Available variants           │
+│ Action Atoms:                                               │
+│   initPlaygroundAtom            - Initialize all state      │
+│   resetPlaygroundAtom           - Clear all state           │
+│   commitPlaygroundAtom          - Save and update state     │
+│                                                             │
+│ Data Fetching (internal to DebugSection):                   │
+│   useTestsetsData()             - Available testsets        │
+│   useAppVariantRevisions()      - Available variants        │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
 │                  Drawer-Specific Atoms                       │
-│                  (NEW - only for drawer context)            │
+│                  (TO BE CREATED - Checkpoint 3)             │
 ├─────────────────────────────────────────────────────────────┤
-│   createEvaluatorDrawerAtom  - {isOpen, isExpanded, ...}    │
-│   onEvaluatorCreatedAtom     - Callback when committed      │
+│   createEvaluatorDrawerAtom     - {isOpen, isExpanded, ...} │
+│   onEvaluatorCreatedAtom        - Callback when committed   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -152,6 +232,8 @@ NewEvaluationModal
 ### Checkpoint 1: Evaluator Template Dropdown in Modal
 
 **Goal**: Add dropdown to select evaluator type when clicking "Create new" in SelectEvaluatorSection.
+
+**Status**: Not started
 
 **Context**: This replaces the current behavior that navigates to `/evaluators` page. For automatic evaluations, show a dropdown with available evaluator types. For human evaluations, we may directly open the drawer with a predefined human evaluator type.
 
@@ -182,82 +264,50 @@ NewEvaluationModal
 
 ---
 
-### Checkpoint 2: Refactor Evaluator Playground to Use Atoms
+### ✅ Checkpoint 2: Refactor Evaluator Playground to Use Atoms (COMPLETED)
 
 **Goal**: Replace the 18+ props in ConfigureEvaluator and 13 props in DebugSection with Jotai atoms.
 
-**Context**: This is the largest task. Currently, `ConfigureEvaluator` receives props like `selectedVariant`, `setSelectedVariant`, `selectedTestcase`, `setSelectedTestcase`, etc. These need to become atoms so both the standalone page and the drawer can use the same component.
+**Status**: ✅ COMPLETED
 
-**Why This Matters**: Without this refactor, we'd need to create wrapper components that bridge atoms to props, duplicating state management logic and making the code harder to maintain.
+**What was implemented**:
 
-**Files to Create**:
-- `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms.ts`
+1. **Created atoms** (`state/atoms.ts`) with:
+   - All core state atoms using `atomWithReset` for easy cleanup
+   - Action atoms: `initPlaygroundAtom`, `resetPlaygroundAtom`, `commitPlaygroundAtom`
 
-**Files to Modify**:
-- `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/index.tsx`
-- `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection.tsx`
-- `web/oss/src/components/Evaluators/components/ConfigureEvaluator/index.tsx` (page wrapper)
+2. **Refactored ConfigureEvaluator**:
+   - Props reduced from 18 to 3 (`onClose`, `onSuccess`, `containerClassName?`)
+   - Reads all state from atoms
+   - Removed `@ts-nocheck`
 
-**High-Level Solution**:
+3. **Refactored DebugSection**:
+   - Props reduced from 3 to 0 - fully self-sufficient
+   - Fetches testsets via `useTestsetsData()`
+   - Fetches variants via `useAppVariantRevisions()`
+   - Fixed Ant Design deprecation: replaced `Dropdown.Button` with `Space.Compact` + `Dropdown` + `Button`
+   - Removed `@ts-nocheck`
 
-1. **Design Atoms** (create `state/atoms.ts`):
+4. **Updated EvaluatorsModal**:
+   - Uses `initPlaygroundAtom` to initialize state when evaluator selected
+   - Uses `resetPlaygroundAtom` to clean up when modal closes
+   - Removed unused state variables
+   - Removed `@ts-nocheck`
 
-```typescript
-// Core evaluator state
-export const playgroundEvaluatorAtom = atom<Evaluator | null>(null)
-export const playgroundEditModeAtom = atom(false)
-export const playgroundEditValuesAtom = atom<EvaluatorConfig | null>(null)
-export const playgroundCloneModeAtom = atom(false)
+5. **Updated ConfigureEvaluatorPage**:
+   - Simplified props to just `onClose` and `onSuccess`
 
-// Form state - needs to be shared between config and test panels
-export const playgroundFormRefAtom = atom<FormInstance | null>(null)
+**Files Changed**:
+- `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms.ts` (CREATED)
+- `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/index.tsx` (MODIFIED)
+- `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection.tsx` (MODIFIED)
+- `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/EvaluatorsModal.tsx` (MODIFIED)
+- `web/oss/src/components/Evaluators/components/ConfigureEvaluator/index.tsx` (MODIFIED)
 
-// Test section state
-export const playgroundSelectedTestcaseAtom = atom<{testcase: Record<string, any> | null}>({
-    testcase: null,
-})
-export const playgroundSelectedVariantAtom = atom<Variant | null>(null)
-export const playgroundSelectedTestsetIdAtom = atom<string>("")
-export const playgroundTraceTreeAtom = atom<{trace: Record<string, any> | string | null}>({
-    trace: null,
-})
-
-// Reset atom - clears all state when leaving playground
-export const resetPlaygroundStateAtom = atom(null, (get, set) => {
-    set(playgroundEvaluatorAtom, null)
-    set(playgroundEditModeAtom, false)
-    set(playgroundEditValuesAtom, null)
-    set(playgroundCloneModeAtom, false)
-    set(playgroundFormRefAtom, null)
-    set(playgroundSelectedTestcaseAtom, {testcase: null})
-    set(playgroundSelectedVariantAtom, null)
-    set(playgroundSelectedTestsetIdAtom, "")
-    set(playgroundTraceTreeAtom, {trace: null})
-})
-```
-
-2. **Refactor ConfigureEvaluator**:
-   - Remove props that become atoms
-   - Keep props that are truly external: `onSuccess`, `onCancel`/`onClose`, `appId`
-   - Use `useAtom` / `useAtomValue` / `useSetAtom` for state
-   - Add optional `containerClassName` prop for height flexibility
-
-3. **Refactor DebugSection**:
-   - Remove props: `selectedTestcase`, `setSelectedTestcase`, `selectedVariant`, `setSelectedVariant`, `traceTree`, `setTraceTree`, `selectedTestset`, `setSelectedTestset`, `form`
-   - Keep props: `selectedEvaluator`, `debugEvaluator`
-   - Read form from `playgroundFormRefAtom`
-
-4. **Update ConfigureEvaluatorPage**:
-   - Initialize atoms on mount (set evaluator, edit mode, etc.)
-   - Reset atoms on unmount via `resetPlaygroundStateAtom`
-   - Pass minimal props to ConfigureEvaluator
-
-**Acceptance Criteria**:
-- ConfigureEvaluator works identically on the standalone page
-- Props reduced from 18 to ~3-4 (onSuccess, onClose, appId, containerClassName)
-- DebugSection props reduced from 13 to ~2 (selectedEvaluator, debugEvaluator)
-- All state managed via atoms
-- No regressions in existing functionality
+**Verification**:
+- `pnpm lint-fix` passes with only pre-existing warnings
+- No TypeScript errors in modified files
+- Tested: Evaluator playground works on standalone page
 
 ---
 
@@ -265,7 +315,14 @@ export const resetPlaygroundStateAtom = atom(null, (get, set) => {
 
 **Goal**: Build the drawer shell that will host the evaluator playground.
 
+**Status**: Not started
+
 **Context**: This drawer opens when user selects an evaluator type from the dropdown. It uses `GenericDrawer` which already supports expand/collapse via Splitter panels.
+
+**Important**: The playground atoms are already created (Checkpoint 2). The drawer just needs to:
+1. Call `initPlaygroundAtom` when opening with the selected evaluator
+2. Render `ConfigureEvaluator` (which reads from atoms)
+3. Call `resetPlaygroundAtom` when closing
 
 **Files to Create**:
 - `web/oss/src/components/pages/evaluations/NewEvaluation/Components/CreateEvaluatorDrawer/index.tsx`
@@ -279,6 +336,11 @@ export const resetPlaygroundStateAtom = atom(null, (get, set) => {
 ```typescript
 import {atom} from "jotai"
 import {atomWithReset, RESET} from "jotai/utils"
+import {
+    initPlaygroundAtom,
+    resetPlaygroundAtom,
+    playgroundEvaluatorAtom,
+} from "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
 
 interface CreateEvaluatorDrawerState {
     isOpen: boolean
@@ -298,9 +360,12 @@ export const openCreateEvaluatorDrawerAtom = atom(
     null,
     (get, set, payload: {evaluator: Evaluator; onCreated?: (id: string) => void}) => {
         // Initialize playground atoms
-        set(playgroundEvaluatorAtom, payload.evaluator)
-        set(playgroundEditModeAtom, false)
-        set(playgroundEditValuesAtom, null)
+        set(initPlaygroundAtom, {
+            evaluator: payload.evaluator,
+            editMode: false,
+            cloneMode: false,
+            editValues: null,
+        })
         set(onEvaluatorCreatedCallbackAtom, payload.onCreated ?? null)
 
         // Open drawer
@@ -310,7 +375,7 @@ export const openCreateEvaluatorDrawerAtom = atom(
 
 export const closeCreateEvaluatorDrawerAtom = atom(null, (get, set) => {
     set(createEvaluatorDrawerAtom, RESET)
-    set(resetPlaygroundStateAtom) // Clean up playground state
+    set(resetPlaygroundAtom) // Clean up playground state
     set(onEvaluatorCreatedCallbackAtom, null)
 })
 
@@ -338,6 +403,8 @@ export const toggleDrawerExpandedAtom = atom(null, (get, set) => {
 
 **Goal**: Render the refactored ConfigureEvaluator inside the drawer.
 
+**Status**: Not started (depends on Checkpoint 3)
+
 **Context**: After Checkpoint 2, ConfigureEvaluator uses atoms. Now we render it inside the drawer, adapting layout for drawer context.
 
 **Files to Modify**:
@@ -351,8 +418,8 @@ export const toggleDrawerExpandedAtom = atom(null, (get, set) => {
    - `onClose` callback that closes drawer
 
 2. The drawer's `extraContent` (when expanded) renders DebugSection:
-   - Reads evaluator from `playgroundEvaluatorAtom`
-   - All other state comes from atoms
+   - No props needed - reads from atoms
+   - All state managed via atoms
 
 3. Handle the commit flow:
    ```typescript
@@ -380,6 +447,8 @@ export const toggleDrawerExpandedAtom = atom(null, (get, set) => {
 ### Checkpoint 5: Full Integration
 
 **Goal**: Connect all pieces: dropdown → drawer → evaluator created → selected in modal.
+
+**Status**: Not started (depends on Checkpoints 1, 3, 4)
 
 **Files to Modify**:
 - `web/oss/src/components/pages/evaluations/NewEvaluation/Components/SelectEvaluatorSection/SelectEvaluatorSection.tsx`
@@ -421,6 +490,8 @@ export const toggleDrawerExpandedAtom = atom(null, (get, set) => {
 
 **Goal**: Ensure feature works correctly and handles edge cases.
 
+**Status**: Not started (depends on Checkpoint 5)
+
 **Tasks**:
 1. Test complete flow for automatic evaluation
 2. Test complete flow for human evaluation
@@ -458,7 +529,7 @@ web/oss/src/components/pages/evaluations/
     └── EvaluatorsModal/
         └── ConfigureEvaluator/
             └── state/
-                └── atoms.ts                     (NEW)
+                └── atoms.ts                     (CREATED ✅)
 ```
 
 ### Modified Files
@@ -472,14 +543,15 @@ web/oss/src/components/pages/evaluations/
 │   │   └── NewEvaluationModalInner.tsx         (MODIFY)
 └── autoEvaluation/
     └── EvaluatorsModal/
+        ├── EvaluatorsModal.tsx                  (MODIFIED ✅)
         └── ConfigureEvaluator/
-            ├── index.tsx                        (MODIFY - refactor to atoms)
-            └── DebugSection.tsx                 (MODIFY - refactor to atoms)
+            ├── index.tsx                        (MODIFIED ✅)
+            └── DebugSection.tsx                 (MODIFIED ✅)
 
 web/oss/src/components/Evaluators/
 └── components/
     └── ConfigureEvaluator/
-        └── index.tsx                            (MODIFY - use atoms)
+        └── index.tsx                            (MODIFIED ✅)
 ```
 
 ---
@@ -504,7 +576,7 @@ web/oss/src/components/Evaluators/
 ### Reusability Requirements
 
 - **Auto vs Human Evaluation**: Both flows should use the same drawer and ConfigureEvaluator component
-- **Page vs Drawer**: ConfigureEvaluator must work in both the standalone page and the drawer context
+- **Page vs Drawer**: ConfigureEvaluator must work in both the standalone page and the drawer context ✅
 - **Template Selection**: The dropdown component should be reusable if needed elsewhere
 
 ### Performance
@@ -529,8 +601,8 @@ web/oss/src/components/Evaluators/
 
 ## Success Metrics
 
-1. Zero navigations away from evaluation modal during evaluator creation
-2. ConfigureEvaluator prop count reduced from 18 to ≤4
-3. DebugSection prop count reduced from 13 to ≤3
-4. No regressions on standalone evaluator playground page
-5. Full flow works for both auto and human evaluations
+1. ✅ ConfigureEvaluator prop count reduced from 18 to 3
+2. ✅ DebugSection prop count reduced from 13 to 0
+3. ✅ No regressions on standalone evaluator playground page
+4. ⏳ Zero navigations away from evaluation modal during evaluator creation
+5. ⏳ Full flow works for both auto and human evaluations
