@@ -40,6 +40,24 @@ export interface TestsetsTableProps {
     scopeId?: string
     className?: string
     autoHeight?: boolean
+    /**
+     * Table interaction mode.
+     * - "manage" (default): clicking rows navigates to the testset/revision page.
+     * - "select": clicking a revision row calls `onSelectRevision` instead of navigating.
+     */
+    mode?: "manage" | "select"
+    /** Callback invoked when a revision row is selected in `mode="select"`. */
+    onSelectRevision?: (params: {
+        revisionId: string
+        testsetId: string
+        testsetName: string
+        version?: number | null
+    }) => void
+    /**
+     * Currently selected testset revision id in select mode.
+     * Used to clear row highlight when the parent clears selection.
+     */
+    selectedRevisionId?: string
 }
 
 /**
@@ -53,6 +71,9 @@ const TestsetsTable = ({
     scopeId = "testsets-page",
     className,
     autoHeight = true,
+    mode = "manage",
+    onSelectRevision,
+    selectedRevisionId,
 }: TestsetsTableProps) => {
     const {projectURL} = useURL()
 
@@ -77,10 +98,76 @@ const TestsetsTable = ({
     const [loadingRows, setLoadingRows] = useState<Set<string>>(new Set())
     const [childrenCache, setChildrenCache] = useState<Map<string, TestsetTableRow[]>>(new Map())
 
+    const isSelectMode = mode === "select"
+    const isManageMode = !isSelectMode
+    const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null)
+
     // Custom row click handler that navigates to revisions
     const handleRowClick = useCallback(
         async (record: TestsetTableRow) => {
             const isRevision = (record as any).__isRevision
+
+            // Selection mode: emit revision selection instead of navigating
+            if (isSelectMode) {
+                const rowKey = String(record.key)
+
+                // Toggle local row highlight based on what the user clicked
+                setSelectedRowKey((prev) => (prev === rowKey ? null : rowKey))
+
+                if (isRevision) {
+                    const testsetId =
+                        (record as any).__testsetId || (record as any).__parentId || record.id
+                    const version = (record as any).__version ?? null
+
+                    onSelectRevision?.({
+                        revisionId: record.id,
+                        testsetId,
+                        testsetName: record.name,
+                        version,
+                    })
+                    return
+                }
+
+                // Testset row selection -> select latest revision for that testset
+                const selectFromRevision = (revision: {id: string; version?: number | null}) => {
+                    if (!revision) return
+                    onSelectRevision?.({
+                        revisionId: revision.id,
+                        testsetId: record.id,
+                        testsetName: record.name,
+                        version: revision.version ?? null,
+                    })
+                }
+
+                // Prefer cached children (already-fetched revisions)
+                const cachedChildren = childrenCache.get(record.key)
+                if (cachedChildren && cachedChildren.length > 0) {
+                    const latestRow = cachedChildren[0]
+                    selectFromRevision({
+                        id: latestRow.id,
+                        version: (latestRow as any).__version ?? null,
+                    })
+                    return
+                }
+
+                // Fallback: fetch revisions to find latest
+                try {
+                    const revisions = await fetchTestsetRevisions({testsetId: record.id})
+                    if (revisions.length > 0) {
+                        const latestRevision = revisions[0]
+                        const numericVersion =
+                            latestRevision.version != null ? Number(latestRevision.version) : null
+                        selectFromRevision({
+                            id: latestRevision.id,
+                            version: numericVersion,
+                        })
+                    }
+                } catch (error) {
+                    console.error("[TestsetsTable] Failed to fetch revisions for selection:", error)
+                }
+
+                return
+            }
 
             // If it's a revision, navigate to it directly
             if (isRevision) {
@@ -109,7 +196,7 @@ const TestsetsTable = ({
                 console.error("[TestsetsTable] Failed to fetch revisions for navigation:", error)
             }
         },
-        [projectURL, childrenCache],
+        [projectURL, childrenCache, isSelectMode, onSelectRevision],
     )
 
     // Action handlers - consolidated
@@ -249,7 +336,8 @@ const TestsetsTable = ({
                         __isRevision: true,
                         __parentId: record.id,
                         __testsetId: record.id,
-                        __version: revision.version,
+                        // Normalize version to a number so consumers don't have to
+                        __version: revision.version != null ? Number(revision.version) : null,
                         __commitMessage: revision.message,
                     }))
                     setChildrenCache((prev) => new Map(prev).set(rowKey, childRows))
@@ -357,7 +445,7 @@ const TestsetsTable = ({
                     width: 48,
                     maxWidth: 48,
                     items: [
-                        // Testset actions
+                        // Testset actions (always allow view in both modes)
                         {
                             key: "details",
                             label: "View details",
@@ -365,28 +453,32 @@ const TestsetsTable = ({
                             onClick: handleRowClick,
                             hidden: (record) => (record as any).__isRevision,
                         },
+                        // Management actions – hidden in select mode
                         {
                             key: "clone",
                             label: "Clone",
                             icon: <Copy size={16} />,
                             onClick: actions.handleClone,
-                            hidden: (record) => (record as any).__isRevision,
+                            hidden: (record) => isSelectMode || (record as any).__isRevision,
                         },
                         {
                             key: "rename",
                             label: "Rename",
                             icon: <PencilSimple size={16} />,
                             onClick: actions.handleRename,
-                            hidden: (record) => (record as any).__isRevision,
+                            hidden: (record) => isSelectMode || (record as any).__isRevision,
                         },
-                        {type: "divider", hidden: (record) => (record as any).__isRevision},
+                        {
+                            type: "divider",
+                            hidden: (record) => isSelectMode || (record as any).__isRevision,
+                        },
                         {
                             key: "delete",
                             label: "Delete",
                             icon: <Trash size={16} />,
                             danger: true,
                             onClick: actions.handleDelete,
-                            hidden: (record) => (record as any).__isRevision,
+                            hidden: (record) => isSelectMode || (record as any).__isRevision,
                         },
                         // Revision actions
                         {
@@ -396,18 +488,21 @@ const TestsetsTable = ({
                             onClick: handleRowClick,
                             hidden: (record) => !(record as any).__isRevision,
                         },
-                        {type: "divider", hidden: (record) => !(record as any).__isRevision},
+                        {
+                            type: "divider",
+                            hidden: (record) => isSelectMode || !(record as any).__isRevision,
+                        },
                         {
                             key: "delete-revision",
                             label: "Delete revision",
                             icon: <Trash size={16} />,
                             danger: true,
                             onClick: handleDeleteRevision,
-                            hidden: (record) => !(record as any).__isRevision,
+                            hidden: (record) => isSelectMode || !(record as any).__isRevision,
                         },
                     ],
-                    onExportRow: table.handleExportRow,
-                    isExporting: Boolean(table.rowExportingKey),
+                    onExportRow: isManageMode ? table.handleExportRow : undefined,
+                    isExporting: isManageMode ? Boolean(table.rowExportingKey) : false,
                     getRecordId: (record) => record.id,
                 },
             ]),
@@ -454,6 +549,14 @@ const TestsetsTable = ({
         [actions.handleCreate],
     )
 
+    // Keep row highlight in sync with parent when selection is cleared
+    useEffect(() => {
+        if (!isSelectMode) return
+        if (!selectedRevisionId) {
+            setSelectedRowKey(null)
+        }
+    }, [isSelectMode, selectedRevisionId])
+
     // Tree data expandable config - Ant Design handles children rendering
     const treeExpandable = useMemo(
         () => ({
@@ -465,15 +568,34 @@ const TestsetsTable = ({
         [expandedRowKeys, handleExpand],
     )
 
+    const rowSelection = useMemo(() => {
+        if (isSelectMode) {
+            return {
+                type: "radio" as const,
+                selectedRowKeys: selectedRowKey ? [selectedRowKey] : [],
+                getCheckboxProps: (record: TestsetTableRow) => ({
+                    disabled: Boolean(record.__isSkeleton),
+                }),
+                columnWidth: 48,
+                fixed: true,
+            }
+        }
+        return table.rowSelection
+    }, [isSelectMode, selectedRowKey, table.rowSelection])
+
     return (
         <div className={clsx("flex flex-col h-full min-h-0 grow w-full", className)}>
             <InfiniteVirtualTableFeatureShell<TestsetTableRow>
                 {...table.shellProps}
                 dataSource={rowsWithChildren}
                 columns={columns}
-                title={headerTitle}
+                title={isManageMode ? headerTitle : undefined}
                 filters={filtersNode}
-                primaryActions={createButton}
+                primaryActions={isManageMode ? createButton : undefined}
+                rowSelection={rowSelection}
+                deleteAction={isManageMode ? table.deleteAction : undefined}
+                exportAction={isManageMode ? table.exportAction : undefined}
+                enableExport={isManageMode}
                 tableProps={{
                     ...table.shellProps.tableProps,
                     expandable: treeExpandable,
