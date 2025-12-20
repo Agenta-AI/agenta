@@ -9,6 +9,8 @@ from agenta.sdk.contexts.running import RunningContext
 
 from agenta.sdk.utils.logging import get_module_logger
 
+import agenta as ag
+
 log = get_module_logger(__name__)
 
 # Template for wrapping user code with evaluation context
@@ -109,10 +111,7 @@ class DaytonaRunner(CodeRunner):
 
             from daytona import CreateSandboxFromSnapshotParams
 
-            # Get Agenta API URL and key from request context, then env, then singleton.
-            import agenta
-
-            agenta_host = agenta.DEFAULT_AGENTA_SINGLETON_INSTANCE.host or ""
+            agenta_host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host or ""
             # agenta_host = "https://xxx.ngrok-free.app"
             agenta_credentials = RunningContext.get().credentials or ""
 
