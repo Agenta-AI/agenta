@@ -22,6 +22,8 @@ const NewEvaluationModal = <Preview extends boolean = true>({
     onSuccess,
     preview = false as Preview,
     evaluationType,
+    preSelectedVariantIds,
+    preSelectedAppId,
     ...props
 }: NewEvaluationModalGenericProps<Preview>) => {
     const classes = useStyles()
@@ -60,6 +62,8 @@ const NewEvaluationModal = <Preview extends boolean = true>({
                 evaluationType={evaluationType}
                 onSubmitStateChange={handleSubmitStateChange}
                 isOpen={props.open}
+                preSelectedVariantIds={preSelectedVariantIds}
+                preSelectedAppId={preSelectedAppId}
             />
         </EnhancedModal>
     )

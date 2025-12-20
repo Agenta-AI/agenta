@@ -1,6 +1,6 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
-import {Input} from "antd"
+import {Button, Input} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -46,25 +46,34 @@ const SelectVariantSection = ({
 
     const onSelectVariant = useCallback(
         (selectedRowKeys: React.Key[]) => {
-            const selectedId = selectedRowKeys[0] as string | undefined
-            if (selectedId) {
-                setSelectedVariantRevisionIds([selectedId])
-                handlePanelChange("testsetPanel")
-            } else {
-                setSelectedVariantRevisionIds([])
-            }
+            // Support multiple variant selection - keep all selected variants
+            setSelectedVariantRevisionIds(selectedRowKeys as string[])
         },
-        [setSelectedVariantRevisionIds, handlePanelChange],
+        [setSelectedVariantRevisionIds],
     )
+
+    const handleContinue = useCallback(() => {
+        if (selectedVariantRevisionIds.length > 0) {
+            handlePanelChange("testsetPanel")
+        }
+    }, [selectedVariantRevisionIds, handlePanelChange])
 
     const onRowClick = useCallback(
         (record: EnhancedVariant) => {
             const _record = record as EnhancedVariant & {
                 children: EnhancedVariant[]
             }
-            onSelectVariant([_record.id])
+            // Toggle selection: add if not selected, remove if already selected
+            const isSelected = selectedVariantRevisionIds.includes(_record.id)
+            if (isSelected) {
+                setSelectedVariantRevisionIds(
+                    selectedVariantRevisionIds.filter((id) => id !== _record.id),
+                )
+            } else {
+                setSelectedVariantRevisionIds([...selectedVariantRevisionIds, _record.id])
+            }
         },
-        [selectedVariantRevisionIds, onSelectVariant],
+        [selectedVariantRevisionIds, setSelectedVariantRevisionIds],
     )
 
     const variantsNonNull = (filteredVariant || []) as EnhancedVariant[]
@@ -78,11 +87,20 @@ const SelectVariantSection = ({
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
+                <Button
+                    type="primary"
+                    disabled={selectedVariantRevisionIds.length === 0}
+                    onClick={handleContinue}
+                >
+                    Continue{" "}
+                    {selectedVariantRevisionIds.length > 0 &&
+                        `(${selectedVariantRevisionIds.length} selected)`}
+                </Button>
             </div>
             <VariantsTable
                 showStableName
                 rowSelection={{
-                    type: "radio",
+                    type: "checkbox",
                     selectedRowKeys: selectedVariantRevisionIds,
                     onChange: (selectedRowKeys) => {
                         onSelectVariant(selectedRowKeys)

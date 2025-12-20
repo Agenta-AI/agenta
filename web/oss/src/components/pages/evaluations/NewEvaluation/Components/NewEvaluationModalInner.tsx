@@ -40,12 +40,16 @@ const NewEvaluationModalInner = ({
     evaluationType,
     onSubmitStateChange,
     isOpen,
+    preSelectedVariantIds,
+    preSelectedAppId,
 }: NewEvaluationModalInnerProps) => {
     // Use appIdentifiersAtom directly to get the URL-derived appId without fallback to stale values
     const {appId} = useAtomValue(appIdentifiersAtom)
-    const isAppScoped = Boolean(appId)
+    // Consider pre-selected app ID from playground, fallback to URL-derived appId
+    const effectiveAppId = preSelectedAppId || appId || ""
+    const isAppScoped = Boolean(effectiveAppId)
     const {apps: availableApps = []} = useAppsData()
-    const [selectedAppId, setSelectedAppId] = useState<string>(appId || "")
+    const [selectedAppId, setSelectedAppId] = useState<string>(effectiveAppId)
     const appOptions = useMemo(() => {
         const options = availableApps.map((app) => ({
             label: app.app_name,
@@ -102,10 +106,15 @@ const NewEvaluationModalInner = ({
         ])
 
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
-    const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>([])
+    // Initialize with pre-selected variants from playground if provided
+    const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>(
+        preSelectedVariantIds || [],
+    )
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
+    // If variants are pre-selected, start on testset panel; otherwise follow normal flow
+    const hasPreSelectedVariants = preSelectedVariantIds && preSelectedVariantIds.length > 0
     const [activePanel, setActivePanel] = useState<string | null>(
-        isAppScoped ? "variantPanel" : "appPanel",
+        hasPreSelectedVariants ? "testsetPanel" : isAppScoped ? "variantPanel" : "appPanel",
     )
     const [evaluationName, setEvaluationName] = useState("")
     const [nameFocused, setNameFocused] = useState(false)
@@ -114,9 +123,9 @@ const NewEvaluationModalInner = ({
 
     useEffect(() => {
         if (isAppScoped) {
-            setSelectedAppId(appId || "")
+            setSelectedAppId(effectiveAppId)
         }
-    }, [appId, isAppScoped])
+    }, [effectiveAppId, isAppScoped])
 
     useEffect(() => {
         if (!isAppScoped) return
