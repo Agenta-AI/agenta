@@ -120,7 +120,7 @@ class DaytonaRunner(CodeRunner):
                     snapshot=snapshot_id,
                     ephemeral=True,
                     env_vars=dict(
-                        OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", ""),
+                        # OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", ""),
                         AGENTA_HOST=agenta_host,
                         AGENTA_CREDENTIALS=agenta_credentials,
                     ),
