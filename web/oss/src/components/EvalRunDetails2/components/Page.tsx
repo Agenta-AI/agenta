@@ -8,6 +8,7 @@ import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 
+import PageLayout from "../../PageLayout/PageLayout"
 import {activePreviewProjectIdAtom, activePreviewRunIdAtom} from "../atoms/run"
 import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../atoms/runDerived"
 import {previewEvalTypeAtom} from "../state/evalType"
@@ -15,11 +16,10 @@ import {syncCompareStateFromUrl} from "../state/urlCompare"
 import {syncFocusDrawerStateFromUrl} from "../state/urlFocusDrawer"
 import EvalRunDetailsTable from "../Table"
 
-import PreviewEvalRunHeader from "./PreviewEvalRunHeader"
+import PreviewEvalRunTabs, {PreviewEvalRunMeta} from "./PreviewEvalRunHeader"
 import ConfigurationView from "./views/ConfigurationView"
 import FocusView from "./views/FocusView"
 import OverviewView from "./views/OverviewView"
-import PageLayout from "../../PageLayout/PageLayout"
 
 type ViewKey = "overview" | "focus" | "scenarios" | "configuration"
 
@@ -132,16 +132,15 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
             className="!p-0 h-full min-h-0"
             title={runDisplayName}
             headerExtra={
-                <PreviewEvalRunHeader
-                    runId={runId}
+                <PreviewEvalRunTabs
                     activeView={activeView}
                     onChangeView={(v) => setActiveViewParam(v)}
-                    projectId={projectId}
                 />
             }
             headerClassName="px-2"
         >
             <div className="flex h-full min-h-0 flex-col gap-3 [&_.ant-tabs-content]:h-full [&_.ant-tabs-tabpane]:h-full">
+                <PreviewEvalRunMeta runId={runId} projectId={projectId} />
                 <Tabs
                     className="flex-1 min-h-0 overflow-hidden"
                     activeKey={activeView}
