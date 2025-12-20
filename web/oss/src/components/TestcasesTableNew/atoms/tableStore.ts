@@ -68,16 +68,45 @@ export interface TestcaseTableMeta extends BaseTableMeta {
 }
 
 // Atom for search term (persisted in session storage)
+// This is the immediate value that reflects user input
 export const testcasesSearchTermAtom = atomWithStorage<string>("testcases-search-term", "")
+
+// Debounced search term (300ms delay to reduce API calls)
+// Internal atom that updates after debounce period
+const debouncedSearchTermBaseAtom = atom("")
+
+// Timer ID for debouncing (module-level to persist between atom reads)
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * Write-only atom to set search term with debouncing
+ * Updates UI immediately but delays API fetch by 300ms
+ */
+export const setDebouncedSearchTermAtom = atom(null, (get, set, searchTerm: string) => {
+    // Update immediate value for UI responsiveness
+    set(testcasesSearchTermAtom, searchTerm)
+
+    // Clear existing timer
+    if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer)
+    }
+
+    // Set new timer to update debounced value after 300ms
+    searchDebounceTimer = setTimeout(() => {
+        set(debouncedSearchTermBaseAtom, searchTerm)
+        searchDebounceTimer = null
+    }, 300)
+})
 
 // Atom to trigger a refresh
 export const testcasesRefreshTriggerAtom = atom(0)
 
 // Atom for full testcases metadata (read-only derived)
+// Uses debounced search term to prevent excessive API calls
 export const testcasesTableMetaAtom = atom<TestcaseTableMeta>((get) => {
     const projectId = get(projectIdAtom)
     const revisionId = get(testcasesRevisionIdAtom)
-    const searchTerm = get(testcasesSearchTermAtom)
+    const searchTerm = get(debouncedSearchTermBaseAtom) // Use debounced value for API calls
     const _refreshTrigger = get(testcasesRefreshTriggerAtom)
 
     return {
@@ -168,6 +197,12 @@ const clientTestcaseRowsAtom = atom<TestcaseTableRow[]>((get) => {
     return newRows.reverse()
 })
 
+/**
+ * Wrapper atom to defer access to deletedEntityIdsAtom
+ * This avoids circular dependency issues during module initialization
+ */
+const excludedTestcaseIdsAtom = atom((get) => get(deletedEntityIdsAtom))
+
 // Create the dataset store with client rows support
 const {datasetStore} = createSimpleTableStore<
     TestcaseTableRow,
@@ -188,7 +223,7 @@ const {datasetStore} = createSimpleTableStore<
     // Provide client rows atom for IVT to merge with server rows
     clientRowsAtom: clientTestcaseRowsAtom,
     // Provide deleted IDs atom to filter out soft-deleted rows
-    excludeRowIdsAtom: deletedEntityIdsAtom,
+    excludeRowIdsAtom: excludedTestcaseIdsAtom,
     fetchData: async ({meta, limit, cursor}) => {
         if (!meta.projectId || !meta.revisionId) {
             return {

@@ -168,12 +168,29 @@ export const useSmartResizableColumns = <RowType>({
 
             // No user resizes yet - distribute space proportionally to fill container
             // This is the initial state before any manual resizing
+            //
+            // KEY: Use default widths as the floor, not minWidth.
+            // This ensures columns don't shrink below their intended default size.
+            // If total default widths exceed container, allow horizontal scrolling.
+            const totalDefaultWidth = flexibleCols.reduce((sum, col) => sum + col.width, 0)
+
+            // If there's not enough space for all columns at their default widths,
+            // use default widths and allow horizontal scrolling
+            if (availableForFlexible <= totalDefaultWidth) {
+                for (const col of flexibleCols) {
+                    result[col.key] = col.width
+                }
+                return result
+            }
+
+            // There's extra space - distribute it proportionally
             const totalWeight = flexibleCols.reduce((sum, col) => sum + col.width, 0)
 
             for (const col of flexibleCols) {
                 const proportion = col.width / totalWeight
                 const computedWidth = availableForFlexible * proportion
-                result[col.key] = Math.max(computedWidth, col.minWidth)
+                // Use default width as floor, not minWidth
+                result[col.key] = Math.max(computedWidth, col.width)
             }
 
             return result
