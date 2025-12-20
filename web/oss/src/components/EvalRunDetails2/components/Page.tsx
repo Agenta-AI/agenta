@@ -19,6 +19,7 @@ import PreviewEvalRunHeader from "./PreviewEvalRunHeader"
 import ConfigurationView from "./views/ConfigurationView"
 import FocusView from "./views/FocusView"
 import OverviewView from "./views/OverviewView"
+import PageLayout from "../../PageLayout/PageLayout"
 
 type ViewKey = "overview" | "focus" | "scenarios" | "configuration"
 
@@ -127,14 +128,19 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     const activeView = (activeViewParam as ViewKey) ?? defaultView
 
     return (
-        <div className="flex h-full min-h-0 flex-col">
-            <PreviewEvalRunHeader
-                runId={runId}
-                activeView={activeView}
-                onChangeView={(v) => setActiveViewParam(v)}
-                projectId={projectId}
-            />
-
+        <PageLayout
+            className="!p-0 h-full min-h-0"
+            title={runDisplayName}
+            headerExtra={
+                <PreviewEvalRunHeader
+                    runId={runId}
+                    activeView={activeView}
+                    onChangeView={(v) => setActiveViewParam(v)}
+                    projectId={projectId}
+                />
+            }
+            headerClassName="px-2"
+        >
             <div className="flex h-full min-h-0 flex-col gap-3 [&_.ant-tabs-content]:h-full [&_.ant-tabs-tabpane]:h-full">
                 <Tabs
                     className="flex-1 min-h-0 overflow-hidden"
@@ -190,7 +196,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
                     ]}
                 />
             </div>
-        </div>
+        </PageLayout>
     )
 }
 
