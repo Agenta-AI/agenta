@@ -17,8 +17,10 @@ import {
     WarningOctagonIcon,
     PencilIcon,
 } from "@phosphor-icons/react"
-import {SpanCategory} from "@/oss/services/tracing/types"
+
 import {FilterMenuNode} from "@/oss/components/Filters/types"
+import {SpanCategory} from "@/oss/services/tracing/types"
+
 import {
     STRING_EQU_AND_CONTAINS_OPS,
     STRING_SEARCH_OPS,
@@ -644,7 +646,7 @@ export const spanTypeStyles = {
     },
     [SpanCategory.WORKFLOW]: {
         color: "#586673",
-        bgColor: "#F5F7FA",
+        bgColor: "#0517290F",
         icon: TreeStructureIcon,
     },
     [SpanCategory.CHAIN]: {

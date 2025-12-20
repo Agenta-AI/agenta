@@ -745,7 +745,7 @@ const DebugSection = ({
         [selectedTestset, selectedTestcase.testcase],
     )
 
-    const variantOutputEditorKey = useMemo(
+    const _variantOutputEditorKey = useMemo(
         () =>
             `variant-output-${selectedVariant?.variantId ?? "none"}-${JSON.stringify(
                 selectedTestcase.testcase ?? {},
@@ -753,7 +753,7 @@ const DebugSection = ({
         [selectedVariant?.variantId, selectedTestcase.testcase],
     )
 
-    const traceEditorKey = useMemo(
+    const _traceEditorKey = useMemo(
         () =>
             `trace-${selectedVariant?.variantId ?? "none"}-${JSON.stringify(
                 traceTree.trace ?? {},
@@ -761,7 +761,7 @@ const DebugSection = ({
         [selectedVariant?.variantId, traceTree.trace],
     )
 
-    const evaluatorOutputEditorKey = useMemo(
+    const _evaluatorOutputEditorKey = useMemo(
         () =>
             `evaluator-output-${selectedEvaluator.key}-${JSON.stringify(
                 selectedTestcase.testcase ?? {},
@@ -774,15 +774,8 @@ const DebugSection = ({
     const variantName = selectedVariant?.variantName || "variant"
 
     return (
-        <section className="flex flex-col gap-4 h-full pb-10 w-[50%]">
+        <section className="flex flex-col gap-4 h-full pb-10 w-full">
             <div className="flex flex-col gap-4 min-w-0">
-                <Space direction="vertical" size={0}>
-                    <Typography.Text className={classes.title}>Test evaluator</Typography.Text>
-                    <Typography.Text type="secondary">
-                        Test your evaluator by generating a test data
-                    </Typography.Text>
-                </Space>
-
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center justify-between">
                         <Space size={5}>

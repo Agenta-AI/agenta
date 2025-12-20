@@ -27,7 +27,7 @@ export const invalidateTraceBatcherCache = () => {
 const resolveEffectiveRunId = (get: any, runId?: string | null) =>
     runId ?? get(activePreviewRunIdAtom) ?? undefined
 
-const debugTraceValue = (() => {
+const _debugTraceValue = (() => {
     const enabled = process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true"
     const seen = new Set<string>()
     return (message: string, payload: Record<string, unknown>, options?: {onceKey?: string}) => {
@@ -63,7 +63,7 @@ const summarizeShape = (value: unknown): string => {
     return typeof value
 }
 
-const summarizeTraceData = (trace: TraceData | null | undefined): Record<string, unknown> => {
+const _summarizeTraceData = (trace: TraceData | null | undefined): Record<string, unknown> => {
     if (!trace) {
         return {state: trace === null ? "null" : "undefined"}
     }
@@ -215,12 +215,6 @@ export const evaluationTraceBatcherFamily = atomFamily(({runId}: {runId?: string
                         return {}
                     }
 
-                    debugTraceValue("Trace batch request", {
-                        projectId,
-                        requestedIds: traceIds,
-                        uniqueCount: unique.length,
-                    })
-
                     const canonicalPairs = unique.map((id) => ({
                         original: id,
                         canonical: uuidToTraceId(id) ?? id.replace(/-/g, ""),
@@ -247,14 +241,6 @@ export const evaluationTraceBatcherFamily = atomFamily(({runId}: {runId?: string
                             },
                         },
                     )
-
-                    debugTraceValue("Trace batch response", {
-                        traceIds: unique,
-                        canonicalIds: canonicalPairs.map((pair) => pair.canonical),
-                        status: response.status,
-                        hasTraces: Boolean(response.data?.traces),
-                        version: response.data?.version,
-                    })
 
                     const traces = response.data?.traces ?? {}
                     const version = response.data?.version
@@ -330,27 +316,6 @@ export const traceValueAtomFamily = atomFamily(
                     args.valueKey,
                 )
 
-                debugTraceValue(
-                    "Trace value selection",
-                    {
-                        traceId: args.traceId,
-                        path: args.path,
-                        valueKey: args.valueKey,
-                        queryState: {
-                            isLoading: queryState.isLoading,
-                            isFetching: queryState.isFetching,
-                            error: queryState.error ? String(queryState.error) : undefined,
-                        },
-                        traceData: summarizeTraceData(queryState.data),
-                        resolvedShape: summarizeShape(resolved),
-                    },
-                    {
-                        onceKey: `${args.traceId}:${args.path}:${
-                            args.valueKey ?? ""
-                        }:${queryState.isLoading ? "loading" : "ready"}`,
-                    },
-                )
-
                 if (
                     process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true" &&
                     queryState.data &&
@@ -360,7 +325,7 @@ export const traceValueAtomFamily = atomFamily(
                     if (!loggedRawTraces.has(rawKey)) {
                         loggedRawTraces.add(rawKey)
 
-                        const spans = Object.entries(
+                        const _spans = Object.entries(
                             (queryState.data as any)?.tree?.data?.spans ?? {},
                         ).map(([spanId, spanData]: [string, any]) => ({
                             spanId,

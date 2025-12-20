@@ -80,9 +80,24 @@ class AgDataAttributes(BaseModel):
     model_config = {"ser_json_exclude_none": True}
 
 
+class AgSessionAttributes(BaseModel):
+    id: Optional[str] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
+class AgUserAttributes(BaseModel):
+    id: Optional[str] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
 class AgAttributes(BaseModel):
     type: AgTypeAttributes = Field(default_factory=AgTypeAttributes)
     data: AgDataAttributes = Field(default_factory=AgDataAttributes)
+
+    session: Optional[AgSessionAttributes] = None
+    user: Optional[AgUserAttributes] = None
 
     metrics: Optional[AgMetricsAttributes] = None
     flags: Optional[Flags] = None

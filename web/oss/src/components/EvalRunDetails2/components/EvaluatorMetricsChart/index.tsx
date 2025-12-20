@@ -310,14 +310,14 @@ const EvaluatorMetricsChart = ({
             categoricalFrequencyData.forEach((entry) => {
                 const key = labelKey(entry.label)
                 labelSet.add(key)
-                baseMap.set(key, Number(entry.value) ?? 0)
+                baseMap.set(key, Number(entry.value) || 0)
             })
             const comparisonMaps = comparisonCategoricalFrequencies.map((entry) => {
                 const map = new Map<string, number>()
                 entry.frequency.forEach((freq) => {
                     const key = labelKey(freq.label)
                     labelSet.add(key)
-                    map.set(key, Number(freq.value) ?? 0)
+                    map.set(key, Number(freq.value) || 0)
                 })
                 return {...entry, map}
             })

@@ -28,7 +28,7 @@ import type {
     QueryFilteringPayload,
 } from "../../../../services/onlineEvaluations/api"
 import {buildFrequencyChartData} from "../../../EvaluatorMetricsChart/utils/chartData"
-import {ApplicationReferenceLabel, TestsetTagList, VariantReferenceLabel} from "../../../references"
+import {ApplicationReferenceLabel, TestsetTagList, VariantRevisionLabel} from "../../../references"
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import {resolveMetricValue} from "../utils/metrics"
 
@@ -213,7 +213,7 @@ const ApplicationCell = ({runId, projectURL}: MetadataCellProps) => (
 
 const LegacyVariantCell = memo(({runId}: MetadataCellProps) => (
     <div className="inline-flex">
-        <VariantReferenceLabel runId={runId} />
+        <VariantRevisionLabel runId={runId} />
     </div>
 ))
 
@@ -250,32 +250,6 @@ const LegacyTestsetsCell = memo(({runId, projectURL}: MetadataCellProps) => {
     const testsetIds = useAtomValueWithSchedule(testsetAtom, {priority: LOW_PRIORITY}) ?? []
     return <TestsetTagList ids={testsetIds} projectURL={projectURL ?? undefined} runId={runId} />
 })
-
-const ScenarioCountCell = ({runId}: MetadataCellProps) => {
-    const selection = useAtomValueWithSchedule(
-        useMemo(
-            () =>
-                previewRunMetricStatsSelectorFamily({
-                    runId,
-                    metricKey: "attributes.ag.metrics.tokens.cumulative.total",
-                }),
-            [runId],
-        ),
-        {priority: LOW_PRIORITY},
-    )
-    if (selection.state === "loading") {
-        return <Typography.Text type="secondary">…</Typography.Text>
-    }
-    if (selection.state === "hasError") {
-        return <Typography.Text type="secondary">—</Typography.Text>
-    }
-    const count = selection.stats?.count
-    return (
-        <Typography.Text>
-            {typeof count === "number" ? count.toLocaleString() : "—"}
-        </Typography.Text>
-    )
-}
 
 const formatCurrency = (value: number | undefined | null) => {
     if (typeof value !== "number" || !Number.isFinite(value)) return "—"
@@ -314,7 +288,7 @@ const extractTopCategories = (stats: BasicStats | undefined, limit = 3) => {
         .slice(0, limit)
         .map((entry) => ({
             label: formatCategoryLabel(entry.label),
-            count: Number(entry.value) ?? 0,
+            count: Number(entry.value) || 0,
         }))
 }
 

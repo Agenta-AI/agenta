@@ -135,7 +135,7 @@ export const invocationTraceSummaryAtomFamily = atomFamily(
             const traceMeta = traceId
                 ? get(traceQueryMetaAtomFamily({traceId, runId: effectiveRunId}))
                 : undefined
-            let traceLoading = false
+            let _traceLoading = false
             const primaryNode = getPrimaryTraceNode(trace)
             const metricSources = collectMetricSources(primaryNode)
 
@@ -170,7 +170,7 @@ export const invocationTraceSummaryAtomFamily = atomFamily(
                 }
 
                 if (traceMeta?.isLoading || traceMeta?.isFetching) {
-                    traceLoading = true
+                    _traceLoading = true
                 }
                 return undefined
             }

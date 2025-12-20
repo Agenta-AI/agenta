@@ -95,3 +95,33 @@ The dashboard provides comprehensive insights into your LLM application's behavi
 - Model parameters used
 - Associated costs
 
+## Tracking sessions
+
+For chat applications, you can group multiple requests into sessions using the `Baggage` header. This helps you track complete conversations across multiple requests.
+
+```python
+import requests
+import os
+
+session_id = "chat_session_123"
+user_id = "user-456"
+
+response = requests.post(
+    "https://cloud.agenta.ai/services/completion/run",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"ApiKey {os.environ['AGENTA_API_KEY']}",
+        # highlight-next-line
+        "Baggage": f"ag.session.id={session_id},ag.user.id={user_id}"
+    },
+    json={
+        "environment": "development",
+        "app": "chatbot",
+        "inputs": {
+            "message": "Hello"
+        }
+    }
+)
+```
+
+All requests with the same session ID will be grouped together in the observability dashboard. You can also track users to see who is interacting with your application. 

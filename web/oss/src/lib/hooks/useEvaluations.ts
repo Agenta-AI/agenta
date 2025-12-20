@@ -9,7 +9,7 @@ import {
     fromEvaluationResponseToEvaluation,
     singleModelTestEvaluationTransformer,
 } from "@agenta/oss/src/lib/transformers"
-import {Evaluation, EvaluationResponseType, ListAppsItem} from "@agenta/oss/src/lib/Types"
+import {EvaluationResponseType, ListAppsItem} from "@agenta/oss/src/lib/Types"
 import {useAtomValue} from "jotai"
 import useSWR from "swr"
 

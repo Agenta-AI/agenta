@@ -4,6 +4,7 @@ from copy import deepcopy
 from hashlib import blake2b
 from traceback import format_exc
 from datetime import datetime
+from re import match
 
 from fastapi import Query
 
@@ -40,6 +41,7 @@ from oss.src.core.tracing.dtos import (
 from oss.src.core.tracing.utils import (
     parse_ref_id_to_uuid,
     parse_ref_slug_to_str,
+    parse_ref_version_to_str,
     parse_timestamp_to_datetime,
     parse_trace_id_to_uuid,
     parse_span_id_to_uuid,
@@ -53,6 +55,7 @@ from oss.src.core.tracing.utils import (
 log = get_module_logger(__name__)
 
 TRACE_DEFAULT_KEY = "__default__"
+URL_SAFE = r"^[a-zA-Z0-9_-]+$"
 
 # --- PARSE QUERY DTO ---
 
@@ -398,17 +401,39 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     if isinstance(references_dict, dict):
         for key in references_dict:
             if key in REFERENCE_KEYS:
-                entry = {}
+                entry: Dict[str, Optional[str]] = dict()
                 if references_dict[key].get("id") is not None:
                     entry["id"] = str(references_dict[key]["id"])
                 if references_dict[key].get("slug") is not None:
                     entry["slug"] = str(references_dict[key]["slug"])
+                    if entry["slug"] and not match(URL_SAFE, entry["slug"]):
+                        entry["slug"] = None
                 if references_dict[key].get("version") is not None:
                     entry["version"] = str(references_dict[key]["version"])
 
                 cleaned_references[key] = entry
 
     cleaned_ag["references"] = cleaned_references or None
+
+    # --- session ---
+    session_dict = ag.get("session")
+    if session_dict and isinstance(session_dict, dict):
+        cleaned_session = {}
+        if "id" in session_dict:
+            cleaned_session["id"] = session_dict["id"]
+        cleaned_ag["session"] = cleaned_session if cleaned_session else None
+    else:
+        cleaned_ag["session"] = None
+
+    # --- user ---
+    user_dict = ag.get("user")
+    if user_dict and isinstance(user_dict, dict):
+        cleaned_user = {}
+        if "id" in user_dict:
+            cleaned_user["id"] = user_dict["id"]
+        cleaned_ag["user"] = cleaned_user if cleaned_user else None
+    else:
+        cleaned_ag["user"] = None
 
     # --- passthrough simple optional fields ---
     for key in ["flags", "tags", "meta", "exception", "hashes"]:
@@ -470,6 +495,7 @@ def extract_references_and_links_from_span(span: OTelSpan) -> Tuple[Dict, Dict]:
         ref.attributes["key"]: {
             "id": str(ref.id) if ref.id else None,
             "slug": str(ref.slug) if ref.slug else None,
+            "version": str(ref.version) if ref.version else None,
         }
         for ref in span.references or []
         if ref.attributes.get("key") in REFERENCE_KEYS
@@ -502,6 +528,8 @@ def make_hash_id(
                 entry["id"] = v["id"]
             if v.get("slug") is not None:
                 entry["slug"] = v["slug"]
+            if v.get("version") is not None:
+                entry["version"] = v["version"]
             payload[k] = entry
 
     for k, v in (links or {}).items():
@@ -587,6 +615,11 @@ def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
                         slug=(
                             parse_ref_slug_to_str(ref_value.get("slug"))
                             if ref_value.get("slug")
+                            else None
+                        ),
+                        version=(
+                            parse_ref_version_to_str(ref_value.get("version"))
+                            if ref_value.get("version")
                             else None
                         ),
                         attributes={"key": ref_key},

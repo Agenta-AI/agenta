@@ -79,6 +79,7 @@ class InvocationsService:
     async def create(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -162,6 +163,7 @@ class InvocationsService:
         )
 
         invocation_link = await self._create_invocation(
+            organization_id=organization_id,
             project_id=project_id,
             user_id=user_id,
             #
@@ -211,6 +213,7 @@ class InvocationsService:
     async def edit(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -311,6 +314,7 @@ class InvocationsService:
         )
 
         invocation_link = await self._edit_invocation(
+            organization_id=organization_id,
             project_id=project_id,
             user_id=user_id,
             #
@@ -416,6 +420,7 @@ class InvocationsService:
     async def _create_invocation(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -500,6 +505,7 @@ class InvocationsService:
             scope={"type": "http", "http_version": "1.1", "scheme": "http"}
         )
 
+        request.state.organization_id = str(organization_id)
         request.state.project_id = str(project_id)
         request.state.user_id = str(user_id)
 
@@ -507,6 +513,7 @@ class InvocationsService:
             request=request,
             #
             trace_request=trace_request,
+            sync=True,  # Synchronous for user-facing invocations
         )
 
         _link = (
@@ -642,6 +649,7 @@ class InvocationsService:
     async def _edit_invocation(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -719,6 +727,7 @@ class InvocationsService:
             scope={"type": "http", "http_version": "1.1", "scheme": "http"}
         )
 
+        request.state.organization_id = str(organization_id)
         request.state.project_id = str(project_id)
         request.state.user_id = str(user_id)
 
@@ -728,6 +737,7 @@ class InvocationsService:
             trace_id=invocation.trace_id,
             #
             trace_request=trace_request,
+            sync=True,  # Synchronous for user-facing invocations
         )
 
         _link = (

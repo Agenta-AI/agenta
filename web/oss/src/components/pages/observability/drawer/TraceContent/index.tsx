@@ -1,67 +1,41 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {Database} from "@phosphor-icons/react"
-import {Button, Divider, Space, Tabs, TabsProps, Tag, Typography, Tooltip, Skeleton} from "antd"
+import {Tabs, TabsProps, Skeleton, Splitter} from "antd"
 import clsx from "clsx"
-import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
+import {useAtom} from "jotai"
 
-import {
-    isDrawerOpenAtom,
-    resetTraceDrawerAtom,
-} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
-import {KeyValuePair} from "@/oss/lib/Types"
+import {traceSidePanelOpenAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 
 import AccordionTreePanel from "../../components/AccordionTreePanel"
-import AnnotateDrawerButton from "../AnnotateDrawer/assets/AnnotateDrawerButton"
+import TraceSidePanel from "../TraceSidePanel"
 
 import {useStyles} from "./assets/styles"
+import {TraceContentProps} from "./assets/types"
 import AnnotationTabItem from "./components/AnnotationTabItem"
+import LinkedSpansTabItem from "./components/LinkedSpansTabItem"
 import OverviewTabItem from "./components/OverviewTabItem"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
-import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
+import TraceTypeHeader from "./components/TraceTypeHeader"
 
-const TestsetDrawer = dynamic(() => import("../TestsetDrawer/TestsetDrawer"), {ssr: false})
-
-interface TraceContentProps {
-    activeTrace?: TraceSpanNode
-    traceResponse?: any
-    error?: any
-    isLoading?: boolean
-}
-
-const store = getDefaultStore()
+const loadingContent = (
+    <div className="px-4 py-6">
+        <Skeleton active paragraph={{rows: 6}} title={false} />
+    </div>
+)
 
 const TraceContent = ({
     activeTrace: active,
     traceResponse,
     error,
+    traces,
     isLoading,
+    setSelectedTraceId,
+    activeId,
 }: TraceContentProps) => {
-    const resetDrawer = useSetAtom(resetTraceDrawerAtom)
+    const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(traceSidePanelOpenAtom)
     const activeTrace = active
-    const activeTraceData = useAtomValue(spanAgDataAtomFamily(activeTrace))
     const {key, children, spans, invocationIds, ...filteredTrace} = activeTrace || {}
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
-    const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
-    const testsetData = useMemo(() => {
-        if (!activeTrace?.key) return [] as {data: KeyValuePair; key: string; id: number}[]
-        return [
-            {
-                data: activeTraceData as KeyValuePair,
-                key: activeTrace.key,
-                id: 1,
-            },
-        ]
-    }, [activeTrace?.key, activeTraceData])
-
-    const loadingContent = (
-        <div className="px-4 py-6">
-            <Skeleton active paragraph={{rows: 6}} title={false} />
-        </div>
-    )
 
     const items: TabsProps["items"] = useMemo(() => {
         if (isLoading && !activeTrace) {
@@ -89,6 +63,7 @@ const TraceContent = ({
                             value={rawPayload as any}
                             enableFormatSwitcher
                             fullEditorHeight
+                            enableSearch
                         />
                     ),
                 },
@@ -110,8 +85,14 @@ const TraceContent = ({
                         value={{...filteredTrace}}
                         enableFormatSwitcher
                         fullEditorHeight
+                        enableSearch
                     />
                 ),
+            },
+            {
+                key: "linked-span",
+                label: "Linked Spans",
+                children: <LinkedSpansTabItem isActive={tab === "linked-span"} />,
             },
             {
                 key: "annotations",
@@ -119,7 +100,7 @@ const TraceContent = ({
                 children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
             },
         ]
-    }, [activeTrace, filteredTrace, isLoading, traceResponse, error])
+    }, [activeTrace, filteredTrace, isLoading, traceResponse, error, tab])
 
     // Ensure active tab exists in items; if not, switch to first tab
     const itemKeys = useMemo(() => (items || []).map((it) => String(it?.key)), [items])
@@ -129,78 +110,44 @@ const TraceContent = ({
         }
     }, [itemKeys.join("|"), tab])
 
-    useEffect(() => {
-        return () => {
-            const isOpen = store.get(isDrawerOpenAtom)
-            if (!isOpen) {
-                resetDrawer()
-            }
-        }
-    }, [])
-
     return (
         <div className={clsx("flex w-full h-full flex-1", classes.container)}>
             <div className="flex-1 flex flex-col overflow-auto">
-                <div>
-                    <div className="p-4 flex items-center justify-between gap-2">
-                        <Tooltip
-                            placement="topLeft"
-                            title={activeTrace?.span_name || (error ? "Error" : "")}
-                            mouseEnterDelay={0.25}
-                        >
-                            <Typography.Text
-                                className={clsx("truncate text-nowrap flex-1", classes.title)}
-                            >
-                                {activeTrace?.span_name || (error ? "Error" : "")}
-                            </Typography.Text>
-                        </Tooltip>
-                        <TooltipWithCopyAction
-                            copyText={activeTrace?.span_id || ""}
-                            title="Copy span id"
-                            tooltipProps={{placement: "bottom", arrow: true}}
-                        >
-                            <Tag className="font-mono truncate">{activeTrace?.span_id || "-"}</Tag>
-                        </TooltipWithCopyAction>
-                    </div>
-                    <Divider className="m-0" />
-                </div>
+                <TraceTypeHeader
+                    activeTrace={activeTrace}
+                    error={error}
+                    setSelectedTraceId={setSelectedTraceId}
+                    setIsAnnotationsSectionOpen={setIsAnnotationsSectionOpen}
+                    isAnnotationsSectionOpen={isAnnotationsSectionOpen}
+                    traces={traces}
+                />
 
-                <div className="flex-1 flex flex-col overflow-y-auto">
-                    <Tabs
-                        defaultActiveKey="overview"
-                        activeKey={tab}
-                        onChange={setTab}
-                        items={items}
-                        className={clsx("flex flex-col h-full", classes.tabs)}
-                        tabBarExtraContent={
-                            <Space className="mr-4">
-                                <Button
-                                    className="flex items-center"
-                                    onClick={() => setIsTestsetDrawerOpen(true)}
-                                    disabled={!activeTrace?.key}
-                                >
-                                    <Database size={14} />
-                                    Add to testset
-                                </Button>
-
-                                <AnnotateDrawerButton
-                                    label="Annotate"
-                                    data={activeTrace?.annotations || []}
-                                    traceSpanIds={{
-                                        traceId: activeTrace?.trace_id,
-                                        spanId: activeTrace?.span_id,
-                                    }}
-                                />
-                            </Space>
-                        }
-                    />
-                </div>
+                <Splitter className="h-[87vh] flex">
+                    <Splitter.Panel min={400} className="w-full flex-1">
+                        <div className="flex-1">
+                            <Tabs
+                                defaultActiveKey="overview"
+                                activeKey={tab}
+                                onChange={setTab}
+                                items={items}
+                                className={clsx(
+                                    "flex flex-col h-full [&_.ant-tabs-nav]:!sticky [&_.ant-tabs-nav]:!top-0 [&_.ant-tabs-nav]:!z-10 [&_.ant-tabs-nav]:!bg-white",
+                                    classes.tabs,
+                                )}
+                            />
+                        </div>
+                    </Splitter.Panel>
+                    {isAnnotationsSectionOpen && (
+                        <Splitter.Panel min={280} defaultSize={280} collapsible>
+                            <TraceSidePanel
+                                activeTrace={activeTrace as any}
+                                activeTraceId={activeId}
+                                isLoading={isLoading}
+                            />
+                        </Splitter.Panel>
+                    )}
+                </Splitter>
             </div>
-            <TestsetDrawer
-                open={isTestsetDrawerOpen && !!activeTrace?.key}
-                data={testsetData}
-                onClose={() => setIsTestsetDrawerOpen(false)}
-            />
         </div>
     )
 }

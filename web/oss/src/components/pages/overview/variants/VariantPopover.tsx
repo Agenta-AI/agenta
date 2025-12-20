@@ -29,7 +29,12 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
             {...props}
             placement="bottom"
             trigger={"hover"}
-            overlayStyle={{minWidth: 256, maxWidth: 360}}
+            styles={{
+                root: {
+                    minWidth: 256,
+                    maxWidth: 360,
+                },
+            }}
             arrow={false}
             title={
                 <div onClick={(e) => e.stopPropagation()} className="flex flex-col gap-4">

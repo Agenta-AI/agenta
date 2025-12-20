@@ -1,7 +1,5 @@
 from typing import Optional, Dict, List
 from threading import Lock
-from json import dumps
-from uuid import UUID
 
 from opentelemetry.baggage import get_all as get_baggage
 from opentelemetry.context import Context
@@ -14,7 +12,6 @@ from opentelemetry.sdk.trace.export import (
 from opentelemetry.trace import SpanContext
 
 from agenta.sdk.utils.logging import get_module_logger
-from agenta.sdk.tracing.conventions import Reference
 
 from agenta.sdk.contexts.tracing import TracingContext
 
@@ -70,10 +67,8 @@ class TraceProcessor(SpanProcessor):
         baggage = get_baggage(parent_context)
 
         for key in baggage.keys():
-            if key.startswith("ag.refs."):
-                _key = key.replace("ag.refs.", "")
-                if _key in [_.value for _ in Reference.__members__.values()]:
-                    span.set_attribute(key, baggage[key])
+            if key.startswith("ag."):
+                span.set_attribute(key, baggage[key])
 
         context = TracingContext.get()
 

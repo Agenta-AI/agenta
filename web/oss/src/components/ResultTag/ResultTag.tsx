@@ -33,7 +33,11 @@ const ResultTag = memo(({value1, value2, className, popoverContent, ...props}: R
         <Popover
             placement="bottom"
             trigger="click"
-            overlayStyle={{width: 240}}
+            styles={{
+                root: {
+                    width: 240,
+                },
+            }}
             arrow={false}
             title={popoverContent}
         >

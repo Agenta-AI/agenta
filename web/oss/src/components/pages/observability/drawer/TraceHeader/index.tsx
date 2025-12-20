@@ -1,10 +1,14 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {DeleteOutlined} from "@ant-design/icons"
-import {CaretDown, CaretUp, SidebarSimple} from "@phosphor-icons/react"
+import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
+import {
+    traceDrawerBackTargetAtom,
+    traceDrawerIsLinkedViewAtom,
+    setTraceDrawerTraceAtom,
+} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
 import {
@@ -18,64 +22,8 @@ import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {useObservability} from "@/oss/state/newObservability"
 import buildTraceQueryParams from "@/oss/state/newObservability/utils/buildTraceQueryParams"
 
-import DeleteTraceModal from "../../components/DeleteTraceModal"
-
-import {useStyles} from "./assets/styles"
-import {TraceHeaderProps} from "./assets/types"
-
-const getTraceIdFromNode = (node: any): string | null => {
-    if (!node) return null
-    return (
-        node.trace_id ||
-        node.invocationIds?.trace_id ||
-        node.node?.trace_id ||
-        node.root?.id ||
-        null
-    )
-}
-
-const getSpanIdFromNode = (node: any): string | null => {
-    if (!node) return null
-    return node.span_id || node.invocationIds?.span_id || node.node?.span_id || null
-}
-
-const getNodeTimestamp = (node: any): string | number | null => {
-    if (!node) return null
-    return (
-        node.start_time ||
-        node.startTime ||
-        node.timestamp ||
-        node.created_at ||
-        node.createdAt ||
-        node.node?.start_time ||
-        node.node?.timestamp ||
-        node.node?.created_at ||
-        null
-    )
-}
-
-const toISOString = (value: string | number | Date | null | undefined): string | null => {
-    if (value === null || value === undefined) return null
-    let date: Date
-    if (value instanceof Date) {
-        date = value
-    } else if (typeof value === "number") {
-        const ms = value < 1e12 ? value * 1000 : value
-        date = new Date(ms)
-    } else {
-        date = new Date(value)
-    }
-    if (Number.isNaN(date.getTime())) return null
-    return date.toISOString()
-}
-
-type NavSource = "table" | "remote"
-
-interface NavState {
-    candidate: TraceSpanNode | null
-    loading: boolean
-    source: NavSource | null
-}
+import {getTraceIdFromNode, getSpanIdFromNode, getNodeTimestamp, toISOString} from "./assets/helper"
+import {TraceHeaderProps, NavState, NavSource} from "./assets/types"
 
 const TraceHeader = ({
     activeTrace: propActiveTrace,
@@ -92,15 +40,13 @@ const TraceHeader = ({
     setSpanParam,
     setTraceDrawerTrace,
     activeTraceIndex: _activeTraceIndex,
-    setIsAnnotationsSectionOpen,
-    isAnnotationsSectionOpen,
     setSelected,
 }: TraceHeaderProps) => {
-    const classes = useStyles()
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-
     const {traces: tableTracesRaw, hasMoreTraces, fetchMoreTraces} = useObservability()
     const appId = useAtomValue(selectedAppIdAtom)
+    const backTarget = useAtomValue(traceDrawerBackTargetAtom)
+    const isLinkedView = useAtomValue(traceDrawerIsLinkedViewAtom)
+    const internalSetTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
 
     const tableTraces = useMemo(() => tableTracesRaw as TraceSpanNode[], [tableTracesRaw])
 
@@ -464,59 +410,80 @@ const TraceHeader = ({
     const isPrevDisabled = prevNav.loading || !prevNav.candidate || !activeFocusKey
     const isNextDisabled = nextNav.loading || !nextNav.candidate || !activeFocusKey
 
+    const handleBackToOrigin = useCallback(() => {
+        if (!backTarget) return
+
+        internalSetTraceDrawerTrace({source: "back"})
+
+        setTraceParam(backTarget.traceId ?? undefined, {shallow: true})
+        setSelectedTraceId(backTarget.traceId)
+
+        if (backTarget.spanId) {
+            setSelectedNode?.(backTarget.spanId)
+            setSelected?.(backTarget.spanId)
+        } else {
+            setSelectedNode?.("")
+            setSelected?.("")
+        }
+
+        if (traceTabs === "span") {
+            setSpanParam(backTarget.spanId ?? undefined, {shallow: true})
+        } else {
+            setSpanParam(undefined, {shallow: true})
+        }
+    }, [
+        backTarget,
+        internalSetTraceDrawerTrace,
+        setSelectedTraceId,
+        setSelectedNode,
+        setSelected,
+        setTraceParam,
+        setSpanParam,
+        traceTabs,
+    ])
+
     const displayTrace = propActiveTrace || drawerTraces?.[0]
 
     return (
         <>
             <div className="flex items-center justify-between">
                 <Space>
-                    <div>
+                    {backTarget && (
                         <Button
-                            onClick={handlePrevTrace}
-                            type="text"
-                            disabled={isPrevDisabled}
-                            icon={<CaretUp size={16} />}
+                            type="default"
+                            size="small"
+                            onClick={handleBackToOrigin}
+                            icon={<ArrowLeft size={14} />}
                         />
-                        <Button
-                            onClick={handleNextTrace}
-                            type="text"
-                            disabled={isNextDisabled}
-                            icon={<CaretDown size={16} />}
-                        />
-                    </div>
+                    )}
+                    {!isLinkedView && (
+                        <div>
+                            <Button
+                                onClick={handlePrevTrace}
+                                type="text"
+                                disabled={isPrevDisabled}
+                                icon={<CaretUp size={16} />}
+                            />
+                            <Button
+                                onClick={handleNextTrace}
+                                type="text"
+                                disabled={isNextDisabled}
+                                icon={<CaretDown size={16} />}
+                            />
+                        </div>
+                    )}
 
-                    <Typography.Text className={classes.title}>Trace</Typography.Text>
+                    <Typography.Text className="text-sm font-medium">Trace</Typography.Text>
                     <TooltipWithCopyAction
                         copyText={getTraceIdFromNode(displayTrace) || ""}
                         title="Copy trace id"
                     >
-                        <Tag className="font-mono">{getTraceIdFromNode(displayTrace) || "-"}</Tag>
+                        <Tag className="font-mono bg-[#0517290F]" bordered={false}>
+                            # {getTraceIdFromNode(displayTrace) || "-"}
+                        </Tag>
                     </TooltipWithCopyAction>
                 </Space>
-
-                <Space>
-                    <Button
-                        icon={<DeleteOutlined />}
-                        onClick={() => setIsDeleteModalOpen(true)}
-                        disabled={!displayTrace}
-                    />
-                    {setIsAnnotationsSectionOpen && (
-                        <Button
-                            icon={<SidebarSimple size={14} />}
-                            type={isAnnotationsSectionOpen ? "default" : "primary"}
-                            className="shrink-0 flex items-center justify-center"
-                            onClick={() => setIsAnnotationsSectionOpen((prev) => !prev)}
-                        />
-                    )}
-                </Space>
             </div>
-
-            <DeleteTraceModal
-                open={isDeleteModalOpen}
-                onCancel={() => setIsDeleteModalOpen(false)}
-                activeTraceId={getTraceIdFromNode(displayTrace) || ""}
-                setSelectedTraceId={setSelectedTraceId}
-            />
         </>
     )
 }

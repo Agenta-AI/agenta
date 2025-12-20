@@ -293,7 +293,7 @@ export const renderMap: RenderFunctions = {
     },
 
     array: (props) => {
-        const {disabled, withTooltip, metadata, value, handleChange} = props
+        const {disabled, withTooltip, value, handleChange} = props
         if (!Array.isArray(value?.value)) {
             return null
         }
