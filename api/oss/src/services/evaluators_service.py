@@ -27,6 +27,8 @@ from oss.src.utils.traces import (
 )
 
 from agenta.sdk.managers.secrets import SecretsManager
+from agenta.sdk.models.workflows import WorkflowServiceRequest, WorkflowServiceRequestData
+from agenta.sdk.workflows.builtin import auto_custom_code_run as sdk_auto_custom_code_run
 
 
 log = get_module_logger(__name__)
@@ -456,6 +458,47 @@ async def custom_code_run(input: EvaluatorInputInterface) -> EvaluatorOutputInte
         datapoint=input.inputs["ground_truth"],
     )
     return {"outputs": {"score": result}}
+
+
+async def sdk_custom_code_run(
+    input: EvaluatorInputInterface,
+) -> EvaluatorOutputInterface:
+    inputs = input.inputs or {}
+    settings = input.settings or {}
+
+    code = settings.get("code")
+    if code is None:
+        raise ValueError("Missing evaluator setting: code")
+
+    correct_answer_key = settings.get("correct_answer_key")
+    if not correct_answer_key:
+        correct_answer_key = "ground_truth" if "ground_truth" in inputs else "correct_answer"
+
+    threshold = settings.get("threshold", 0.5)
+
+    workflow = sdk_auto_custom_code_run(
+        code=str(code),
+        correct_answer_key=str(correct_answer_key),
+        threshold=float(threshold),
+    )
+
+    outputs = inputs.get("prediction", inputs.get("output"))
+    request = WorkflowServiceRequest(
+        data=WorkflowServiceRequestData(
+            inputs=inputs,
+            outputs=outputs,
+        ),
+    )
+
+    response = await workflow.invoke(request=request)
+    result = response.data.outputs if response.data else None
+
+    if isinstance(result, dict) and "score" in result:
+        score = result["score"]
+    else:
+        score = result
+
+    return {"outputs": {"score": score}}
 
 
 async def auto_ai_critique(
@@ -2009,7 +2052,7 @@ RUN_EVALUATOR_FUNCTIONS = {
     "auto_regex_test": regex_test,
     "field_match_test": field_match_test,
     "auto_webhook_test": webhook_test,
-    "auto_custom_code_run": custom_code_run,
+    "auto_custom_code_run": sdk_custom_code_run,
     "auto_ai_critique": ai_critique,
     "auto_starts_with": starts_with,
     "auto_ends_with": ends_with,
