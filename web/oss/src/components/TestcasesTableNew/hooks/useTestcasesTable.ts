@@ -38,6 +38,7 @@ import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {
     revisionChangeEffectAtom,
+    setDebouncedSearchTermAtom,
     syncRowIdsToEntityAtom,
     testcaseRowIdsAtom,
     testcasesSearchTermAtom,
@@ -89,11 +90,12 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     const {revisionId} = options
 
     // Search state - synced with tableStore atom
+    // Note: searchTerm is immediate (for UI), but API calls are debounced (300ms)
     const searchTerm = useAtomValue(testcasesSearchTermAtom)
-    const setSearchTermAtom = useSetAtom(testcasesSearchTermAtom)
+    const setSearchTermDebounced = useSetAtom(setDebouncedSearchTermAtom)
     const setSearchTerm = useCallback(
-        (term: string) => setSearchTermAtom(term),
-        [setSearchTermAtom],
+        (term: string) => setSearchTermDebounced(term),
+        [setSearchTermDebounced],
     )
 
     // Save state

@@ -2,11 +2,13 @@ import type {Column} from "@/oss/state/entities/testcase/columnState"
 import type {ChangesSummary} from "@/oss/state/entities/testcase/dirtyState"
 import type {DisplayRowRef} from "@/oss/state/entities/testcase/displayRows"
 import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
+import type {RevisionListItem} from "@/oss/state/entities/testset/revisionSchema"
 
 // Re-export types for external consumers
 export type {Column}
 export type {ChangesSummary}
 export type {DisplayRowRef}
+export type {RevisionListItem}
 
 /**
  * @deprecated Use DisplayRowRef instead - cells read from entity atoms

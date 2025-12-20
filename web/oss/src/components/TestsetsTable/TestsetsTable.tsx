@@ -379,7 +379,7 @@ const TestsetsTable = ({
                             return (
                                 <div className="flex items-center gap-2 pl-6">
                                     <span>{record.name}</span>
-                                    {version && (
+                                    {version !== null && version !== undefined && (
                                         <Tag className="bg-[rgba(5,23,41,0.06)]" variant="filled">
                                             v{version}
                                         </Tag>
