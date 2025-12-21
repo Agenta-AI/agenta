@@ -109,7 +109,12 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                             type="primary"
                             icon={<CodeSimpleIcon size={14} />}
                             onClick={() =>
-                                envRevisions && openDeploymentsDrawer({initialWidth: 720})
+                                envRevisions &&
+                                openDeploymentsDrawer({
+                                    initialWidth: 720,
+                                    mode: "deployment",
+                                    envName: envRevisions.name,
+                                })
                             }
                         >
                             Use API
@@ -144,7 +149,13 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                     }
                     onOpenUseApi={({revisionId} = {}) => {
                         if (envRevisions) {
-                            openDeploymentsDrawer({initialWidth: 720, revisionId})
+                            openDeploymentsDrawer({
+                                initialWidth: 720,
+                                revisionId,
+                                deploymentRevisionId: revisionId,
+                                envName: envRevisions.name,
+                                mode: "deployment",
+                            })
                         }
                     }}
                     isLoading={isLoading}

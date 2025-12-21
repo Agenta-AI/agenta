@@ -240,7 +240,7 @@ const VariantsDashboard = () => {
                     <DeployVariantButton
                         type="default"
                         label="Deploy"
-                        disabled={!selectedRevisionId}
+                        disabled={!selectedRevisionId || selectedCount > 1}
                         revisionId={selectedRevisionId}
                     />
 
@@ -252,6 +252,7 @@ const VariantsDashboard = () => {
                             openDeploymentsDrawer({
                                 initialWidth: 1200,
                                 revisionId: selectedRevisionId,
+                                mode: "variant",
                             })
                         }
                     >

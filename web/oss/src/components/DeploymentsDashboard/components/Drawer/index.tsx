@@ -12,13 +12,14 @@ import {JSSTheme} from "@/oss/lib/Types"
 import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 import UseApiContent from "../../assets/UseApiContent"
+import VariantUseApiContent from "../../assets/VariantUseApiContent"
 import {openSelectDeployVariantModalAtom} from "../../modals/store/deploymentModalsStore"
 
 import DrawerDetails from "./assets/DrawerDetails"
 import DrawerTitle from "./assets/DrawerTitle"
 
 type DeploymentsDrawerProps = {
-    mainContent: ReactNode
+    mainContent?: ReactNode
     // Prefer passing envName to render title efficiently; headerContent kept for backward-compat
     envName?: string
     headerContent?: ReactNode
@@ -28,6 +29,7 @@ type DeploymentsDrawerProps = {
     initialWidth?: number
     mainContentClassName?: string
     drawerVariantId?: string
+    mode?: "deployment" | "variant"
 } & ComponentProps<typeof Drawer>
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -96,12 +98,41 @@ const DeploymentsDrawerContent = ({
     mainContentClassName,
     selectedRevisionId,
     drawerVariantId,
+    mode = "deployment",
 }: DeploymentsDrawerProps) => {
     const variants = useAtomValue(revisionListAtom) || []
     const envRevisions = useAtomValue(envRevisionsAtom)
     const openSelectDeployVariantModal = useSetAtom(openSelectDeployVariantModalAtom)
     const handleOpenSelectDeployVariantModal = () =>
         openSelectDeployVariantModal({variants, envRevisions: envRevisions})
+
+    const isVariantMode = mode === "variant"
+    const initialVariantRevisionId = drawerVariantId || selectedRevisionId
+
+    const renderContent = () => {
+        if (isVariantMode) {
+            return <VariantUseApiContent initialRevisionId={initialVariantRevisionId} />
+        }
+
+        if (envRevisions) {
+            return (
+                <UseApiContent
+                    handleOpenSelectDeployVariantModal={handleOpenSelectDeployVariantModal}
+                    variants={variants}
+                    revisionId={drawerVariantId}
+                    selectedEnvironment={envRevisions}
+                />
+            )
+        }
+
+        return (
+            <div className="p-4">
+                <div className="animate-pulse h-4 w-48 bg-gray-200 rounded mb-3" />
+                <div className="animate-pulse h-4 w-72 bg-gray-200 rounded mb-2" />
+                <div className="animate-pulse h-4 w-64 bg-gray-200 rounded" />
+            </div>
+        )
+    }
 
     return (
         <div className="flex h-full">
@@ -121,20 +152,7 @@ const DeploymentsDrawerContent = ({
                         "[&_.ant-tabs-tabpane]:h-full",
                     ])}
                 >
-                    {envRevisions ? (
-                        <UseApiContent
-                            handleOpenSelectDeployVariantModal={handleOpenSelectDeployVariantModal}
-                            variants={variants}
-                            revisionId={drawerVariantId}
-                            selectedEnvironment={envRevisions}
-                        />
-                    ) : (
-                        <div className="p-4">
-                            <div className="animate-pulse h-4 w-48 bg-gray-200 rounded mb-3" />
-                            <div className="animate-pulse h-4 w-72 bg-gray-200 rounded mb-2" />
-                            <div className="animate-pulse h-4 w-64 bg-gray-200 rounded" />
-                        </div>
-                    )}
+                    {renderContent()}
                 </div>
             </div>
             {drawerVariantId && (
@@ -155,6 +173,7 @@ const DeploymentsDrawer = ({
     mainContentClassName = "",
     selectedRevisionId,
     drawerVariantId,
+    mode = "deployment",
     ...props
 }: DeploymentsDrawerProps) => {
     const classes = useStyles()
@@ -180,7 +199,11 @@ const DeploymentsDrawer = ({
             }
             {...props}
         >
-            <DeploymentsDrawerContent drawerVariantId={drawerVariantId}>
+            <DeploymentsDrawerContent
+                drawerVariantId={drawerVariantId}
+                selectedRevisionId={selectedRevisionId}
+                mode={mode}
+            >
                 {mainContent}
             </DeploymentsDrawerContent>
         </EnhancedDrawer>
