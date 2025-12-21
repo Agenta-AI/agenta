@@ -316,37 +316,64 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
         setSelectedEvalConfigs(Array.from(currentSelected))
     }
 
+    // Check if we have any evaluator configs at all (not just filtered by search)
+    const hasEvaluatorConfigs = useMemo(() => {
+        if (preview) {
+            return (
+                (evaluators as EvaluatorDto<"response">[]).filter(
+                    (item) =>
+                        item.flags?.is_human &&
+                        Object.keys(getMetricsFromEvaluator(item)).length > 0,
+                ).length > 0
+            )
+        }
+        return (evaluatorConfigs as EvaluatorConfig[]).length > 0
+    }, [preview, evaluators, evaluatorConfigs])
+
     return (
         <>
             <div className={clsx(className)} {...props}>
-                <div className="flex items-center justify-between mb-2">
-                    <Input.Search
-                        placeholder="Search"
-                        className="w-[300px] [&_input]:!py-[3.1px]"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                    <Space>
-                        {!preview && onSelectTemplate ? (
-                            <EvaluatorTemplateDropdown onSelect={onSelectTemplate} />
-                        ) : (
-                            <Button
-                                icon={<PlusOutlined />}
-                                onClick={() => router.push(evaluatorsRegistryUrl)}
-                            >
-                                Create new
-                            </Button>
-                        )}
-                    </Space>
-                </div>
+                {hasEvaluatorConfigs && (
+                    <div className="flex items-center justify-between mb-2">
+                        <Input.Search
+                            placeholder="Search"
+                            className="w-[300px] [&_input]:!py-[3.1px]"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        <Space>
+                            {!preview && onSelectTemplate ? (
+                                <EvaluatorTemplateDropdown onSelect={onSelectTemplate} />
+                            ) : (
+                                <Button
+                                    icon={<PlusOutlined />}
+                                    onClick={() => router.push(evaluatorsRegistryUrl)}
+                                >
+                                    Create new
+                                </Button>
+                            )}
+                        </Space>
+                    </div>
+                )}
 
                 {filteredEvalConfigs.length === 0 ? (
                     <NoResultsFound
                         className="!py-20"
                         title="No evaluators yet"
                         description="Evaluators help you measure and analyze your model's responses."
-                        primaryActionLabel="Create your first evaluator"
-                        onPrimaryAction={() => router.push(evaluatorsRegistryUrl)}
+                        primaryActionSlot={
+                            !preview && onSelectTemplate ? (
+                                <EvaluatorTemplateDropdown onSelect={onSelectTemplate} />
+                            ) : (
+                                <Button
+                                    type="primary"
+                                    icon={<PlusOutlined />}
+                                    onClick={() => router.push(evaluatorsRegistryUrl)}
+                                >
+                                    Create your first evaluator
+                                </Button>
+                            )
+                        }
                     />
                 ) : preview ? (
                     <Table<EvaluatorDto<"response">>
