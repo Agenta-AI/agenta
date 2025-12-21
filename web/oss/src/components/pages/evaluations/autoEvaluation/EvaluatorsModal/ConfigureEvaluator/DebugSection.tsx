@@ -182,6 +182,7 @@ const DebugSection = () => {
     const [outputResult, setOutputResult] = useState("")
     const [isLoadingResult, setIsLoadingResult] = useState(false)
     const abortControllersRef = useRef<AbortController | null>(null)
+    const evaluatorAbortRef = useRef<AbortController | null>(null)
     const [isRunningVariant, setIsRunningVariant] = useState(false)
     const [variantResult, setVariantResult] = useState("")
     const [openVariantModal, setOpenVariantModal] = useState(false)
@@ -360,6 +361,9 @@ const DebugSection = () => {
     const fetchEvalMapper = async () => {
         if (!baseResponseData || !selectedTestcase.testcase || !selectedEvaluator || !form) return
 
+        const controller = new AbortController()
+        evaluatorAbortRef.current = controller
+
         try {
             setEvalOutputStatus({success: false, error: false})
             setIsLoadingResult(true)
@@ -445,30 +449,61 @@ const DebugSection = () => {
                 }
             }
 
-            const runResponse = await createEvaluatorRunExecution(selectedEvaluator.key, {
-                inputs: outputs,
-                settings: transformTraceKeysInSettings(normalizedSettings),
-                ...(selectedEvaluator.requires_llm_api_keys || settingsValues?.requires_llm_api_keys
-                    ? {credentials: apiKeyObject(secrets)}
-                    : {}),
-            })
+            const runResponse = await createEvaluatorRunExecution(
+                selectedEvaluator.key,
+                {
+                    inputs: outputs,
+                    settings: transformTraceKeysInSettings(normalizedSettings),
+                    ...(selectedEvaluator.requires_llm_api_keys ||
+                    settingsValues?.requires_llm_api_keys
+                        ? {credentials: apiKeyObject(secrets)}
+                        : {}),
+                },
+                {signal: controller.signal},
+            )
             setEvalOutputStatus({success: true, error: false})
 
             setOutputResult(getStringOrJson(runResponse.outputs))
         } catch (error: any) {
+            if (controller.signal.aborted) {
+                setOutputResult("Evaluation cancelled")
+                setEvalOutputStatus({success: false, error: false})
+                return
+            }
+
             console.error(error)
             setEvalOutputStatus({success: false, error: true})
-            if (error.response?.data?.detail) {
+
+            if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+                setOutputResult(
+                    "Request timed out. The evaluator is taking too long to respond. Please try again.",
+                )
+            } else if (error.code === "ERR_NETWORK" || error.message?.includes("Network Error")) {
+                setOutputResult(
+                    "Network error. Please check your connection and try again.",
+                )
+            } else if (error.response?.data?.detail) {
                 const errorDetail =
                     typeof error.response.data.detail === "string"
                         ? error.response.data.detail
                         : formatJson(error.response.data.detail)
                 setOutputResult(getStringOrJson(errorDetail))
+            } else if (error.response?.status) {
+                setOutputResult(
+                    `Server error (${error.response.status}): ${error.response.statusText || "Unknown error"}`,
+                )
             } else {
-                setOutputResult("Error occured")
+                setOutputResult(error.message || "An unexpected error occurred")
             }
         } finally {
             setIsLoadingResult(false)
+            evaluatorAbortRef.current = null
+        }
+    }
+
+    const cancelEvaluatorRun = () => {
+        if (evaluatorAbortRef.current) {
+            evaluatorAbortRef.current.abort()
         }
     }
 
@@ -1028,20 +1063,31 @@ const DebugSection = () => {
                                 <ExclamationCircleOutlined style={{color: "red"}} />
                             )}
                         </Space>
-                        <Tooltip
-                            title={baseResponseData ? "" : "BaseResponse feature"}
-                            placement="bottom"
-                        >
+                        {isLoadingResult ? (
                             <Button
-                                className="flex items-center gap-2"
                                 size="small"
-                                onClick={fetchEvalMapper}
-                                disabled={!baseResponseData}
-                                loading={isLoadingResult}
+                                className="w-[120px]"
+                                danger
+                                onClick={cancelEvaluatorRun}
                             >
-                                <Play /> Run evaluator
+                                <CloseCircleOutlined />
+                                Cancel
                             </Button>
-                        </Tooltip>
+                        ) : (
+                            <Tooltip
+                                title={baseResponseData ? "" : "Run application first"}
+                                placement="bottom"
+                            >
+                                <Button
+                                    className="flex items-center gap-2"
+                                    size="small"
+                                    onClick={fetchEvalMapper}
+                                    disabled={!baseResponseData}
+                                >
+                                    <Play /> Run evaluator
+                                </Button>
+                            </Tooltip>
+                        )}
                     </Flex>
 
                     <Tabs
