@@ -1,9 +1,11 @@
-import {memo, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {PlusOutlined} from "@ant-design/icons"
-import {Button, Input, Table, Tag, Space} from "antd"
+import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
+import {GearSix, Note, Copy} from "@phosphor-icons/react"
+import {Button, Dropdown, Input, Table, Tag, Space} from "antd"
 import {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
+import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import router from "next/router"
 
@@ -13,6 +15,7 @@ import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
 
+import {openEvaluatorDrawerAtom} from "../../../autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
 import type {SelectEvaluatorSectionProps} from "../../types"
 
 import EvaluatorTemplateDropdown from "./EvaluatorTemplateDropdown"
@@ -50,6 +53,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     ...props
 }: SelectEvaluatorSectionProps & {preview?: Preview}) => {
     const {projectURL} = useURL()
+    const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
     const fetchData = useFetchEvaluatorsData({
         preview: preview as boolean,
         queries: {is_human: preview},
@@ -131,6 +135,40 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
         setSelectedEvalConfigs,
     ])
 
+    // Handler to open the drawer in edit mode
+    const handleEditConfig = useCallback(
+        (record: EvaluatorConfig) => {
+            const evaluator = (evaluators as Evaluator[]).find(
+                (e) => e.key === record.evaluator_key,
+            )
+            if (evaluator) {
+                openEvaluatorDrawer({
+                    evaluator,
+                    existingConfig: record,
+                    mode: "edit",
+                })
+            }
+        },
+        [evaluators, openEvaluatorDrawer],
+    )
+
+    // Handler to open the drawer in clone mode
+    const handleCloneConfig = useCallback(
+        (record: EvaluatorConfig) => {
+            const evaluator = (evaluators as Evaluator[]).find(
+                (e) => e.key === record.evaluator_key,
+            )
+            if (evaluator) {
+                openEvaluatorDrawer({
+                    evaluator,
+                    existingConfig: record,
+                    mode: "clone",
+                })
+            }
+        },
+        [evaluators, openEvaluatorDrawer],
+    )
+
     const columnsPreview: ColumnsType<EvaluatorDto<"response">> = useMemo(
         () => [
             {
@@ -183,8 +221,52 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                     return <Tag color={record.color}>{evaluator?.name}</Tag>
                 },
             },
+            {
+                title: <GearSix size={16} />,
+                key: "actions",
+                width: 56,
+                fixed: "right",
+                align: "center",
+                render: (_, record: EvaluatorConfig) => {
+                    return (
+                        <Dropdown
+                            trigger={["click"]}
+                            placement="bottomRight"
+                            menu={{
+                                items: [
+                                    {
+                                        key: "view_config",
+                                        label: "View configuration",
+                                        icon: <Note size={16} />,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            handleEditConfig(record)
+                                        },
+                                    },
+                                    {
+                                        key: "clone",
+                                        label: "Clone",
+                                        icon: <Copy size={16} />,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            handleCloneConfig(record)
+                                        },
+                                    },
+                                ],
+                            }}
+                        >
+                            <Button
+                                type="text"
+                                onClick={(e) => e.stopPropagation()}
+                                icon={<MoreOutlined />}
+                                size="small"
+                            />
+                        </Dropdown>
+                    )
+                },
+            },
         ],
-        [evaluators],
+        [evaluators, handleEditConfig, handleCloneConfig],
     )
 
     // Conditionally type filteredEvalConfigs based on Preview
