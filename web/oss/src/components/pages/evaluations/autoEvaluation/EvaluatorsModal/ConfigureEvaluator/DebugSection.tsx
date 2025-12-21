@@ -36,11 +36,9 @@ import {createUseStyles} from "react-jss"
 import {message} from "@/oss/components/AppMessageContext"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {transformTraceKeysInSettings, mapTestcaseAndEvalValues} from "@/oss/lib/evaluations/legacy"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
 import {
-    apiKeyObject,
     extractChatMessages,
     getStringOrJson,
     safeParse,
@@ -197,7 +195,6 @@ const DebugSection = () => {
         success: false,
         error: false,
     })
-    const {secrets} = useVaultSecret()
 
     const defaultAppId = useMemo(() => {
         if (_selectedVariant?.appId) return _selectedVariant.appId
@@ -454,10 +451,6 @@ const DebugSection = () => {
                 {
                     inputs: outputs,
                     settings: transformTraceKeysInSettings(normalizedSettings),
-                    ...(selectedEvaluator.requires_llm_api_keys ||
-                    settingsValues?.requires_llm_api_keys
-                        ? {credentials: apiKeyObject(secrets)}
-                        : {}),
                 },
                 {signal: controller.signal},
             )
@@ -479,9 +472,7 @@ const DebugSection = () => {
                     "Request timed out. The evaluator is taking too long to respond. Please try again.",
                 )
             } else if (error.code === "ERR_NETWORK" || error.message?.includes("Network Error")) {
-                setOutputResult(
-                    "Network error. Please check your connection and try again.",
-                )
+                setOutputResult("Network error. Please check your connection and try again.")
             } else if (error.response?.data?.detail) {
                 const errorDetail =
                     typeof error.response.data.detail === "string"
