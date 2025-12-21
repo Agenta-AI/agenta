@@ -3,15 +3,22 @@ import {memo, useCallback, useEffect, useRef} from "react"
 
 import {Typography, Button, Splitter} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {chatTurnIdsAtom} from "@/oss/state/generation/entities"
+import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 import {appStatusAtom} from "@/oss/state/variant/atoms/appStatus"
 import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
+import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
-import {displayedVariantsAtom, isComparisonViewAtom, appChatModeAtom} from "../../state/atoms"
+import {
+    displayedVariantsAtom,
+    isComparisonViewAtom,
+    appChatModeAtom,
+    selectedVariantsAtom,
+} from "../../state/atoms"
 import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"
 import PlaygroundComparisonGenerationInputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonInputHeader/index."
 import GenerationComparisonOutputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonOutputHeader"
@@ -30,6 +37,14 @@ interface MainLayoutProps extends BaseContainerProps {
 }
 
 const SplitterPanel = Splitter.Panel
+
+const arraysEqual = (a: string[], b: string[]) => {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i += 1) {
+        if (a[i] !== b[i]) return false
+    }
+    return true
+}
 
 const GenerationComparisonRenderer = memo(() => {
     // Variables rows (inputs) and logical chat turn ids
@@ -58,6 +73,9 @@ const GenerationComparisonRenderer = memo(() => {
 const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLayoutProps) => {
     const isComparisonView = useAtomValue(isComparisonViewAtom)
     const displayedVariants = useAtomValue(displayedVariantsAtom)
+    const selectedVariants = useAtomValue(selectedVariantsAtom)
+    const revisionList = useAtomValue(revisionListAtom)
+    const setSelectedVariants = useSetAtom(selectedVariantsAtom)
 
     const appStatus = useAtomValue(appStatusAtom)
     const appStatusLoading = useAtomValue(appStatusLoadingAtom)
@@ -94,6 +112,21 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
         appStatus,
         appStatusLoading,
     ])
+
+    useEffect(() => {
+        if (appStatusLoading) return
+        if (!Array.isArray(revisionList) || revisionList.length === 0) return
+
+        const revisionIds = new Set(revisionList.map((revision) => revision?.id).filter(Boolean))
+        const validSelection = selectedVariants.filter((id) => revisionIds.has(id))
+        const nextSelection =
+            validSelection.length > 0 ? validSelection : [revisionList[0]?.id].filter(Boolean)
+
+        if (nextSelection.length === 0 || arraysEqual(nextSelection, selectedVariants)) return
+
+        setSelectedVariants(nextSelection)
+        void writePlaygroundSelectionToQuery(nextSelection)
+    }, [appStatusLoading, revisionList, selectedVariants, setSelectedVariants])
 
     const handleScroll = useCallback(
         (index: number) => {
