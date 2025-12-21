@@ -24,7 +24,7 @@ interface VariantUseApiContentProps {
     initialRevisionId?: string
 }
 
-type CodeSnippets = {
+interface CodeSnippets {
     python: string
     typescript: string
     bash: string
