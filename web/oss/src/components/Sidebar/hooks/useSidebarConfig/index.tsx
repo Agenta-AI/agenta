@@ -1,4 +1,4 @@
-import {AppstoreOutlined, DatabaseOutlined, GithubFilled, HomeOutlined} from "@ant-design/icons"
+import {AppstoreOutlined, DatabaseOutlined, GithubFilled} from "@ant-design/icons"
 import {
     ChartDonut,
     ChartLineUp,
@@ -14,6 +14,7 @@ import {
     Rocket,
     ChatCircle,
     Gauge,
+    HouseIcon,
 } from "@phosphor-icons/react"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
@@ -39,7 +40,7 @@ export const useSidebarConfig = () => {
             key: "app-management-link",
             title: "Home",
             link: baseAppURL,
-            icon: <HomeOutlined size={16} />,
+            icon: <HouseIcon size={16} />,
             disabled: !hasProjectURL,
         },
         {

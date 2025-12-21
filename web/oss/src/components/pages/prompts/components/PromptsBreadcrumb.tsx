@@ -16,6 +16,7 @@ import {JSSTheme} from "@/oss/lib/Types"
 
 import {FolderTreeNode} from "../assets/utils"
 
+import PromptsHouseIcon from "./PromptsHouseIcon"
 import SetupWorkflowIcon from "./SetupWorkflowIcon"
 
 interface PromptsBreadcrumbProps {
@@ -55,11 +56,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             "& .anticon-down": {
                 fontSize: "10px !important",
             },
-        },
-    },
-    homeButton: {
-        "&:hover .anticon": {
-            color: "#1C2C3D !important",
         },
     },
 }))
@@ -156,15 +152,9 @@ const PromptsBreadcrumb = ({
                 title: (
                     <Button
                         type="link"
-                        className={`w-5 h-5 m-0 ${classes.homeButton}`}
+                        className={`w-5 h-5 m-0`}
                         size="small"
-                        icon={
-                            <HouseIcon
-                                weight={isAtRoot ? "fill" : "regular"}
-                                color={"#1C2C3D"}
-                                size={14}
-                            />
-                        }
+                        icon={<PromptsHouseIcon active={isAtRoot} />}
                     />
                 ),
                 onClick: () => onFolderChange?.(null),
