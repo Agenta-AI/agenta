@@ -128,22 +128,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
     variantTab: {
-        flex: 1,
         minWidth: 0,
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
         "& .ant-tabs-content-holder": {
-            flex: 1,
             minHeight: 0,
-        },
-        "& .ant-tabs-content": {
-            height: "100%",
-            overflow: "hidden",
-            "& .ant-tabs-tabpane": {
-                height: "100%",
-                overflow: "hidden",
-            },
         },
     },
 }))
@@ -825,298 +812,291 @@ const DebugSection = () => {
     }
 
     return (
-        <section className="flex flex-col gap-4 h-full pb-10 w-full">
-            <div className="flex flex-col gap-4 min-w-0">
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between">
-                        <Space size={5}>
-                            <Typography.Text className={classes.formTitleText}>
-                                Testcase
-                            </Typography.Text>
+        <div className="flex flex-col gap-4 w-full">
+            <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                    <Space size={5}>
+                        <Typography.Text className={classes.formTitleText}>
+                            Testcase
+                        </Typography.Text>
 
-                            {activeTestset && selectedTestcase.testcase && (
-                                <>
-                                    <CheckCircleOutlined style={{color: "green"}} />
-                                    <Typography.Text type="secondary">
-                                        loaded from {activeTestset.name}
-                                    </Typography.Text>
-                                </>
-                            )}
-                        </Space>
+                        {activeTestset && selectedTestcase.testcase && (
+                            <>
+                                <CheckCircleOutlined style={{color: "green"}} />
+                                <Typography.Text type="secondary">
+                                    loaded from {activeTestset.name}
+                                </Typography.Text>
+                            </>
+                        )}
+                    </Space>
 
+                    <Tooltip title={testsets?.length === 0 ? "No testset" : ""} placement="bottom">
+                        <Button
+                            size="small"
+                            className="flex items-center gap-2"
+                            onClick={() => setOpenTestcaseModal(true)}
+                            disabled={testsets?.length === 0}
+                        >
+                            <Database />
+                            Load testcase
+                        </Button>
+                    </Tooltip>
+                </div>
+
+                <div className="w-full overflow-hidden">
+                    <SharedEditor
+                        key={testcaseEditorKey}
+                        className={`${classes.editor} h-full`}
+                        editorType="border"
+                        initialValue={getStringOrJson(
+                            selectedTestcase.testcase ? formatJson(selectedTestcase.testcase) : "",
+                        )}
+                        handleChange={(value) => {
+                            try {
+                                if (value) {
+                                    const parsedValue = JSON.parse(value)
+                                    setSelectedTestcase({testcase: parsedValue})
+                                }
+                            } catch (error) {
+                                console.error("Failed to parse testcase JSON", error)
+                            }
+                        }}
+                        editorProps={{
+                            codeOnly: true,
+                            language: "json",
+                            showLineNumbers: false,
+                        }}
+                        syncWithInitialValueChanges={true}
+                    />
+                </div>
+            </div>
+
+            <div className="flex flex-col">
+                <div className="flex items-center justify-between">
+                    <Space size={5}>
+                        <Typography.Text className={classes.formTitleText}>
+                            Application
+                        </Typography.Text>
+                        {variantStatus.success && (
+                            <>
+                                <CheckCircleOutlined style={{color: "green"}} />
+                                <Typography.Text type="secondary">Success</Typography.Text>
+                            </>
+                        )}
+                        {variantStatus.error && (
+                            <ExclamationCircleOutlined style={{color: "red"}} />
+                        )}
+                    </Space>
+
+                    {isRunningVariant ? (
+                        <Button
+                            size="small"
+                            className="w-[120px]"
+                            danger
+                            onClick={() => {
+                                if (abortControllersRef.current) {
+                                    abortControllersRef.current.abort()
+                                }
+                            }}
+                        >
+                            <CloseCircleOutlined />
+                            Cancel
+                        </Button>
+                    ) : (
+                        <Space.Compact>
+                            <Button
+                                size="small"
+                                disabled={!selectedTestcase.testcase}
+                                loading={isRunningVariant}
+                                onClick={handleRunVariant}
+                            >
+                                <div
+                                    className="flex items-center gap-2"
+                                    key={
+                                        selectedVariant?.variantId ||
+                                        selectedVariant?.variantName ||
+                                        "default"
+                                    }
+                                >
+                                    <Play />
+                                    Run application ({appName}/{variantName})
+                                </div>
+                            </Button>
+                            <Dropdown
+                                open={dropdownOpen}
+                                onOpenChange={setDropdownOpen}
+                                menu={{
+                                    items: [
+                                        {
+                                            key: "change_variant",
+                                            icon: <Lightning />,
+                                            label: "Change application",
+                                        },
+                                    ],
+                                    onClick: (info) => {
+                                        if (info.key === "change_variant") {
+                                            setDropdownOpen(false)
+                                            setOpenVariantModal(true)
+                                        }
+                                    },
+                                }}
+                                trigger={["click"]}
+                            >
+                                <Button
+                                    size="small"
+                                    icon={<MoreOutlined />}
+                                    disabled={!selectedTestcase.testcase}
+                                />
+                            </Dropdown>
+                        </Space.Compact>
+                    )}
+                </div>
+
+                <Tabs
+                    defaultActiveKey="output"
+                    className={classes.variantTab}
+                    items={[
+                        {
+                            key: "output",
+                            label: "Output",
+                            children: (
+                                <div className="w-full h-full overflow-hidden">
+                                    <SharedEditor
+                                        key={`debug-output-${variantResult}`}
+                                        className={`${classes.editor} h-full`}
+                                        editorClassName={clsx([
+                                            "!border-none !shadow-none px-0 overflow-hidden",
+                                        ])}
+                                        editorType="border"
+                                        useAntdInput
+                                        antdInputProps={{
+                                            textarea: true,
+                                            autoSize: {minRows: 10, maxRows: 10},
+                                        }}
+                                        initialValue={variantResult}
+                                        handleChange={(value) => {
+                                            if (value) {
+                                                setVariantResult(value)
+                                            }
+                                        }}
+                                        syncWithInitialValueChanges={true}
+                                    />
+                                </div>
+                            ),
+                        },
+                        {
+                            key: "trace",
+                            label: "Trace",
+                            children: (
+                                <div className="w-full h-full overflow-hidden">
+                                    <SharedEditor
+                                        key={`debug-trace-${traceTree?.trace}`}
+                                        className={`${classes.editor} h-full`}
+                                        editorType="border"
+                                        initialValue={
+                                            traceTree.trace ? getStringOrJson(traceTree) : ""
+                                        }
+                                        handleChange={(value) => {
+                                            try {
+                                                if (value) {
+                                                    const parsedValue = JSON.parse(value)
+                                                    setTraceTree(parsedValue)
+                                                }
+                                            } catch (error) {
+                                                console.error(
+                                                    "Failed to parse trace tree JSON",
+                                                    error,
+                                                )
+                                            }
+                                        }}
+                                        editorProps={{
+                                            codeOnly: true,
+                                            language: "json",
+                                            showLineNumbers: false,
+                                        }}
+                                        syncWithInitialValueChanges={true}
+                                    />
+                                </div>
+                            ),
+                        },
+                    ]}
+                />
+            </div>
+
+            <div className="flex flex-col gap-1">
+                <Flex justify="space-between">
+                    <Space size={5}>
+                        <Typography.Text className={classes.formTitleText}>
+                            Evaluator
+                        </Typography.Text>
+                        {evalOutputStatus.success && (
+                            <>
+                                <CheckCircleOutlined style={{color: "green"}} />
+                                <Typography.Text type="secondary">Successful</Typography.Text>
+                            </>
+                        )}
+                        {evalOutputStatus.error && (
+                            <ExclamationCircleOutlined style={{color: "red"}} />
+                        )}
+                    </Space>
+                    {isLoadingResult ? (
+                        <Button
+                            size="small"
+                            className="w-[120px]"
+                            danger
+                            onClick={cancelEvaluatorRun}
+                        >
+                            <CloseCircleOutlined />
+                            Cancel
+                        </Button>
+                    ) : (
                         <Tooltip
-                            title={testsets?.length === 0 ? "No testset" : ""}
+                            title={baseResponseData ? "" : "Run application first"}
                             placement="bottom"
                         >
                             <Button
-                                size="small"
                                 className="flex items-center gap-2"
-                                onClick={() => setOpenTestcaseModal(true)}
-                                disabled={testsets?.length === 0}
+                                size="small"
+                                onClick={fetchEvalMapper}
+                                disabled={!baseResponseData}
                             >
-                                <Database />
-                                Load testcase
+                                <Play /> Run evaluator
                             </Button>
                         </Tooltip>
-                    </div>
+                    )}
+                </Flex>
 
-                    <div className="flex-1 w-full overflow-hidden">
-                        <SharedEditor
-                            key={testcaseEditorKey}
-                            className={`${classes.editor} h-full`}
-                            editorType="border"
-                            initialValue={getStringOrJson(
-                                selectedTestcase.testcase
-                                    ? formatJson(selectedTestcase.testcase)
-                                    : "",
-                            )}
-                            handleChange={(value) => {
-                                try {
-                                    if (value) {
-                                        const parsedValue = JSON.parse(value)
-                                        setSelectedTestcase({testcase: parsedValue})
-                                    }
-                                } catch (error) {
-                                    console.error("Failed to parse testcase JSON", error)
-                                }
-                            }}
-                            editorProps={{
-                                codeOnly: true,
-                                language: "json",
-                                showLineNumbers: false,
-                            }}
-                            syncWithInitialValueChanges={true}
-                        />
-                    </div>
-                </div>
-
-                <div className="flex flex-col">
-                    <div className="flex items-center justify-between">
-                        <Space size={5}>
-                            <Typography.Text className={classes.formTitleText}>
-                                Application
-                            </Typography.Text>
-                            {variantStatus.success && (
-                                <>
-                                    <CheckCircleOutlined style={{color: "green"}} />
-                                    <Typography.Text type="secondary">Success</Typography.Text>
-                                </>
-                            )}
-                            {variantStatus.error && (
-                                <ExclamationCircleOutlined style={{color: "red"}} />
-                            )}
-                        </Space>
-
-                        {isRunningVariant ? (
-                            <Button
-                                size="small"
-                                className="w-[120px]"
-                                danger
-                                onClick={() => {
-                                    if (abortControllersRef.current) {
-                                        abortControllersRef.current.abort()
-                                    }
-                                }}
-                            >
-                                <CloseCircleOutlined />
-                                Cancel
-                            </Button>
-                        ) : (
-                            <Space.Compact>
-                                <Button
-                                    size="small"
-                                    disabled={!selectedTestcase.testcase}
-                                    loading={isRunningVariant}
-                                    onClick={handleRunVariant}
-                                >
-                                    <div
-                                        className="flex items-center gap-2"
-                                        key={
-                                            selectedVariant?.variantId ||
-                                            selectedVariant?.variantName ||
-                                            "default"
-                                        }
-                                    >
-                                        <Play />
-                                        Run application ({appName}/{variantName})
-                                    </div>
-                                </Button>
-                                <Dropdown
-                                    open={dropdownOpen}
-                                    onOpenChange={setDropdownOpen}
-                                    menu={{
-                                        items: [
-                                            {
-                                                key: "change_variant",
-                                                icon: <Lightning />,
-                                                label: "Change application",
-                                            },
-                                        ],
-                                        onClick: (info) => {
-                                            if (info.key === "change_variant") {
-                                                setDropdownOpen(false)
-                                                setOpenVariantModal(true)
-                                            }
-                                        },
-                                    }}
-                                    trigger={["click"]}
-                                >
-                                    <Button
-                                        size="small"
-                                        icon={<MoreOutlined />}
-                                        disabled={!selectedTestcase.testcase}
+                <Tabs
+                    defaultActiveKey="output"
+                    className={classes.variantTab}
+                    items={[
+                        {
+                            key: "output",
+                            label: "Output",
+                            children: (
+                                <div className="w-full h-full overflow-hidden">
+                                    <SharedEditor
+                                        key={`debug-output-${variantResult}`}
+                                        className={`${classes.editor} h-full`}
+                                        readOnly
+                                        disabled
+                                        state="disabled"
+                                        editorType="border"
+                                        initialValue={formatOutput(outputResult)}
+                                        editorProps={{
+                                            codeOnly: true,
+                                            language: "yaml",
+                                            readOnly: true,
+                                            disabled: true,
+                                            showLineNumbers: false,
+                                        }}
+                                        syncWithInitialValueChanges={true}
                                     />
-                                </Dropdown>
-                            </Space.Compact>
-                        )}
-                    </div>
-
-                    <Tabs
-                        defaultActiveKey="output"
-                        className={classes.variantTab}
-                        items={[
-                            {
-                                key: "output",
-                                label: "Output",
-                                children: (
-                                    <div className="w-full h-full overflow-hidden">
-                                        <SharedEditor
-                                            key={`debug-output-${variantResult}`}
-                                            className={`${classes.editor} h-full`}
-                                            editorClassName={clsx([
-                                                "!border-none !shadow-none px-0 overflow-hidden",
-                                            ])}
-                                            editorType="border"
-                                            useAntdInput
-                                            antdInputProps={{
-                                                textarea: true,
-                                                autoSize: {minRows: 10, maxRows: 10},
-                                            }}
-                                            initialValue={variantResult}
-                                            handleChange={(value) => {
-                                                if (value) {
-                                                    setVariantResult(value)
-                                                }
-                                            }}
-                                            syncWithInitialValueChanges={true}
-                                        />
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: "trace",
-                                label: "Trace",
-                                children: (
-                                    <div className="w-full h-full overflow-hidden">
-                                        <SharedEditor
-                                            key={`debug-trace-${traceTree?.trace}`}
-                                            className={`${classes.editor} h-full`}
-                                            editorType="border"
-                                            initialValue={
-                                                traceTree.trace ? getStringOrJson(traceTree) : ""
-                                            }
-                                            handleChange={(value) => {
-                                                try {
-                                                    if (value) {
-                                                        const parsedValue = JSON.parse(value)
-                                                        setTraceTree(parsedValue)
-                                                    }
-                                                } catch (error) {
-                                                    console.error(
-                                                        "Failed to parse trace tree JSON",
-                                                        error,
-                                                    )
-                                                }
-                                            }}
-                                            editorProps={{
-                                                codeOnly: true,
-                                                language: "json",
-                                                showLineNumbers: false,
-                                            }}
-                                            syncWithInitialValueChanges={true}
-                                        />
-                                    </div>
-                                ),
-                            },
-                        ]}
-                    />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                    <Flex justify="space-between">
-                        <Space size={5}>
-                            <Typography.Text className={classes.formTitleText}>
-                                Evaluator
-                            </Typography.Text>
-                            {evalOutputStatus.success && (
-                                <>
-                                    <CheckCircleOutlined style={{color: "green"}} />
-                                    <Typography.Text type="secondary">Successful</Typography.Text>
-                                </>
-                            )}
-                            {evalOutputStatus.error && (
-                                <ExclamationCircleOutlined style={{color: "red"}} />
-                            )}
-                        </Space>
-                        {isLoadingResult ? (
-                            <Button
-                                size="small"
-                                className="w-[120px]"
-                                danger
-                                onClick={cancelEvaluatorRun}
-                            >
-                                <CloseCircleOutlined />
-                                Cancel
-                            </Button>
-                        ) : (
-                            <Tooltip
-                                title={baseResponseData ? "" : "Run application first"}
-                                placement="bottom"
-                            >
-                                <Button
-                                    className="flex items-center gap-2"
-                                    size="small"
-                                    onClick={fetchEvalMapper}
-                                    disabled={!baseResponseData}
-                                >
-                                    <Play /> Run evaluator
-                                </Button>
-                            </Tooltip>
-                        )}
-                    </Flex>
-
-                    <Tabs
-                        defaultActiveKey="output"
-                        className={classes.variantTab}
-                        items={[
-                            {
-                                key: "output",
-                                label: "Output",
-                                children: (
-                                    <div className="w-full h-full overflow-hidden">
-                                        <SharedEditor
-                                            key={`debug-output-${variantResult}`}
-                                            className={`${classes.editor} h-full`}
-                                            readOnly
-                                            disabled
-                                            state="disabled"
-                                            editorType="border"
-                                            initialValue={formatOutput(outputResult)}
-                                            editorProps={{
-                                                codeOnly: true,
-                                                language: "yaml",
-                                                readOnly: true,
-                                                disabled: true,
-                                                showLineNumbers: false,
-                                            }}
-                                            syncWithInitialValueChanges={true}
-                                        />
-                                    </div>
-                                ),
-                            },
-                        ]}
-                    />
-                </div>
+                                </div>
+                            ),
+                        },
+                    ]}
+                />
             </div>
 
             <EvaluatorVariantModal
@@ -1138,7 +1118,7 @@ const DebugSection = () => {
                 selectedTestsetId={selectedTestset}
             />
 
-            {testsets?.length && (
+            {testsets && testsets.length > 0 && (
                 <EvaluatorTestcaseModal
                     open={openTestcaseModal}
                     onCancel={() => setOpenTestcaseModal(false)}
@@ -1148,7 +1128,7 @@ const DebugSection = () => {
                     setSelectedTestset={setSelectedTestset}
                 />
             )}
-        </section>
+        </div>
     )
 }
 
