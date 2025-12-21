@@ -34,12 +34,15 @@ const NewEvaluationModalContent = dynamic(() => import("./NewEvaluationModalCont
  * This component only mounts when the modal is open, preventing unnecessary
  * data fetching and state initialization when the modal is closed.
  */
+/** Determines which panel to show initially based on preselection and app scope */
+const getInitialPanel = (hasPreSelected: boolean, isAppScoped: boolean): string =>
+    hasPreSelected ? "testsetPanel" : isAppScoped ? "variantPanel" : "appPanel"
+
 const NewEvaluationModalInner = ({
     onSuccess,
     preview,
     evaluationType,
     onSubmitStateChange,
-    isOpen,
     preSelectedVariantIds,
     preSelectedAppId,
 }: NewEvaluationModalInnerProps) => {
@@ -114,8 +117,8 @@ const NewEvaluationModalInner = ({
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
     // If variants are pre-selected, start on testset panel; otherwise follow normal flow
     const hasPreSelectedVariants = Boolean(preSelectedVariantIds?.[0])
-    const [activePanel, setActivePanel] = useState<string | null>(
-        hasPreSelectedVariants ? "testsetPanel" : isAppScoped ? "variantPanel" : "appPanel",
+    const [activePanel, setActivePanel] = useState<string | null>(() =>
+        getInitialPanel(hasPreSelectedVariants, isAppScoped),
     )
     const [evaluationName, setEvaluationName] = useState("")
     const [nameFocused, setNameFocused] = useState(false)
@@ -127,22 +130,6 @@ const NewEvaluationModalInner = ({
             setSelectedAppId(effectiveAppId)
         }
     }, [effectiveAppId, isAppScoped])
-
-    // Reset state each time the modal opens to ensure fresh state
-    useEffect(() => {
-        if (!isOpen) return
-
-        // Reset variant selection based on current preselection
-        const firstVariant = preSelectedVariantIds?.[0]
-        const hasPreSelected = Boolean(firstVariant)
-
-        setSelectedVariantRevisionIds(firstVariant ? [firstVariant] : [])
-        setSelectedTestsetId("")
-        setSelectedEvalConfigs([])
-        setEvaluationName("")
-        setAdvanceSettings(DEFAULT_ADVANCE_SETTINGS)
-        setActivePanel(hasPreSelected ? "testsetPanel" : isAppScoped ? "variantPanel" : "appPanel")
-    }, [isOpen, preSelectedVariantIds, isAppScoped])
 
     useEffect(() => {
         if (!isAppScoped) return
@@ -175,12 +162,12 @@ const NewEvaluationModalInner = ({
         return appVariantRevisions || []
     }, [appVariantRevisions, selectedAppId])
 
-    // Refetch variants when modal opens to ensure fresh data
+    // Refetch variants on mount and when app changes to ensure fresh data
     useEffect(() => {
-        if (isOpen && selectedAppId) {
+        if (selectedAppId) {
             refetchVariants()
         }
-    }, [isOpen, selectedAppId, refetchVariants])
+    }, [selectedAppId, refetchVariants])
 
     const {createNewRun: createPreviewEvaluationRun} = usePreviewEvaluations({
         appId: selectedAppId || appId,
@@ -558,7 +545,7 @@ const NewEvaluationModalInner = ({
             isLoading={
                 loadingEvaluators || loadingEvaluatorConfigs || testsetsLoading || variantsLoading
             }
-            isOpen={isOpen}
+            isOpen={true} // Always true since this component only renders when modal is open
             testsets={selectedAppId ? testsets || [] : []}
             variants={filteredVariants}
             variantsLoading={variantsLoading}

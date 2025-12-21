@@ -110,7 +110,6 @@ export interface NewEvaluationModalInnerProps {
     preview?: boolean
     evaluationType: "auto" | "human"
     onSubmitStateChange?: (loading: boolean) => void
-    isOpen?: boolean
     /** Pre-selected variant revision IDs (e.g., from playground) */
     preSelectedVariantIds?: string[]
     /** Pre-selected app ID (e.g., from playground context) */

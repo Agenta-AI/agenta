@@ -56,15 +56,18 @@ const NewEvaluationModal = <Preview extends boolean = true>({
             }}
             {...props}
         >
-            <NewEvaluationModalInner
-                onSuccess={onSuccess}
-                preview={preview}
-                evaluationType={evaluationType}
-                onSubmitStateChange={handleSubmitStateChange}
-                isOpen={props.open}
-                preSelectedVariantIds={preSelectedVariantIds}
-                preSelectedAppId={preSelectedAppId}
-            />
+            {/* Conditionally render inner component so it remounts on each open,
+                ensuring fresh state without manual reset effects */}
+            {props.open && (
+                <NewEvaluationModalInner
+                    onSuccess={onSuccess}
+                    preview={preview}
+                    evaluationType={evaluationType}
+                    onSubmitStateChange={handleSubmitStateChange}
+                    preSelectedVariantIds={preSelectedVariantIds}
+                    preSelectedAppId={preSelectedAppId}
+                />
+            )}
         </EnhancedModal>
     )
 }
