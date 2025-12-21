@@ -199,6 +199,12 @@ const DebugSection = () => {
     const defaultAppId = useMemo(() => {
         if (_selectedVariant?.appId) return _selectedVariant.appId
         if (appId) return appId
+        // Check localStorage for last used app
+        const storedAppId =
+            typeof window !== "undefined" ? localStorage.getItem(LAST_APP_KEY) : null
+        if (storedAppId && availableApps?.some((a: any) => a.app_id === storedAppId)) {
+            return storedAppId
+        }
         const firstApp = availableApps?.[0]
         return firstApp?.app_id ?? ""
     }, [_selectedVariant?.appId, appId, availableApps])
@@ -216,22 +222,20 @@ const DebugSection = () => {
         return _selectedVariant
     }, [_selectedVariant])
 
-    const fallbackVariant = useMemo(() => {
-        if (_selectedVariant || !defaultAppId) return null
-        const revisionLists = Object.values(defaultRevisionMap || {})
-        if (!revisionLists.length) return null
-        const revisions = revisionLists[0]
-        if (!revisions || revisions.length === 0) return null
-        const baseVariant = buildVariantFromRevision(revisions[0], defaultAppId)
-        baseVariant.revisions = [...revisions]
-        return baseVariant
-    }, [_selectedVariant, defaultAppId, defaultRevisionMap])
-
-    // Variants are derived from the fallback (fetched internally)
+    // Build ALL variants from the app for localStorage restore and fallback selection
     const derivedVariants = useMemo(() => {
-        if (fallbackVariant) return [fallbackVariant]
-        return []
-    }, [fallbackVariant])
+        if (_selectedVariant) return [] // Don't need fallbacks if already selected
+        if (!defaultAppId || !defaultRevisionMap) return []
+
+        const variants: Variant[] = []
+        Object.values(defaultRevisionMap).forEach((revisions) => {
+            if (!revisions || revisions.length === 0) return
+            const baseVariant = buildVariantFromRevision(revisions[0], defaultAppId)
+            baseVariant.revisions = [...revisions] as any
+            variants.push(baseVariant)
+        })
+        return variants
+    }, [_selectedVariant, defaultAppId, defaultRevisionMap])
 
     // Resolve current application object for display
     const selectedApp = useMemo(() => {
