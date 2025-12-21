@@ -4,7 +4,6 @@ import {
     CaretDownIcon,
     FolderDashedIcon,
     FolderIcon,
-    HouseIcon,
     PencilSimpleLineIcon,
     SquaresFourIcon,
     TrashIcon,
