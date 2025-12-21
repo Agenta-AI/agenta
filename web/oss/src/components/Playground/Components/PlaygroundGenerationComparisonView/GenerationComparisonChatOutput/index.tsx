@@ -10,6 +10,7 @@ import {
     generationInputRowIdsAtom,
     generationRowIdsAtom,
 } from "@/oss/components/Playground/state/atoms/generationProperties"
+import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms/variants"
 import {chatTurnsByIdAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 import {
     addChatTurnAtom,

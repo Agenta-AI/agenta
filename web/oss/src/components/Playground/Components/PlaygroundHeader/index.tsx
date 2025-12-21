@@ -14,8 +14,9 @@ import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 import {usePlaygroundLayout} from "../../hooks/usePlaygroundLayout"
 import {variantListDisplayAtom} from "../../state/atoms"
 import NewVariantButton from "../Modals/CreateVariantModal/assets/NewVariantButton"
-import RunEvaluationButton from "./RunEvaluationButton"
 import type {BaseContainerProps} from "../types"
+
+import RunEvaluationButton from "./RunEvaluationButton"
 
 interface PlaygroundHeaderProps extends BaseContainerProps {
     isLoading?: boolean

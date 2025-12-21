@@ -106,13 +106,14 @@ const NewEvaluationModalInner = ({
         ])
 
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
-    // Initialize with pre-selected variants from playground if provided
-    const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>(
-        preSelectedVariantIds || [],
-    )
+    // Initialize with at most one pre-selected variant (e.g., from playground)
+    const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>(() => {
+        const first = preSelectedVariantIds?.[0]
+        return first ? [first] : []
+    })
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
     // If variants are pre-selected, start on testset panel; otherwise follow normal flow
-    const hasPreSelectedVariants = preSelectedVariantIds && preSelectedVariantIds.length > 0
+    const hasPreSelectedVariants = Boolean(preSelectedVariantIds?.[0])
     const [activePanel, setActivePanel] = useState<string | null>(
         hasPreSelectedVariants ? "testsetPanel" : isAppScoped ? "variantPanel" : "appPanel",
     )
@@ -126,6 +127,22 @@ const NewEvaluationModalInner = ({
             setSelectedAppId(effectiveAppId)
         }
     }, [effectiveAppId, isAppScoped])
+
+    // Reset state each time the modal opens to ensure fresh state
+    useEffect(() => {
+        if (!isOpen) return
+
+        // Reset variant selection based on current preselection
+        const firstVariant = preSelectedVariantIds?.[0]
+        const hasPreSelected = Boolean(firstVariant)
+
+        setSelectedVariantRevisionIds(firstVariant ? [firstVariant] : [])
+        setSelectedTestsetId("")
+        setSelectedEvalConfigs([])
+        setEvaluationName("")
+        setAdvanceSettings(DEFAULT_ADVANCE_SETTINGS)
+        setActivePanel(hasPreSelected ? "testsetPanel" : isAppScoped ? "variantPanel" : "appPanel")
+    }, [isOpen, preSelectedVariantIds, isAppScoped])
 
     useEffect(() => {
         if (!isAppScoped) return
@@ -148,13 +165,22 @@ const NewEvaluationModalInner = ({
         [selectedAppId],
     )
 
-    const {variants: appVariantRevisions, isLoading: variantsLoading} = useAppVariantRevisions(
-        selectedAppId || null,
-    )
+    const {
+        variants: appVariantRevisions,
+        isLoading: variantsLoading,
+        refetch: refetchVariants,
+    } = useAppVariantRevisions(selectedAppId || null)
     const filteredVariants = useMemo(() => {
         if (!selectedAppId) return []
         return appVariantRevisions || []
     }, [appVariantRevisions, selectedAppId])
+
+    // Refetch variants when modal opens to ensure fresh data
+    useEffect(() => {
+        if (isOpen && selectedAppId) {
+            refetchVariants()
+        }
+    }, [isOpen, selectedAppId, refetchVariants])
 
     const {createNewRun: createPreviewEvaluationRun} = usePreviewEvaluations({
         appId: selectedAppId || appId,
