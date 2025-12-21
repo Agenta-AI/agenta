@@ -54,9 +54,8 @@ const EvaluatorsModal = ({
         if (selectedEvaluator) {
             initPlayground({
                 evaluator: selectedEvaluator,
-                editMode,
-                cloneMode: cloneConfig,
-                editValues: editEvalEditValues,
+                existingConfig: editEvalEditValues,
+                mode: editMode ? "edit" : cloneConfig ? "clone" : "create",
             })
         }
     }, [selectedEvaluator, editMode, cloneConfig, editEvalEditValues, initPlayground])

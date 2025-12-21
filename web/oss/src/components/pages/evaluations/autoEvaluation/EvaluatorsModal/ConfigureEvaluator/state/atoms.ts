@@ -173,12 +173,8 @@ export const initPlaygroundAtom = atom(
             set(playgroundEditValuesAtom, RESET)
         }
 
-        // Reset test section state for fresh start
-        // Note: We don't reset testset ID here - let the component initialize
-        // it from available testsets (same pattern as prompt playground)
-        set(playgroundSelectedVariantAtom, RESET)
-        set(playgroundSelectedTestcaseAtom, RESET)
-        set(playgroundTraceTreeAtom, RESET)
+        // Note: We intentionally do NOT reset test section state (variant, testcase, trace)
+        // This allows users to test different evaluators with the same testcase - less friction
     },
 )
 
