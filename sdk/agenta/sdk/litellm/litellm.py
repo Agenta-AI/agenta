@@ -183,7 +183,9 @@ def litellm_handler():
                 attributes=(
                     {
                         "prompt": float(prompt_tokens) if prompt_tokens else None,
-                        "completion": float(completion_tokens) if completion_tokens else None,
+                        "completion": float(completion_tokens)
+                        if completion_tokens
+                        else None,
                         "total": float(total_tokens) if total_tokens else None,
                     }
                 ),
@@ -320,7 +322,9 @@ def litellm_handler():
                 attributes=(
                     {
                         "prompt": float(prompt_tokens) if prompt_tokens else None,
-                        "completion": float(completion_tokens) if completion_tokens else None,
+                        "completion": float(completion_tokens)
+                        if completion_tokens
+                        else None,
                         "total": float(total_tokens) if total_tokens else None,
                     }
                 ),
