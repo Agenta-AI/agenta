@@ -352,6 +352,147 @@ async def field_match_test(input: EvaluatorInputInterface) -> EvaluatorOutputInt
     return {"outputs": {"success": result}}
 
 
+def get_nested_value(obj: Any, path: str) -> Any:
+    """
+    Get value from nested dict/object using dot notation (e.g., 'user.address.city').
+
+    Args:
+        obj: The object to traverse (dict or nested structure)
+        path: Dot-notation path to the value (e.g., 'user.address.city')
+
+    Returns:
+        The value at the specified path, or None if path doesn't exist
+    """
+    if obj is None:
+        return None
+
+    keys = path.split(".")
+    value = obj
+
+    for key in keys:
+        if isinstance(value, dict):
+            value = value.get(key)
+        elif isinstance(value, list) and key.isdigit():
+            # Support array indexing with numeric keys
+            idx = int(key)
+            value = value[idx] if 0 <= idx < len(value) else None
+        else:
+            return None
+
+        if value is None:
+            return None
+
+    return value
+
+
+async def auto_json_multi_field_match(
+    inputs: Dict[str, Any],  # pylint: disable=unused-argument
+    output: Union[str, Dict[str, Any]],
+    data_point: Dict[str, Any],
+    app_params: Dict[str, Any],  # pylint: disable=unused-argument
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
+) -> Result:
+    """
+    Evaluator that compares multiple configured fields in expected JSON against LLM output JSON.
+    Each configured field becomes a separate score in the output.
+
+    Returns a Result with:
+    - type="object" containing one score per configured field plus overall score
+    - Each field score is 1.0 (match) or 0.0 (no match)
+    - Overall 'score' is the average of all field scores
+    """
+    try:
+        output = validate_string_output("json_multi_field_match", output)
+        correct_answer = get_correct_answer(data_point, settings_values)
+        eval_inputs = {"ground_truth": correct_answer, "prediction": output}
+        response = await json_multi_field_match(
+            input=EvaluatorInputInterface(
+                **{"inputs": eval_inputs, "settings": settings_values}
+            )
+        )
+        return Result(type="object", value=response["outputs"])
+    except ValueError as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message=str(e),
+            ),
+        )
+    except Exception:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during JSON Multi-Field Match evaluation",
+                stacktrace=str(traceback.format_exc()),
+            ),
+        )
+
+
+async def json_multi_field_match(
+    input: EvaluatorInputInterface,
+) -> EvaluatorOutputInterface:
+    """
+    Compare configured fields in expected JSON against LLM output JSON.
+    Each configured field becomes a separate score in the output.
+
+    Args:
+        input: EvaluatorInputInterface with:
+            - inputs.prediction: JSON string from LLM output
+            - inputs.ground_truth: JSON string from test data column
+            - settings.fields: List of field paths (strings) e.g., ["name", "email", "user.address.city"]
+
+    Returns:
+        EvaluatorOutputInterface with one score per configured field plus overall score
+    """
+    fields = input.settings.get("fields", [])
+
+    if not fields:
+        raise ValueError("No fields configured for comparison")
+
+    # Parse both JSON objects
+    prediction = input.inputs.get("prediction", "")
+    ground_truth = input.inputs.get("ground_truth", "")
+
+    try:
+        if isinstance(ground_truth, str):
+            expected = json.loads(ground_truth)
+        else:
+            expected = ground_truth
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in ground truth: {str(e)}")
+
+    try:
+        if isinstance(prediction, str):
+            actual = json.loads(prediction)
+        else:
+            actual = prediction
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in prediction: {str(e)}")
+
+    results: Dict[str, Any] = {}
+    matches = 0
+
+    for field_path in fields:
+        # Support nested fields with dot notation
+        expected_val = get_nested_value(expected, field_path)
+        actual_val = get_nested_value(actual, field_path)
+
+        # Exact match comparison (v1 - always exact)
+        match = expected_val == actual_val
+
+        results[field_path] = 1.0 if match else 0.0
+        if match:
+            matches += 1
+
+    # Overall score is average of field scores
+    results["score"] = matches / len(fields) if fields else 0.0
+
+    return {"outputs": results}
+
+
 async def auto_webhook_test(
     inputs: Dict[str, Any],
     output: Union[str, Dict[str, Any]],
@@ -1987,6 +2128,7 @@ EVALUATOR_FUNCTIONS = {
     "auto_exact_match": auto_exact_match,
     "auto_regex_test": auto_regex_test,
     "field_match_test": auto_field_match_test,
+    "json_multi_field_match": auto_json_multi_field_match,
     "auto_webhook_test": auto_webhook_test,
     "auto_custom_code_run": auto_custom_code_run,
     "auto_ai_critique": auto_ai_critique,
@@ -2008,6 +2150,7 @@ RUN_EVALUATOR_FUNCTIONS = {
     "auto_exact_match": exact_match,
     "auto_regex_test": regex_test,
     "field_match_test": field_match_test,
+    "json_multi_field_match": json_multi_field_match,
     "auto_webhook_test": webhook_test,
     "auto_custom_code_run": custom_code_run,
     "auto_ai_critique": ai_critique,

@@ -332,6 +332,7 @@ evaluators = [
         "name": "JSON Field Match",
         "key": "field_match_test",
         "direct_use": False,
+        "archived": True,  # Deprecated - use json_multi_field_match instead
         "settings_template": {
             "json_field": {
                 "label": "JSON Field",
@@ -350,6 +351,33 @@ evaluators = [
             },
         },
         "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
+        "requires_testcase": "always",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["classifiers"],
+    },
+    {
+        "name": "JSON Multi-Field Match",
+        "key": "json_multi_field_match",
+        "direct_use": False,
+        "settings_template": {
+            "fields": {
+                "label": "Fields to Compare",
+                "type": "fields_checkbox_list",  # Custom type - checkbox list with auto-detection from testcase
+                "required": True,
+                "description": "Select which JSON fields to compare (auto-detected from testcase)",
+            },
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "required": True,
+                "description": "Column name containing the expected JSON object",
+                "ground_truth_key": True,
+                "advanced": True,  # Hidden in advanced section
+            },
+        },
+        "description": "Compares configured fields in expected JSON against LLM output. Each field becomes a separate score column (0 or 1), with an overall score showing the match ratio. Useful for entity extraction validation.",
         "requires_testcase": "always",
         "requires_trace": "always",
         "oss": True,
