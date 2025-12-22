@@ -16,16 +16,15 @@ import {variantListDisplayAtom} from "../../state/atoms"
 import type {BaseContainerProps} from "../types"
 
 import RunEvaluationButton from "./RunEvaluationButton"
-
-interface PlaygroundHeaderProps extends BaseContainerProps {
-    isLoading?: boolean
-}
-
 import {useStyles} from "./styles"
 
 const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
 })
+
+interface PlaygroundHeaderProps extends BaseContainerProps {
+    isLoading?: boolean
+}
 
 const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
     className,
