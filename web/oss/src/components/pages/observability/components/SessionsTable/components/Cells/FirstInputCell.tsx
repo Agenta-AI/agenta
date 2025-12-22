@@ -3,12 +3,17 @@ import {useAtomValue} from "jotai"
 
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
-import {sessionFirstInputAtomFamily} from "@/oss/state/newObservability/atoms/queries"
+import {
+    sessionFirstInputAtomFamily,
+    sessionsLoadingAtom,
+} from "@/oss/state/newObservability/atoms/queries"
 
 export const FirstInputCell = ({sessionId}: {sessionId: string}) => {
+    const isLoading = useAtomValue(sessionsLoadingAtom)
     const firstInput = useAtomValue(sessionFirstInputAtomFamily(sessionId))
 
-    if (firstInput === undefined) return <Skeleton active paragraph={{rows: 0}} />
+    if (isLoading) return <Skeleton active paragraph={{rows: 0}} />
+    if (firstInput === undefined) return ""
 
     const {data: sanitized} = sanitizeDataWithBlobUrls(firstInput)
     return (

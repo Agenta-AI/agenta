@@ -1,14 +1,18 @@
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
-import {sessionUsageAtomFamily} from "@/oss/state/newObservability/atoms/queries"
+import {
+    sessionUsageAtomFamily,
+    sessionsLoadingAtom,
+} from "@/oss/state/newObservability/atoms/queries"
 
 import UsageCellDisplay from "../../../UsageCell"
 
 export const TotalUsageCell = ({sessionId}: {sessionId: string}) => {
+    const isLoading = useAtomValue(sessionsLoadingAtom)
     const totalUsage = useAtomValue(sessionUsageAtomFamily(sessionId))
 
-    if (totalUsage === undefined) return <Skeleton active paragraph={{rows: 0}} />
+    if (isLoading) return <Skeleton active paragraph={{rows: 0}} />
 
     return <UsageCellDisplay tokens={totalUsage} />
 }

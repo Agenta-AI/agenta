@@ -6,7 +6,7 @@ import {Tabs, Typography} from "antd"
 import {useQueryParamState} from "@/oss/state/appState"
 
 import ObservabilityTable from "./components/ObservabilityTable"
-import ObservabilityUrlSyncer from "./components/ObservabilityUrlSyncer"
+
 import SessionsTable from "./components/SessionsTable"
 
 const ObservabilityTabs = () => {
@@ -40,7 +40,6 @@ const ObservabilityTabs = () => {
 
     return (
         <div className="flex flex-col gap-6">
-            <ObservabilityUrlSyncer />
             <div className="flex items-center justify-between">
                 <Typography.Text className="text-[16px] font-medium">Observability</Typography.Text>
                 <Tabs activeKey={activeTab} onChange={(key) => setTabParam(key)} items={tabItems} />

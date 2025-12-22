@@ -3,12 +3,17 @@ import {useAtomValue} from "jotai"
 
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
-import {sessionLastOutputAtomFamily} from "@/oss/state/newObservability/atoms/queries"
+import {
+    sessionLastOutputAtomFamily,
+    sessionsLoadingAtom,
+} from "@/oss/state/newObservability/atoms/queries"
 
 export const LastOutputCell = ({sessionId}: {sessionId: string}) => {
+    const isLoading = useAtomValue(sessionsLoadingAtom)
     const lastOutput = useAtomValue(sessionLastOutputAtomFamily(sessionId))
 
-    if (lastOutput === undefined) return <Skeleton active paragraph={{rows: 0}} />
+    if (isLoading) return <Skeleton active paragraph={{rows: 0}} />
+    if (lastOutput === undefined) return ""
 
     return (
         <TruncatedTooltipTag

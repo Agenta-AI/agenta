@@ -1,8 +1,8 @@
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
 import {atomWithInfiniteQuery, atomWithQuery} from "jotai-tanstack-query"
+import {atomFamily, selectAtom} from "jotai/utils"
 
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
@@ -257,6 +257,7 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
 
     const projectId = get(projectIdAtom)
 
+    const sort = get(sortAtom)
     const windowing: {oldest?: string; newest?: string} = {}
 
     // if (sort?.type === "standard" && sort.sorted) {
