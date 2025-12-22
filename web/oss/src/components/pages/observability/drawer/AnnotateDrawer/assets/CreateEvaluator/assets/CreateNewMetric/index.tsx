@@ -10,9 +10,7 @@ import {EVALUATOR_OPTIONS, NUMERIC_METRIC_TYPES} from "../../../constants"
 
 const ModelNameInput = dynamic(
     () =>
-        import(
-            "@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer/assets/ModelNameInput"
-        ),
+        import("@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer/assets/ModelNameInput"),
     {ssr: false},
 )
 

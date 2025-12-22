@@ -49,9 +49,7 @@ const VariantDrawerWrapper = dynamic(
 
 const VariantComparisonModalWrapper = dynamic(
     () =>
-        import(
-            "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/VariantComparisonModalWrapper"
-        ),
+        import("@/oss/components/VariantsComponents/Modals/VariantComparisonModal/VariantComparisonModalWrapper"),
     {ssr: false},
 )
 
@@ -62,17 +60,13 @@ const DeleteEvaluationModalWrapper = dynamic(
 
 const DeployVariantModalWrapper = dynamic(
     () =>
-        import(
-            "@/oss/components/Playground/Components/Modals/DeployVariantModal/DeployVariantModalWrapper"
-        ),
+        import("@/oss/components/Playground/Components/Modals/DeployVariantModal/DeployVariantModalWrapper"),
     {ssr: false},
 )
 
 const DeleteVariantModalWrapper = dynamic(
     () =>
-        import(
-            "@/oss/components/Playground/Components/Modals/DeleteVariantModal/DeleteVariantModalWrapper"
-        ),
+        import("@/oss/components/Playground/Components/Modals/DeleteVariantModal/DeleteVariantModalWrapper"),
     {ssr: false},
 )
 

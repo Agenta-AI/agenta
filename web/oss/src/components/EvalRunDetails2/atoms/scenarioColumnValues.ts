@@ -591,33 +591,33 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                         Boolean(stepsQuery.isLoading) ||
                         Boolean(
                             testcaseMeta?.isLoading &&
-                                valueFromTestcase === undefined &&
-                                stepValue === undefined &&
-                                localTraceValue === undefined &&
-                                remoteTraceValue === undefined,
+                            valueFromTestcase === undefined &&
+                            stepValue === undefined &&
+                            localTraceValue === undefined &&
+                            remoteTraceValue === undefined,
                         ) ||
                         Boolean(
                             traceMeta?.isLoading &&
-                                remoteTraceValue === undefined &&
-                                valueFromTestcase === undefined &&
-                                stepValue === undefined &&
-                                localTraceValue === undefined,
+                            remoteTraceValue === undefined &&
+                            valueFromTestcase === undefined &&
+                            stepValue === undefined &&
+                            localTraceValue === undefined,
                         ),
                     isFetching:
                         Boolean(stepsQuery.isFetching) ||
                         Boolean(
                             testcaseMeta?.isFetching &&
-                                valueFromTestcase === undefined &&
-                                stepValue === undefined &&
-                                localTraceValue === undefined &&
-                                remoteTraceValue === undefined,
+                            valueFromTestcase === undefined &&
+                            stepValue === undefined &&
+                            localTraceValue === undefined &&
+                            remoteTraceValue === undefined,
                         ) ||
                         Boolean(
                             traceMeta?.isFetching &&
-                                remoteTraceValue === undefined &&
-                                valueFromTestcase === undefined &&
-                                stepValue === undefined &&
-                                localTraceValue === undefined,
+                            remoteTraceValue === undefined &&
+                            valueFromTestcase === undefined &&
+                            stepValue === undefined &&
+                            localTraceValue === undefined,
                         ),
                     error:
                         valueFromTestcase !== undefined
@@ -775,17 +775,17 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                         Boolean(stepsQuery.isLoading) ||
                         Boolean(
                             traceMeta?.isLoading &&
-                                scenarioInvocationValue === undefined &&
-                                traceValue === undefined &&
-                                fallbackValue === undefined,
+                            scenarioInvocationValue === undefined &&
+                            traceValue === undefined &&
+                            fallbackValue === undefined,
                         ),
                     isFetching:
                         Boolean(stepsQuery.isFetching) ||
                         Boolean(
                             traceMeta?.isFetching &&
-                                scenarioInvocationValue === undefined &&
-                                traceValue === undefined &&
-                                fallbackValue === undefined,
+                            scenarioInvocationValue === undefined &&
+                            traceValue === undefined &&
+                            fallbackValue === undefined,
                         ),
                     error: traceMeta?.error,
                 }
@@ -1130,15 +1130,15 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                         Boolean(stepsQuery.isLoading) ||
                         Boolean(
                             annotationQuery.isLoading &&
-                                valueFromAnnotation === undefined &&
-                                fallbackValue === undefined,
+                            valueFromAnnotation === undefined &&
+                            fallbackValue === undefined,
                         ),
                     isFetching:
                         Boolean(stepsQuery.isFetching) ||
                         Boolean(
                             annotationQuery.isFetching &&
-                                valueFromAnnotation === undefined &&
-                                fallbackValue === undefined,
+                            valueFromAnnotation === undefined &&
+                            fallbackValue === undefined,
                         ),
                     error: annotationQuery.error,
                 }
