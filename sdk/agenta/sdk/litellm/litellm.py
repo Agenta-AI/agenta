@@ -166,11 +166,18 @@ def litellm_handler():
                 namespace="metrics.unit.costs",
             )
 
-            # Handle both dict and object attribute access for usage
-            usage = response_obj.usage
-            prompt_tokens = usage.get("prompt_tokens") if isinstance(usage, dict) else getattr(usage, "prompt_tokens", None)
-            completion_tokens = usage.get("completion_tokens") if isinstance(usage, dict) else getattr(usage, "completion_tokens", None)
-            total_tokens = usage.get("total_tokens") if isinstance(usage, dict) else getattr(usage, "total_tokens", None)
+            # Handle both dict and object attribute access for usage, and safely handle None
+            usage = getattr(response_obj, "usage", None)
+            if isinstance(usage, dict):
+                prompt_tokens = usage.get("prompt_tokens")
+                completion_tokens = usage.get("completion_tokens")
+                total_tokens = usage.get("total_tokens")
+            elif usage is not None:
+                prompt_tokens = getattr(usage, "prompt_tokens", None)
+                completion_tokens = getattr(usage, "completion_tokens", None)
+                total_tokens = getattr(usage, "total_tokens", None)
+            else:
+                prompt_tokens = completion_tokens = total_tokens = None
 
             span.set_attributes(
                 attributes=(
