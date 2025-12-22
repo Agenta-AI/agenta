@@ -65,7 +65,11 @@ class EvaluationsWorker:
     def _register_tasks(self):
         """Register all evaluation tasks with the broker."""
 
-        @self.broker.task(task_name="evaluations.legacy.annotate")
+        @self.broker.task(
+            task_name="evaluations.legacy.annotate",
+            retry_on_error=False,
+            max_retries=0,  # Never retry - handle errors in application logic
+        )
         async def evaluate_batch_testset(
             *,
             project_id: UUID,
@@ -110,7 +114,11 @@ class EvaluationsWorker:
             log.info("[TASK] Completed evaluate_batch_testset")
             return result
 
-        @self.broker.task(task_name="evaluations.live.evaluate")
+        @self.broker.task(
+            task_name="evaluations.live.evaluate",
+            retry_on_error=False,
+            max_retries=0,  # Never retry - handle errors in application logic
+        )
         async def evaluate_live_query(
             project_id: UUID,
             user_id: UUID,
