@@ -1,3 +1,5 @@
+import {ReactNode} from "react"
+
 import {Button, Typography} from "antd"
 import Image from "next/image"
 import {createUseStyles} from "react-jss"
@@ -28,12 +30,15 @@ const NoResultsFound = ({
     description,
     primaryActionLabel = "Create your first evaluator",
     onPrimaryAction,
+    primaryActionSlot,
 }: {
     className?: string
     title?: string
     description?: string
     primaryActionLabel?: string
     onPrimaryAction?: () => void
+    /** Custom slot to render instead of the default primary action button */
+    primaryActionSlot?: ReactNode
 }) => {
     const classes = useStyles()
     return (
@@ -43,11 +48,13 @@ const NoResultsFound = ({
             <Typography.Paragraph type="secondary">
                 {!description ? "No results match the search criteria." : description}
             </Typography.Paragraph>
-            {onPrimaryAction ? (
-                <Button type="primary" onClick={onPrimaryAction}>
-                    {primaryActionLabel}
-                </Button>
-            ) : null}
+            {primaryActionSlot
+                ? primaryActionSlot
+                : onPrimaryAction && (
+                      <Button type="primary" onClick={onPrimaryAction}>
+                          {primaryActionLabel}
+                      </Button>
+                  )}
         </div>
     )
 }
