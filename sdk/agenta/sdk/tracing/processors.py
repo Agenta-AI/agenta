@@ -126,7 +126,7 @@ class TraceProcessor(SpanProcessor):
                     if isinstance(link, BaseModel):
                         try:
                             link = link.model_dump(mode="json", exclude_none=True)
-                        except:  # pylint: disable=bare-except
+                        except Exception:
                             pass
                     if not isinstance(link, dict):
                         continue
