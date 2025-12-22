@@ -22,6 +22,10 @@ export interface NewEvaluationModalProps extends ModalProps {
     onSuccess?: () => void
     evaluationType: "auto" | "human"
     preview?: boolean
+    /** Pre-selected variant revision IDs (e.g., from playground) */
+    preSelectedVariantIds?: string[]
+    /** Pre-selected app ID (e.g., from playground context) */
+    preSelectedAppId?: string
 }
 
 export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement> {
@@ -51,6 +55,10 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     selectedAppId: string
     onSelectApp: (value: string) => void
     appSelectionDisabled?: boolean
+    /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
+    onSelectTemplate?: (evaluator: Evaluator) => void
+    /** Callback when a new evaluator config is created via the inline drawer. Used to refresh the list and auto-select. */
+    onEvaluatorCreated?: (configId?: string) => void
 }
 
 export interface SelectVariantSectionProps extends HTMLProps<HTMLDivElement> {
@@ -82,6 +90,10 @@ export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
     handlePanelChange: (key: string | string[]) => void
     preview?: boolean
     selectedAppId?: string
+    /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
+    onSelectTemplate?: (evaluator: Evaluator) => void
+    /** Callback when the "Create new" button is clicked in preview/human mode (for inline creation) */
+    onCreateHumanEvaluator?: () => void
 }
 
 export interface AdvancedSettingsProps {
@@ -102,5 +114,8 @@ export interface NewEvaluationModalInnerProps {
     preview?: boolean
     evaluationType: "auto" | "human"
     onSubmitStateChange?: (loading: boolean) => void
-    isOpen?: boolean
+    /** Pre-selected variant revision IDs (e.g., from playground) */
+    preSelectedVariantIds?: string[]
+    /** Pre-selected app ID (e.g., from playground context) */
+    preSelectedAppId?: string
 }
