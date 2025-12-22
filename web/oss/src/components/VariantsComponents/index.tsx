@@ -2,8 +2,8 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {SwapOutlined} from "@ant-design/icons"
-import {CodeSimpleIcon} from "@phosphor-icons/react"
-import {Button, Flex, Input, Radio, Space, Tabs, Typography} from "antd"
+import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
+import {Button, Flex, Input, Radio, Space, Typography} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -191,10 +191,34 @@ const VariantsDashboard = () => {
 
     const tabItems = useMemo(
         () => [
-            {key: "variants", label: "Variants"},
-            {key: "deployments", label: "Deployments"},
+            {
+                key: "variants",
+                label: (
+                    <span className="inline-flex items-center gap-2">
+                        <LightningIcon />
+                        Variants
+                    </span>
+                ),
+            },
+            {
+                key: "deployments",
+                label: (
+                    <span className="inline-flex items-center gap-2">
+                        <CloudArrowUpIcon />
+                        Deployments
+                    </span>
+                ),
+            },
         ],
         [],
+    )
+    const headerTabsProps = useMemo(
+        () => ({
+            items: tabItems,
+            activeKey: activeTab,
+            onChange: (key: string) => setActiveTab(key),
+        }),
+        [activeTab, setActiveTab, tabItems],
     )
 
     const variantContent = (
@@ -296,17 +320,7 @@ const VariantsDashboard = () => {
     )
 
     return (
-        <PageLayout
-            title="Registry"
-            headerExtra={
-                <Tabs
-                    items={tabItems}
-                    activeKey={activeTab}
-                    onChange={(key) => setActiveTab(key)}
-                />
-            }
-            className="grow min-h-0"
-        >
+        <PageLayout title="Registry" headerTabsProps={headerTabsProps} className="grow min-h-0">
             {activeTab === "deployments" ? deploymentsContent : variantContent}
         </PageLayout>
     )

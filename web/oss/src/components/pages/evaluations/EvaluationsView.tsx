@@ -1,6 +1,17 @@
-import {memo, useEffect, useMemo, useRef, useState, useTransition, type CSSProperties} from "react"
+import {
+    memo,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    useTransition,
+    type CSSProperties,
+    type ReactNode,
+} from "react"
 
-import {Tabs} from "antd"
+import {CloudServerOutlined} from "@ant-design/icons"
+import {ChartDonutIcon, CodeIcon, ListChecksIcon} from "@phosphor-icons/react"
+import type {TabsProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -43,6 +54,14 @@ const TAB_COLOR_MAP: Record<AppTabKey, string> = {
     human: "#ede9fe",
     online: "#dcfce7",
     custom: "#fce7f3",
+}
+
+const TAB_ICON_MAP: Record<AppTabKey, ReactNode> = {
+    all: null,
+    auto: <ChartDonutIcon />,
+    human: <ListChecksIcon />,
+    online: <CloudServerOutlined />,
+    custom: <CodeIcon />,
 }
 
 interface EvaluationTabsProps {
@@ -154,38 +173,44 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
         () => tabColorMap[displayedTab] ?? "#dbeafe",
         [displayedTab, tabColorMap],
     )
+    const tabItemsWithIcons = useMemo(
+        () =>
+            tabItems.map((item) => ({
+                key: item.key,
+                label: (
+                    <span className="inline-flex items-center gap-2">
+                        {TAB_ICON_MAP[item.key]}
+                        {item.label}
+                    </span>
+                ),
+            })),
+        [tabItems],
+    )
 
-    const tabsNode = useMemo(
-        () => (
-            <div
-                className="infinite-table-tabs min-w-[320px] [&_.ant-tabs-nav]:mb-0"
-                style={
-                    tabIndicatorColor
-                        ? ({"--tab-indicator-color": tabIndicatorColor} as CSSProperties)
-                        : undefined
-                }
-            >
-                <Tabs
-                    className="min-w-[320px]"
-                    activeKey={activeTab}
-                    items={tabItems.map((item) => ({
-                        key: item.key,
-                        label: item.label,
-                    }))}
-                    onChange={(key) => {
-                        startTransition(() => {
-                            setKindParam(key)
-                        })
-                    }}
-                    destroyOnHidden
-                />
-            </div>
-        ),
-        [activeTab, setKindParam, startTransition, tabIndicatorColor, tabItems],
+    const headerTabsProps = useMemo<TabsProps>(
+        () => ({
+            className: "infinite-table-tabs min-w-[320px] [&_.ant-tabs-nav]:mb-0",
+            style: tabIndicatorColor
+                ? ({"--tab-indicator-color": tabIndicatorColor} as CSSProperties)
+                : undefined,
+            activeKey: activeTab,
+            items: tabItemsWithIcons,
+            onChange: (key) => {
+                startTransition(() => {
+                    setKindParam(key)
+                })
+            },
+            destroyOnHidden: true,
+        }),
+        [activeTab, setKindParam, startTransition, tabIndicatorColor, tabItemsWithIcons],
     )
 
     return (
-        <PageLayout className="h-full min-h-0" title="Evaluations" headerExtra={tabsNode}>
+        <PageLayout
+            className="h-full min-h-0"
+            title="Evaluations"
+            headerTabsProps={headerTabsProps}
+        >
             <EvaluationRunsTablePOC
                 includePreview
                 pageSize={15}

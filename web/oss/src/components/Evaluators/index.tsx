@@ -1,7 +1,8 @@
 import {memo, useCallback, useEffect, useMemo, useState, type ChangeEvent, type Key} from "react"
 
 import {DeleteOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Input, Space, Tabs} from "antd"
+import {ChartDonutIcon, ListChecksIcon} from "@phosphor-icons/react"
+import {Button, Input, Space} from "antd"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
@@ -278,18 +279,30 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
     )
 
     const isDeleteDisabled = selectedRowKeys.length === 0
+    const evaluatorTabItems = useMemo(
+        () =>
+            EVALUATOR_TABS.map((tab) => ({
+                key: tab.key,
+                label: (
+                    <span className="inline-flex items-center gap-2">
+                        {tab.key === "automatic" ? <ChartDonutIcon /> : <ListChecksIcon />}
+                        {tab.label}
+                    </span>
+                ),
+            })),
+        [],
+    )
+    const headerTabsProps = useMemo(
+        () => ({
+            items: evaluatorTabItems,
+            activeKey: activeTab,
+            onChange: (key: string) => onTabChange(key as EvaluatorCategory),
+        }),
+        [activeTab, evaluatorTabItems, onTabChange],
+    )
 
     return (
-        <PageLayout
-            title="Evaluators"
-            headerExtra={
-                <Tabs
-                    items={EVALUATOR_TABS}
-                    activeKey={activeTab}
-                    onChange={(key) => onTabChange(key as EvaluatorCategory)}
-                />
-            }
-        >
+        <PageLayout title="Evaluators" headerTabsProps={headerTabsProps}>
             <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <Input.Search

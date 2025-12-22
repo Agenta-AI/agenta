@@ -131,7 +131,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
         <PageLayout
             className="!p-0 h-full min-h-0"
             title={runDisplayName}
-            headerExtra={
+            headerTabs={
                 <PreviewEvalRunTabs
                     activeView={activeView}
                     onChangeView={(v) => setActiveViewParam(v)}
