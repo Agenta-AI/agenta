@@ -47,17 +47,21 @@ const AppWithVariants = memo(
         classes,
         isPlayground,
         isHumanEval,
+        isTestsets,
         isEvaluator,
         appTheme,
+        footerHeight,
         ...props
     }: {
         children: ReactNode
         isAppRoute: boolean
         isHumanEval: boolean
         isEvaluator: boolean
+        isTestsets: boolean
         classes: StyleClasses
         appTheme: string
         isPlayground?: boolean
+        footerHeight?: number
     }) => {
         const {baseAppURL} = useURL()
         const appState = useAppState()
@@ -101,7 +105,10 @@ const AppWithVariants = memo(
                     <Layout className={classes.layout}>
                         <div
                             className={clsx([
-                                {"grow flex flex-col min-h-0": isHumanEval || isEvaluator},
+                                {
+                                    "grow flex flex-col min-h-0":
+                                        isHumanEval || isEvaluator || isTestsets,
+                                },
                             ])}
                         >
                             <BreadcrumbContainer
@@ -112,12 +119,17 @@ const AppWithVariants = memo(
                                 <OldAppDeprecationBanner>
                                     <CustomWorkflowBanner />
                                     <Content
-                                        className={clsx(classes.content, {
-                                            "flex flex-col min-h-0 grow":
-                                                isHumanEval || isEvaluator,
-                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                isPlayground,
-                                        })}
+                                        className={clsx(
+                                            "flex gap-4 flex-col w-full",
+                                            // "h-[calc(100%-30px)]",
+                                            {
+                                                "p-6 pb-0 mb-8": !isHumanEval,
+                                                "flex flex-col min-h-0 grow":
+                                                    isHumanEval || isEvaluator || isTestsets,
+                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                    isPlayground,
+                                            },
+                                        )}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
                                             <ConfigProvider
@@ -128,17 +140,33 @@ const AppWithVariants = memo(
                                                             : theme.defaultAlgorithm,
                                                 }}
                                             >
-                                                {children}
+                                                {isHumanEval || isEvaluator || isTestsets ? (
+                                                    <div
+                                                        className={clsx(
+                                                            "w-full flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px)] overflow-hidden",
+                                                        )}
+                                                    >
+                                                        {children}
+                                                    </div>
+                                                ) : (
+                                                    children
+                                                )}
                                             </ConfigProvider>
                                         </ErrorBoundary>
                                     </Content>
                                 </OldAppDeprecationBanner>
                             ) : (
                                 <Content
-                                    className={clsx(classes.content, {
+                                    className={clsx("flex gap-4", "h-[calc(100%-30px)]", {
+                                        "p-6 pb-0 mb-8": !(
+                                            isHumanEval ||
+                                            isEvaluator ||
+                                            isTestsets
+                                        ),
+                                        "flex flex-col min-h-0 grow":
+                                            isHumanEval || isEvaluator || isTestsets,
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                             isPlayground || isEvaluator,
-                                        "flex flex-col min-h-0 grow": isHumanEval || isEvaluator,
                                     })}
                                 >
                                     <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -150,13 +178,20 @@ const AppWithVariants = memo(
                                                         : theme.defaultAlgorithm,
                                             }}
                                         >
-                                            {children}
+                                            <div
+                                                className={clsx("w-full flex flex-col", {
+                                                    "min-h-0 gap-6 h-[calc(100dvh-75px)] overflow-hidden":
+                                                        isHumanEval || isEvaluator || isTestsets,
+                                                })}
+                                            >
+                                                {children}
+                                            </div>
                                         </ConfigProvider>
                                     </ErrorBoundary>
                                 </Content>
                             )}
                         </div>
-                        <div className="w-full h-[20px]"></div>
+                        <div className="w-full h-[30px]"></div>
                         <FooterIsland className={classes.footer}>
                             <Space className={classes.footerLeft} size={10}>
                                 <Link href={"https://github.com/Agenta-AI/agenta"} target="_blank">
@@ -224,25 +259,27 @@ const App: React.FC<LayoutProps> = ({children}) => {
         }
     }, [appTheme])
 
-    const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator} = useMemo(() => {
-        const pathname = appState.pathname
-        const asPath = appState.asPath
-        const selectedEvaluation = Array.isArray(query.selectedEvaluation)
-            ? query.selectedEvaluation[0]
-            : query.selectedEvaluation
-        return {
-            isAuthRoute:
-                pathname.includes("/auth") ||
-                pathname.includes("/post-signup") ||
-                pathname.includes("/workspaces"),
-            isAppRoute: baseAppURL ? asPath.startsWith(baseAppURL) : false,
-            isPlayground: pathname.includes("/playground"),
-            //  || pathname.includes("/evaluations/results"),
-            isEvaluator: pathname.includes("/evaluators/configure"),
-            isHumanEval:
-                pathname.includes("/evaluations/") || selectedEvaluation === "human_annotation",
-        }
-    }, [appState.asPath, appState.pathname, baseAppURL, query.selectedEvaluation])
+    const {isHumanEval, isTestsets, isPlayground, isAppRoute, isAuthRoute, isEvaluator} =
+        useMemo(() => {
+            const pathname = appState.pathname
+            const asPath = appState.asPath
+            const selectedEvaluation = Array.isArray(query.selectedEvaluation)
+                ? query.selectedEvaluation[0]
+                : query.selectedEvaluation
+            return {
+                isAuthRoute:
+                    pathname.includes("/auth") ||
+                    pathname.includes("/post-signup") ||
+                    pathname.includes("/workspaces"),
+                isAppRoute: baseAppURL ? asPath.startsWith(baseAppURL) : false,
+                isPlayground: pathname.includes("/playground"),
+                //  || pathname.includes("/evaluations/results"),
+                isEvaluator: pathname.includes("/evaluators/configure"),
+                isHumanEval:
+                    pathname.includes("/evaluations") || selectedEvaluation === "human_annotation",
+                isTestsets: pathname.includes("/testsets") || pathname.includes("/prompts"),
+            }
+        }, [appState.asPath, appState.pathname, baseAppURL, query.selectedEvaluation])
 
     return (
         <Suspense fallback={<Skeleton />}>
@@ -262,6 +299,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         isPlayground={isPlayground}
                         isHumanEval={isHumanEval}
                         isEvaluator={isEvaluator}
+                        isTestsets={isTestsets}
+                        footerHeight={footerHeight}
                     >
                         {children}
                         {contextHolder}

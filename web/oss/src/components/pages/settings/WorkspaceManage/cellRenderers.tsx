@@ -67,7 +67,11 @@ export const Actions: React.FC<{
         <>
             <Dropdown
                 trigger={["click"]}
-                overlayStyle={{width: 180}}
+                styles={{
+                    root: {
+                        width: 180,
+                    },
+                }}
                 menu={{
                     items: [
                         ...(!isMember
@@ -173,7 +177,7 @@ export const Roles: React.FC<{
                         items: roles.map((role) => ({
                             key: role.role_name,
                             label: (
-                                <Space direction="vertical" size={0}>
+                                <Space orientation="vertical" size={0}>
                                     <Typography.Text className="text-sm">
                                         {snakeToTitle(role.role_name || "")}
                                     </Typography.Text>

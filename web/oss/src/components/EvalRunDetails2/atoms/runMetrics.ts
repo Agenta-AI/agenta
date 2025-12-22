@@ -4,10 +4,13 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails2/atoms/table/run"
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {BasicStats, canonicalizeMetricKey, getMetricValueWithAliases} from "@/oss/lib/metricUtils"
 import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
-import {createMetricProcessor, type MetricScope} from "./metricProcessor"
+import {previewEvalTypeAtom} from "../state/evalType"
+
+import {clearBootstrapAttempt, createMetricProcessor, type MetricScope} from "./metricProcessor"
 import {effectiveProjectIdAtom} from "./run"
 
 type RunLevelStatsMap = Record<string, BasicStats>
@@ -505,16 +508,13 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
         const results = new Map<string, any[]>()
 
         for (const [, entry] of groups) {
+            // console.log("entry.needsTemporal", entry.needsTemporal)
             const basePayload = {
                 metrics: {
                     run_ids: Array.from(entry.runIds),
                     scenario_ids: false,
-                    timestamps: false,
+                    // timestamps: entry.needsTemporal,
                 },
-                // windowing: {
-                //     limit: 1,
-                //     order: "descending",
-                // },
             }
 
             const response = await axios.post(`/preview/evaluations/metrics/query`, basePayload, {
@@ -597,6 +597,7 @@ const previewRunMetricStatsQueryFamily = atomFamily(
     ({runId, includeTemporal}: PreviewRunMetricStatsQueryArgs) => {
         return atomWithQuery<RunLevelStatsMap>((get) => {
             const projectId = get(effectiveProjectIdAtom)
+            const evalTypeFromAtom = get(previewEvalTypeAtom)
             const runQuery = runId ? get(evaluationRunQueryAtomFamily(runId)) : undefined
             const runStatusRaw = runQuery?.data?.rawRun?.status ?? runQuery?.data?.camelRun?.status
             const runStatus =
@@ -605,6 +606,15 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                     : typeof runStatusRaw?.value === "string"
                       ? runStatusRaw.value.toLowerCase()
                       : undefined
+
+            // Derive evaluation type from run.data.steps - this is the reliable source of truth
+            // Do NOT use meta.evaluation_kind as it's flaky and unreliable
+            const rawRun = runQuery?.data?.rawRun
+            const evalTypeFromRun = rawRun ? deriveEvaluationKind(rawRun) : null
+            const evaluationType = evalTypeFromAtom || evalTypeFromRun || null
+
+            // Check if run query has loaded (needed for evaluationType resolution)
+            const isRunQueryLoaded = runQuery?.data !== undefined
 
             // Extract invocation step keys from run.data.steps (type="invocation")
             // These are the steps with actual LLM call metrics (duration, tokens, costs)
@@ -618,11 +628,18 @@ const previewRunMetricStatsQueryFamily = atomFamily(
 
             const includeTemporalFlagValue = includeTemporalFlag(includeTemporal)
 
+            // Terminal statuses indicate evaluation has finished - always allow refresh
+            const TERMINAL_STATUSES = new Set([
+                "success",
+                "completed",
+                "finished",
+                "done",
+                "failed",
+                "error",
+                "failure",
+            ])
+
             // Statuses that indicate an evaluation is still in progress
-            // When in progress, we should NOT trigger metric refresh as:
-            // 1. 0 metrics means the evaluation hasn't produced any results yet
-            // 2. Partial metrics means the evaluation is still running
-            // Triggering refresh during in-progress state causes premature run-level metrics creation
             const IN_PROGRESS_STATUSES = new Set([
                 "evaluation_initialized",
                 "initialized",
@@ -631,8 +648,39 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                 "running",
                 "pending",
             ])
-            // If runStatus is undefined (not yet loaded), assume in-progress to prevent premature refresh
-            const isRunInProgress = runStatus ? IN_PROGRESS_STATUSES.has(runStatus) : true
+
+            // For human evaluations, "pending" means invocations have run but annotations pending
+            // In this case, we should allow refresh to generate metrics from the invocations
+            const isHumanEvalPending = evaluationType === "human" && runStatus === "pending"
+
+            // Run is in progress if status is in-progress AND not terminal
+            // Exception: Human evals with "pending" status should allow refresh
+            const isRunInProgress = runStatus
+                ? IN_PROGRESS_STATUSES.has(runStatus) &&
+                  !TERMINAL_STATUSES.has(runStatus) &&
+                  !isHumanEvalPending
+                : true
+
+            // [HUMAN_EVAL_REFRESH_LOG] Log run-level refresh decision factors
+            if (evaluationType === "human") {
+                console.log("[RunMetrics:HumanEval] Run-level refresh decision factors", {
+                    runId,
+                    evaluationType,
+                    runStatus,
+                    isHumanEvalPending,
+                    isRunInProgress,
+                    inProgressStatusCheck: runStatus
+                        ? IN_PROGRESS_STATUSES.has(runStatus)
+                        : "no-status",
+                    terminalStatusCheck: runStatus ? TERMINAL_STATUSES.has(runStatus) : "no-status",
+                    willAllowRefresh: !isRunInProgress,
+                    reason: isHumanEvalPending
+                        ? "Human eval with pending status - ALLOW refresh (invocations have run)"
+                        : isRunInProgress
+                          ? "Run is in progress - BLOCK refresh"
+                          : "Run is terminal or ready - ALLOW refresh",
+                })
+            }
 
             const fetchMetrics = async () => {
                 if (!projectId || !runId) return []
@@ -651,8 +699,10 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                     runId,
                     includeTemporalFlagValue,
                     isRunInProgress, // Include to re-run query when status changes from in-progress to terminal
+                    evaluationType, // Include to re-run query when evaluation type changes
                 ],
-                enabled: Boolean(projectId && runId),
+                // Wait for run query to load so we have evaluationType resolved
+                enabled: Boolean(projectId && runId && isRunQueryLoaded),
                 staleTime: 30_000,
                 gcTime: 5 * 60 * 1000,
                 refetchOnWindowFocus: false,
@@ -661,6 +711,42 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                     if (!projectId || !runId) return {}
 
                     const fetchedMetrics = await fetchMetrics()
+
+                    // Check if we have scenario-level metrics (means invocations have run)
+                    const hasScenarioMetrics = fetchedMetrics.some(
+                        (m: any) => m?.scenario_id || m?.scenarioId,
+                    )
+
+                    // If run status is "pending" but we have scenario metrics, it means:
+                    // - Invocations have been executed (scenario metrics exist)
+                    // - But the run isn't complete yet (e.g., human eval waiting for annotations)
+                    // In this case, we should allow refresh to generate run-level metrics
+                    const isPendingWithExecutedScenarios =
+                        runStatus === "pending" && hasScenarioMetrics
+
+                    // Override isRunInProgress if we detect pending with executed scenarios
+                    const effectiveIsRunInProgress =
+                        isRunInProgress && !isPendingWithExecutedScenarios
+
+                    // [HUMAN_EVAL_REFRESH_LOG] Log queryFn refresh decision for human eval
+                    if (evaluationType === "human") {
+                        console.log("[RunMetrics:HumanEval] queryFn refresh decision", {
+                            runId,
+                            evaluationType,
+                            runStatus,
+                            fetchedMetricsCount: fetchedMetrics.length,
+                            hasScenarioMetrics,
+                            isPendingWithExecutedScenarios,
+                            isRunInProgress,
+                            effectiveIsRunInProgress,
+                            willTriggerRefresh: !effectiveIsRunInProgress,
+                            reason: !effectiveIsRunInProgress
+                                ? isPendingWithExecutedScenarios
+                                    ? "ALLOW: pending with executed scenarios (invocations have run)"
+                                    : "ALLOW: run is not in progress"
+                                : "BLOCK: run is in progress",
+                        })
+                    }
 
                     if (!fetchedMetrics.length) {
                         temporalRunFlags.set(runId, false)
@@ -687,6 +773,7 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                             projectId,
                             runId,
                             source,
+                            evaluationType,
                         })
 
                         const hasRunLevelEntry = entries.some(
@@ -733,10 +820,11 @@ const previewRunMetricStatsQueryFamily = atomFamily(
 
                     // Do NOT trigger refresh when the run is in progress
                     // This prevents premature run-level metric creation during polling
+                    // Exception: Allow refresh if run is "pending" but has scenario metrics (invocations executed)
                     let {metrics, flushResult} = await processMetrics({
                         entries: fetchedMetrics,
                         source: "run-metric-stats-query",
-                        triggerRefresh: !isRunInProgress,
+                        triggerRefresh: !effectiveIsRunInProgress,
                     })
 
                     // Re-fetch after refresh to get updated metrics
@@ -753,7 +841,7 @@ const previewRunMetricStatsQueryFamily = atomFamily(
 
                     if (process.env.NODE_ENV !== "production") {
                         try {
-                            const metricSummaries = metrics.map((entry: any) => ({
+                            const _metricSummaries = metrics.map((entry: any) => ({
                                 scenarioId: entry?.scenario_id ?? entry?.scenarioId ?? null,
                                 status: entry?.status ?? null,
                                 keyCount: entry?.data
@@ -1027,7 +1115,7 @@ export const previewRunMetricStatsSelectorFamily = atomFamily(
                 })
             })
 
-            const shouldLogDebug =
+            const _shouldLogDebug =
                 process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true" && typeof window !== "undefined"
             // if (shouldLogDebug) {
             //     try {
@@ -1095,6 +1183,12 @@ export const previewRunMetricStatsSelectorFamily = atomFamily(
 
 export const invalidatePreviewRunMetricStatsAtom = atom(null, (_, set, runId?: string | null) => {
     if (!runId) return
+
+    // Clear bootstrap attempt flag so run-level metrics can be refreshed again
+    // This is important for human evaluations where each annotation should trigger
+    // a recalculation of run-level aggregate metrics
+    clearBootstrapAttempt(runId)
+
     const variants = [true, false] as const
     variants.forEach((temporal) => {
         previewRunMetricStatsQueryFamily.remove({

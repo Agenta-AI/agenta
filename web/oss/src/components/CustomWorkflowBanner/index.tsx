@@ -30,7 +30,7 @@ const CustomWorkflowBanner = ({
                             Agenta is unable to communicate with your server. Try refreshing or
                             re-configure your workflow URL.
                         </Typography.Paragraph>
-                        <Space direction="horizontal" align="center">
+                        <Space orientation="horizontal" align="center">
                             <Button icon={<PencilSimple size={14} />} onClick={() => openModal()}>
                                 Configure
                             </Button>
@@ -50,7 +50,7 @@ const CustomWorkflowBanner = ({
                 showIcon
                 type={"warning"}
                 action={
-                    <Space direction="vertical">
+                    <Space orientation="vertical">
                         <Button icon={<PencilSimple size={14} />} onClick={() => openModal()}>
                             Configure
                         </Button>

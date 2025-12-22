@@ -21,7 +21,7 @@ Use analytics to:
 - Identify error patterns
 - Analyze token consumption
 
-**Endpoint**: `POST /api/preview/tracing/spans/analytics`
+**Endpoint**: `POST /api/tracing/spans/analytics`
 
 **Authentication**: You can create API keys from the Settings page in your Agenta workspace.
 
@@ -36,7 +36,7 @@ from datetime import datetime, timedelta, timezone
 # Setup
 AGENTA_HOST = "https://cloud.agenta.ai"
 API_KEY = "your_api_key_here"
-BASE_URL = f"{AGENTA_HOST}/api/preview/tracing/spans/analytics"
+BASE_URL = f"{AGENTA_HOST}/api/tracing/spans/analytics"
 
 headers = {
     "Authorization": f"ApiKey {API_KEY}",
@@ -74,7 +74,7 @@ for bucket in data['buckets']:
 ```javascript
 const AGENTA_HOST = "https://cloud.agenta.ai";
 const API_KEY = "your_api_key_here";
-const BASE_URL = `${AGENTA_HOST}/api/preview/tracing/spans/analytics`;
+const BASE_URL = `${AGENTA_HOST}/api/tracing/spans/analytics`;
 
 // Get analytics for last 7 days with daily buckets
 const newest = new Date();

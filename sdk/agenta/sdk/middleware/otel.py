@@ -3,9 +3,6 @@ from typing import Callable
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request, FastAPI
 
-from opentelemetry.baggage.propagation import W3CBaggagePropagator
-from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.tracing.propagation import extract
 

@@ -50,6 +50,7 @@ const PromptFocusDrawer: React.FC<PromptFocusDrawerProps> = ({variantId, ...prop
                         key={promptId as string}
                         promptId={promptId}
                         variantId={variantId}
+                        disableCollapse={promptIds.length === 1}
                     />
                 ))}
             </Drawer>

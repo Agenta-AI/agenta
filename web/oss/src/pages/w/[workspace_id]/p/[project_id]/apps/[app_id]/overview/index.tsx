@@ -27,7 +27,7 @@ const LatestEvaluationRunsTable: any = dynamic(() =>
     import("@/oss/components/EvaluationRunsTablePOC").then((m) => m.LatestEvaluationRunsTable),
 )
 
-const {Title, Text} = Typography
+const {Text} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
@@ -54,7 +54,11 @@ const AppDetailsSection = memo(() => {
 
                 <Dropdown
                     trigger={["click"]}
-                    overlayStyle={{width: 180}}
+                    styles={{
+                        root: {
+                            width: 180,
+                        },
+                    }}
                     menu={{
                         items: [
                             ...(currentApp?.app_type === "custom"

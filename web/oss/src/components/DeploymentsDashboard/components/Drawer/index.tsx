@@ -8,7 +8,6 @@ import {createUseStyles} from "react-jss"
 
 import {envRevisionsAtom} from "@/oss/components/DeploymentsDashboard/atoms"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {JSSTheme} from "@/oss/lib/Types"
 import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
@@ -39,11 +38,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-interface DeploymentsDrawerTitleProps
-    extends Pick<
-        DeploymentsDrawerProps,
-        "onClose" | "expandable" | "initialWidth" | "selectedRevisionId"
-    > {
+interface DeploymentsDrawerTitleProps extends Pick<
+    DeploymentsDrawerProps,
+    "onClose" | "expandable" | "initialWidth" | "selectedRevisionId"
+> {
     drawerWidth: number
     setDrawerWidth: (width: number) => void
     envName?: string
@@ -135,7 +133,7 @@ const DeploymentsDrawerContent = ({
             </div>
             {drawerVariantId && (
                 <>
-                    <Divider type="vertical" className="h-full m-0" />
+                    <Divider orientation="vertical" className="h-full m-0" />
                     <DrawerDetails revisionId={drawerVariantId} />
                 </>
             )}
@@ -155,7 +153,6 @@ const DeploymentsDrawer = ({
 }: DeploymentsDrawerProps) => {
     const classes = useStyles()
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
-    const {goToPlayground} = usePlaygroundNavigation()
 
     return (
         <EnhancedDrawer

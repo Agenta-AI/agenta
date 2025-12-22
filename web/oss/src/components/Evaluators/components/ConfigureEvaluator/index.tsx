@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {ArrowLeftOutlined} from "@ant-design/icons"
 import {Button, Result} from "antd"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
@@ -13,15 +14,14 @@ import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
 import {Evaluator, EvaluatorConfig, Variant, testset} from "@/oss/lib/Types"
+import {evaluatorByKeyAtomFamily} from "@/oss/state/evaluators"
 import {useTestsetsData} from "@/oss/state/testset"
 
 import ConfigureEvaluatorSkeleton from "./assets/ConfigureEvaluatorSkeleton"
 
 const ConfigureEvaluator = dynamic(
     () =>
-        import(
-            "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator"
-        ),
+        import("@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator"),
     {ssr: false},
 )
 
@@ -45,10 +45,10 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
 
     const evaluatorKey = existingConfig?.evaluator_key ?? evaluatorId ?? null
 
-    const evaluator = useMemo(() => {
-        if (!evaluatorKey) return null
-        return evaluators.find((item) => item.key === evaluatorKey) ?? null
-    }, [evaluators, evaluatorKey])
+    const evaluatorQuery = useAtomValue(evaluatorByKeyAtomFamily(evaluatorKey))
+    const evaluatorFromRegular = evaluators.find((item) => item.key === evaluatorKey)
+    const evaluator = evaluatorFromRegular ?? evaluatorQuery.data ?? null
+    const isLoadingEvaluatorByKey = evaluatorQuery.isPending && !evaluatorFromRegular
 
     const {testsets} = useTestsetsData()
     const {variants: variantData} = useStatelessVariants({lightLoading: true})
@@ -67,18 +67,19 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
     const [selectedTestset, setSelectedTestset] = useState("")
 
     useEffect(() => {
+        if (isLoadingEvaluatorConfigs) return
         if (existingConfig) {
             setEditMode(true)
             setEditEvalEditValues(existingConfig)
             setCloneConfig(false)
-        } else {
-            setEditMode(false)
-            setEditEvalEditValues(null)
-            setCloneConfig(false)
+            return
         }
-    }, [existingConfig])
+        setEditMode(false)
+        setEditEvalEditValues(null)
+        setCloneConfig(false)
+    }, [existingConfig, isLoadingEvaluatorConfigs])
 
-    const isLoading = isLoadingEvaluators || isLoadingEvaluatorConfigs
+    const isLoading = isLoadingEvaluators || isLoadingEvaluatorConfigs || isLoadingEvaluatorByKey
 
     useEffect(() => {
         if (testsets?.length) {

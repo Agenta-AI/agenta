@@ -19,8 +19,8 @@ const processedTokens = new Set<string>()
 const Accept: FC = () => {
     const [invite, , removeInvite] = useLocalStorage<any>("invite", {})
     const inviteFromState = useAtomValue(activeInviteAtom)
-    const {refetch: refetchOrganization, loading: loadingOrgs} = useOrgData()
-    const {refetch: refetchProject, isLoading: loadingProjects} = useProjectData()
+    const {refetch: refetchOrganization, loading: _loadingOrgs} = useOrgData()
+    const {refetch: refetchProject, isLoading: _loadingProjects} = useProjectData()
     const router = useRouter()
     const accept = useRef(false)
 

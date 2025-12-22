@@ -25,12 +25,17 @@ import {
     updateScenarioStatus,
 } from "@/oss/services/evaluations/scenarios/api"
 import {upsertScenarioMetricData} from "@/oss/services/runMetrics/api"
+import {getProjectValues} from "@/oss/state/project"
 
 import {
     invalidateAnnotationBatcherCache,
     scenarioAnnotationsQueryAtomFamily,
 } from "../../atoms/annotations"
-import {evaluationMetricQueryAtomFamily, invalidateMetricBatcherCache} from "../../atoms/metrics"
+import {
+    evaluationMetricQueryAtomFamily,
+    invalidateMetricBatcherCache,
+    triggerMetricsRefresh,
+} from "../../atoms/metrics"
 import {invalidatePreviewRunMetricStatsAtom} from "../../atoms/runMetrics"
 import {
     invalidateScenarioStepsBatcherCache,
@@ -42,9 +47,7 @@ import {classifyStep} from "../views/SingleScenarioViewerPOC"
 
 const Annotate = dynamic(
     () =>
-        import(
-            "@agenta/oss/src/components/pages/observability/drawer/AnnotateDrawer/assets/Annotate"
-        ),
+        import("@agenta/oss/src/components/pages/observability/drawer/AnnotateDrawer/assets/Annotate"),
     {ssr: false},
 )
 
@@ -660,6 +663,12 @@ const PreviewAnnotateContent = ({
             // Update scenario and run status
             await updateScenarioStatus(scenarioId, "success")
             await checkAndUpdateRunStatus(runId)
+
+            // Trigger metrics refresh for scenario-level and run-level metrics
+            const {projectId} = getProjectValues()
+            if (projectId) {
+                await triggerMetricsRefresh({projectId, runId, scenarioId})
+            }
 
             // Invalidate caches to force fresh data fetch
             invalidateAnnotationBatcherCache()

@@ -1,48 +1,8 @@
-import type {Atom} from "jotai"
+/**
+ * Types for the metric processor used in evaluation run details.
+ */
 
-import type {BasicStats} from "@/oss/lib/metricUtils"
-
-export type RunLevelStatsMap = Record<string, BasicStats>
-
-export interface TemporalMetricPoint {
-    timestamp: number
-    stats: BasicStats
-}
-
-export interface RunMetricsBatchRequest {
-    projectId: string
-    runId: string
-    includeTemporal?: boolean
-}
-
-export type LoadableState<T> =
-    | {state: "loading"}
-    | {state: "hasError"; error: unknown}
-    | {state: "hasData"; data: T}
-
-export interface RunLevelMetricSelection {
-    state: LoadableState<BasicStats | undefined>["state"]
-    stats?: BasicStats
-    resolvedKey?: string
-    error?: unknown
-}
-
-export interface PreviewRunMetricStatsQueryArgs {
-    runId: string
-    includeTemporal?: boolean
-}
-
-export interface PreviewRunMetricStatsSelectorArgs {
-    runId: string
-    metricKey?: string
-    metricPath?: string
-    stepKey?: string
-    includeTemporal?: boolean
-}
-
-export type RunMetricSelectorAtom = Atom<RunLevelMetricSelection>
-
-export type MetricScope = "run" | "scenario"
+export type MetricScope = "scenario" | "run"
 
 export interface MetricShapeSummary {
     id: string | null
@@ -52,18 +12,6 @@ export interface MetricShapeSummary {
     sampleKeys: string[]
     sampleData: Record<string, any>
     canonicalSampleKeys: string[]
-}
-
-export interface MetricProcessorOptions {
-    projectId: string
-    runId: string
-    source: string
-}
-
-export interface MetricProcessorFlushOptions {
-    triggerRefresh?: boolean
-    /** If true, this is a temporal/live evaluation that doesn't produce run-level metrics */
-    isTemporalOnly?: boolean
 }
 
 export interface MetricProcessorResult {
@@ -77,13 +25,23 @@ export interface MetricProcessorResult {
     shouldDelete: boolean
 }
 
+export interface MetricProcessorOptions {
+    projectId: string
+    runId: string
+    source: string
+}
+
+export interface MetricProcessorFlushOptions {
+    triggerRefresh?: boolean
+    isTemporalOnly?: boolean
+}
+
 export interface ScenarioRefreshDetailResult {
     scenarioId: string
     reasons: string[]
     oldMetricIds: string[]
     newMetricIds: string[]
     reusedMetricIds: string[]
-    staleMetricIds: string[]
     returnedCount: number
     attempts: string[]
 }
@@ -93,7 +51,6 @@ export interface RunRefreshDetailResult {
     oldMetricIds: string[]
     newMetricIds: string[]
     reusedMetricIds: string[]
-    staleMetricIds: string[]
     returnedCount: number
 }
 
@@ -110,17 +67,20 @@ export interface MetricProcessorFlushResult {
     unexpectedScenarioMetricIds: string[]
 }
 
+export interface ScenarioContext {
+    hasInvocation?: boolean
+    hasAnnotation?: boolean
+}
+
 export interface MetricProcessor {
     processMetric: (metric: any, scope: MetricScope) => MetricProcessorResult
     markRunLevelGap: (reason: string) => void
-    /**
-     * Mark a scenario as having a gap (e.g., missing metrics).
-     * @param scenarioId - The scenario ID
-     * @param reason - The reason for the gap
-     * @param scenarioStatus - Optional scenario status. If provided and is a terminal state
-     *                         (success, completed, failed, error), will trigger a refresh.
-     */
-    markScenarioGap: (scenarioId: string, reason: string, scenarioStatus?: string | null) => void
+    markScenarioGap: (
+        scenarioId: string,
+        reason: string,
+        scenarioStatus?: string | null,
+        scenarioContext?: ScenarioContext,
+    ) => void
     getPendingActions: () => {
         pending: MetricProcessorResult[]
         scenarioIds: string[]

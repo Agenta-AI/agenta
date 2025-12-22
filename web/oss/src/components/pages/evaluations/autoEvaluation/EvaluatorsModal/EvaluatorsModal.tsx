@@ -3,18 +3,16 @@ import {memo, useEffect, useMemo, useState} from "react"
 
 import {ModalProps} from "antd"
 import clsx from "clsx"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
+import {evaluatorConfigsAtom} from "@/oss/lib/atoms/evaluation"
 import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
-import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {Evaluator, EvaluatorConfig, Variant} from "@/oss/lib/Types"
-import {currentAppAtom} from "@/oss/state/app"
 import {useTestsetsData} from "@/oss/state/testset"
 
 import ConfigureEvaluator from "./ConfigureEvaluator"
@@ -38,7 +36,6 @@ const EvaluatorsModal = ({
     const routeAppId = useAppId()
     const appId = appIdOverride ?? routeAppId
     const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
-    const [evaluators] = useAtom(evaluatorsAtom)
     const [evaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [selectedEvaluator, setSelectedEvaluator] = useState<Evaluator | null>(null)
     const {refetchEvaluatorConfigs, isLoadingEvaluatorConfigs: fetchingEvalConfigs} =
@@ -48,7 +45,6 @@ const EvaluatorsModal = ({
     }>({
         testcase: null,
     })
-    const currentApp = useAtomValue(currentAppAtom)
     const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null)
     const [editMode, setEditMode] = useState(false)
     const [cloneConfig, setCloneConfig] = useState(false)
@@ -98,7 +94,6 @@ const EvaluatorsModal = ({
             {
                 content: (
                     <NewEvaluator
-                        evaluators={evaluators}
                         setCurrent={setCurrent}
                         handleOnCancel={() => modalProps.onCancel?.({} as any)}
                         setSelectedEvaluator={setSelectedEvaluator}
@@ -112,7 +107,6 @@ const EvaluatorsModal = ({
         evaluatorConfigs,
         fetchingEvalConfigs,
         evaluatorsDisplay,
-        evaluators,
         modalProps.onCancel,
         setCurrent,
         setSelectedEvaluator,
@@ -175,11 +169,15 @@ const EvaluatorsModal = ({
             footer={null}
             closeIcon={null}
             title={null}
-            height="85vh"
             width="90vw"
             className="[&_>_div]:!h-full [&_.ant-modal-content]:!h-full !overflow-y-hidden min-w-[600px] max-w-[95vw] min-h-[600px]"
             classNames={{body: "!h-full !overflow-auto"}}
             maskClosable={false}
+            styles={{
+                container: {
+                    height: "85vh",
+                },
+            }}
             {...modalProps}
         >
             <div

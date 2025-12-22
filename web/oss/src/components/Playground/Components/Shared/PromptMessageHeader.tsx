@@ -29,6 +29,7 @@ interface PromptMessageHeaderProps {
     resultHashes?: string[]
     viewOnly?: boolean
     hideMarkdownToggle?: boolean
+    showMinimizeOnly?: boolean
 
     actions?: {
         onRerun?: () => void
@@ -61,6 +62,7 @@ const PromptMessageHeader: React.FC<PromptMessageHeaderProps> = ({
     resultHashes,
     viewOnly,
     hideMarkdownToggle,
+    showMinimizeOnly,
     actions,
     children,
 }) => {
@@ -90,6 +92,7 @@ const PromptMessageHeader: React.FC<PromptMessageHeaderProps> = ({
             allowFileUpload={allowFileUpload}
             uploadCount={uploadCount}
             hideMarkdownToggle={hideMarkdownToggle}
+            showMinimizeOnly={showMinimizeOnly}
             viewOnly={viewOnly}
         >
             {children}

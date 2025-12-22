@@ -10,6 +10,11 @@ export interface PlaygroundVariantConfigPromptComponentProps extends CollapsePro
     promptId: string
     /** Whether the prompt is mutable or view only */
     viewOnly?: boolean
+    /**
+     * Disables collapsing behavior for the prompt panel (keeps the content shown).
+     * Useful when the parent wants the prompt section to be always expanded.
+     */
+    disableCollapse?: boolean
 }
 
 /**

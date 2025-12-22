@@ -390,7 +390,7 @@ curl -i http://127.0.0.1:8000/services/auto_ai_critique/inspect
 """ {"version":"2025.07.14","data":{"outputs":{"score":1,0,"success":true}}}
 curl -i -N \
   -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey ZKoZDbEr.856b25f9d620e3a5b090d2eb0db92b9c915b4551f404c092d076e0dab9268a31" \
+  -H "Authorization: ApiKey your_api_key_here" \
   -d '{
     "data": {
       "inputs": {
@@ -419,7 +419,7 @@ curl -i -N \
 """ {"version":"2025.07.14","data":{"outputs":{"score":0.0,"success":false}}}
 curl -i -N \
   -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey ZKoZDbEr.856b25f9d620e3a5b090d2eb0db92b9c915b4551f404c092d076e0dab9268a31" \
+  -H "Authorization: ApiKey your_api_key_here" \
   -d '{
     "data": {
       "inputs": {
@@ -667,7 +667,7 @@ curl -i http://127.0.0.1:8000/services/completion/inspect
 """
 curl -i -N \
   -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey ZKoZDbEr.856b25f9d620e3a5b090d2eb0db92b9c915b4551f404c092d076e0dab9268a31" \
+  -H "Authorization: ApiKey your_api_key_here" \
   -d '{"data": {"inputs": {"country": "Germany"}, "parameters": {"prompt": {"messages": [{"role": "assistant", "content": "What's the capital of {{country}}?"}]}}}}' \
   http://127.0.0.1:8000/services/completion/invoke
 """
@@ -686,7 +686,7 @@ curl -i http://127.0.0.1:8000/services/chat/inspect
 """
 curl -i -N \
   -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey ZKoZDbEr.856b25f9d620e3a5b090d2eb0db92b9c915b4551f404c092d076e0dab9268a31" \
+  -H "Authorization: ApiKey your_api_key_here" \
   -d '{"data": {"inputs": {"country": "Germany"}, "parameters": {"prompt": {"messages": [{"role": "user", "content": "Hello, world!"}]}}}}' \
   http://127.0.0.1:8000/services/chat/invoke
 """

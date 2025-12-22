@@ -1,7 +1,5 @@
 import {useMemo} from "react"
 
-import {Typography} from "antd"
-
 import {
     useRunRowDetails,
     useRunRowReferences,
@@ -53,7 +51,7 @@ export const PreviewAppCell = ({
             : null
     const slotValue = slot?.values?.[0]
     const slotAppId = slotValue?.id ?? null
-    const slotLabel = slotValue?.label ?? slotValue?.slug ?? slotValue?.name ?? null
+    const _slotLabel = slotValue?.label ?? slotValue?.slug ?? slotValue?.name ?? null
     const appId = slotAppId ?? summary?.appId ?? record.appId ?? null
     const variantSlot =
         (slot &&
@@ -68,7 +66,9 @@ export const PreviewAppCell = ({
         variantSlot?.values.find((value) => value.source?.toLowerCase().includes("variant")) ??
         variantSlot?.values?.[0] ??
         null
+    // Look for revision in both application slot (application_revision) and variant slot
     const slotRevisionValue =
+        slot?.values.find((value) => value.source?.toLowerCase().includes("revision")) ??
         variantSlot?.values.find((value) => value.source?.toLowerCase().includes("revision")) ??
         null
     const revisionId =

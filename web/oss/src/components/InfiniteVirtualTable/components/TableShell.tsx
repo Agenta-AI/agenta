@@ -8,6 +8,8 @@ interface TableShellProps {
     description?: ReactNode
     badge?: ReactNode
     header?: ReactNode
+    /** Additional content to render in the header row (e.g., tabs) */
+    headerExtra?: ReactNode
     filters?: ReactNode
     primaryActions?: ReactNode
     secondaryActions?: ReactNode
@@ -22,6 +24,7 @@ const TableShell = ({
     description,
     badge,
     header,
+    headerExtra,
     filters,
     primaryActions,
     secondaryActions,
@@ -49,21 +52,27 @@ const TableShell = ({
     }, [onHeaderHeightChange])
 
     const renderDefaultHeader = () => (
-        <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex min-w-[200px] flex-1 flex-col gap-2">
-                {title ? (
-                    <div className="flex items-center gap-3">
-                        <div className="font-medium text-[#101828]">{title}</div>
-
-                        {badge}
-                    </div>
-                ) : null}
-                {description ? <div className="text-[#475467]">{description}</div> : null}
-                {filters}
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-                {secondaryActions}
-                {primaryActions}
+        <div className="flex flex-col items-start gap-4 w-full">
+            {title || headerExtra ? (
+                <div className="w-full flex items-start justify-between gap-4 mb-4">
+                    {title ? (
+                        <div className="flex items-center gap-3 shrink min-w-0">
+                            <div className="font-medium text-[#101828]">{title}</div>
+                            {badge}
+                        </div>
+                    ) : null}
+                    {headerExtra ? (
+                        <div className="flex items-center justify-end shrink-0">{headerExtra}</div>
+                    ) : null}
+                </div>
+            ) : null}
+            {description ? <div className="text-[#475467]">{description}</div> : null}
+            <div className="w-full flex flex-wrap items-start justify-between gap-4">
+                <div className="flex min-w-[200px] flex-1 flex-col gap-2">{filters}</div>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    {secondaryActions}
+                    {primaryActions}
+                </div>
             </div>
         </div>
     )

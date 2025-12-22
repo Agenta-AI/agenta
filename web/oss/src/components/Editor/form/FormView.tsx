@@ -55,7 +55,6 @@ const renameKey = (
     }
     const last = path[path.length - 1] as string
     if (typeof last !== "string") return cloned // arrays not renamable
-    const prevKeys = Object.keys(cursor)
     const reordered: Record<string, unknown> = {}
     Object.entries(cursor).forEach(([key, val]) => {
         if (key === last) {

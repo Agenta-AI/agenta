@@ -21,7 +21,7 @@ export type FilterItem = Filter & {
     customValueType?: CustomValueType
 }
 
-export type RowValidation = {
+export interface RowValidation {
     isValid: boolean
     valueInvalid?: boolean
 }
@@ -46,7 +46,7 @@ export type IconType = ComponentType<{size?: number}>
 
 type InputKind = "text" | "select" | "none"
 
-export type SelectOption = {
+export interface SelectOption {
     label: string
     value: string | number
     selectable?: boolean
@@ -65,14 +65,14 @@ type InputConfig =
       }
     | {kind: "none"; display?: string}
 
-export type FilterLeaf = {
+export interface FilterLeaf {
     kind: "leaf"
     field: string
     value: string
     label: string
     type: "string" | "number" | "exists"
     icon?: IconType
-    operatorOptions?: Array<{value: any; label: string}>
+    operatorOptions?: {value: any; label: string}[]
     defaultValue?: Filter["value"]
     keyInput?: InputConfig
     valueInput?: InputConfig
@@ -88,7 +88,7 @@ export type FilterLeaf = {
 export interface FilterGroup {
     kind: "group"
     label: string
-    children: Array<FilterLeaf | FilterGroup>
+    children: (FilterLeaf | FilterGroup)[]
     icon?: IconType
     defaultValue?: string
     titleClickDisplayLabel?: string
