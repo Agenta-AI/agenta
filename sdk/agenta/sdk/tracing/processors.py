@@ -83,7 +83,7 @@ class TraceProcessor(SpanProcessor):
                     if isinstance(value, BaseModel):
                         try:
                             ref = value.model_dump(mode="json", exclude_none=True)  # type: ignore
-                        except:  # pylint: disable=bare-except
+                        except Exception:  # pylint: disable=bare-except
                             pass
                     if isinstance(ref, dict):
                         for field, val in ref.items():
