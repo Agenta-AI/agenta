@@ -107,6 +107,7 @@ export const invalidatePlaygroundQueriesAtom = atom(null, async () => {
         queryClient.invalidateQueries({queryKey: ["variants"]}),
         queryClient.invalidateQueries({queryKey: ["variantRevisions"]}),
         queryClient.invalidateQueries({queryKey: ["appVariants"]}),
+        queryClient.invalidateQueries({queryKey: ["appVariantRevisions"]}),
     ])
 
     // Then refetch with type: 'all' to bypass cache
@@ -121,6 +122,10 @@ export const invalidatePlaygroundQueriesAtom = atom(null, async () => {
         }),
         queryClient.refetchQueries({
             queryKey: ["appVariants"],
+            type: "all",
+        }),
+        queryClient.refetchQueries({
+            queryKey: ["appVariantRevisions"],
             type: "all",
         }),
     ])
