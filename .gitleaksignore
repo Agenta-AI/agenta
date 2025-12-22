@@ -256,3 +256,10 @@ bb4b06cd13e5aca1c75886990f164b643360da2b:sdk/tests/legacy/debugging/simple-app/c
 71079ed3d27540a11a9415de404c77920642f60b:api/oss/tests/manual/tracing/windowing.http:generic-api-key:3
 71079ed3d27540a11a9415de404c77920642f60b:sdk/tests/legacy/baggage/config.toml:generic-api-key:4
 71079ed3d27540a11a9415de404c77920642f60b:sdk/tests/legacy/debugging/simple-app/config.toml:generic-api-key:4
+32aee5926c72551b9118c06184acb442079676c2:examples/jupyter/observability/Observability-google-adk.ipynb:agenta-api-key:278
+32aee5926c72551b9118c06184acb442079676c2:examples/jupyter/observability/Observability-google-adk.ipynb:google-api-key:280
+6c1663e57b8d1dd6bbed945f7bfe65d61a349efd:api/oss/tests/workflows/observability/test_otlp_ingestion.py:agenta-api-key:21
+86c2a2430e3ddbc544361343b7e9ea0152e53ab7:api/oss/tests/workflows/observability/test_otlp_ingestion.py:agenta-api-key:21
+3db7c34a8f206fb4a19e525ac5a964185d502c4a:api/oss/tests/manual/tracing/crud.http:agenta-api-key:3
+3db7c34a8f206fb4a19e525ac5a964185d502c4a:api/oss/tests/manual/tracing/windowing.http:agenta-api-key:3
+8465021df57fca629f14c269d3f37d18d6fdcd11:services/completion-new-sdk-prompt/docker-compose.yml:openai-api-key-new:10
