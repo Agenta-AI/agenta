@@ -125,7 +125,7 @@ export const useAppVariantRevisions = (appId?: string | null) => {
 
     const query = useQuery({
         queryKey: ["appVariantRevisions", projectId, appId],
-        staleTime: 60_000,
+        staleTime: 15_000,
         enabled: Boolean(appId && projectId),
         queryFn: async () => {
             if (!appId || !projectId) return [] as EnhancedVariant[]
