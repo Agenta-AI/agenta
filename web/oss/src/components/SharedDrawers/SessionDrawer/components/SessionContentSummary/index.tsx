@@ -7,7 +7,11 @@ import useSessionDrawer from "../../hooks/useSessionDrawer"
 const SessionContentSummary = () => {
     const {aggregatedStats} = useSessionDrawer()
 
-    const formatSummaryValue = (key: string, value: number) => {
+    const formatSummaryValue = (key: string, value: number | string[]) => {
+        if (key === "models" && Array.isArray(value)) {
+            return value.join(", ")
+        }
+
         if (typeof value !== "number") return value
 
         if (key === "latency" || key === "duration") {
@@ -39,7 +43,7 @@ const SessionContentSummary = () => {
                                 {key.replace(/_/g, " ")}
                             </div>
                             <div className="px-2 py-0.5 bg-white">
-                                {formatSummaryValue(key, value as number)}
+                                {formatSummaryValue(key, value as number | string[])}
                             </div>
                         </div>
                     )

@@ -225,7 +225,7 @@ export const sessionStatsAtom = atom((get) => {
     const traces = get(sessionAnnotatedTracesAtom)
     if (!traces || !traces.length) return null
 
-    return traces.reduce(
+    const stats = traces.reduce(
         (acc: any, curr: any) => {
             const metrics = curr.attributes?.ag?.metrics || {}
 
@@ -237,23 +237,22 @@ export const sessionStatsAtom = atom((get) => {
                 metrics.tokens?.cumulative?.total || curr.token_count || curr.total_tokens || 0
 
             // Handle latency (duration)
-            // The JSON shows duration.cumulative in milliseconds (e.g., 1674.353)
-            // Our previous code treated "latency" typically in microseconds? or milliseconds?
-            // "formatLatency(value / 1000)" suggests value is expected in milliseconds if formatLatency expects seconds?
-            // Or if formatLatency expects seconds, and we divide by 1000, then input is ms.
-            // Let's assume input here (duration.cumulative) is milliseconds.
-            // If previous code used `curr.latency`, need to ensure units match.
             const latency = metrics.duration?.cumulative || curr.latency || 0
 
+            // Handle model
+            const model = curr.attributes?.ag?.data?.parameters?.prompt?.llm_config?.model
             return {
                 cost: acc.cost + cost,
                 token_count: acc.token_count + tokens,
                 latency: acc.latency + latency,
                 total_tokens: acc.total_tokens + tokens,
+                model: model,
             }
         },
-        {cost: 0, token_count: 0, latency: 0, total_tokens: 0},
+        {cost: 0, token_count: 0, latency: 0, total_tokens: 0, model: ""},
     )
+
+    return stats
 })
 
 // mutate visibility of annotations
