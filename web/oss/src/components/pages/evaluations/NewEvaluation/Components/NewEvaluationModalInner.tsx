@@ -152,22 +152,13 @@ const NewEvaluationModalInner = ({
         [selectedAppId],
     )
 
-    const {
-        variants: appVariantRevisions,
-        isLoading: variantsLoading,
-        refetch: refetchVariants,
-    } = useAppVariantRevisions(selectedAppId || null)
+    const {variants: appVariantRevisions, isLoading: variantsLoading} = useAppVariantRevisions(
+        selectedAppId || null,
+    )
     const filteredVariants = useMemo(() => {
         if (!selectedAppId) return []
         return appVariantRevisions || []
     }, [appVariantRevisions, selectedAppId])
-
-    // Refetch variants on mount and when app changes to ensure fresh data
-    useEffect(() => {
-        if (selectedAppId) {
-            refetchVariants()
-        }
-    }, [selectedAppId, refetchVariants])
 
     const {createNewRun: createPreviewEvaluationRun} = usePreviewEvaluations({
         appId: selectedAppId || appId,
