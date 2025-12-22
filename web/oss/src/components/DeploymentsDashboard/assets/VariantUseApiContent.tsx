@@ -6,6 +6,9 @@ import {Tabs, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
+import {buildCurlSnippet} from "@/oss/code_snippets/endpoints/fetch_variant/curl"
+import {buildPythonSnippet} from "@/oss/code_snippets/endpoints/fetch_variant/python"
+import {buildTypescriptSnippet} from "@/oss/code_snippets/endpoints/fetch_variant/typescript"
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
 import SelectVariant from "@/oss/components/Playground/Components/Menus/SelectVariant"
@@ -16,9 +19,6 @@ import {
     latestRevisionInfoByVariantIdAtomFamily,
     revisionListAtom,
 } from "@/oss/state/variant/selectors/variant"
-import {buildPythonSnippet} from "@/oss/code_snippets/endpoints/fetch_variant/python"
-import {buildTypescriptSnippet} from "@/oss/code_snippets/endpoints/fetch_variant/typescript"
-import {buildCurlSnippet} from "@/oss/code_snippets/endpoints/fetch_variant/curl"
 
 const ApiKeyInput = dynamic(
     () => import("@/oss/components/pages/app-management/components/ApiKeyInput"),

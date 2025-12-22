@@ -9,8 +9,6 @@ import {useOrgData} from "@/oss/state/org"
 import {getProjectValues} from "@/oss/state/project"
 import {waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
-const {Text} = Typography
-
 interface ApiKeyInputProps {
     apiKeyValue: string
     onApiKeyChange: React.Dispatch<React.SetStateAction<string>>
