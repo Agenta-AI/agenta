@@ -166,24 +166,18 @@ def litellm_handler():
                 namespace="metrics.unit.costs",
             )
 
+            # Handle both dict and object attribute access for usage
+            usage = response_obj.usage
+            prompt_tokens = usage.get("prompt_tokens") if isinstance(usage, dict) else getattr(usage, "prompt_tokens", None)
+            completion_tokens = usage.get("completion_tokens") if isinstance(usage, dict) else getattr(usage, "completion_tokens", None)
+            total_tokens = usage.get("total_tokens") if isinstance(usage, dict) else getattr(usage, "total_tokens", None)
+
             span.set_attributes(
                 attributes=(
                     {
-                        "prompt": (
-                            float(response_obj.usage.prompt_tokens)
-                            if response_obj.usage.prompt_tokens
-                            else None
-                        ),
-                        "completion": (
-                            float(response_obj.usage.completion_tokens)
-                            if response_obj.usage.completion_tokens
-                            else None
-                        ),
-                        "total": (
-                            float(response_obj.usage.total_tokens)
-                            if response_obj.usage.total_tokens
-                            else None
-                        ),
+                        "prompt": float(prompt_tokens) if prompt_tokens else None,
+                        "completion": float(completion_tokens) if completion_tokens else None,
+                        "total": float(total_tokens) if total_tokens else None,
                     }
                 ),
                 namespace="metrics.unit.tokens",
@@ -300,24 +294,18 @@ def litellm_handler():
                 namespace="metrics.unit.costs",
             )
 
+            # Handle both dict and object attribute access for usage
+            usage = response_obj.usage
+            prompt_tokens = usage.get("prompt_tokens") if isinstance(usage, dict) else getattr(usage, "prompt_tokens", None)
+            completion_tokens = usage.get("completion_tokens") if isinstance(usage, dict) else getattr(usage, "completion_tokens", None)
+            total_tokens = usage.get("total_tokens") if isinstance(usage, dict) else getattr(usage, "total_tokens", None)
+
             span.set_attributes(
                 attributes=(
                     {
-                        "prompt": (
-                            float(response_obj.usage.prompt_tokens)
-                            if response_obj.usage.prompt_tokens
-                            else None
-                        ),
-                        "completion": (
-                            float(response_obj.usage.completion_tokens)
-                            if response_obj.usage.completion_tokens
-                            else None
-                        ),
-                        "total": (
-                            float(response_obj.usage.total_tokens)
-                            if response_obj.usage.total_tokens
-                            else None
-                        ),
+                        "prompt": float(prompt_tokens) if prompt_tokens else None,
+                        "completion": float(completion_tokens) if completion_tokens else None,
+                        "total": float(total_tokens) if total_tokens else None,
                     }
                 ),
                 namespace="metrics.unit.tokens",
