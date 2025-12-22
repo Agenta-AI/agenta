@@ -92,6 +92,8 @@ export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
     selectedAppId?: string
     /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
     onSelectTemplate?: (evaluator: Evaluator) => void
+    /** Callback when the "Create new" button is clicked in preview/human mode (for inline creation) */
+    onCreateHumanEvaluator?: () => void
 }
 
 export interface AdvancedSettingsProps {

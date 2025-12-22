@@ -15,9 +15,15 @@ import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
 
+import {openHumanEvaluatorDrawerAtom} from "./CreateHumanEvaluatorDrawer/state"
+
 const SelectAppSection = dynamic(() => import("./SelectAppSection"), {ssr: false})
 
 const CreateEvaluatorDrawer = dynamic(() => import("./CreateEvaluatorDrawer"), {ssr: false})
+
+const CreateHumanEvaluatorDrawer = dynamic(() => import("./CreateHumanEvaluatorDrawer"), {
+    ssr: false,
+})
 
 const SelectEvaluatorSection = dynamic(
     () => import("./SelectEvaluatorSection/SelectEvaluatorSection"),
@@ -76,10 +82,16 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     const hasAppOptions = appOptions.length > 0
 
     const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
+    const openHumanEvaluatorDrawer = useSetAtom(openHumanEvaluatorDrawerAtom)
 
     const handleCreateApp = useCallback(() => {
         redirectUrl()
     }, [redirectUrl])
+
+    // Handler for opening the human evaluator creation drawer (preview mode)
+    const handleCreateHumanEvaluator = useCallback(() => {
+        openHumanEvaluatorDrawer()
+    }, [openHumanEvaluatorDrawer])
 
     // Handler for opening the evaluator creation drawer
     const handleSelectTemplate = useCallback(
@@ -254,6 +266,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         evaluatorConfigs={evaluatorConfigs}
                         selectedAppId={selectedAppId}
                         onSelectTemplate={handleSelectTemplate}
+                        onCreateHumanEvaluator={handleCreateHumanEvaluator}
                         className="pt-2"
                     />
                 ) : (
@@ -308,6 +321,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         hasAppOptions,
         handleCreateApp,
         handleSelectTemplate,
+        handleCreateHumanEvaluator,
     ])
 
     return (
@@ -338,8 +352,11 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 />
             </div>
 
-            {/* Inline evaluator creation drawer */}
+            {/* Inline evaluator creation drawer (automatic evaluators) */}
             <CreateEvaluatorDrawer onEvaluatorCreated={onEvaluatorCreated} />
+
+            {/* Inline human evaluator creation drawer (preview/human mode) */}
+            <CreateHumanEvaluatorDrawer onEvaluatorCreated={onEvaluatorCreated} />
         </>
     )
 }

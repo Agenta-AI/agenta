@@ -50,6 +50,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     evaluatorConfigs: propsEvaluatorConfigs,
     selectedAppId,
     onSelectTemplate,
+    onCreateHumanEvaluator,
     ...props
 }: SelectEvaluatorSectionProps & {preview?: Preview}) => {
     const {projectURL} = useURL()
@@ -347,7 +348,11 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                             ) : (
                                 <Button
                                     icon={<PlusOutlined />}
-                                    onClick={() => router.push(evaluatorsRegistryUrl)}
+                                    onClick={
+                                        preview && onCreateHumanEvaluator
+                                            ? onCreateHumanEvaluator
+                                            : () => router.push(evaluatorsRegistryUrl)
+                                    }
                                 >
                                     Create new
                                 </Button>
@@ -368,7 +373,11 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                                 <Button
                                     type="primary"
                                     icon={<PlusOutlined />}
-                                    onClick={() => router.push(evaluatorsRegistryUrl)}
+                                    onClick={
+                                        preview && onCreateHumanEvaluator
+                                            ? onCreateHumanEvaluator
+                                            : () => router.push(evaluatorsRegistryUrl)
+                                    }
                                 >
                                     Create your first evaluator
                                 </Button>
