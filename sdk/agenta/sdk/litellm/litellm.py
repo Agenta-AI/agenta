@@ -309,7 +309,7 @@ def litellm_handler():
                 prompt_tokens = None
                 completion_tokens = None
                 total_tokens = None
-            elif isinstance(usage, Dict):
+            elif isinstance(usage, dict):
                 prompt_tokens = usage.get("prompt_tokens")
                 completion_tokens = usage.get("completion_tokens")
                 total_tokens = usage.get("total_tokens")
