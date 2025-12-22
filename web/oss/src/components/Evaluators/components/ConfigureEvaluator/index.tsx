@@ -21,9 +21,7 @@ import ConfigureEvaluatorSkeleton from "./assets/ConfigureEvaluatorSkeleton"
 
 const ConfigureEvaluator = dynamic(
     () =>
-        import(
-            "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator"
-        ),
+        import("@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator"),
     {ssr: false},
 )
 
@@ -69,16 +67,17 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
     const [selectedTestset, setSelectedTestset] = useState("")
 
     useEffect(() => {
+        if (isLoadingEvaluatorConfigs) return
         if (existingConfig) {
             setEditMode(true)
             setEditEvalEditValues(existingConfig)
             setCloneConfig(false)
-        } else {
-            setEditMode(false)
-            setEditEvalEditValues(null)
-            setCloneConfig(false)
+            return
         }
-    }, [existingConfig])
+        setEditMode(false)
+        setEditEvalEditValues(null)
+        setCloneConfig(false)
+    }, [existingConfig, isLoadingEvaluatorConfigs])
 
     const isLoading = isLoadingEvaluators || isLoadingEvaluatorConfigs || isLoadingEvaluatorByKey
 

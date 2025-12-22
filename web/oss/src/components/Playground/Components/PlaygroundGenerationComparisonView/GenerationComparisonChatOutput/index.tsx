@@ -6,6 +6,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import TurnMessageAdapter from "@/oss/components/Playground/adapters/TurnMessageAdapter"
 // Shared placeholder for empty state
 import {usePlaygroundLayout} from "@/oss/components/Playground/hooks/usePlaygroundLayout"
+import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 import {
     generationInputRowIdsAtom,
     generationRowIdsAtom,
