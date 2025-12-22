@@ -1,19 +1,24 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {PythonOutlined} from "@ant-design/icons"
-import {FileCode, FileTs} from "@phosphor-icons/react"
-import {Select, Tabs, Typography} from "antd"
+import {FileCodeIcon, FileTsIcon} from "@phosphor-icons/react"
+import {Tabs, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
+import SelectVariant from "@/oss/components/Playground/Components/Menus/SelectVariant"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {currentAppAtom} from "@/oss/state/app"
 import {revisionsByVariantIdAtomFamily, variantsAtom} from "@/oss/state/variant/atoms/fetcher"
 import {
     latestRevisionInfoByVariantIdAtomFamily,
     revisionListAtom,
 } from "@/oss/state/variant/selectors/variant"
+import {buildPythonSnippet} from "@/oss/code_snippets/endpoints/fetch_variant/python"
+import {buildTypescriptSnippet} from "@/oss/code_snippets/endpoints/fetch_variant/typescript"
+import {buildCurlSnippet} from "@/oss/code_snippets/endpoints/fetch_variant/curl"
 
 const ApiKeyInput = dynamic(
     () => import("@/oss/components/pages/app-management/components/ApiKeyInput"),
@@ -28,79 +33,6 @@ interface CodeSnippets {
     python: string
     typescript: string
     bash: string
-}
-
-const buildPythonSnippet = (appSlug: string, variantSlug: string, variantVersion: number) => {
-    return `# Fetch configuration by variant
-import agenta as ag
-
-config = ag.ConfigManager.get_from_registry(
-    app_slug="${appSlug}",
-    variant_slug="${variantSlug}",
-    variant_version=${variantVersion}  # Optional: If not provided, fetches the latest version
-)
-
-print("Fetched configuration:")
-print(config)
-`
-}
-
-const buildTypescriptSnippet = (
-    appSlug: string,
-    variantSlug: string,
-    variantVersion: number,
-    apiKey: string,
-) => {
-    return `// Fetch configuration by variant
-const fetchResponse = await fetch('https://cloud.agenta.ai/api/variants/configs/fetch', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer ${apiKey}'
-  },
-  body: JSON.stringify({
-    variant_ref: {
-      slug: '${variantSlug}',
-      version: ${variantVersion},
-      id: null
-    },
-    application_ref: {
-      slug: '${appSlug}',
-      version: null,
-      id: null
-    }
-  })
-});
-
-const config = await fetchResponse.json();
-console.log('Fetched configuration:');
-console.log(config);
-`
-}
-
-const buildCurlSnippet = (
-    appSlug: string,
-    variantSlug: string,
-    variantVersion: number,
-    apiKey: string,
-) => {
-    return `# Fetch configuration by variant
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/fetch" \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer ${apiKey}" \\
-  -d '{
-    "variant_ref": {
-      "slug": "${variantSlug}",
-      "version": ${variantVersion},
-      "id": null
-    },
-    "application_ref": {
-      "slug": "${appSlug}",
-      "version": null,
-      "id": null
-    }
-  }'
-`
 }
 
 const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) => {
@@ -167,25 +99,6 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         variantRevisions,
     ])
 
-    const variantOptions = useMemo(
-        () =>
-            variants.map((variant) => ({
-                value: variant.variantId,
-                label: variant.variantName || variant.name || "Unnamed variant",
-            })),
-        [variants],
-    )
-
-    const revisionOptions = useMemo(() => {
-        const sortedRevisions = (variantRevisions || [])
-            .slice()
-            .sort((a, b) => b.revision - a.revision)
-        return sortedRevisions.map((revision) => ({
-            value: revision.id,
-            label: `Version ${revision.revision}`,
-        }))
-    }, [variantRevisions])
-
     const selectedVariant = useMemo(
         () => variants.find((variant) => variant.variantId === selectedVariantId),
         [selectedVariantId, variants],
@@ -195,6 +108,14 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         () => (variantRevisions || []).find((revision) => revision.id === selectedRevisionId),
         [selectedRevisionId, variantRevisions],
     )
+
+    useEffect(() => {
+        if (!selectedRevisionId) return
+        const revision = revisionList.find((item) => item.id === selectedRevisionId)
+        if (revision?.variantId && revision.variantId !== selectedVariantId) {
+            setSelectedVariantId(revision.variantId)
+        }
+    }, [revisionList, selectedRevisionId, selectedVariantId])
 
     const variantSlug =
         (selectedVariant as any)?.variantSlug ||
@@ -218,64 +139,23 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         const activeSnippet = codeSnippets[selectedLang as keyof CodeSnippets]
 
         return (
-            <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-2">
-                    <div className="flex flex-col gap-2 flex-1">
-                        <Typography.Text className="font-medium">Variant</Typography.Text>
-                        <Select
-                            showSearch
-                            options={variantOptions}
-                            placeholder="Select a variant"
-                            value={selectedVariantId}
-                            onChange={(value) => {
-                                setSelectedVariantId(value)
-                                setSelectedRevisionId(undefined)
-                            }}
-                            filterOption={(input, option) =>
-                                (option?.label as string)
-                                    .toLowerCase()
-                                    .includes(input.toLowerCase())
-                            }
-                        />
-                    </div>
-
-                    <div className="flex flex-col gap-2 flex-1">
-                        <Typography.Text className="font-medium">Version</Typography.Text>
-                        <Select
-                            showSearch
-                            options={revisionOptions}
-                            placeholder="Select a version"
-                            value={selectedRevisionId}
-                            onChange={(value) => setSelectedRevisionId(value)}
-                            disabled={!selectedVariantId}
-                            filterOption={(input, option) =>
-                                (option?.label as string)
-                                    .toLowerCase()
-                                    .includes(input.toLowerCase())
-                            }
-                        />
-                    </div>
+            <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                    <Typography.Text className="font-medium">Use API</Typography.Text>
+                    <CopyButton text={activeSnippet} icon={true} buttonText={null} />
                 </div>
-
-                <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
-
-                <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                        <Typography.Text className="font-medium">Use API</Typography.Text>
-                        <CopyButton text={activeSnippet} icon={true} buttonText={null} />
-                    </div>
-                    <CodeBlock language={selectedLang} value={activeSnippet} />
-                </div>
+                <CodeBlock language={selectedLang} value={activeSnippet} />
             </div>
         )
     }, [
         apiKeyValue,
         codeSnippets,
-        revisionOptions,
+        revisionList,
         selectedLang,
+        selectedRevision?.id,
+        selectedRevision?.isLatestRevision,
+        selectedRevision?.revision,
         selectedRevisionId,
-        selectedVariantId,
-        variantOptions,
     ])
 
     const tabItems = useMemo(
@@ -289,13 +169,13 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
             {
                 key: "typescript",
                 label: "TypeScript",
-                icon: <FileTs size={14} />,
+                icon: <FileTsIcon size={14} />,
                 children: renderTabChildren(),
             },
             {
                 key: "bash",
                 label: "cURL",
-                icon: <FileCode size={14} />,
+                icon: <FileCodeIcon size={14} />,
                 children: renderTabChildren(),
             },
         ],
@@ -303,12 +183,50 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     )
 
     return (
-        <Tabs
-            items={tabItems}
-            onChange={setSelectedLang}
-            activeKey={selectedLang}
-            destroyInactiveTabPane
-        />
+        <div>
+            <div className="flex flex-col gap-6 p-4">
+                <div className="flex flex-col">
+                    <Typography.Text className="font-medium">Variant</Typography.Text>
+                    <div className="flex items-center gap-2">
+                        <SelectVariant
+                            value={selectedRevisionId}
+                            onChange={(value) => {
+                                const nextRevisionId = value as string
+                                setSelectedRevisionId(nextRevisionId)
+                                const revision = revisionList.find(
+                                    (item) => item.id === nextRevisionId,
+                                )
+                                if (revision?.variantId) {
+                                    setSelectedVariantId(revision.variantId)
+                                }
+                            }}
+                            showCreateNew={false}
+                            showLatestTag={false}
+                            className="w-[186px]"
+                        />
+                        <VariantDetailsWithStatus
+                            revision={selectedRevision?.revision ?? null}
+                            variant={{
+                                id: selectedRevision?.id || "",
+                                deployedIn: [],
+                                isLatestRevision: selectedRevision?.isLatestRevision ?? false,
+                            }}
+                            hideName
+                            showRevisionAsTag
+                            showLatestTag={false}
+                        />
+                    </div>
+                </div>
+
+                <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+            </div>
+            <Tabs
+                items={tabItems}
+                onChange={setSelectedLang}
+                activeKey={selectedLang}
+                destroyInactiveTabPane
+            />
+        </div>
     )
 }
 
