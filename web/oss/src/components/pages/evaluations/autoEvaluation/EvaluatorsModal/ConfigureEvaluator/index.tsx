@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {ArrowLeft, Info} from "@phosphor-icons/react"
+import {CloseOutlined} from "@ant-design/icons"
+import {ArrowLeft, Info, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Form, Input, Space, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -58,6 +59,16 @@ interface ConfigureEvaluatorProps {
     onSuccess: () => void
     /** Optional container class for height customization (e.g., drawer vs page) */
     containerClassName?: string
+    /**
+     * UI variant:
+     * - page: existing standalone evaluator playground layout (default)
+     * - drawer: inline evaluator creation drawer layout (Figma)
+     */
+    uiVariant?: "page" | "drawer"
+    /** Drawer-only: whether the right test panel is visible */
+    isTestPanelOpen?: boolean
+    /** Drawer-only: toggle the right test panel */
+    onToggleTestPanel?: () => void
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -109,7 +120,14 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const ConfigureEvaluator = ({onClose, onSuccess, containerClassName}: ConfigureEvaluatorProps) => {
+const ConfigureEvaluator = ({
+    onClose,
+    onSuccess,
+    containerClassName,
+    uiVariant = "page",
+    isTestPanelOpen = true,
+    onToggleTestPanel,
+}: ConfigureEvaluatorProps) => {
     const routeAppId = useAppId()
     const apps = useAppList()
     const appId = routeAppId ?? apps?.[0]?.app_id
@@ -146,6 +164,9 @@ const ConfigureEvaluator = ({onClose, onSuccess, containerClassName}: ConfigureE
 
     // Watch form name field for display in header
     const formName = Form.useWatch("name", form)
+
+    const isDrawerVariant = uiVariant === "drawer"
+    const shouldShowTestPanel = isDrawerVariant ? Boolean(isTestPanelOpen) : true
 
     const settingsPresets = useMemo(
         () => selectedEvaluator?.settings_presets || [],
@@ -367,140 +388,297 @@ const ConfigureEvaluator = ({onClose, onSuccess, containerClassName}: ConfigureE
         return null
     }
 
+    const commitDisabled = isDrawerVariant
+        ? !String(form.getFieldValue("name") ?? "").trim() || submitLoading
+        : submitLoading
+
     return (
         <>
             <section className={containerClassName ?? "flex flex-col w-full h-[calc(100vh-84px)]"}>
-                {/* Top Header - grey like playground */}
-                <div className="flex items-center justify-between gap-4 px-2.5 py-2 border-0 border-b border-solid border-gray-200 sticky top-0 z-20 bg-[#FAFAFB]">
-                    <div className="flex items-center gap-2">
-                        <Button
-                            icon={<ArrowLeft size={14} />}
-                            className="flex items-center justify-center"
-                            size="small"
-                            onClick={onClose}
-                        />
-                        <Typography.Text className="text-[16px] leading-[18px] font-[600]">
-                            {editMode ? "Edit evaluator" : "Configure evaluator"}
-                        </Typography.Text>
-                    </div>
-                </div>
-
-                <div className="flex w-full h-full overflow-hidden">
-                    {/* Left Column */}
-                    <div className="flex-1 flex flex-col h-full min-w-0 border-r border-gray-200 border-0 border-solid overflow-y-auto">
-                        {/* Evaluator Name & Actions */}
-                        <div className="h-[48px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-white flex-shrink-0 sticky top-0 z-10">
-                            <Typography.Text className="font-semibold text-[14px]">
+                {isDrawerVariant ? (
+                    <div className="h-[56px] flex items-center justify-between gap-3 px-4 border-0 border-b border-solid border-gray-200 sticky top-0 z-20 bg-white">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <Button
+                                icon={<CloseOutlined />}
+                                className="flex items-center justify-center"
+                                size="small"
+                                type="text"
+                                onClick={onClose}
+                            />
+                            <Typography.Text className="text-[14px] leading-[22px] font-[500] truncate">
                                 {formName || "New evaluator"}
                             </Typography.Text>
-                            <Space>
-                                <Button type="text" onClick={() => form.resetFields()}>
-                                    Reset
-                                </Button>
-                                <Button
-                                    type="primary"
-                                    loading={submitLoading}
-                                    onClick={form.submit}
-                                >
-                                    Commit
-                                </Button>
-                            </Space>
                         </div>
 
-                        {/* Configuration Header */}
-                        <div className="h-[48px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-[#FAFAFB] flex-shrink-0 sticky top-[48px] z-10">
-                            <Space size={8} align="center">
-                                <span className="text-[14px] font-medium text-gray-800">
-                                    Configuration
-                                </span>
-                                <Tag color={selectedEvaluator.color || "default"}>
-                                    {selectedEvaluator.name}
-                                </Tag>
-                                <Tooltip title={selectedEvaluator.description}>
-                                    <span className="flex items-center">
-                                        <Info size={16} className="text-gray-500 cursor-help" />
-                                    </span>
-                                </Tooltip>
-                            </Space>
-                            {settingsPresets.length > 0 && (
-                                <Button
-                                    size="small"
-                                    onClick={() => setIsLoadEvaluatorPresetsModalOpen(true)}
-                                >
-                                    Load Preset
-                                </Button>
-                            )}
-                        </div>
-
-                        {/* Scrollable Form Area */}
-                        <div className="p-4">
-                            <Form
-                                requiredMark={false}
-                                form={form}
-                                name="new-evaluator"
-                                onFinish={onSubmit}
-                                layout="vertical"
-                                className={classes.formContainer}
+                        <Space size={8} align="center">
+                            <Button
+                                size="small"
+                                onClick={onToggleTestPanel}
+                                disabled={!onToggleTestPanel}
+                                icon={<SidebarSimple size={14} />}
                             >
-                                <div className="flex gap-4">
-                                    <Form.Item
-                                        name="name"
-                                        label="Name"
-                                        rules={[
-                                            {
-                                                required: true,
-                                                message: "This field is required",
-                                            },
-                                        ]}
-                                        className="w-full"
+                                {shouldShowTestPanel ? "Hide test" : "Test evaluator"}
+                            </Button>
+                            <Button
+                                size="small"
+                                type="text"
+                                onClick={() => form.resetFields()}
+                                disabled={submitLoading}
+                            >
+                                Reset
+                            </Button>
+                            <Button
+                                size="small"
+                                type="primary"
+                                loading={submitLoading}
+                                disabled={commitDisabled}
+                                onClick={form.submit}
+                            >
+                                Commit
+                            </Button>
+                        </Space>
+                    </div>
+                ) : (
+                    // Existing page header
+                    <div className="flex items-center justify-between gap-4 px-2.5 py-2 border-0 border-b border-solid border-gray-200 sticky top-0 z-20 bg-[#FAFAFB]">
+                        <div className="flex items-center gap-2">
+                            <Button
+                                icon={<ArrowLeft size={14} />}
+                                className="flex items-center justify-center"
+                                size="small"
+                                onClick={onClose}
+                            />
+                            <Typography.Text className="text-[16px] leading-[18px] font-[600]">
+                                {editMode ? "Edit evaluator" : "Configure evaluator"}
+                            </Typography.Text>
+                        </div>
+                    </div>
+                )}
+
+                {isDrawerVariant ? (
+                    <div className="flex w-full flex-1 min-h-0 overflow-hidden">
+                        {/* Left Column */}
+                        <div
+                            className={[
+                                "flex-1 flex flex-col h-full min-w-0 overflow-hidden",
+                                shouldShowTestPanel
+                                    ? "border-r border-gray-200 border-0 border-solid"
+                                    : "",
+                            ].join(" ")}
+                        >
+                            {/* Configuration Header */}
+                            <div className="h-[40px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-[#FAFAFB] flex-shrink-0">
+                                <Space size={8} align="center">
+                                    <span className="text-[12px] font-medium text-gray-800">
+                                        Configuration
+                                    </span>
+                                    <Tag color={selectedEvaluator.color || "default"}>
+                                        {selectedEvaluator.name}
+                                    </Tag>
+                                    <Tooltip title={selectedEvaluator.description}>
+                                        <span className="flex items-center">
+                                            <Info size={16} className="text-gray-500 cursor-help" />
+                                        </span>
+                                    </Tooltip>
+                                </Space>
+                                {settingsPresets.length > 0 && (
+                                    <Button
+                                        size="small"
+                                        onClick={() => setIsLoadEvaluatorPresetsModalOpen(true)}
                                     >
-                                        <Input />
-                                    </Form.Item>
-                                </div>
+                                        Load Preset
+                                    </Button>
+                                )}
+                            </div>
 
-                                {basicSettingsFields.length ? (
-                                    <div className="h-full w-full max-w-full flex flex-col gap-2">
-                                        <Typography.Text className="text-xs font-medium">
-                                            Parameters
-                                        </Typography.Text>
-
-                                        {basicSettingsFields.map((field) => (
-                                            <DynamicFormField
-                                                {...field}
-                                                key={field.key}
-                                                traceTree={traceTree}
-                                                form={form}
-                                                name={["settings_values", field.key]}
-                                            />
-                                        ))}
+                            {/* Scrollable Form Area */}
+                            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
+                                <Form
+                                    requiredMark={false}
+                                    form={form}
+                                    name="new-evaluator"
+                                    onFinish={onSubmit}
+                                    layout="vertical"
+                                    className="flex flex-col gap-4 w-full min-w-0"
+                                >
+                                    <div className="flex gap-4">
+                                        <Form.Item
+                                            name="name"
+                                            label="Name"
+                                            rules={[
+                                                {
+                                                    required: true,
+                                                    message: "This field is required",
+                                                },
+                                            ]}
+                                            className="w-full"
+                                        >
+                                            <Input />
+                                        </Form.Item>
                                     </div>
-                                ) : null}
 
-                                {advancedSettingsFields.length > 0 && (
-                                    <div className="h-fit">
+                                    {basicSettingsFields.length ? (
+                                        <div className="w-full max-w-full flex flex-col gap-2">
+                                            <Typography.Text className="text-xs font-medium">
+                                                Parameters
+                                            </Typography.Text>
+
+                                            {basicSettingsFields.map((field) => (
+                                                <DynamicFormField
+                                                    {...field}
+                                                    key={field.key}
+                                                    traceTree={traceTree}
+                                                    form={form}
+                                                    name={["settings_values", field.key]}
+                                                />
+                                            ))}
+                                        </div>
+                                    ) : null}
+
+                                    {advancedSettingsFields.length > 0 && (
                                         <AdvancedSettings
                                             settings={advancedSettingsFields}
                                             selectedTestcase={selectedTestcase}
                                         />
-                                    </div>
+                                    )}
+                                </Form>
+                            </div>
+                        </div>
+
+                        {/* Right Column */}
+                        {shouldShowTestPanel && (
+                            <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+                                {/* Test Evaluator Header */}
+                                <div className="h-[40px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-[#FAFAFB] flex-shrink-0">
+                                    <span className="font-medium text-[12px]">Test evaluator</span>
+                                </div>
+
+                                {/* Debug Section Content */}
+                                <div className="flex-1 overflow-y-auto p-4">
+                                    <DebugSection />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    // Existing page layout (keep unchanged to avoid regressions)
+                    <div className="flex w-full h-full overflow-hidden">
+                        {/* Left Column */}
+                        <div className="flex-1 flex flex-col h-full min-w-0 border-r border-gray-200 border-0 border-solid overflow-y-auto">
+                            {/* Evaluator Name & Actions */}
+                            <div className="h-[48px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-white flex-shrink-0 sticky top-0 z-10">
+                                <Typography.Text className="font-semibold text-[14px]">
+                                    {formName || "New evaluator"}
+                                </Typography.Text>
+                                <Space>
+                                    <Button type="text" onClick={() => form.resetFields()}>
+                                        Reset
+                                    </Button>
+                                    <Button
+                                        type="primary"
+                                        loading={submitLoading}
+                                        onClick={form.submit}
+                                    >
+                                        Commit
+                                    </Button>
+                                </Space>
+                            </div>
+
+                            {/* Configuration Header */}
+                            <div className="h-[48px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-[#FAFAFB] flex-shrink-0 sticky top-[48px] z-10">
+                                <Space size={8} align="center">
+                                    <span className="text-[14px] font-medium text-gray-800">
+                                        Configuration
+                                    </span>
+                                    <Tag color={selectedEvaluator.color || "default"}>
+                                        {selectedEvaluator.name}
+                                    </Tag>
+                                    <Tooltip title={selectedEvaluator.description}>
+                                        <span className="flex items-center">
+                                            <Info size={16} className="text-gray-500 cursor-help" />
+                                        </span>
+                                    </Tooltip>
+                                </Space>
+                                {settingsPresets.length > 0 && (
+                                    <Button
+                                        size="small"
+                                        onClick={() => setIsLoadEvaluatorPresetsModalOpen(true)}
+                                    >
+                                        Load Preset
+                                    </Button>
                                 )}
-                            </Form>
+                            </div>
+
+                            {/* Scrollable Form Area */}
+                            <div className="p-4">
+                                <Form
+                                    requiredMark={false}
+                                    form={form}
+                                    name="new-evaluator"
+                                    onFinish={onSubmit}
+                                    layout="vertical"
+                                    className={`${classes.formContainer} min-w-0`}
+                                >
+                                    <div className="flex gap-4">
+                                        <Form.Item
+                                            name="name"
+                                            label="Name"
+                                            rules={[
+                                                {
+                                                    required: true,
+                                                    message: "This field is required",
+                                                },
+                                            ]}
+                                            className="w-full"
+                                        >
+                                            <Input />
+                                        </Form.Item>
+                                    </div>
+
+                                    {basicSettingsFields.length ? (
+                                        <div className="h-full w-full max-w-full flex flex-col gap-2">
+                                            <Typography.Text className="text-xs font-medium">
+                                                Parameters
+                                            </Typography.Text>
+
+                                            {basicSettingsFields.map((field) => (
+                                                <DynamicFormField
+                                                    {...field}
+                                                    key={field.key}
+                                                    traceTree={traceTree}
+                                                    form={form}
+                                                    name={["settings_values", field.key]}
+                                                />
+                                            ))}
+                                        </div>
+                                    ) : null}
+
+                                    {advancedSettingsFields.length > 0 && (
+                                        <div className="h-fit">
+                                            <AdvancedSettings
+                                                settings={advancedSettingsFields}
+                                                selectedTestcase={selectedTestcase}
+                                            />
+                                        </div>
+                                    )}
+                                </Form>
+                            </div>
+                        </div>
+
+                        {/* Right Column */}
+                        <div className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto">
+                            {/* Test Evaluator Header */}
+                            <div className="h-[48px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-white flex-shrink-0 sticky top-0 z-10">
+                                <span className="font-semibold text-[14px]">Test evaluator</span>
+                            </div>
+
+                            {/* Debug Section Content - without its own title */}
+                            <div className="p-4">
+                                <DebugSection />
+                            </div>
                         </div>
                     </div>
-
-                    {/* Right Column */}
-                    <div className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto">
-                        {/* Test Evaluator Header */}
-                        <div className="h-[48px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-white flex-shrink-0 sticky top-0 z-10">
-                            <span className="font-semibold text-[14px]">Test evaluator</span>
-                        </div>
-
-                        {/* Debug Section Content - without its own title */}
-                        <div className="p-4">
-                            <DebugSection />
-                        </div>
-                    </div>
-                </div>
+                )}
             </section>
 
             <LoadEvaluatorPreset

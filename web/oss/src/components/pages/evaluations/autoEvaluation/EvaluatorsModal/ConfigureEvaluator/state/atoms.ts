@@ -16,9 +16,10 @@
 
 import type {FormInstance} from "antd"
 import {atom} from "jotai"
-import {atomWithReset, RESET} from "jotai/utils"
+import {atomWithReset, atomWithStorage, RESET} from "jotai/utils"
 
 import type {Evaluator, EvaluatorConfig, Variant} from "@/oss/lib/Types"
+import {stringStorage} from "@/oss/state/utils/stringStorage"
 
 // ================================================================
 // TYPES
@@ -131,6 +132,26 @@ export const playgroundTraceTreeAtom = atomWithReset<TraceTreeState>({
     trace: null,
 })
 
+/**
+ * Persisted atom for the last used app ID in the evaluator debug section.
+ * Stored in localStorage with key "agenta:evaluator-debug:last-app-id"
+ */
+export const playgroundLastAppIdAtom = atomWithStorage<string | null>(
+    "agenta:evaluator-debug:last-app-id",
+    null,
+    stringStorage,
+)
+
+/**
+ * Persisted atom for the last used variant ID in the evaluator debug section.
+ * Stored in localStorage with key "agenta:evaluator-debug:last-variant-id"
+ */
+export const playgroundLastVariantIdAtom = atomWithStorage<string | null>(
+    "agenta:evaluator-debug:last-variant-id",
+    null,
+    stringStorage,
+)
+
 // ================================================================
 // ACTION ATOMS
 // These provide a clean API for state transitions
@@ -173,12 +194,8 @@ export const initPlaygroundAtom = atom(
             set(playgroundEditValuesAtom, RESET)
         }
 
-        // Reset test section state for fresh start
-        // Note: We don't reset testset ID here - let the component initialize
-        // it from available testsets (same pattern as prompt playground)
-        set(playgroundSelectedVariantAtom, RESET)
-        set(playgroundSelectedTestcaseAtom, RESET)
-        set(playgroundTraceTreeAtom, RESET)
+        // Note: We intentionally do NOT reset test section state (variant, testcase, trace)
+        // This allows users to test different evaluators with the same testcase - less friction
     },
 )
 
@@ -234,6 +251,48 @@ export const cloneCurrentConfigAtom = atom(null, (get, set) => {
 
     // Keep edit values but they'll be treated as a template
     // The form will clear the name field for clone mode
+})
+
+// ================================================================
+// DRAWER STATE
+// These manage the inline drawer in the evaluation creation modal
+// ================================================================
+
+/**
+ * Controls whether the inline evaluator creation drawer is open
+ * Used by the NewEvaluation modal to show/hide the ConfigureEvaluator drawer
+ */
+export const evaluatorDrawerOpenAtom = atomWithReset<boolean>(false)
+
+/**
+ * Action to open the drawer with a specific evaluator template
+ * This combines opening the drawer AND initializing the playground
+ */
+export const openEvaluatorDrawerAtom = atom(
+    null,
+    (
+        get,
+        set,
+        payload: {
+            evaluator: Evaluator
+            existingConfig?: EvaluatorConfig | null
+            mode?: PlaygroundMode
+        },
+    ) => {
+        // Initialize the playground with the evaluator
+        set(initPlaygroundAtom, payload)
+        // Open the drawer
+        set(evaluatorDrawerOpenAtom, true)
+    },
+)
+
+/**
+ * Action to close the drawer and reset playground state
+ */
+export const closeEvaluatorDrawerAtom = atom(null, (get, set) => {
+    set(evaluatorDrawerOpenAtom, false)
+    // Reset playground state when closing
+    set(resetPlaygroundAtom)
 })
 
 // ================================================================
