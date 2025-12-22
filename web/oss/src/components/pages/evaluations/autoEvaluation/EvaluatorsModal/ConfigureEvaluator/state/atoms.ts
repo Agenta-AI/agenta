@@ -16,9 +16,10 @@
 
 import type {FormInstance} from "antd"
 import {atom} from "jotai"
-import {atomWithReset, RESET} from "jotai/utils"
+import {atomWithReset, atomWithStorage, RESET} from "jotai/utils"
 
 import type {Evaluator, EvaluatorConfig, Variant} from "@/oss/lib/Types"
+import {stringStorage} from "@/oss/state/utils/stringStorage"
 
 // ================================================================
 // TYPES
@@ -130,6 +131,26 @@ export const playgroundSelectedTestcaseAtom = atomWithReset<TestcaseSelection>({
 export const playgroundTraceTreeAtom = atomWithReset<TraceTreeState>({
     trace: null,
 })
+
+/**
+ * Persisted atom for the last used app ID in the evaluator debug section.
+ * Stored in localStorage with key "agenta:evaluator-debug:last-app-id"
+ */
+export const playgroundLastAppIdAtom = atomWithStorage<string | null>(
+    "agenta:evaluator-debug:last-app-id",
+    null,
+    stringStorage,
+)
+
+/**
+ * Persisted atom for the last used variant ID in the evaluator debug section.
+ * Stored in localStorage with key "agenta:evaluator-debug:last-variant-id"
+ */
+export const playgroundLastVariantIdAtom = atomWithStorage<string | null>(
+    "agenta:evaluator-debug:last-variant-id",
+    null,
+    stringStorage,
+)
 
 // ================================================================
 // ACTION ATOMS

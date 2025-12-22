@@ -29,7 +29,7 @@ import {
 import {Database, Lightning, Play} from "@phosphor-icons/react"
 import {Button, Dropdown, Flex, Space, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
@@ -79,6 +79,8 @@ import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {
     playgroundEvaluatorAtom,
     playgroundFormRefAtom,
+    playgroundLastAppIdAtom,
+    playgroundLastVariantIdAtom,
     playgroundSelectedTestcaseAtom,
     playgroundSelectedTestsetIdAtom,
     playgroundSelectedVariantAtom,
@@ -135,9 +137,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const LAST_APP_KEY = "agenta:lastAppId"
-const LAST_VARIANT_KEY = "agenta:lastVariantId"
-
 const DebugSection = () => {
     const appId = useAppId()
     const classes = useStyles()
@@ -162,6 +161,8 @@ const DebugSection = () => {
     const setTraceTree = useSetAtom(playgroundTraceTreeAtom)
     const selectedEvaluator = useAtomValue(playgroundEvaluatorAtom)
     const form = useAtomValue(playgroundFormRefAtom)
+    const [lastAppId, setLastAppId] = useAtom(playgroundLastAppIdAtom)
+    const [lastVariantId, setLastVariantId] = useAtom(playgroundLastVariantIdAtom)
 
     const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
     const [outputResult, setOutputResult] = useState("")
@@ -186,15 +187,13 @@ const DebugSection = () => {
     const defaultAppId = useMemo(() => {
         if (_selectedVariant?.appId) return _selectedVariant.appId
         if (appId) return appId
-        // Check localStorage for last used app
-        const storedAppId =
-            typeof window !== "undefined" ? localStorage.getItem(LAST_APP_KEY) : null
-        if (storedAppId && availableApps?.some((a: any) => a.app_id === storedAppId)) {
-            return storedAppId
+        // Check persisted last used app
+        if (lastAppId && availableApps?.some((a: any) => a.app_id === lastAppId)) {
+            return lastAppId
         }
         const firstApp = availableApps?.[0]
         return firstApp?.app_id ?? ""
-    }, [_selectedVariant?.appId, appId, availableApps])
+    }, [_selectedVariant?.appId, appId, availableApps, lastAppId])
 
     const {revisionMap: defaultRevisionMap} = useAppVariantRevisions(defaultAppId || null)
 
@@ -230,28 +229,23 @@ const DebugSection = () => {
         return availableApps.find((a: any) => a.app_id === id)
     }, [_selectedVariant?.appId, defaultAppId, availableApps])
 
-    // Initialize from localStorage (remember last app/variant) with fallbacks
+    // Initialize from persisted state (remember last app/variant) with fallbacks
     useEffect(() => {
         // if already have a selected variant, respect it
         if (_selectedVariant) return
-
-        const storedAppId =
-            typeof window !== "undefined" ? localStorage.getItem(LAST_APP_KEY) : null
-        const storedVariantId =
-            typeof window !== "undefined" ? localStorage.getItem(LAST_VARIANT_KEY) : null
 
         let nextVariant: Variant | null = null
 
         // Search among derived variants (fetched internally)
         const searchPool: Variant[] = derivedVariants.filter(Boolean) as Variant[]
 
-        if (storedVariantId) {
-            nextVariant = searchPool.find((v) => (v as any)?.variantId === storedVariantId) || null
+        if (lastVariantId) {
+            nextVariant = searchPool.find((v) => (v as any)?.variantId === lastVariantId) || null
         }
 
         // If not found by variant, but we have an app id, try first variant under that app
-        if (!nextVariant && storedAppId) {
-            nextVariant = searchPool.find((v) => (v as any)?.appId === storedAppId) || null
+        if (!nextVariant && lastAppId) {
+            nextVariant = searchPool.find((v) => (v as any)?.appId === lastAppId) || null
         }
 
         // Fall back to first available variant
@@ -262,27 +256,15 @@ const DebugSection = () => {
         if (nextVariant) {
             setSelectedVariant(nextVariant)
         }
-    }, [_selectedVariant, derivedVariants, setSelectedVariant])
+    }, [_selectedVariant, derivedVariants, setSelectedVariant, lastAppId, lastVariantId])
 
     // Persist whenever the working selectedVariant changes
     useEffect(() => {
         const v = _selectedVariant as any
         if (!v) return
-        try {
-            if (v.appId) localStorage.setItem(LAST_APP_KEY, v.appId)
-            if (v.variantId) localStorage.setItem(LAST_VARIANT_KEY, v.variantId)
-        } catch {
-            // ignore storage errors (private mode, etc.)
-        }
-    }, [_selectedVariant])
-
-    // Set initial variant from derived variants if none selected
-    useEffect(() => {
-        if (_selectedVariant) return
-        if (derivedVariants.length > 0) {
-            setSelectedVariant(derivedVariants[0])
-        }
-    }, [_selectedVariant, derivedVariants, setSelectedVariant])
+        if (v.appId) setLastAppId(v.appId)
+        if (v.variantId) setLastVariantId(v.variantId)
+    }, [_selectedVariant, setLastAppId, setLastVariantId])
 
     // Initialize testset selection when testsets are available
     useEffect(() => {
@@ -1105,14 +1087,9 @@ const DebugSection = () => {
                 onCancel={() => setOpenVariantModal(false)}
                 setSelectedVariant={(v) => {
                     setSelectedVariant(v)
-                    // Persist selection to localStorage
-                    try {
-                        if ((v as any)?.appId) localStorage.setItem(LAST_APP_KEY, (v as any).appId)
-                        if ((v as any)?.variantId)
-                            localStorage.setItem(LAST_VARIANT_KEY, (v as any).variantId)
-                    } catch {
-                        // Ignore storage errors
-                    }
+                    // Persist selection via atoms
+                    if ((v as any)?.appId) setLastAppId((v as any).appId)
+                    if ((v as any)?.variantId) setLastVariantId((v as any).variantId)
                 }}
                 selectedVariant={selectedVariant}
                 selectedTestsetId={selectedTestset}
