@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.69.7",
+    "version": "0.70.0",
     "workspaces": [
         "ee",
         "oss",
@@ -74,7 +74,8 @@
         ],
         "overrides": {
             "prismjs@<1.30.0": ">=1.30.0",
-            "@babel/runtime@<7.26.10": ">=7.26.10"
+            "@babel/runtime@<7.26.10": ">=7.26.10",
+            "mdast-util-to-hast@<13.2.1": ">=13.2.1"
         }
     }
 }
