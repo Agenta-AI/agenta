@@ -502,6 +502,16 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "CyrusNamjoo",
+      "name": "Sirous Namjoo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/209579763?v=4",
+      "profile": "https://github.com/CyrusNamjoo",
+      "contributions": [
+        "doc",
+        "example"
+      ]
     }
   ],
   "contributorsPerLine": 7,

@@ -32,17 +32,13 @@ import {
 
 const LoadEvaluatorPreset = dynamic(
     () =>
-        import(
-            "@/agenta-oss-common/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/components/modals/LoadEvaluatorPreset"
-        ),
+        import("@/agenta-oss-common/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/components/modals/LoadEvaluatorPreset"),
     {ssr: false},
 )
 
 const DebugSection: any = dynamic(
     () =>
-        import(
-            "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection"
-        ),
+        import("@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection"),
     {ssr: false},
 )
 
@@ -164,6 +160,11 @@ const ConfigureEvaluator = ({
 
     // Watch form name field for display in header
     const formName = Form.useWatch("name", form)
+    const headerName = useMemo(() => {
+        if (formName) return formName
+        if (editMode) return editEvalEditValues?.name ?? ""
+        return ""
+    }, [editEvalEditValues?.name, editMode, formName])
 
     const isDrawerVariant = uiVariant === "drawer"
     const shouldShowTestPanel = isDrawerVariant ? Boolean(isTestPanelOpen) : true
@@ -406,7 +407,7 @@ const ConfigureEvaluator = ({
                                 onClick={onClose}
                             />
                             <Typography.Text className="text-[14px] leading-[22px] font-[500] truncate">
-                                {formName || "New evaluator"}
+                                {headerName || "New evaluator"}
                             </Typography.Text>
                         </div>
 
