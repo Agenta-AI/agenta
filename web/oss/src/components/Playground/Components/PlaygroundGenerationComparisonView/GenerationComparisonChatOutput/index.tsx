@@ -20,7 +20,7 @@ import {
 import LastTurnFooterControls from "../../ChatCommon/LastTurnFooterControls"
 import GenerationChatTurnNormalized from "../../PlaygroundGenerations/assets/GenerationChatTurnNormalized"
 import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
-
+import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputCellProps} from "./types"
 
 // No local schema plumbing; PromptMessageConfig derives structure internally
