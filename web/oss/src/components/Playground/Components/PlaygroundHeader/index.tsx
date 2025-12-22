@@ -13,7 +13,6 @@ import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
 import {usePlaygroundLayout} from "../../hooks/usePlaygroundLayout"
 import {variantListDisplayAtom} from "../../state/atoms"
-import NewVariantButton from "../Modals/CreateVariantModal/assets/NewVariantButton"
 import type {BaseContainerProps} from "../types"
 
 import RunEvaluationButton from "./RunEvaluationButton"
@@ -144,14 +143,13 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <RunEvaluationButton />
                     <SelectVariant
                         showAsCompare
                         multiple
                         onChange={(value) => onAddVariant(value)}
                         value={displayedVariants}
                     />
-                    <RunEvaluationButton />
-                    <NewVariantButton label="Variant" size="small" />
                 </div>
             </div>
         </>
