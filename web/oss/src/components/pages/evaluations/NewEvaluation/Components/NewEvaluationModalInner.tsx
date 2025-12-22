@@ -471,7 +471,7 @@ const NewEvaluationModalInner = ({
                 }
             } else {
                 try {
-                    await createEvaluation(targetAppId, {
+                    const response = await createEvaluation(targetAppId, {
                         testset_id: selectedTestsetId,
                         revisions_ids: selectedVariantRevisionIds,
                         evaluators_configs: selectedEvalConfigs,
@@ -479,6 +479,38 @@ const NewEvaluationModalInner = ({
                         correct_answer_column: correct_answer_column,
                         name: evaluationName,
                     })
+
+                    // Extract run ID from response and build link to results
+                    const runId = response.data?.runs?.[0]?.id
+                    if (runId) {
+                        const scope = isAppScoped ? "app" : "project"
+                        const resultsUrl = buildEvaluationNavigationUrl({
+                            scope,
+                            baseAppURL,
+                            projectURL,
+                            appId: targetAppId,
+                            path: `/evaluations/results/${runId}`,
+                        })
+
+                        message.success(
+                            <span>
+                                Evaluation started.{" "}
+                                <a
+                                    href={resultsUrl}
+                                    onClick={(e) => {
+                                        e.preventDefault()
+                                        router.push(resultsUrl)
+                                    }}
+                                    className="underline font-medium"
+                                >
+                                    View progress
+                                </a>
+                            </span>,
+                        )
+                    } else {
+                        message.success("Evaluation started")
+                    }
+
                     // Trigger revalidation and close modal after successful creation
                     onSuccess?.()
                 } catch (error) {
