@@ -76,7 +76,7 @@ const CreateEvaluatorDrawer = ({onEvaluatorCreated}: CreateEvaluatorDrawerProps)
                 <ConfigureEvaluator
                     onClose={handleClose}
                     onSuccess={handleSuccess}
-                    containerClassName="flex flex-col w-full h-[calc(100vh-56px)]"
+                    containerClassName="flex flex-col w-full h-full"
                     uiVariant="drawer"
                     isTestPanelOpen={isTestPanelOpen}
                     onToggleTestPanel={() => setIsTestPanelOpen((v) => !v)}
