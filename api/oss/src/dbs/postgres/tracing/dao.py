@@ -1153,26 +1153,35 @@ class TracingDAO(TracingDAOInterface):
             # TIMEOUT
             await session.execute(TIMEOUT_STMT)
 
-            # Select distinct session IDs from JSONB
+            # Select session IDs from JSONB
             stmt = (
                 select(
-                    distinct(
-                        SpanDBE.attributes["ag"]["session"]["id"].as_string()
-                    ).label("session_id")
+                    SpanDBE.attributes["ag"]["session"]["id"].as_string().label(
+                        "session_id"
+                    )
                 )
                 .filter(SpanDBE.project_id == project_id)
                 .filter(SpanDBE.attributes["ag"]["session"].has_key("id"))
             )
 
-            # Apply windowing
+            # Apply windowing filters manually
+            # We cannot use apply_windowing() because it adds an ORDER BY clause
+            # which conflicts with GROUP BY (must order by aggregate)
             if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=SpanDBE,
-                    attribute="start_time",
-                    order="descending",
-                    windowing=windowing,
-                )
+                if windowing.oldest:
+                    stmt = stmt.filter(SpanDBE.start_time >= windowing.oldest)
+                if windowing.newest:
+                    stmt = stmt.filter(SpanDBE.start_time < windowing.newest)
+
+            # Group by session ID to get unique sessions
+            stmt = stmt.group_by("session_id")
+
+            # Order by latest activity (MAX start_time)
+            stmt = stmt.order_by(func.max(SpanDBE.start_time).desc())
+
+            # Apply limit
+            if windowing and windowing.limit:
+                stmt = stmt.limit(windowing.limit)
 
             result = await session.execute(stmt)
             rows = result.all()

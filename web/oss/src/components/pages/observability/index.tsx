@@ -1,9 +1,11 @@
-import {useMemo} from "react"
+import {useAtom} from "jotai"
+import {useEffect, useMemo} from "react"
 
 import {Chats, TreeStructure} from "@phosphor-icons/react"
 import {Tabs, Typography} from "antd"
 
 import {useQueryParamState} from "@/oss/state/appState"
+import {observabilityTabAtom} from "@/oss/state/newObservability/atoms/controls"
 
 import ObservabilityTable from "./components/ObservabilityTable"
 
@@ -12,6 +14,11 @@ import SessionsTable from "./components/SessionsTable"
 const ObservabilityTabs = () => {
     const [tabParam, setTabParam] = useQueryParamState("tab", "traces")
     const activeTab = (tabParam as "traces" | "sessions") || "traces"
+    const [, setObservabilityTab] = useAtom(observabilityTabAtom)
+
+    useEffect(() => {
+        setObservabilityTab(activeTab)
+    }, [activeTab, setObservabilityTab])
 
     const tabItems = useMemo(() => {
         const size = 14

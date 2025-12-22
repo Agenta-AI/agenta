@@ -22,23 +22,25 @@ import {projectIdAtom} from "@/oss/state/project"
 import {sessionExistsAtom} from "../../session"
 
 import {
-    filtersAtom,
-    limitAtom,
+    filtersAtomFamily,
+    limitAtomFamily,
     selectedNodeAtom,
     selectedTraceIdAtom,
-    sortAtom,
+    sortAtomFamily,
     traceTabsAtom,
+    traceTabsAtomFamily,
+    userFiltersAtomFamily,
 } from "./controls"
 import {buildTraceQueryParams, executeTraceQuery, mergeConditions} from "./queryHelpers"
 
 // Traces query ----------------------------------------------------------------
 export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
     const appId = get(selectedAppIdAtom)
-    const sort = get(sortAtom)
-    const filters = get(filtersAtom)
-    const traceTabs = get(traceTabsAtom)
+    const sort = get(sortAtomFamily("traces"))
+    const filters = get(filtersAtomFamily("traces"))
+    const traceTabs = get(traceTabsAtomFamily("traces"))
     const projectId = get(projectIdAtom)
-    const limit = get(limitAtom)
+    const limit = get(limitAtomFamily("traces"))
 
     const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
         buildTraceQueryParams(filters, sort, traceTabs, limit)
@@ -257,19 +259,20 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
 
     const projectId = get(projectIdAtom)
 
-    const sort = get(sortAtom)
+    const sort = get(sortAtomFamily("sessions"))
+    const filters = get(userFiltersAtomFamily("sessions"))
     const windowing: {oldest?: string; newest?: string} = {}
 
-    // if (sort?.type === "standard" && sort.sorted) {
-    //     windowing.oldest = sort.sorted
-    // } else if (
-    //     sort?.type === "custom" &&
-    //     (sort.customRange?.startTime || sort.customRange?.endTime)
-    // ) {
-    //     const {startTime, endTime} = sort.customRange
-    //     if (startTime) windowing.oldest = startTime
-    //     if (endTime) windowing.newest = endTime
-    // }
+    if (sort?.type === "standard" && sort.sorted) {
+        windowing.oldest = sort.sorted
+    } else if (
+        sort?.type === "custom" &&
+        (sort.customRange?.startTime || sort.customRange?.endTime)
+    ) {
+        const {startTime, endTime} = sort.customRange
+        if (startTime) windowing.oldest = startTime
+        if (endTime) windowing.newest = endTime
+    }
 
     const sessionExists = get(sessionExistsAtom)
 
@@ -284,6 +287,7 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
                 appId: (appId as string) || undefined,
                 windowing: Object.keys(windowing).length > 0 ? windowing : undefined,
                 cursor: pageParam,
+                filter: filters && filters.length > 0 ? filters : undefined,
             })
 
             return {
@@ -332,27 +336,15 @@ export const sessionCountAtom = selectAtom(
 // Session Spans ---------------------------------------------------------------
 export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
     const appId = get(selectedAppIdAtom)
-    const sort = get(sortAtom)
-    const filters = get(filtersAtom)
-    const traceTabs = get(traceTabsAtom)
+    const sort = get(sortAtomFamily("sessions"))
+    // const filters = get(filtersAtomFamily("sessions"))
+    const traceTabs = get(traceTabsAtomFamily("sessions"))
     const projectId = get(projectIdAtom)
-    const limit = get(limitAtom)
+    const limit = get(limitAtomFamily("sessions"))
     const sessionIds = get(sessionIdsAtom)
 
     const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
-        buildTraceQueryParams(filters, sort, traceTabs, limit)
-
-    // Inject session ID filter
-    if (sessionIds.length > 0) {
-        params.filter = mergeConditions(params.filter, [
-            {
-                field: "attributes",
-                key: "ag.session.id",
-                operator: "is",
-                value: "something",
-            },
-        ])
-    }
+        buildTraceQueryParams([], undefined, traceTabs, limit)
 
     const sessionExists = get(sessionExistsAtom)
 

@@ -64,6 +64,7 @@ export const fetchSessions = async (params: {
         newest?: string
     }
     cursor?: string
+    filter?: any
 }) => {
     const base = getBaseUrl()
     const projectId = ensureProjectId()
@@ -79,6 +80,9 @@ export const fetchSessions = async (params: {
     }
     if (params.cursor) {
         payload.cursor = params.cursor
+    }
+    if (params.filter) {
+        payload.filter = params.filter
     }
 
     return fetchJson(url, {

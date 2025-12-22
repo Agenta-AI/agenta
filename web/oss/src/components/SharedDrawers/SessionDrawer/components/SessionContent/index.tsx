@@ -13,19 +13,25 @@ const SessionContent = () => {
             <SessionContentSummary />
 
             <div className="w-full flex flex-col gap-4">
-                {sessionTraces.map((trace: any, index: number) => {
-                    const messages = extractTraceData(trace)
+                {[...sessionTraces]
+                    .sort((a: any, b: any) => {
+                        const timeA = new Date(a.start_time).getTime()
+                        const timeB = new Date(b.start_time).getTime()
+                        return timeB - timeA
+                    })
+                    .map((trace: any, index: number) => {
+                        const messages = extractTraceData(trace)
 
-                    return (
-                        <div id={trace.span_id} key={trace.span_id || index}>
-                            <SessionMessagePanel
-                                label={`Trace ${index + 1}`}
-                                value={messages}
-                                trace={trace}
-                            />
-                        </div>
-                    )
-                })}
+                        return (
+                            <div id={trace.span_id} key={trace.span_id || index}>
+                                <SessionMessagePanel
+                                    label={`Trace ${sessionTraces.length - index}`}
+                                    value={messages}
+                                    trace={trace}
+                                />
+                            </div>
+                        )
+                    })}
             </div>
         </section>
     )

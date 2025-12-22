@@ -105,15 +105,17 @@ export const sessionTracesQueryAtom = atomWithQuery((get) => {
 
     // Default params for session traces
     const params: any = {
-        filter: [
-            {
-                field: "attributes",
-                key: "ag.session.id",
-                operator: "is",
-                value: sessionId,
-            },
-        ],
-        type: "trace",
+        filter: {
+            conditions: [
+                {
+                    field: "attributes",
+                    key: "ag.session.id",
+                    operator: "is",
+                    value: sessionId,
+                },
+            ],
+        },
+        focus: "trace",
     }
 
     return {
