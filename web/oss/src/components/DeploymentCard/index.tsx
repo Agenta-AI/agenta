@@ -44,7 +44,7 @@ const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
         <Card
             className={classes.deploymentCard}
             style={{
-                borderColor: selectedEnv === env.name ? "#BDC7D1" : undefined,
+                borderColor: selectedEnv === env.name ? "#1C2C3D" : undefined,
             }}
             {...props}
         >
