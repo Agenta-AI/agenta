@@ -116,7 +116,9 @@ class VaultMiddleware(BaseHTTPMiddleware):
         allow_secrets = True
 
         try:
-            if not request.url.path in _ALWAYS_ALLOW_LIST:
+            if not any(
+                request.url.path.endswith(allowed) for allowed in _ALWAYS_ALLOW_LIST
+            ):
                 await self._allow_local_secrets(credentials)
 
             for provider_kind in _PROVIDER_KINDS:

@@ -64,7 +64,9 @@ class AuthHTTPMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable):
         try:
-            if request.url.path in _ALWAYS_ALLOW_LIST:
+            if any(
+                request.url.path.endswith(allowed) for allowed in _ALWAYS_ALLOW_LIST
+            ):
                 request.state.auth = {}
 
             else:
