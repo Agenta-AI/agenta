@@ -6,6 +6,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import TurnMessageAdapter from "@/oss/components/Playground/adapters/TurnMessageAdapter"
 // Shared placeholder for empty state
 import {usePlaygroundLayout} from "@/oss/components/Playground/hooks/usePlaygroundLayout"
+import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 import {
     generationInputRowIdsAtom,
     generationRowIdsAtom,
@@ -20,7 +21,7 @@ import {
 import LastTurnFooterControls from "../../ChatCommon/LastTurnFooterControls"
 import GenerationChatTurnNormalized from "../../PlaygroundGenerations/assets/GenerationChatTurnNormalized"
 import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
-import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
+
 import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputCellProps} from "./types"
 
 // No local schema plumbing; PromptMessageConfig derives structure internally
