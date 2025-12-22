@@ -17,14 +17,12 @@ import agenta as ag
 
 log = get_module_logger(__name__)
 
-AGENTA_RUNTIME_PREFIX = getenv("AGENTA_RUNTIME_PREFIX", "")
-
 
 _CACHE_ENABLED = (
     getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
 )
 
-_ALWAYS_ALLOW_LIST = [f"{AGENTA_RUNTIME_PREFIX}/health"]
+_ALWAYS_ALLOW_LIST = ["/health"]
 
 _cache = TTLLRUCache()
 
@@ -64,9 +62,7 @@ class AuthHTTPMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable):
         try:
-            if any(
-                request.url.path.endswith(allowed) for allowed in _ALWAYS_ALLOW_LIST
-            ):
+            if _strip_service_prefix(request.url.path) in _ALWAYS_ALLOW_LIST:
                 request.state.auth = {}
 
             else:
@@ -255,3 +251,20 @@ class AuthHTTPMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 content=f"Could not verify credentials: unexpected error - {str(exc)}. Please try again later or contact support if the issue persists.",
             ) from exc
+
+
+def _strip_service_prefix(path: str) -> str:
+    if not path.startswith("/services/"):
+        return path
+
+    parts = path.split("/", 3)
+    if len(parts) < 4:
+        return "/"
+
+    service_name = parts[2]
+    remainder = parts[3]
+
+    if not service_name or not remainder or remainder.startswith("/"):
+        return path
+
+    return f"/{remainder}"
