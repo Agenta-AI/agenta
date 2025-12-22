@@ -63,32 +63,14 @@ class TraceProcessor(SpanProcessor):
 
         for key in self.references.keys():
             ref = self.references[key]
-            # Serialize Reference objects to avoid OpenTelemetry warnings
             if isinstance(ref, BaseModel):
                 try:
                     ref = ref.model_dump(mode="json", exclude_none=True)
                 except:  # pylint: disable=bare-except
                     pass
-            if not isinstance(ref, dict):
-                continue
-            if not ref.get("id") and not ref.get("slug") and not ref.get("version"):
-                continue
-
-            if ref.get("id"):
-                span.set_attribute(
-                    f"ag.refs.{key}.id",
-                    str(ref.get("id")),
-                )
-            if ref.get("slug"):
-                span.set_attribute(
-                    f"ag.refs.{key}.slug",
-                    str(ref.get("slug")),
-                )
-            if ref.get("version"):
-                span.set_attribute(
-                    f"ag.refs.{key}.version",
-                    str(ref.get("version")),
-                )
+            if isinstance(ref, dict):
+                for field, value in ref.items():
+                    span.set_attribute(f"ag.refs.{key}.{field}", str(value))
 
         baggage = get_baggage(parent_context)
 
@@ -96,25 +78,16 @@ class TraceProcessor(SpanProcessor):
             if key.startswith("ag."):
                 value = baggage[key]
 
-                # Check if this is a reference attribute (ag.refs.*)
                 if key.startswith("ag.refs."):
-                    # Serialize Reference objects to avoid OpenTelemetry warnings
                     ref = value
                     if isinstance(value, BaseModel):
                         try:
                             ref = value.model_dump(mode="json", exclude_none=True)  # type: ignore
                         except:  # pylint: disable=bare-except
                             pass
-
                     if isinstance(ref, dict):
-                        if ref.get("id"):
-                            span.set_attribute(f"{key}.id", str(ref.get("id")))
-                        if ref.get("slug"):
-                            span.set_attribute(f"{key}.slug", str(ref.get("slug")))
-                        if ref.get("version"):
-                            span.set_attribute(
-                                f"{key}.version", str(ref.get("version"))
-                            )
+                        for field, val in ref.items():
+                            span.set_attribute(f"{key}.{field}", str(val))
                 else:
                     # Not a reference - only set if it's a valid attribute type
                     if isinstance(value, (str, bool, int, float, bytes)):
@@ -178,26 +151,9 @@ class TraceProcessor(SpanProcessor):
                         ref = ref.model_dump(mode="json", exclude_none=True)
                     except:  # pylint: disable=bare-except
                         pass
-                if not isinstance(ref, dict):
-                    continue
-                if not ref.get("id") and not ref.get("slug") and not ref.get("version"):
-                    continue
-
-                if ref.get("id"):
-                    span.set_attribute(
-                        f"ag.refs.{key}.id",
-                        str(ref.get("id")),
-                    )
-                if ref.get("slug"):
-                    span.set_attribute(
-                        f"ag.refs.{key}.slug",
-                        str(ref.get("slug")),
-                    )
-                if ref.get("version"):
-                    span.set_attribute(
-                        f"ag.refs.{key}.version",
-                        str(ref.get("version")),
-                    )
+                if isinstance(ref, dict):
+                    for field, value in ref.items():
+                        span.set_attribute(f"ag.refs.{key}.{field}", str(value))
 
         trace_id = span.context.trace_id
         span_id = span.context.span_id
