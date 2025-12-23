@@ -267,7 +267,7 @@ export function $createNodeForLineWithTabs(line: string, language: CodeLanguage)
                     i += tabs * tabSize
                     // If any leftover spaces, append as plain
                     for (; i < indent.length && indent[i] === " "; i++) {
-                        codeLine.append($createCodeTabNode())
+                        codeLine.append($createCodeHighlightNode(" ", "plain", false, null))
                     }
                 }
             }
