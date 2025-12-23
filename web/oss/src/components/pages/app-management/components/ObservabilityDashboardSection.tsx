@@ -2,7 +2,7 @@ import {useMemo, type ComponentProps} from "react"
 
 import {ChartLine} from "@phosphor-icons/react"
 import {AreaChart} from "@tremor/react"
-import {Spin, Typography} from "antd"
+import {Spin} from "antd"
 import {createUseStyles} from "react-jss"
 
 import WidgetCard from "@/oss/components/pages/observability/dashboard/widgetCard"
@@ -15,11 +15,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .ant-spin-nested-loading": {
             width: "100%",
         },
-    },
-    sectionSubtitle: {
-        fontSize: 13,
-        color: theme.colorTextSecondary,
-        fontWeight: 400,
     },
     emptyState: {
         display: "flex",
@@ -98,13 +93,7 @@ const ObservabilityDashboardSection = () => {
     )
 
     return (
-        <div className={`my-6 flex flex-col gap-4 ${classes.container}`}>
-            <div className="flex items-baseline justify-between">
-                <Typography.Title level={2} className="!m-0">
-                    Analytics
-                </Typography.Title>
-                <span className={classes.sectionSubtitle}>Last 30 days</span>
-            </div>
+        <div className={`flex flex-col gap-4 ${classes.container}`}>
             <Spin spinning={loading || isFetching}>
                 <div className={classes.widgetContainer}>
                     <div className="flex-1">

@@ -66,7 +66,7 @@ class TraceProcessor(SpanProcessor):
             if isinstance(ref, BaseModel):
                 try:
                     ref = ref.model_dump(mode="json", exclude_none=True)
-                except:  # pylint: disable=bare-except
+                except Exception:  # pylint: disable=bare-except
                     pass
             if isinstance(ref, dict):
                 for field, value in ref.items():
@@ -83,7 +83,7 @@ class TraceProcessor(SpanProcessor):
                     if isinstance(value, BaseModel):
                         try:
                             ref = value.model_dump(mode="json", exclude_none=True)  # type: ignore
-                        except:  # pylint: disable=bare-except
+                        except Exception:  # pylint: disable=bare-except
                             pass
                     if isinstance(ref, dict):
                         for field, val in ref.items():
@@ -126,7 +126,7 @@ class TraceProcessor(SpanProcessor):
                     if isinstance(link, BaseModel):
                         try:
                             link = link.model_dump(mode="json", exclude_none=True)
-                        except:  # pylint: disable=bare-except
+                        except Exception:
                             pass
                     if not isinstance(link, dict):
                         continue
@@ -149,7 +149,7 @@ class TraceProcessor(SpanProcessor):
                 if isinstance(ref, BaseModel):
                     try:
                         ref = ref.model_dump(mode="json", exclude_none=True)
-                    except:  # pylint: disable=bare-except
+                    except Exception:
                         pass
                 if isinstance(ref, dict):
                     for field, value in ref.items():

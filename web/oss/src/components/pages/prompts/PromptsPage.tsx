@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Typography, message} from "antd"
+import {message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -34,6 +34,8 @@ import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreati
 import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
 
+import PageLayout from "../../PageLayout/PageLayout"
+
 import {getAppTypeIcon} from "./assets/iconHelpers"
 import {FolderTreeItem, slugify} from "./assets/utils"
 import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
@@ -54,8 +56,6 @@ const CreateAppStatusModal: any = dynamic(
 const AddAppFromTemplatedModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/AddAppFromTemplateModal"),
 )
-
-const {Title} = Typography
 
 const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
     name: "",
@@ -774,11 +774,7 @@ const PromptsPage = () => {
     })
 
     return (
-        <div className="flex flex-col gap-4 grow w-full min-h-0 p-6">
-            <Title className="!m-0" level={2}>
-                Prompts
-            </Title>
-
+        <PageLayout className="grow min-h-0" title="Prompts">
             <PromptsBreadcrumb
                 foldersById={foldersById}
                 currentFolderId={currentFolderId}
@@ -882,7 +878,7 @@ const PromptsPage = () => {
 
             <DeleteAppModal />
             <EditAppModal />
-        </div>
+        </PageLayout>
     )
 }
 
