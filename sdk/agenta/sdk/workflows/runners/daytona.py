@@ -152,9 +152,9 @@ class DaytonaRunner(CodeRunner):
                 or ""
             )
             agenta_api_key = (
-                agenta_credentials.startswith("ApiKey ")
-                and agenta_credentials[7:]
-                or ""
+                agenta_credentials[7:]
+                if agenta_credentials.startswith("ApiKey ")
+                else ""
             )
 
             # Get provider API keys from user secrets

@@ -6,7 +6,6 @@ Simple predicate test to check if NumPy is available/installed.
 """
 
 from typing import Dict, Union, Any
-import json
 
 
 def evaluate(
