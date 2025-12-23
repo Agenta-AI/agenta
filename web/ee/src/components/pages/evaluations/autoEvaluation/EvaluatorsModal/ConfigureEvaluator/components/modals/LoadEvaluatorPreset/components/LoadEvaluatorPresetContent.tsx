@@ -1,7 +1,7 @@
 import React, {useState} from "react"
-import yaml from "js-yaml"
 
 import {Menu, Divider, Typography, Input, Radio} from "antd"
+import yaml from "js-yaml"
 
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {SettingsPreset} from "@/oss/lib/Types"
@@ -23,8 +23,7 @@ const LoadEvaluatorPresetContent = ({
               preset.name.toLowerCase().includes(searchTerm.toLowerCase()),
           )
 
-    const activePreset =
-        settingsPresets.find((preset) => preset.key === selectedPresetKey) ?? null
+    const activePreset = settingsPresets.find((preset) => preset.key === selectedPresetKey) ?? null
 
     const presetPreview = (() => {
         if (!activePreset) return ""
