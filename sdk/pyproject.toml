@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.69.5"
+version = "0.69.8"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = [

@@ -375,12 +375,12 @@ const METADATA_ROWS: MetadataRowRecord[] = [
                 const refs = invocationRefs?.rawRefs ?? {}
                 return Boolean(
                     invocationRefs?.applicationId ||
-                        refs?.application ||
-                        refs?.application_revision ||
-                        refs?.applicationRevision ||
-                        refs?.agent ||
-                        refs?.agent_revision ||
-                        refs?.agentRevision,
+                    refs?.application ||
+                    refs?.application_revision ||
+                    refs?.applicationRevision ||
+                    refs?.agent ||
+                    refs?.agent_revision ||
+                    refs?.agentRevision,
                 )
             }),
     },
@@ -393,10 +393,10 @@ const METADATA_ROWS: MetadataRowRecord[] = [
                 const refs = invocationRefs?.rawRefs ?? {}
                 return Boolean(
                     invocationRefs?.variantId ||
-                        invocationRefs?.applicationVariantId ||
-                        refs?.variant ||
-                        refs?.applicationVariant ||
-                        refs?.application_variant,
+                    invocationRefs?.applicationVariantId ||
+                    refs?.variant ||
+                    refs?.applicationVariant ||
+                    refs?.application_variant,
                 )
             }),
     },
