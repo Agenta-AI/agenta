@@ -130,9 +130,9 @@ const PreviewCreatedByCellContent = ({
 
     const isCurrentUser = Boolean(
         currentUser &&
-        ((currentUser.id && candidateIds.includes(currentUser.id)) ||
-            (currentUsername && candidateNames.includes(currentUsername)) ||
-            (currentEmail && candidateNames.includes(currentEmail))),
+            ((currentUser.id && candidateIds.includes(currentUser.id)) ||
+                (currentUsername && candidateNames.includes(currentUsername)) ||
+                (currentEmail && candidateNames.includes(currentEmail))),
     )
 
     if (!createdBy) {

@@ -47,7 +47,9 @@ import {classifyStep} from "../views/SingleScenarioViewerPOC"
 
 const Annotate = dynamic(
     () =>
-        import("@agenta/oss/src/components/pages/observability/drawer/AnnotateDrawer/assets/Annotate"),
+        import(
+            "@agenta/oss/src/components/pages/observability/drawer/AnnotateDrawer/assets/Annotate"
+        ),
     {ssr: false},
 )
 

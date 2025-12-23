@@ -106,9 +106,7 @@ export function AutoFormatAndValidateOnPastePlugin() {
                 }
 
                 // Get the actual language from the CodeBlock node, or default to "code"
-                const language = $isCodeBlockNode(parentBlock)
-                    ? parentBlock.getLanguage()
-                    : "code"
+                const language = $isCodeBlockNode(parentBlock) ? parentBlock.getLanguage() : "code"
                 log("Paste: Initial selection state", {
                     selection,
                     anchorNode,

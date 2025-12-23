@@ -69,10 +69,10 @@ const usePreviewVariantConfig = (
 
     const isLoading = Boolean(
         enabled &&
-        effectiveProjectId &&
-        revisionId &&
-        !hasConfig &&
-        (query?.isLoading || query?.isFetching || query?.isPending),
+            effectiveProjectId &&
+            revisionId &&
+            !hasConfig &&
+            (query?.isLoading || query?.isFetching || query?.isPending),
     )
 
     return {config, isLoading}
