@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -145,17 +145,20 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     const descriptionChanged = getDraft?.description !== undefined
 
     // Set revision context and run all side effects via consolidated effect atom
-    // This handles: setting revision ID, cleanup, column reset, v0 draft init
+    // This handles: setting revision ID, cleanup, column reset, row ID sync
     const runRevisionChangeEffect = useSetAtom(revisionChangeEffectAtom)
     useEffect(() => {
         runRevisionChangeEffect(revisionId ?? null)
     }, [revisionId, runRevisionChangeEffect])
 
-    // Sync row IDs from datasetStore to entity atoms
-    // This runs AFTER the query settles and data is in the cache
+    // Row IDs are synced automatically via revisionChangeEffectAtom
+    // which subscribes to testcaseRowIdsAtom changes
     const rowIds = useAtomValue(testcaseRowIdsAtom)
+
+    // Trigger sync when row IDs change (data arrives from paginated fetch)
     const syncRowIds = useSetAtom(syncRowIdsToEntityAtom)
-    useEffect(() => {
+    // Using useMemo to avoid creating effect - sync happens synchronously when rowIds change
+    useMemo(() => {
         if (rowIds.length > 0) {
             syncRowIds()
         }
