@@ -81,6 +81,13 @@ export function cleanupTestcaseAtomsBatch(testcaseIds: string[]) {
 const previousRevisionIdAtom = atom<string | null>(null)
 
 /**
+ * Atom to track which revision local entities were created for
+ * This is set by TestsetDrawer's selectRevisionAtom when creating local entities
+ * Used to prevent cleanup from clearing entities that were just created
+ */
+export const localEntitiesRevisionAtom = atom<string | null>(null)
+
+/**
  * Write-only atom to cleanup atoms when revision changes
  * Call this from your hook when revisionId changes
  *
@@ -108,8 +115,13 @@ export const cleanupOnRevisionChangeAtom = atom(null, (get, set, newRevisionId: 
     // Reset testcase IDs for new revision
     set(resetTestcaseIdsAtom)
 
-    // Clear new entity IDs (client-created rows from previous revision)
-    set(clearNewEntityIdsAtom)
+    // Check if local entities were created for this revision (by TestsetDrawer)
+    // If so, DON'T clear them - they were just created and should be displayed
+    const localEntitiesRevision = get(localEntitiesRevisionAtom)
+    if (localEntitiesRevision !== newRevisionId) {
+        // Clear new entity IDs (client-created rows from previous revision)
+        set(clearNewEntityIdsAtom)
+    }
 
     // Clear deleted entity IDs (soft-deleted rows from previous revision)
     set(clearDeletedIdsAtom)

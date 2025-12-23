@@ -57,8 +57,8 @@ export {
     type LatestRevisionInfo,
 } from "./revisionEntity"
 
-// Re-export currentRevisionIdAtom from revisionContext for backward compatibility
-export {testcasesRevisionIdAtom as currentRevisionIdAtom} from "@/oss/components/TestcasesTableNew/atoms/revisionContext"
+// Re-export currentRevisionIdAtom from testcase queries (canonical location)
+export {currentRevisionIdAtom} from "../testcase/queries"
 
 // Dirty state (revision-level + aggregate testcase dirty states)
 export {

@@ -1,9 +1,8 @@
 import {atom} from "jotai"
 
-import {testcasesRevisionIdAtom} from "@/oss/components/TestcasesTableNew/atoms/revisionContext"
-
-import {currentColumnsAtom, hasColumnChangesAtom} from "../testcase/columnState"
+import {currentColumnsAtom} from "../testcase/columnState"
 import {consolidatedDirtyStateAtom} from "../testcase/consolidatedDirtyState"
+import {currentRevisionIdAtom} from "../testcase/queries"
 import {
     deletedEntityIdsAtom,
     newEntityIdsAtom,
@@ -24,7 +23,7 @@ import {revisionHasDraftAtomFamily} from "./revisionEntity"
  * Check if the current revision has any draft changes
  */
 export const revisionIsDirtyAtom = atom((get) => {
-    const revisionId = get(testcasesRevisionIdAtom)
+    const revisionId = get(currentRevisionIdAtom)
     if (!revisionId) return false
     return get(revisionHasDraftAtomFamily(revisionId))
 })
@@ -33,7 +32,7 @@ export const revisionIsDirtyAtom = atom((get) => {
  * Check if any metadata has changed (name/description via revision draft)
  */
 export const hasMetadataChangesAtom = atom((get) => {
-    const revisionId = get(testcasesRevisionIdAtom)
+    const revisionId = get(currentRevisionIdAtom)
     if (!revisionId) return false
     return get(revisionHasDraftAtomFamily(revisionId))
 })
