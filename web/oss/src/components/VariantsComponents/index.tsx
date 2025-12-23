@@ -20,7 +20,6 @@ import {useQueryParamState} from "@/oss/state/appState"
 import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
 import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {deployedVariantByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 import {
     selectedVariantsCountAtom,
     variantTableSelectionAtomFamily,
@@ -57,11 +56,7 @@ const VariantsDashboard = () => {
     const revisions = useAtomValue(revisionListAtom)
     const isVariantLoading = useAtomValue(variantsPendingAtom)
     const {environments, isEnvironmentsLoading} = useEnvironments({appId})
-    const selectedDeployedVariantAtom = useMemo(
-        () => deployedVariantByEnvironmentAtomFamily(selectedEnv),
-        [selectedEnv],
-    )
-    const selectedDeployedVariant = useAtomValue(selectedDeployedVariantAtom)
+
     const deploymentRevisionsAtom = useMemo(
         () => deploymentRevisionsWithAppIdQueryAtomFamily({appId, envName: selectedEnv ?? ""}),
         [appId, selectedEnv],
@@ -311,7 +306,7 @@ const VariantsDashboard = () => {
             </Flex>
 
             <DeploymentsDashboard
-                selectedEnvName={selectedEnv}
+                selectedEnvName={selectedEnv || ""}
                 envRevisions={envRevisions}
                 isLoading={isEnvironmentsLoading}
             />
