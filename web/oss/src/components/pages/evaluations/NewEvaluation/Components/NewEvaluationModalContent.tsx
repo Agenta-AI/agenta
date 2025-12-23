@@ -40,7 +40,13 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     handlePanelChange,
     activePanel,
     selectedTestsetId,
+    selectedTestsetRevisionId,
+    selectedTestsetName,
+    selectedTestsetVersion,
     setSelectedTestsetId,
+    setSelectedTestsetRevisionId,
+    setSelectedTestsetName,
+    setSelectedTestsetVersion,
     selectedVariantRevisionIds,
     setSelectedVariantRevisionIds,
     selectedEvalConfigs,
@@ -72,10 +78,11 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         redirectUrl()
     }, [redirectUrl])
 
-    const selectedTestset = useMemo(
-        () => testsets.find((ts) => ts._id === selectedTestsetId) || null,
-        [testsets, selectedTestsetId],
-    )
+    const selectedTestsetLabel = useMemo(() => {
+        if (selectedTestsetName) return selectedTestsetName
+        const legacy = testsets.find((ts) => ts._id === selectedTestsetId)
+        return legacy?.name ?? null
+    }, [selectedTestsetName, testsets, selectedTestsetId])
 
     const selectedVariants = useMemo(
         () => variants?.filter((v) => selectedVariantRevisionIds.includes(v.id)) || [],
@@ -177,15 +184,23 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "testsetPanel",
                 label: (
-                    <TabLabel tabTitle="Testset" completed={selectedTestset !== null}>
-                        {selectedTestset ? (
+                    <TabLabel tabTitle="Testset" completed={Boolean(selectedTestsetLabel)}>
+                        {selectedTestsetLabel ? (
                             <Tag
                                 closeIcon={<CloseCircleOutlined />}
                                 onClose={() => {
                                     setSelectedTestsetId("")
+                                    setSelectedTestsetRevisionId("")
+                                    setSelectedTestsetName("")
+                                    setSelectedTestsetVersion(null)
                                 }}
                             >
-                                {selectedTestset.name}
+                                <span>{selectedTestsetLabel} -</span>
+                                {typeof selectedTestsetVersion === "number" && (
+                                    <span className="ml-1 text-xs text-gray-500">
+                                        v{selectedTestsetVersion}
+                                    </span>
+                                )}
                             </Tag>
                         ) : null}
                     </TabLabel>
@@ -194,7 +209,13 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                     <SelectTestsetSection
                         handlePanelChange={handlePanelChange}
                         selectedTestsetId={selectedTestsetId}
+                        selectedTestsetRevisionId={selectedTestsetRevisionId}
+                        selectedTestsetName={selectedTestsetName}
+                        selectedTestsetVersion={selectedTestsetVersion}
                         setSelectedTestsetId={setSelectedTestsetId}
+                        setSelectedTestsetRevisionId={setSelectedTestsetRevisionId}
+                        setSelectedTestsetName={setSelectedTestsetName}
+                        setSelectedTestsetVersion={setSelectedTestsetVersion}
                         testsets={testsets}
                         selectedVariantRevisionIds={selectedVariantRevisionIds}
                         selectedVariants={selectedVariants}
@@ -267,7 +288,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 : []),
         ]
     }, [
-        selectedTestset,
+        selectedTestsetLabel,
         selectedVariants,
         selectedEvalConfig,
         handlePanelChange,
@@ -291,7 +312,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     ])
 
     return (
-        <div className="flex flex-col w-full gap-4 h-full overflow-hidden">
+        <div className="flex flex-col w-full gap-4 h-full overflow-hidden [&_.ant-tabs-tabpane]:w-full [&_.ant-tabs-tabpane]:h-full [&_.ant-tabs-content-holder]:flex [&_.ant-tabs-content-holder]:flex-col [&_.ant-tabs-content-holder]:w-full [&_.ant-tabs-content-left]:w-full [&_.ant-tabs-content-left]:grow [&_.ant-tabs-content-left]:min-h-0">
             <div className="flex flex-col gap-2">
                 <Typography.Text className="font-medium">Evaluation name</Typography.Text>
                 <Input
@@ -314,6 +335,12 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                     "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
                     "[&_.ant-tabs-nav]:!w-[240px]",
                 ])}
+                classNames={{
+                    // tab: "!p-2 !mt-1",
+                    // tabPane: "w-full h-full",
+                    content: "flex flex-col w-full h-full",
+                    // contentLeft: "w-full h-full grow min-h-0",
+                }}
             />
         </div>
     )

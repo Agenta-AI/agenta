@@ -1,6 +1,6 @@
 import {useCallback, memo, useEffect, useMemo, useRef, useState} from "react"
 
-import {getDefaultStore, useAtomValue} from "jotai"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -11,15 +11,10 @@ import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
 import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"
-import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {createEvaluation} from "@/oss/services/evaluations/api"
-import {fetchTestset} from "@/oss/services/testsets/api"
 import {useAppsData} from "@/oss/state/app/hooks"
 import {appIdentifiersAtom} from "@/oss/state/appState"
-import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
 import {useTestsetsData} from "@/oss/state/testset"
-import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {buildEvaluationNavigationUrl} from "../../utils"
 import {DEFAULT_ADVANCE_SETTINGS} from "../assets/constants"
@@ -102,6 +97,9 @@ const NewEvaluationModalInner = ({
         ])
 
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
+    const [selectedTestsetRevisionId, setSelectedTestsetRevisionId] = useState("")
+    const [selectedTestsetName, setSelectedTestsetName] = useState("")
+    const [selectedTestsetVersion, setSelectedTestsetVersion] = useState<number | null>(null)
     const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>([])
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
     const [activePanel, setActivePanel] = useState<string | null>(
@@ -130,6 +128,9 @@ const NewEvaluationModalInner = ({
             if (value === selectedAppId) return
             setSelectedAppId(value)
             setSelectedTestsetId("")
+            setSelectedTestsetRevisionId("")
+            setSelectedTestsetName("")
+            setSelectedTestsetVersion(null)
             setSelectedVariantRevisionIds([])
             setSelectedEvalConfigs([])
             setEvaluationName("")
@@ -231,7 +232,7 @@ const NewEvaluationModalInner = ({
             return
         }
 
-        // If user cleared the field (blur) -> restore auto-name
+        // If user cleared the field (blur) → restore auto-name
         if (!evaluationName) {
             setEvaluationName(lastAutoNameRef.current)
         }
@@ -242,8 +243,8 @@ const NewEvaluationModalInner = ({
             message.error("Please enter evaluation name")
             return false
         }
-        if (!selectedTestsetId) {
-            message.error("Please select a testset")
+        if (!selectedTestsetId || !selectedTestsetRevisionId) {
+            message.error("Please select a testset revision")
             return false
         }
         if (selectedVariantRevisionIds.length === 0) {
@@ -267,90 +268,17 @@ const NewEvaluationModalInner = ({
             return false
         }
 
-        // Validate variant
-        if (selectedVariantRevisionIds.length > 0) {
-            const revisions = filteredVariants?.filter((rev) =>
-                selectedVariantRevisionIds.includes(rev.id),
-            )
-            if (!revisions?.length) {
-                message.error("Please select variant")
-                return false
-            }
-
-            const _variantInputs = revisions
-                .map((rev) => {
-                    const store = getDefaultStore()
-                    const flags = store.get(variantFlagsAtomFamily({revisionId: rev.id})) as any
-                    const spec = store.get(appSchemaAtom) as any
-                    const routePath = store.get(appUriInfoAtom)?.routePath || ""
-                    const schemaKeys = spec
-                        ? extractInputKeysFromSchema(spec as any, routePath)
-                        : []
-                    if (flags?.isCustom) {
-                        // Custom workflows: strictly use schema-defined input keys
-                        return schemaKeys
-                    }
-                    // Non-custom: use stable variables from saved parameters (ignore live edits)
-                    const stableVars = store.get(stablePromptVariablesAtomFamily(rev.id)) || []
-                    return Array.from(new Set(stableVars))
-                })
-                .flat()
-
-            const testset = await fetchTestset(selectedTestsetId)
-            if (!testset) {
-                message.error("Please select a testset")
-                return false
-            }
-            const testsetColumns = Object.keys(testset?.csvdata[0] || {})
-
-            if (!testsetColumns.length) {
-                message.error("Please select a correct testset which has testcases")
-                return false
-            }
-
-            // Validate that testset contains required expected answer columns from selected evaluator configs
-            const missingColumnConfigs = selectedEvalConfigs
-                .map((configId) => evaluatorConfigs.find((config) => config.id === configId))
-                .filter((config) => {
-                    // Only check configs that have a correct_answer_key setting
-                    if (!config?.settings_values?.correct_answer_key) return false
-                    const expectedColumn = config.settings_values.correct_answer_key
-                    return !testsetColumns.includes(expectedColumn)
-                })
-
-            if (missingColumnConfigs.length > 0) {
-                const missingColumns = missingColumnConfigs
-                    .map((config) => config?.settings_values?.correct_answer_key)
-                    .filter(Boolean)
-                    .join(", ")
-                message.error(
-                    `Please select a testset that has the required expected answer columns: ${missingColumns}`,
-                )
-                return false
-            }
-
-            // if (variantInputs.length > 0) {
-            //     const isInputParamsAndTestsetColumnsMatch = variantInputs.every((input) => {
-            //         return testsetColumns.includes(input)
-            //     })
-            //     if (!isInputParamsAndTestsetColumnsMatch) {
-            //         message.error(
-            //             "The testset columns do not match the selected variant input parameters",
-            //         )
-            //         return false
-            //     }
-            // }
-        }
+        // Variant / column validation is temporarily disabled
         return true
     }, [
+        evaluationName,
         selectedTestsetId,
+        selectedTestsetRevisionId,
         selectedVariantRevisionIds,
         selectedEvalConfigs,
         evaluatorConfigs,
-        secrets,
         preview,
-        evaluationName,
-        filteredVariants,
+        secrets,
     ])
 
     const onSubmit = useCallback(async () => {
@@ -371,23 +299,24 @@ const NewEvaluationModalInner = ({
             const revisions = filteredVariants
             const {correct_answer_column, ...rateLimitValues} = advanceSettings
 
-            // Narrow evalDataSource with runtime guards for correct typing
-            let evalDataSource: typeof evaluatorConfigs | typeof evaluators
             if (preview) {
-                evalDataSource = evaluators
+                const evalDataSource: any[] = (evaluators as any[]) || []
+
+                const selectionTestset = selectedTestsetId
+                    ? ({
+                          _id: selectedTestsetId,
+                          revisionId: selectedTestsetRevisionId || undefined,
+                      } as any)
+                    : undefined
 
                 const selectionData = {
                     name: evaluationName,
                     revisions: revisions
                         ?.filter((rev) => selectedVariantRevisionIds.includes(rev.id))
                         .filter(Boolean),
-                    testset: testsets?.find((testset) => testset._id === selectedTestsetId),
+                    testset: selectionTestset,
                     evaluators: selectedEvalConfigs
-                        .map((id) =>
-                            (evalDataSource || []).find((config) => {
-                                return config.id === id
-                            }),
-                        )
+                        .map((id) => evalDataSource.find((config) => (config as any).id === id))
                         .filter(Boolean),
                     rate_limit: rateLimitValues,
                     correctAnswerColumn: correct_answer_column,
@@ -400,7 +329,9 @@ const NewEvaluationModalInner = ({
                     (evaluationType === "human" && !evaluationName)
                 ) {
                     message.error(
-                        `Please select a testset, app variant, ${evaluationType === "human" ? "evaluation name, and" : " and"} evaluator configuration. Missing: ${
+                        `Please select a testset, app variant, ${
+                            evaluationType === "human" ? "evaluation name, and" : " and"
+                        } evaluator configuration. Missing: ${
                             !selectionData.revisions?.length ? "app revision" : ""
                         } ${!selectionData.testset ? "testset" : ""} ${
                             !selectionData.evaluators?.length
@@ -412,31 +343,30 @@ const NewEvaluationModalInner = ({
                     )
                     onSubmitStateChange?.(false)
                     return
-                } else {
-                    const data = await createPreviewEvaluationRun(structuredClone(selectionData))
-
-                    const runId = data.run.runs[0].id
-                    const scope = isAppScoped ? "app" : "project"
-                    const targetPath = buildEvaluationNavigationUrl({
-                        scope,
-                        baseAppURL,
-                        projectURL,
-                        appId: targetAppId,
-                        path: `/evaluations/results/${runId}`,
-                    })
-
-                    // Trigger revalidation and close modal before redirect
-                    onSuccess?.()
-
-                    router.push({
-                        pathname: targetPath,
-                        query: {type: "human", view: "focus"},
-                    })
                 }
+
+                const data = await createPreviewEvaluationRun(structuredClone(selectionData))
+
+                const runId = data.run.runs[0].id
+                const scope = isAppScoped ? "app" : "project"
+                const targetPath = buildEvaluationNavigationUrl({
+                    scope,
+                    baseAppURL,
+                    projectURL,
+                    appId: targetAppId,
+                    path: `/evaluations/results/${runId}`,
+                })
+
+                onSuccess?.()
+
+                router.push({
+                    pathname: targetPath,
+                    query: {type: "human", view: "focus"},
+                })
             } else {
                 try {
                     await createEvaluation(targetAppId, {
-                        testset_id: selectedTestsetId,
+                        testset_id: selectedTestsetRevisionId || selectedTestsetId,
                         revisions_ids: selectedVariantRevisionIds,
                         evaluators_configs: selectedEvalConfigs,
                         rate_limit: rateLimitValues,
@@ -458,14 +388,13 @@ const NewEvaluationModalInner = ({
         appId,
         selectedAppId,
         selectedTestsetId,
+        selectedTestsetRevisionId,
         selectedVariantRevisionIds,
         selectedEvalConfigs,
         advanceSettings,
-        evaluatorConfigs,
+        evaluators,
         evaluationName,
         filteredVariants,
-        testsets,
-        evaluators,
         preview,
         validateSubmission,
         createPreviewEvaluationRun,
@@ -478,9 +407,8 @@ const NewEvaluationModalInner = ({
         router,
     ])
 
-    // Expose submit handler to parent via ref callback
+    // Expose submit handler to parent via a temporary window property
     useEffect(() => {
-        // Store submit handler in a way parent can access
         if (typeof window !== "undefined") {
             ;(window as any).__newEvalModalSubmit = onSubmit
         }
@@ -498,7 +426,9 @@ const NewEvaluationModalInner = ({
             handlePanelChange={handlePanelChange}
             activePanel={activePanel}
             selectedTestsetId={selectedTestsetId}
+            selectedTestsetRevisionId={selectedTestsetRevisionId}
             setSelectedTestsetId={setSelectedTestsetId}
+            setSelectedTestsetRevisionId={setSelectedTestsetRevisionId}
             selectedVariantRevisionIds={selectedVariantRevisionIds}
             setSelectedVariantRevisionIds={setSelectedVariantRevisionIds}
             selectedEvalConfigs={selectedEvalConfigs}
@@ -521,6 +451,10 @@ const NewEvaluationModalInner = ({
             selectedAppId={selectedAppId}
             onSelectApp={handleAppSelection}
             appSelectionDisabled={isAppScoped}
+            selectedTestsetName={selectedTestsetName}
+            setSelectedTestsetName={setSelectedTestsetName}
+            selectedTestsetVersion={selectedTestsetVersion}
+            setSelectedTestsetVersion={setSelectedTestsetVersion}
         />
     )
 }
