@@ -34,7 +34,6 @@ import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
 import {message} from "@/oss/components/AppMessageContext"
-import LoadTestsetModal from "@/oss/components/Playground/Components/Modals/LoadTestsetModal"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {transformTraceKeysInSettings, mapTestcaseAndEvalValues} from "@/oss/lib/evaluations/legacy"
@@ -66,8 +65,6 @@ import {
 } from "@/oss/services/evaluations/api_ee"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
 import {useAppsData} from "@/oss/state/app/hooks"
-import {useEntityList} from "@/oss/state/entities/hooks/useEntityList"
-import {testsetStore} from "@/oss/state/entities/testset"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
     stablePromptVariablesAtomFamily,
@@ -77,6 +74,7 @@ import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlag
 import {useTestsetsData} from "@/oss/state/testset"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
+import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {
     playgroundEvaluatorAtom,

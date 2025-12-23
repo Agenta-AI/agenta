@@ -104,6 +104,9 @@ const NewEvaluationModalInner = ({
         ])
 
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
+    const [selectedTestsetRevisionId, setSelectedTestsetRevisionId] = useState("")
+    const [selectedTestsetName, setSelectedTestsetName] = useState("")
+    const [selectedTestsetVersion, setSelectedTestsetVersion] = useState<number | null>(null)
     // Initialize with at most one pre-selected variant (e.g., from playground)
     const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>(() => {
         const first = preSelectedVariantIds?.[0]
@@ -483,8 +486,12 @@ const NewEvaluationModalInner = ({
             activePanel={activePanel}
             selectedTestsetId={selectedTestsetId}
             selectedTestsetRevisionId={selectedTestsetRevisionId}
+            selectedTestsetName={selectedTestsetName}
+            selectedTestsetVersion={selectedTestsetVersion}
             setSelectedTestsetId={setSelectedTestsetId}
             setSelectedTestsetRevisionId={setSelectedTestsetRevisionId}
+            setSelectedTestsetName={setSelectedTestsetName}
+            setSelectedTestsetVersion={setSelectedTestsetVersion}
             selectedVariantRevisionIds={selectedVariantRevisionIds}
             setSelectedVariantRevisionIds={setSelectedVariantRevisionIds}
             selectedEvalConfigs={selectedEvalConfigs}
