@@ -1,13 +1,11 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useState} from "react"
 
-import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import {Testset} from "@/oss/lib/Types"
 
-import {testsetCsvDataQueryAtomFamily} from "./assets/testsetCsvData"
 import {LoadTestsetModalProps} from "./assets/types"
+import {useSelectedTestcasesData} from "./hooks/useSelectedTestcasesData"
 
 const LoadTestsetModalFooter = dynamic(() => import("./assets/LoadTestsetModalFooter"), {
     ssr: false,
@@ -24,28 +22,13 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
 }) => {
     const {onCancel, afterClose, ...modalProps} = props
     const [selectedTestset, setSelectedTestset] = useState("")
+    const [selectedRevisionId, setSelectedRevisionId] = useState("")
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
-    // Fetch testset CSV data via atomWithQuery
-    const testsetCsvQuery = useAtomValue(
-        useMemo(
-            () =>
-                testsetCsvDataQueryAtomFamily({
-                    testsetId: selectedTestset,
-                    enabled: modalProps.open && !!selectedTestset,
-                }),
-            [selectedTestset, modalProps.open],
-        ),
-    )
+    // Extract selected testcases from entity atoms in playground format
+    const selectedTestcasesData = useSelectedTestcasesData(selectedRevisionId, selectedRowKeys)
 
-    const testsetCsvData: Testset["csvdata"] = useMemo(
-        () => ((testsetCsvQuery as any)?.data as Testset["csvdata"]) || [],
-        [testsetCsvQuery],
-    )
-    const isLoadingTestset = useMemo(
-        () => !!(testsetCsvQuery as any)?.isLoading || !!(testsetCsvQuery as any)?.isPending,
-        [testsetCsvQuery],
-    )
+    const isLoadingTestset = false
 
     const onClose = useCallback(() => {
         onCancel?.({} as any)
@@ -55,7 +38,11 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     return (
         <EnhancedModal
             width={1150}
-            className={"[&_.ant-modal-body]:h-[600px]"}
+            styles={{
+                body: {
+                    flex: "0 0 auto",
+                },
+            }}
             afterClose={() => {
                 setSelectedRowKeys([])
                 afterClose?.()
@@ -66,18 +53,23 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
                     onClose={onClose}
                     isLoadingTestset={isLoadingTestset}
                     selectedRowKeys={selectedRowKeys}
-                    testsetCsvData={testsetCsvData}
+                    testsetCsvData={selectedTestcasesData}
                     setTestsetData={setTestsetData}
                 />
             }
             onCancel={onClose}
+            classNames={{
+                body: "h-[620px] overflow-hidden !flex-0 !flex",
+            }}
             {...modalProps}
         >
             <LoadTestsetModalContent
                 modalProps={modalProps}
                 selectedTestset={selectedTestset}
                 setSelectedTestset={setSelectedTestset}
-                testsetCsvData={testsetCsvData}
+                selectedRevisionId={selectedRevisionId}
+                setSelectedRevisionId={setSelectedRevisionId}
+                testsetCsvData={selectedTestcasesData}
                 selectedRowKeys={selectedRowKeys}
                 setSelectedRowKeys={setSelectedRowKeys}
                 isChat={isChat}

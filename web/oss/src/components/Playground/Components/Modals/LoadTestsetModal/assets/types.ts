@@ -12,6 +12,8 @@ export interface LoadTestsetModalContentProps {
     modalProps: LoadTestsetModalProps
     selectedTestset: string
     setSelectedTestset: React.Dispatch<React.SetStateAction<string>>
+    selectedRevisionId: string
+    setSelectedRevisionId: React.Dispatch<React.SetStateAction<string>>
     testsetCsvData: Testset["csvdata"]
     selectedRowKeys: React.Key[]
     setSelectedRowKeys: React.Dispatch<React.SetStateAction<React.Key[]>>
