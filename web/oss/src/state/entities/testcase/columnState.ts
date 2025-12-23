@@ -373,10 +373,22 @@ export const deleteColumnAtom = atom(null, (get, set, columnKey: string) => {
  * Renames the property in all entities using batch update to avoid N re-renders
  * Also tracks the rename so newly loaded pages get the rename applied
  * Returns true if successful, false if new name already exists
+ *
+ * @param oldName - The current column name
+ * @param newName - The new column name
+ * @param rowDataMap - Optional map of testcase ID to row data (for server rows without drafts)
  */
 export const renameColumnAtom = atom(
     null,
-    (get, set, {oldName, newName}: {oldName: string; newName: string}): boolean => {
+    (
+        get,
+        set,
+        {
+            oldName,
+            newName,
+            rowDataMap,
+        }: {oldName: string; newName: string; rowDataMap?: Map<string, Record<string, unknown>>},
+    ): boolean => {
         const revisionId = get(currentRevisionIdAtom)
         if (!revisionId) return false
 
@@ -390,7 +402,7 @@ export const renameColumnAtom = atom(
 
         // IMPORTANT: Rename in entities BEFORE adding pending rename
         // Otherwise testcaseEntityAtomFamily applies pending rename and oldKey won't be found
-        set(renameColumnInTestcasesAtom, {oldKey: oldName, newKey: trimmedNewName})
+        set(renameColumnInTestcasesAtom, {oldKey: oldName, newKey: trimmedNewName, rowDataMap})
 
         // Track pending rename for newly loaded pages (after entity update)
         set(addPendingRenameAtom, {oldKey: oldName, newKey: trimmedNewName})

@@ -41,6 +41,7 @@ import {
     revisionChangeEffectAtom,
     setDebouncedSearchTermAtom,
     syncRowIdsToEntityAtom,
+    testcaseRowDataMapAtom,
     testcaseRowIdsAtom,
     testcasesSearchTermAtom,
 } from "../atoms/tableStore"
@@ -259,11 +260,13 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     )
 
     /**
-     * Rename a column - uses renameColumnAtom
+     * Rename a column - uses renameColumnAtom with row data from datasetStore
      */
+    const rowDataMap = useAtomValue(testcaseRowDataMapAtom)
     const renameColumn = useCallback(
-        (oldName: string, newName: string): boolean => renameColumnAction({oldName, newName}),
-        [renameColumnAction],
+        (oldName: string, newName: string): boolean =>
+            renameColumnAction({oldName, newName, rowDataMap}),
+        [renameColumnAction, rowDataMap],
     )
 
     /**

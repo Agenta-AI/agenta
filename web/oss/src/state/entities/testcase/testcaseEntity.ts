@@ -215,11 +215,7 @@ interface DatasetStorePage {
  * ["testcases-table", scopeId, cursor, limit, offset, windowing.next, windowing.stop, metaKey]
  */
 const findInPaginatedCache = (
-    queryClient: ReturnType<
-        (typeof import("@tanstack/react-query").QueryClient)["prototype"]["getQueryData"]
-    > extends (...args: infer _A) => infer _R
-        ? import("@tanstack/react-query").QueryClient
-        : never,
+    queryClient: import("@tanstack/react-query").QueryClient,
     _projectId: string,
     _revisionId: string,
     testcaseId: string,
@@ -232,7 +228,7 @@ const findInPaginatedCache = (
     // Search through all cached pages for the testcase
     for (const [_queryKey, data] of queries) {
         if (data?.rows) {
-            const found = data.rows.find((row) => row.id === testcaseId)
+            const found = data.rows.find((row: FlattenedTestcase) => row.id === testcaseId)
             if (found) {
                 return found
             }
@@ -584,9 +580,25 @@ export const batchUpdateTestcasesSyncAtom = atom(
     (get, set, updates: {id: string; updates: Partial<FlattenedTestcase>}[]) => {
         // Collect all updates first
         const draftsToSet: {id: string; data: FlattenedTestcase}[] = []
+        const queryClient = get(queryClientAtom)
+        const projectId = get(projectIdAtom)
+        const revisionId = get(currentRevisionIdAtom)
 
         for (const {id, updates: entityUpdates} of updates) {
-            const current = get(testcaseEntityAtomFamily(id))
+            // First check for existing draft
+            let current: FlattenedTestcase | null = get(testcaseDraftAtomFamily(id))
+
+            // If no draft, try to get from paginated cache directly
+            // This avoids atomWithQuery subscription issues in write functions
+            if (!current && projectId && revisionId) {
+                current = findInPaginatedCache(queryClient, projectId, revisionId, id) ?? null
+            }
+
+            // Fall back to entity atom (which may trigger query)
+            if (!current) {
+                current = get(testcaseEntityAtomFamily(id))
+            }
+
             if (!current) continue
 
             // Merge updates, then delete keys that are explicitly set to undefined
@@ -612,7 +624,15 @@ export const batchUpdateTestcasesSyncAtom = atom(
  */
 export const renameColumnInTestcasesAtom = atom(
     null,
-    (get, set, {oldKey, newKey}: {oldKey: string; newKey: string}) => {
+    (
+        get,
+        set,
+        {
+            oldKey,
+            newKey,
+            rowDataMap,
+        }: {oldKey: string; newKey: string; rowDataMap?: Map<string, Record<string, unknown>>},
+    ) => {
         const ids = get(testcaseIdsAtom)
         const newIds = get(newEntityIdsAtom)
         const allIds = [...ids, ...newIds]
@@ -620,18 +640,38 @@ export const renameColumnInTestcasesAtom = atom(
         const updates: {id: string; updates: Partial<FlattenedTestcase>}[] = []
 
         for (const id of allIds) {
-            const entity = get(testcaseEntityAtomFamily(id))
-            if (!entity) continue
+            // First check if there's a draft
+            const draft = get(testcaseDraftAtomFamily(id))
+            if (draft) {
+                const record = draft as Record<string, unknown>
+                if (oldKey in record) {
+                    updates.push({
+                        id,
+                        updates: {
+                            [newKey]: record[oldKey],
+                            [oldKey]: undefined,
+                        } as Partial<FlattenedTestcase>,
+                    })
+                }
+                continue
+            }
 
-            const record = entity as Record<string, unknown>
-            if (oldKey in record) {
-                updates.push({
-                    id,
-                    updates: {
-                        [newKey]: record[oldKey],
-                        [oldKey]: undefined,
-                    } as Partial<FlattenedTestcase>,
-                })
+            // For server rows without draft, use the provided rowDataMap
+            // This contains the actual row data from the datasetStore
+            if (rowDataMap) {
+                const rowData = rowDataMap.get(id)
+                if (rowData) {
+                    const record = rowData as Record<string, unknown>
+                    if (oldKey in record) {
+                        updates.push({
+                            id,
+                            updates: {
+                                [newKey]: record[oldKey],
+                                [oldKey]: undefined,
+                            } as Partial<FlattenedTestcase>,
+                        })
+                    }
+                }
             }
         }
 

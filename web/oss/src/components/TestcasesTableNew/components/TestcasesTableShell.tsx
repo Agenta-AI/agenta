@@ -207,16 +207,13 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                         />
                     )
                 }
-                // For new rows (client-created), use value directly from row data
-                // These rows come from clientTestcaseRowsAtom which has the data
-                if (record.__isNew) {
-                    return <TestcaseCellContent value={value} maxLines={maxLinesForRowHeight} />
-                }
-                // For server rows with id, use entity-aware cell that reads from atom
-                if (record.id) {
+                // For rows with id (both new and server rows), use entity-aware cell
+                // This ensures column renames are reflected correctly
+                const rowId = record.id || String(record.key)
+                if (rowId) {
                     return (
                         <TestcaseCell
-                            testcaseId={record.id}
+                            testcaseId={rowId}
                             columnKey={col.key}
                             maxLines={maxLinesForRowHeight}
                         />
@@ -355,6 +352,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             tableProps={tableProps}
             rowSelection={rowSelection}
             useSettingsDropdown={!hideControls}
+            store={globalStore}
         />
     )
 }

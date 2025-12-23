@@ -317,6 +317,28 @@ export const testcaseRowIdsAtom = atom((get) => {
 })
 
 /**
+ * Atom that provides a map of testcase ID to row data from the datasetStore
+ * Used for operations that need to access row data directly (e.g., column rename)
+ */
+export const testcaseRowDataMapAtom = atom((get) => {
+    const meta = get(testcasesTableMetaAtom)
+    if (!meta.revisionId) return new Map<string, TestcaseTableRow>()
+
+    const scopeId = `testcases-${meta.revisionId}`
+    const rowsAtom = datasetStore.atoms.rowsAtom({scopeId, pageSize: PAGE_SIZE})
+    const rows = get(rowsAtom)
+
+    const map = new Map<string, TestcaseTableRow>()
+    for (const row of rows) {
+        if (row.__isSkeleton) continue
+        if (!row.id) continue
+        map.set(row.id as string, row)
+    }
+
+    return map
+})
+
+/**
  * Effect atom that syncs row IDs to testcaseIdsAtom
  * Call this from a useEffect or atomEffect to keep entity atoms in sync
  */

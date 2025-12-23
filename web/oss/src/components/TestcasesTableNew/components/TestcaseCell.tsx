@@ -1,8 +1,8 @@
-import {memo, useMemo} from "react"
+import {memo} from "react"
 
 import {useAtomValue} from "jotai"
 
-import {testcaseCellAtomFamily} from "@/oss/state/entities/testcase/testcaseEntity"
+import {testcaseEntityAtomFamily} from "@/oss/state/entities/testcase/testcaseEntity"
 
 import TestcaseCellContent from "./TestcaseCellContent"
 
@@ -41,18 +41,14 @@ export const TestcaseCell = memo(function TestcaseCell({
     columnKey,
     maxLines,
     render,
+    onMissing,
 }: TestcaseCellProps) {
-    // Read cell value from atom (checks entity store first, then server snapshot)
-    const cellAtom = useMemo(
-        () => testcaseCellAtomFamily({id: testcaseId, column: columnKey}),
-        [testcaseId, columnKey],
-    )
-    const value = useAtomValue(cellAtom)
+    // Read entity directly from entity atom family
+    // Don't use useMemo - atomFamily already caches atoms by key
+    const entity = useAtomValue(testcaseEntityAtomFamily(testcaseId))
 
-    // Debug: log cell value for local entities
-    if (testcaseId.startsWith("local-")) {
-        console.log(`🔍 [TestcaseCell] ${testcaseId}.${columnKey} =`, value)
-    }
+    // Extract the cell value from the entity
+    const value = entity ? (entity as Record<string, unknown>)[columnKey] : undefined
 
     // Use custom render if provided
     if (render) {
