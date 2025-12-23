@@ -21,9 +21,9 @@ const createTypeCopy: Record<
     {title: string; description: string; short: string}
 > = {
     auto: {
-        title: "Automatic evaluation",
+        title: "Auto evaluation",
         description: "Run testsets with configured evaluators for fast iteration.",
-        short: "Automatic",
+        short: "Auto",
     },
     human: {
         title: "Human evaluation",
