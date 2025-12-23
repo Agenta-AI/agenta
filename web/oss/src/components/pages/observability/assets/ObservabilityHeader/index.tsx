@@ -3,11 +3,12 @@ import {useCallback, useEffect, useState, useMemo} from "react"
 import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import dynamic from "next/dynamic"
 
 import {SortResult} from "@/oss/components/Filters/Sort"
+import {openDrawerAtom} from "@/oss/components/pages/observability/drawer/TestsetDrawer/atoms/drawerState"
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
@@ -50,10 +51,10 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         fetchTraces,
         fetchAnnotations,
         selectedRowKeys,
-        setTestsetDrawerData,
         setEditColumns,
     } = useObservability()
     const queryClient = useAtomValue(queryClientAtom)
+    const openDrawer = useSetAtom(openDrawerAtom)
 
     const attributeKeyOptions = useMemo(() => buildAttributeKeyTreeOptions(traces), [traces])
     const filterColumns = useMemo(
@@ -185,9 +186,9 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
             .filter((item): item is NonNullable<typeof item> => item !== null)
 
         if (extractData.length > 0) {
-            setTestsetDrawerData(extractData)
+            openDrawer(extractData)
         }
-    }, [traces, selectedRowKeys, setTestsetDrawerData])
+    }, [traces, selectedRowKeys, openDrawer])
 
     const onExport = useCallback(async () => {
         try {

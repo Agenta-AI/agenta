@@ -1,4 +1,3 @@
-import {Drawer} from "antd"
 import {KeyValuePair} from "tailwindcss/types/config"
 
 export interface Mapping {
@@ -18,11 +17,9 @@ export interface TestsetTraceData {
     key: string
     data: KeyValuePair
     id: number
-    isEdited?: false
+    isEdited?: boolean
     originalData?: KeyValuePair | null
 }
-export type TestsetDrawerProps = {
-    onClose: () => void
-    data: TestsetTraceData[]
+export interface TestsetDrawerProps {
     showSelectedSpanText?: boolean
-} & React.ComponentProps<typeof Drawer>
+}

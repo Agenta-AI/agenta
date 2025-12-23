@@ -1,19 +1,19 @@
 import {atom} from "jotai"
 
+import {localEntitiesRevisionAtom} from "@/oss/state/entities/testcase/atomCleanup"
 import {
-    addColumnAtom,
     addPendingDeletedColumnAtom,
     clearPendingAddedColumnsAtom,
     clearPendingDeletedColumnsAtom,
     currentColumnsAtom,
 } from "@/oss/state/entities/testcase/columnState"
 import {deleteTestcasesAtom} from "@/oss/state/entities/testcase/mutations"
-import {testsetIdAtom} from "@/oss/state/entities/testcase/queries"
 import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
 import {
     addNewEntityIdAtom,
     newEntityIdsAtom,
     testcaseDraftAtomFamily,
+    testcaseEntityAtomFamily,
     updateTestcaseAtom,
 } from "@/oss/state/entities/testcase/testcaseEntity"
 import {currentRevisionIdAtom} from "@/oss/state/entities/testset"
@@ -21,6 +21,7 @@ import {currentRevisionIdAtom} from "@/oss/state/entities/testset"
 import type {TestsetTraceData} from "../assets/types"
 
 import {selectedRevisionIdAtom as drawerRevisionIdAtom} from "./drawerState"
+import {selectedTestsetIdAtom} from "./testsetQueries"
 
 /**
  * Local Entities Management
@@ -86,21 +87,12 @@ export const createLocalEntitiesAtom = atom(
         const revisionId = get(drawerRevisionIdAtom)
         const alreadyCreatedFor = get(localEntitiesCreatedForRevisionAtom)
 
-        console.log("🆕 [LocalEntities] createLocalEntitiesAtom called", {
-            revisionId,
-            traceDataLength: traceData.length,
-            alreadyCreatedFor,
-            mappingsLength: mappings.length,
-        })
-
         if (!revisionId || revisionId === "draft") {
-            console.log("⚠️ [LocalEntities] No valid revision selected, skipping creation")
             return
         }
 
         // Prevent re-creation for the same revision (avoids infinite loops)
         if (alreadyCreatedFor === revisionId) {
-            console.log("⚠️ [LocalEntities] Already created for this revision, skipping")
             return
         }
 
@@ -110,11 +102,6 @@ export const createLocalEntitiesAtom = atom(
         // Clear any existing local entities first
         const existingMap = get(localEntityMapAtom)
         if (existingMap.size > 0) {
-            console.log(
-                "🧹 [LocalEntities] Clearing existing entities:",
-                existingMap.size,
-                Array.from(existingMap.values()),
-            )
             set(deleteTestcasesAtom, Array.from(existingMap.values()))
             set(localEntityMapAtom, new Map())
         }
@@ -123,26 +110,22 @@ export const createLocalEntitiesAtom = atom(
         // This handles stale local entities AND entities created by initializeEmptyRevisionAtom
         const newEntityIds = get(newEntityIdsAtom)
         if (newEntityIds.length > 0) {
-            console.log("🧹 [LocalEntities] Clearing all new entity IDs:", newEntityIds)
             set(deleteTestcasesAtom, newEntityIds)
         }
 
         // Clear pending column changes first
         set(clearPendingAddedColumnsAtom)
         set(clearPendingDeletedColumnsAtom)
-        console.log("🧹 [LocalEntities] Cleared pending column changes")
 
         // Get current columns from server data BEFORE we modify anything
         const existingColumns = get(currentColumnsAtom)
-        const testsetId = get(testsetIdAtom) || ""
-
-        console.log(
-            "📊 [LocalEntities] Existing columns from server:",
-            existingColumns.map((c) => c.key),
-        )
-        console.log("📊 [LocalEntities] Testset ID:", testsetId)
+        const testsetId = get(selectedTestsetIdAtom) || ""
 
         // Build set of mapped column keys
+        // NOTE: We do NOT call addColumnAtom here because that would add the column
+        // to ALL testcases (including fetched ones from backend), causing them to
+        // show as "changed". Instead, we only track columns locally and apply
+        // data directly to local entities.
         const mappedColumnKeys = new Set<string>()
         for (const mapping of mappings) {
             const targetColumn =
@@ -150,17 +133,12 @@ export const createLocalEntitiesAtom = atom(
 
             if (targetColumn) {
                 mappedColumnKeys.add(targetColumn)
-                console.log(`➕ [LocalEntities] Adding mapped column: ${targetColumn}`)
-                set(addColumnAtom, targetColumn)
             }
         }
-
-        console.log("📊 [LocalEntities] Mapped columns:", Array.from(mappedColumnKeys))
 
         // Hide columns from server data that are NOT in our mappings
         for (const col of existingColumns) {
             if (!mappedColumnKeys.has(col.key)) {
-                console.log(`🙈 [LocalEntities] Hiding unmapped column: ${col.key}`)
                 set(addPendingDeletedColumnAtom, col.key)
             }
         }
@@ -197,13 +175,6 @@ export const createLocalEntitiesAtom = atom(
                 ...mappedData,
             }
 
-            console.log(`📝 [LocalEntities] Creating entity ${index}:`, {
-                entityId,
-                traceKey: trace.key,
-                mappedData,
-                flattenedRow,
-            })
-
             // Register as new entity
             set(addNewEntityIdAtom, entityId)
             // Create draft with initial data INCLUDING mapped values
@@ -214,9 +185,6 @@ export const createLocalEntitiesAtom = atom(
         })
 
         set(localEntityMapAtom, newMap)
-        console.log(`✅ [LocalEntities] Created ${newMap.size} local entities`, {
-            entityMap: Object.fromEntries(newMap),
-        })
     },
 )
 
@@ -278,16 +246,8 @@ export const updateAllLocalEntitiesAtom = atom(
         },
     ) => {
         const entityMap = get(localEntityMapAtom)
-        const columns = get(currentColumnsAtom)
-
-        console.log("🔄 [LocalEntities] updateAllLocalEntitiesAtom called", {
-            entityMapSize: entityMap.size,
-            traceDataLength: traceData.length,
-            mappingsLength: mappings.length,
-        })
 
         if (entityMap.size === 0) {
-            console.log("⚠️ [LocalEntities] No local entities to update")
             return
         }
 
@@ -305,20 +265,44 @@ export const updateAllLocalEntitiesAtom = atom(
         traceData.forEach((trace) => {
             const entityId = entityMap.get(trace.key)
             if (!entityId) {
-                console.log(`⚠️ [LocalEntities] No entity found for trace key: ${trace.key}`)
                 return
             }
 
-            // Build updates from mappings
-            // Start by clearing all data columns (except id and testset_id)
-            const updates: Record<string, string> = {}
+            // Get current entity to find columns to remove
+            const currentEntity = get(testcaseEntityAtomFamily(entityId))
 
-            // Clear all columns first (set to empty string)
-            for (const col of columns) {
-                updates[col.key] = ""
+            // Build updates from mappings - ONLY include mapped columns
+            // This replaces the entire entity data (except system fields)
+            const updates: Record<string, string | undefined> = {}
+
+            // First, mark all non-system columns for removal by setting to undefined
+            if (currentEntity) {
+                const SYSTEM_FIELDS = new Set([
+                    "id",
+                    "key",
+                    "testset_id",
+                    "set_id",
+                    "created_at",
+                    "updated_at",
+                    "deleted_at",
+                    "created_by_id",
+                    "updated_by_id",
+                    "deleted_by_id",
+                    "flags",
+                    "tags",
+                    "meta",
+                    "__isSkeleton",
+                    "__isNew",
+                    "testcase_dedup_id",
+                ])
+                Object.keys(currentEntity).forEach((key) => {
+                    if (!SYSTEM_FIELDS.has(key)) {
+                        updates[key] = undefined // Mark for deletion
+                    }
+                })
             }
 
-            // Then set the mapped values
+            // Then set the mapped values (this overrides the undefined for mapped columns)
             for (const mapping of mappings) {
                 const targetColumn =
                     mapping.column === "create" || !mapping.column
@@ -336,17 +320,10 @@ export const updateAllLocalEntitiesAtom = atom(
                           : JSON.stringify(value)
             }
 
-            console.log(`📝 [LocalEntities] Updating entity ${entityId}:`, {
-                traceKey: trace.key,
-                updates,
-            })
-
             if (Object.keys(updates).length > 0) {
                 set(updateTestcaseAtom, {id: entityId, updates})
             }
         })
-
-        console.log(`✅ [LocalEntities] Updated ${entityMap.size} local entities`)
     },
 )
 
@@ -365,9 +342,153 @@ export const clearLocalEntitiesAtom = atom(null, (get, set) => {
     if (entityMap.size > 0) {
         set(deleteTestcasesAtom, Array.from(entityMap.values()))
         set(localEntityMapAtom, new Map())
-        console.log("🧹 [LocalEntities] Cleared all local entities")
     }
 
-    // Reset the tracking atom so entities can be created for a new revision
+    // Reset the tracking atoms so entities can be created for a new revision
     set(localEntitiesCreatedForRevisionAtom, null)
+    // Clear the cleanup protection flag so future cleanups work normally
+    set(localEntitiesRevisionAtom, null)
 })
+
+// ============================================================================
+// UNIFIED REVISION SELECTION REDUCER
+// ============================================================================
+
+/**
+ * Write-only atom: Handle revision selection in one atomic operation
+ *
+ * This is a reducer-style action that handles the entire flow when a revision
+ * is selected:
+ * 1. Sets revision context
+ * 2. Reads necessary state (columns, testset info)
+ * 3. Creates local entities with mapped data
+ *
+ * This replaces the useEffect-based approach with an explicit action.
+ *
+ * Usage:
+ *   const selectRevision = useSetAtom(selectRevisionAtom)
+ *   selectRevision({ revisionId, traceData, mappings, getValueAtPath })
+ */
+export const selectRevisionAtom = atom(
+    null,
+    (
+        get,
+        set,
+        params: {
+            revisionId: string
+            traceData: TestsetTraceData[]
+            mappings: {data: string; column: string; newColumn?: string}[]
+            getValueAtPath: (obj: any, path: string) => any
+        },
+    ) => {
+        const {revisionId, traceData, mappings, getValueAtPath} = params
+
+        // Validate inputs
+        if (!revisionId || revisionId === "draft") {
+            return {success: false, reason: "invalid_revision"}
+        }
+
+        if (traceData.length === 0) {
+            return {success: false, reason: "no_trace_data"}
+        }
+
+        // Check if already created for this revision
+        const alreadyCreatedFor = get(localEntitiesCreatedForRevisionAtom)
+        if (alreadyCreatedFor === revisionId) {
+            // Update existing entities instead of recreating
+            set(updateAllLocalEntitiesAtom, {traceData, mappings, getValueAtPath})
+            return {success: true, action: "updated"}
+        }
+
+        // === STEP 1: Set revision context ===
+        set(currentRevisionIdAtom, revisionId)
+        set(drawerRevisionIdAtom, revisionId)
+        set(localEntitiesCreatedForRevisionAtom, revisionId)
+        // Mark this revision as having local entities - prevents cleanup from clearing them
+        set(localEntitiesRevisionAtom, revisionId)
+
+        // === STEP 2: Clear existing state ===
+        const existingMap = get(localEntityMapAtom)
+        if (existingMap.size > 0) {
+            set(deleteTestcasesAtom, Array.from(existingMap.values()))
+            set(localEntityMapAtom, new Map())
+        }
+
+        // Clear ALL new entities
+        const newEntityIds = get(newEntityIdsAtom)
+        if (newEntityIds.length > 0) {
+            set(deleteTestcasesAtom, newEntityIds)
+        }
+
+        // Clear pending column changes
+        set(clearPendingAddedColumnsAtom)
+        set(clearPendingDeletedColumnsAtom)
+
+        // === STEP 3: Read current state ===
+        const existingColumns = get(currentColumnsAtom)
+        // Use selectedTestsetIdAtom from drawer (set when user selects testset)
+        // instead of testsetIdAtom from entity layer (derived from revision query)
+        const testsetId = get(selectedTestsetIdAtom) || ""
+
+        // === STEP 4: Build mapped columns ===
+        const mappedColumnKeys = new Set<string>()
+        for (const mapping of mappings) {
+            const targetColumn =
+                mapping.column === "create" || !mapping.column ? mapping.newColumn : mapping.column
+            if (targetColumn) {
+                mappedColumnKeys.add(targetColumn)
+            }
+        }
+
+        // Hide unmapped columns from server data
+        for (const col of existingColumns) {
+            if (!mappedColumnKeys.has(col.key)) {
+                set(addPendingDeletedColumnAtom, col.key)
+            }
+        }
+
+        // === STEP 5: Create local entities ===
+        const newMap = new Map<string, string>()
+
+        traceData.forEach((trace, index) => {
+            const entityId = `local-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`
+
+            // Build data from mappings
+            const mappedData: Record<string, string> = {}
+            for (const mapping of mappings) {
+                const targetColumn =
+                    mapping.column === "create" || !mapping.column
+                        ? mapping.newColumn
+                        : mapping.column
+
+                if (!targetColumn) continue
+
+                const value = getValueAtPath(trace, mapping.data)
+                mappedData[targetColumn] =
+                    value === undefined || value === null
+                        ? ""
+                        : typeof value === "string"
+                          ? value
+                          : JSON.stringify(value)
+            }
+
+            // Create entity with mapped data
+            const flattenedRow: FlattenedTestcase = {
+                id: entityId,
+                testset_id: testsetId,
+                ...mappedData,
+            }
+
+            // Register as new entity
+            set(addNewEntityIdAtom, entityId)
+            set(testcaseDraftAtomFamily(entityId), flattenedRow)
+
+            // Track mapping
+            newMap.set(trace.key, entityId)
+        })
+
+        set(localEntityMapAtom, newMap)
+
+        return {success: true, action: "created", entityCount: newMap.size}
+    },
+)

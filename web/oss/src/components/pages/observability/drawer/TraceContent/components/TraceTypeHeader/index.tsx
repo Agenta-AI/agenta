@@ -1,9 +1,10 @@
-import {useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {DeleteOutlined} from "@ant-design/icons"
 import {SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
+import {useSetAtom} from "jotai"
 import {Database} from "lucide-react"
 import dynamic from "next/dynamic"
 
@@ -12,6 +13,7 @@ import {KeyValuePair} from "@/oss/lib/Types"
 import {extractTestsetData} from "@/oss/state/entities/trace"
 
 import AnnotateDrawerButton from "../../../AnnotateDrawer/assets/AnnotateDrawerButton"
+import {openDrawerAtom} from "../../../TestsetDrawer/atoms/drawerState"
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
 
 import {TraceTypeHeaderProps} from "./types"
@@ -29,8 +31,9 @@ const TraceTypeHeader = ({
     setIsAnnotationsSectionOpen,
     isAnnotationsSectionOpen,
 }: TraceTypeHeaderProps) => {
-    const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+    const openDrawer = useSetAtom(openDrawerAtom)
+
     // Use extractTestsetData for consistent data shape (only inputs/outputs, no parameters)
     const testsetData = useMemo(() => {
         if (!activeTrace?.key) return [] as {data: KeyValuePair; key: string; id: number}[]
@@ -42,6 +45,12 @@ const TraceTypeHeader = ({
             },
         ]
     }, [activeTrace])
+
+    const handleOpenTestsetDrawer = useCallback(() => {
+        if (testsetData.length > 0) {
+            openDrawer(testsetData)
+        }
+    }, [testsetData, openDrawer])
 
     const displayTrace = activeTrace || traces?.[0]
 
@@ -71,7 +80,7 @@ const TraceTypeHeader = ({
                 </TooltipWithCopyAction>
                 <Button
                     className="flex items-center"
-                    onClick={() => setIsTestsetDrawerOpen(true)}
+                    onClick={handleOpenTestsetDrawer}
                     disabled={!activeTrace?.key}
                     size="small"
                 >
@@ -106,11 +115,7 @@ const TraceTypeHeader = ({
                 )}
             </div>
 
-            <TestsetDrawer
-                open={isTestsetDrawerOpen && !!activeTrace?.key}
-                data={testsetData}
-                onClose={() => setIsTestsetDrawerOpen(false)}
-            />
+            <TestsetDrawer />
             <DeleteTraceModal
                 open={isDeleteModalOpen}
                 onCancel={() => setIsDeleteModalOpen(false)}

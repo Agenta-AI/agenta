@@ -58,8 +58,6 @@ const ObservabilityDashboard = () => {
         editColumns,
         selectedRowKeys,
         setSelectedRowKeys,
-        testsetDrawerData,
-        setTestsetDrawerData,
         selectedNode,
         setSelectedNode,
         activeTrace,
@@ -265,14 +263,7 @@ const ObservabilityDashboard = () => {
                     )}
                 </div>
 
-                <TestsetDrawer
-                    open={testsetDrawerData.length > 0}
-                    data={testsetDrawerData}
-                    onClose={() => {
-                        setTestsetDrawerData([])
-                        setSelectedRowKeys([])
-                    }}
-                />
+                <TestsetDrawer />
             </div>
         </PageLayout>
     )
