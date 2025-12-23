@@ -25,6 +25,7 @@ import {
     selectedVariantToRevertAtom,
 } from "./atoms"
 import DeploymentTable from "./components/Table"
+import {type OnOpenUseApiPayload} from "./components/Table/assets/getDeploymentColumns"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -148,12 +149,15 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                     setIsSelectDeployVariantModalOpen={() =>
                         openSelectDeployVariantModal({variants, envRevisions: envRevisions})
                     }
-                    onOpenUseApi={({revisionId}: {revisionId?: string} = {}) => {
+                    onOpenUseApi={({
+                        revisionId,
+                        deploymentRevisionId,
+                    }: OnOpenUseApiPayload = {}) => {
                         if (envRevisions) {
                             openDeploymentsDrawer({
                                 initialWidth: 720,
                                 revisionId,
-                                deploymentRevisionId: revisionId,
+                                deploymentRevisionId,
                                 envName: envRevisions.name,
                                 mode: "deployment",
                             })

@@ -1,5 +1,10 @@
 import {MoreOutlined} from "@ant-design/icons"
-import {ArrowCounterClockwise, GearSix, Lightning, Note} from "@phosphor-icons/react"
+import {
+    ArrowCounterClockwiseIcon,
+    GearSixIcon,
+    LightningIcon,
+    NoteIcon,
+} from "@phosphor-icons/react"
 import {Dropdown, Button} from "antd"
 import {ColumnsType} from "antd/es/table"
 
@@ -8,6 +13,11 @@ import {DeploymentRevisions} from "@/oss/lib/Types"
 
 import VariantDetailsRenderer from "../../../assets/VariantDetailsRenderer"
 import {DeploymentRevisionWithVariant} from "../../../atoms"
+
+export interface OnOpenUseApiPayload {
+    revisionId?: string | null
+    deploymentRevisionId?: string
+}
 
 export const getColumns = ({
     setSelectedRevisionRow,
@@ -27,7 +37,7 @@ export const getColumns = ({
     handleAssignRevisionId: (record: DeploymentRevisionWithVariant) => void
     envRevisions: DeploymentRevisions | undefined
     onOpenInPlayground: (revisionId?: string | null) => void
-    onOpenUseApi: () => void
+    onOpenUseApi: (payload?: OnOpenUseApiPayload) => void
     isVariantLoading?: boolean
 }): ColumnsType<DeploymentRevisionWithVariant> => {
     const columns: ColumnsType<DeploymentRevisionWithVariant> = [
@@ -108,7 +118,7 @@ export const getColumns = ({
     })
 
     columns.push({
-        title: <GearSix size={16} />,
+        title: <GearSixIcon size={16} />,
         key: "key",
         width: 61,
         fixed: "right",
@@ -127,7 +137,7 @@ export const getColumns = ({
                             {
                                 key: "details",
                                 label: "Open details",
-                                icon: <Note size={16} />,
+                                icon: <NoteIcon size={16} />,
                                 onClick: (e) => {
                                     e.domEvent.stopPropagation()
                                     setSelectedRevisionRow(record)
@@ -137,7 +147,7 @@ export const getColumns = ({
                             {
                                 key: "use_api",
                                 label: "Use API",
-                                icon: <Lightning size={16} />,
+                                icon: <LightningIcon size={16} />,
                                 onClick: (e) => {
                                     e.domEvent.stopPropagation()
                                     onOpenUseApi({
@@ -149,7 +159,7 @@ export const getColumns = ({
                             {
                                 key: "view_variant",
                                 label: "Open in playground",
-                                icon: <Lightning size={16} />,
+                                icon: <LightningIcon size={16} />,
                                 onClick: (e) => {
                                     e.domEvent.stopPropagation()
                                     onOpenInPlayground(record.variant?.id)
@@ -159,7 +169,7 @@ export const getColumns = ({
                             {
                                 key: "revert",
                                 label: "Revert",
-                                icon: <ArrowCounterClockwise size={16} />,
+                                icon: <ArrowCounterClockwiseIcon size={16} />,
                                 onClick: (e) => {
                                     e.domEvent.stopPropagation()
                                     setIsRevertModalOpen(true)
