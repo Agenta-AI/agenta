@@ -334,6 +334,7 @@ export const resetForCascaderChangeAtom = atom(null, (get, set) => {
  * Write atom: Update trace data from editor
  * Parses the updated data (JSON/YAML) and updates the trace in traceDataAtom
  * Tracks original data for edit detection
+ * Also updates local entities to reflect the edited data in the preview table
  */
 export const updateEditedTraceAtom = atom(
     null,
@@ -345,20 +346,36 @@ export const updateEditedTraceAtom = atom(
             format: "JSON" | "YAML"
             parseYaml: (str: string) => unknown
             formatData: (format: "JSON" | "YAML", data: unknown) => string
+            getValueAtPath?: (obj: unknown, path: string) => unknown
         },
     ) => {
-        const {updatedData, format, parseYaml, formatData} = params
+        const {updatedData, format, parseYaml, formatData, getValueAtPath} = params
         const traceData = get(traceDataAtom)
         const rowDataPreview = get(rowDataPreviewAtom)
         const selectedTrace = get(selectedTraceDataAtom)
 
+        console.log("[updateEditedTraceAtom] Called", {
+            hasUpdatedData: !!updatedData,
+            hasSelectedTrace: !!selectedTrace,
+            rowDataPreview,
+            traceDataLength: traceData.length,
+            hasGetValueAtPath: !!getValueAtPath,
+        })
+
         if (!updatedData || !selectedTrace) {
+            console.log("[updateEditedTraceAtom] Early return - no data or trace")
             return {success: false, error: "No data to update"}
         }
 
         // Check if data actually changed
         const currentDataString = formatData(format, {data: selectedTrace.data})
+        console.log("[updateEditedTraceAtom] Comparing data", {
+            updatedDataPreview: updatedData.slice(0, 100),
+            currentDataPreview: currentDataString.slice(0, 100),
+            isEqual: updatedData === currentDataString,
+        })
         if (updatedData === currentDataString) {
+            console.log("[updateEditedTraceAtom] No changes detected")
             return {success: false, error: "No changes detected"}
         }
 
@@ -371,6 +388,10 @@ export const updateEditedTraceAtom = atom(
                         : JSON.parse(updatedData)
                     : updatedData
 
+            console.log("[updateEditedTraceAtom] Parsed data", {
+                parsedUpdatedData,
+            })
+
             const updatedDataString = formatData(format, parsedUpdatedData)
             const originalDataString = formatData(format, {
                 data: selectedTrace.originalData || selectedTrace.data,
@@ -382,6 +403,7 @@ export const updateEditedTraceAtom = atom(
             // Update the trace in the array
             const newTraceData = traceData.map((trace) => {
                 if (trace.key === rowDataPreview) {
+                    console.log("[updateEditedTraceAtom] Updating trace", trace.key)
                     if (isMatchingOriginalData) {
                         return {
                             ...trace,
@@ -404,17 +426,101 @@ export const updateEditedTraceAtom = atom(
             })
 
             // Only update if actually different
-            if (JSON.stringify(traceData) !== JSON.stringify(newTraceData)) {
+            const isDifferent = JSON.stringify(traceData) !== JSON.stringify(newTraceData)
+            console.log("[updateEditedTraceAtom] Trace data comparison", {
+                isDifferent,
+                oldTraceData: traceData[0],
+                newTraceData: newTraceData[0],
+            })
+
+            if (isDifferent) {
                 set(traceDataAtom, newTraceData)
+                console.log("[updateEditedTraceAtom] Updated traceDataAtom")
+
+                // Update local entities to reflect the edited data in preview table
+                if (getValueAtPath) {
+                    const mappings = get(mappingDataAtom)
+                    console.log("[updateEditedTraceAtom] Updating local entities", {
+                        mappingsCount: mappings.length,
+                        mappings,
+                    })
+                    // Import dynamically to avoid circular dependency
+                    // eslint-disable-next-line @typescript-eslint/no-require-imports
+                    const {updateAllLocalEntitiesAtom} = require("./localEntities")
+                    set(updateAllLocalEntitiesAtom, {
+                        traceData: newTraceData,
+                        mappings,
+                        getValueAtPath,
+                    })
+                    console.log("[updateEditedTraceAtom] Local entities updated")
+                } else {
+                    console.log(
+                        "[updateEditedTraceAtom] No getValueAtPath - skipping entity update",
+                    )
+                }
             }
 
             return {success: true}
         } catch (error) {
+            console.error("[updateEditedTraceAtom] Error", error)
             return {
                 success: false,
                 error: format === "YAML" ? "Invalid YAML format" : "Invalid JSON format",
             }
         }
+    },
+)
+
+/**
+ * Write atom: Revert trace data to original (before edits)
+ * Restores the trace data to its original state and updates local entities
+ */
+export const revertEditedTraceAtom = atom(
+    null,
+    (
+        get,
+        set,
+        params: {
+            getValueAtPath?: (obj: unknown, path: string) => unknown
+        },
+    ) => {
+        const {getValueAtPath} = params
+        const traceData = get(traceDataAtom)
+        const rowDataPreview = get(rowDataPreviewAtom)
+        const selectedTrace = get(selectedTraceDataAtom)
+
+        if (!selectedTrace || !selectedTrace.isEdited || !selectedTrace.originalData) {
+            return {success: false, error: "No changes to revert"}
+        }
+
+        // Revert the trace to original data
+        const newTraceData = traceData.map((trace) => {
+            if (trace.key === rowDataPreview && trace.originalData) {
+                return {
+                    ...trace,
+                    data: trace.originalData,
+                    isEdited: false,
+                    originalData: null,
+                }
+            }
+            return trace
+        })
+
+        set(traceDataAtom, newTraceData)
+
+        // Update local entities to reflect the reverted data
+        if (getValueAtPath) {
+            const mappings = get(mappingDataAtom)
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const {updateAllLocalEntitiesAtom} = require("./localEntities")
+            set(updateAllLocalEntitiesAtom, {
+                traceData: newTraceData,
+                mappings,
+                getValueAtPath,
+            })
+        }
+
+        return {success: true}
     },
 )
 
@@ -453,13 +559,15 @@ export const spanByIdAtomFamily = traceSpanAtomFamily
 /**
  * Derived: All unique paths from trace data (unfiltered)
  * Used for autocomplete options in mapping UI
+ * Includes object paths for manual selection
  */
 export const allTracePathsAtom = atom((get) => {
     const traceData = get(traceDataAtom)
 
     const uniquePaths = new Set<string>()
     traceData.forEach((traceItem) => {
-        const traceKeys = collectKeyPaths(traceItem?.data, "data")
+        // Include object paths (true) so users can manually select them
+        const traceKeys = collectKeyPaths(traceItem?.data, "data", true)
         traceKeys.forEach((key) => uniquePaths.add(key))
     })
 
@@ -476,12 +584,29 @@ export const allTracePathsSelectOptionsAtom = atom((get) => {
 })
 
 /**
+ * Derived: Leaf-only paths from trace data (no intermediate object paths)
+ * Used for auto-mapping logic to avoid duplicate column mappings
+ */
+export const leafTracePathsAtom = atom((get) => {
+    const traceData = get(traceDataAtom)
+
+    const uniquePaths = new Set<string>()
+    traceData.forEach((traceItem) => {
+        // Don't include object paths (false) for auto-mapping
+        const traceKeys = collectKeyPaths(traceItem?.data, "data", false)
+        traceKeys.forEach((key) => uniquePaths.add(key))
+    })
+
+    return Array.from(uniquePaths)
+})
+
+/**
  * Derived: Filtered data paths from trace data (inputs/outputs/internals only)
- * Used for auto-mapping logic
+ * Used for auto-mapping logic - uses leaf paths only to avoid duplicates
  */
 export const traceDataPathsAtom = atom((get) => {
-    const allPaths = get(allTracePathsAtom)
-    return filterDataPaths(allPaths)
+    const leafPaths = get(leafTracePathsAtom)
+    return filterDataPaths(leafPaths)
 })
 
 /**

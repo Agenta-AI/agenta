@@ -1,12 +1,10 @@
-import {useMemo} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
-import Editor from "@monaco-editor/react"
-import {CaretLeft, CaretRight, FloppyDiskBack, Trash} from "@phosphor-icons/react"
-import {Button, Radio, Typography} from "antd"
-import clsx from "clsx"
+import {ArrowCounterClockwise, CaretLeft, CaretRight, Trash} from "@phosphor-icons/react"
+import {Button, Tooltip, Typography} from "antd"
 
-import CopyButton from "@/oss/components/CopyButton/CopyButton"
-import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+import {EditorProvider} from "@/oss/components/Editor/Editor"
+import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 
 import {useStyles} from "../assets/styles"
 import {TestsetTraceData} from "../assets/types"
@@ -17,12 +15,11 @@ interface DataPreviewEditorProps {
     setRowDataPreview: (value: string) => void
     setUpdatedTraceData: (value: string) => void
     editorFormat: "JSON" | "YAML"
-    setEditorFormat: (format: "JSON" | "YAML") => void
     formatDataPreview: string
-    updatedTraceData: string
     selectedTraceData: TestsetTraceData | undefined
     onRemoveTraceData: () => void
-    onSaveEditedTrace: () => void
+    onSaveEditedTrace: (value?: string) => void
+    onRevertEditedTrace: () => void
 }
 
 export function DataPreviewEditor({
@@ -31,15 +28,25 @@ export function DataPreviewEditor({
     setRowDataPreview,
     setUpdatedTraceData,
     editorFormat,
-    setEditorFormat,
     formatDataPreview,
-    updatedTraceData,
     selectedTraceData,
     onRemoveTraceData,
     onSaveEditedTrace,
+    onRevertEditedTrace,
 }: DataPreviewEditorProps) {
-    const {appTheme} = useAppTheme()
     const classes = useStyles()
+    const lastSavedRef = useRef(formatDataPreview)
+    // Counter to force editor remount only on explicit revert (not on every edit)
+    const [editorVersion, setEditorVersion] = useState(0)
+
+    // Stable initial value - only updates when key changes (trace switch or revert)
+    // This prevents cursor position reset during typing
+    const editorKey = `editor-${rowDataPreview}-${editorVersion}`
+    const stableInitialValueRef = useRef({key: editorKey, value: formatDataPreview})
+    if (stableInitialValueRef.current.key !== editorKey) {
+        stableInitialValueRef.current = {key: editorKey, value: formatDataPreview}
+    }
+    const stableInitialValue = stableInitialValueRef.current.value
 
     // Navigation state
     const currentIndex = useMemo(() => {
@@ -49,19 +56,39 @@ export function DataPreviewEditor({
     const canGoPrev = currentIndex > 0
     const canGoNext = currentIndex < traceData.length - 1
 
-    const goToPrev = () => {
+    const goToPrev = useCallback(() => {
         if (canGoPrev) {
             setRowDataPreview(traceData[currentIndex - 1].key)
             setUpdatedTraceData("")
         }
-    }
+    }, [canGoPrev, currentIndex, traceData, setRowDataPreview, setUpdatedTraceData])
 
-    const goToNext = () => {
+    const goToNext = useCallback(() => {
         if (canGoNext) {
             setRowDataPreview(traceData[currentIndex + 1].key)
             setUpdatedTraceData("")
         }
-    }
+    }, [canGoNext, currentIndex, traceData, setRowDataPreview, setUpdatedTraceData])
+
+    // Handle editor changes - update local state and trigger save
+    const handleEditorChange = useCallback(
+        (value: string) => {
+            console.log("[DataPreviewEditor] handleEditorChange", {
+                value: value?.slice(0, 100),
+                lastSaved: lastSavedRef.current?.slice(0, 100),
+            })
+            setUpdatedTraceData(value)
+            // Auto-save when content changes - pass value directly to avoid stale closure
+            if (value && value !== lastSavedRef.current) {
+                lastSavedRef.current = value
+                // Trigger save after a short delay to batch rapid changes
+                setTimeout(() => {
+                    onSaveEditedTrace(value)
+                }, 100)
+            }
+        },
+        [setUpdatedTraceData, onSaveEditedTrace],
+    )
 
     return (
         <div className={classes.container}>
@@ -92,6 +119,19 @@ export function DataPreviewEditor({
                     />
                 </div>
                 <div className="flex items-center gap-2">
+                    {selectedTraceData?.isEdited && (
+                        <Tooltip title="Revert changes">
+                            <Button
+                                size="small"
+                                type="text"
+                                icon={<ArrowCounterClockwise size={14} />}
+                                onClick={() => {
+                                    onRevertEditedTrace()
+                                    setEditorVersion((v) => v + 1) // Force editor remount
+                                }}
+                            />
+                        </Tooltip>
+                    )}
                     {traceData.length > 1 && (
                         <Button
                             size="small"
@@ -101,51 +141,28 @@ export function DataPreviewEditor({
                             onClick={onRemoveTraceData}
                         />
                     )}
-                    <Radio.Group
-                        size="small"
-                        options={[
-                            {label: "JSON", value: "JSON"},
-                            {label: "YAML", value: "YAML"},
-                        ]}
-                        onChange={(e) => setEditorFormat(e.target.value)}
-                        value={editorFormat}
-                        optionType="button"
-                    />
-                    <CopyButton buttonText="" icon={true} text={formatDataPreview} />
                 </div>
             </div>
-            <div className="relative">
-                <Editor
-                    className={clsx([
-                        classes.editor,
-                        selectedTraceData?.isEdited && "!border-blue-400",
-                    ])}
-                    height={210}
-                    language={editorFormat.toLowerCase()}
-                    theme={`vs-${appTheme}`}
-                    value={formatDataPreview}
-                    onChange={(value) => setUpdatedTraceData(value as string)}
-                    options={{
-                        wordWrap: "on",
-                        minimap: {enabled: false},
-                        scrollBeyondLastLine: false,
-                        readOnly: false,
-                        lineNumbers: "off",
-                        lineDecorationsWidth: 0,
-                        scrollbar: {
-                            verticalScrollbarSize: 4,
-                            horizontalScrollbarSize: 4,
-                        },
+            <EditorProvider
+                key={editorKey}
+                codeOnly
+                language={editorFormat.toLowerCase() as "json" | "yaml"}
+                showToolbar={false}
+            >
+                <SharedEditor
+                    initialValue={stableInitialValue}
+                    handleChange={handleEditorChange}
+                    editorType="border"
+                    className={selectedTraceData?.isEdited ? "border-blue-400" : ""}
+                    disableDebounce
+                    noProvider
+                    editorProps={{
+                        codeOnly: true,
+                        language: editorFormat.toLowerCase() as "json" | "yaml",
+                        showLineNumbers: false,
                     }}
                 />
-                {updatedTraceData && updatedTraceData !== formatDataPreview ? (
-                    <Button
-                        icon={<FloppyDiskBack size={14} />}
-                        className="absolute top-2 right-2"
-                        onClick={onSaveEditedTrace}
-                    />
-                ) : null}
-            </div>
+            </EditorProvider>
         </div>
     )
 }

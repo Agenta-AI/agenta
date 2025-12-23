@@ -256,7 +256,15 @@ export const updateAllLocalEntitiesAtom = atom(
         const entityMap = get(localEntityMapAtom)
         const revisionId = get(drawerRevisionIdAtom)
 
+        console.log("[updateAllLocalEntitiesAtom] Called", {
+            traceDataLength: traceData.length,
+            mappingsCount: mappings.length,
+            entityMapSize: entityMap.size,
+            revisionId,
+        })
+
         if (entityMap.size === 0) {
+            console.log("[updateAllLocalEntitiesAtom] No entities in map, returning early")
             return
         }
 
@@ -374,6 +382,11 @@ export const updateAllLocalEntitiesAtom = atom(
             }
 
             if (Object.keys(updates).length > 0) {
+                console.log("[updateAllLocalEntitiesAtom] Updating entity", {
+                    entityId,
+                    traceKey: trace.key,
+                    updates,
+                })
                 set(updateTestcaseAtom, {id: entityId, updates})
             }
         })

@@ -21,6 +21,7 @@ import {
     onNewColumnBlurAtom,
     previewKeyAtom,
     removeTraceDataAtom,
+    revertEditedTraceAtom,
     rowDataPreviewAtom,
     selectedTraceDataAtom,
     traceDataAtom,
@@ -90,7 +91,8 @@ export interface UseTestsetDrawerResult {
     onNewColumnBlur: () => void
     onPreviewOptionChange: (value: string) => void
     onSaveTestset: () => Promise<void>
-    onSaveEditedTrace: () => void
+    onSaveEditedTrace: (value?: string) => void
+    onRevertEditedTrace: () => void
     customSelectOptions: (divider?: boolean) => any[]
     renderSelectedRevisionLabel: (labels: string[], selectedOptions?: any[]) => string
 
@@ -121,6 +123,7 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
     const closeDrawer = useSetAtom(closeDrawerAtom)
     const removeTraceData = useSetAtom(removeTraceDataAtom)
     const updateEditedTrace = useSetAtom(updateEditedTraceAtom)
+    const revertEditedTrace = useSetAtom(revertEditedTraceAtom)
 
     // Selected trace data (derived from atom)
     const selectedTraceData = useAtomValue(selectedTraceDataAtom)
@@ -238,20 +241,39 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
         await saveTestset.saveTestset({onSuccess: handleDrawerClose})
     }, [saveTestset, handleDrawerClose])
 
-    const onSaveEditedTrace = useCallback(() => {
-        if (updatedTraceData && updatedTraceData !== formatDataPreview) {
-            const result = updateEditedTrace({
-                updatedData: updatedTraceData,
-                format: editorFormat,
-                parseYaml: yaml.load as (str: string) => unknown,
-                formatData: getYamlOrJson,
+    const onSaveEditedTrace = useCallback(
+        (valueToSave?: string) => {
+            const dataToSave = valueToSave || updatedTraceData
+            console.log("[onSaveEditedTrace] Called", {
+                dataToSave: dataToSave?.slice(0, 100),
+                formatDataPreview: formatDataPreview?.slice(0, 100),
+                isDifferent: dataToSave !== formatDataPreview,
             })
+            if (dataToSave && dataToSave !== formatDataPreview) {
+                console.log("[onSaveEditedTrace] Calling updateEditedTrace")
+                const result = updateEditedTrace({
+                    updatedData: dataToSave,
+                    format: editorFormat,
+                    parseYaml: yaml.load as (str: string) => unknown,
+                    formatData: getYamlOrJson,
+                    getValueAtPath, // Pass getValueAtPath to update local entities
+                })
+                console.log("[onSaveEditedTrace] Result:", result)
 
-            if (!result.success && result.error) {
-                message.error(result.error)
+                if (!result.success && result.error) {
+                    message.error(result.error)
+                }
             }
+        },
+        [updatedTraceData, formatDataPreview, editorFormat, updateEditedTrace],
+    )
+
+    const onRevertEditedTrace = useCallback(() => {
+        const result = revertEditedTrace({getValueAtPath})
+        if (result.success) {
+            setUpdatedTraceData("") // Clear the local editor state
         }
-    }, [updatedTraceData, formatDataPreview, editorFormat, updateEditedTrace])
+    }, [revertEditedTrace, setUpdatedTraceData])
 
     // NOTE: No useEffects for testset/revision selection!
     // Reducers are called directly from handleCascaderChange (user action)
@@ -314,6 +336,7 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
         onPreviewOptionChange,
         onSaveTestset,
         onSaveEditedTrace,
+        onRevertEditedTrace,
         customSelectOptions: revisionSelect.customSelectOptions,
         renderSelectedRevisionLabel: revisionSelect.renderSelectedRevisionLabel,
 
