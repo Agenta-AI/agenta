@@ -196,6 +196,10 @@ body {
     }
 }
 
+.ant-input-search-btn {
+    height: inherit;
+}
+
 /* Comparison table styling fixes */
 .comparison-table .ant-table-expanded-row-fixed::after {
     border-right: none !important;

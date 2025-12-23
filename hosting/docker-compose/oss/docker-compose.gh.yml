@@ -93,7 +93,8 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "entrypoints/worker_evaluations.py"
+                "-m",
+                "entrypoints.worker_evaluations"
             ]
 
         depends_on:
@@ -125,7 +126,8 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "entrypoints/worker_tracing.py"
+                "-m",
+                "entrypoints.worker_tracing"
             ]
 
         depends_on:

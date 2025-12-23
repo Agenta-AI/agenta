@@ -19,8 +19,9 @@ const DeploymentOverview = () => {
     const handleCardClick = useCallback(
         (env: Environment) => {
             router.push({
-                pathname: `${appURL}/deployments`,
+                pathname: `${appURL}/variants`,
                 query: {
+                    tab: "deployments",
                     selectedEnvName: env.name,
                 },
             })
@@ -30,7 +31,9 @@ const DeploymentOverview = () => {
 
     return (
         <div className={clsx(["flex flex-col gap-2", "[&_>_div_h1.ant-typography]:text-xs"])}>
-            <Title>Deployment</Title>
+            <Title level={3} className="!m-0">
+                Deployment
+            </Title>
 
             <EnvironmentCardRow
                 className="flex gap-4"

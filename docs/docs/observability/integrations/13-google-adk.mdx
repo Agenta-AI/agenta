@@ -1,0 +1,219 @@
+---
+title: Tracing and Observability for Google ADK with Agenta
+sidebar_label: Google ADK
+description: Trace and debug your Google ADK applications with Agenta's observability platform. Set up instrumentation and observability for Google ADK Agents for a better LLMOps workflows.
+category: Integrations
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+import GoogleColabButton from "@site/src/components/GoogleColabButton";
+```
+
+Learn how to connect **Agenta** with **Google ADK** for complete visibility into your AI agent performance, debugging capabilities, and execution observability.
+
+> **What is Agenta?** [Agenta](https://agenta.ai) is an open-source LLMOps platform designed to streamline the deployment, management, and scaling of large language models. It offers comprehensive observability, testing, and deployment capabilities for AI applications.
+
+> **What is Google ADK?** [Google ADK](https://github.com/google/adk) (Agent Development Kit) is Google's framework for building AI agents powered by Gemini models. It provides tools for creating agents with custom capabilities, structured workflows, and seamless integration with Google's AI ecosystem.
+
+
+<GoogleColabButton notebookPath="examples/jupyter/integrations/google-adk-integration.ipynb">
+  Open in Google Colaboratory
+</GoogleColabButton>
+
+
+Here are the steps to setup tracing and observability for Google ADK applications with Agenta.
+
+## Install Required Packages
+
+First, install the required dependencies:
+
+```bash
+pip install agenta google-adk openinference-instrumentation-google-adk nest_asyncio
+```
+
+**Package Overview:**
+- `agenta`: The core Agenta SDK for prompt engineering and observability
+- `google-adk`: Google's Agent Development Kit for building AI agents powered by Gemini models
+- `openinference-instrumentation-google-adk`: Automatic instrumentation library for Google ADK operations
+
+## Setup and Configuration
+
+Initialize your environment and configure the Agenta SDK:
+
+```python
+import os
+import nest_asyncio
+
+import agenta as ag
+from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+
+# Enable nested event loops inside Jupyter
+nest_asyncio.apply()
+
+# Set up the environment
+os.environ["AGENTA_API_KEY"] = "YOUR AGENTA API KEY"
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai"
+os.environ["GOOGLE_API_KEY"] = "YOUR GOOGLE API KEY"   # Required for Google ADK / Gemini
+
+# Initialize Agenta (uses AGENTA_* env vars)
+ag.init()
+```
+
+> **What does `ag.init()` do?**
+> The `ag.init()` function initializes the Agenta SDK and sets up the necessary configuration for observability. It establishes connection to the Agenta platform, configures tracing and logging settings, and prepares the instrumentation context for your application.
+
+## Enable Google ADK Monitoring
+
+Initialize the OpenInference Google ADK instrumentation to automatically capture agent operations:
+
+```python
+GoogleADKInstrumentor().instrument()
+```
+
+## Complete Example of a Google ADK Application
+
+Here's a complete example showcasing a weather agent with Agenta instrumentation:
+
+```python
+import os
+import nest_asyncio
+import asyncio
+
+import agenta as ag
+from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
+
+# Enable nested event loops inside Jupyter
+nest_asyncio.apply()
+
+# Set up the environment
+os.environ["AGENTA_API_KEY"] = "YOUR AGENTA API KEY"
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai"
+os.environ["GOOGLE_API_KEY"] = "YOUR GOOGLE API KEY"
+
+# Initialize Agenta
+ag.init()
+GoogleADKInstrumentor().instrument()
+
+APP_NAME = "weather_app"
+USER_ID = "demo_user"
+
+def get_weather(city: str) -> dict:
+    """Toy tool used to generate spans in our traces."""
+    normalized = city.strip().lower()
+    if normalized == "new york":
+        return {
+            "status": "success",
+            "report": "The weather in New York is sunny with a temperature of 25°C.",
+        }
+    if normalized == "london":
+        return{
+            "status": "success",
+            "report": "The weather in London is cloudy with a temperature of 18°C.",
+        }
+    else:
+        return {
+            "status": "error",
+            "error_message": f"Weather information for '{city}' is not available.",
+        }
+
+weather_agent = Agent(
+    name="weather_agent",
+    model="gemini-2.0-flash-exp",
+    description="Agent that answers simple weather questions using a tool.",
+    instruction="You must use the tools to answer the user's question.",
+    tools=[get_weather],
+)
+
+session_service = InMemorySessionService()
+weather_runner = Runner(agent=weather_agent , app_name=APP_NAME, session_service=session_service)
+
+
+@ag.instrument(spankind="workflow")
+async def ask_weather(question: str, user_id: str = "demo_user")-> str:
+    """
+    Run a single weather question through the Google ADK agent.
+    This appears as a top-level span inside Agenta observability.
+    """
+
+    # Create a session for this user
+    session = await session_service.create_session(
+        app_name=APP_NAME,
+        user_id=user_id,
+    )
+
+    content = types.Content(
+        role="user",
+        parts=[types.Part.from_text(text=question)],
+    )
+
+    try:
+        events = weather_runner.run_async(
+            user_id=user_id,
+            session_id=session.id,
+            new_message=content,
+        )
+
+        final_text = ""
+        async for event in events:
+            if event.is_final_response():
+                final_text = event.content.parts[0].text.strip()
+
+        return final_text
+
+    except Exception as exc:
+        # Basic handling for Gemini quota / resource exhaustion
+        msg = str(exc).lower()
+        if "exhausted" in msg:
+            return (
+                "The model is temporarily exhausted or over quota. (Check your 'google gemini' subscription) "
+            )
+        # Re-raise all other errors so you still see real issues
+        raise
+
+
+# Example usage
+async def main(): 
+    response = await ask_weather("What is the weather in New York?") 
+    print("Response:", response) 
+
+# Run the example
+await main()
+```
+
+
+## View Traces in Agenta
+
+Once your application runs, access detailed execution traces through Agenta's dashboard. The observability data includes:
+
+- Top-level workflow span for your agent calls
+- Nested spans generated by Google ADK
+- Tool invocation spans (e.g., `get_weather`)
+- Model call information for Gemini requests
+- Input/output data captured by the instrumentation
+- Execution timing and performance metrics
+
+<Image
+  style={{
+    display: "block",
+    margin: "20px",
+    textAlign: "center",
+  }}
+  img={require("/images/integrations/agenta-openinference-google-adk-trace.png")}
+  alt="Agenta dashboard showing Google ADK application trace with detailed execution steps" 
+  loading="lazy"
+/>
+
+The trace provides comprehensive visibility into your application's execution, helping you:
+- Understand how your Google ADK agent processes requests
+- Debug tool behaviors and model interactions
+- Monitor latency and performance
+- Verify that your agent is behaving as expected
+
+## Next Steps
+
+For more detailed information about Agenta's observability features and advanced configuration options, visit the [Agenta Observability SDK Documentation](/observability/trace-with-python-sdk/setup-tracing).

@@ -426,7 +426,7 @@ const LoadTestsetModalContent = ({
                     rowSelection={{
                         type: isChat ? "radio" : "checkbox",
                         ...rowSelection,
-                        columnWidth: 46,
+                        columnWidth: 48,
                     }}
                     loading={isLoadingTestset || isLoading}
                     dataSource={dataSource}
