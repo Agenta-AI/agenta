@@ -57,7 +57,7 @@ async def get_secrets(api_url, credentials) -> tuple[list, list, list]:
             local_secrets = secrets_cache.get("local_secrets")
 
             if vault_secrets is None or local_secrets is None:
-                return secrets
+                return secrets, [], []
 
             return secrets, vault_secrets, local_secrets
 
