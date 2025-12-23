@@ -1,4 +1,3 @@
-import {Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 import AnalyticsDashboard from "@/oss/components/pages/observability/dashboard/AnalyticsDashboard"
@@ -9,11 +8,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .ant-spin-nested-loading": {
             width: "100%",
         },
-    },
-    sectionSubtitle: {
-        fontSize: 13,
-        color: theme.colorTextSecondary,
-        fontWeight: 400,
     },
 }))
 
