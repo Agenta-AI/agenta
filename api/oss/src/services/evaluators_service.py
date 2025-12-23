@@ -483,11 +483,13 @@ async def sdk_custom_code_run(
         )
 
     threshold = settings.get("threshold", 0.5)
+    runtime = settings.get("runtime")
 
     workflow = sdk_auto_custom_code_run(
         code=str(code),
         correct_answer_key=str(correct_answer_key),
         threshold=float(threshold),
+        runtime=runtime,
     )
 
     credentials = RunningContext.get().credentials
