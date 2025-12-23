@@ -36,5 +36,13 @@ export const extractTraceData = (trace: any) => {
         }
     }
 
+    // Handle Exception
+    if (trace.status_code === "STATUS_CODE_ERROR") {
+        messages.push({
+            role: "exception",
+            content: trace.status_message || "An error occurred during the session execution.",
+        })
+    }
+
     return messages
 }

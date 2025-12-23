@@ -16,7 +16,7 @@ const SessionDrawer = () => {
     const clearSessionParam = useSetAtom(clearSessionParamAtom)
     const [, setSpanQueryParam] = useQueryParamState("span")
 
-    const initialWidth = 1200
+    const initialWidth = 1250
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
 
     const handleAfterOpenChange = useCallback(

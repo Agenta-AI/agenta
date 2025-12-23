@@ -260,7 +260,7 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
     const projectId = get(projectIdAtom)
 
     const sort = get(sortAtomFamily("sessions"))
-    const filters = get(userFiltersAtomFamily("sessions"))
+    // const filters = get(userFiltersAtomFamily("sessions"))
     const windowing: {oldest?: string; newest?: string} = {}
 
     if (sort?.type === "standard" && sort.sorted) {
@@ -287,7 +287,7 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
             const response: any = await fetchSessions({
                 appId: (appId as string) || undefined,
                 windowing: {...windowing, limit, newest: pageParam?.newest},
-                filter: filters && filters.length > 0 ? filters : undefined,
+                filter: undefined,
             })
 
             return {
@@ -333,14 +333,14 @@ export const filteredSessionIdsAtom = atom((get) => {
 export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
     const appId = get(selectedAppIdAtom)
     const sort = get(sortAtomFamily("sessions"))
-    // const filters = get(filtersAtomFamily("sessions"))
+    const filters = get(userFiltersAtomFamily("sessions"))
     const traceTabs = get(traceTabsAtomFamily("sessions"))
     const projectId = get(projectIdAtom)
     const limit = get(limitAtomFamily("sessions"))
     const sessionIds = get(sessionIdsAtom)
 
     const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
-        buildTraceQueryParams([], undefined, traceTabs, limit)
+        buildTraceQueryParams(filters, undefined, traceTabs, limit)
 
     const sessionExists = get(sessionExistsAtom)
 
@@ -543,6 +543,10 @@ export const sessionLastOutputAtomFamily = atomFamily((sessionId: string) =>
         const sorted = get(sessionSortedTracesAtomFamily(sessionId))
         if (!sorted.length) return undefined
         const lastTrace = sorted[sorted.length - 1]
+
+        if (lastTrace.status_code === "STATUS_CODE_ERROR") {
+            return lastTrace.status_message
+        }
         return (lastTrace.attributes as any)?.ag?.data?.outputs
     }),
 )

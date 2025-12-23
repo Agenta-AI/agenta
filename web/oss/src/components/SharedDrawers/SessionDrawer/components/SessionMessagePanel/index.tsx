@@ -87,7 +87,11 @@ const SessionMessagePanel = ({
                                                         headerName={val.role}
                                                         initialValue={val.content as string}
                                                         className="bg-[#0517290A] !w-[96%]"
-                                                        headerClassName="capitalize"
+                                                        headerClassName={
+                                                            val.role === "exception"
+                                                                ? "capitalize text-red-500"
+                                                                : "capitalize"
+                                                        }
                                                         editorType="borderless"
                                                         readOnly
                                                         noProvider
