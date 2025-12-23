@@ -23,6 +23,7 @@ const EditableColumnHeader = ({
     inlineActionsMinWidth = 120,
 }: EditableColumnHeaderProps) => {
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false)
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [newName, setNewName] = useState(columnName)
     const [useDropdown, setUseDropdown] = useState(false)
     const containerRef = useRef<HTMLDivElement>(null)
@@ -63,17 +64,14 @@ const EditableColumnHeader = ({
         }
     }, [newName, columnName, onRename])
 
+    const openDeleteModal = useCallback(() => {
+        setIsDeleteModalOpen(true)
+    }, [])
+
     const handleDelete = useCallback(() => {
-        Modal.confirm({
-            title: "Delete Column",
-            content: `Are you sure you want to delete the column "${columnName}"? This will remove the column from all testcases.`,
-            okText: "Delete",
-            okButtonProps: {danger: true},
-            onOk: () => {
-                onDelete(columnKey)
-            },
-        })
-    }, [columnKey, columnName, onDelete])
+        onDelete(columnKey)
+        setIsDeleteModalOpen(false)
+    }, [columnKey, onDelete])
 
     const menuItems = [
         {
@@ -88,7 +86,7 @@ const EditableColumnHeader = ({
             label: "Delete column",
             icon: <Trash size={16} />,
             danger: true,
-            onClick: handleDelete,
+            onClick: openDeleteModal,
         },
     ]
 
@@ -138,7 +136,7 @@ const EditableColumnHeader = ({
                                 className="!w-6 !h-6 !min-w-0"
                                 onClick={(e) => {
                                     e.stopPropagation()
-                                    handleDelete()
+                                    openDeleteModal()
                                 }}
                             />
                         </Tooltip>
@@ -174,6 +172,21 @@ const EditableColumnHeader = ({
                         onPressEnter={handleRename}
                     />
                 </div>
+            </Modal>
+
+            <Modal
+                title="Delete Column"
+                open={isDeleteModalOpen}
+                onOk={handleDelete}
+                onCancel={() => setIsDeleteModalOpen(false)}
+                okText="Delete"
+                okButtonProps={{danger: true}}
+                destroyOnHidden
+            >
+                <Typography.Text>
+                    Are you sure you want to delete the column &quot;{columnName}&quot;? This will
+                    remove the column from all testcases.
+                </Typography.Text>
             </Modal>
         </>
     )
