@@ -50,6 +50,18 @@ const prepareRequestBody = ({
     appType?: string
 }): Record<string, any> => {
     const isCustomVariant = !!appType && appType === "custom"
+    const rawMessages = inputParametersDict?.messages
+    let messages = Array.isArray(rawMessages) ? rawMessages : undefined
+    if (!messages && typeof rawMessages === "string") {
+        try {
+            const parsed = JSON.parse(rawMessages)
+            if (Array.isArray(parsed)) {
+                messages = parsed
+            }
+        } catch {
+            // Ignore invalid JSON and let the backend handle missing messages.
+        }
+    }
 
     // Build the inputs object from inputParametersDict
     // Filter out non-input keys like testcase_dedup_id, correct_answer, etc.
@@ -71,17 +83,29 @@ const prepareRequestBody = ({
 
     // For custom variants, inputs go at top level
     if (isCustomVariant) {
-        return {
+        const requestBody = {
             ag_config: precomputedParameters || {},
             ...inputs,
         }
+
+        if (messages && messages.length > 0) {
+            requestBody.messages = messages
+        }
+
+        return requestBody
     }
 
     // For standard variants, wrap config in ag_config and inputs under inputs key
-    return {
+    const requestBody = {
         ag_config: precomputedParameters || {},
         inputs,
     }
+
+    if (messages && messages.length > 0) {
+        requestBody.messages = messages
+    }
+
+    return requestBody
 }
 
 /** Action atom to run an invocation */
