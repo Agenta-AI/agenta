@@ -306,6 +306,224 @@ export const currentColumnsAtom = atom((get) => {
 })
 
 // ============================================================================
+// EXPANDED COLUMNS (DYNAMIC OBJECT EXPANSION)
+// Detects object-type columns and expands them into sub-columns
+// ============================================================================
+
+/**
+ * Information about an expanded column (object property as sub-column)
+ */
+export interface ExpandedColumn extends Column {
+    /** Parent column key (e.g., "event" for "event.type") */
+    parentKey: string
+    /** Sub-key within the parent object (e.g., "type" for "event.type") */
+    subKey: string
+}
+
+/**
+ * Maximum depth for recursive column expansion
+ */
+const MAX_COLUMN_DEPTH = 5
+
+/**
+ * Try to parse a value as a plain object (handles JSON strings)
+ * Arrays are NOT treated as objects - they should be displayed as JSON
+ */
+function tryParseAsObject(value: unknown): Record<string, unknown> | null {
+    // Reject arrays explicitly
+    if (Array.isArray(value)) {
+        return null
+    }
+    // Already an object (and not an array)
+    if (value && typeof value === "object") {
+        return value as Record<string, unknown>
+    }
+    // Try to parse JSON string - only if it's an object (starts with {), not an array
+    if (typeof value === "string") {
+        const trimmed = value.trim()
+        // Only parse objects, not arrays
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+            try {
+                const parsed = JSON.parse(trimmed)
+                // Double-check it's not an array after parsing
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                    return parsed as Record<string, unknown>
+                }
+            } catch {
+                // Not valid JSON
+            }
+        }
+    }
+    return null
+}
+
+/**
+ * Check if a value is an array (handles JSON strings too)
+ */
+function isArrayValue(value: unknown): boolean {
+    if (Array.isArray(value)) {
+        return true
+    }
+    // Check for JSON array strings
+    if (typeof value === "string") {
+        const trimmed = value.trim()
+        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+            try {
+                const parsed = JSON.parse(trimmed)
+                return Array.isArray(parsed)
+            } catch {
+                return false
+            }
+        }
+    }
+    return false
+}
+
+/**
+ * Recursively collect object sub-keys up to maxDepth levels
+ * @param obj - The object to analyze
+ * @param prefix - Current path prefix (e.g., "event" or "event.location")
+ * @param objectSubKeys - Map to populate with results
+ * @param currentDepth - Current recursion depth
+ */
+function collectObjectSubKeysRecursive(
+    obj: Record<string, unknown>,
+    prefix: string,
+    objectSubKeys: Map<string, Set<string>>,
+    currentDepth: number,
+): void {
+    if (currentDepth >= MAX_COLUMN_DEPTH) return
+
+    Object.entries(obj).forEach(([subKey, subValue]) => {
+        // Skip array values entirely - they should be displayed as JSON, not expanded
+        if (isArrayValue(subValue)) {
+            // Add the key but don't recurse into it
+            const parentSubKeys = objectSubKeys.get(prefix) || new Set<string>()
+            parentSubKeys.add(subKey)
+            objectSubKeys.set(prefix, parentSubKeys)
+            return
+        }
+
+        const fullPath = prefix ? `${prefix}.${subKey}` : subKey
+
+        // Add this subKey to the parent's set
+        const parentSubKeys = objectSubKeys.get(prefix) || new Set<string>()
+        parentSubKeys.add(subKey)
+        objectSubKeys.set(prefix, parentSubKeys)
+
+        // If this value is also an object (not array), recurse
+        const nestedObj = tryParseAsObject(subValue)
+        if (nestedObj && Object.keys(nestedObj).length > 0) {
+            collectObjectSubKeysRecursive(nestedObj, fullPath, objectSubKeys, currentDepth + 1)
+        }
+    })
+}
+
+/**
+ * Derived atom: analyzes testcase data to detect object-type columns
+ * Returns a map of column key -> set of sub-keys found in that column's objects
+ * Handles both actual objects and JSON strings
+ * Recursively expands up to MAX_COLUMN_DEPTH levels
+ */
+export const objectColumnSubKeysAtom = atom((get) => {
+    const serverIds = get(testcaseIdsAtom)
+    const newIds = get(newEntityIdsAtom)
+    const deletedIds = get(deletedEntityIdsAtom)
+    const deletedCols = get(deletedColumnsAtom)
+
+    // Map: columnKey (path) -> Set of sub-keys found across all entities
+    const objectSubKeys = new Map<string, Set<string>>()
+
+    const allIds = [...newIds, ...serverIds]
+    allIds.forEach((id) => {
+        if (deletedIds.has(id)) return
+
+        const entity = get(testcaseEntityAtomFamily(id))
+        if (!entity) return
+
+        Object.entries(entity).forEach(([key, value]) => {
+            if (SYSTEM_FIELDS.has(key)) return
+            if (deletedCols.has(key)) return
+
+            // Try to parse as object (handles JSON strings too)
+            const obj = tryParseAsObject(value)
+            if (obj && Object.keys(obj).length > 0) {
+                // Recursively collect sub-keys up to MAX_COLUMN_DEPTH
+                collectObjectSubKeysRecursive(obj, key, objectSubKeys, 1)
+            }
+        })
+    })
+
+    return objectSubKeys
+})
+
+/**
+ * Recursively expand a column path into sub-columns
+ * @param parentPath - The full path to the parent (e.g., "current_rfp" or "current_rfp.event")
+ * @param objectSubKeys - Map of path -> sub-keys
+ * @param results - Array to push expanded columns into
+ */
+function expandColumnRecursive(
+    parentPath: string,
+    objectSubKeys: Map<string, Set<string>>,
+    results: (Column | ExpandedColumn)[],
+): void {
+    const subKeys = objectSubKeys.get(parentPath)
+
+    if (subKeys && subKeys.size > 0) {
+        // This path has sub-keys - expand each one
+        const sortedSubKeys = Array.from(subKeys).sort()
+        sortedSubKeys.forEach((subKey) => {
+            const fullPath = `${parentPath}.${subKey}`
+
+            // Check if this sub-key also has nested objects
+            const nestedSubKeys = objectSubKeys.get(fullPath)
+            if (nestedSubKeys && nestedSubKeys.size > 0) {
+                // Recurse into nested object
+                expandColumnRecursive(fullPath, objectSubKeys, results)
+            } else {
+                // Leaf node - add as column
+                results.push({
+                    key: fullPath,
+                    name: subKey, // Only show sub-key name, group name is in header
+                    parentKey: parentPath,
+                    subKey,
+                } as ExpandedColumn)
+            }
+        })
+    }
+}
+
+/**
+ * Derived atom: expanded columns with object sub-columns
+ * Takes base columns and expands object-type columns into grouped sub-columns
+ * Recursively expands up to MAX_COLUMN_DEPTH levels
+ *
+ * Example: If "event" column contains objects with {location: {city, country}},
+ * this returns columns: event.location.city, event.location.country
+ */
+export const expandedColumnsAtom = atom((get) => {
+    const baseColumns = get(currentColumnsAtom)
+    const objectSubKeys = get(objectColumnSubKeysAtom)
+
+    const expandedColumns: (Column | ExpandedColumn)[] = []
+
+    baseColumns.forEach((col) => {
+        const subKeys = objectSubKeys.get(col.key)
+
+        if (subKeys && subKeys.size > 0) {
+            // This column contains objects - recursively expand into sub-columns
+            expandColumnRecursive(col.key, objectSubKeys, expandedColumns)
+        } else {
+            // Regular column - keep as is
+            expandedColumns.push(col)
+        }
+    })
+
+    return expandedColumns
+})
+
+// ============================================================================
 // COLUMN MUTATIONS
 // ============================================================================
 

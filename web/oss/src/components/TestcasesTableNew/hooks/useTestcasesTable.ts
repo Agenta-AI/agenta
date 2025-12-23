@@ -6,6 +6,7 @@ import {
     addColumnAtom,
     currentColumnsAtom,
     deleteColumnAtom,
+    expandedColumnsAtom,
     renameColumnAtom,
 } from "@/oss/state/entities/testcase/columnState"
 import {displayRowRefsAtom} from "@/oss/state/entities/testcase/displayRows"
@@ -223,8 +224,10 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     // COLUMN STATE (from atoms instead of useEditableTable)
     // Columns are derived directly from entity/server data - no useEffect sync needed
     // Note: Column reset and v0 draft init are handled by revisionChangeEffectAtom
+    // Uses expandedColumnsAtom for dynamic object expansion (e.g., "event" -> "event.type", "event.date")
     // =========================================================================
-    const columns = useAtomValue(currentColumnsAtom)
+    const _baseColumns = useAtomValue(currentColumnsAtom) // Keep for potential future use
+    const columns = useAtomValue(expandedColumnsAtom)
     const addColumn = useSetAtom(addColumnAtom)
     const deleteColumn = useSetAtom(deleteColumnAtom)
     const renameColumnAction = useSetAtom(renameColumnAtom)
