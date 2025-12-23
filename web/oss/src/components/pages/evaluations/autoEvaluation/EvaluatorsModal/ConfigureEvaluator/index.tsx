@@ -13,7 +13,6 @@ import {
     EvaluatorConfig,
     JSSTheme,
     SettingsPreset,
-    testset,
     Variant,
 } from "@/oss/lib/Types"
 import {
@@ -48,7 +47,6 @@ interface ConfigureEvaluatorProps {
     onSuccess: () => void
     selectedEvaluator: Evaluator
     variants: Variant[] | null
-    testsets: testset[] | null
     selectedTestcase: {
         testcase: Record<string, any> | null
     }
@@ -124,7 +122,6 @@ const ConfigureEvaluator = ({
     selectedEvaluator,
     handleOnCancel,
     variants,
-    testsets,
     onSuccess,
     selectedTestcase,
     selectedVariant,
@@ -516,7 +513,6 @@ const ConfigureEvaluator = ({
                                 setTraceTree={setTraceTree}
                                 debugEvaluator={true}
                                 form={form}
-                                testsets={testsets}
                                 traceTree={traceTree}
                                 variants={variants}
                                 setSelectedVariant={setSelectedVariant}
