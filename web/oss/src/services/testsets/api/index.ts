@@ -12,14 +12,6 @@ import {PreviewTestsetsQueryPayload} from "./types"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const fetchTestsets = async () => {
-    const {projectId} = getProjectValues()
-
-    const response = await axios.get(`${getAgentaApiUrl()}/testsets?project_id=${projectId}`)
-
-    return response.data
-}
-
 export const fetchPreviewTestsets = async (payload: PreviewTestsetsQueryPayload = {}) => {
     const {projectId} = getProjectValues()
 
