@@ -1,8 +1,10 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import {resetSelectionAtom, selectedRevisionIdAtom} from "@/oss/state/testsetSelection"
 
 import {LoadTestsetModalProps} from "./assets/types"
 import {useSelectedTestcasesData} from "./hooks/useSelectedTestcasesData"
@@ -14,15 +16,14 @@ const LoadTestsetModalContent = dynamic(() => import("./assets/LoadTestsetModalC
     ssr: false,
 })
 
-const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
-    testsetData,
-    setTestsetData,
-    isChat = false,
-    ...props
-}) => {
+const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({setTestsetData, ...props}) => {
     const {onCancel, afterClose, ...modalProps} = props
-    const [selectedTestset, setSelectedTestset] = useState("")
-    const [selectedRevisionId, setSelectedRevisionId] = useState("")
+
+    // Use shared atoms for testset/revision selection
+    const selectedRevisionId = useAtomValue(selectedRevisionIdAtom)
+    const resetSelection = useSetAtom(resetSelectionAtom)
+
+    // Row selection is modal-specific (not shared)
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
     // Extract selected testcases from entity atoms in playground format
@@ -30,10 +31,18 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
 
     const isLoadingTestset = false
 
+    // Reset selection state when modal opens
+    useEffect(() => {
+        if (modalProps.open) {
+            // Reset row selection when modal opens
+            setSelectedRowKeys([])
+        }
+    }, [modalProps.open])
+
     const onClose = useCallback(() => {
         onCancel?.({} as any)
         setSelectedRowKeys([])
-    }, [])
+    }, [onCancel])
 
     return (
         <EnhancedModal
@@ -45,6 +54,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
             }}
             afterClose={() => {
                 setSelectedRowKeys([])
+                resetSelection()
                 afterClose?.()
             }}
             title="Load testset"
@@ -65,14 +75,9 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
         >
             <LoadTestsetModalContent
                 modalProps={modalProps}
-                selectedTestset={selectedTestset}
-                setSelectedTestset={setSelectedTestset}
-                selectedRevisionId={selectedRevisionId}
-                setSelectedRevisionId={setSelectedRevisionId}
                 testsetCsvData={selectedTestcasesData}
                 selectedRowKeys={selectedRowKeys}
                 setSelectedRowKeys={setSelectedRowKeys}
-                isChat={isChat}
                 isLoadingTestset={isLoadingTestset}
             />
         </EnhancedModal>

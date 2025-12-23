@@ -2,8 +2,17 @@ import {atom} from "jotai"
 
 import {
     fetchTestsetRevisions,
-    TestsetRevision,
+    type TestsetRevision,
 } from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
+import {
+    availableRevisionsAtom as sharedAvailableRevisionsAtom,
+    isNewTestsetAtom as sharedIsNewTestsetAtom,
+    loadedRevisionsMapAtom,
+    loadingRevisionsAtom as sharedLoadingRevisionsAtom,
+    loadingTestsetMapAtom,
+    resetSelectionAtom,
+    selectedTestsetInfoAtom as sharedSelectedTestsetInfoAtom,
+} from "@/oss/state/testsetSelection"
 
 import {buildRevisionLabel, buildSelectedRevisionLabel} from "../components/RevisionLabel"
 
@@ -13,27 +22,34 @@ import {cascaderOptionsAtom} from "./testsetQueries"
  * Cascader State Atoms
  *
  * Manages the cascader UI state for testset/revision selection.
- * Uses atoms to prevent prop drilling between components.
+ * Re-exports shared selection atoms and adds cascader-specific UI state.
  */
 
 // ============================================================================
-// CASCADER UI STATE
+// RE-EXPORT SHARED SELECTION ATOMS
+// ============================================================================
+
+/** Re-export: Loading state for revision fetching */
+export const loadingRevisionsAtom = sharedLoadingRevisionsAtom
+
+/** Re-export: Selected testset info */
+export const selectedTestsetInfoAtom = sharedSelectedTestsetInfoAtom
+
+/** Re-export: Available revisions for the selected testset */
+export const availableRevisionsAtom = sharedAvailableRevisionsAtom
+
+/** Re-export: Is the current selection a "Create New" testset? */
+export const isNewTestsetAtom = sharedIsNewTestsetAtom
+
+// ============================================================================
+// CASCADER-SPECIFIC UI STATE
 // ============================================================================
 
 /** Currently selected cascader value path [testsetId] or [testsetId, revisionId] */
 export const cascaderValueAtom = atom<string[]>([])
 
-/** Loading state for revision fetching */
-export const loadingRevisionsAtom = atom<boolean>(false)
-
 /** New testset name input (for create mode) */
 export const newTestsetNameAtom = atom<string>("")
-
-/** Selected testset info */
-export const selectedTestsetInfoAtom = atom<{name: string; id: string}>({name: "", id: ""})
-
-/** Available revisions for the selected testset */
-export const availableRevisionsAtom = atom<{id: string; version: number | null}[]>([])
 
 /**
  * Loaded children state - maps testsetId to loaded revision children
@@ -43,18 +59,9 @@ export const loadedChildrenAtom = atom<Map<string, any[]>>(new Map())
 
 /**
  * Loading state per testset - maps testsetId to loading boolean
+ * Re-export from shared module
  */
-export const loadingTestsetAtom = atom<Map<string, boolean>>(new Map())
-
-// ============================================================================
-// DERIVED ATOMS
-// ============================================================================
-
-/** Is the current selection a "Create New" testset? */
-export const isNewTestsetAtom = atom((get) => {
-    const testsetInfo = get(selectedTestsetInfoAtom)
-    return testsetInfo.id === "create"
-})
+export const loadingTestsetAtom = loadingTestsetMapAtom
 
 /**
  * Cascader options with dynamically loaded revision children
@@ -146,14 +153,11 @@ export const loadRevisionsAtom = atom(
             clearedLoadingMap.set(testsetId, false)
             set(loadingTestsetAtom, clearedLoadingMap)
 
-            // Update available revisions
-            set(
-                availableRevisionsAtom,
-                revisions.map((rev) => ({
-                    id: rev.id,
-                    version: rev.version != null ? Number(rev.version) : null,
-                })),
-            )
+            // Update shared revisions cache for cross-component access
+            const currentCache = get(loadedRevisionsMapAtom)
+            const newCache = new Map(currentCache)
+            newCache.set(testsetId, revisions)
+            set(loadedRevisionsMapAtom, newCache)
 
             return revisions
         } catch (error) {
@@ -187,12 +191,13 @@ export const loadRevisionsAtom = atom(
 
 /** Reset cascader state */
 export const resetCascaderStateAtom = atom(null, (_get, set) => {
+    // Reset cascader-specific UI state
     set(cascaderValueAtom, [])
     set(newTestsetNameAtom, "")
-    set(selectedTestsetInfoAtom, {name: "", id: ""})
-    set(availableRevisionsAtom, [])
     // Clear loaded children via the derived atom's write function
     set(cascaderOptionsWithChildrenAtom, "clear")
+    // Reset shared selection state
+    set(resetSelectionAtom)
 })
 
 // ============================================================================

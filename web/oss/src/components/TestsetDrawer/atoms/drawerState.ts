@@ -9,11 +9,14 @@ import {
     traceSpanAtomFamily,
     type TraceSpan,
 } from "@/oss/state/entities/trace"
+import {
+    resetSelectionAtom,
+    selectedRevisionIdAtom as sharedSelectedRevisionIdAtom,
+} from "@/oss/state/testsetSelection"
 
 import type {Mapping, TestsetTraceData} from "../assets/types"
 
 import {
-    availableRevisionsAtom,
     cascaderValueAtom,
     isNewTestsetAtom,
     newTestsetNameAtom,
@@ -47,8 +50,8 @@ export const previewKeyAtom = atom<string>("all")
 /** Row data preview key (specific trace key for editor preview) */
 export const rowDataPreviewAtom = atom<string>("")
 
-/** Current selected revision ID */
-export const selectedRevisionIdAtom = atom<string>("")
+/** Current selected revision ID (re-export from shared module) */
+export const selectedRevisionIdAtom = sharedSelectedRevisionIdAtom
 
 /** Flag for duplicate column mappings */
 export const hasDuplicateColumnsAtom = atom<boolean>(false)
@@ -294,12 +297,12 @@ export const closeDrawerAtom = atom(null, (get, set) => {
     // Reset auto-mapping tracking
     set(autoMappedTestsetIdAtom, null)
 
-    // Reset cascader state
+    // Reset cascader-specific UI state
     set(cascaderValueAtom, [])
-    set(selectedTestsetInfoAtom, {name: "", id: ""})
-    set(availableRevisionsAtom, [])
     set(newTestsetNameAtom, "")
-    set(selectedRevisionIdAtom, "")
+
+    // Reset shared selection state (testset, revision, etc.)
+    set(resetSelectionAtom)
 })
 
 /**

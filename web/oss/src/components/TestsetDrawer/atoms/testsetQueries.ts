@@ -8,6 +8,10 @@ import {
 } from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
 import {fetchTestsetsWindow} from "@/oss/components/TestsetsTable/atoms/fetchTestsets"
 import {projectIdAtom} from "@/oss/state/project"
+import {
+    selectedTestsetIdAtom as sharedSelectedTestsetIdAtom,
+    selectedTestsetInfoAtom as sharedSelectedTestsetInfoAtom,
+} from "@/oss/state/testsetSelection"
 
 /**
  * Testset Queries - Clean atom-based data fetching
@@ -90,18 +94,18 @@ export const testsetRevisionsQueryFamily = atomFamily((testsetId: string | null)
 )
 
 // ============================================================================
-// SELECTED TESTSET STATE
+// SELECTED TESTSET STATE (RE-EXPORT FROM SHARED MODULE)
 // ============================================================================
 
 /**
- * Currently selected testset ID in the drawer
+ * Re-export: Currently selected testset ID in the drawer
  */
-export const selectedTestsetIdAtom = atom<string | null>(null)
+export const selectedTestsetIdAtom = sharedSelectedTestsetIdAtom
 
 /**
- * Currently selected testset info (id + name)
+ * Re-export: Currently selected testset info (id + name)
  */
-export const selectedTestsetAtom = atom<{id: string; name: string} | null>(null)
+export const selectedTestsetAtom = sharedSelectedTestsetInfoAtom
 
 // ============================================================================
 // DERIVED ATOMS

@@ -2,7 +2,7 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {RightOutlined} from "@ant-design/icons"
 import {Divider, Input, Menu, Popover, Spin, Typography} from "antd"
-import {atom} from "jotai"
+import {atom, useAtom, useSetAtom} from "jotai"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -23,6 +23,11 @@ import {
     testsetStore,
 } from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
+import {
+    selectTestsetAtom,
+    selectedRevisionIdAtom,
+    selectedTestsetIdAtom,
+} from "@/oss/state/testsetSelection"
 import {urlAtom} from "@/oss/state/url"
 
 import {LoadTestsetModalContentProps} from "../types"
@@ -84,16 +89,22 @@ const TestcasesTablePreview = ({
 
 const LoadTestsetModalContent = ({
     modalProps,
-    selectedTestset,
-    setSelectedTestset,
-    selectedRevisionId,
-    setSelectedRevisionId,
     testsetCsvData,
     selectedRowKeys,
     setSelectedRowKeys,
     isLoadingTestset,
-    isChat,
-}: LoadTestsetModalContentProps) => {
+}: Omit<
+    LoadTestsetModalContentProps,
+    | "selectedTestset"
+    | "setSelectedTestset"
+    | "selectedRevisionId"
+    | "setSelectedRevisionId"
+    | "isChat"
+>) => {
+    // Use shared atoms for testset/revision selection
+    const [selectedTestset, setSelectedTestset] = useAtom(selectedTestsetIdAtom)
+    const [selectedRevisionId, setSelectedRevisionId] = useAtom(selectedRevisionIdAtom)
+    const selectTestset = useSetAtom(selectTestsetAtom)
     const projectId = useAtomValue(projectIdAtom)
     const listParams = useMemo(() => ({projectId: projectId ?? ""}), [projectId])
     const {data: testsetListResponse, isLoading: isLoadingTestsets} = useEntityList(
@@ -175,23 +186,28 @@ const LoadTestsetModalContent = ({
         router.push(`${urlState.projectURL}/testsets`)
     }, [router, urlState?.projectURL])
 
+    // Auto-select first testset when modal opens (uses shared selectTestsetAtom which also selects latest revision)
     useEffect(() => {
         if (!modalProps.open || !testsets.length) return
 
-        setSelectedTestset((prev) => {
-            const prevExists = prev && testsets.some((ts: Testset) => ts?.id === prev)
-            if (prevExists) return prev
-            return testsets[0]?.id || ""
-        })
-    }, [modalProps.open, testsets])
+        const prevExists =
+            selectedTestset && testsets.some((ts: Testset) => ts?.id === selectedTestset)
+        if (!prevExists && testsets[0]) {
+            selectTestset({
+                testsetId: testsets[0].id,
+                testsetName: testsets[0].name,
+                autoSelectLatest: true,
+            })
+        }
+    }, [modalProps.open, testsets, selectedTestset, selectTestset])
 
-    // Default revision selection to latest when testset changes
+    // Auto-select latest revision when revisions load and none is selected
     useEffect(() => {
-        if (!selectedTestset) return
+        if (!selectedTestset || selectedRevisionId) return
         const latestId =
             filteredRevisions.find((rev) => rev.id === latestRevision?.id)?.id ||
             filteredRevisions[0]?.id
-        if (latestId && selectedRevisionId !== latestId) {
+        if (latestId) {
             setSelectedRevisionId(latestId)
         }
     }, [
@@ -222,10 +238,14 @@ const LoadTestsetModalContent = ({
     const onChangeTestset = useCallback(
         ({key}: any) => {
             setSelectedRowKeys([])
-            setSelectedRevisionId("")
-            setSelectedTestset(key)
+            const testset = testsets.find((ts: Testset) => ts.id === key)
+            selectTestset({
+                testsetId: key,
+                testsetName: testset?.name || "",
+                autoSelectLatest: true,
+            })
         },
-        [setSelectedRevisionId, setSelectedRowKeys, setSelectedTestset],
+        [setSelectedRowKeys, testsets, selectTestset],
     )
 
     const onChangeRevision = useCallback(
