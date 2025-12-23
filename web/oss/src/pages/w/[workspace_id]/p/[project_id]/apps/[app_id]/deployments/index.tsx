@@ -1,4 +1,4 @@
-import {GetServerSideProps} from "next"
+import {GetServerSideProps} from "next/dist/types"
 
 export const getServerSideProps: GetServerSideProps = async ({params}) => {
     const workspaceId = params?.workspace_id
