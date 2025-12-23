@@ -28,7 +28,9 @@ def evaluate(
         correct_answer: Expected answer (not used)
 
     Returns:
-        float: 1.0 if OpenAI is available and working, 0.0 otherwise
+        float: 1.0 if OpenAI is available and working,
+               0.5 if no API key is available,
+               0.0 otherwise
 
     Example:
         # If OpenAI SDK is installed and API key is valid

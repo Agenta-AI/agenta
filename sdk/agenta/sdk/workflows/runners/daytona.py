@@ -146,7 +146,6 @@ class DaytonaRunner(CodeRunner):
                 #
                 or ""
             )
-            # agenta_host = "https://xxx.ngrok-free.app"
             agenta_credentials = (
                 RunningContext.get().credentials
                 #

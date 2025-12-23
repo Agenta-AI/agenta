@@ -18,8 +18,9 @@ def evaluate(
     """
     Tests if NumPy is available in the environment.
 
-    This is a simple predicate test that returns 1.0 if NumPy can be imported,
-    and 0.0 if it cannot. Useful for testing if the environment has NumPy installed.
+    This is a simple predicate test that returns a random value between 0.0 and 1.0
+    if NumPy can be imported, and 0.0 if it cannot. Useful for testing if the
+    environment has NumPy installed.
 
     Args:
         app_params: Application parameters (not used)
