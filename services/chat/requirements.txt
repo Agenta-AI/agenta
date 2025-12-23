@@ -14,3 +14,4 @@ google-cloud-aiplatform
 
 # temporary
 daytona
+orjson

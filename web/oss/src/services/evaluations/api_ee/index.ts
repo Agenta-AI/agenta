@@ -28,16 +28,29 @@ export const createEvaluatorDataMapping = async (
     return response.data
 }
 
+export interface EvaluatorRunOptions {
+    signal?: AbortSignal
+    timeout?: number
+}
+
+const DEFAULT_EVALUATOR_TIMEOUT = 120_000 // 2 minutes
+
 export const createEvaluatorRunExecution = async (
     evaluatorKey: string,
     config: EvaluatorInputInterface,
+    options?: EvaluatorRunOptions,
 ): Promise<EvaluatorOutputInterface> => {
     const {projectId} = getProjectValues()
+    const timeout = options?.timeout ?? DEFAULT_EVALUATOR_TIMEOUT
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/evaluators/${evaluatorKey}/run?project_id=${projectId}`,
         {
             ...config,
+        },
+        {
+            signal: options?.signal,
+            timeout,
         },
     )
     return response.data
