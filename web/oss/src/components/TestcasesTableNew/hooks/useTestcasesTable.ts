@@ -9,7 +9,7 @@ import {
     renameColumnAtom,
 } from "@/oss/state/entities/testcase/columnState"
 import {displayRowRefsAtom} from "@/oss/state/entities/testcase/displayRows"
-import {initializeV0DraftAtom} from "@/oss/state/entities/testcase/editSession"
+import {initializeEmptyRevisionAtom} from "@/oss/state/entities/testcase/editSession"
 import {
     addTestcaseAtom,
     appendTestcasesAtom,
@@ -87,7 +87,7 @@ export type {
  */
 export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTestcasesTableResult {
     const projectId = useAtomValue(projectIdAtom)
-    const {revisionId} = options
+    const {revisionId, skipEmptyRevisionInit = false} = options
 
     // Search state - synced with tableStore atom
     // Note: searchTerm is immediate (for UI), but API calls are debounced (300ms)
@@ -161,14 +161,23 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         }
     }, [rowIds, syncRowIds])
 
-    // Initialize v0 draft when revision query completes (for new testsets)
-    // This is the single point of initialization for v0 revisions
-    const initializeV0Draft = useSetAtom(initializeV0DraftAtom)
+    // Initialize empty revision when revision query completes
+    // This is the single point of initialization for empty revisions (any version)
+    // Adds default columns and one empty row to improve UX
+    // Can be skipped via skipEmptyRevisionInit option (e.g., for TestsetDrawer which manages its own columns)
+    const initializeEmptyRevision = useSetAtom(initializeEmptyRevisionAtom)
     useEffect(() => {
+        if (skipEmptyRevisionInit) return
         if (!revisionQuery.isPending && revisionId && revisionQuery.data) {
-            initializeV0Draft()
+            initializeEmptyRevision()
         }
-    }, [revisionQuery.isPending, revisionQuery.data, revisionId, initializeV0Draft])
+    }, [
+        skipEmptyRevisionInit,
+        revisionQuery.isPending,
+        revisionQuery.data,
+        revisionId,
+        initializeEmptyRevision,
+    ])
 
     // Extract data from query atoms
     const testsetId = useAtomValue(testsetIdAtom)

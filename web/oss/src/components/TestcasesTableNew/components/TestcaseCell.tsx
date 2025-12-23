@@ -49,6 +49,11 @@ export const TestcaseCell = memo(function TestcaseCell({
     )
     const value = useAtomValue(cellAtom)
 
+    // Debug: log cell value for local entities
+    if (testcaseId.startsWith("local-")) {
+        console.log(`🔍 [TestcaseCell] ${testcaseId}.${columnKey} =`, value)
+    }
+
     // Use custom render if provided
     if (render) {
         return <>{render(value, testcaseId, columnKey)}</>

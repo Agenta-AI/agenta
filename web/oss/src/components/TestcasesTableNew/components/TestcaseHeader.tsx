@@ -10,6 +10,8 @@ import {UserReference} from "@/oss/components/References/UserReference"
 
 import type {RevisionListItem, TestsetMetadata} from "../hooks/types"
 
+import {buildRevisionMenuItems} from "./RevisionMenuItems"
+
 /**
  * Props for TestcaseHeader component
  */
@@ -46,7 +48,6 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
         availableRevisions,
         loadingRevisions,
         isIdCopied,
-        revisionIdParam,
         onCopyId,
         onOpenRenameModal,
         onDeleteRevision,
@@ -56,44 +57,15 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
     const router = useRouter()
 
     // Revision dropdown menu items
-    const revisionMenuItems = useMemo(() => {
-        return availableRevisions
-            .filter((revision) => revision.version > 0)
-            .sort((a, b) => b.version - a.version)
-            .map((revision) => ({
-                key: revision.id,
-                label: (
-                    <div className="flex flex-col gap-0.5 py-1">
-                        <div className="flex items-center gap-2">
-                            <span className="font-medium">v{revision.version}</span>
-                            {revision.created_at && (
-                                <Typography.Text type="secondary" className="text-xs">
-                                    {new Date(revision.created_at).toLocaleDateString()}
-                                </Typography.Text>
-                            )}
-                        </div>
-                        {revision.message && (
-                            <Typography.Text
-                                type="secondary"
-                                className="text-xs truncate max-w-[200px]"
-                                title={revision.message}
-                            >
-                                {revision.message}
-                            </Typography.Text>
-                        )}
-                        {revision.author && (
-                            <div className="text-xs">
-                                <UserReference userId={revision.author} />
-                            </div>
-                        )}
-                    </div>
-                ),
-                onClick: () =>
-                    router.push(`${projectURL}/testsets/${revision.id}`, undefined, {
-                        shallow: true,
-                    }),
-            }))
-    }, [availableRevisions, router, projectURL])
+    const revisionMenuItems = useMemo(
+        () =>
+            buildRevisionMenuItems(availableRevisions, (revisionId) =>
+                router.push(`${projectURL}/testsets/${revisionId}`, undefined, {
+                    shallow: true,
+                }),
+            ) ?? [],
+        [availableRevisions, router, projectURL],
+    )
 
     // Check if this is the only revision (disable delete if so)
     // v0 is not a valid revision, so we filter it out when counting

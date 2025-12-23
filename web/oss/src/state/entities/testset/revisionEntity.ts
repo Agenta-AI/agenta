@@ -256,12 +256,14 @@ export const revisionsListQueryAtomFamily = atomFamily(
                                 : raw.version !== null && raw.version !== undefined
                                   ? raw.version
                                   : 0,
-                        created_at: raw.created_at,
-                        message: raw.message,
+                        created_at: raw.created_at ?? raw.date ?? raw.commit?.date,
+                        message: raw.message ?? raw.commit_message ?? raw.commit?.message,
                         author:
-                            raw.author !== null && raw.author !== undefined
-                                ? raw.author
-                                : raw.created_by_id,
+                            raw.author ??
+                            raw.created_by_id ??
+                            raw.commit?.author_id ??
+                            raw.commit?.author?.id ??
+                            null,
                     }))
                 },
                 enabled: Boolean(projectId && testsetId),
@@ -272,8 +274,25 @@ export const revisionsListQueryAtomFamily = atomFamily(
     (a, b) => a === b,
 )
 
+/**
+ * Derived atom that gets the latest revision from the revisions list query.
+ * Returns the latest non-v0 revision, or v0 if that's all there is.
+ * This is a simpler alternative to the batch-fetching latestRevisionAtomFamily.
+ */
+export const latestRevisionForTestsetAtomFamily = atomFamily(
+    (testsetId: string) =>
+        atom((get) => {
+            const query = get(revisionsListQueryAtomFamily(testsetId))
+            const revisions = query.data ?? []
+            // Revisions are sorted descending by version, first non-v0 is latest
+            const nonV0 = revisions.find((r) => r.version > 0)
+            return nonV0 ?? revisions[0] ?? null
+        }),
+    (a, b) => a === b,
+)
+
 // ============================================================================
-// LATEST REVISION ATOMS
+// LATEST REVISION ATOMS (LEGACY - batch fetching pattern)
 // For testsets list - shows latest revision info per testset
 // ============================================================================
 
