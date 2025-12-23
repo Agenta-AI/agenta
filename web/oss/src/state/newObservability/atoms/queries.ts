@@ -56,7 +56,7 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
         queryFn: async ({pageParam}) =>
             executeTraceQuery({
                 params,
-                pageParam,
+                pageParam: pageParam as string | undefined,
                 appId: appId as string,
                 isHasAnnotationSelected,
                 hasAnnotationConditions,
@@ -310,20 +310,8 @@ export const sessionIdsAtom = selectAtom(
     sessionsQueryAtom,
     (query) => {
         const pages = query.data?.pages ?? []
-        if (!pages.length) return []
-
-        const seen = new Set<string>()
-        const deduped: string[] = []
-
-        pages.forEach((page: any) => {
-            page.session_ids.forEach((sessionId: string) => {
-                if (!sessionId || seen.has(sessionId)) return
-                seen.add(sessionId)
-                deduped.push(sessionId)
-            })
-        })
-
-        return deduped
+        const sessionIds = pages.flatMap((page: any) => page.session_ids || [])
+        return Array.from(new Set(sessionIds))
     },
     deepEqual,
 )
@@ -378,7 +366,7 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
 
                 return executeTraceQuery({
                     params: specificParams,
-                    pageParam,
+                    pageParam: pageParam as string | undefined,
                     appId: appId as string,
                     isHasAnnotationSelected,
                     hasAnnotationConditions,
@@ -433,7 +421,7 @@ export const sessionsSpansAtom = selectAtom(
                 if (!key || seen.has(key)) return
                 seen.add(key)
                 console.log("trace", trace)
-                const sessionId = trace.attributes?.ag?.session?.id as string
+                const sessionId = (trace.attributes as any)?.ag?.session?.id as string
 
                 if (sessionId) {
                     if (!grouped[sessionId]) grouped[sessionId] = []
@@ -538,7 +526,7 @@ export const sessionFirstInputAtomFamily = atomFamily((sessionId: string) =>
         if (!sorted.length) return undefined
         const firstTrace = sorted[0]
         console.log("firstTrace", firstTrace)
-        return firstTrace.attributes?.ag?.data?.inputs
+        return (firstTrace.attributes as any)?.ag?.data?.inputs
     }),
 )
 
@@ -547,7 +535,7 @@ export const sessionLastOutputAtomFamily = atomFamily((sessionId: string) =>
         const sorted = get(sessionSortedTracesAtomFamily(sessionId))
         if (!sorted.length) return undefined
         const lastTrace = sorted[sorted.length - 1]
-        return lastTrace.attributes?.ag?.data?.outputs
+        return (lastTrace.attributes as any)?.ag?.data?.outputs
     }),
 )
 

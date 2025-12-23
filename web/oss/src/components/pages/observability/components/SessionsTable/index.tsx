@@ -1,54 +1,87 @@
-import {useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
-import {useAtomValue, useSetAtom} from "jotai"
+import {Button, Spin} from "antd"
+import {useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
+
+import {useSessions} from "@/oss/state/newObservability/hooks/useSessions"
+import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
-import {sessionIdsAtom, useObservability} from "@/oss/state/newObservability"
-import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
-
-import ObservabilityHeader from "../ObservabilityHeader"
-
 import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
 
-const SessionsTable = () => {
-    const {isLoading, selectedRowKeys, setSelectedRowKeys} = useObservability()
-    const openSessionDrawer = useSetAtom(openSessionDrawerWithUrlAtom)
-    const sessionIds = useAtomValue(sessionIdsAtom)
+const ObservabilityHeader = dynamic(() => import("../../components/ObservabilityHeader"), {
+    ssr: false,
+})
+
+const SessionsTable: React.FC = () => {
+    const {
+        sessionIds,
+        isLoading,
+        fetchMoreSessions,
+        hasMoreSessions,
+        isFetchingMore,
+        sessionCount,
+    } = useSessions()
+
+    const openDrawer = useSetAtom(openSessionDrawerWithUrlAtom)
+
+    const handleLoadMore = useCallback(() => {
+        if (isFetchingMore || !hasMoreSessions) return
+        fetchMoreSessions().catch((error) => console.error("Failed to fetch more sessions", error))
+    }, [fetchMoreSessions, hasMoreSessions, isFetchingMore])
+
     const columns = useMemo(() => getSessionColumns(), [])
 
-    const dataSource: SessionRow[] = useMemo(
-        () => sessionIds.map((id) => ({session_id: id})),
+    const data: SessionRow[] = useMemo(
+        () =>
+            sessionIds.map((id) => ({
+                key: id,
+                session_id: id,
+            })),
         [sessionIds],
     )
 
-    const rowSelection = {
-        selectedRowKeys,
-        onChange: (keys: React.Key[]) => {
-            setSelectedRowKeys(keys)
-        },
-    }
+    const loadingFirstPage = isLoading && sessionIds.length === 0
 
     return (
         <div className="flex flex-col gap-6">
             <ObservabilityHeader columns={columns} componentType="sessions" />
+
             <div className="flex flex-col gap-2">
-                <EnhancedTable
+                <EnhancedTable<SessionRow>
                     uniqueKey="observability-sessions-table"
                     rowKey="session_id"
+                    loading={loadingFirstPage}
                     columns={columns}
-                    dataSource={dataSource}
-                    loading={isLoading}
-                    rowSelection={{
-                        type: "checkbox",
-                        columnWidth: 48,
-                        ...rowSelection,
-                    }}
+                    dataSource={data}
                     onRow={(record) => ({
-                        onClick: () => openSessionDrawer({sessionId: record.session_id}),
-                        className: "cursor-pointer",
+                        onClick: () => openDrawer({sessionId: record.session_id}),
+                        style: {cursor: "pointer"},
                     })}
+                    pagination={false}
                 />
+
+                {hasMoreSessions && (
+                    <div className="flex justify-center py-2">
+                        <Button
+                            onClick={handleLoadMore}
+                            disabled={isFetchingMore}
+                            type="text"
+                            size="large"
+                        >
+                            {isFetchingMore ? (
+                                <span>
+                                    <Spin size="small" className="mr-2" />
+                                    Loading…
+                                </span>
+                            ) : (
+                                "Click here to load more"
+                            )}
+                        </Button>
+                    </div>
+                )}
             </div>
             <SessionDrawer />
         </div>

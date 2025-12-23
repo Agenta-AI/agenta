@@ -1,7 +1,57 @@
-import React from "react"
+import {useCallback} from "react"
 
-const useSessions = () => {
-    return
+import {useAtom, useAtomValue} from "jotai"
+
+import {
+    filtersAtom,
+    searchQueryAtom,
+    selectedTraceIdAtom,
+    sortAtom,
+    traceTabsAtom,
+} from "../atoms/controls"
+import {
+    observabilityLoadingAtom,
+    sessionCountAtom,
+    sessionIdsAtom,
+    sessionsQueryAtom,
+} from "../atoms/queries"
+
+export const useSessions = () => {
+    const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)
+    const [traceTabs, setTraceTabs] = useAtom(traceTabsAtom)
+    const [filters, setFilters] = useAtom(filtersAtom)
+    const [sort, setSort] = useAtom(sortAtom)
+    const [selectedTraceId, setSelectedTraceId] = useAtom(selectedTraceIdAtom)
+
+    const [{refetch: refetchSessions, fetchNextPage, hasNextPage, isFetchingNextPage}] =
+        useAtom(sessionsQueryAtom)
+
+    const sessionIds = useAtomValue(sessionIdsAtom)
+    const sessionCount = useAtomValue(sessionCountAtom)
+    const isLoading = useAtomValue(observabilityLoadingAtom)
+
+    const fetchMoreSessions = useCallback(async () => {
+        if (!hasNextPage) return
+        await fetchNextPage()
+    }, [fetchNextPage, hasNextPage])
+
+    return {
+        sessionIds,
+        sessionCount,
+        isLoading,
+        fetchMoreSessions,
+        hasMoreSessions: hasNextPage,
+        isFetchingMore: isFetchingNextPage,
+        refetchSessions,
+        searchQuery,
+        setSearchQuery,
+        traceTabs,
+        setTraceTabs,
+        filters,
+        setFilters,
+        sort,
+        setSort,
+        selectedTraceId,
+        setSelectedTraceId,
+    }
 }
-
-export default useSessions

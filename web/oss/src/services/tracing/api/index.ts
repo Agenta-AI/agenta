@@ -62,6 +62,8 @@ export const fetchSessions = async (params: {
     windowing?: {
         oldest?: string
         newest?: string
+        next?: string
+        limit?: number
     }
     cursor?: string
     filter?: any
@@ -75,12 +77,17 @@ export const fetchSessions = async (params: {
     if (applicationId) url.searchParams.set("application_id", applicationId)
 
     const payload: Record<string, any> = {}
-    if (params.windowing) {
-        payload.windowing = params.windowing
+
+    // Initialize windowing if it doesn't exist but we have a cursor
+    if (params.windowing || params.cursor) {
+        payload.windowing = {...(params.windowing || {})}
+
+        // If cursor is provided, it goes into windowing.next
+        if (params.cursor) {
+            payload.windowing.next = params.cursor
+        }
     }
-    if (params.cursor) {
-        payload.cursor = params.cursor
-    }
+
     if (params.filter) {
         payload.filter = params.filter
     }

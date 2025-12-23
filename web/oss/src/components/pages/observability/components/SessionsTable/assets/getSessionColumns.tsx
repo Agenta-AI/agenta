@@ -17,8 +17,9 @@ import {
 
 export interface SessionRow {
     session_id: string
-    key?: Key
+    key: Key
     isSkeleton?: boolean
+    __isSkeleton: boolean
 }
 
 export const getSessionColumns = (): EnhancedColumnType<SessionRow>[] => [
