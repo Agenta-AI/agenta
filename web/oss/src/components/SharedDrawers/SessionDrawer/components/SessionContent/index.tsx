@@ -17,7 +17,7 @@ const SessionContent = () => {
                     .sort((a: any, b: any) => {
                         const timeA = new Date(a.start_time).getTime()
                         const timeB = new Date(b.start_time).getTime()
-                        return timeB - timeA
+                        return timeA - timeB
                     })
                     .map((trace: any, index: number) => {
                         const messages = extractTraceData(trace)
@@ -25,7 +25,7 @@ const SessionContent = () => {
                         return (
                             <div id={trace.span_id} key={trace.span_id || index}>
                                 <SessionMessagePanel
-                                    label={`Trace ${sessionTraces.length - index}`}
+                                    label={`Trace ${index + 1}`}
                                     value={messages}
                                     trace={trace}
                                 />

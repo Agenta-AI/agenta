@@ -30,23 +30,21 @@ const SessionTree = ({selected, setSelected}: SessionTreeProps) => {
     const turnsTree: TraceSpanNode[] = useMemo(() => {
         if (!sessionTraces) return []
 
-        // Sort by start_time (descending) - assuming start_time exists
+        // Sort by start_time (ascending) - oldest first
         const sortedTraces = [...sessionTraces].sort((a: any, b: any) => {
             const timeA = new Date(a.start_time).getTime()
             const timeB = new Date(b.start_time).getTime()
-            return timeB - timeA // Newest first
+            return timeA - timeB // Oldest first
         })
 
         return sortedTraces.map((trace, index) => ({
             ...trace,
-            span_name: `Trace ${sessionTraces.length - index}`,
-            // If we sort descending (newest first), the top one is the latest.
-            // If I have 3 traces. T1, T2, T3 (created in order).
-            // Sorted: T3, T2, T1.
+            span_name: `Trace ${index + 1}`,
+            // If we sort ascending (oldest first), the top one is the first trace.
             // UI:
-            // - Trace 3
-            // - Trace 2
             // - Trace 1
+            // - Trace 2
+            // - Trace 3
 
             expanded: false, // Collapse trace children by default
         }))
