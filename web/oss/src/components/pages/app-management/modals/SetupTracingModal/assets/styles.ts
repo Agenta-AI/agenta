@@ -11,6 +11,9 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& > div": {
             height: "100%",
         },
+        "& .ant-modal-container": {
+            padding: 0,
+        },
         "& h1.ant-typography": {
             fontSize: theme.fontSizeHeading3,
             lineHeight: theme.lineHeightHeading3,

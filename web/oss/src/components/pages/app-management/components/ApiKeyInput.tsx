@@ -9,8 +9,6 @@ import {useOrgData} from "@/oss/state/org"
 import {getProjectValues} from "@/oss/state/project"
 import {waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
-const {Text} = Typography
-
 interface ApiKeyInputProps {
     apiKeyValue: string
     onApiKeyChange: React.Dispatch<React.SetStateAction<string>>
@@ -81,8 +79,8 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
     }
 
     return (
-        <Space orientation="vertical">
-            <Text>Create or enter your API key</Text>
+        <Space orientation="vertical" size={0}>
+            <Typography.Text className="font-medium">Create or enter your API key</Typography.Text>
             <Space>
                 <Input
                     className="w-[300px]"

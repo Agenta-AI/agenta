@@ -4,7 +4,7 @@ const TRACE_ENABLED_PATH_MATCHERS = [
     "/playground",
     "/evaluations",
 ] as const
-const VARIANT_ENABLED_PATH_MATCHERS = ["/variants", "/deployments", "/overview"] as const
+const VARIANT_ENABLED_PATH_MATCHERS = ["/variants", "/overview"] as const
 
 export const isTraceSupportedRoute = (pathname: string) =>
     TRACE_ENABLED_PATH_MATCHERS.some((segment) => pathname.includes(segment))

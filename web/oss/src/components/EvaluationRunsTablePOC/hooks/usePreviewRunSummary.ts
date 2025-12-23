@@ -58,10 +58,10 @@ export const usePreviewRunSummary = (
     const hasSummary = Boolean(summary)
     const isLoading = Boolean(
         enabled &&
-            projectId &&
-            runId &&
-            !hasSummary &&
-            (summaryQuery?.isLoading || summaryQuery?.isFetching || summaryQuery?.isPending),
+        projectId &&
+        runId &&
+        !hasSummary &&
+        (summaryQuery?.isLoading || summaryQuery?.isFetching || summaryQuery?.isPending),
     )
 
     const stepReferences = summary?.stepReferences as Record<string, unknown> | undefined

@@ -109,7 +109,7 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python entrypoints/worker_evaluations.py
+            python -m entrypoints.worker_evaluations
 
     worker-tracing:
         build:
@@ -140,7 +140,7 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python entrypoints/worker_tracing.py
+            python -m entrypoints.worker_tracing
 
     cron:
         build:

@@ -21,11 +21,9 @@ import agenta as ag
 log = get_module_logger(__name__)
 
 
-AGENTA_RUNTIME_PREFIX = getenv("AGENTA_RUNTIME_PREFIX", "")
-
 _ALWAYS_ALLOW_LIST = [
-    f"{AGENTA_RUNTIME_PREFIX}/health",
-    f"{AGENTA_RUNTIME_PREFIX}/openapi.json",
+    "/health",
+    "/openapi.json",
 ]
 
 _PROVIDER_KINDS = [
@@ -116,7 +114,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
         allow_secrets = True
 
         try:
-            if not request.url.path in _ALWAYS_ALLOW_LIST:
+            if _strip_service_prefix(request.url.path) not in _ALWAYS_ALLOW_LIST:
                 await self._allow_local_secrets(credentials)
 
             for provider_kind in _PROVIDER_KINDS:
@@ -331,3 +329,20 @@ class VaultMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 content=f"Could not verify credentials: unexpected error - {str(exc)}. Please try again later or contact support if the issue persists.",
             ) from exc
+
+
+def _strip_service_prefix(path: str) -> str:
+    if not path.startswith("/services/"):
+        return path
+
+    parts = path.split("/", 3)
+    if len(parts) < 4:
+        return "/"
+
+    service_name = parts[2]
+    remainder = parts[3]
+
+    if not service_name or not remainder or remainder.startswith("/"):
+        return path
+
+    return f"/{remainder}"
