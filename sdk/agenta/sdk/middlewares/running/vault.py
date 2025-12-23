@@ -81,7 +81,7 @@ async def get_secrets(api_url, credentials) -> tuple[list, list, list]:
             )
 
             local_secrets.append(secret.model_dump())
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         display_exception("Vault: Local Secrets Exception")
 
     vault_secrets: List[Dict[str, Any]] = []
@@ -98,7 +98,7 @@ async def get_secrets(api_url, credentials) -> tuple[list, list, list]:
 
             else:
                 vault_secrets = response.json()
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         display_exception("Vault: Vault Secrets Exception")
 
     local_standard = {}
