@@ -82,7 +82,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
     // Deep-link handling moved to DeploymentsDrawerWrapper
 
     return (
-        <Space direction="vertical" size={8}>
+        <Space orientation="vertical" size={8}>
             <Typography.Text className={classes.title}>
                 {envRevisions?.name || selectedEnvName}
             </Typography.Text>
@@ -148,7 +148,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                     setIsSelectDeployVariantModalOpen={() =>
                         openSelectDeployVariantModal({variants, envRevisions: envRevisions})
                     }
-                    onOpenUseApi={({revisionId} = {}) => {
+                    onOpenUseApi={({revisionId}: {revisionId?: string} = {}) => {
                         if (envRevisions) {
                             openDeploymentsDrawer({
                                 initialWidth: 720,

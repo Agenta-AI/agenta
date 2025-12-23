@@ -311,9 +311,8 @@ const VariantsDashboard = () => {
             </Flex>
 
             <DeploymentsDashboard
-                selectedEnv={selectedEnv}
+                selectedEnvName={selectedEnv}
                 envRevisions={envRevisions}
-                deployedVariant={selectedDeployedVariant ?? null}
                 isLoading={isEnvironmentsLoading}
             />
         </div>
