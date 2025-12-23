@@ -133,6 +133,7 @@ const SYSTEM_FIELDS = new Set([
     "meta",
     "__isSkeleton",
     "testcase_dedup_id",
+    "__dedup_id__",
 ])
 
 // ============================================================================

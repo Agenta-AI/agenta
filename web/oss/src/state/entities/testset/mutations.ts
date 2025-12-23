@@ -181,8 +181,8 @@ export const saveTestsetAtom = atom(
                 set(clearPendingAddedColumnsAtom)
                 set(clearPendingDeletedColumnsAtom)
                 // Clear revision draft (name/description)
-                if (currentRevisionId) {
-                    set(clearRevisionDraftAtom, currentRevisionId)
+                if (currentRevId) {
+                    set(clearRevisionDraftAtom, currentRevId)
                 }
                 // Discard drafts BEFORE clearing IDs (discardAllDraftsAtom reads from newEntityIdsAtom)
                 set(discardAllDraftsAtom)
@@ -193,6 +193,92 @@ export const saveTestsetAtom = atom(
             }
 
             return {success: false, error: new Error("No revision returned from API")}
+        } catch (error) {
+            return {success: false, error: error as Error}
+        }
+    },
+)
+
+// ============================================================================
+// SAVE NEW TESTSET MUTATION
+// Creates a new testset with local data (for "Create from scratch" flow)
+// ============================================================================
+
+/**
+ * Input parameters for save new testset mutation
+ */
+export interface SaveNewTestsetParams {
+    projectId: string
+    testsetName: string
+}
+
+/**
+ * Result of save new testset mutation
+ */
+export interface SaveNewTestsetResult {
+    success: boolean
+    revisionId?: string
+    testsetId?: string
+    error?: Error
+}
+
+/**
+ * Write-only atom to save a new testset
+ * Creates a new testset using the simple API with local testcase data
+ */
+export const saveNewTestsetAtom = atom(
+    null,
+    async (get, set, params: SaveNewTestsetParams): Promise<SaveNewTestsetResult> => {
+        const {projectId, testsetName} = params
+
+        if (!projectId || !testsetName.trim()) {
+            return {success: false, error: new Error("Missing projectId or testsetName")}
+        }
+
+        try {
+            // Get local testcase data
+            const columns = get(currentColumnsAtom)
+            const newIds = get(newEntityIdsAtom)
+            const currentColumnKeys = new Set(columns.map((c) => c.key))
+
+            // Collect testcase data from new entities
+            const testcaseData = newIds
+                .map((id) => {
+                    const draft = get(testcaseDraftAtomFamily(id))
+                    if (!draft) return null
+                    // Filter to only include current columns
+                    const filteredData: Record<string, unknown> = {}
+                    for (const key of Object.keys(draft)) {
+                        if (currentColumnKeys.has(key)) {
+                            filteredData[key] = draft[key]
+                        }
+                    }
+                    return filteredData
+                })
+                .filter(Boolean) as Record<string, unknown>[]
+
+            // Create new testset via simple API
+            const {createNewTestset} = await import("@/oss/services/testsets/api")
+            const response = await createNewTestset(testsetName, testcaseData)
+
+            if (response.data?.revisionId) {
+                // Clear local state after successful save
+                set(resetColumnsAtom)
+                set(clearPendingRenamesAtom)
+                set(clearPendingAddedColumnsAtom)
+                set(clearPendingDeletedColumnsAtom)
+                set(discardAllDraftsAtom)
+                set(clearNewEntityIdsAtom)
+                set(clearDeletedIdsAtom)
+
+                return {
+                    success: true,
+                    revisionId: response.data.revisionId,
+                    testsetId: response.data.testset?.id,
+                }
+            }
+
+            return {success: false, error: new Error("No revision ID returned from API")}
         } catch (error) {
             return {success: false, error: error as Error}
         }

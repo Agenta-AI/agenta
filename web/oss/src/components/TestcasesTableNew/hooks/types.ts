@@ -27,6 +27,8 @@ export interface UseTestcasesTableOptions {
     revisionId?: string | null
     /** Skip automatic initialization of empty revisions (default columns/row) */
     skipEmptyRevisionInit?: boolean
+    /** Initial testset name for new testsets (when revisionId is "new") */
+    initialTestsetName?: string
 }
 
 /**

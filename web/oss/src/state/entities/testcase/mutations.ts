@@ -8,9 +8,12 @@
 // Revision-level mutations (save, clear changes)
 export {
     saveTestsetAtom,
+    saveNewTestsetAtom,
     clearChangesAtom,
     type SaveTestsetParams,
     type SaveTestsetResult,
+    type SaveNewTestsetParams,
+    type SaveNewTestsetResult,
 } from "../testset/mutations"
 
 // Testcase-level mutations (add, delete, append)

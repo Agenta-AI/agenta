@@ -10,7 +10,7 @@ import {message} from "@/oss/components/AppMessageContext"
 import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import useURL from "@/oss/hooks/useURL"
 import {JSSTheme, KeyValuePair, testset, TestsetCreationMode} from "@/oss/lib/Types"
-import {cloneTestset, createNewTestset, renameTestset} from "@/oss/services/testsets/api"
+import {cloneTestset, renameTestset} from "@/oss/services/testsets/api"
 import {useTestsetsData} from "@/oss/state/testset"
 
 const {Text} = Typography
@@ -53,31 +53,12 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
     const {mutate} = useTestsetsData()
     const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
 
-    const handleCreateTestset = async (data?: KeyValuePair[]) => {
-        setIsLoading(true)
-        try {
-            const rowData = data
-            const response = await createNewTestset(testsetName, rowData)
-
-            // Revalidate both legacy testsets data and the new table store
-            await mutate()
-            setRefreshTrigger((prev) => prev + 1)
-            message.success("Testset created successfully")
-            // Navigate to v1 revision page (URL format: /testsets/{revisionId})
-            const revisionId = response.data.revisionId
-            if (revisionId) {
-                router.push(`${projectURL}/testsets/${revisionId}`)
-            } else {
-                // Fallback to testset ID if no revision ID
-                const testsetId = response.data.testset?.id || response.data.id
-                router.push(`${projectURL}/testsets/${testsetId}`)
-            }
-        } catch (error) {
-            console.error("Error saving testset:", error)
-            message.error("Failed to create Testset. Please try again!")
-        } finally {
-            setIsLoading(false)
-        }
+    const handleCreateTestset = async (_data?: KeyValuePair[]) => {
+        // Navigate to testset page with "new" as the ID and testset name as query param
+        // The testset page will handle local state and save via simple API on commit
+        const encodedName = encodeURIComponent(testsetName)
+        router.push(`${projectURL}/testsets/new?name=${encodedName}`)
+        onCancel()
     }
 
     const handleCloneTestset = async (testsetId: string) => {

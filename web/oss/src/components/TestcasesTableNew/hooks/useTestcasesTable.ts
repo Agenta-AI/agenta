@@ -15,6 +15,7 @@ import {
     appendTestcasesAtom,
     clearChangesAtom,
     deleteTestcasesAtom,
+    saveNewTestsetAtom,
     saveTestsetAtom,
 } from "@/oss/state/entities/testcase/mutations"
 import {
@@ -87,7 +88,10 @@ export type {
  */
 export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTestcasesTableResult {
     const projectId = useAtomValue(projectIdAtom)
-    const {revisionId, skipEmptyRevisionInit = false} = options
+    const {revisionId, skipEmptyRevisionInit = false, initialTestsetName} = options
+
+    // Check if this is a new testset (not yet saved to server)
+    const isNewTestset = revisionId === "new"
 
     // Search state - synced with tableStore atom
     // Note: searchTerm is immediate (for UI), but API calls are debounced (300ms)
@@ -120,7 +124,10 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
 
     // Derived values from entity
     // For v0, revision name may be empty, so fall back to testset name from query
-    const testsetName = revisionEntity?.name || testsetNameQuery.data || ""
+    // For new testsets, use initialTestsetName
+    const testsetName = isNewTestset
+        ? revisionEntity?.name || initialTestsetName || ""
+        : revisionEntity?.name || testsetNameQuery.data || ""
     const description = revisionEntity?.description ?? ""
 
     // Write functions using entity draft pattern
@@ -150,6 +157,13 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     useEffect(() => {
         runRevisionChangeEffect(revisionId ?? null)
     }, [revisionId, runRevisionChangeEffect])
+
+    // Initialize new testset with name from URL params
+    useEffect(() => {
+        if (isNewTestset && initialTestsetName && revisionId) {
+            setDraft((prev) => ({...prev, name: initialTestsetName}))
+        }
+    }, [isNewTestset, initialTestsetName, revisionId, setDraft])
 
     // Row IDs are synced automatically via revisionChangeEffectAtom
     // which subscribes to testcaseRowIdsAtom changes
@@ -282,14 +296,51 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     const clearChanges = useCallback(() => executeClearChanges(), [executeClearChanges])
 
     /**
-     * Save all changes - uses saveTestsetAtom mutation
+     * Save all changes - uses saveTestsetAtom mutation for existing testsets
+     * or saveNewTestsetAtom for new testsets
      * @returns New revision ID on success, null on failure
      */
     const executeSave = useSetAtom(saveTestsetAtom)
+    const executeSaveNewTestset = useSetAtom(saveNewTestsetAtom)
     const saveTestset = useCallback(
         async (commitMessage?: string): Promise<string | null> => {
-            if (!projectId || !testsetId) {
-                console.error("[useTestcasesTable] Missing projectId or testsetId")
+            if (!projectId) {
+                console.error("[useTestcasesTable] Missing projectId")
+                return null
+            }
+
+            // For new testsets, use saveNewTestsetAtom
+            if (isNewTestset) {
+                const nameToSave = getDraft?.name || initialTestsetName || ""
+                if (!nameToSave.trim()) {
+                    console.error("[useTestcasesTable] Missing testset name for new testset")
+                    return null
+                }
+
+                setIsSaving(true)
+                try {
+                    const result = await executeSaveNewTestset({
+                        projectId,
+                        testsetName: nameToSave,
+                    })
+
+                    if (result.success && result.revisionId) {
+                        return result.revisionId
+                    }
+
+                    if (result.error) {
+                        throw result.error
+                    }
+
+                    return null
+                } finally {
+                    setIsSaving(false)
+                }
+            }
+
+            // For existing testsets, use patch API
+            if (!testsetId) {
+                console.error("[useTestcasesTable] Missing testsetId")
                 return null
             }
 
@@ -317,7 +368,16 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
                 setIsSaving(false)
             }
         },
-        [projectId, testsetId, revisionId, executeSave],
+        [
+            projectId,
+            testsetId,
+            revisionId,
+            executeSave,
+            executeSaveNewTestset,
+            isNewTestset,
+            getDraft,
+            initialTestsetName,
+        ],
     )
 
     /**

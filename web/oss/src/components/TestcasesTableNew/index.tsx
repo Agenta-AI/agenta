@@ -49,8 +49,11 @@ export interface TestcasesTableNewProps {
  */
 export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const router = useRouter()
-    const {testset_id: revisionIdParam} = router.query
+    const {testset_id: revisionIdParam, name: testsetNameParam} = router.query
     const {projectURL} = useURL()
+
+    // Check if this is a new testset (not yet saved)
+    const isNewTestset = revisionIdParam === "new"
 
     // Global state
     const [searchTerm, setSearchTerm] = useAtom(testcasesSearchTermAtom)
@@ -64,8 +67,14 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false)
     const [isIdCopied, setIsIdCopied] = useState(false)
 
-    // Main table hook
-    const table = useTestcasesTable({revisionId: revisionIdParam as string})
+    // Main table hook - pass initial name for new testsets
+    const initialTestsetName = isNewTestset
+        ? decodeURIComponent((testsetNameParam as string) || "")
+        : undefined
+    const table = useTestcasesTable({
+        revisionId: revisionIdParam as string,
+        initialTestsetName,
+    })
 
     // Action handlers hook
     const actions = useTestcaseActions({

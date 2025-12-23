@@ -1,19 +1,8 @@
 import {useState} from "react"
 
-import {InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
+import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
 import {Code, Table} from "@phosphor-icons/react"
-import {
-    Alert,
-    Button,
-    Form,
-    Input,
-    Popover,
-    Table as AntTable,
-    Typography,
-    Upload,
-    UploadFile,
-} from "antd"
-import type {ColumnsType} from "antd/es/table"
+import {Alert, Button, Form, Input, Popover, Typography, Upload, UploadFile} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
@@ -26,6 +15,8 @@ import {isValidCSVFile, isValidJSONFile} from "@/oss/lib/helpers/fileManipulatio
 import {GenericObject, JSSTheme} from "@/oss/lib/Types"
 import {uploadTestsetPreview} from "@/oss/services/testsets/api"
 import {useTestsetsData} from "@/oss/state/testset"
+
+import {FilePreviewTable} from "./components/FilePreviewTable"
 
 const {Text} = Typography
 const {Dragger} = Upload
@@ -49,6 +40,36 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     label: {
         fontWeight: theme.fontWeightMedium,
+    },
+    fileInfoBar: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "8px 12px",
+        backgroundColor: theme.colorFillQuaternary,
+        borderRadius: theme.borderRadius,
+        border: `1px solid ${theme.colorBorderSecondary}`,
+    },
+    fileIcon: {
+        color: theme.colorPrimary,
+        fontSize: 16,
+    },
+    fileName: {
+        flex: 1,
+        fontWeight: theme.fontWeightMedium,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+    },
+    removeButton: {
+        color: theme.colorTextSecondary,
+        cursor: "pointer",
+        padding: 4,
+        borderRadius: theme.borderRadiusSM,
+        "&:hover": {
+            color: theme.colorError,
+            backgroundColor: theme.colorErrorBg,
+        },
     },
     actionButton: {
         display: "flex",
@@ -104,18 +125,19 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
         fileType: "CSV" | "JSON",
     ): Promise<GenericObject[]> => {
         const text = await file.text()
+        const maxPreviewRows = 10 // Show up to 10 rows in preview
         try {
             if (fileType === "JSON") {
                 const parsed = JSON.parse(text)
                 if (Array.isArray(parsed)) {
-                    return parsed.slice(0, 3)
+                    return parsed.slice(0, maxPreviewRows)
                 }
             } else {
                 const lines = text.split("\n").filter((line) => line.trim())
                 if (lines.length > 0) {
                     const headers = lines[0].split(",").map((h) => h.trim())
                     const rows: GenericObject[] = []
-                    for (let i = 1; i < Math.min(lines.length, 4); i++) {
+                    for (let i = 1; i < Math.min(lines.length, maxPreviewRows + 1); i++) {
                         const values = lines[i].split(",").map((v) => v.trim())
                         const row: GenericObject = {}
                         headers.forEach((header, idx) => {
@@ -234,105 +256,83 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
         setPreviewData([])
     }
 
-    const previewColumns: ColumnsType<GenericObject> =
-        previewData.length > 0
-            ? Object.keys(previewData[0]).map((key) => ({
-                  title: key,
-                  dataIndex: key,
-                  key,
-                  ellipsis: true,
-                  width: 150,
-              }))
-            : []
-
     return (
         <section className={classes.container}>
             <Text className={classes.headerText}>Create new testset</Text>
 
             <Form form={form} layout="vertical">
                 <div className="flex flex-col gap-4">
-                    <div className={classes.dragger}>
-                        <Dragger
-                            name="file"
-                            accept=".csv,.json"
-                            multiple={false}
-                            maxCount={1}
-                            showUploadList={true}
-                            fileList={fileProgress ? [fileProgress] : []}
-                            beforeUpload={() => false}
-                            onChange={(info) => {
-                                if (info.fileList.length > 0) {
-                                    handleFileChange(info.fileList[0])
-                                } else {
-                                    handleRemoveFile()
-                                }
-                            }}
-                            onRemove={() => {
-                                handleRemoveFile()
-                                return true
-                            }}
-                        >
-                            <p className="ant-upload-drag-icon">
-                                <InboxOutlined />
-                            </p>
-                            <p className="ant-upload-text">
-                                Click or drag file to this area to upload
-                            </p>
-                            <p className="ant-upload-hint">
-                                CSV and JSON formats are supported{" "}
-                                <Popover
-                                    title="File format requirements"
-                                    content={
-                                        <div style={{maxWidth: 280}}>
-                                            <Text strong>CSV:</Text>
-                                            <ul style={{paddingLeft: 16, margin: "4px 0 8px"}}>
-                                                <li>Comma-separated values</li>
-                                                <li>First row must be headers</li>
-                                            </ul>
-                                            <Text strong>JSON:</Text>
-                                            <ul style={{paddingLeft: 16, margin: "4px 0 0"}}>
-                                                <li>Array of objects</li>
-                                                <li>Each object has column names as keys</li>
-                                            </ul>
-                                        </div>
+                    {!fileProgress ? (
+                        <div className={classes.dragger}>
+                            <Dragger
+                                name="file"
+                                accept=".csv,.json"
+                                multiple={false}
+                                maxCount={1}
+                                showUploadList={false}
+                                fileList={[]}
+                                beforeUpload={() => false}
+                                onChange={(info) => {
+                                    if (info.fileList.length > 0) {
+                                        handleFileChange(info.fileList[0])
                                     }
-                                >
-                                    <InfoCircleOutlined style={{cursor: "pointer"}} />
-                                </Popover>
-                            </p>
-                        </Dragger>
-                    </div>
-
-                    {validationError && (
-                        <Alert
-                            message={validationError}
-                            type="error"
-                            showIcon
-                            closable
-                            onClose={() => setValidationError(null)}
-                        />
-                    )}
-
-                    {fileProgress && (
+                                }}
+                            >
+                                <p className="ant-upload-drag-icon">
+                                    <InboxOutlined />
+                                </p>
+                                <p className="ant-upload-text">
+                                    Click or drag file to this area to upload
+                                </p>
+                                <p className="ant-upload-hint">
+                                    CSV and JSON formats are supported{" "}
+                                    <Popover
+                                        title="File format requirements"
+                                        content={
+                                            <div style={{maxWidth: 280}}>
+                                                <Text strong>CSV:</Text>
+                                                <ul style={{paddingLeft: 16, margin: "4px 0 8px"}}>
+                                                    <li>Comma-separated values</li>
+                                                    <li>First row must be headers</li>
+                                                </ul>
+                                                <Text strong>JSON:</Text>
+                                                <ul style={{paddingLeft: 16, margin: "4px 0 0"}}>
+                                                    <li>Array of objects</li>
+                                                    <li>Each object has column names as keys</li>
+                                                </ul>
+                                            </div>
+                                        }
+                                    >
+                                        <InfoCircleOutlined style={{cursor: "pointer"}} />
+                                    </Popover>
+                                </p>
+                            </Dragger>
+                        </div>
+                    ) : (
                         <>
-                            {previewData.length > 0 && (
-                                <div className="flex flex-col gap-1">
-                                    <Text className={classes.label}>
-                                        Preview ({previewData.length} of first rows)
-                                    </Text>
-                                    <AntTable
-                                        columns={previewColumns}
-                                        dataSource={previewData.map((row, idx) => ({
-                                            ...row,
-                                            key: idx,
-                                        }))}
-                                        pagination={false}
-                                        size="small"
-                                        scroll={{x: "max-content"}}
-                                        style={{maxHeight: 150, overflow: "auto"}}
-                                    />
-                                </div>
+                            <div className={classes.fileInfoBar}>
+                                <FileOutlined className={classes.fileIcon} />
+                                <span className={classes.fileName}>{fileProgress.name}</span>
+                                <CloseOutlined
+                                    className={classes.removeButton}
+                                    onClick={handleRemoveFile}
+                                />
+                            </div>
+
+                            {validationError && (
+                                <Alert
+                                    message={validationError}
+                                    type="error"
+                                    showIcon
+                                    closable
+                                    onClose={() => setValidationError(null)}
+                                />
                             )}
+
+                            {previewData.length > 0 && (
+                                <FilePreviewTable data={previewData} maxRows={5} />
+                            )}
+
                             <div className="flex flex-col gap-1">
                                 <Text className={classes.label}>Testset Name</Text>
                                 <Input
