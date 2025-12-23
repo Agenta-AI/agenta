@@ -181,7 +181,9 @@ class WorkflowServiceInterface(WorkflowServiceVersion):
 class WorkflowServiceConfiguration(WorkflowServiceInterface):
     script: Optional[Data] = None  # str w/ validation
     parameters: Optional[Data] = None  # configuration values
-    runtime: Optional[str] = None  # runtime environment (python, javascript, typescript), None = python
+    runtime: Optional[str] = (
+        None  # runtime environment (python, javascript, typescript), None = python
+    )
 
 
 class WorkflowRevisionData(WorkflowServiceConfiguration):
