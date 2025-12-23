@@ -19,7 +19,7 @@ def evaluate(
     Tests if OpenAI SDK is available and can make API calls.
 
     This is a simple predicate test that attempts to make a basic OpenAI API call.
-    Returns 1.0 if successful, 0.0 if not.
+    Returns 1.0 if successful, 0.5 if no API key is provided, 0.0 otherwise.
 
     Args:
         app_params: Should contain 'openai_api_key' (or uses OPENAI_API_KEY env var)
@@ -55,7 +55,7 @@ def evaluate(
         client = OpenAI(api_key=api_key)
 
         # Make a simple test API call (very cheap, minimal tokens)
-        response = client.chat.completions.create(
+        client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": "Say 'OK'"}],
             max_tokens=5,
