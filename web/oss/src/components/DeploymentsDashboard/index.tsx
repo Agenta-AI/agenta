@@ -43,6 +43,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 interface DeploymentsDashboardProps {
     envRevisions: DeploymentRevisions | undefined
     isLoading: boolean
+    selectedEnvName: string
 }
 
 const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
