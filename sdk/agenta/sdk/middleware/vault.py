@@ -115,7 +115,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
                 local_secrets = secrets_cache.get("local_secrets")
 
                 if vault_secrets is None or local_secrets is None:
-                    return secrets
+                    return secrets, [], []
 
                 return secrets, vault_secrets, local_secrets
 
@@ -146,7 +146,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
         except DenyException as e:  # pylint: disable=bare-except
             log.warning(f"Agenta [secrets] {e.status_code}: {e.content}")
             allow_secrets = False
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             display_exception("Vault: Local Secrets Exception")
 
         vault_secrets: List[Dict[str, Any]] = []
@@ -163,7 +163,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
                 else:
                     vault_secrets = response.json()
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             display_exception("Vault: Vault Secrets Exception")
 
         local_standard = {}
