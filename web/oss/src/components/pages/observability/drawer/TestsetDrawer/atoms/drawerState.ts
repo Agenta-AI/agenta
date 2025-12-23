@@ -1,12 +1,15 @@
 import {atom} from "jotai"
 
-import type {Mapping, Preview, TestsetTraceData} from "../assets/types"
+import {traceSpanAtomFamily, type TraceSpan} from "@/oss/state/entities/trace"
+
+import type {Mapping, TestsetTraceData} from "../assets/types"
 
 /**
  * Drawer State Atoms
  *
  * Clean state management for TestsetDrawer using Jotai atoms.
  * Eliminates useEffect dependency cycles by using derived atoms.
+ * Integrates with the trace span entity system for cross-component access.
  */
 
 // ============================================================================
@@ -18,6 +21,9 @@ export const mappingDataAtom = atom<Mapping[]>([])
 
 /** Trace data from observability/spans */
 export const traceDataAtom = atom<TestsetTraceData[]>([])
+
+/** Span IDs associated with current trace data (for entity lookup) */
+export const traceSpanIdsAtom = atom<string[]>([])
 
 /** Preview selection key ("all" or specific trace key) */
 export const previewKeyAtom = atom<string>("all")
@@ -70,3 +76,31 @@ export const mappingColumnNamesAtom = atom((get) => {
         .map((m) => (m.column === "create" || !m.column ? m.newColumn : m.column))
         .filter((col): col is string => !!col)
 })
+
+// ============================================================================
+// SPAN ENTITY INTEGRATION
+// ============================================================================
+
+/**
+ * Derived: Get span entities from cache for current trace data
+ * Returns spans that exist in the entity cache, keyed by span_id
+ */
+export const cachedSpansAtom = atom((get) => {
+    const spanIds = get(traceSpanIdsAtom)
+    const spans = new Map<string, TraceSpan>()
+
+    for (const spanId of spanIds) {
+        const span = get(traceSpanAtomFamily(spanId))
+        if (span) {
+            spans.set(spanId, span)
+        }
+    }
+
+    return spans
+})
+
+/**
+ * Derived: Get a specific span from the entity cache
+ * Usage: const span = useAtomValue(spanByIdAtomFamily(spanId))
+ */
+export const spanByIdAtomFamily = traceSpanAtomFamily

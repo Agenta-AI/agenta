@@ -39,16 +39,22 @@ import {
 import {fetchTestsetRevisions} from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import useResizeObserver from "@/oss/hooks/useResizeObserver"
-import {collectKeyPathsFromObject, getYamlOrJson} from "@/oss/lib/helpers/utils"
+import {getYamlOrJson} from "@/oss/lib/helpers/utils"
 import {KeyValuePair} from "@/oss/lib/Types"
 import {createNewTestset} from "@/oss/services/testsets/api"
 import {addColumnAtom, currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {appendTestcasesAtom, saveTestsetAtom} from "@/oss/state/entities/testcase/mutations"
 import {testsetNameQueryAtom} from "@/oss/state/entities/testcase/queries"
 import {currentRevisionIdAtom} from "@/oss/state/entities/testset"
+import {
+    collectKeyPaths,
+    filterDataPaths,
+    getValueAtPath,
+    matchColumnsWithSuggestions,
+    pathsToSelectOptions,
+} from "@/oss/state/entities/trace"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {getValueAtPath} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import {Mapping, TestsetColumn, TestsetDrawerProps, TestsetTraceData} from "./assets/types"
 import {
@@ -58,6 +64,7 @@ import {
     previewKeyAtom,
     selectedRevisionIdAtom as drawerRevisionIdAtom,
     traceDataAtom,
+    traceSpanIdsAtom,
 } from "./atoms/drawerState"
 import {
     clearLocalEntitiesAtom,
@@ -100,6 +107,7 @@ const TestsetDrawer = ({
     const [selectedRevisionId, setSelectedRevisionId] = useAtom(drawerRevisionIdAtom)
     const [hasDuplicateColumns, setHasDuplicateColumns] = useAtom(hasDuplicateColumnsAtom)
     const _hasValidMappings = useAtomValue(hasValidMappingsAtom)
+    const setTraceSpanIds = useSetAtom(traceSpanIdsAtom)
 
     // Local entity operations
     const createLocalEntities = useSetAtom(createLocalEntitiesAtom)
@@ -326,10 +334,10 @@ const TestsetDrawer = ({
     const hasStructuralDifference = useCallback((trace: TestsetTraceData[]): boolean => {
         if (trace.length <= 1) return false
 
-        const referencePaths = collectKeyPathsFromObject(trace[0].data).sort().join(",")
+        const referencePaths = collectKeyPaths(trace[0].data).sort().join(",")
 
         for (let i = 1; i < trace.length; i++) {
-            const currentPaths = collectKeyPathsFromObject(trace[i].data).sort().join(",")
+            const currentPaths = collectKeyPaths(trace[i].data).sort().join(",")
 
             if (currentPaths !== referencePaths) {
                 return true
@@ -379,8 +387,13 @@ const TestsetDrawer = ({
             setTraceDataState(data)
             setRowDataPreview(data[0]?.key)
             setPreviewKey(data[0]?.key || "all")
+
+            // Extract span IDs from trace data for entity cache lookup
+            // The key field typically contains the span_id
+            const spanIds = data.map((trace) => trace.key).filter(Boolean)
+            setTraceSpanIds(spanIds)
         }
-    }, [data, setTraceDataState, setPreviewKey])
+    }, [data, setTraceDataState, setPreviewKey, setTraceSpanIds])
 
     // predefind options
     const customSelectOptions = useCallback((divider = true) => {
@@ -534,86 +547,65 @@ const TestsetDrawer = ({
         }
     }
 
+    // Collect all available data paths from trace data using entity selectors
     const allAvailablePaths = useMemo(() => {
         const uniquePaths = new Set<string>()
 
         traceData.forEach((traceItem) => {
-            const traceKeys = collectKeyPathsFromObject(traceItem?.data, "data")
+            const traceKeys = collectKeyPaths(traceItem?.data, "data")
             traceKeys.forEach((key) => uniquePaths.add(key))
         })
 
-        return Array.from(uniquePaths).map((item) => ({value: item, label: item}))
+        return pathsToSelectOptions(Array.from(uniquePaths))
     }, [traceData])
 
     // Track which testset we've auto-mapped for (to prevent re-running on column changes)
     const autoMappedForTestsetRef = useRef<string | null>(null)
 
     // Auto-detect and map paths when testset is selected (ONCE per testset)
+    // Uses entity selectors for path extraction and column matching
     useEffect(() => {
         // Skip if we've already auto-mapped for this testset
         if (autoMappedForTestsetRef.current === testset.id) {
             return
         }
 
-        console.log("🎯 [Auto-Map Effect] Running auto-mapping for testset:", testset.id)
+        // Collect all unique paths from trace data
         const uniquePaths = new Set<string>()
-
         traceData.forEach((traceItem) => {
-            const traceKeys = collectKeyPathsFromObject(traceItem?.data, "data")
+            const traceKeys = collectKeyPaths(traceItem?.data, "data")
             traceKeys.forEach((key) => uniquePaths.add(key))
         })
 
-        const mappedData = Array.from(uniquePaths)
-            .filter(
-                (item) =>
-                    item.startsWith("data.inputs") ||
-                    item === "data.outputs" ||
-                    item.startsWith("data.outputs.") ||
-                    item.startsWith("data.internals"),
-            )
-            .map((item) => ({value: item, label: item}))
+        // Filter to only input/output/internals paths using entity selector
+        const dataPaths = filterDataPaths(Array.from(uniquePaths))
 
-        if (mappedData.length > 0 && testset.id) {
+        if (dataPaths.length > 0 && testset.id) {
             setMappingData((prevMappingData) => {
                 // Get all columns (entity columns for existing testsets, local state for new)
                 const allColumns = isNewTestset
                     ? selectedTestsetColumns.map((item) => item.column)
                     : currentColumns.map((col) => col.key)
 
-                const testsetColumnsSet = new Set(allColumns.map((col) => col.toLowerCase()))
+                // Use entity selector to match columns with suggestions
+                const matchedMappings = matchColumnsWithSuggestions(
+                    dataPaths.map((path) => ({
+                        data: path,
+                        suggestedColumn: path.split(".").pop()!,
+                    })),
+                    allColumns,
+                )
 
-                const newMappedData = mappedData.map((item, index) => {
-                    const mapName = item.value.split(".").pop()!.toLowerCase()
-
-                    let matchingColumn = mapName
-                    if (testsetColumnsSet.has(mapName)) {
-                        // Find exact case match
-                        matchingColumn =
-                            allColumns.find((col) => col.toLowerCase() === mapName) || mapName
-                    } else if (mapName === "outputs") {
-                        // First check if correct_answer exists in any case format
-                        const correctAnswerCol = allColumns.find(
-                            (col) => col.toLowerCase() === "correct_answer",
-                        )
-
-                        if (correctAnswerCol) {
-                            matchingColumn = correctAnswerCol
-                        } else {
-                            // If doesn't exist, create new column entry
-                            matchingColumn = "correct_answer"
-                            testsetColumnsSet.add("correct_answer") // Add to tracking set
-                        }
-                    }
-
-                    return {
-                        ...prevMappingData[index],
-                        data: item.value,
-                        column: matchingColumn,
-                    }
-                })
+                // Convert to mapping format
+                const newMappedData = matchedMappings.map((match, index) => ({
+                    ...prevMappingData[index],
+                    data: match.data,
+                    column: match.column,
+                }))
 
                 // For new testsets, update local column state
                 if (isNewTestset) {
+                    const testsetColumnsSet = new Set(allColumns.map((col) => col.toLowerCase()))
                     const updatedColumns = new Set([
                         ...allColumns,
                         ...newMappedData
@@ -639,7 +631,6 @@ const TestsetDrawer = ({
                         return isSameOrder ? prevColumns : nextSelectedColumns
                     })
                 }
-                // For existing testsets, entity atoms handle column state
 
                 const isSameLength = newMappedData.length === prevMappingData.length
                 const isSameOrder =

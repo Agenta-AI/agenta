@@ -16,9 +16,9 @@ import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers
 import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
+import {extractTestsetData} from "@/oss/state/entities/trace"
 import {useObservability} from "@/oss/state/newObservability"
 import {
-    getAgData,
     getAgDataInputs,
     getAgDataOutputs,
     getCost,
@@ -171,10 +171,18 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
     const getTestsetTraceData = useCallback(() => {
         if (!traces?.length) return []
 
-        const extractData = selectedRowKeys.map((key, idx) => {
-            const node = getNodeById(traces, key as string)
-            return {data: getAgData(node) as KeyValuePair, key: node?.key, id: idx + 1}
-        })
+        const extractData = selectedRowKeys
+            .map((key, idx) => {
+                const node = getNodeById(traces, key as string)
+                if (!node?.key) return null
+                // Use extractTestsetData to get only inputs/outputs (consistent with playground)
+                return {
+                    data: extractTestsetData(node) as KeyValuePair,
+                    key: node.key,
+                    id: idx + 1,
+                }
+            })
+            .filter((item): item is NonNullable<typeof item> => item !== null)
 
         if (extractData.length > 0) {
             setTestsetDrawerData(extractData)
