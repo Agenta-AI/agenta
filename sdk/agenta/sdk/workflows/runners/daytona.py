@@ -245,17 +245,24 @@ class DaytonaRunner(CodeRunner):
             # Execute the code in the Daytona sandbox
             response = sandbox.process.code_run(wrapped_code)
             response_stdout = response.result if hasattr(response, "result") else ""
-            response_error = (
-                response.result
-                if hasattr(response, "exit_code") and response.exit_code != 0
-                else None
+            response_exit_code = getattr(response, "exit_code", 0)
+            response_error = getattr(response, "error", None) or getattr(
+                response, "stderr", None
             )
 
             sandbox.delete()
 
-            if response_error:
-                log.error(f"Sandbox execution error: {response_error}")
-                raise RuntimeError(f"Sandbox execution failed: {response_error}")
+            if response_exit_code and response_exit_code != 0:
+                error_details = response_error or response_stdout or "Unknown error"
+                log.error(
+                    "Sandbox execution error (exit_code=%s): %s",
+                    response_exit_code,
+                    error_details,
+                )
+                raise RuntimeError(
+                    f"Sandbox execution failed (exit_code={response_exit_code}): "
+                    f"{error_details}"
+                )
 
             # Parse the result from stdout
             output_lines = response_stdout.strip().split("\n")
