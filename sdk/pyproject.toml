@@ -40,7 +40,6 @@ opentelemetry-sdk = "^1"
 opentelemetry-instrumentation = "^0.59b0"
 opentelemetry-exporter-otlp-proto-http ="^1"
 structlog = "^25"
-restrictedpython =  { version = "^8", python = ">=3.11, <3.14" }
 openai = "^2"
 daytona = "^0.121.0"
 

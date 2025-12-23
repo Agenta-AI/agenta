@@ -1,4 +1,4 @@
-from typing import Union, Text, Dict, Any
+from typing import Union, Text, Dict, Any, Optional
 
 from agenta.sdk.workflows.runners import get_runner
 
@@ -29,11 +29,12 @@ def execute_code_safely(
     output: Union[dict, str],
     correct_answer: Any,  # for backward compatibility reasons
     code: Text,
+    runtime: Optional[str] = None,
 ) -> Union[float, None]:
     """
-    Execute the provided Python code safely.
+    Execute the provided code safely.
 
-    Uses the configured runner (local RestrictedPython or remote Daytona)
+    Uses the configured runner (local or remote Daytona)
     based on the AGENTA_SERVICES_SANDBOX_RUNNER environment variable.
 
     Args:
@@ -41,7 +42,8 @@ def execute_code_safely(
         - inputs (Dict[str, Any]): Inputs to be used during code execution.
         - output (Union[dict, str]): The output of the app variant after being called.
         - correct_answer (Any): The correct answer (or target) of the app variant.
-        - code (Text): The Python code to be executed.
+        - code (Text): The code to be executed.
+        - runtime (Optional[str]): Runtime environment (python, typescript). None = python.
 
     Returns:
         - (float): Result of the execution if successful. Should be between 0 and 1.
@@ -52,4 +54,4 @@ def execute_code_safely(
     if _runner is None:
         _runner = get_runner()
 
-    return _runner.run(code, app_params, inputs, output, correct_answer)
+    return _runner.run(code, app_params, inputs, output, correct_answer, runtime)

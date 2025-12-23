@@ -13,8 +13,8 @@ import agenta as ag
 
 log = get_module_logger(__name__)
 
-# Template for wrapping user code with evaluation context
-EVALUATION_CODE_TEMPLATE = """
+# Template for wrapping Python user code with evaluation context
+EVALUATION_CODE_TEMPLATE_PYTHON = """
 import json
 
 # Parse all parameters from a single dict
@@ -39,6 +39,33 @@ if isinstance(result, (float, int, str)):
 
 # Print result for capture
 print(json.dumps({{"result": result}}))
+"""
+
+# Template for wrapping TypeScript user code with evaluation context
+EVALUATION_CODE_TEMPLATE_TYPESCRIPT = """
+// Parse all parameters from a single JSON string
+const params = JSON.parse({params_json!r});
+const app_params = params.app_params;
+const inputs = params.inputs;
+const output = params.output;
+const correct_answer = params.correct_answer;
+
+// User-provided evaluation code
+{user_code}
+
+// Execute and capture result
+let result = evaluate(app_params, inputs, output, correct_answer);
+
+// Ensure result is a number
+if (typeof result === 'string') {{
+    result = parseFloat(result);
+}}
+if (typeof result !== 'number' || isNaN(result)) {{
+    result = null;
+}}
+
+// Print result for capture
+console.log(JSON.stringify({{ result: result }}));
 """
 
 
@@ -95,35 +122,122 @@ class DaytonaRunner(CodeRunner):
         except Exception as e:
             raise RuntimeError(f"Failed to initialize Daytona client: {e}")
 
-    def _create_sandbox(self) -> Any:
-        """Create a new sandbox for this run from snapshot."""
+    def _get_provider_env_vars(self) -> Dict[str, str]:
+        """
+        Fetch user secrets and extract standard provider keys as environment variables.
+
+        Returns:
+            Dictionary of environment variables for standard providers
+        """
+        env_vars = {}
+
+        # Get secrets from context (set by vault middleware)
+        ctx = RunningContext.get()
+        secrets = getattr(ctx, "secrets", [])
+
+        # Standard provider keys mapping
+        provider_env_mapping = {
+            "openai": "OPENAI_API_KEY",
+            "cohere": "COHERE_API_KEY",
+            "anyscale": "ANYSCALE_API_KEY",
+            "deepinfra": "DEEPINFRA_API_KEY",
+            "alephalpha": "ALEPHALPHA_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "mistralai": "MISTRALAI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+            "perplexityai": "PERPLEXITYAI_API_KEY",
+            "togetherai": "TOGETHERAI_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY",
+            "gemini": "GEMINI_API_KEY",
+        }
+
+        # Extract provider keys from secrets
+        for secret in secrets:
+            if secret.get("kind") == "provider_key":
+                secret_data = secret.get("data", {})
+                provider_kind = secret_data.get("kind")
+
+                if provider_kind in provider_env_mapping:
+                    provider_settings = secret_data.get("provider", {})
+                    api_key = provider_settings.get("key")
+
+                    if api_key:
+                        env_var_name = provider_env_mapping[provider_kind]
+                        env_vars[env_var_name] = api_key
+
+        return env_vars
+
+    def _create_sandbox(self, runtime: Optional[str] = None) -> Any:
+        """Create a new sandbox for this run from snapshot.
+
+        Args:
+            runtime: Runtime environment (python, typescript), None = python
+        """
         try:
             if self.daytona is None:
                 raise RuntimeError("Daytona client not initialized")
 
-            snapshot_id = os.getenv("AGENTA_SERVICES_SANDBOX_SNAPSHOT_PYTHON")
+            # Normalize runtime: None means python
+            runtime = runtime or "python"
+
+            # Select snapshot based on runtime with fallback to general snapshot
+            if runtime == "typescript":
+                snapshot_id = os.getenv("AGENTA_SERVICES_SANDBOX_SNAPSHOT_TYPESCRIPT")
+            else:  # default to python
+                snapshot_id = os.getenv("AGENTA_SERVICES_SANDBOX_SNAPSHOT_PYTHON")
+
+            # Fallback to general snapshot if runtime-specific one not found
+            if not snapshot_id:
+                snapshot_id = os.getenv("AGENTA_SERVICES_SANDBOX_SNAPSHOT")
 
             if not snapshot_id:
                 raise RuntimeError(
-                    "AGENTA_SERVICES_SANDBOX_SNAPSHOT_PYTHON environment variable is required. "
-                    "Set it to the Daytona sandbox ID or snapshot name you want to use."
+                    f"No Daytona snapshot configured for runtime '{runtime}'. "
+                    f"Set AGENTA_SERVICES_SANDBOX_SNAPSHOT_{runtime.upper()} or "
+                    f"AGENTA_SERVICES_SANDBOX_SNAPSHOT environment variable."
                 )
 
             from daytona import CreateSandboxFromSnapshotParams
 
-            agenta_host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host or ""
+            agenta_host = (
+                ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
+                #
+                or ""
+            )
+            agenta_api_url = (
+                ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_url
+                #
+                or ""
+            )
             # agenta_host = "https://xxx.ngrok-free.app"
-            agenta_credentials = RunningContext.get().credentials or ""
+            agenta_credentials = (
+                RunningContext.get().credentials
+                #
+                or ""
+            )
+            agenta_api_key = (
+                agenta_credentials.startswith("ApiKey ")
+                and agenta_credentials[7:]
+                or ""
+            )
+
+            # Get provider API keys from user secrets
+            provider_env_vars = self._get_provider_env_vars()
+
+            # Combine base env vars with provider keys
+            env_vars = {
+                "AGENTA_HOST": agenta_host,
+                "AGENTA_API_URL": agenta_api_url,
+                "AGENTA_API_KEY": agenta_api_key,
+                "AGENTA_CREDENTIALS": agenta_credentials,
+                **provider_env_vars,  # Add provider API keys
+            }
 
             sandbox = self.daytona.create(
                 CreateSandboxFromSnapshotParams(
                     snapshot=snapshot_id,
                     ephemeral=True,
-                    env_vars=dict(
-                        # OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", ""),
-                        AGENTA_HOST=agenta_host,
-                        AGENTA_CREDENTIALS=agenta_credentials,
-                    ),
+                    env_vars=env_vars,
                 )
             )
 
@@ -139,25 +253,30 @@ class DaytonaRunner(CodeRunner):
         inputs: Dict[str, Any],
         output: Union[dict, str],
         correct_answer: Any,
+        runtime: Optional[str] = None,
     ) -> Union[float, None]:
         """
-        Execute provided Python code in Daytona sandbox.
+        Execute provided code in Daytona sandbox.
 
         The code must define an `evaluate()` function that takes
         (app_params, inputs, output, correct_answer) and returns a float (0-1).
 
         Args:
-            code: The Python code to be executed
+            code: The code to be executed
             app_params: The parameters of the app variant
             inputs: Inputs to be used during code execution
             output: The output of the app variant after being called
             correct_answer: The correct answer (or target) for comparison
+            runtime: Runtime environment (python, typescript), None = python
 
         Returns:
             Float score between 0 and 1, or None if execution fails
         """
+        # Normalize runtime: None means python
+        runtime = runtime or "python"
+
         self._initialize_client()
-        sandbox: Sandbox = self._create_sandbox()
+        sandbox: Sandbox = self._create_sandbox(runtime=runtime)
 
         try:
             # Prepare all parameters as a single dict
@@ -169,8 +288,14 @@ class DaytonaRunner(CodeRunner):
             }
             params_json = json.dumps(params)
 
+            # Select the correct template based on runtime
+            if runtime == "typescript":
+                template = EVALUATION_CODE_TEMPLATE_TYPESCRIPT
+            else:  # default to python
+                template = EVALUATION_CODE_TEMPLATE_PYTHON
+
             # Wrap the user code with the necessary context and evaluation
-            wrapped_code = EVALUATION_CODE_TEMPLATE.format(
+            wrapped_code = template.format(
                 params_json=params_json,
                 user_code=code,
             )

@@ -314,6 +314,14 @@ evaluators = [
                 "description": "Code for evaluating submissions",
                 "required": True,
             },
+            "runtime": {
+                "label": "Runtime",
+                "type": "multiple_choice",
+                "default": "python",
+                "options": ["python", "typescript"],
+                "advanced": True,
+                "description": "Runtime environment used to execute the evaluator code.",
+            },
             "correct_answer_key": {
                 "label": "Expected Answer Column",
                 "default": "correct_answer",

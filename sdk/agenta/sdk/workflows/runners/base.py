@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, Optional
 
 
 class CodeRunner(ABC):
@@ -13,16 +13,18 @@ class CodeRunner(ABC):
         inputs: Dict[str, Any],
         output: Union[dict, str],
         correct_answer: Any,
+        runtime: Optional[str] = None,
     ) -> Union[float, None]:
         """
         Execute code and return a float score between 0 and 1.
 
         Args:
-            code: Python code to execute
+            code: Code to execute
             app_params: Application parameters
             inputs: Input data for the code
             output: Output from the application variant
             correct_answer: Expected/correct answer for comparison
+            runtime: Runtime environment (python, typescript), None = python
 
         Returns:
             Float score between 0 and 1, or None if execution fails

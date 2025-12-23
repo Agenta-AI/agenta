@@ -701,6 +701,15 @@ async def auto_custom_code_run_v0(
 
     _outputs = None
 
+    runtime = parameters.get("runtime") or "python"
+
+    if not runtime in ["python", "typescript"]:
+        raise InvalidConfigurationParameterV0Error(
+            path="runtime",
+            expected="['python', 'typescript']",
+            got=runtime,
+        )
+
     # --------------------------------------------------------------------------
     try:
         _outputs = execute_code_safely(
@@ -709,6 +718,7 @@ async def auto_custom_code_run_v0(
             output=outputs,
             correct_answer=correct_answer,
             code=code,
+            runtime=runtime,
         )
     except Exception as e:
         raise CustomCodeServerV0Error(
