@@ -46,7 +46,7 @@ def evaluate(
 
     try:
         # Get API key
-        api_key = app_params.get("openai_api_key") or os.environ.get("OPENAI_API_KEY")
+        api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
             return 0.5
 

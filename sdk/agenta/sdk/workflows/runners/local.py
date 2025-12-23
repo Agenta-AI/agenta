@@ -14,6 +14,7 @@ class LocalRunner(CodeRunner):
         output: Union[dict, str],
         correct_answer: Any,
         runtime: Optional[str] = None,
+        templates: Optional[Dict[str, str]] = None,
     ) -> Union[float, None]:
         """
         Execute provided Python code directly.
@@ -25,6 +26,7 @@ class LocalRunner(CodeRunner):
             output: The output of the app variant after being called
             correct_answer: The correct answer (or target) for comparison
             runtime: Runtime environment (only "python" is supported for local runner)
+            templates: Wrapper templates keyed by runtime (unused for local runner).
 
         Returns:
             Float score between 0 and 1, or None if execution fails

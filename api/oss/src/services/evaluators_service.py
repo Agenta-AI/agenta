@@ -26,9 +26,15 @@ from oss.src.utils.traces import (
     get_field_value_from_trace_tree,
 )
 
+from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.managers.secrets import SecretsManager
-from agenta.sdk.models.workflows import WorkflowServiceRequest, WorkflowServiceRequestData
-from agenta.sdk.workflows.builtin import auto_custom_code_run as sdk_auto_custom_code_run
+from agenta.sdk.models.workflows import (
+    WorkflowServiceRequest,
+    WorkflowServiceRequestData,
+)
+from agenta.sdk.workflows.builtin import (
+    auto_custom_code_run as sdk_auto_custom_code_run,
+)
 
 
 log = get_module_logger(__name__)
@@ -472,7 +478,9 @@ async def sdk_custom_code_run(
 
     correct_answer_key = settings.get("correct_answer_key")
     if not correct_answer_key:
-        correct_answer_key = "ground_truth" if "ground_truth" in inputs else "correct_answer"
+        correct_answer_key = (
+            "ground_truth" if "ground_truth" in inputs else "correct_answer"
+        )
 
     threshold = settings.get("threshold", 0.5)
 
@@ -482,12 +490,15 @@ async def sdk_custom_code_run(
         threshold=float(threshold),
     )
 
+    credentials = RunningContext.get().credentials
+
     outputs = inputs.get("prediction", inputs.get("output"))
     request = WorkflowServiceRequest(
         data=WorkflowServiceRequestData(
             inputs=inputs,
             outputs=outputs,
         ),
+        credentials=credentials,
     )
 
     response = await workflow.invoke(request=request)

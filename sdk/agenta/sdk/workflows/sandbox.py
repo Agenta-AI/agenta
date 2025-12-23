@@ -30,6 +30,7 @@ def execute_code_safely(
     correct_answer: Any,  # for backward compatibility reasons
     code: Text,
     runtime: Optional[str] = None,
+    templates: Optional[Dict[str, str]] = None,
 ) -> Union[float, None]:
     """
     Execute the provided code safely.
@@ -43,7 +44,8 @@ def execute_code_safely(
         - output (Union[dict, str]): The output of the app variant after being called.
         - correct_answer (Any): The correct answer (or target) of the app variant.
         - code (Text): The code to be executed.
-        - runtime (Optional[str]): Runtime environment (python, typescript). None = python.
+        - runtime (Optional[str]): Runtime environment (python, javascript, typescript). None = python.
+        - templates (Optional[Dict[str, str]]): Wrapper templates keyed by runtime.
 
     Returns:
         - (float): Result of the execution if successful. Should be between 0 and 1.
@@ -54,4 +56,12 @@ def execute_code_safely(
     if _runner is None:
         _runner = get_runner()
 
-    return _runner.run(code, app_params, inputs, output, correct_answer, runtime)
+    return _runner.run(
+        code,
+        app_params,
+        inputs,
+        output,
+        correct_answer,
+        runtime,
+        templates,
+    )

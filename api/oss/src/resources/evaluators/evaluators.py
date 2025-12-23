@@ -318,7 +318,7 @@ evaluators = [
                 "label": "Runtime",
                 "type": "multiple_choice",
                 "default": "python",
-                "options": ["python", "typescript"],
+                "options": ["python", "javascript", "typescript"],
                 "advanced": True,
                 "description": "Runtime environment used to execute the evaluator code.",
             },
