@@ -41,11 +41,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-interface DeploymentsDrawerTitleProps
-    extends Pick<
-        DeploymentsDrawerProps,
-        "onClose" | "expandable" | "initialWidth" | "selectedRevisionId"
-    > {
+interface DeploymentsDrawerTitleProps extends Pick<
+    DeploymentsDrawerProps,
+    "onClose" | "expandable" | "initialWidth" | "selectedRevisionId"
+> {
     drawerWidth: number
     setDrawerWidth: (width: number) => void
     envName?: string
