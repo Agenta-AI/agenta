@@ -7,7 +7,6 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {
-    currentRevisionIdAtom,
     fetchRevision,
     revisionsListQueryAtomFamily,
     type Revision,
@@ -17,12 +16,21 @@ import {
 import {flattenTestcase, testcasesResponseSchema, type FlattenedTestcase} from "./schema"
 
 // ============================================================================
+// REVISION CONTEXT ATOM
+// Single source of truth for current revision ID (from URL)
+// ============================================================================
+
+/**
+ * Current revision ID from URL - single source of truth
+ * This atom is the canonical location for the current revision context.
+ * Components set this from URL params, entity atoms read from it.
+ */
+export const currentRevisionIdAtom = atom<string | null>(null)
+
+// ============================================================================
 // QUERY ATOMS
 // Uses API functions and context from testset module
 // ============================================================================
-
-// Re-export currentRevisionIdAtom from testset for backward compatibility
-export {currentRevisionIdAtom} from "../testset"
 
 /**
  * Revision data response type (re-export for backward compatibility)

@@ -161,7 +161,9 @@ const testcaseBatchFetcher = createBatchFetcher<
                             // Log validation errors for debugging
                             console.error(
                                 `[testcaseBatchFetcher] Failed to validate testcase at index ${tcIdx}:`,
-                                validationError instanceof Error ? validationError.message : validationError,
+                                validationError instanceof Error
+                                    ? validationError.message
+                                    : validationError,
                                 {testcase: tc},
                             )
                         }
@@ -525,6 +527,7 @@ export const testcaseIsDirtyAtomFamily = atomFamily((testcaseId: string) =>
 
 /**
  * Update a testcase field (creates draft if needed)
+ * Keys with undefined values are deleted from the entity
  */
 export const updateTestcaseAtom = atom(
     null,
@@ -532,7 +535,18 @@ export const updateTestcaseAtom = atom(
         const current = get(testcaseEntityAtomFamily(id))
         if (!current) return
 
-        const updated = {...current, ...updates}
+        // Start with current data
+        const updated = {...current}
+
+        // Apply updates - undefined values delete the key
+        for (const [key, value] of Object.entries(updates)) {
+            if (value === undefined) {
+                delete updated[key]
+            } else {
+                updated[key] = value
+            }
+        }
+
         set(testcaseDraftAtomFamily(id), updated)
     },
 )

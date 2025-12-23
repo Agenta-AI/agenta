@@ -1,11 +1,9 @@
 import {atom} from "jotai"
 
-import {testcasesRevisionIdAtom} from "@/oss/components/TestcasesTableNew/atoms/revisionContext"
 import {
     patchTestsetRevision,
     type TestsetRevisionPatchOperations,
 } from "@/oss/services/testsets/api"
-import {testsetNameQueryAtom} from "@/oss/state/entities/testcase/queries"
 
 import {
     clearPendingAddedColumnsAtom,
@@ -14,6 +12,7 @@ import {
     currentColumnsAtom,
     resetColumnsAtom,
 } from "../testcase/columnState"
+import {currentRevisionIdAtom, testsetNameQueryAtom} from "../testcase/queries"
 import {unflattenTestcase} from "../testcase/schema"
 import {
     clearDeletedIdsAtom,
@@ -70,8 +69,8 @@ export const saveTestsetAtom = atom(
         }
 
         // Get testset name from draft or query
-        const currentRevisionId = get(testcasesRevisionIdAtom)
-        const draft = currentRevisionId ? get(revisionDraftAtomFamily(currentRevisionId)) : null
+        const currentRevId = get(currentRevisionIdAtom)
+        const draft = currentRevId ? get(revisionDraftAtomFamily(currentRevId)) : null
         const nameQuery = get(testsetNameQueryAtom)
         const testsetName = draft?.name ?? nameQuery.data ?? ""
 

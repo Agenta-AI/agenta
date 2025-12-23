@@ -48,6 +48,8 @@ export interface TestcasesTableShellProps {
     disableDeleteAction?: boolean
     /** Show row index instead of checkboxes (still shows dirty indicator) */
     showRowIndex?: boolean
+    /** Prefix for scopeId to avoid conflicts when multiple tables use same revisionId */
+    scopeIdPrefix?: string
 }
 
 /**
@@ -83,17 +85,18 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         autoHeight = true,
         disableDeleteAction = false,
         showRowIndex = false,
+        scopeIdPrefix = "testcases",
     } = props
 
     // Table scope configuration
     const tableScope = useMemo<TableScopeConfig>(
         () => ({
-            scopeId: `testcases-${revisionIdParam}`,
+            scopeId: `${scopeIdPrefix}-${revisionIdParam}`,
             pageSize: 50, // Paginated loading
             enableInfiniteScroll: true, // Enable infinite scroll for pagination
             columnVisibilityStorageKey: "testcases:columns",
         }),
-        [revisionIdParam],
+        [scopeIdPrefix, revisionIdParam],
     )
 
     // Get the global Jotai store so entity atoms are accessible inside the table

@@ -178,15 +178,10 @@ const clientTestcaseRowsAtom = atom<TestcaseTableRow[]>((get) => {
         return []
     }
 
-    // Debug: log all new entity IDs
-    console.log("🔍 [clientTestcaseRowsAtom] newEntityIds:", newEntityIds)
-
     // Create row objects for new entities (only if draft exists)
     const newRows: TestcaseTableRow[] = []
     for (const id of newEntityIds) {
         const draft = get(testcaseDraftAtomFamily(id))
-        // Debug: log each draft
-        console.log(`🔍 [clientTestcaseRowsAtom] ${id} draft:`, draft)
         // Only include rows that have a draft - skip if draft was cleared
         if (draft) {
             newRows.push({
@@ -197,8 +192,6 @@ const clientTestcaseRowsAtom = atom<TestcaseTableRow[]>((get) => {
             } as TestcaseTableRow)
         }
     }
-
-    console.log("🔍 [clientTestcaseRowsAtom] returning", newRows.length, "rows")
 
     // Reverse so newest rows appear first
     return newRows.reverse()

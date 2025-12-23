@@ -1,20 +1,19 @@
-import {useEffect, useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 
-import {useAtom, useSetAtom} from "jotai"
+import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
-import {cleanupOnRevisionChangeAtom} from "@/oss/state/entities/testcase/atomCleanup"
 
-import {testcasesRevisionIdAtom, testcasesSearchTermAtom} from "./atoms/tableStore"
+import {testcasesSearchTermAtom} from "./atoms/tableStore"
 import {TestcaseActions} from "./components/TestcaseActions"
+import TestcaseEditDrawer from "./components/TestcaseEditDrawer"
 import {TestcaseHeader} from "./components/TestcaseHeader"
 import {TestcaseModals} from "./components/TestcaseModals"
 import {TestcasesTableShell} from "./components/TestcasesTableShell"
-import TestcaseEditDrawer from "./components/TestcaseEditDrawer"
 import {useTestcaseActions} from "./hooks/useTestcaseActions"
 import {useTestcasesTable} from "./hooks/useTestcasesTable"
 import {testcaseRowHeightAtom, TESTCASE_ROW_HEIGHT_CONFIG} from "./state/rowHeight"
@@ -54,10 +53,8 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const {projectURL} = useURL()
 
     // Global state
-    const setRevisionId = useSetAtom(testcasesRevisionIdAtom)
     const [searchTerm, setSearchTerm] = useAtom(testcasesSearchTermAtom)
     const rowHeight = useRowHeight(testcaseRowHeightAtom, TESTCASE_ROW_HEIGHT_CONFIG)
-    const cleanupOnRevisionChange = useSetAtom(cleanupOnRevisionChangeAtom)
 
     // Local UI state
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -66,16 +63,6 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const [isCommitModalOpen, setIsCommitModalOpen] = useState(false)
     const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false)
     const [isIdCopied, setIsIdCopied] = useState(false)
-
-    // Sync revisionId from URL to atom
-    useEffect(() => {
-        setRevisionId(revisionIdParam as string)
-    }, [revisionIdParam, setRevisionId])
-
-    // Cleanup atoms when revision changes (prevents memory leaks)
-    useEffect(() => {
-        cleanupOnRevisionChange(revisionIdParam as string)
-    }, [revisionIdParam, cleanupOnRevisionChange])
 
     // Main table hook
     const table = useTestcasesTable({revisionId: revisionIdParam as string})
