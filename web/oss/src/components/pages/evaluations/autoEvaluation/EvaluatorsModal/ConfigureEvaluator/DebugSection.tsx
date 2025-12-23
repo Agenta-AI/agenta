@@ -15,6 +15,7 @@ import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
 import {message} from "@/oss/components/AppMessageContext"
+import LoadTestsetModal from "@/oss/components/Playground/Components/Modals/LoadTestsetModal"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
@@ -41,15 +42,7 @@ import {
     fromBaseResponseToTraceSpanType,
     transformTraceTreeToJson,
 } from "@/oss/lib/transformers"
-import {
-    BaseResponse,
-    ChatMessage,
-    Evaluator,
-    JSSTheme,
-    Parameter,
-    testset,
-    Variant,
-} from "@/oss/lib/Types"
+import {BaseResponse, ChatMessage, Evaluator, JSSTheme, Parameter, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
 import {
     createEvaluatorDataMapping,
@@ -57,15 +50,17 @@ import {
 } from "@/oss/services/evaluations/api_ee"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
 import {useAppsData} from "@/oss/state/app/hooks"
+import {useEntityList} from "@/oss/state/entities/hooks/useEntityList"
+import {testsetStore} from "@/oss/state/entities/testset"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
     stablePromptVariablesAtomFamily,
     transformedPromptsAtomFamily,
 } from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
+import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
-import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {buildVariantFromRevision} from "./variantUtils"
 
@@ -74,7 +69,6 @@ interface DebugSectionProps {
         testcase: Record<string, any> | null
     }
     selectedVariant: EnhancedVariant
-    testsets: testset[] | null
     traceTree: {
         trace: Record<string, any> | string | null
     }
@@ -160,7 +154,6 @@ const LAST_VARIANT_KEY = "agenta:lastVariantId"
 const DebugSection = ({
     selectedTestcase,
     selectedVariant: _selectedVariant,
-    testsets,
     traceTree,
     setTraceTree,
     selectedEvaluator,
@@ -177,6 +170,15 @@ const DebugSection = ({
     const uriObject = useAtomValue(appUriInfoAtom)
     const appSchema = useAtomValue(appSchemaAtom)
     const {apps: availableApps = []} = useAppsData()
+
+    // Fetch testsets using entity-based approach
+    const projectId = useAtomValue(projectIdAtom)
+    const listParams = useMemo(() => ({projectId: projectId ?? ""}), [projectId])
+    const {data: testsetListResponse, isLoading: _isLoadingTestsets} = useEntityList(
+        testsetStore,
+        listParams,
+    )
+    const testsets = useMemo(() => testsetListResponse?.testsets ?? [], [testsetListResponse])
     const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
     const [outputResult, setOutputResult] = useState("")
     const [isLoadingResult, setIsLoadingResult] = useState(false)
@@ -337,7 +339,7 @@ const DebugSection = ({
     ) as any
 
     const activeTestset = useMemo(() => {
-        return testsets?.find((item) => item._id === selectedTestset)
+        return testsets?.find((item) => item.id === selectedTestset)
     }, [selectedTestset, testsets])
 
     const isPlainObject = (value: unknown): value is Record<string, any> =>
@@ -815,13 +817,16 @@ const DebugSection = ({
                             className={`${classes.editor} h-full`}
                             editorType="border"
                             initialValue={getStringOrJson(
-                                selectedTestcase.testcase ? formatJson(selectedTestcase) : "",
+                                selectedTestcase.testcase
+                                    ? formatJson(selectedTestcase.testcase)
+                                    : "",
                             )}
                             handleChange={(value) => {
                                 try {
                                     if (value) {
                                         const parsedValue = JSON.parse(value)
-                                        setSelectedTestcase(parsedValue)
+                                        // Wrap in {testcase: ...} to match expected interface
+                                        setSelectedTestcase({testcase: parsedValue})
                                     }
                                 } catch (error) {
                                     console.error("Failed to parse testcase JSON", error)
@@ -1058,16 +1063,23 @@ const DebugSection = ({
                 selectedTestsetId={selectedTestset}
             />
 
-            {testsets?.length && (
-                <EvaluatorTestcaseModal
-                    open={openTestcaseModal}
-                    onCancel={() => setOpenTestcaseModal(false)}
-                    testsets={testsets}
-                    setSelectedTestcase={setSelectedTestcase}
-                    selectedTestset={selectedTestset}
-                    setSelectedTestset={setSelectedTestset}
-                />
-            )}
+            <LoadTestsetModal
+                open={openTestcaseModal}
+                onCancel={() => setOpenTestcaseModal(false)}
+                testsetData={selectedTestcase.testcase}
+                setTestsetData={(data) => {
+                    // LoadTestsetModal returns array of testcases, we only need the first one
+                    if (Array.isArray(data) && data.length > 0) {
+                        setSelectedTestcase({testcase: data[0]})
+                    } else if (data && typeof data === "function") {
+                        // Handle setter function case
+                        const result = data(null)
+                        if (Array.isArray(result) && result.length > 0) {
+                            setSelectedTestcase({testcase: result[0]})
+                        }
+                    }
+                }}
+            />
         </section>
     )
 }

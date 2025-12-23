@@ -134,7 +134,6 @@ const EvaluatorsModal = ({
                         setEditEvalEditValues(null)
                     }}
                     variants={variants || []}
-                    testsets={testsets || []}
                     onSuccess={() => {
                         refetchEvaluatorConfigs()
                         setEditMode(false)
