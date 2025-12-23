@@ -15,6 +15,7 @@ const AnnotateDrawerButton = ({
     traceSpanIds,
     showOnly,
     evalSlugs,
+    queryKey,
     ...props
 }: AnnotateDrawerButtonProps) => {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -52,6 +53,7 @@ const AnnotateDrawerButton = ({
                 traceSpanIds={traceSpanIds}
                 showOnly={showOnly}
                 evalSlugs={evalSlugs}
+                queryKey={queryKey}
             />
         </>
     )

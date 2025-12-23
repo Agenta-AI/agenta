@@ -1,6 +1,7 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {CaretLeft, Plus} from "@phosphor-icons/react"
+import {useQueryClient} from "@tanstack/react-query"
 import {Button, Typography} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useRouter} from "next/router"
@@ -31,10 +32,12 @@ const AnnotateDrawerTitle = ({
     traceSpanIds,
     onCaptureError,
     showOnly,
+    queryKey,
 }: AnnotateDrawerTitleProps) => {
     const router = useRouter()
     const {fetchAnnotations} = useObservability()
     const [isSaving, setIsSaving] = useState(false)
+    const queryClient = useQueryClient()
     const {mutate: mutateCache} = useSWRConfig()
     const {data: evaluators} = useEvaluators({
         preview: true,
@@ -94,7 +97,8 @@ const AnnotateDrawerTitle = ({
                 const {payload, requiredMetrics} = generateAnnotationPayloadData({
                     annotations,
                     updatedMetrics,
-                    evaluators,
+                    evaluators: (evaluators || []) as EvaluatorDto[],
+                    invocationStepKey: traceSpanIds?.traceId || "",
                 })
 
                 if (Object.keys(requiredMetrics || {}).length > 0) {
@@ -122,8 +126,9 @@ const AnnotateDrawerTitle = ({
                 const {payload, requiredMetrics} = generateNewAnnotationPayloadData({
                     updatedMetrics,
                     selectedEvaluators,
-                    evaluators: evaluators as EvaluatorDto[],
+                    evaluators: (evaluators || []) as EvaluatorDto[],
                     traceSpanIds: traceSpanIds as AnnotateDrawerIdsType,
+                    invocationStepKey: traceSpanIds?.traceId || "",
                 })
 
                 if (Object.keys(requiredMetrics || {}).length > 0) {
@@ -155,6 +160,13 @@ const AnnotateDrawerTitle = ({
                 {revalidate: true},
             )
 
+            // 4. Invalidate dynamic query key if provided
+            if (queryKey) {
+                await queryClient.invalidateQueries({
+                    queryKey: [queryKey],
+                })
+            }
+
             message.success("Annotations updated successfully")
             onClose()
         } catch (error: any) {
@@ -176,15 +188,18 @@ const AnnotateDrawerTitle = ({
         displayErrorMessage,
         onClose,
         onCaptureError,
+        queryKey,
+        queryClient,
     ])
 
     const initialAnnotationMetrics = useMemo(
-        () => getInitialMetricsFromAnnotations({annotations, evaluators}),
+        () => getInitialMetricsFromAnnotations({annotations, evaluators: evaluators || []}),
         [annotations, evaluators],
     )
 
     const initialSelectedEvalMetrics = useMemo(
-        () => getInitialSelectedEvalMetrics({evaluators, selectedEvaluators}) || {},
+        () =>
+            getInitialSelectedEvalMetrics({evaluators: evaluators || [], selectedEvaluators}) || {},
         [evaluators, selectedEvaluators],
     )
 

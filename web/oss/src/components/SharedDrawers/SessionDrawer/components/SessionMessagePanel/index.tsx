@@ -118,6 +118,7 @@ const SessionMessagePanel = ({
                                 label="Annotate"
                                 size="small"
                                 data={trace?.annotations || []}
+                                queryKey="session-drawer-annotations"
                                 traceSpanIds={{
                                     traceId: trace?.trace_id,
                                     spanId: trace?.span_id,
