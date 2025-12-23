@@ -6,7 +6,6 @@ Simple predicate test to check if OpenAI SDK is available and working.
 """
 
 from typing import Dict, Union, Any
-import json
 import os
 
 
