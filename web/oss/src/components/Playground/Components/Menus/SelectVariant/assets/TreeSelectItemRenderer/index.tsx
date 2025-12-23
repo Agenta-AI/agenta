@@ -12,6 +12,7 @@ const TreeSelectItemRenderer = ({
     close,
     menu,
     showAsCompare,
+    showCreateNew = true,
     searchTerm,
     setSearchTerm,
 }: TreeSelectItemRendererProps) => {
@@ -39,7 +40,7 @@ const TreeSelectItemRenderer = ({
                             clear
                         </Button>
                     )}
-                    {!showAsCompare && (
+                    {!showAsCompare && showCreateNew && (
                         <NewVariantButton
                             className="flex justify-start [&_.ant-btn-icon]:!hidden self-center grow-0 mr-0.5"
                             variant="solid"

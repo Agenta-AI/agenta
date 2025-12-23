@@ -3,16 +3,27 @@ import {type FC, memo, useCallback, useMemo} from "react"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Input, Typography, Tabs, Tag} from "antd"
 import clsx from "clsx"
+import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import useFocusInput from "@/oss/hooks/useFocusInput"
 import useURL from "@/oss/hooks/useURL"
+import type {Evaluator} from "@/oss/lib/Types"
 
+import {openEvaluatorDrawerAtom} from "../../autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
 import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
 
+import {openHumanEvaluatorDrawerAtom} from "./CreateHumanEvaluatorDrawer/state"
+
 const SelectAppSection = dynamic(() => import("./SelectAppSection"), {ssr: false})
+
+const CreateEvaluatorDrawer = dynamic(() => import("./CreateEvaluatorDrawer"), {ssr: false})
+
+const CreateHumanEvaluatorDrawer = dynamic(() => import("./CreateHumanEvaluatorDrawer"), {
+    ssr: false,
+})
 
 const SelectEvaluatorSection = dynamic(
     () => import("./SelectEvaluatorSection/SelectEvaluatorSection"),
@@ -66,6 +77,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     selectedAppId,
     onSelectApp,
     appSelectionDisabled,
+    onSelectTemplate,
+    onEvaluatorCreated,
     ...props
 }) => {
     const classes = useStyles()
@@ -74,15 +87,31 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     const appSelectionComplete = Boolean(selectedAppId)
     const hasAppOptions = appOptions.length > 0
 
+    const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
+    const openHumanEvaluatorDrawer = useSetAtom(openHumanEvaluatorDrawerAtom)
+
     const handleCreateApp = useCallback(() => {
         redirectUrl()
     }, [redirectUrl])
 
-    const selectedTestsetLabel = useMemo(() => {
-        if (selectedTestsetName) return selectedTestsetName
-        const legacy = testsets.find((ts) => ts._id === selectedTestsetId)
-        return legacy?.name ?? null
-    }, [selectedTestsetName, testsets, selectedTestsetId])
+    // Handler for opening the human evaluator creation drawer (preview mode)
+    const handleCreateHumanEvaluator = useCallback(() => {
+        openHumanEvaluatorDrawer()
+    }, [openHumanEvaluatorDrawer])
+
+    // Handler for opening the evaluator creation drawer
+    const handleSelectTemplate = useCallback(
+        (evaluator: Evaluator) => {
+            openEvaluatorDrawer({evaluator, mode: "create"})
+            onSelectTemplate?.(evaluator)
+        },
+        [openEvaluatorDrawer, onSelectTemplate],
+    )
+
+    const selectedTestset = useMemo(
+        () => testsets.find((ts) => ts._id === selectedTestsetId) || null,
+        [testsets, selectedTestsetId],
+    )
 
     const selectedVariants = useMemo(
         () => variants?.filter((v) => selectedVariantRevisionIds.includes(v.id)) || [],
@@ -256,6 +285,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         evaluators={evaluators as any}
                         evaluatorConfigs={evaluatorConfigs}
                         selectedAppId={selectedAppId}
+                        onSelectTemplate={handleSelectTemplate}
+                        onCreateHumanEvaluator={handleCreateHumanEvaluator}
                         className="pt-2"
                     />
                 ) : (
@@ -309,40 +340,44 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         appSelectionDisabled,
         hasAppOptions,
         handleCreateApp,
+        handleSelectTemplate,
+        handleCreateHumanEvaluator,
     ])
 
     return (
-        <div className="flex flex-col w-full gap-4 h-full overflow-hidden [&_.ant-tabs-tabpane]:w-full [&_.ant-tabs-tabpane]:h-full [&_.ant-tabs-content-holder]:flex [&_.ant-tabs-content-holder]:flex-col [&_.ant-tabs-content-holder]:w-full [&_.ant-tabs-content-left]:w-full [&_.ant-tabs-content-left]:grow [&_.ant-tabs-content-left]:min-h-0">
-            <div className="flex flex-col gap-2">
-                <Typography.Text className="font-medium">Evaluation name</Typography.Text>
-                <Input
-                    ref={inputRef}
-                    placeholder="Enter a name"
-                    value={evaluationName}
-                    onChange={(e) => {
-                        setEvaluationName(e.target.value)
-                    }}
+        <>
+            <div className="flex flex-col w-full gap-4 h-full overflow-hidden">
+                <div className="flex flex-col gap-2">
+                    <Typography.Text className="font-medium">Evaluation name</Typography.Text>
+                    <Input
+                        ref={inputRef}
+                        placeholder="Enter a name"
+                        value={evaluationName}
+                        onChange={(e) => {
+                            setEvaluationName(e.target.value)
+                        }}
+                    />
+                </div>
+
+                <Tabs
+                    activeKey={activePanel || "appPanel"}
+                    onChange={handlePanelChange as any}
+                    items={items}
+                    tabPlacement="left"
+                    className={clsx([
+                        classes.tabsContainer,
+                        "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
+                        "[&_.ant-tabs-nav]:!w-[240px]",
+                    ])}
                 />
             </div>
 
-            <Tabs
-                activeKey={activePanel || "appPanel"}
-                onChange={handlePanelChange as any}
-                items={items}
-                tabPlacement="left"
-                className={clsx([
-                    classes.tabsContainer,
-                    "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
-                    "[&_.ant-tabs-nav]:!w-[240px]",
-                ])}
-                classNames={{
-                    // tab: "!p-2 !mt-1",
-                    // tabPane: "w-full h-full",
-                    content: "flex flex-col w-full h-full",
-                    // contentLeft: "w-full h-full grow min-h-0",
-                }}
-            />
-        </div>
+            {/* Inline evaluator creation drawer (automatic evaluators) */}
+            <CreateEvaluatorDrawer onEvaluatorCreated={onEvaluatorCreated} />
+
+            {/* Inline human evaluator creation drawer (preview/human mode) */}
+            <CreateHumanEvaluatorDrawer onEvaluatorCreated={onEvaluatorCreated} />
+        </>
     )
 }
 

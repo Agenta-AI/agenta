@@ -171,7 +171,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
 ): ColumnType<T> {
     const {
         items,
-        width = 56,
+        width = 56, // TODO: try 61px here
         maxWidth,
         showCopyId = true,
         getRecordId,

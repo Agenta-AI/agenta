@@ -162,7 +162,7 @@ const EvaluationRunsCreateButton = () => {
                         disabled={!createEnabled}
                         onClick={handlePrimaryClick}
                     >
-                        New Evaluation
+                        New evaluation
                     </Button>
                 )}
             </div>

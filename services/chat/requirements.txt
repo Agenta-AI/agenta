@@ -11,3 +11,7 @@ newrelic
 # LiteLLM
 boto3
 google-cloud-aiplatform
+
+# temporary
+daytona
+orjson

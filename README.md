@@ -191,7 +191,7 @@ We welcome contributions of all kinds — from filing issues and sharing ideas t
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-53-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-54-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -269,6 +269,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ahmed-agenta"><img src="https://avatars.githubusercontent.com/u/194256084?v=4?s=100" width="100px;" alt="ahmed-agenta"/><br /><sub><b>ahmed-agenta</b></sub></a><br /><a href="#design-ahmed-agenta" title="Design">🎨</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/VahantSharma"><img src="https://avatars.githubusercontent.com/u/172914890?v=4?s=100" width="100px;" alt="Vahant Sharma"/><br /><sub><b>Vahant Sharma</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=VahantSharma" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/muzman123"><img src="https://avatars.githubusercontent.com/u/66068301?v=4?s=100" width="100px;" alt="Muhammad Muzammil"/><br /><sub><b>Muhammad Muzammil</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=muzman123" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/CyrusNamjoo"><img src="https://avatars.githubusercontent.com/u/209579763?v=4?s=100" width="100px;" alt="Sirous Namjoo"/><br /><sub><b>Sirous Namjoo</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=CyrusNamjoo" title="Documentation">📖</a> <a href="#example-CyrusNamjoo" title="Examples">💡</a></td>
     </tr>
   </tbody>
 </table>

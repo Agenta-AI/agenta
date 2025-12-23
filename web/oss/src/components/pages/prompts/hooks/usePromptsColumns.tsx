@@ -82,7 +82,7 @@ export const usePromptsColumns = ({
             {
                 title: <GearSixIcon size={16} />,
                 key: "actions",
-                width: 56,
+                width: 61,
                 fixed: "right",
                 align: "center",
                 render: (_, record) => {

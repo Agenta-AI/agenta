@@ -1,5 +1,24 @@
-// @ts-nocheck
-import {Dispatch, SetStateAction, useEffect, useMemo, useRef, useState} from "react"
+/**
+ * DebugSection - Test evaluator configuration
+ *
+ * This component handles testing evaluators by:
+ * 1. Loading testcases from testsets
+ * 2. Running a variant to generate output
+ * 3. Running the evaluator on the output
+ *
+ * State is managed via atoms (see ./state/atoms.ts):
+ * - playgroundSelectedTestcaseAtom: Selected testcase data
+ * - playgroundSelectedVariantAtom: Selected variant for testing
+ * - playgroundSelectedTestsetIdAtom: Selected testset ID
+ * - playgroundTraceTreeAtom: Trace output from running variant
+ * - playgroundEvaluatorAtom: Current evaluator being configured
+ * - playgroundFormRefAtom: Form instance for reading settings
+ *
+ * Data fetching:
+ * - Testsets: fetched internally via useTestsetsData()
+ * - Variants: fetched internally via useAppVariantRevisions()
+ */
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {
     CheckCircleOutlined,
@@ -8,9 +27,9 @@ import {
     MoreOutlined,
 } from "@ant-design/icons"
 import {Database, Lightning, Play} from "@phosphor-icons/react"
-import {Button, Dropdown, Flex, FormInstance, Space, Tabs, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Flex, Space, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
@@ -18,11 +37,9 @@ import {message} from "@/oss/components/AppMessageContext"
 import LoadTestsetModal from "@/oss/components/Playground/Components/Modals/LoadTestsetModal"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {transformTraceKeysInSettings, mapTestcaseAndEvalValues} from "@/oss/lib/evaluations/legacy"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
 import {
-    apiKeyObject,
     extractChatMessages,
     getStringOrJson,
     safeParse,
@@ -35,14 +52,13 @@ import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
 import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {buildNodeTree, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {
     buildNodeTreeV3,
     fromBaseResponseToTraceSpanType,
     transformTraceTreeToJson,
 } from "@/oss/lib/transformers"
-import {BaseResponse, ChatMessage, Evaluator, JSSTheme, Parameter, Variant} from "@/oss/lib/Types"
+import {BaseResponse, ChatMessage, JSSTheme, Parameter, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
 import {
     createEvaluatorDataMapping,
@@ -58,38 +74,26 @@ import {
     transformedPromptsAtomFamily,
 } from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
-import {projectIdAtom} from "@/oss/state/project/selectors/project"
+import {useTestsetsData} from "@/oss/state/testset"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
+import {
+    playgroundEvaluatorAtom,
+    playgroundFormRefAtom,
+    playgroundLastAppIdAtom,
+    playgroundLastVariantIdAtom,
+    playgroundSelectedTestcaseAtom,
+    playgroundSelectedTestsetIdAtom,
+    playgroundSelectedVariantAtom,
+    playgroundTraceTreeAtom,
+} from "./state/atoms"
 import {buildVariantFromRevision} from "./variantUtils"
 
-interface DebugSectionProps {
-    selectedTestcase: {
-        testcase: Record<string, any> | null
-    }
-    selectedVariant: EnhancedVariant
-    traceTree: {
-        trace: Record<string, any> | string | null
-    }
-    setTraceTree: Dispatch<
-        SetStateAction<{
-            trace: Record<string, any> | string | null
-        }>
-    >
-    selectedEvaluator: Evaluator
-    form: FormInstance<any>
-    debugEvaluator: boolean
-    setSelectedVariant: Dispatch<SetStateAction<Variant | null>>
-    variants: Variant[] | null
-    setSelectedTestcase: Dispatch<
-        SetStateAction<{
-            testcase: Record<string, any> | null
-        }>
-    >
-    setSelectedTestset: Dispatch<SetStateAction<string>>
-    selectedTestset: string
-}
+/**
+ * DebugSection has no required props - it fetches all data internally
+ * and reads state from atoms.
+ */
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     "@global": {
@@ -128,65 +132,51 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
     variantTab: {
-        flex: 1,
         minWidth: 0,
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
         "& .ant-tabs-content-holder": {
-            flex: 1,
             minHeight: 0,
-        },
-        "& .ant-tabs-content": {
-            height: "100%",
-            overflow: "hidden",
-            "& .ant-tabs-tabpane": {
-                height: "100%",
-                overflow: "hidden",
-            },
         },
     },
 }))
 
-const LAST_APP_KEY = "agenta:lastAppId"
-const LAST_VARIANT_KEY = "agenta:lastVariantId"
-
-const DebugSection = ({
-    selectedTestcase,
-    selectedVariant: _selectedVariant,
-    traceTree,
-    setTraceTree,
-    selectedEvaluator,
-    form,
-    debugEvaluator,
-    variants,
-    setSelectedVariant,
-    setSelectedTestcase,
-    selectedTestset,
-    setSelectedTestset,
-}: DebugSectionProps) => {
+const DebugSection = () => {
     const appId = useAppId()
     const classes = useStyles()
     const uriObject = useAtomValue(appUriInfoAtom)
     const appSchema = useAtomValue(appSchemaAtom)
     const {apps: availableApps = []} = useAppsData()
 
-    // Fetch testsets using entity-based approach
-    const projectId = useAtomValue(projectIdAtom)
-    const listParams = useMemo(() => ({projectId: projectId ?? ""}), [projectId])
-    const {data: testsetListResponse, isLoading: _isLoadingTestsets} = useEntityList(
-        testsetStore,
-        listParams,
-    )
-    const testsets = useMemo(() => testsetListResponse?.testsets ?? [], [testsetListResponse])
+    // Fetch testsets internally
+    const {testsets: fetchedTestsets} = useTestsetsData()
+    const testsets = fetchedTestsets ?? []
+
+    // ================================================================
+    // ATOMS - Read/write state from playground atoms
+    // ================================================================
+    const selectedTestcase = useAtomValue(playgroundSelectedTestcaseAtom)
+    const setSelectedTestcase = useSetAtom(playgroundSelectedTestcaseAtom)
+    const _selectedVariant = useAtomValue(playgroundSelectedVariantAtom)
+    const setSelectedVariant = useSetAtom(playgroundSelectedVariantAtom)
+    const selectedTestset = useAtomValue(playgroundSelectedTestsetIdAtom)
+    const setSelectedTestset = useSetAtom(playgroundSelectedTestsetIdAtom)
+    const traceTree = useAtomValue(playgroundTraceTreeAtom)
+    const setTraceTree = useSetAtom(playgroundTraceTreeAtom)
+    const selectedEvaluator = useAtomValue(playgroundEvaluatorAtom)
+    const form = useAtomValue(playgroundFormRefAtom)
+    const [lastAppId, setLastAppId] = useAtom(playgroundLastAppIdAtom)
+    const [lastVariantId, setLastVariantId] = useAtom(playgroundLastVariantIdAtom)
+
     const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
     const [outputResult, setOutputResult] = useState("")
     const [isLoadingResult, setIsLoadingResult] = useState(false)
     const abortControllersRef = useRef<AbortController | null>(null)
+    const evaluatorAbortRef = useRef<AbortController | null>(null)
     const [isRunningVariant, setIsRunningVariant] = useState(false)
     const [variantResult, setVariantResult] = useState("")
     const [openVariantModal, setOpenVariantModal] = useState(false)
     const [openTestcaseModal, setOpenTestcaseModal] = useState(false)
+    const [dropdownOpen, setDropdownOpen] = useState(false)
+
     const [variantStatus, setVariantStatus] = useState({
         success: false,
         error: false,
@@ -195,39 +185,45 @@ const DebugSection = ({
         success: false,
         error: false,
     })
-    const {secrets} = useVaultSecret()
 
     const defaultAppId = useMemo(() => {
         if (_selectedVariant?.appId) return _selectedVariant.appId
         if (appId) return appId
+        // Check persisted last used app
+        if (lastAppId && availableApps?.some((a: any) => a.app_id === lastAppId)) {
+            return lastAppId
+        }
         const firstApp = availableApps?.[0]
         return firstApp?.app_id ?? ""
-    }, [_selectedVariant?.appId, appId, availableApps])
+    }, [_selectedVariant?.appId, appId, availableApps, lastAppId])
 
     const {revisionMap: defaultRevisionMap} = useAppVariantRevisions(defaultAppId || null)
 
     const selectedVariant = useMemo(() => {
-        const revs = _selectedVariant?.revisions || []
-        const variant = revs?.sort((a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
-        return variant
+        if (!_selectedVariant) return undefined
+        // If the variant has revisions, get the most recent one
+        const revs = (_selectedVariant as any)?.revisions || []
+        if (revs.length > 0) {
+            return revs.sort((a: any, b: any) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
+        }
+        // Otherwise, return the variant itself (it may already be a revision or simple variant)
+        return _selectedVariant
     }, [_selectedVariant])
 
-    const fallbackVariant = useMemo(() => {
-        if (_selectedVariant || !defaultAppId) return null
-        const revisionLists = Object.values(defaultRevisionMap || {})
-        if (!revisionLists.length) return null
-        const revisions = revisionLists[0]
-        if (!revisions || revisions.length === 0) return null
-        const baseVariant = buildVariantFromRevision(revisions[0], defaultAppId)
-        baseVariant.revisions = [...revisions]
-        return baseVariant
-    }, [_selectedVariant, defaultAppId, defaultRevisionMap])
-
+    // Build ALL variants from the app for localStorage restore and fallback selection
     const derivedVariants = useMemo(() => {
-        if (variants && variants.length > 0) return variants
-        if (fallbackVariant) return [fallbackVariant]
-        return []
-    }, [variants, fallbackVariant])
+        if (_selectedVariant) return [] // Don't need fallbacks if already selected
+        if (!defaultAppId || !defaultRevisionMap) return []
+
+        const variants: Variant[] = []
+        Object.values(defaultRevisionMap).forEach((revisions) => {
+            if (!revisions || revisions.length === 0) return
+            const baseVariant = buildVariantFromRevision(revisions[0], defaultAppId)
+            baseVariant.revisions = [...revisions] as any
+            variants.push(baseVariant)
+        })
+        return variants
+    }, [_selectedVariant, defaultAppId, defaultRevisionMap])
 
     // Resolve current application object for display
     const selectedApp = useMemo(() => {
@@ -235,33 +231,26 @@ const DebugSection = ({
         return availableApps.find((a: any) => a.app_id === id)
     }, [_selectedVariant?.appId, defaultAppId, availableApps])
 
-    // Initialize from localStorage (remember last app/variant) with fallbacks
+    // Initialize from persisted state (remember last app/variant) with fallbacks
     useEffect(() => {
-        // if parent already set a specific variant, respect it
+        // if already have a selected variant, respect it
         if (_selectedVariant) return
-
-        const storedAppId =
-            typeof window !== "undefined" ? localStorage.getItem(LAST_APP_KEY) : null
-        const storedVariantId =
-            typeof window !== "undefined" ? localStorage.getItem(LAST_VARIANT_KEY) : null
 
         let nextVariant: Variant | null = null
 
-        // 1) Try to find an existing variant matching stored ids among provided or fallback variants
-        const searchPool: Variant[] = [...(variants || []), ...(derivedVariants || [])].filter(
-            Boolean,
-        ) as Variant[]
+        // Search among derived variants (fetched internally)
+        const searchPool: Variant[] = derivedVariants.filter(Boolean) as Variant[]
 
-        if (storedVariantId) {
-            nextVariant = searchPool.find((v) => (v as any)?.variantId === storedVariantId) || null
+        if (lastVariantId) {
+            nextVariant = searchPool.find((v) => (v as any)?.variantId === lastVariantId) || null
         }
 
-        // 2) If not found by variant, but we have an app id, try first variant under that app
-        if (!nextVariant && storedAppId) {
-            nextVariant = searchPool.find((v) => (v as any)?.appId === storedAppId) || null
+        // If not found by variant, but we have an app id, try first variant under that app
+        if (!nextVariant && lastAppId) {
+            nextVariant = searchPool.find((v) => (v as any)?.appId === lastAppId) || null
         }
 
-        // 3) Finally fall back to first available variant in our computed list
+        // Fall back to first available variant
         if (!nextVariant && searchPool.length > 0) {
             nextVariant = searchPool[0]
         }
@@ -269,27 +258,23 @@ const DebugSection = ({
         if (nextVariant) {
             setSelectedVariant(nextVariant)
         }
-    }, [_selectedVariant, variants, derivedVariants, setSelectedVariant])
+    }, [_selectedVariant, derivedVariants, setSelectedVariant, lastAppId, lastVariantId])
 
     // Persist whenever the working selectedVariant changes
     useEffect(() => {
         const v = _selectedVariant as any
         if (!v) return
-        try {
-            if (v.appId) localStorage.setItem(LAST_APP_KEY, v.appId)
-            if (v.variantId) localStorage.setItem(LAST_VARIANT_KEY, v.variantId)
-        } catch {
-            // ignore storage errors (private mode, etc.)
-        }
-    }, [_selectedVariant])
+        if (v.appId) setLastAppId(v.appId)
+        if (v.variantId) setLastVariantId(v.variantId)
+    }, [_selectedVariant, setLastAppId, setLastVariantId])
 
+    // Initialize testset selection when testsets are available
     useEffect(() => {
-        if (_selectedVariant) return
-        if (derivedVariants.length > 0) {
-            setSelectedVariant(derivedVariants[0])
-            return
+        if (selectedTestset) return // Already have a selection
+        if (testsets?.length) {
+            setSelectedTestset(testsets[0]._id)
         }
-    }, [_selectedVariant, derivedVariants, setSelectedVariant])
+    }, [testsets, selectedTestset, setSelectedTestset])
 
     // Variant flags (custom/chat) from global atoms for the selected revision
     const flags = useAtomValue(
@@ -346,7 +331,10 @@ const DebugSection = ({
         Boolean(value) && typeof value === "object" && !Array.isArray(value)
 
     const fetchEvalMapper = async () => {
-        if (!baseResponseData || !selectedTestcase.testcase) return
+        if (!baseResponseData || !selectedTestcase.testcase || !selectedEvaluator || !form) return
+
+        const controller = new AbortController()
+        evaluatorAbortRef.current = controller
 
         try {
             setEvalOutputStatus({success: false, error: false})
@@ -433,30 +421,55 @@ const DebugSection = ({
                 }
             }
 
-            const runResponse = await createEvaluatorRunExecution(selectedEvaluator.key, {
-                inputs: outputs,
-                settings: transformTraceKeysInSettings(normalizedSettings),
-                ...(selectedEvaluator.requires_llm_api_keys || settingsValues?.requires_llm_api_keys
-                    ? {credentials: apiKeyObject(secrets)}
-                    : {}),
-            })
+            const runResponse = await createEvaluatorRunExecution(
+                selectedEvaluator.key,
+                {
+                    inputs: outputs,
+                    settings: transformTraceKeysInSettings(normalizedSettings),
+                },
+                {signal: controller.signal},
+            )
             setEvalOutputStatus({success: true, error: false})
 
             setOutputResult(getStringOrJson(runResponse.outputs))
         } catch (error: any) {
+            if (controller.signal.aborted) {
+                setOutputResult("Evaluation cancelled")
+                setEvalOutputStatus({success: false, error: false})
+                return
+            }
+
             console.error(error)
             setEvalOutputStatus({success: false, error: true})
-            if (error.response?.data?.detail) {
+
+            if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+                setOutputResult(
+                    "Request timed out. The evaluator is taking too long to respond. Please try again.",
+                )
+            } else if (error.code === "ERR_NETWORK" || error.message?.includes("Network Error")) {
+                setOutputResult("Network error. Please check your connection and try again.")
+            } else if (error.response?.data?.detail) {
                 const errorDetail =
                     typeof error.response.data.detail === "string"
                         ? error.response.data.detail
                         : formatJson(error.response.data.detail)
                 setOutputResult(getStringOrJson(errorDetail))
+            } else if (error.response?.status) {
+                setOutputResult(
+                    `Server error (${error.response.status}): ${error.response.statusText || "Unknown error"}`,
+                )
             } else {
-                setOutputResult("Error occured")
+                setOutputResult(error.message || "An unexpected error occurred")
             }
         } finally {
             setIsLoadingResult(false)
+            evaluatorAbortRef.current = null
+        }
+    }
+
+    const cancelEvaluatorRun = () => {
+        if (evaluatorAbortRef.current) {
+            evaluatorAbortRef.current.abort()
         }
     }
 
@@ -465,7 +478,9 @@ const DebugSection = ({
             message.info("Create an app first to run a variant.")
             return
         }
-        if (!selectedTestcase.testcase || !selectedVariant) return
+        if (!selectedTestcase.testcase || !selectedVariant) {
+            return
+        }
         const controller = new AbortController()
         abortControllersRef.current = controller
 
@@ -765,133 +780,119 @@ const DebugSection = ({
 
     const _evaluatorOutputEditorKey = useMemo(
         () =>
-            `evaluator-output-${selectedEvaluator.key}-${JSON.stringify(
+            `evaluator-output-${selectedEvaluator?.key ?? "none"}-${JSON.stringify(
                 selectedTestcase.testcase ?? {},
             )}`,
-        [selectedEvaluator.key, selectedTestcase.testcase],
+        [selectedEvaluator?.key, selectedTestcase.testcase],
     )
 
     // Helper to print "App / Variant" nicely
     const appName = selectedApp?.name || selectedApp?.app_name || "app"
     const variantName = selectedVariant?.variantName || "variant"
 
+    // Guard: if no evaluator selected, show nothing (shouldn't happen in normal flow)
+    if (!selectedEvaluator) {
+        return null
+    }
+
     return (
-        <section className="flex flex-col gap-4 h-full pb-10 w-full">
-            <div className="flex flex-col gap-4 min-w-0">
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between">
-                        <Space size={5}>
-                            <Typography.Text className={classes.formTitleText}>
-                                Testcase
-                            </Typography.Text>
+        <div className="flex flex-col gap-4 w-full">
+            <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                    <Space size={5}>
+                        <Typography.Text className={classes.formTitleText}>
+                            Testcase
+                        </Typography.Text>
 
-                            {activeTestset && selectedTestcase.testcase && (
-                                <>
-                                    <CheckCircleOutlined style={{color: "green"}} />
-                                    <Typography.Text type="secondary">
-                                        loaded from {activeTestset.name}
-                                    </Typography.Text>
-                                </>
-                            )}
-                        </Space>
+                        {activeTestset && selectedTestcase.testcase && (
+                            <>
+                                <CheckCircleOutlined style={{color: "green"}} />
+                                <Typography.Text type="secondary">
+                                    loaded from {activeTestset.name}
+                                </Typography.Text>
+                            </>
+                        )}
+                    </Space>
 
-                        <Tooltip
-                            title={testsets?.length === 0 ? "No testset" : ""}
-                            placement="bottom"
+                    <Tooltip title={testsets?.length === 0 ? "No testset" : ""} placement="bottom">
+                        <Button
+                            size="small"
+                            className="flex items-center gap-2"
+                            onClick={() => setOpenTestcaseModal(true)}
+                            disabled={testsets?.length === 0}
                         >
-                            <Button
-                                size="small"
-                                className="flex items-center gap-2"
-                                onClick={() => setOpenTestcaseModal(true)}
-                                disabled={testsets?.length === 0}
-                            >
-                                <Database />
-                                Load testcase
-                            </Button>
-                        </Tooltip>
-                    </div>
-
-                    <div className="flex-1 w-full overflow-hidden">
-                        <SharedEditor
-                            key={testcaseEditorKey}
-                            className={`${classes.editor} h-full`}
-                            editorType="border"
-                            initialValue={getStringOrJson(
-                                selectedTestcase.testcase
-                                    ? formatJson(selectedTestcase.testcase)
-                                    : "",
-                            )}
-                            handleChange={(value) => {
-                                try {
-                                    if (value) {
-                                        const parsedValue = JSON.parse(value)
-                                        // Wrap in {testcase: ...} to match expected interface
-                                        setSelectedTestcase({testcase: parsedValue})
-                                    }
-                                } catch (error) {
-                                    console.error("Failed to parse testcase JSON", error)
-                                }
-                            }}
-                            editorProps={{
-                                codeOnly: true,
-                                language: "json",
-                                showLineNumbers: false,
-                            }}
-                            syncWithInitialValueChanges={true}
-                        />
-                    </div>
+                            <Database />
+                            Load testcase
+                        </Button>
+                    </Tooltip>
                 </div>
 
-                <div className="flex flex-col">
-                    <div className="flex items-center justify-between">
-                        <Space size={5}>
-                            <Typography.Text className={classes.formTitleText}>
-                                Application
-                            </Typography.Text>
-                            {variantStatus.success && (
-                                <>
-                                    <CheckCircleOutlined style={{color: "green"}} />
-                                    <Typography.Text type="secondary">Success</Typography.Text>
-                                </>
-                            )}
-                            {variantStatus.error && (
-                                <ExclamationCircleOutlined style={{color: "red"}} />
-                            )}
-                        </Space>
+                <div className="w-full overflow-hidden">
+                    <SharedEditor
+                        key={testcaseEditorKey}
+                        className={`${classes.editor} h-full`}
+                        editorType="border"
+                        initialValue={getStringOrJson(
+                            selectedTestcase.testcase ? formatJson(selectedTestcase.testcase) : "",
+                        )}
+                        handleChange={(value) => {
+                            try {
+                                if (value) {
+                                    const parsedValue = JSON.parse(value)
+                                    setSelectedTestcase({testcase: parsedValue})
+                                }
+                            } catch (error) {
+                                console.error("Failed to parse testcase JSON", error)
+                            }
+                        }}
+                        editorProps={{
+                            codeOnly: true,
+                            language: "json",
+                            showLineNumbers: false,
+                        }}
+                        syncWithInitialValueChanges={true}
+                    />
+                </div>
+            </div>
 
-                        {isRunningVariant ? (
+            <div className="flex flex-col">
+                <div className="flex items-center justify-between">
+                    <Space size={5}>
+                        <Typography.Text className={classes.formTitleText}>
+                            Application
+                        </Typography.Text>
+                        {variantStatus.success && (
+                            <>
+                                <CheckCircleOutlined style={{color: "green"}} />
+                                <Typography.Text type="secondary">Success</Typography.Text>
+                            </>
+                        )}
+                        {variantStatus.error && (
+                            <ExclamationCircleOutlined style={{color: "red"}} />
+                        )}
+                    </Space>
+
+                    {isRunningVariant ? (
+                        <Button
+                            size="small"
+                            className="w-[120px]"
+                            danger
+                            onClick={() => {
+                                if (abortControllersRef.current) {
+                                    abortControllersRef.current.abort()
+                                }
+                            }}
+                        >
+                            <CloseCircleOutlined />
+                            Cancel
+                        </Button>
+                    ) : (
+                        <Space.Compact>
                             <Button
                                 size="small"
-                                className="w-[120px]"
-                                danger
-                                onClick={() => {
-                                    if (abortControllersRef.current) {
-                                        abortControllersRef.current.abort()
-                                    }
-                                }}
-                            >
-                                <CloseCircleOutlined />
-                                Cancel
-                            </Button>
-                        ) : (
-                            <Dropdown.Button
-                                className="w-fit"
                                 disabled={!selectedTestcase.testcase}
-                                size="small"
-                                onClick={handleRunVariant}
                                 loading={isRunningVariant}
-                                icon={<MoreOutlined />}
-                                menu={{
-                                    items: [
-                                        {
-                                            key: "change_variant",
-                                            icon: <Lightning />,
-                                            // Updated copy
-                                            label: "Change application",
-                                            onClick: () => setOpenVariantModal(true),
-                                        },
-                                    ],
-                                }}
+                                onClick={handleRunVariant}
                             >
                                 <div
                                     className="flex items-center gap-2"
@@ -902,102 +903,139 @@ const DebugSection = ({
                                     }
                                 >
                                     <Play />
-                                    {/* Show "App / Variant" */}
                                     Run application ({appName}/{variantName})
                                 </div>
-                            </Dropdown.Button>
-                        )}
-                    </div>
-
-                    <Tabs
-                        defaultActiveKey="output"
-                        className={classes.variantTab}
-                        items={[
-                            {
-                                key: "output",
-                                label: "Output",
-                                children: (
-                                    <div className="w-full h-full overflow-hidden">
-                                        <SharedEditor
-                                            key={`debug-output-${variantResult}`}
-                                            className={`${classes.editor} h-full`}
-                                            editorClassName={clsx([
-                                                "!border-none !shadow-none px-0 overflow-hidden",
-                                            ])}
-                                            editorType="border"
-                                            useAntdInput
-                                            antdInputProps={{
-                                                textarea: true,
-                                                autoSize: {minRows: 10, maxRows: 10},
-                                            }}
-                                            initialValue={variantResult}
-                                            handleChange={(value) => {
-                                                if (value) {
-                                                    setVariantResult(value)
-                                                }
-                                            }}
-                                            syncWithInitialValueChanges={true}
-                                        />
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: "trace",
-                                label: "Trace",
-                                children: (
-                                    <div className="w-full h-full overflow-hidden">
-                                        <SharedEditor
-                                            key={`debug-trace-${traceTree?.trace}`}
-                                            className={`${classes.editor} h-full`}
-                                            editorType="border"
-                                            initialValue={
-                                                traceTree.trace ? getStringOrJson(traceTree) : ""
-                                            }
-                                            handleChange={(value) => {
-                                                try {
-                                                    if (value) {
-                                                        const parsedValue = JSON.parse(value)
-                                                        setTraceTree(parsedValue)
-                                                    }
-                                                } catch (error) {
-                                                    console.error(
-                                                        "Failed to parse trace tree JSON",
-                                                        error,
-                                                    )
-                                                }
-                                            }}
-                                            editorProps={{
-                                                codeOnly: true,
-                                                language: "json",
-                                                showLineNumbers: false,
-                                            }}
-                                            syncWithInitialValueChanges={true}
-                                        />
-                                    </div>
-                                ),
-                            },
-                        ]}
-                    />
+                            </Button>
+                            <Dropdown
+                                open={dropdownOpen}
+                                onOpenChange={setDropdownOpen}
+                                menu={{
+                                    items: [
+                                        {
+                                            key: "change_variant",
+                                            icon: <Lightning />,
+                                            label: "Change application",
+                                        },
+                                    ],
+                                    onClick: (info) => {
+                                        if (info.key === "change_variant") {
+                                            setDropdownOpen(false)
+                                            setOpenVariantModal(true)
+                                        }
+                                    },
+                                }}
+                                trigger={["click"]}
+                            >
+                                <Button
+                                    size="small"
+                                    icon={<MoreOutlined />}
+                                    disabled={!selectedTestcase.testcase}
+                                />
+                            </Dropdown>
+                        </Space.Compact>
+                    )}
                 </div>
 
-                <div className="flex flex-col gap-1">
-                    <Flex justify="space-between">
-                        <Space size={5}>
-                            <Typography.Text className={classes.formTitleText}>
-                                Evaluator
-                            </Typography.Text>
-                            {evalOutputStatus.success && (
-                                <>
-                                    <CheckCircleOutlined style={{color: "green"}} />
-                                    <Typography.Text type="secondary">Successful</Typography.Text>
-                                </>
-                            )}
-                            {evalOutputStatus.error && (
-                                <ExclamationCircleOutlined style={{color: "red"}} />
-                            )}
-                        </Space>
+                <Tabs
+                    defaultActiveKey="output"
+                    className={classes.variantTab}
+                    items={[
+                        {
+                            key: "output",
+                            label: "Output",
+                            children: (
+                                <div className="w-full h-full overflow-hidden">
+                                    <SharedEditor
+                                        key={`debug-output-${variantResult}`}
+                                        className={`${classes.editor} h-full`}
+                                        editorClassName={clsx([
+                                            "!border-none !shadow-none px-0 overflow-hidden",
+                                        ])}
+                                        editorType="border"
+                                        useAntdInput
+                                        antdInputProps={{
+                                            textarea: true,
+                                            autoSize: {minRows: 10, maxRows: 10},
+                                        }}
+                                        initialValue={variantResult}
+                                        handleChange={(value) => {
+                                            if (value) {
+                                                setVariantResult(value)
+                                            }
+                                        }}
+                                        syncWithInitialValueChanges={true}
+                                    />
+                                </div>
+                            ),
+                        },
+                        {
+                            key: "trace",
+                            label: "Trace",
+                            children: (
+                                <div className="w-full h-full overflow-hidden">
+                                    <SharedEditor
+                                        key={`debug-trace-${traceTree?.trace}`}
+                                        className={`${classes.editor} h-full`}
+                                        editorType="border"
+                                        initialValue={
+                                            traceTree.trace ? getStringOrJson(traceTree) : ""
+                                        }
+                                        handleChange={(value) => {
+                                            try {
+                                                if (value) {
+                                                    const parsedValue = JSON.parse(value)
+                                                    setTraceTree(parsedValue)
+                                                }
+                                            } catch (error) {
+                                                console.error(
+                                                    "Failed to parse trace tree JSON",
+                                                    error,
+                                                )
+                                            }
+                                        }}
+                                        editorProps={{
+                                            codeOnly: true,
+                                            language: "json",
+                                            showLineNumbers: false,
+                                        }}
+                                        syncWithInitialValueChanges={true}
+                                    />
+                                </div>
+                            ),
+                        },
+                    ]}
+                />
+            </div>
+
+            <div className="flex flex-col gap-1">
+                <Flex justify="space-between">
+                    <Space size={5}>
+                        <Typography.Text className={classes.formTitleText}>
+                            Evaluator
+                        </Typography.Text>
+                        {evalOutputStatus.success && (
+                            <>
+                                <CheckCircleOutlined style={{color: "green"}} />
+                                <Typography.Text type="secondary">Successful</Typography.Text>
+                            </>
+                        )}
+                        {evalOutputStatus.error && (
+                            <ExclamationCircleOutlined style={{color: "red"}} />
+                        )}
+                    </Space>
+                    {isLoadingResult ? (
+                        <Button
+                            size="small"
+                            className="w-[120px]"
+                            danger
+                            onClick={cancelEvaluatorRun}
+                        >
+                            <CloseCircleOutlined />
+                            Cancel
+                        </Button>
+                    ) : (
                         <Tooltip
-                            title={baseResponseData ? "" : "BaseResponse feature"}
+                            title={baseResponseData ? "" : "Run application first"}
                             placement="bottom"
                         >
                             <Button
@@ -1005,45 +1043,44 @@ const DebugSection = ({
                                 size="small"
                                 onClick={fetchEvalMapper}
                                 disabled={!baseResponseData}
-                                loading={isLoadingResult}
                             >
                                 <Play /> Run evaluator
                             </Button>
                         </Tooltip>
-                    </Flex>
+                    )}
+                </Flex>
 
-                    <Tabs
-                        defaultActiveKey="output"
-                        className={classes.variantTab}
-                        items={[
-                            {
-                                key: "output",
-                                label: "Output",
-                                children: (
-                                    <div className="w-full h-full overflow-hidden">
-                                        <SharedEditor
-                                            key={`debug-output-${variantResult}`}
-                                            className={`${classes.editor} h-full`}
-                                            readOnly
-                                            disabled
-                                            state="disabled"
-                                            editorType="border"
-                                            initialValue={formatOutput(outputResult)}
-                                            editorProps={{
-                                                codeOnly: true,
-                                                language: "yaml",
-                                                readOnly: true,
-                                                disabled: true,
-                                                showLineNumbers: false,
-                                            }}
-                                            syncWithInitialValueChanges={true}
-                                        />
-                                    </div>
-                                ),
-                            },
-                        ]}
-                    />
-                </div>
+                <Tabs
+                    defaultActiveKey="output"
+                    className={classes.variantTab}
+                    items={[
+                        {
+                            key: "output",
+                            label: "Output",
+                            children: (
+                                <div className="w-full h-full overflow-hidden">
+                                    <SharedEditor
+                                        key={`debug-output-${variantResult}`}
+                                        className={`${classes.editor} h-full`}
+                                        readOnly
+                                        disabled
+                                        state="disabled"
+                                        editorType="border"
+                                        initialValue={formatOutput(outputResult)}
+                                        editorProps={{
+                                            codeOnly: true,
+                                            language: "yaml",
+                                            readOnly: true,
+                                            disabled: true,
+                                            showLineNumbers: false,
+                                        }}
+                                        syncWithInitialValueChanges={true}
+                                    />
+                                </div>
+                            ),
+                        },
+                    ]}
+                />
             </div>
 
             <EvaluatorVariantModal
@@ -1052,35 +1089,25 @@ const DebugSection = ({
                 onCancel={() => setOpenVariantModal(false)}
                 setSelectedVariant={(v) => {
                     setSelectedVariant(v)
-                    // eager persist on selection from modal
-                    try {
-                        if ((v as any)?.appId) localStorage.setItem(LAST_APP_KEY, (v as any).appId)
-                        if ((v as any)?.variantId)
-                            localStorage.setItem(LAST_VARIANT_KEY, (v as any).variantId)
-                    } catch {}
+                    // Persist selection via atoms
+                    if ((v as any)?.appId) setLastAppId((v as any).appId)
+                    if ((v as any)?.variantId) setLastVariantId((v as any).variantId)
                 }}
                 selectedVariant={selectedVariant}
                 selectedTestsetId={selectedTestset}
             />
 
-            <LoadTestsetModal
-                open={openTestcaseModal}
-                onCancel={() => setOpenTestcaseModal(false)}
-                testsetData={selectedTestcase.testcase}
-                setTestsetData={(data) => {
-                    // LoadTestsetModal returns array of testcases, we only need the first one
-                    if (Array.isArray(data) && data.length > 0) {
-                        setSelectedTestcase({testcase: data[0]})
-                    } else if (data && typeof data === "function") {
-                        // Handle setter function case
-                        const result = data(null)
-                        if (Array.isArray(result) && result.length > 0) {
-                            setSelectedTestcase({testcase: result[0]})
-                        }
-                    }
-                }}
-            />
-        </section>
+            {testsets && testsets.length > 0 && (
+                <EvaluatorTestcaseModal
+                    open={openTestcaseModal}
+                    onCancel={() => setOpenTestcaseModal(false)}
+                    testsets={testsets}
+                    setSelectedTestcase={setSelectedTestcase}
+                    selectedTestset={selectedTestset}
+                    setSelectedTestset={setSelectedTestset}
+                />
+            )}
+        </div>
     )
 }
 
