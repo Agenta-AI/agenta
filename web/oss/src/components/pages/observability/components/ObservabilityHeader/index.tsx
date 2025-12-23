@@ -286,14 +286,14 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
                             })}
                             allowClear
                         />
-                        {componentType === "traces" && (
-                            <Filters
-                                filterData={filters}
-                                columns={filterColumns}
-                                onApplyFilter={onApplyFilter}
-                                onClearFilter={onClearFilter}
-                            />
-                        )}
+
+                        <Filters
+                            filterData={filters}
+                            columns={filterColumns}
+                            onApplyFilter={onApplyFilter}
+                            onClearFilter={onClearFilter}
+                        />
+
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
                         {isScrolled && componentType === "traces" ? (
                             <>

@@ -32,17 +32,17 @@ const SessionContentSummary = () => {
     return (
         <div className="flex flex-col gap-2">
             <Typography.Text>Summary</Typography.Text>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto">
                 {Object.entries(aggregatedStats || {}).map(([key, value]) => {
                     return (
                         <div
                             key={key}
-                            className="flex border border-solid border-colorSplit rounded-md overflow-hidden"
+                            className="flex border border-solid border-colorSplit rounded-md"
                         >
-                            <div className="px-2 py-0.5 border-0 border-r border-solid border-colorSplit bg-gray-50 capitalize">
+                            <div className="px-2 py-0.5 border-0 border-r border-solid border-colorSplit bg-gray-50 capitalize text-nowrap">
                                 {key.replace(/_/g, " ")}
                             </div>
-                            <div className="px-2 py-0.5 bg-white">
+                            <div className="px-2 py-0.5 bg-white text-nowrap shrink-0">
                                 {formatSummaryValue(key, value as number | string[])}
                             </div>
                         </div>
