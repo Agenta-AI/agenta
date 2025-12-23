@@ -182,6 +182,24 @@ class TestsetRevisionCommit(
         sync_alias("testset_variant_id", "variant_id", self)
 
 
+class TestsetColumnRename(BaseModel):
+    """Column rename operation"""
+
+    old_name: str
+    new_name: str
+
+
+class TestsetColumnOperations(BaseModel):
+    """Column-level operations applied to ALL testcases in the revision"""
+
+    # Rename columns: array of {old_name, new_name}
+    rename: Optional[List[TestsetColumnRename]] = None
+    # Add columns: array of column names to add (initialized to empty string)
+    add: Optional[List[str]] = None
+    # Delete columns: array of column names to remove
+    delete: Optional[List[str]] = None
+
+
 class TestsetRevisionPatchOperations(BaseModel):
     """Operations to apply to a testset revision"""
 
@@ -191,6 +209,8 @@ class TestsetRevisionPatchOperations(BaseModel):
     create: Optional[List[Testcase]] = None
     # Testcase IDs to delete
     delete: Optional[List[UUID]] = None
+    # Column-level operations (applied to ALL testcases)
+    columns: Optional[TestsetColumnOperations] = None
 
 
 class TestsetRevisionPatch(

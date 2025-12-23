@@ -10,6 +10,9 @@ import {
     clearPendingDeletedColumnsAtom,
     clearPendingRenamesAtom,
     currentColumnsAtom,
+    pendingAddedColumnsAtom,
+    pendingColumnRenamesAtom,
+    pendingDeletedColumnsAtom,
     resetColumnsAtom,
 } from "../testcase/columnState"
 import {currentRevisionIdAtom, testsetNameQueryAtom} from "../testcase/queries"
@@ -92,6 +95,30 @@ export const saveTestsetAtom = atom(
             const operations: TestsetRevisionPatchOperations = {}
             const currentColumnKeys = new Set(columns.map((c) => c.key))
 
+            // Get pending column operations
+            const pendingRenames = get(pendingColumnRenamesAtom)
+            const pendingAdded = get(pendingAddedColumnsAtom)
+            const pendingDeleted = get(pendingDeletedColumnsAtom)
+
+            // 0. Build column operations (applied to ALL testcases by backend)
+            if (pendingRenames.size > 0 || pendingAdded.size > 0 || pendingDeleted.size > 0) {
+                operations.columns = {}
+
+                if (pendingRenames.size > 0) {
+                    operations.columns.rename = Array.from(pendingRenames.entries()).map(
+                        ([oldName, newName]) => ({old_name: oldName, new_name: newName}),
+                    )
+                }
+
+                if (pendingAdded.size > 0) {
+                    operations.columns.add = Array.from(pendingAdded)
+                }
+
+                if (pendingDeleted.size > 0) {
+                    operations.columns.delete = Array.from(pendingDeleted)
+                }
+            }
+
             // 1. Collect updated testcases (entities with drafts, excluding deleted)
             const updatedTestcases = serverIds
                 .filter((id) => {
@@ -151,12 +178,21 @@ export const saveTestsetAtom = atom(
             }
 
             // Check if there are any operations to apply
-            const hasOperations =
+            const hasColumnOperations =
+                (operations.columns?.rename?.length ?? 0) > 0 ||
+                (operations.columns?.add?.length ?? 0) > 0 ||
+                (operations.columns?.delete?.length ?? 0) > 0
+            const hasTestcaseOperations =
                 (operations.update?.length ?? 0) > 0 ||
                 (operations.create?.length ?? 0) > 0 ||
                 (operations.delete?.length ?? 0) > 0
 
-            if (!hasOperations && !testsetNameChanged && !descriptionChanged) {
+            if (
+                !hasColumnOperations &&
+                !hasTestcaseOperations &&
+                !testsetNameChanged &&
+                !descriptionChanged
+            ) {
                 return {success: true, newRevisionId: revisionId || undefined}
             }
 

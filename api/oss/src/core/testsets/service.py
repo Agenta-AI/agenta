@@ -881,6 +881,28 @@ class TestsetsService:
             # No operations, just return the base revision
             return base_revision
 
+        # Apply column operations to ALL testcases first
+        # This ensures column changes are applied even to testcases not in update list
+        if operations.columns:
+            for tc in current_testcases:
+                if tc.data:
+                    # Apply column renames
+                    if operations.columns.rename:
+                        for rename_op in operations.columns.rename:
+                            if rename_op.old_name in tc.data:
+                                tc.data[rename_op.new_name] = tc.data.pop(rename_op.old_name)
+
+                    # Apply column deletions
+                    if operations.columns.delete:
+                        for col_name in operations.columns.delete:
+                            tc.data.pop(col_name, None)
+
+                    # Apply column additions (initialize to empty string)
+                    if operations.columns.add:
+                        for col_name in operations.columns.add:
+                            if col_name not in tc.data:
+                                tc.data[col_name] = ""
+
         # Build a map of current testcases by ID for easy lookup
         testcases_by_id: Dict[UUID, Testcase] = {
             tc.id: tc for tc in current_testcases if tc.id

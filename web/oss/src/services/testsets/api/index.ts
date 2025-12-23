@@ -318,6 +318,19 @@ export async function commitTestsetRevision(
 }
 
 /**
+ * Column-level operations for testset revision
+ * These operations are applied to ALL testcases in the revision
+ */
+export interface TestsetColumnOperations {
+    /** Rename columns: array of {old_name, new_name} */
+    rename?: {old_name: string; new_name: string}[]
+    /** Add columns: array of column names to add (initialized to empty string) */
+    add?: string[]
+    /** Delete columns: array of column names to remove */
+    delete?: string[]
+}
+
+/**
  * Patch operations for testset revision
  */
 export interface TestsetRevisionPatchOperations {
@@ -327,12 +340,17 @@ export interface TestsetRevisionPatchOperations {
     create?: {data: Record<string, unknown>}[]
     /** Testcase IDs to delete */
     delete?: string[]
+    /** Column-level operations (applied to ALL testcases) */
+    columns?: TestsetColumnOperations
 }
 
 /**
  * Patch a testset revision with delta changes
  * Only sends the changes (update/create/delete) instead of full snapshot
  * This is safe for infinite scrolling since it doesn't require all data to be loaded
+ *
+ * Column operations (rename/add/delete) are applied to ALL testcases by the backend,
+ * so they work correctly even with infinite scrolling where not all data is loaded.
  */
 export async function patchTestsetRevision(
     testsetId: string,
@@ -364,6 +382,8 @@ export async function patchTestsetRevision(
                         set_id: testsetId,
                     })),
                     delete: operations.delete,
+                    // Column operations are applied to ALL testcases by the backend
+                    columns: operations.columns,
                 },
             },
         },
