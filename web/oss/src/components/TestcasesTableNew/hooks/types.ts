@@ -25,6 +25,8 @@ export interface TestcaseTableRow extends FlattenedTestcase {
 export interface UseTestcasesTableOptions {
     /** Revision ID (the URL param - what we're viewing/editing) */
     revisionId?: string | null
+    /** Skip automatic initialization of empty revisions (default columns/row) */
+    skipEmptyRevisionInit?: boolean
 }
 
 /**

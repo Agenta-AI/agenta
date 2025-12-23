@@ -150,15 +150,20 @@ const testcaseBatchFetcher = createBatchFetcher<
 
                     // Map results by ID
                     const byId = new Map<string, FlattenedTestcase>()
-                    testcases.forEach((tc: unknown) => {
+                    testcases.forEach((tc: unknown, tcIdx: number) => {
                         try {
                             const validated = testcaseSchema.parse(tc)
                             const flattened = flattenTestcase(validated)
                             if (flattened.id) {
                                 byId.set(flattened.id, flattened)
                             }
-                        } catch {
-                            // Skip invalid testcases
+                        } catch (validationError) {
+                            // Log validation errors for debugging
+                            console.error(
+                                `[testcaseBatchFetcher] Failed to validate testcase at index ${tcIdx}:`,
+                                validationError instanceof Error ? validationError.message : validationError,
+                                {testcase: tc},
+                            )
                         }
                     })
 
@@ -168,6 +173,12 @@ const testcaseBatchFetcher = createBatchFetcher<
                         results.set(key, byId.get(id) ?? null)
                     })
                 } catch (error) {
+                    // Log batch fetch errors for debugging
+                    console.error(
+                        `[testcaseBatchFetcher] Failed to fetch testcases for project ${projectId}:`,
+                        error instanceof Error ? error.message : String(error),
+                        {projectId, testcaseIds: ids, error},
+                    )
                     // Set null for all failed requests
                     keys.forEach((key) => results.set(key, null))
                 }

@@ -131,13 +131,15 @@ export interface ColumnVisibilityConfig<RecordType> {
 export interface InfiniteVirtualTableRowSelection<RecordType> {
     type?: "checkbox" | "radio"
     selectedRowKeys: Key[]
-    onChange: (selectedRowKeys: Key[], selectedRows: RecordType[]) => void
+    onChange?: (selectedRowKeys: Key[], selectedRows: RecordType[]) => void
     getCheckboxProps?: (record: RecordType) => {
         disabled?: boolean
         indeterminate?: boolean
     }
     columnWidth?: number
     fixed?: boolean
+    /** Custom title for the selection column header (replaces checkbox) */
+    columnTitle?: React.ReactNode
     /** Custom render for the selection cell */
     renderCell?: (
         value: boolean,

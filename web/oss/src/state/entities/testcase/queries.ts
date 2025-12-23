@@ -32,15 +32,30 @@ export type RevisionData = Revision
 /**
  * Query atom for fetching revision metadata
  * Uses fetchRevision from testset module
+ * For "draft" revision (new testsets), returns mock data without server query
  */
 export const revisionQueryAtom = atomWithQuery<Revision | null>((get) => {
     const projectId = get(projectIdAtom)
     const revisionId = get(currentRevisionIdAtom)
 
+    // For "draft" revision (new testsets), return mock revision without server query
+    const isDraft = revisionId === "draft"
+
     return {
         queryKey: ["testset-revision", projectId, revisionId],
         queryFn: async () => {
             if (!projectId || !revisionId) return null
+            if (isDraft) {
+                // Return mock revision for draft (client-side only)
+                return {
+                    id: "draft",
+                    version: null,
+                    name: "",
+                    description: null,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                } as Revision
+            }
             return fetchRevision({id: revisionId, projectId})
         },
         enabled: Boolean(projectId && revisionId),

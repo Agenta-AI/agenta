@@ -20,6 +20,7 @@ const useTableRowSelection = <RecordType>(
             columnWidth,
             type = "checkbox",
             fixed,
+            columnTitle,
             renderCell,
             onCell: customOnCell,
         } = rowSelection
@@ -29,6 +30,7 @@ const useTableRowSelection = <RecordType>(
             columnWidth: columnWidth ?? 48,
             selectedRowKeys,
             fixed,
+            columnTitle,
             onCell: (record: RecordType, index?: number) => {
                 const baseProps = {
                     align: "center" as const,

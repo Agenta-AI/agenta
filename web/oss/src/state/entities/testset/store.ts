@@ -3,7 +3,14 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 
 import {createEntityStore} from "../core/createEntityStore"
 
-import {revisionSchema, type Revision, type RevisionsResponse} from "./revisionSchema"
+import {
+    revisionSchema,
+    testsetSchema,
+    type Revision,
+    type RevisionsResponse,
+    type Testset,
+    type TestsetsResponse,
+} from "./revisionSchema"
 
 /**
  * List params for fetching revisions
@@ -17,6 +24,22 @@ export interface RevisionListParams {
  * Detail params for fetching a single revision
  */
 export interface RevisionDetailParams {
+    id: string
+    projectId: string
+}
+
+/**
+ * List params for fetching testsets
+ */
+export interface TestsetListParams {
+    projectId: string
+    searchQuery?: string | null
+}
+
+/**
+ * Detail params for fetching a single testset
+ */
+export interface TestsetDetailParams {
     id: string
     projectId: string
 }
@@ -55,6 +78,46 @@ export async function fetchRevisionsList({
         count: response.data?.count,
         windowing: response.data?.windowing,
     }
+}
+
+/**
+ * Fetch testsets list (metadata only)
+ */
+export async function fetchTestsetsList({
+    projectId,
+    searchQuery = null,
+}: TestsetListParams): Promise<TestsetsResponse> {
+    if (!projectId) {
+        return {testsets: [], count: 0}
+    }
+    const queryPayload: Record<string, unknown> = {
+        windowing: {limit: 100, order: "descending"},
+    }
+
+    if (searchQuery && searchQuery.trim()) {
+        queryPayload.testset = {
+            name: searchQuery.trim(),
+        }
+    }
+
+    const response = await axios.post(`${getAgentaApiUrl()}/preview/testsets/query`, queryPayload, {
+        params: {project_id: projectId},
+    })
+
+    return {
+        testsets: response.data?.testsets ?? [],
+        count: response.data?.count,
+    }
+}
+
+/**
+ * Fetch a single testset by ID (metadata only)
+ */
+export async function fetchTestsetDetail({id, projectId}: TestsetDetailParams): Promise<Testset> {
+    const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/${id}`, {
+        params: {project_id: projectId},
+    })
+    return testsetSchema.parse(response.data?.testset ?? response.data)
 }
 
 /**
@@ -118,5 +181,63 @@ export const revisionStore = createEntityStore<
                     ? parseInt(revision.version, 10)
                     : revision.version,
         }
+    },
+})
+
+/**
+ * Testset entity store
+ *
+ * Usage with hooks:
+ * ```ts
+ * // List testsets (metadata only)
+ * const {data} = useEntityList(testsetStore, {projectId})
+ *
+ * // Get single testset
+ * const testset = useEntity(testsetStore, {id: testsetId, projectId})
+ *
+ * // Get from cache (after list fetch)
+ * const cached = useEntityCached(testsetStore, testsetId)
+ * ```
+ */
+export const testsetStore = createEntityStore<
+    Testset,
+    TestsetListParams,
+    TestsetsResponse,
+    TestsetDetailParams
+>({
+    name: "testset",
+    schema: testsetSchema,
+    // Metadata can change; keep shortish cache window
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+
+    extractEntities: (response) => response.testsets,
+
+    fetchList: async ({projectId, searchQuery}) => {
+        const queryPayload: Record<string, unknown> = {
+            windowing: {limit: 100, order: "descending"},
+        }
+
+        if (searchQuery && searchQuery.trim()) {
+            queryPayload.testset = {name: searchQuery.trim()}
+        }
+
+        const response = await axios.post(
+            `${getAgentaApiUrl()}/preview/testsets/query`,
+            queryPayload,
+            {params: {project_id: projectId}},
+        )
+
+        return {
+            testsets: response.data?.testsets ?? [],
+            count: response.data?.count,
+        }
+    },
+
+    fetchDetail: async ({id, projectId}) => {
+        const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/${id}`, {
+            params: {project_id: projectId},
+        })
+        return testsetSchema.parse(response.data?.testset ?? response.data)
     },
 })

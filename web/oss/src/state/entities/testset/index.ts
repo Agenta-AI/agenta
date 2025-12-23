@@ -28,17 +28,24 @@ export {
 // Store export (use with useEntity/useEntityList hooks)
 export {
     revisionStore,
+    testsetStore,
     fetchRevision,
     fetchRevisionsList,
+    fetchTestsetsList,
+    fetchTestsetDetail,
     type RevisionListParams,
     type RevisionDetailParams,
+    type TestsetListParams,
+    type TestsetDetailParams,
 } from "./store"
 
 // Revision entity atoms (use these directly instead of wrapper atoms)
 export {
     // Revisions list query (for dropdown)
     revisionsListQueryAtomFamily,
-    // Latest revision (for testsets list - batch fetches latest revision per testset)
+    // Latest revision - derived from revisions list query (preferred)
+    latestRevisionForTestsetAtomFamily,
+    // Latest revision (legacy - batch fetches latest revision per testset)
     requestLatestRevisionAtom,
     latestRevisionAtomFamily,
     clearLatestRevisionCacheAtom,

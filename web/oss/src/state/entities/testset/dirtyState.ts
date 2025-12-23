@@ -3,6 +3,7 @@ import {atom} from "jotai"
 import {testcasesRevisionIdAtom} from "@/oss/components/TestcasesTableNew/atoms/revisionContext"
 
 import {currentColumnsAtom, hasColumnChangesAtom} from "../testcase/columnState"
+import {consolidatedDirtyStateAtom} from "../testcase/consolidatedDirtyState"
 import {
     deletedEntityIdsAtom,
     newEntityIdsAtom,
@@ -48,20 +49,16 @@ export const testsetNameChangedAtom = atom((get) => {
 
 /**
  * Check if any testcase has unsaved changes (cell edits only)
+ * ✅ OPTIMIZED: Uses consolidated state instead of looping
  */
 export const hasAnyTestcaseDirtyAtom = atom((get) => {
-    const serverIds = get(testcaseIdsAtom)
-
-    for (const testcaseId of serverIds) {
-        if (get(testcaseIsDirtyAtomFamily(testcaseId))) {
-            return true
-        }
-    }
-    return false
+    const state = get(consolidatedDirtyStateAtom)
+    return state.modifiedTestcaseIds.size > 0
 })
 
 /**
  * Check if there are ANY unsaved changes in the testset/revision
+ * ✅ OPTIMIZED: Uses consolidated state for better performance
  *
  * **Use this for save/discard confirmation dialogs.**
  *
@@ -73,15 +70,17 @@ export const hasAnyTestcaseDirtyAtom = atom((get) => {
  * - Metadata changes (name/description)
  */
 export const hasUnsavedChangesAtom = atom((get) => {
-    const newIds = get(newEntityIdsAtom)
-    const deletedIds = get(deletedEntityIdsAtom)
+    const state = get(consolidatedDirtyStateAtom)
 
     return (
-        get(hasAnyTestcaseDirtyAtom) || // Cell edits (drafts)
-        get(hasColumnChangesAtom) || // Column schema changes
-        newIds.length > 0 || // New entities
-        deletedIds.size > 0 || // Deleted entities
-        get(hasMetadataChangesAtom) // Name/description changes
+        state.modifiedTestcaseIds.size > 0 ||
+        state.newTestcaseIds.size > 0 ||
+        state.deletedTestcaseIds.size > 0 ||
+        state.columns.added.size > 0 ||
+        state.columns.renamed.size > 0 ||
+        state.columns.deleted.size > 0 ||
+        state.metadata.nameChanged ||
+        state.metadata.descriptionChanged
     )
 })
 

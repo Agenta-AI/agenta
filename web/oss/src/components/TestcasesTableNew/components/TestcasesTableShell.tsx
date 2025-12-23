@@ -42,6 +42,12 @@ export interface TestcasesTableShellProps {
     onSearchChange: (term: string) => void
     header: React.ReactNode
     actions: React.ReactNode
+    hideControls?: boolean
+    enableSelection?: boolean
+    autoHeight?: boolean
+    disableDeleteAction?: boolean
+    /** Show row index instead of checkboxes (still shows dirty indicator) */
+    showRowIndex?: boolean
 }
 
 /**
@@ -72,6 +78,11 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         onSearchChange,
         header,
         actions,
+        hideControls = false,
+        enableSelection = mode !== "view",
+        autoHeight = true,
+        disableDeleteAction = false,
+        showRowIndex = false,
     } = props
 
     // Table scope configuration
@@ -91,15 +102,22 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
     // Row selection configuration with dirty indicator
     const rowSelection = useMemo(
         () =>
-            mode === "edit"
+            enableSelection
                 ? {
-                      selectedRowKeys,
-                      onChange: onSelectedRowKeysChange,
+                      selectedRowKeys: showRowIndex ? [] : selectedRowKeys,
+                      onChange: showRowIndex ? undefined : onSelectedRowKeysChange,
                       columnWidth: 48,
+                      columnTitle: showRowIndex ? (
+                          <span className="text-xs text-gray-500">#</span>
+                      ) : undefined,
                       onCell: (record: TestcaseTableRow) => {
-                          // Check if testcase has unsaved changes
+                          // Check if testcase has unsaved changes (for dirty indicator)
+                          const recordKey = String(record.key || record.id)
+                          const isNewRow =
+                              recordKey.startsWith("new-") || recordKey.startsWith("local-")
                           if (record.id) {
-                              const isDirty = globalStore.get(testcaseIsDirtyAtom(record.id))
+                              const isDirty =
+                                  isNewRow || globalStore.get(testcaseIsDirtyAtom(record.id))
                               if (isDirty) {
                                   return {
                                       // Use inline style to override hover styles
@@ -114,16 +132,25 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                           record: TestcaseTableRow,
                           index: number,
                           originNode: React.ReactNode,
-                      ) => (
-                          <TestcaseSelectionCell
-                              testcaseId={record.id}
-                              rowIndex={index}
-                              originNode={originNode}
-                          />
-                      ),
+                      ) =>
+                          showRowIndex ? (
+                              <TestcaseSelectionCell
+                                  testcaseId={record.id}
+                                  rowIndex={index}
+                                  originNode={
+                                      <span className="text-xs text-gray-500">{index + 1}</span>
+                                  }
+                              />
+                          ) : (
+                              <TestcaseSelectionCell
+                                  testcaseId={record.id}
+                                  rowIndex={index}
+                                  originNode={originNode}
+                              />
+                          ),
                   }
                 : undefined,
-        [mode, selectedRowKeys, onSelectedRowKeysChange, globalStore],
+        [enableSelection, selectedRowKeys, onSelectedRowKeysChange, globalStore, showRowIndex],
     )
 
     // Max lines from row height config (already computed by useRowHeight)
@@ -177,7 +204,12 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                         />
                     )
                 }
-                // If record has id, use entity-aware cell that reads from atom
+                // For new rows (client-created), use value directly from row data
+                // These rows come from clientTestcaseRowsAtom which has the data
+                if (record.__isNew) {
+                    return <TestcaseCellContent value={value} maxLines={maxLinesForRowHeight} />
+                }
+                // For server rows with id, use entity-aware cell that reads from atom
                 if (record.id) {
                     return (
                         <TestcaseCell
@@ -187,10 +219,18 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                         />
                     )
                 }
-                // Fallback for new rows without id yet
+                // Fallback for rows without id
                 return <TestcaseCellContent value={value} maxLines={maxLinesForRowHeight} />
             },
         }))
+
+        if (mode === "view") {
+            return [...dataColumns]
+        }
+
+        if (hideControls) {
+            return [...dataColumns]
+        }
 
         const actionsColumn = createStandardColumns<TestcaseTableRow>([
             {
@@ -224,7 +264,15 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         ])
 
         return [...dataColumns, ...actionsColumn]
-    }, [table, mode, maxLinesForRowHeight, rowHeight.heightPx, skeletonColumns, onRowClick])
+    }, [
+        table,
+        mode,
+        maxLinesForRowHeight,
+        rowHeight.heightPx,
+        skeletonColumns,
+        onRowClick,
+        hideControls,
+    ])
 
     // Export configuration
     const exportOptions = useMemo(
@@ -243,12 +291,15 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
 
     // Delete action
     const deleteAction = useMemo(
-        () => ({
-            onDelete: onDeleteSelected,
-            disabled: selectedRowKeys.length === 0 || mode === "view",
-            disabledTooltip: "Select testcases to delete",
-        }),
-        [onDeleteSelected, selectedRowKeys.length, mode],
+        () =>
+            disableDeleteAction
+                ? undefined
+                : {
+                      onDelete: onDeleteSelected,
+                      disabled: selectedRowKeys.length === 0 || mode === "view",
+                      disabledTooltip: "Select testcases to delete",
+                  },
+        [disableDeleteAction, onDeleteSelected, selectedRowKeys.length, mode],
     )
 
     // Table props
@@ -258,11 +309,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             bordered: true,
             onRow: (record: TestcaseTableRow) => ({
                 onClick: () => onRowClick(record),
-                className: `cursor-pointer hover:bg-gray-50 ${
-                    String(record.key).startsWith("new-")
-                        ? "bg-green-50 border-l-2 border-l-green-500"
-                        : ""
-                }`,
+                className: "cursor-pointer hover:bg-gray-50",
             }),
         }),
         [onRowClick],
@@ -270,16 +317,17 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
 
     // Filters
     const filters = useMemo(
-        () => (
-            <Input
-                allowClear
-                placeholder="Search testcases..."
-                className="w-64"
-                value={searchTerm}
-                onChange={(e) => onSearchChange(e.target.value)}
-            />
-        ),
-        [searchTerm, onSearchChange],
+        () =>
+            hideControls ? null : (
+                <Input
+                    allowClear
+                    placeholder="Search testcases..."
+                    className="w-64"
+                    value={searchTerm}
+                    onChange={(e) => onSearchChange(e.target.value)}
+                />
+            ),
+        [hideControls, searchTerm, onSearchChange],
     )
 
     return (
@@ -289,11 +337,11 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             columns={columns}
             rowKey="key"
             title={header}
-            filters={filters}
-            primaryActions={actions}
-            deleteAction={deleteAction}
+            filters={filters || undefined}
+            primaryActions={hideControls ? undefined : actions}
+            deleteAction={hideControls ? undefined : deleteAction}
             exportOptions={exportOptions}
-            autoHeight={true}
+            autoHeight={autoHeight}
             rowHeight={rowHeight.heightPx}
             fallbackControlsHeight={96}
             fallbackHeaderHeight={48}
@@ -303,7 +351,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             )}
             tableProps={tableProps}
             rowSelection={rowSelection}
-            useSettingsDropdown
+            useSettingsDropdown={!hideControls}
         />
     )
 }
