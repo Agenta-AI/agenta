@@ -243,14 +243,6 @@ class DaytonaRunner(CodeRunner):
                 user_code=code,
             )
 
-            log.info(
-                "Evaluator execution params: %s",
-                json.dumps(
-                    {"runtime": runtime, "params": params},
-                    default=str,
-                ),
-            )
-
             # Execute the code in the Daytona sandbox
             response = sandbox.process.code_run(wrapped_code)
             response_stdout = response.result if hasattr(response, "result") else ""
