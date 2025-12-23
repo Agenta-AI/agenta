@@ -1,6 +1,7 @@
-import React, {useMemo, useState} from "react"
+import React, {useState} from "react"
+import yaml from "js-yaml"
 
-import {Menu, Divider, Typography, Input} from "antd"
+import {Menu, Divider, Typography, Input, Radio} from "antd"
 
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {SettingsPreset} from "@/oss/lib/Types"
@@ -14,13 +15,24 @@ const LoadEvaluatorPresetContent = ({
     selectedPreset,
 }: LoadEvaluatorPresetContentProps) => {
     const [searchTerm, setSearchTerm] = useState("")
+    const [format, setFormat] = useState<"yaml" | "json">("yaml")
 
-    const filteredTestset = useMemo(() => {
-        if (!searchTerm) return settingsPresets
-        return settingsPresets.filter((item: SettingsPreset) =>
-            item.name.toLowerCase().includes(searchTerm.toLowerCase()),
-        )
-    }, [searchTerm, settingsPresets])
+    const filteredTestset = !searchTerm
+        ? settingsPresets
+        : settingsPresets.filter((preset: SettingsPreset) =>
+              preset.name.toLowerCase().includes(searchTerm.toLowerCase()),
+          )
+
+    const activePreset =
+        settingsPresets.find((preset) => preset.key === selectedPresetKey) ?? null
+
+    const presetPreview = (() => {
+        if (!activePreset) return ""
+        if (typeof activePreset.values === "string") return activePreset.values
+        return format === "json"
+            ? JSON.stringify(activePreset.values, null, 2)
+            : yaml.dump(activePreset.values, {indent: 2})
+    })()
 
     return (
         <section className="flex gap-4 flex-1 mt-4 overflow-y-auto h-full">
@@ -38,9 +50,8 @@ const LoadEvaluatorPresetContent = ({
                         key: preset.key,
                         label: preset.name,
                     }))}
-                    onSelect={({key}) => setSelectedPresetKey(key)}
-                    defaultSelectedKeys={[selectedPresetKey]}
-                    selectedKeys={[selectedPresetKey]}
+                    onClick={({key}) => setSelectedPresetKey(String(key))}
+                    selectedKeys={selectedPresetKey ? [selectedPresetKey] : []}
                     className="h-[500px] overflow-y-auto !border-none"
                 />
             </div>
@@ -52,6 +63,14 @@ const LoadEvaluatorPresetContent = ({
                     <Typography.Text className="text-lg font-medium -mt-1">
                         Select a Preset
                     </Typography.Text>
+                    <Radio.Group
+                        value={format}
+                        onChange={(e) => setFormat(e.target.value as "yaml" | "json")}
+                        size="small"
+                    >
+                        <Radio.Button value="yaml">YAML</Radio.Button>
+                        <Radio.Button value="json">JSON</Radio.Button>
+                    </Radio.Group>
                 </div>
 
                 <div className="overflow-y-auto h-full">
@@ -60,14 +79,10 @@ const LoadEvaluatorPresetContent = ({
                         disabled
                         state="disabled"
                         editorType="border"
-                        initialValue={
-                            typeof selectedPreset?.values === "string"
-                                ? selectedPreset.values
-                                : JSON.stringify(selectedPreset?.values ?? {}, null, 2)
-                        }
+                        initialValue={presetPreview}
                         editorProps={{
                             codeOnly: true,
-                            language: "json",
+                            language: format,
                         }}
                         syncWithInitialValueChanges={true}
                     />
