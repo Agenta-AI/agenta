@@ -56,7 +56,7 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
         {
             title: <GearSix size={16} />,
             key: "key",
-            width: 56,
+            width: 61,
             fixed: "right",
             align: "center",
             render: (_, record) => {

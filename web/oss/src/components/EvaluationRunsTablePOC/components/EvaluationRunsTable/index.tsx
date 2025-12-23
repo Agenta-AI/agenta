@@ -344,7 +344,7 @@ const EvaluationRunsTableActive = ({
             getCheckboxProps: (record: EvaluationRunTableRow) => ({
                 disabled: Boolean(record.__isSkeleton),
             }),
-            columnWidth: 36,
+            columnWidth: 48,
             fixed: true,
         }),
         [selectedRowKeys, setSelectedRowKeys],
