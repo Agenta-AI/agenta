@@ -237,7 +237,12 @@ export function $createNodeForLineWithTabs(line: string, language: CodeLanguage)
 
         // For Python/code: NO TRANSFORMATION - preserve exactly as-is (spaces AND tabs)
         // For JSON/YAML: convert 2 spaces = 1 tab
-        if (language === "code") {
+        if (
+            language === "code" ||
+            language === "python" ||
+            language === "javascript" ||
+            language === "typescript"
+        ) {
             // NO transformation for Python/code - keep indent exactly as-is
             // Just add the indent as a plain text node (preserves spaces AND tabs)
             if (indent.length > 0) {
