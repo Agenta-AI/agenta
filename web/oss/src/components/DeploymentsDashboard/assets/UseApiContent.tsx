@@ -173,7 +173,7 @@ const UseApiContent = ({
 
     return (
         <div>
-            <div>
+            <div className="p-4">
                 <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
             </div>
             <Tabs
