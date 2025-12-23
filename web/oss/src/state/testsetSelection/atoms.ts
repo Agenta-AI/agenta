@@ -66,6 +66,20 @@ export const availableRevisionsAtom = atom<{id: string; version: number | null}[
     }))
 })
 
+/**
+ * Write atom: Update revisions cache for a specific testset
+ * Use this instead of trying to write to availableRevisionsAtom directly
+ */
+export const setRevisionsForTestsetAtom = atom(
+    null,
+    (get, set, {testsetId, revisions}: {testsetId: string; revisions: TestsetRevision[]}) => {
+        const currentCache = get(loadedRevisionsMapAtom)
+        const newCache = new Map(currentCache)
+        newCache.set(testsetId, revisions)
+        set(loadedRevisionsMapAtom, newCache)
+    },
+)
+
 // ============================================================================
 // REVISION LOADING ACTIONS
 // ============================================================================

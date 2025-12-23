@@ -38,7 +38,7 @@ export function useTestsetRevisionSelect() {
     const [loadingRevisions] = useAtom(loadingRevisionsAtom)
     const [newTestsetName, setNewTestsetName] = useAtom(newTestsetNameAtom)
     const [testset, setTestset] = useAtom(selectedTestsetInfoAtom)
-    const [availableRevisions, setAvailableRevisions] = useAtom(availableRevisionsAtom)
+    const availableRevisions = useAtomValue(availableRevisionsAtom)
     const isNewTestset = useAtomValue(isNewTestsetAtom)
 
     // Drawer state atoms
@@ -55,23 +55,29 @@ export function useTestsetRevisionSelect() {
     const isTestsetsLoading = testsetsQuery.isPending
 
     // Auto-select latest revision when revisions load and none is selected
+    // Check both query data and shared availableRevisions (populated by cascader loadData)
     useEffect(() => {
-        if (
-            selectedTestsetId &&
-            selectedTestsetId !== "create" &&
-            revisionsQuery.data?.length &&
-            !selectedRevisionId
-        ) {
-            const latestRevision = revisionsQuery.data[0]
-            if (latestRevision) {
-                setSelectedRevisionId(latestRevision.id)
-                setCurrentRevisionId(latestRevision.id)
-                setCascaderValue([selectedTestsetId, latestRevision.id])
+        if (selectedTestsetId && selectedTestsetId !== "create" && !selectedRevisionId) {
+            // Try query data first, then fall back to shared availableRevisions
+            const revisions = revisionsQuery.data?.length
+                ? revisionsQuery.data
+                : availableRevisions?.length
+                  ? availableRevisions
+                  : null
+
+            if (revisions && revisions.length > 0) {
+                const latestRevision = revisions[0]
+                if (latestRevision?.id) {
+                    setSelectedRevisionId(latestRevision.id)
+                    setCurrentRevisionId(latestRevision.id)
+                    setCascaderValue([selectedTestsetId, latestRevision.id])
+                }
             }
         }
     }, [
         selectedTestsetId,
         revisionsQuery.data,
+        availableRevisions,
         selectedRevisionId,
         setSelectedRevisionId,
         setCurrentRevisionId,
@@ -126,7 +132,6 @@ export function useTestsetRevisionSelect() {
         setCascaderValue,
         setNewTestsetName,
         setTestset,
-        setAvailableRevisions,
         setSelectedRevisionId,
         setSelectedTestsetId,
         setCurrentRevisionId,

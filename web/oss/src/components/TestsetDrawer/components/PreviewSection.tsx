@@ -13,13 +13,18 @@ import {useStyles} from "../assets/styles"
 interface PreviewSectionProps {
     selectedRevisionId: string
     isMapColumnExist: boolean
+    isNewTestset?: boolean
 }
 
-export function PreviewSection({selectedRevisionId, isMapColumnExist}: PreviewSectionProps) {
+export function PreviewSection({
+    selectedRevisionId,
+    isMapColumnExist,
+    isNewTestset = false,
+}: PreviewSectionProps) {
     const classes = useStyles()
 
     const previewTable = useTestcasesTable({
-        revisionId: selectedRevisionId || undefined,
+        revisionId: isNewTestset ? "draft" : selectedRevisionId || undefined,
         skipEmptyRevisionInit: true,
     })
     const rowHeight = useRowHeight(testcaseRowHeightAtom, TESTCASE_ROW_HEIGHT_CONFIG)
@@ -29,10 +34,10 @@ export function PreviewSection({selectedRevisionId, isMapColumnExist}: PreviewSe
             <Typography.Text className={classes.label}>Preview</Typography.Text>
             {isMapColumnExist ? (
                 <div>
-                    {selectedRevisionId && selectedRevisionId !== "draft" ? (
+                    {(selectedRevisionId && selectedRevisionId !== "draft") || isNewTestset ? (
                         <TestcasesTableShell
                             mode="view"
-                            revisionIdParam={selectedRevisionId}
+                            revisionIdParam={isNewTestset ? "draft" : selectedRevisionId}
                             table={previewTable}
                             rowHeight={rowHeight}
                             selectedRowKeys={[]}

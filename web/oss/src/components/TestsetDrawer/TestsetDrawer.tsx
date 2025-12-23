@@ -108,11 +108,13 @@ const TestsetDrawer = () => {
                             testsetId={drawer.testset.id}
                             selectedTestsetColumns={drawer.selectedTestsetColumns}
                             elementWidth={elementWidth}
+                            isNewTestset={drawer.isNewTestset}
                         />
 
                         <PreviewSection
                             selectedRevisionId={drawer.selectedRevisionId}
                             isMapColumnExist={drawer.isMapColumnExist}
+                            isNewTestset={drawer.isNewTestset}
                         />
 
                         <ConfirmSaveModal

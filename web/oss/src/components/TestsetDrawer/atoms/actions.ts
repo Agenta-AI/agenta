@@ -61,6 +61,11 @@ export const onCascaderChangeAtom = atom(
             set(selectedRevisionIdAtom, "draft")
             set(currentRevisionIdAtom, "draft")
             set(cascaderValueAtom, ["create"])
+
+            // Trigger auto-mapping and entity creation for new testset
+            set(onTestsetSelectAtom)
+            set(onRevisionSelectAtom, getValueAtPath)
+
             return {success: true, action: "create_new"}
         }
 

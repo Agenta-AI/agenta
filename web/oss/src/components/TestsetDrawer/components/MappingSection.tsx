@@ -17,6 +17,7 @@ interface MappingSectionProps {
     testsetId: string
     selectedTestsetColumns: TestsetColumn[]
     elementWidth: number
+    isNewTestset?: boolean
 }
 
 export function MappingSection({
@@ -32,6 +33,7 @@ export function MappingSection({
     testsetId,
     selectedTestsetColumns,
     elementWidth,
+    isNewTestset = false,
 }: MappingSectionProps) {
     const classes = useStyles()
 
@@ -49,7 +51,7 @@ export function MappingSection({
                 </Typography.Text>
             )}
 
-            {selectedRevisionId && selectedRevisionId !== "draft" ? (
+            {(selectedRevisionId && selectedRevisionId !== "draft") || isNewTestset ? (
                 <>
                     <div className="flex flex-col gap-2">
                         {mappingData.map((mapping, idx) => (

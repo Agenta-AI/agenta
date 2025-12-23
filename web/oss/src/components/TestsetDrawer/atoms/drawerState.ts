@@ -791,9 +791,15 @@ export const onRevisionSelectAtom = atom(
         const revisionId = get(selectedRevisionIdAtom)
         const traceData = get(traceDataAtom)
         const mappingData = get(mappingDataAtom)
+        const isNewTestset = get(isNewTestsetAtom)
 
-        // Skip if no revision or draft
-        if (!revisionId || revisionId === "draft") {
+        // Skip if no revision
+        if (!revisionId) {
+            return {success: false, reason: "invalid_revision"}
+        }
+
+        // For non-new testsets, skip "draft" revision
+        if (revisionId === "draft" && !isNewTestset) {
             return {success: false, reason: "invalid_revision"}
         }
 
@@ -812,6 +818,7 @@ export const onRevisionSelectAtom = atom(
             traceData,
             mappings: mappingData,
             getValueAtPath,
+            isNewTestset,
         })
 
         return result
@@ -868,9 +875,11 @@ export const onMappingChangeAtom = atom(
             return {success: true, action: "mapping_updated", skipEntityUpdate: true}
         }
 
-        // 3. Update local entities if revision is selected
+        // 3. Update local entities if revision is selected (including "draft" for new testsets)
         const revisionId = get(selectedRevisionIdAtom)
-        if (revisionId && revisionId !== "draft") {
+        const isNewTestset = get(isNewTestsetAtom)
+
+        if (revisionId && (revisionId !== "draft" || isNewTestset)) {
             const traceData = get(traceDataAtom)
 
             // Import dynamically to avoid circular dependency
@@ -900,8 +909,10 @@ export const onNewColumnBlurAtom = atom(
     null,
     (get, set, getValueAtPath: (obj: unknown, path: string) => unknown) => {
         const revisionId = get(selectedRevisionIdAtom)
+        const isNewTestset = get(isNewTestsetAtom)
 
-        if (!revisionId || revisionId === "draft") {
+        // Allow "draft" for new testsets
+        if (!revisionId || (revisionId === "draft" && !isNewTestset)) {
             return {success: false, reason: "no_revision"}
         }
 

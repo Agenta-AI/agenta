@@ -20,6 +20,7 @@ export {
     loadRevisionsForTestsetAtom,
     isLoadingRevisionsForTestsetAtomFamily,
     cachedRevisionsForTestsetAtomFamily,
+    setRevisionsForTestsetAtom,
     // Selection actions
     selectTestsetAtom,
     selectRevisionAtom,

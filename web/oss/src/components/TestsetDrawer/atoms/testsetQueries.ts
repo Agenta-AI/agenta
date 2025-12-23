@@ -135,13 +135,7 @@ export const latestRevisionAtom = atom((get) => {
     return revisionsQuery.data[0]
 })
 
-/**
- * Derived: Is the current selection a new testset?
- */
-export const isNewTestsetAtom = atom((get) => {
-    const testsetId = get(selectedTestsetIdAtom)
-    return testsetId === "create"
-})
+// Note: isNewTestsetAtom is exported from cascaderState.ts (re-exported from shared module)
 
 // ============================================================================
 // CASCADER OPTIONS BUILDER

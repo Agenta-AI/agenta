@@ -8,13 +8,9 @@ import {createNewTestset} from "@/oss/services/testsets/api"
 import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {appendTestcasesAtom, saveTestsetAtom} from "@/oss/state/entities/testcase/mutations"
 import {projectIdAtom} from "@/oss/state/project"
+import {setRevisionsForTestsetAtom} from "@/oss/state/testsetSelection"
 
-import {
-    availableRevisionsAtom,
-    isNewTestsetAtom,
-    newTestsetNameAtom,
-    selectedTestsetInfoAtom,
-} from "../atoms/cascaderState"
+import {isNewTestsetAtom, newTestsetNameAtom, selectedTestsetInfoAtom} from "../atoms/cascaderState"
 import {mappingDataAtom, selectedRevisionIdAtom, traceDataAtom} from "../atoms/drawerState"
 import {
     commitMessageAtom,
@@ -69,9 +65,8 @@ export function useSaveTestset() {
     const convertTraceData = useSetAtom(convertTraceDataAtom)
 
     // Revision select setters
-    const setTestset = useSetAtom(selectedTestsetInfoAtom)
     const setSelectedRevisionId = useSetAtom(selectedRevisionIdAtom)
-    const setAvailableRevisions = useSetAtom(availableRevisionsAtom)
+    const setRevisionsForTestset = useSetAtom(setRevisionsForTestsetAtom)
 
     /**
      * Convert trace data to export format
@@ -130,25 +125,12 @@ export function useSaveTestset() {
 
                     message.success("Testset created successfully")
 
-                    // Update state
-                    setTestset({name: newTestsetName, id: newTestsetId})
-                    setSelectedRevisionId(createdRevisionId)
-                    revisionSelect.setCurrentRevisionId(createdRevisionId)
-
-                    // Load revisions
-                    try {
-                        const revisions = await fetchTestsetRevisions({testsetId: newTestsetId})
-                        setAvailableRevisions(
-                            revisions.map((rev) => ({
-                                id: rev.id,
-                                version: rev.version != null ? Number(rev.version) : null,
-                            })),
-                        )
-                    } catch (error) {
-                        console.error("Failed to load revisions:", error)
-                    }
-
+                    // Refetch testsets list so the new testset appears
                     await revisionSelect.refetchTestsets()
+
+                    // Reset state and close drawer
+                    // NOTE: We don't set revision ID here because the drawer is closing
+                    // Setting it would trigger entity fetches that get cancelled
                     resetSaveState()
                     options?.onSuccess?.()
 
@@ -180,15 +162,10 @@ export function useSaveTestset() {
                                 : "Testset updated successfully",
                         )
 
-                        // Reload revisions
+                        // Reload revisions and update cache
                         try {
                             const revisions = await fetchTestsetRevisions({testsetId: testset.id})
-                            setAvailableRevisions(
-                                revisions.map((rev) => ({
-                                    id: rev.id,
-                                    version: rev.version != null ? Number(rev.version) : null,
-                                })),
-                            )
+                            setRevisionsForTestset({testsetId: testset.id, revisions})
 
                             setSelectedRevisionId(result.newRevisionId)
                             revisionSelect.setCurrentRevisionId(result.newRevisionId)
@@ -224,9 +201,8 @@ export function useSaveTestset() {
             getExportData,
             executeAppendTestcases,
             executeSaveTestset,
-            setTestset,
             setSelectedRevisionId,
-            setAvailableRevisions,
+            setRevisionsForTestset,
             revisionSelect,
             resetSaveState,
             setIsSaving,

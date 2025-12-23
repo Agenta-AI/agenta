@@ -128,6 +128,21 @@ async function fetchTestcasesForTable(
     cursor: string | null,
     limit: number,
 ): Promise<InfiniteTableFetchResult<TestcaseTableRow>> {
+    // Guard against invalid revision IDs (e.g., "create" mode or non-UUID values)
+    // Valid UUIDs are 36 characters with hyphens (e.g., "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx")
+    const isValidUuid = revisionId && revisionId.length === 36 && revisionId.includes("-")
+    if (!isValidUuid) {
+        console.debug("[fetchTestcasesForTable] Skipping fetch - invalid revisionId:", revisionId)
+        return {
+            rows: [],
+            totalCount: 0,
+            hasMore: false,
+            nextOffset: null,
+            nextCursor: null,
+            nextWindowing: null,
+        }
+    }
+
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/testcases/query`,
         {
@@ -225,7 +240,8 @@ const {datasetStore} = createSimpleTableStore<
     // Provide deleted IDs atom to filter out soft-deleted rows
     excludeRowIdsAtom: excludedTestcaseIdsAtom,
     fetchData: async ({meta, limit, cursor}) => {
-        if (!meta.projectId || !meta.revisionId) {
+        // Skip fetch if no project/revision or if "create" mode (not a valid UUID)
+        if (!meta.projectId || !meta.revisionId || meta.revisionId === "create") {
             return {
                 rows: [],
                 totalCount: 0,

@@ -2,10 +2,12 @@ import {atom} from "jotai"
 
 import {localEntitiesRevisionAtom} from "@/oss/state/entities/testcase/atomCleanup"
 import {
+    addPendingAddedColumnAtom,
     addPendingDeletedColumnAtom,
     clearPendingAddedColumnsAtom,
     clearPendingDeletedColumnsAtom,
     currentColumnsAtom,
+    localColumnsAtomFamily,
 } from "@/oss/state/entities/testcase/columnState"
 import {deleteTestcasesAtom} from "@/oss/state/entities/testcase/mutations"
 import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
@@ -20,7 +22,7 @@ import {currentRevisionIdAtom} from "@/oss/state/entities/testset"
 
 import type {TestsetTraceData} from "../assets/types"
 
-import {selectedRevisionIdAtom as drawerRevisionIdAtom} from "./drawerState"
+import {localColumnsAtom, selectedRevisionIdAtom as drawerRevisionIdAtom} from "./drawerState"
 import {selectedTestsetIdAtom} from "./testsetQueries"
 
 /**
@@ -77,17 +79,23 @@ export const createLocalEntitiesAtom = atom(
             traceData,
             mappings,
             getValueAtPath,
+            isNewTestset = false,
         }: {
             traceData: TestsetTraceData[]
             mappings: {data: string; column: string; newColumn?: string}[]
             getValueAtPath: (obj: any, path: string) => any
+            isNewTestset?: boolean
         },
     ) => {
         // Set revision context first
         const revisionId = get(drawerRevisionIdAtom)
         const alreadyCreatedFor = get(localEntitiesCreatedForRevisionAtom)
 
-        if (!revisionId || revisionId === "draft") {
+        // For new testsets, allow "draft" revision; otherwise require valid revision
+        if (!revisionId) {
+            return
+        }
+        if (revisionId === "draft" && !isNewTestset) {
             return
         }
 
@@ -246,6 +254,7 @@ export const updateAllLocalEntitiesAtom = atom(
         },
     ) => {
         const entityMap = get(localEntityMapAtom)
+        const revisionId = get(drawerRevisionIdAtom)
 
         if (entityMap.size === 0) {
             return
@@ -258,6 +267,50 @@ export const updateAllLocalEntitiesAtom = atom(
                 mapping.column === "create" || !mapping.column ? mapping.newColumn : mapping.column
             if (targetColumn) {
                 mappedColumns.add(targetColumn)
+            }
+        }
+
+        // Sync local columns state: add new columns and remove unmapped ones
+        if (revisionId) {
+            const existingColumns = get(currentColumnsAtom)
+            const existingColumnKeys = new Set(existingColumns.map((c) => c.key))
+            const currentLocalCols = get(localColumnsAtomFamily(revisionId))
+
+            // Filter out columns that are no longer mapped (keep only mapped columns)
+            // Also add any new columns that don't exist yet
+            const updatedLocalCols: {key: string; name: string}[] = []
+
+            // Keep existing local columns that are still mapped
+            for (const col of currentLocalCols) {
+                if (mappedColumns.has(col.key)) {
+                    updatedLocalCols.push(col)
+                }
+            }
+
+            // Add new columns that don't exist in either existing or local columns
+            for (const columnKey of mappedColumns) {
+                const alreadyInLocal = updatedLocalCols.some((c) => c.key === columnKey)
+                if (!existingColumnKeys.has(columnKey) && !alreadyInLocal) {
+                    updatedLocalCols.push({key: columnKey, name: columnKey})
+                    set(addPendingAddedColumnAtom, columnKey)
+                }
+            }
+
+            // Update local columns if changed
+            const hasChanged =
+                updatedLocalCols.length !== currentLocalCols.length ||
+                !updatedLocalCols.every((col, i) => currentLocalCols[i]?.key === col.key)
+
+            if (hasChanged) {
+                set(localColumnsAtomFamily(revisionId), updatedLocalCols)
+
+                // Also sync localColumnsAtom (used by save flow) to only include mapped columns
+                // This ensures the save flow only exports columns that are currently mapped
+                const syncedLocalColumns = Array.from(mappedColumns).map((col) => ({
+                    column: col,
+                    isNew: !existingColumnKeys.has(col),
+                }))
+                set(localColumnsAtom, syncedLocalColumns)
             }
         }
 
@@ -379,12 +432,16 @@ export const selectRevisionAtom = atom(
             traceData: TestsetTraceData[]
             mappings: {data: string; column: string; newColumn?: string}[]
             getValueAtPath: (obj: any, path: string) => any
+            isNewTestset?: boolean
         },
     ) => {
-        const {revisionId, traceData, mappings, getValueAtPath} = params
+        const {revisionId, traceData, mappings, getValueAtPath, isNewTestset = false} = params
 
-        // Validate inputs
-        if (!revisionId || revisionId === "draft") {
+        // Validate inputs - allow "draft" for new testsets
+        if (!revisionId) {
+            return {success: false, reason: "invalid_revision"}
+        }
+        if (revisionId === "draft" && !isNewTestset) {
             return {success: false, reason: "invalid_revision"}
         }
 
@@ -445,6 +502,33 @@ export const selectRevisionAtom = atom(
             if (!mappedColumnKeys.has(col.key)) {
                 set(addPendingDeletedColumnAtom, col.key)
             }
+        }
+
+        // === STEP 4b: For new testsets, add columns to local columns ===
+        if (isNewTestset) {
+            const existingColumnKeys = new Set(existingColumns.map((c) => c.key))
+            const newColumns: {key: string; name: string}[] = []
+
+            for (const columnKey of mappedColumnKeys) {
+                if (!existingColumnKeys.has(columnKey)) {
+                    newColumns.push({key: columnKey, name: columnKey})
+                    // Track as pending added column
+                    set(addPendingAddedColumnAtom, columnKey)
+                }
+            }
+
+            // Add to local columns for this revision
+            if (newColumns.length > 0) {
+                const currentLocalCols = get(localColumnsAtomFamily(revisionId))
+                set(localColumnsAtomFamily(revisionId), [...currentLocalCols, ...newColumns])
+            }
+
+            // Also sync localColumnsAtom (used by save flow) to include all mapped columns
+            const syncedLocalColumns = Array.from(mappedColumnKeys).map((col) => ({
+                column: col,
+                isNew: !existingColumnKeys.has(col),
+            }))
+            set(localColumnsAtom, syncedLocalColumns)
         }
 
         // === STEP 5: Create local entities ===
