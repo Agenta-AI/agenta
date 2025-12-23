@@ -5,7 +5,7 @@ import {Button, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
-import {sessionIdsAtom} from "@/oss/state/newObservability"
+import {filteredSessionIdsAtom} from "@/oss/state/newObservability"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 
 import useSessionDrawer from "../../hooks/useSessionDrawer"
@@ -14,7 +14,7 @@ import {isAnnotationVisibleAtom} from "../../store/sessionDrawerStore"
 const SessionHeader = () => {
     const {sessionId} = useSessionDrawer()
     const [isAnnotationVisible, setIsAnnotationVisible] = useAtom(isAnnotationVisibleAtom)
-    const sessionIds = useAtomValue(sessionIdsAtom)
+    const sessionIds = useAtomValue(filteredSessionIdsAtom)
     const openSessionDrawer = useSetAtom(openSessionDrawerWithUrlAtom)
 
     const currentIndex = useMemo(() => {

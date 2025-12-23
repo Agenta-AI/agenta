@@ -1140,14 +1140,14 @@ class TracingDAO(TracingDAOInterface):
 
     ### SESSIONS AND USERS
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=([], None))
     async def sessions(
         self,
         *,
         project_id: UUID,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[str]:
+    ):
         """Query unique session IDs with windowing support."""
         async with engine.tracing_session() as session:
             # TIMEOUT
@@ -1158,23 +1158,22 @@ class TracingDAO(TracingDAOInterface):
                 select(
                     SpanDBE.attributes["ag"]["session"]["id"].as_string().label(
                         "session_id"
-                    )
+                    ),
+                    func.max(SpanDBE.start_time).label("last_active"),
                 )
                 .filter(SpanDBE.project_id == project_id)
                 .filter(SpanDBE.attributes["ag"]["session"].has_key("id"))
             )
 
-            # Apply windowing filters manually
-            # We cannot use apply_windowing() because it adds an ORDER BY clause
-            # which conflicts with GROUP BY (must order by aggregate)
-            if windowing:
-                if windowing.oldest:
-                    stmt = stmt.filter(SpanDBE.start_time >= windowing.oldest)
-                if windowing.newest:
-                    stmt = stmt.filter(SpanDBE.start_time < windowing.newest)
-
             # Group by session ID to get unique sessions
             stmt = stmt.group_by("session_id")
+
+            # Apply windowing filters after aggregation
+            if windowing:
+                if windowing.oldest:
+                    stmt = stmt.having(func.max(SpanDBE.start_time) >= windowing.oldest)
+                if windowing.newest:
+                    stmt = stmt.having(func.max(SpanDBE.start_time) < windowing.newest)
 
             # Order by latest activity (MAX start_time)
             stmt = stmt.order_by(func.max(SpanDBE.start_time).desc())
@@ -1188,20 +1187,22 @@ class TracingDAO(TracingDAOInterface):
 
             # Return session IDs as strings
             session_ids = []
+            next_cursor = None
             for row in rows:
                 if row.session_id:
                     session_ids.append(str(row.session_id))
+                    next_cursor = row.last_active
 
-            return session_ids
+            return session_ids, next_cursor
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=([], None))
     async def users(
         self,
         *,
         project_id: UUID,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[str]:
+    ):
         """Query unique user IDs with windowing support."""
         async with engine.tracing_session() as session:
             # TIMEOUT
@@ -1210,31 +1211,40 @@ class TracingDAO(TracingDAOInterface):
             # Select distinct user IDs from JSONB
             stmt = (
                 select(
-                    distinct(SpanDBE.attributes["ag"]["user"]["id"].as_string()).label(
-                        "user_id"
-                    )
+                    SpanDBE.attributes["ag"]["user"]["id"].as_string().label("user_id"),
+                    func.max(SpanDBE.start_time).label("last_active"),
                 )
                 .filter(SpanDBE.project_id == project_id)
                 .filter(SpanDBE.attributes["ag"]["user"].has_key("id"))
             )
 
-            # Apply windowing
+            # We cannot use apply_windowing() because it adds an ORDER BY clause
+            # which conflicts with GROUP BY
+            # Group by user ID to get unique users
+            stmt = stmt.group_by("user_id")
+
+            # Apply windowing filters after aggregation
             if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=SpanDBE,
-                    attribute="start_time",
-                    order="descending",
-                    windowing=windowing,
-                )
+                if windowing.oldest:
+                    stmt = stmt.having(func.max(SpanDBE.start_time) >= windowing.oldest)
+                if windowing.newest:
+                    stmt = stmt.having(func.max(SpanDBE.start_time) < windowing.newest)
+
+            # Order by latest activity (MAX start_time)
+            stmt = stmt.order_by(func.max(SpanDBE.start_time).desc())
+
+            # Apply limit
+            if windowing and windowing.limit:
+                stmt = stmt.limit(windowing.limit)
 
             result = await session.execute(stmt)
             rows = result.all()
 
-            # Return user IDs as strings
             user_ids = []
+            next_cursor = None
             for row in rows:
                 if row.user_id:
                     user_ids.append(str(row.user_id))
+                    next_cursor = row.last_active
 
-            return user_ids
+            return user_ids, next_cursor

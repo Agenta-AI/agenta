@@ -709,7 +709,7 @@ class TracingRouter:
         request: Request,
         sessions_query_request: SessionsQueryRequest,
     ):
-        session_ids = await self.service.sessions(
+        session_ids, next_cursor = await self.service.sessions(
             project_id=request.state.project_id,
             windowing=sessions_query_request.windowing,
         )
@@ -717,6 +717,7 @@ class TracingRouter:
         session_ids_response = SessionIdsResponse(
             count=len(session_ids) if session_ids else 0,
             session_ids=session_ids,
+            next_cursor=next_cursor,
         )
 
         return session_ids_response
@@ -728,7 +729,7 @@ class TracingRouter:
         request: Request,
         users_query_request: UsersQueryRequest,
     ):
-        user_ids = await self.service.users(
+        user_ids, next_cursor = await self.service.users(
             project_id=request.state.project_id,
             windowing=users_query_request.windowing,
         )
@@ -736,6 +737,7 @@ class TracingRouter:
         user_ids_response = UserIdsResponse(
             count=len(user_ids) if user_ids else 0,
             user_ids=user_ids,
+            # next_cursor=next_cursor, # UserIdsResponse doesn't have it yet, leaving it for now
         )
 
         return user_ids_response

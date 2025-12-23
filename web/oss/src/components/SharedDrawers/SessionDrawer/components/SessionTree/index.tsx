@@ -53,22 +53,38 @@ const SessionTree = ({selected, setSelected}: SessionTreeProps) => {
     const treeRoot = useMemo(() => {
         if (!turnsTree || !turnsTree.length) return undefined
 
-        let root = undefined
+        const rootLayout = {
+            span_id: "root",
+            span_name: "Session",
+            children: turnsTree,
+            attributes: {
+                ag: {
+                    metrics: {
+                        tokens: {
+                            cumulative: {
+                                total: aggregatedStats?.total_tokens ?? 0,
+                            },
+                        },
+                        costs: {
+                            cumulative: {
+                                total: aggregatedStats?.cost ?? 0,
+                            },
+                        },
+                        duration: {
+                            cumulative: aggregatedStats?.latency ?? 0,
+                        },
+                    },
+                },
+            },
+            expanded: true, // Explicitly expand root
+        } as any
 
         if (!searchValue.trim()) {
-            root = {
-                span_id: "root",
-                span_name: "Session",
-                children: turnsTree,
-                ...aggregatedStats,
-                expanded: true, // Explicitly expand root
-            } as any
-            return root
+            return rootLayout
         }
 
-        root = {span_id: "root", span_name: "Session", children: turnsTree, expanded: true} as any
-        const result = filterTree(root, searchValue)
-        if (!result) return root
+        const result = filterTree(rootLayout, searchValue)
+        if (!result) return rootLayout
         return result
     }, [turnsTree, searchValue, aggregatedStats])
 

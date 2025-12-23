@@ -10,10 +10,11 @@ import {
     traceTabsAtom,
 } from "../atoms/controls"
 import {
-    observabilityLoadingAtom,
+    filteredSessionIdsAtom,
     sessionCountAtom,
-    sessionIdsAtom,
+    sessionsLoadingAtom,
     sessionsQueryAtom,
+    sessionsSpansQueryAtom,
 } from "../atoms/queries"
 
 export const useSessions = () => {
@@ -26,9 +27,11 @@ export const useSessions = () => {
     const [{refetch: refetchSessions, fetchNextPage, hasNextPage, isFetchingNextPage}] =
         useAtom(sessionsQueryAtom)
 
-    const sessionIds = useAtomValue(sessionIdsAtom)
+    const [{refetch: refetchSessionSpans}] = useAtom(sessionsSpansQueryAtom)
+
+    const sessionIds = useAtomValue(filteredSessionIdsAtom)
     const sessionCount = useAtomValue(sessionCountAtom)
-    const isLoading = useAtomValue(observabilityLoadingAtom)
+    const isLoading = useAtomValue(sessionsLoadingAtom)
 
     const fetchMoreSessions = useCallback(async () => {
         if (!hasNextPage) return
@@ -43,6 +46,7 @@ export const useSessions = () => {
         hasMoreSessions: hasNextPage,
         isFetchingMore: isFetchingNextPage,
         refetchSessions,
+        refetchSessionSpans,
         searchQuery,
         setSearchQuery,
         traceTabs,

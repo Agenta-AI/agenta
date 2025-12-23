@@ -27,7 +27,9 @@ export const searchQueryAtomFamily = atomFamily((_tab: ObservabilityTabInfo) => 
 export const traceTabsAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
     atom<TraceTabTypes>("trace"),
 )
-export const limitAtomFamily = atomFamily((_tab: ObservabilityTabInfo) => atom<number>(50))
+export const limitAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
+    atom<number>(tab === "sessions" ? 20 : 50),
+)
 export const sortAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
     atom<SortResult>(DEFAULT_SORT as SortResult),
 )
@@ -110,11 +112,11 @@ export const filtersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
             const normalizedNext = nextCombined || []
 
             // Persist only non-permanent filters
-            const nextUser = normalizedNext.filter((f) => !(f as any).isPermanent)
+            const nextUser = normalizedNext.filter((f: Filter) => !(f as any).isPermanent)
             set(userFiltersAtomFamily(tab), nextUser)
 
             // If only permanent filters remain (or none at all), keep the soft default disabled
-            if (!normalizedNext.some((f) => !(f as any).isPermanent)) {
+            if (!normalizedNext.some((f: Filter) => !(f as any).isPermanent)) {
                 set(traceTypeDefaultEnabledAtomFamily(tab), false)
                 return
             }

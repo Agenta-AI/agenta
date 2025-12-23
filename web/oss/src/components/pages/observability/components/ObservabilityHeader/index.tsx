@@ -17,6 +17,7 @@ import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
 import {useObservability} from "@/oss/state/newObservability"
+import {sessionsLoadingAtom} from "@/oss/state/newObservability/atoms/queries"
 import {
     getAgData,
     getAgDataInputs,
@@ -234,6 +235,20 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
         }
     }, [traces, columns])
 
+    const handleRefresh = async () => {
+        if (componentType === "sessions") {
+            await Promise.all([
+                queryClient.invalidateQueries({queryKey: ["sessions"]}),
+                queryClient.invalidateQueries({queryKey: ["session_spans"]}),
+            ])
+        } else {
+            await Promise.all([
+                queryClient.invalidateQueries({queryKey: ["traces"]}),
+                queryClient.invalidateQueries({queryKey: ["annotations"]}),
+            ])
+        }
+    }
+
     return (
         <>
             <section
@@ -256,10 +271,7 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
                                         className={clsx("mt-[0.8px]", {"animate-spin": isLoading})}
                                     />
                                 }
-                                onClick={() => {
-                                    fetchAnnotations()
-                                    fetchTraces()
-                                }}
+                                onClick={handleRefresh}
                                 tooltipProps={{title: "Refresh data"}}
                             />
                         )}
@@ -274,12 +286,14 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
                             })}
                             allowClear
                         />
-                        <Filters
-                            filterData={filters}
-                            columns={filterColumns}
-                            onApplyFilter={onApplyFilter}
-                            onClearFilter={onClearFilter}
-                        />
+                        {componentType === "traces" && (
+                            <Filters
+                                filterData={filters}
+                                columns={filterColumns}
+                                onApplyFilter={onApplyFilter}
+                                onClearFilter={onClearFilter}
+                            />
+                        )}
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
                         {isScrolled && componentType === "traces" ? (
                             <>

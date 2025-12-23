@@ -56,7 +56,7 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
         queryFn: async ({pageParam}) =>
             executeTraceQuery({
                 params,
-                pageParam: pageParam as string | undefined,
+                pageParam: pageParam as {newest?: string} | undefined,
                 appId: appId as string,
                 isHasAnnotationSelected,
                 hasAnnotationConditions,
@@ -274,19 +274,19 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
         if (endTime) windowing.newest = endTime
     }
 
+    const limit = get(limitAtomFamily("sessions"))
     const sessionExists = get(sessionExistsAtom)
 
     return {
-        queryKey: ["sessions", projectId, appId, windowing],
-        initialPageParam: undefined as string | undefined,
+        queryKey: ["sessions", projectId, appId, windowing, limit],
+        initialPageParam: {newest: undefined as string | undefined},
 
-        queryFn: async ({pageParam}: {pageParam?: string}) => {
+        queryFn: async ({pageParam}: {pageParam?: {newest?: string}}) => {
             const {fetchSessions} = await import("@/oss/services/tracing/api")
 
             const response: any = await fetchSessions({
                 appId: (appId as string) || undefined,
-                windowing: Object.keys(windowing).length > 0 ? windowing : undefined,
-                cursor: pageParam,
+                windowing: {...windowing, limit, newest: pageParam?.newest},
                 filter: filters && filters.length > 0 ? filters : undefined,
             })
 
@@ -299,7 +299,9 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
         enabled: sessionExists && Boolean(appId || projectId),
 
         getNextPageParam: (lastPage: any) => {
-            return lastPage.nextCursor || undefined
+            return lastPage.session_ids.length === limit && lastPage.nextCursor
+                ? {newest: lastPage.nextCursor}
+                : undefined
         },
 
         refetchOnWindowFocus: false,
@@ -321,6 +323,12 @@ export const sessionCountAtom = selectAtom(
     (query) => (query.data?.pages?.[0] as any)?.count ?? 0,
 )
 
+export const filteredSessionIdsAtom = atom((get) => {
+    const sessionIds = get(sessionIdsAtom)
+    const sessionsSpans = get(sessionsSpansAtom)
+    return sessionIds.filter((id) => (sessionsSpans[id]?.length ?? 0) > 0)
+})
+
 // Session Spans ---------------------------------------------------------------
 export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
     const appId = get(selectedAppIdAtom)
@@ -337,7 +345,7 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
     const sessionExists = get(sessionExistsAtom)
 
     return {
-        queryKey: ["session_spans", sessionIds, projectId, appId, params],
+        queryKey: ["session_spans", projectId, appId, params, JSON.stringify(sessionIds)],
         initialPageParam: {
             newest: typeof params.newest === "string" ? params.newest : undefined,
         },
@@ -366,7 +374,7 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
 
                 return executeTraceQuery({
                     params: specificParams,
-                    pageParam: pageParam as string | undefined,
+                    pageParam: pageParam as {newest?: string} | undefined,
                     appId: appId as string,
                     isHasAnnotationSelected,
                     hasAnnotationConditions,
