@@ -43,7 +43,9 @@ export const CHECKBOX_COL = {
     headerCheckboxSelection: true,
     checkboxSelection: true,
     showDisabledCheckboxes: true,
-    maxWidth: 50,
+    width: 48,
+    maxWidth: 48,
+    minWidth: 48,
     editable: false,
 }
 

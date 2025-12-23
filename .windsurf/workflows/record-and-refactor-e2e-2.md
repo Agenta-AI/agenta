@@ -36,7 +36,7 @@ This workflow guides you through generating maintainable, robust E2E tests for A
 - Cascade proposes a name, description, and purpose for the new E2E test, based on the previous analysis.
 - User can edit/correct these before proceeding.
 - The final name/description will be used for folder/file names and documentation.
-- once you got the information you need, you need to check if the folder exists, and create one if needed, in order to prevent failing file creation attemps.
+- once you got the information you need, you need to check if the folder exists, and create one if needed, in order to prevent failing file creation attempts.
 - **Folder/file naming and structure must follow the [E2E Test Organization Guide](../web/tests/guides/E2E_TEST_ORGANIZATION_GUIDE.md).**
 - **All new E2E tests must be placed in the appropriate product/package feature folder (e.g., `web/ee/tests/app/`, `web/oss/tests/app/`).**
 - **Organize by feature or flow using subfolders (e.g., `app/`, `prompt-registry/`).**

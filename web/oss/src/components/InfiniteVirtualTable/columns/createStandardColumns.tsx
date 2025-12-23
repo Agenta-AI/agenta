@@ -162,7 +162,7 @@ function createDateColumn<T>(def: DateColumnDef): ColumnType<T> {
 function createActionsColumn<T extends InfiniteTableRowBase>(
     def: ActionsColumnDef<T>,
 ): ColumnType<T> {
-    const {items, width = 56, showCopyId = true, getRecordId, onExportRow, isExporting} = def
+    const {items, width = 61, showCopyId = true, getRecordId, onExportRow, isExporting} = def
 
     const defaultGetId = (record: T): string => {
         if (getRecordId) return getRecordId(record)

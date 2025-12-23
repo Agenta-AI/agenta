@@ -21,7 +21,7 @@ const ObservabilityDashboardSection = () => {
     const classes = useStyles()
 
     return (
-        <div className={`my-6 flex flex-col gap-4 ${classes.container}`}>
+        <div className={`flex flex-col gap-4 ${classes.container}`}>
             <div className="flex items-baseline justify-between">
                 <Typography.Title level={2} className="!m-0">
                     Analytics

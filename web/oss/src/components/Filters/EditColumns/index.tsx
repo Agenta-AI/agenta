@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Columns} from "@phosphor-icons/react"
+import {ColumnsIcon} from "@phosphor-icons/react"
 import {Button, Checkbox, Popover, Space} from "antd"
 import {ColumnGroupType, ColumnsType, ColumnType} from "antd/es/table"
 import {useLocalStorage} from "usehooks-ts"
@@ -180,7 +180,7 @@ const EditColumns = <RecordType,>({
                 </div>
             }
         >
-            <Button {...buttonProps} icon={<Columns size={14} />}>
+            <Button {...buttonProps} type="text" icon={<ColumnsIcon size={14} />}>
                 {buttonText}
             </Button>
         </Popover>
