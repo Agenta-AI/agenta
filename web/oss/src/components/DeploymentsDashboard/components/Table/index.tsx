@@ -13,7 +13,7 @@ import {variantsLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {DeploymentRevisionWithVariant} from "../../atoms"
 
-import {getColumns} from "./assets/getDeploymentColumns"
+import {getColumns, type OnOpenUseApiPayload} from "./assets/getDeploymentColumns"
 
 interface DeploymentTableProps {
     setSelectedRevisionRow: React.Dispatch<
@@ -24,7 +24,7 @@ interface DeploymentTableProps {
     setSelectedVariantRevisionIdToRevert: React.Dispatch<React.SetStateAction<string>>
     envRevisions: DeploymentRevisions | undefined
     setIsSelectDeployVariantModalOpen: (value: React.SetStateAction<boolean>) => void
-    onOpenUseApi: () => void
+    onOpenUseApi: (payload?: OnOpenUseApiPayload) => void
     isLoading?: boolean
 }
 

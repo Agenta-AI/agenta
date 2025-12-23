@@ -286,6 +286,8 @@ const PromptConfigCard = ({
         )
     }
 
+    const disablePromptCollapse = combinedPrompts.length === 1
+
     return (
         <div className={className}>
             <PromptsSourceProvider promptsByRevision={promptsMap}>
@@ -304,6 +306,7 @@ const PromptConfigCard = ({
                                       variantId={normalizedVariantId}
                                       promptId={String(promptKey)}
                                       viewOnly
+                                      disableCollapse={disablePromptCollapse}
                                   />
                               )
                           })

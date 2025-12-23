@@ -32,60 +32,12 @@ const statusColor = (status?: string | null) => {
 
 type ActiveView = "overview" | "focus" | "scenarios" | "configuration"
 
-const PreviewEvalRunHeader = ({
-    runId,
-    className,
-    activeView,
-    onChangeView,
-    projectId,
-}: {
-    runId: string
-    className?: string
-    activeView?: ActiveView
-    onChangeView?: (v: ActiveView) => void
-    projectId?: string | null
-}) => {
+const useOnlineEvaluationActions = (runId: string, projectId?: string | null) => {
     const queryClient = useQueryClient()
-    const runQueryAtom = useMemo(() => evaluationRunQueryAtomFamily(runId), [runId])
-    const runQuery = useAtomValue(runQueryAtom)
-    const _invocationRefs = useAtomValue(useMemo(() => runInvocationRefsAtomFamily(runId), [runId]))
-    const _testsetIds = useAtomValue(useMemo(() => runTestsetIdsAtomFamily(runId), [runId]))
-    const evalType = useAtomValue(previewEvalTypeAtom)
     const runFlags = useAtomValue(useMemo(() => runFlagsAtomFamily(runId), [runId]))
+    const evalType = useAtomValue(previewEvalTypeAtom)
     const [onlineAction, setOnlineAction] = useState<"start" | "stop" | null>(null)
 
-    const runData = runQuery.data?.camelRun ?? runQuery.data?.rawRun ?? null
-    const runStatus = runData?.status ?? null
-    const updatedTs =
-        (runData as any)?.updatedAt ||
-        (runData as any)?.updated_at ||
-        (runData as any)?.createdAt ||
-        (runData as any)?.created_at ||
-        null
-    const updatedMoment = updatedTs ? dayjs(updatedTs) : null
-    const lastUpdated = updatedMoment?.isValid() ? updatedMoment.fromNow() : undefined
-
-    const _statusDotClass = (() => {
-        const lower = (runStatus || "").toLowerCase()
-        if (
-            lower.includes("run") ||
-            lower.includes("progress") ||
-            lower.includes("active") ||
-            lower.includes("running") ||
-            lower.includes("queued")
-        ) {
-            return "bg-green-500"
-        }
-        if (lower.includes("completed") || lower.includes("closed") || lower.includes("success")) {
-            return "bg-gray-400"
-        }
-        if (lower.includes("stopped") || lower.includes("error") || lower.includes("fail")) {
-            return "bg-red-500"
-        }
-        return "bg-yellow-500"
-    })()
-
-    // Online evaluation pause/continue logic
     const isOnlineEvaluation = evalType === "online"
     const isClosed = runFlags?.isClosed === true
     const isActive = runFlags?.isActive === true && !isClosed
@@ -96,7 +48,6 @@ const PreviewEvalRunHeader = ({
     const refetchRunQueries = useCallback(async () => {
         if (!runId) return
         const projectKey = projectId ?? "none"
-        // Use refetchQueries to force immediate refetch regardless of staleTime
         await Promise.all([
             queryClient.refetchQueries({
                 queryKey: ["preview-evaluation-run-summary", projectKey, runId],
@@ -119,7 +70,7 @@ const PreviewEvalRunHeader = ({
                 await startSimpleEvaluation(runId)
                 message.success("Evaluation resumed")
             }
-            // Invalidate the batcher cache and refetch queries
+
             if (projectId) {
                 invalidatePreviewRunCache(projectId, runId)
             }
@@ -133,6 +84,26 @@ const PreviewEvalRunHeader = ({
             setOnlineAction(null)
         }
     }, [canStopOnline, projectId, refetchRunQueries, runId, showOnlineAction])
+
+    return {
+        canStopOnline,
+        canResumeOnline,
+        handleOnlineAction,
+        onlineAction,
+        showOnlineAction,
+    }
+}
+
+const PreviewEvalRunTabs = ({
+    className,
+    activeView,
+    onChangeView,
+}: {
+    className?: string
+    activeView?: ActiveView
+    onChangeView?: (v: ActiveView) => void
+}) => {
+    const evalType = useAtomValue(previewEvalTypeAtom)
 
     const tabs = useMemo(() => {
         const base: {label: string; value: ActiveView}[] = [
@@ -151,47 +122,71 @@ const PreviewEvalRunHeader = ({
     const currentView = activeView ?? tabs[0]?.value ?? "overview"
 
     return (
-        <div
-            className={clsx(
-                "w-full",
-                "flex items-center justify-between gap-4 p-2 sticky top-0 z-[11] bg-white",
-                currentView === "overview" && "border-0",
-                className,
-            )}
-        >
-            <div className={clsx("flex min-w-0 items-center gap-6")}>
-                <Tabs
-                    className="run-header-tabs [&_.ant-tabs-nav]:mb-0"
-                    activeKey={currentView}
-                    onChange={(key) => {
-                        const view = key as ActiveView
-                        if (view !== currentView) {
-                            onChangeView?.(view)
-                        }
-                    }}
-                    items={tabs.map((tab) => ({
-                        key: tab.value,
-                        label: tab.label,
-                    }))}
-                />
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-                <Space size={8} wrap className="text-[#475467]">
-                    {runStatus ? (
-                        <>
-                            <Tag color={statusColor(runStatus)} className="m-0">
-                                {runStatus}
-                            </Tag>
-                            {lastUpdated ? (
-                                <Tooltip title={updatedMoment?.format("DD MMM YYYY HH:mm") ?? ""}>
-                                    <span className="text-xs text-[#98A2B3] whitespace-nowrap">
-                                        Updated {lastUpdated}
-                                    </span>
-                                </Tooltip>
-                            ) : null}
-                        </>
-                    ) : null}
-                </Space>
+        <div className={clsx("flex items-center justify-end", className)}>
+            <Tabs
+                className="run-header-tabs [&_.ant-tabs-nav]:mb-0"
+                activeKey={currentView}
+                onChange={(key) => {
+                    const view = key as ActiveView
+                    if (view !== currentView) {
+                        onChangeView?.(view)
+                    }
+                }}
+                items={tabs.map((tab) => ({
+                    key: tab.value,
+                    label: tab.label,
+                }))}
+            />
+        </div>
+    )
+}
+
+const PreviewEvalRunMeta = ({
+    runId,
+    projectId,
+    className,
+}: {
+    runId: string
+    projectId?: string | null
+    className?: string
+}) => {
+    const runQueryAtom = useMemo(() => evaluationRunQueryAtomFamily(runId), [runId])
+    const runQuery = useAtomValue(runQueryAtom)
+    const _invocationRefs = useAtomValue(useMemo(() => runInvocationRefsAtomFamily(runId), [runId]))
+    const _testsetIds = useAtomValue(useMemo(() => runTestsetIdsAtomFamily(runId), [runId]))
+    const {canStopOnline, handleOnlineAction, onlineAction, showOnlineAction} =
+        useOnlineEvaluationActions(runId, projectId)
+
+    const runData = runQuery.data?.camelRun ?? runQuery.data?.rawRun ?? null
+    const runStatus = runData?.status ?? null
+    const updatedTs =
+        (runData as any)?.updatedAt ||
+        (runData as any)?.updated_at ||
+        (runData as any)?.createdAt ||
+        (runData as any)?.created_at ||
+        null
+    const updatedMoment = updatedTs ? dayjs(updatedTs) : null
+    const lastUpdated = updatedMoment?.isValid() ? updatedMoment.fromNow() : undefined
+
+    return (
+        <div className={clsx("flex items-center justify-end gap-3 px-2", className)}>
+            <Space size={12} wrap className="text-[#475467]">
+                {runStatus ? (
+                    <>
+                        <Tag color={statusColor(runStatus)} className="m-0">
+                            {runStatus}
+                        </Tag>
+                    </>
+                ) : null}
+                {lastUpdated ? (
+                    <Tooltip title={updatedMoment?.format("DD MMM YYYY HH:mm") ?? ""}>
+                        <span className="text-xs text-[#98A2B3] whitespace-nowrap">
+                            Updated {lastUpdated}
+                        </span>
+                    </Tooltip>
+                ) : null}
+            </Space>
+            <div className="flex items-center gap-2">
                 {showOnlineAction ? (
                     <Tooltip title={canStopOnline ? "Pause evaluation" : "Resume evaluation"}>
                         <Button
@@ -211,4 +206,5 @@ const PreviewEvalRunHeader = ({
     )
 }
 
-export default memo(PreviewEvalRunHeader)
+export {PreviewEvalRunMeta}
+export default memo(PreviewEvalRunTabs)

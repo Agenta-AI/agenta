@@ -14,7 +14,14 @@ import {variantOptionsAtomFamily} from "../../../state/atoms/optionsSelectors"
 import TreeSelectItemRenderer from "./assets/TreeSelectItemRenderer"
 import {SelectVariantProps} from "./types"
 
-const SelectVariant = ({value, showAsCompare = false, ...props}: SelectVariantProps) => {
+const SelectVariant = ({
+    value,
+    showAsCompare = false,
+    showCreateNew = true,
+    showLatestTag = true,
+    style,
+    ...props
+}: SelectVariantProps) => {
     const [searchTerm, setSearchTerm] = useState("")
 
     // Use optimized selector atom with deep equality checks
@@ -49,12 +56,13 @@ const SelectVariant = ({value, showAsCompare = false, ...props}: SelectVariantPr
                             variant={child.variant}
                             hideName
                             showBadges
+                            showLatestTag={showLatestTag}
                         />
                     </div>
                 ),
             })),
         }))
-    }, [baseOptions])
+    }, [baseOptions, showLatestTag])
 
     const [isOpenCompareSelect, setIsOpenCompareSelect] = useState(false)
     const [isOpenSelect, setIsOpenSelect] = useState(false)
@@ -109,6 +117,7 @@ const SelectVariant = ({value, showAsCompare = false, ...props}: SelectVariantPr
                                 isOpen={isOpenCompareSelect}
                                 menu={menu}
                                 showAsCompare={showAsCompare}
+                                showCreateNew={showCreateNew}
                                 searchTerm={searchTerm}
                                 setSearchTerm={setSearchTerm}
                             />
@@ -131,7 +140,7 @@ const SelectVariant = ({value, showAsCompare = false, ...props}: SelectVariantPr
                         open={isOpenSelect}
                         value={value}
                         onOpenChange={(isOpen) => setIsOpenSelect(isOpen)}
-                        style={{width: 120}}
+                        style={style ?? {width: 120}}
                         styles={{popup: {root: {maxHeight: 400, overflow: "auto"}}}}
                         size="small"
                         placeholder="Select variant"
@@ -143,6 +152,7 @@ const SelectVariant = ({value, showAsCompare = false, ...props}: SelectVariantPr
                                 isOpen={isOpenSelect}
                                 menu={menu}
                                 showAsCompare={showAsCompare}
+                                showCreateNew={showCreateNew}
                                 searchTerm={searchTerm}
                                 setSearchTerm={setSearchTerm}
                             />

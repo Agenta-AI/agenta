@@ -154,6 +154,9 @@ const VariantDrawerContent = ({
         }
     }, [showOriginal, appSchema, selectedVariant, uriInfo?.routePath])
 
+    const disableOriginalPromptCollapse = originalPromptIds.length === 1
+    const disablePromptCollapse = (promptIds?.length || 0) === 1
+
     const tabItems = useMemo(() => {
         return [
             appStatus
@@ -176,6 +179,7 @@ const VariantDrawerContent = ({
                                           variantId={(selectedVariant as any)?.id || variantId}
                                           className="[&_.ant-collapse-content-box>div>div]:!w-[97%] border border-solid border-[#0517290F]"
                                           viewOnly
+                                          disableCollapse={disableOriginalPromptCollapse}
                                       />
                                   ))}
                                   <PlaygroundVariantCustomProperties
@@ -194,6 +198,7 @@ const VariantDrawerContent = ({
                                       promptId={promptId}
                                       variantId={selectedVariant?.id}
                                       className="[&_.ant-collapse-content-box>div>div]:!w-[97%] border border-solid border-[#0517290F]"
+                                      disableCollapse={disablePromptCollapse}
                                   />
                               ))}
 
@@ -226,6 +231,8 @@ const VariantDrawerContent = ({
         originalPrompts,
         originalPromptIds,
         isLoading,
+        disableOriginalPromptCollapse,
+        disablePromptCollapse,
     ])
     const drawerState = useAtomValue(variantDrawerAtom)
     const clearJsonOverride = useSetAtom(
@@ -345,7 +352,7 @@ const VariantDrawerContent = ({
                 )}
 
                 {deployedIn?.length > 0 && (
-                    <Space direction="vertical">
+                    <Space orientation="vertical">
                         <Text className="font-medium">Deployment</Text>
                         <div className="flex flex-col gap-1">
                             {deployedIn.map((env, idx) => (

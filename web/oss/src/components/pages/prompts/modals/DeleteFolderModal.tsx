@@ -1,7 +1,8 @@
-import {Modal, Button} from "antd"
-import {TrashIcon} from "@phosphor-icons/react"
 import React from "react"
+
 import {FolderFilled} from "@ant-design/icons"
+import {TrashIcon} from "@phosphor-icons/react"
+import {Modal, Button} from "antd"
 
 interface DeleteFolderModalProps {
     open: boolean

@@ -1,19 +1,20 @@
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
-import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
+import {useMemo, useState} from "react"
+
+import {DeleteOutlined} from "@ant-design/icons"
+import {SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
+import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import {Database} from "lucide-react"
 import dynamic from "next/dynamic"
 
-import clsx from "clsx"
-
+import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import {KeyValuePair} from "@/oss/lib/Types"
 import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
-import {DeleteOutlined} from "@ant-design/icons"
-import {SidebarSimple} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
-import {useMemo, useState} from "react"
 
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
+
+import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import {TraceTypeHeaderProps} from "./types"
 
 const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {

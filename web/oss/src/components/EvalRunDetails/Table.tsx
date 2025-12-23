@@ -1,11 +1,9 @@
 import {useCallback, useMemo, useRef} from "react"
 
-import clsx from "clsx"
 import {useAtomValue, useStore} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
-import ScenarioColumnVisibilityPopoverContent from "@/oss/components/EvalRunDetails/components/columnVisibility/ColumnVisibilityPopoverContent"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
@@ -29,12 +27,14 @@ import {
 import {resolveScenarioColumnValue} from "./export/columnResolvers"
 import {buildGroupMap, resolveScenarioColumnLabel} from "./export/labelResolvers"
 import type {ScenarioColumnExportMetadata} from "./export/types"
+
 import {buildExportMetadata} from "./export/types"
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"
 import useRowHeightMenuItems from "./hooks/useRowHeightMenuItems"
 import {scenarioRowHeightAtom} from "./state/rowHeight"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
+import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPaginations"
 
 type TableRowData = PreviewTableRow
 
@@ -76,15 +76,16 @@ const EvalRunDetailsTable = ({
         [compareRunIds],
     )
 
-    const comparePaginations = compareSlots.map((slotRunId) =>
-        useInfiniteTablePagination<PreviewTableRow>({
-            store: evaluationPreviewTableStore,
-            scopeId: slotRunId,
-            pageSize,
-        }),
-    )
+    // Use custom hook to handle multiple comparison paginations
+    const comparePaginations = useComparisonPaginations({
+        compareSlots,
+        pageSize,
+    })
 
-    const compareRowsBySlot = comparePaginations.map((pagination) => pagination.rows)
+    const compareRowsBySlot = useMemo(
+        () => comparePaginations.map((pagination) => pagination.rows),
+        [comparePaginations],
+    )
 
     const {columnResult} = usePreviewTableData({runId})
 

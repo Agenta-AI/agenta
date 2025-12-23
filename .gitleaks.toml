@@ -34,6 +34,48 @@ regexes = [
   # ----------------------------------------------------------------------------
 ]
 
+[[rules]]
+id = "agenta-api-key"
+description = "Detected Agenta API Key"
+regex = '''[a-zA-Z0-9]{8}\.[a-f0-9]{64}'''
+keywords = ["AGENTA_API_KEY", "ApiKey"]
+
+[[rules]]
+id = "google-api-key"
+description = "Detected Google API Key"
+regex = '''AIza[0-9A-Za-z\-_]{35}'''
+keywords = ["GOOGLE_API_KEY", "AIza"]
+
+[[rules]]
+id = "openai-api-key"
+description = "Detected OpenAI API Key"
+regex = '''sk-[a-zA-Z0-9]{20}T3BlbkFJ[a-zA-Z0-9]{20}'''
+keywords = ["OPENAI_API_KEY", "sk-"]
+
+[[rules]]
+id = "openai-api-key-new"
+description = "Detected OpenAI API Key (new format)"
+regex = '''sk-proj-[a-zA-Z0-9_-]{43,}'''
+keywords = ["OPENAI_API_KEY", "sk-proj-"]
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Detected Anthropic API Key"
+regex = '''sk-ant-[a-zA-Z0-9\-_]{95,}'''
+keywords = ["ANTHROPIC_API_KEY", "sk-ant-"]
+
+[[rules]]
+id = "cohere-api-key"
+description = "Detected Cohere API Key"
+regex = '''(?i)(cohere[_-]?api[_-]?key|COHERE[_-]?API[_-]?KEY)['"]?\s*[:=]\s*['"]?([a-zA-Z0-9]{40})'''
+keywords = ["COHERE_API_KEY"]
+
+[[rules]]
+id = "huggingface-token"
+description = "Detected Hugging Face Token"
+regex = '''hf_[a-zA-Z0-9]{34}'''
+keywords = ["HUGGINGFACE_TOKEN", "HF_TOKEN", "hf_"]
+
 # USEFUL GITLEAKS COMMANDS
 # gitleaks --config .gitleaks.toml --exit-code 1 --verbose git
 # gitleaks --config .gitleaks.toml --exit-code 1 --verbose detect --no-git

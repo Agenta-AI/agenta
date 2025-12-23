@@ -90,7 +90,7 @@ export const Messages: React.FC<MessagesProps> = ({value = [], onChange}) => {
                                         id={`evaluator-message-${key}`}
                                         role={message.role}
                                         text={message.content}
-                                        className="group/evaluator-message w-full max-w-full box-border"
+                                        className="group/evaluator-message w-full max-w-full box-border [&_.agenta-editor-wrapper]:min-h-[160px] [&_.agenta-rich-text-editor]:min-h-[120px]"
                                         enableTokens
                                         onChangeRole={(role) =>
                                             updateMessages((prev) => {

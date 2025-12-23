@@ -1,20 +1,18 @@
 import {JSX, useMemo} from "react"
 
-import {Dropdown, Button, MenuProps, Tag} from "antd"
-import {ColumnsType} from "antd/es/table"
 import {FolderFilled, MoreOutlined} from "@ant-design/icons"
-
 import {
     FolderDashedIcon,
-    FolderIcon,
     GearSixIcon,
     NoteIcon,
     PencilSimpleIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
+import {Dropdown, Button, MenuProps, Tag} from "antd"
+import {ColumnsType} from "antd/es/table"
 
-import {ListAppsItem} from "@/oss/lib/Types"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import {ListAppsItem} from "@/oss/lib/Types"
 
 import {FolderTreeNode} from "../assets/utils"
 import {PromptsTableRow} from "../types"
@@ -84,7 +82,7 @@ export const usePromptsColumns = ({
             {
                 title: <GearSixIcon size={16} />,
                 key: "actions",
-                width: 56,
+                width: 61,
                 fixed: "right",
                 align: "center",
                 render: (_, record) => {
@@ -179,7 +177,11 @@ export const usePromptsColumns = ({
                     return (
                         <Dropdown
                             trigger={["click"]}
-                            overlayStyle={{width: 180}}
+                            styles={{
+                                root: {
+                                    width: 180,
+                                },
+                            }}
                             menu={{items: isFolder ? folderActions : appActions}}
                         >
                             <Button

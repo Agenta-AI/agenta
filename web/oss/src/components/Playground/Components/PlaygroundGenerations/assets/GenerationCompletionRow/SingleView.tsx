@@ -10,7 +10,7 @@ import RunButton from "@/oss/components/Playground/assets/RunButton"
 import TypingIndicator from "@/oss/components/Playground/assets/TypingIndicator"
 import {variableIdsUnifiedAtomFamily} from "@/oss/state/newPlayground/generation/selectors"
 
-import {RunningPlaceholder, ClickRunPlaceholder} from "../ResultPlaceholder"
+import {ClickRunPlaceholder} from "../ResultPlaceholder"
 
 import ErrorPanel from "./ErrorPanel"
 import GenerationResponsePanel from "./GenerationResponsePanel"

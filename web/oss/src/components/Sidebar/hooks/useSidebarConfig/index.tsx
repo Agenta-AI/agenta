@@ -1,4 +1,4 @@
-import {AppstoreOutlined, DatabaseOutlined, GithubFilled, HomeOutlined} from "@ant-design/icons"
+import {AppstoreOutlined, DatabaseOutlined, GithubFilled} from "@ant-design/icons"
 import {
     ChartDonut,
     ChartLineUp,
@@ -12,10 +12,9 @@ import {
     TreeView,
     Lightning,
     Rocket,
-    CloudArrowUp,
     ChatCircle,
     Gauge,
-    SquaresFourIcon,
+    HouseIcon,
 } from "@phosphor-icons/react"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
@@ -39,9 +38,9 @@ export const useSidebarConfig = () => {
     const sidebarConfig: SidebarConfig[] = [
         {
             key: "app-management-link",
-            title: "App Management",
+            title: "Home",
             link: baseAppURL,
-            icon: <HomeOutlined size={16} />,
+            icon: <HouseIcon size={16} />,
             disabled: !hasProjectURL,
         },
         {
@@ -125,14 +124,6 @@ export const useSidebarConfig = () => {
             icon: <TreeView size={16} />,
             isHidden: !currentApp && !recentlyVisitedAppId,
             link: `${appURL || recentlyVisitedAppURL}/traces`,
-            disabled: !hasProjectURL,
-        },
-        {
-            key: "app-deployments-link",
-            title: "Deployments",
-            link: `${appURL || recentlyVisitedAppURL}/deployments`,
-            isHidden: !currentApp && !recentlyVisitedAppId,
-            icon: <CloudArrowUp size={16} />,
             disabled: !hasProjectURL,
         },
         {

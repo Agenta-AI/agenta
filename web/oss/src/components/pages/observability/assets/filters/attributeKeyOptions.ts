@@ -1,12 +1,12 @@
-import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {SelectOption} from "@/oss/components/Filters/types"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 export type AttributeKeyTreeOption = SelectOption & {
     children?: AttributeKeyTreeOption[]
     pathLabel: string
 }
 
-type MutableTreeNode = {
+interface MutableTreeNode {
     children: Map<string, MutableTreeNode>
     selectable: boolean
 }

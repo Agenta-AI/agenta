@@ -484,6 +484,34 @@
       "contributions": [
         "design"
       ]
+    },
+    {
+      "login": "VahantSharma",
+      "name": "Vahant Sharma",
+      "avatar_url": "https://avatars.githubusercontent.com/u/172914890?v=4",
+      "profile": "https://github.com/VahantSharma",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "muzman123",
+      "name": "Muhammad Muzammil",
+      "avatar_url": "https://avatars.githubusercontent.com/u/66068301?v=4",
+      "profile": "https://github.com/muzman123",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "CyrusNamjoo",
+      "name": "Sirous Namjoo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/209579763?v=4",
+      "profile": "https://github.com/CyrusNamjoo",
+      "contributions": [
+        "doc",
+        "example"
+      ]
     }
   ],
   "contributorsPerLine": 7,

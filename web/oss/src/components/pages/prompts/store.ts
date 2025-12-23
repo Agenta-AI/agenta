@@ -1,4 +1,5 @@
 import {atom} from "jotai"
+
 import {createInfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable"
 
 import {PromptsTableRow} from "./types"

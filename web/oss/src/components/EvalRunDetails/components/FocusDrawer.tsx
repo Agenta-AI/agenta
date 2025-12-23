@@ -9,7 +9,6 @@ import dynamic from "next/dynamic"
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 import GenericDrawer from "@/oss/components/GenericDrawer"
-import {VariantReferenceChip, TestsetChipList} from "@/oss/components/References"
 
 import ReadOnlyBox from "../../pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
 import {getComparisonSolidColor} from "../atoms/compare"
@@ -18,9 +17,7 @@ import {
     testsetReferenceQueryAtomFamily,
     variantReferenceQueryAtomFamily,
 } from "../atoms/references"
-import {effectiveProjectIdAtom} from "../atoms/run"
 import {runDisplayNameAtomFamily} from "../atoms/runDerived"
-import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../atoms/runDerived"
 import type {
     ColumnValueDescriptor,
     EvaluationTableColumn,
@@ -42,7 +39,6 @@ import {
     isFocusDrawerOpenAtom,
     resetFocusDrawerAtom,
 } from "../state/focusDrawerAtom"
-import type {CompareScenarioInfo} from "../state/focusDrawerAtom"
 import {clearFocusDrawerQueryParams} from "../state/urlFocusDrawer"
 import {renderScenarioChatMessages} from "../utils/chatMessages"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../utils/metricFormatter"
@@ -269,7 +265,11 @@ const FocusGroupLabel = ({
     runId: string | null
 }) => {
     const testsetId = group?.meta?.refs?.testset?.id as string | undefined
-    const {applicationId, applicationVariantId, variantRevision} = useInvocationRefs(group, runId)
+    const {
+        applicationId,
+        applicationVariantId,
+        variantRevision: _variantRevision,
+    } = useInvocationRefs(group, runId)
 
     const appQuery = useAtomValue(
         useMemo(() => applicationReferenceQueryAtomFamily(applicationId ?? null), [applicationId]),
@@ -277,7 +277,7 @@ const FocusGroupLabel = ({
     const testsetQuery = useAtomValue(
         useMemo(() => testsetReferenceQueryAtomFamily(testsetId ?? null), [testsetId]),
     )
-    const variantQuery = useAtomValue(
+    const _variantQuery = useAtomValue(
         useMemo(
             () => variantReferenceQueryAtomFamily(applicationVariantId ?? null),
             [applicationVariantId],

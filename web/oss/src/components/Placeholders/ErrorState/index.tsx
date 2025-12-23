@@ -1,5 +1,6 @@
-import {Result, Button} from "antd"
 import type {FC} from "react"
+
+import {Result, Button} from "antd"
 
 interface ErrorStateProps {
     title?: string

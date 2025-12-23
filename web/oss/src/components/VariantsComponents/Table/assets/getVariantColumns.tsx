@@ -72,13 +72,38 @@ const ActionCell = memo(
         record,
         handleOpenDetails,
         handleOpenInPlayground,
+        selectedRowKeys,
     }: {
         record: EnhancedVariant
         handleOpenDetails?: (record: EnhancedVariant) => void
         handleOpenInPlayground?: (record: EnhancedVariant) => void
+        selectedRowKeys?: (string | number)[]
     }) => {
         const openDeleteVariantModal = useSetAtom(openDeleteVariantModalAtom)
         const openDeployVariantModal = useSetAtom(openDeployVariantModalAtom)
+
+        const resolveDeletionTargets = useCallback(
+            (r: EnhancedVariant) => {
+                const selection = Array.from(new Set((selectedRowKeys || []).map(String)))
+                const recordKey = String((r as any)._revisionId ?? (r as any)._id ?? (r as any).id)
+                const recordSelected = selection.includes(recordKey)
+
+                if (recordSelected && selection.length > 0) {
+                    return selection
+                }
+
+                const childKeys = ((r as any).children || [])
+                    .map((child: any) => String(child?._revisionId ?? child?.id))
+                    .filter((id: string | null | undefined) => Boolean(id))
+
+                if (childKeys.length > 0) {
+                    return Array.from(new Set([recordKey, ...childKeys]))
+                }
+
+                return [recordKey]
+            },
+            [selectedRowKeys],
+        )
 
         const onDeploy = useCallback(
             (r: EnhancedVariant) => {
@@ -98,9 +123,9 @@ const ActionCell = memo(
         const onDelete = useCallback(
             (r: EnhancedVariant) => {
                 // Open the global DeleteVariant modal immediately; it will perform its own pre-check
-                openDeleteVariantModal(r.id)
+                openDeleteVariantModal(resolveDeletionTargets(r))
             },
-            [openDeleteVariantModal],
+            [openDeleteVariantModal, resolveDeletionTargets],
         )
 
         return (
@@ -121,12 +146,14 @@ export const getColumns = ({
     showEnvBadges,
     showActionsDropdown,
     showStableName = false,
+    selectedRowKeys,
 }: {
     showEnvBadges: boolean
     handleOpenDetails?: (record: EnhancedVariant) => void
     handleOpenInPlayground?: (record: EnhancedVariant) => void
     showActionsDropdown: boolean
     showStableName?: boolean
+    selectedRowKeys?: (string | number)[]
 }): ColumnsType<EnhancedVariant> => {
     const columns: ColumnsType<EnhancedVariant> = [
         {
@@ -201,7 +228,7 @@ export const getColumns = ({
         columns.push({
             title: <GearSix size={16} />,
             key: "key",
-            width: 56,
+            width: 61,
             fixed: "right",
             align: "center",
             render: (_, record) => (
@@ -209,6 +236,7 @@ export const getColumns = ({
                     record={record}
                     handleOpenDetails={handleOpenDetails}
                     handleOpenInPlayground={handleOpenInPlayground}
+                    selectedRowKeys={selectedRowKeys}
                 />
             ),
         })

@@ -1,9 +1,11 @@
-import {memo, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {PlusOutlined} from "@ant-design/icons"
-import {Button, Input, Space, Table, Tag} from "antd"
+import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
+import {Copy, GearSix, Note} from "@phosphor-icons/react"
+import {Button, Dropdown, Input, Space, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
+import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import router from "next/router"
 
@@ -13,7 +15,10 @@ import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
 
+import {openEvaluatorDrawerAtom} from "../../../autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
 import type {SelectEvaluatorSectionProps} from "../../types"
+
+import EvaluatorTemplateDropdown from "./EvaluatorTemplateDropdown"
 
 const NoResultsFound = dynamic(
     () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
@@ -47,9 +52,12 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     evaluators: propsEvaluators,
     evaluatorConfigs: propsEvaluatorConfigs,
     selectedAppId,
+    onSelectTemplate,
+    onCreateHumanEvaluator,
     ...props
 }: SelectEvaluatorSectionProps & {preview?: Preview}) => {
     const {projectURL} = useURL()
+    const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
     const fetchData = useFetchEvaluatorsData({
         preview: preview as boolean,
         queries: {is_human: preview},
@@ -131,6 +139,40 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
         setSelectedEvalConfigs,
     ])
 
+    // Handler to open the drawer in edit mode
+    const handleEditConfig = useCallback(
+        (record: EvaluatorConfig) => {
+            const evaluator = (evaluators as Evaluator[]).find(
+                (e) => e.key === record.evaluator_key,
+            )
+            if (evaluator) {
+                openEvaluatorDrawer({
+                    evaluator,
+                    existingConfig: record,
+                    mode: "edit",
+                })
+            }
+        },
+        [evaluators, openEvaluatorDrawer],
+    )
+
+    // Handler to open the drawer in clone mode
+    const handleCloneConfig = useCallback(
+        (record: EvaluatorConfig) => {
+            const evaluator = (evaluators as Evaluator[]).find(
+                (e) => e.key === record.evaluator_key,
+            )
+            if (evaluator) {
+                openEvaluatorDrawer({
+                    evaluator,
+                    existingConfig: record,
+                    mode: "clone",
+                })
+            }
+        },
+        [evaluators, openEvaluatorDrawer],
+    )
+
     const columnsPreview: ColumnsType<EvaluatorDto<"response">> = useMemo(
         () => [
             {
@@ -183,8 +225,52 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                     return <Tag color={record.color}>{evaluator?.name}</Tag>
                 },
             },
+            {
+                title: <GearSix size={16} />,
+                key: "actions",
+                width: 56,
+                fixed: "right",
+                align: "center",
+                render: (_, record: EvaluatorConfig) => {
+                    return (
+                        <Dropdown
+                            trigger={["click"]}
+                            placement="bottomRight"
+                            menu={{
+                                items: [
+                                    {
+                                        key: "view_config",
+                                        label: "View configuration",
+                                        icon: <Note size={16} />,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            handleEditConfig(record)
+                                        },
+                                    },
+                                    {
+                                        key: "clone",
+                                        label: "Clone",
+                                        icon: <Copy size={16} />,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            handleCloneConfig(record)
+                                        },
+                                    },
+                                ],
+                            }}
+                        >
+                            <Button
+                                type="text"
+                                onClick={(e) => e.stopPropagation()}
+                                icon={<MoreOutlined />}
+                                size="small"
+                            />
+                        </Dropdown>
+                    )
+                },
+            },
         ],
-        [evaluators],
+        [evaluators, handleEditConfig, handleCloneConfig],
     )
 
     // Conditionally type filteredEvalConfigs based on Preview
@@ -234,33 +320,72 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
         setSelectedEvalConfigs(Array.from(currentSelected))
     }
 
+    // Check if we have any evaluator configs at all (not just filtered by search)
+    const hasEvaluatorConfigs = useMemo(() => {
+        if (preview) {
+            return (
+                (evaluators as EvaluatorDto<"response">[]).filter(
+                    (item) =>
+                        item.flags?.is_human &&
+                        Object.keys(getMetricsFromEvaluator(item)).length > 0,
+                ).length > 0
+            )
+        }
+        return (evaluatorConfigs as EvaluatorConfig[]).length > 0
+    }, [preview, evaluators, evaluatorConfigs])
+
     return (
         <>
             <div className={clsx(className)} {...props}>
-                <div className="flex items-center justify-between mb-2">
-                    <Input.Search
-                        placeholder="Search"
-                        className="w-[300px] [&_input]:!py-[3.1px]"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                    <Space>
-                        <Button
-                            icon={<PlusOutlined />}
-                            onClick={() => router.push(evaluatorsRegistryUrl)}
-                        >
-                            Create new
-                        </Button>
-                    </Space>
-                </div>
+                {hasEvaluatorConfigs && (
+                    <div className="flex items-center justify-between mb-2">
+                        <Input.Search
+                            placeholder="Search"
+                            className="w-[300px] [&_input]:!py-[3.1px]"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        <Space>
+                            {!preview && onSelectTemplate ? (
+                                <EvaluatorTemplateDropdown onSelect={onSelectTemplate} />
+                            ) : (
+                                <Button
+                                    icon={<PlusOutlined />}
+                                    onClick={
+                                        preview && onCreateHumanEvaluator
+                                            ? onCreateHumanEvaluator
+                                            : () => router.push(evaluatorsRegistryUrl)
+                                    }
+                                >
+                                    Create new
+                                </Button>
+                            )}
+                        </Space>
+                    </div>
+                )}
 
                 {filteredEvalConfigs.length === 0 ? (
                     <NoResultsFound
                         className="!py-20"
                         title="No evaluators yet"
                         description="Evaluators help you measure and analyze your model's responses."
-                        primaryActionLabel="Create your first evaluator"
-                        onPrimaryAction={() => router.push(evaluatorsRegistryUrl)}
+                        primaryActionSlot={
+                            !preview && onSelectTemplate ? (
+                                <EvaluatorTemplateDropdown onSelect={onSelectTemplate} />
+                            ) : (
+                                <Button
+                                    type="primary"
+                                    icon={<PlusOutlined />}
+                                    onClick={
+                                        preview && onCreateHumanEvaluator
+                                            ? onCreateHumanEvaluator
+                                            : () => router.push(evaluatorsRegistryUrl)
+                                    }
+                                >
+                                    Create your first evaluator
+                                </Button>
+                            )
+                        }
                     />
                 ) : preview ? (
                     <Table<EvaluatorDto<"response">>

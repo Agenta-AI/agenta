@@ -34,11 +34,11 @@ export const vaultMigrationAtom = atom({
  */
 export const vaultSecretsQueryAtom = atomWithQuery((get) => {
     const user = get(userAtom)
-    const migrationStatus = get(vaultMigrationAtom)
+    const _migrationStatus = get(vaultMigrationAtom)
     const projectId = get(projectIdAtom)
 
     return {
-        queryKey: ["vault", "secrets", user?.id],
+        queryKey: ["vault", "secrets", user?.id, projectId],
         queryFn: fetchVaultSecret,
         staleTime: 1000 * 60 * 5, // 5 minutes
         refetchOnWindowFocus: false,

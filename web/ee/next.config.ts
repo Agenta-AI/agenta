@@ -21,7 +21,6 @@ const config = {
     experimental: {
         optimizePackageImports: ["@agenta/oss"],
     },
-    transpilePackages: ["jotai-devtools"],
     typescript: {
         ignoreBuildErrors: true,
     },

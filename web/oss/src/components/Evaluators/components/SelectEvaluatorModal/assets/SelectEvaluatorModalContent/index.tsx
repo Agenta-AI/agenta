@@ -4,115 +4,38 @@ import {ArrowRight} from "@phosphor-icons/react"
 import type {TabsProps} from "antd"
 import {Empty, Skeleton, Tabs, Tag, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {message} from "@/oss/components/AppMessageContext"
+import {
+    buildEvaluatorTabItems,
+    DEFAULT_TAB_KEY,
+    filterEnabledEvaluators,
+    filterEvaluatorsByTag,
+    getEvaluatorTagClassName,
+} from "@/oss/components/Evaluators/assets/evaluatorFiltering"
 import type {EvaluatorPreview} from "@/oss/components/Evaluators/assets/types"
 import useURL from "@/oss/hooks/useURL"
-import {getEvaluatorTags} from "@/oss/lib/evaluations/legacy"
-import {capitalize} from "@/oss/lib/helpers/utils"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import type {Evaluator} from "@/oss/lib/Types"
-
-const DEFAULT_TAB_KEY = "all"
-
-const TAG_CLASSNAME_MAP: Record<string, string> = {
-    rag: "bg-sky-100 text-sky-700",
-    classifiers: "bg-orange-100 text-orange-700",
-    similarity: "bg-blue-100 text-blue-700",
-    ai_llm: "bg-violet-100 text-violet-700",
-    functional: "bg-amber-100 text-amber-700",
-}
-
-const ENABLED_EVALUATORS = [
-    "auto_exact_match",
-    "auto_contains_json",
-    "auto_similarity_match",
-    "auto_semantic_similarity",
-    "auto_regex_test",
-    "field_match_test",
-    "auto_json_diff",
-    "auto_ai_critique",
-    "auto_custom_code_run",
-    "auto_webhook_test",
-    "auto_starts_with",
-    "auto_ends_with",
-    "auto_contains",
-    "auto_contains_any",
-    "auto_contains_all",
-    "auto_levenshtein_distance",
-    "rag_faithfulness",
-    "rag_context_relevancy",
-]
-
-const getEvaluatorTagValues = (item: EvaluatorPreview | Evaluator) => {
-    const registry = new Set<string>()
-    // Prefer explicit evaluator tags when available and fall back to metadata tags
-    const primaryTags = Array.isArray((item as Evaluator).tags) ? (item as Evaluator).tags : []
-
-    primaryTags.filter(Boolean).forEach((tag) => {
-        registry.add(String(tag).toLowerCase())
-    })
-
-    const rawTags = [
-        ...(Array.isArray((item.flags as any)?.tags) ? (item.flags as any).tags : []),
-        ...(Array.isArray((item.meta as any)?.tags) ? (item.meta as any).tags : []),
-    ].filter(Boolean)
-
-    rawTags.forEach((tag) => registry.add(String(tag).toLowerCase()))
-
-    return Array.from(registry)
-}
+import {nonArchivedEvaluatorsAtom} from "@/oss/state/evaluators"
 
 const SelectEvaluatorModalContent = () => {
     const {projectURL} = useURL()
     const router = useRouter()
-    const {evaluatorsSwr, isLoadingEvaluators} = useFetchEvaluatorsData()
+    const {isLoadingEvaluators} = useFetchEvaluatorsData()
     const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_KEY)
-    const evaluators = evaluatorsSwr.data || []
-    const baseTags = useMemo(() => getEvaluatorTags(), [])
-
-    const availableTags = useMemo(() => {
-        const normalized = new Map<string, string>()
-        baseTags.forEach((tag) => {
-            normalized.set(tag.value, tag.label)
-        })
-
-        evaluators.forEach((item) => {
-            getEvaluatorTagValues(item).forEach((tag) => {
-                if (!normalized.has(tag)) {
-                    normalized.set(tag, capitalize(tag.replace(/[_-]+/g, " ")))
-                }
-            })
-        })
-
-        return normalized
-    }, [baseTags, evaluators])
+    const nonArchivedEvaluators = useAtomValue(nonArchivedEvaluatorsAtom)
 
     const tabItems = useMemo<TabsProps["items"]>(() => {
-        const items: TabsProps["items"] = [{key: DEFAULT_TAB_KEY, label: "All templates"}]
-
-        availableTags.forEach((label, value) => {
-            items!.push({key: value, label})
-        })
-
-        return items
-    }, [availableTags])
+        return buildEvaluatorTabItems(nonArchivedEvaluators)
+    }, [nonArchivedEvaluators])
 
     const filteredEvaluators = useMemo(() => {
-        const enabled_evaluators = evaluators.filter((item) => {
-            return ENABLED_EVALUATORS.includes(item.key)
-        })
-
-        if (activeTab === DEFAULT_TAB_KEY) {
-            return enabled_evaluators
-        }
-
-        return enabled_evaluators.filter((item) => {
-            const tags = getEvaluatorTagValues(item)
-            return tags.includes(activeTab)
-        })
-    }, [activeTab, evaluators])
+        const enabledEvaluators = filterEnabledEvaluators(nonArchivedEvaluators)
+        return filterEvaluatorsByTag(enabledEvaluators, activeTab)
+    }, [activeTab, nonArchivedEvaluators])
 
     const handleTabChange = useCallback((key: string) => {
         setActiveTab(key)
@@ -157,14 +80,12 @@ const SelectEvaluatorModalContent = () => {
         return (
             <div className="flex flex-col">
                 {filteredEvaluators.map((item) => {
-                    const primaryTag = getEvaluatorTagValues(item)[0]
-                    const tagClassnames = primaryTag
-                        ? TAG_CLASSNAME_MAP[primaryTag] || "bg-slate-100 text-slate-700"
-                        : "bg-slate-100 text-slate-700"
+                    const tagClassnames = getEvaluatorTagClassName(item)
+                    const itemKey = (item as any).id || item.key
 
                     return (
                         <div
-                            key={item.id || (item as any)?.key}
+                            key={itemKey}
                             onClick={() => handleTemplateSelect(item)}
                             className={clsx(
                                 "border-0 border-b border-solid border-gray-200 min-h-[72px] flex flex-col justify-center gap-3 py-3 px-4 cursor-pointer group",

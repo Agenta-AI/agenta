@@ -8,10 +8,7 @@ import {useRouter} from "next/router"
 
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
-import {
-    revisionListAtom,
-    variantByRevisionIdAtomFamily,
-} from "@/oss/components/Playground/state/atoms"
+import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
@@ -150,8 +147,8 @@ const TitleActions = memo(
         const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
         const isDirty = useAtomValue(variantIsDirtyAtomFamily(variantId))
         const {goToPlayground} = usePlaygroundNavigation()
-        const {appURL} = useURL()
-        const router = useRouter()
+        const {appURL: _appURL} = useURL()
+        const _router = useRouter()
 
         return (
             <div className="flex items-center gap-2">

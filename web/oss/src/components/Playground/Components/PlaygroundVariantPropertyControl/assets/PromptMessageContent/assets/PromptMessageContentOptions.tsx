@@ -43,6 +43,7 @@ const PromptMessageContentOptions = ({
     uploadCount,
     viewOnly,
     hideMarkdownToggle,
+    showMinimizeOnly,
 }: PromptMessageContentOptionsProps) => {
     const [editor] = useLexicalComposerContext()
     const [markdownView] = useAtom(markdownViewAtom(id))
@@ -68,6 +69,25 @@ const PromptMessageContentOptions = ({
             }, 1000)
         }
     }, [message])
+
+    const minimizeButton = (
+        <EnhancedButton
+            icon={!minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
+            type="text"
+            onClick={() => minimize?.(messageId)}
+            disabled={disabled}
+            tooltipProps={{title: minimized ? "Minimize" : "Maximize"}}
+        />
+    )
+
+    if (showMinimizeOnly) {
+        return (
+            <div className={clsx("flex items-center gap-1", className)}>
+                {minimizeButton}
+                {children}
+            </div>
+        )
+    }
 
     return (
         <div className={clsx("flex items-center gap-1", className)}>
@@ -134,13 +154,7 @@ const PromptMessageContentOptions = ({
                 />
             )}
 
-            <EnhancedButton
-                icon={!minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
-                type="text"
-                onClick={() => minimize?.(messageId)}
-                disabled={disabled}
-                tooltipProps={{title: minimized ? "Minimize" : "Maximize"}}
-            />
+            {minimizeButton}
 
             {children}
         </div>

@@ -1,8 +1,5 @@
-import {Breadcrumb, BreadcrumbProps, Button, Dropdown, MenuProps} from "antd"
 import React, {useMemo} from "react"
-import {FolderTreeNode} from "../assets/utils"
-import {createUseStyles} from "react-jss"
-import {JSSTheme} from "@/oss/lib/Types"
+
 import {
     CaretDownIcon,
     FolderDashedIcon,
@@ -11,8 +8,15 @@ import {
     SquaresFourIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
+import {Breadcrumb, BreadcrumbProps, Button, Dropdown, MenuProps} from "antd"
+import {createUseStyles} from "react-jss"
+
+import {JSSTheme} from "@/oss/lib/Types"
+
+import {FolderTreeNode} from "../assets/utils"
+
+import PromptsHouseIcon from "./PromptsHouseIcon"
 import SetupWorkflowIcon from "./SetupWorkflowIcon"
-import {FolderFilled} from "@ant-design/icons"
 
 interface PromptsBreadcrumbProps {
     foldersById: Record<string, FolderTreeNode>
@@ -34,6 +38,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         padding: theme.paddingXXS,
         "& :not(.ant-breadcrumb-separator)": {
             cursor: "pointer",
+        },
+        "& .ant-breadcrumb-link": {
+            transition: "all 0.2s ease-in-out",
+            "&:hover": {
+                textDecoration: "underline",
+            },
         },
         "& .ant-dropdown-trigger": {
             display: "flex",
@@ -135,14 +145,15 @@ const PromptsBreadcrumb = ({
     )
 
     const items: BreadcrumbProps["items"] = useMemo(() => {
+        const isAtRoot = !currentFolderId
         const base: BreadcrumbProps["items"] = [
             {
                 title: (
                     <Button
                         type="link"
-                        className="w-5 h-5 m-0"
+                        className={`w-5 h-5 m-0`}
                         size="small"
-                        icon={<FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />}
+                        icon={<PromptsHouseIcon active={isAtRoot} />}
                     />
                 ),
                 onClick: () => onFolderChange?.(null),
@@ -158,7 +169,11 @@ const PromptsBreadcrumb = ({
                         <span>{folder.name}</span>
                         <Dropdown
                             trigger={["click"]}
-                            overlayStyle={{width: 200}}
+                            styles={{
+                                root: {
+                                    width: 200,
+                                },
+                            }}
                             menu={{
                                 items: actionItems,
                             }}
@@ -180,7 +195,7 @@ const PromptsBreadcrumb = ({
         })
 
         return base
-    }, [actionItems, folderChain, onFolderChange])
+    }, [actionItems, currentFolderId, folderChain, onFolderChange])
 
     return <Breadcrumb items={items} className={classes.container} />
 }

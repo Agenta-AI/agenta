@@ -16,7 +16,7 @@ import {
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
 
-type LinkedSpansTabItemProps = {
+interface LinkedSpansTabItemProps {
     isActive: boolean
 }
 
@@ -47,7 +47,7 @@ const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     return Array.from(slugs)
 }
 
-const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
+const LinkedSpansTabItem = ({isActive: _isActive}: LinkedSpansTabItemProps) => {
     const linkTargets = useAtomValue(linkedSpanTargetsAtom)
     const linkedSpans = useAtomValue(linkedSpansAtom)
     const linkedSpansQuery = useAtomValue(linkedSpanTracesQueryAtom)

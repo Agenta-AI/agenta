@@ -11,10 +11,10 @@ import {
     VariantReferenceLabel,
 } from "@/oss/components/References"
 import useEvaluatorNavigation from "@/oss/components/SharedDrawers/TraceDrawer/hooks/useEvaluatorNavigation"
-import {linksAndReferencesAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import useURL from "@/oss/hooks/useURL"
 import {projectIdAtom} from "@/oss/state/project"
 
+import {linksAndReferencesAtom} from "../../../store/traceDrawerStore"
 import {useStyles} from "../TraceDetails/assets/styles"
 
 const labelMap: Record<string, string> = {
@@ -127,12 +127,12 @@ const TraceReferences = () => {
     }
 
     return (
-        <Space direction="vertical" size={12} className="w-full">
+        <Space orientation="vertical" size={12} className="w-full">
             {Object.entries(groupedReferences || {}).map(([key, refs]) => {
                 const displayLabel = labelMap[key]
                 if (!displayLabel) return null
                 return (
-                    <Space key={key} direction="vertical" size={6} className="w-full">
+                    <Space key={key} orientation="vertical" size={6} className="w-full">
                         <Typography.Text className={classes.title}>{displayLabel}</Typography.Text>
                         <div className="flex flex-col gap-1">
                             {refs?.map((ref, index) => {

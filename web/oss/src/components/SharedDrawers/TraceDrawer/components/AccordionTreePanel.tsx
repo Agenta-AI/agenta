@@ -1,8 +1,19 @@
-import {Copy, Download, FileText, MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
-import {ButtonProps, Collapse, Radio, Space} from "antd"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+
+import {
+    ArrowDownIcon,
+    ArrowUpIcon,
+    CopyIcon,
+    DownloadIcon,
+    FileTextIcon,
+    MagnifyingGlassIcon,
+    MarkdownLogoIcon,
+    TextAaIcon,
+    XIcon,
+} from "@phosphor-icons/react"
+import {ButtonProps, Collapse, Input, Radio, Space, theme} from "antd"
 import yaml from "js-yaml"
 import dynamic from "next/dynamic"
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
@@ -24,6 +35,7 @@ type AccordionTreePanelProps = {
     enableFormatSwitcher?: boolean
     bgColor?: string
     fullEditorHeight?: boolean
+    enableSearch?: boolean
 } & React.ComponentProps<typeof Collapse>
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -31,6 +43,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         backgroundColor: "unset",
         display: "flex",
         flexDirection: "column",
+        position: "relative",
         "& .ant-collapse-item": {
             display: "flex !important",
             flexDirection: "column",
@@ -71,14 +84,34 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             margin: 0,
         },
     }),
+    searchBar: {
+        position: "absolute",
+        top: 48,
+        right: 24,
+        zIndex: 100,
+        background: "#fff",
+        borderRadius: 6,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+        display: "flex",
+        alignItems: "center",
+        padding: 4,
+        gap: 4,
+        border: `1px solid ${theme.colorBorder}`,
+    },
 }))
 
 const LanguageAwareViewer = ({
     initialValue,
     language,
+    searchProps,
 }: {
     initialValue: string
     language: "json" | "yaml"
+    searchProps?: {
+        searchTerm: string
+        currentResultIndex: number
+        onResultCountChange: (count: number) => void
+    }
 }) => {
     const [editor] = useLexicalComposerContext()
     const changeLanguage = useCallback(
@@ -95,6 +128,18 @@ const LanguageAwareViewer = ({
         editor.setEditable(false)
     }, [language, changeLanguage, editor])
 
+    const additionalPlugins = useMemo(() => {
+        if (!searchProps) return []
+        return [
+            <SearchPlugin
+                key="search"
+                searchTerm={searchProps.searchTerm}
+                currentResultIndex={searchProps.currentResultIndex}
+                onResultCountChange={searchProps.onResultCountChange}
+            />,
+        ]
+    }, [searchProps])
+
     return (
         <EditorWrapper
             initialValue={initialValue}
@@ -105,6 +150,7 @@ const LanguageAwareViewer = ({
             disabled
             noProvider
             readOnly
+            additionalCodePlugins={additionalPlugins}
         />
     )
 }
@@ -115,7 +161,7 @@ const MarkdownToggleButton = ({...props}: ButtonProps) => {
 
     return (
         <EnhancedButton
-            icon={!markdownView ? <TextAa size={14} /> : <MarkdownLogoIcon size={14} />}
+            icon={!markdownView ? <TextAaIcon size={14} /> : <MarkdownLogoIcon size={14} />}
             type="text"
             onClick={() => {
                 setMarkdownView((prev) => !prev)
@@ -135,11 +181,36 @@ const AccordionTreePanel = ({
     enableFormatSwitcher = false,
     bgColor,
     fullEditorHeight = false,
+    enableSearch = false,
     ...props
 }: AccordionTreePanelProps) => {
-    const classes = useStyles({bgColor})
+    const {token} = theme.useToken()
+    const classes = useStyles({bgColor, theme: token})
     const [segmentedValue, setSegmentedValue] = useState<"json" | "yaml">("json")
     const editorRef = useRef<HTMLDivElement>(null)
+
+    // Search State
+    const [isSearchOpen, setIsSearchOpen] = useState(false)
+    const [searchTerm, setSearchTerm] = useState("")
+    const [currentResultIndex, setCurrentResultIndex] = useState(0)
+    const [resultCount, setResultCount] = useState(0)
+
+    const handleNextMatch = () => {
+        if (resultCount === 0) return
+        setCurrentResultIndex((prev) => (prev + 1) % resultCount)
+    }
+
+    const handlePrevMatch = () => {
+        if (resultCount === 0) return
+        setCurrentResultIndex((prev) => (prev - 1 + resultCount) % resultCount)
+    }
+
+    const closeSearch = () => {
+        setIsSearchOpen(false)
+        setSearchTerm("")
+        setResultCount(0)
+        setCurrentResultIndex(0)
+    }
 
     const {
         data: sanitizedValue,
@@ -149,6 +220,10 @@ const AccordionTreePanel = ({
         return sanitizeDataWithBlobUrls(incomingValue)
     }, [incomingValue])
     const isStringValue = typeof sanitizedValue === "string"
+
+    useEffect(() => {
+        closeSearch()
+    }, [sanitizedValue])
 
     const downloadFile = useCallback((url: string) => {
         const link = document.createElement("a")
@@ -176,89 +251,152 @@ const AccordionTreePanel = ({
     }, [segmentedValue, sanitizedValue])
 
     const collapse = (
-        <Collapse
-            {...props}
-            defaultActiveKey={[label]}
-            items={[
-                {
-                    key: label,
-                    label,
-                    children: (
-                        <div
-                            ref={editorRef}
-                            style={{
-                                height: fullEditorHeight ? "100%" : "auto",
-                                maxHeight: fullEditorHeight ? "none" : 800,
-                                overflowY: "auto",
-                            }}
-                        >
-                            {isStringValue ? (
-                                <div className="p-2">
-                                    <EditorWrapper
-                                        initialValue={sanitizedValue as string}
-                                        disabled
-                                        codeOnly={false}
+        <div className="relative">
+            {isSearchOpen && (
+                <div className={classes.searchBar}>
+                    <Input
+                        size="small"
+                        placeholder="Search..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                            setSearchTerm(e.target.value)
+                            setCurrentResultIndex(0)
+                        }}
+                        onPressEnter={handleNextMatch}
+                        autoFocus
+                        style={{width: 150}}
+                        suffix={
+                            resultCount > 0 ? (
+                                <span className="text-xs text-gray-400">
+                                    {currentResultIndex + 1}/{resultCount}
+                                </span>
+                            ) : null
+                        }
+                    />
+                    <EnhancedButton
+                        size="small"
+                        type="text"
+                        icon={<ArrowUpIcon size={14} />}
+                        onClick={handlePrevMatch}
+                        disabled={resultCount === 0}
+                    />
+                    <EnhancedButton
+                        size="small"
+                        type="text"
+                        icon={<ArrowDownIcon size={14} />}
+                        onClick={handleNextMatch}
+                        disabled={resultCount === 0}
+                    />
+                    <EnhancedButton
+                        size="small"
+                        type="text"
+                        icon={<XIcon size={14} />}
+                        onClick={closeSearch}
+                    />
+                </div>
+            )}
+            <Collapse
+                {...props}
+                defaultActiveKey={[label]}
+                items={[
+                    {
+                        key: label,
+                        label,
+                        children: (
+                            <div
+                                ref={editorRef}
+                                style={{
+                                    height: fullEditorHeight ? "100%" : "auto",
+                                    maxHeight: fullEditorHeight ? "none" : 800,
+                                    overflowY: "auto",
+                                }}
+                            >
+                                {isStringValue ? (
+                                    <div className="p-2">
+                                        <EditorWrapper
+                                            initialValue={sanitizedValue as string}
+                                            disabled
+                                            codeOnly={false}
+                                            showToolbar={false}
+                                            boundHeight={false}
+                                            noProvider
+                                            readOnly
+                                        />
+                                    </div>
+                                ) : (
+                                    <EditorProvider
+                                        codeOnly={true}
+                                        enableTokens={false}
                                         showToolbar={false}
-                                        boundHeight={false}
-                                        noProvider
+                                        className={classes.editor}
                                         readOnly
+                                        disabled
+                                        noProvider
+                                    >
+                                        <LanguageAwareViewer
+                                            initialValue={
+                                                segmentedValue === "json"
+                                                    ? getStringOrJson(sanitizedValue)
+                                                    : yamlOutput
+                                            }
+                                            language={segmentedValue}
+                                            searchProps={
+                                                isSearchOpen
+                                                    ? {
+                                                          searchTerm,
+                                                          currentResultIndex,
+                                                          onResultCountChange: setResultCount,
+                                                      }
+                                                    : undefined
+                                            }
+                                        />
+                                    </EditorProvider>
+                                )}
+                            </div>
+                        ),
+                        extra: (
+                            <Space size={8} onClick={(e) => e.stopPropagation()}>
+                                {enableSearch && !isStringValue && (
+                                    <EnhancedButton
+                                        icon={<MagnifyingGlassIcon size={14} />}
+                                        type={isSearchOpen ? "primary" : "text"}
+                                        onClick={() => setIsSearchOpen((prev) => !prev)}
+                                        size="small"
+                                        tooltipProps={{title: "Search"}}
                                     />
-                                </div>
-                            ) : (
-                                <EditorProvider
-                                    codeOnly={true}
-                                    enableTokens={false}
-                                    showToolbar={false}
-                                    className={classes.editor}
-                                    readOnly
-                                    disabled
-                                    noProvider
-                                >
-                                    <LanguageAwareViewer
-                                        initialValue={
-                                            segmentedValue === "json"
-                                                ? getStringOrJson(sanitizedValue)
-                                                : yamlOutput
+                                )}
+                                {enableFormatSwitcher && !isStringValue && (
+                                    <Radio.Group
+                                        value={segmentedValue}
+                                        onChange={(e) =>
+                                            setSegmentedValue(e.target.value as "json" | "yaml")
                                         }
-                                        language={segmentedValue}
-                                    />
-                                </EditorProvider>
-                            )}
-                        </div>
-                    ),
-                    extra: (
-                        <Space size={8} onClick={(e) => e.stopPropagation()}>
-                            {enableFormatSwitcher && !isStringValue && (
-                                <Radio.Group
-                                    value={segmentedValue}
-                                    onChange={(e) =>
-                                        setSegmentedValue(e.target.value as "json" | "yaml")
+                                        size="small"
+                                    >
+                                        <Radio.Button value="json">JSON</Radio.Button>
+                                        <Radio.Button value="yaml">YAML</Radio.Button>
+                                    </Radio.Group>
+                                )}
+                                {isStringValue && <MarkdownToggleButton size="small" />}
+                                <CopyButton
+                                    text={
+                                        segmentedValue === "json"
+                                            ? getStringOrJson(sanitizedValue)
+                                            : yamlOutput
                                     }
+                                    icon={true}
+                                    buttonText={null}
+                                    stopPropagation
                                     size="small"
-                                >
-                                    <Radio.Button value="json">JSON</Radio.Button>
-                                    <Radio.Button value="yaml">YAML</Radio.Button>
-                                </Radio.Group>
-                            )}
-                            {isStringValue && <MarkdownToggleButton size="small" />}
-                            <CopyButton
-                                text={
-                                    segmentedValue === "json"
-                                        ? getStringOrJson(sanitizedValue)
-                                        : yamlOutput
-                                }
-                                icon={true}
-                                buttonText={null}
-                                stopPropagation
-                                size="small"
-                            />
-                        </Space>
-                    ),
-                },
-            ]}
-            className={classes.collapseContainer}
-            bordered={false}
-        />
+                                />
+                            </Space>
+                        ),
+                    },
+                ]}
+                className={classes.collapseContainer}
+                bordered={false}
+            />
+        </div>
     )
 
     if (isStringValue) {
@@ -291,14 +429,14 @@ const AccordionTreePanel = ({
                                 rel="noreferrer"
                             >
                                 <div className="w-full flex items-start gap-1">
-                                    <FileText size={16} className="shrink-0" />
+                                    <FileTextIcon size={16} className="shrink-0" />
                                     <span className="text-[10px] truncate">
                                         {file.filename || `File ${index + 1}`}
                                     </span>
                                 </div>
                                 <div className="flex gap-1.5 shrink-0 invisible group-hover:visible">
                                     <EnhancedButton
-                                        icon={<Download size={10} className="mb-[1px]" />}
+                                        icon={<DownloadIcon size={10} className="mb-[1px]" />}
                                         size="small"
                                         tooltipProps={{title: "Download"}}
                                         className="!w-5 !h-5"
@@ -308,7 +446,7 @@ const AccordionTreePanel = ({
                                         }}
                                     />
                                     <EnhancedButton
-                                        icon={<Copy size={10} className="mb-[1px]" />}
+                                        icon={<CopyIcon size={10} className="mb-[1px]" />}
                                         size="small"
                                         tooltipProps={{title: "Copy URL"}}
                                         className="!w-5 !h-5"

@@ -8,6 +8,7 @@ import NoResultsFound from "@/oss/components/Placeholders/NoResultsFound/NoResul
 import useURL from "@/oss/hooks/useURL"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {ListAppsItem} from "@/oss/lib/Types"
+
 import {getAppTypeIcon} from "../../prompts/assets/iconHelpers"
 
 interface AppTableProps {
@@ -55,14 +56,18 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
         {
             title: <GearSix size={16} />,
             key: "key",
-            width: 56,
+            width: 61,
             fixed: "right",
             align: "center",
             render: (_, record) => {
                 return (
                     <Dropdown
                         trigger={["click"]}
-                        overlayStyle={{width: 180}}
+                        styles={{
+                            root: {
+                                width: 180,
+                            },
+                        }}
                         menu={{
                             items: [
                                 {

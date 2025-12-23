@@ -841,7 +841,7 @@ const previewRunMetricStatsQueryFamily = atomFamily(
 
                     if (process.env.NODE_ENV !== "production") {
                         try {
-                            const metricSummaries = metrics.map((entry: any) => ({
+                            const _metricSummaries = metrics.map((entry: any) => ({
                                 scenarioId: entry?.scenario_id ?? entry?.scenarioId ?? null,
                                 status: entry?.status ?? null,
                                 keyCount: entry?.data
@@ -1115,7 +1115,7 @@ export const previewRunMetricStatsSelectorFamily = atomFamily(
                 })
             })
 
-            const shouldLogDebug =
+            const _shouldLogDebug =
                 process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true" && typeof window !== "undefined"
             // if (shouldLogDebug) {
             //     try {

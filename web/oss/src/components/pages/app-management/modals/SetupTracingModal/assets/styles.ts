@@ -11,6 +11,9 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& > div": {
             height: "100%",
         },
+        "& .ant-modal-container": {
+            padding: 0,
+        },
         "& h1.ant-typography": {
             fontSize: theme.fontSizeHeading3,
             lineHeight: theme.lineHeightHeading3,
@@ -49,13 +52,19 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         height: "100%",
         flexDirection: "column",
         overflowY: "auto",
-        gap: 24,
+        gap: 12,
         "& .ant-tabs-tab-btn": {
             display: "flex",
             alignItems: "center",
+            gap: "0px",
             "& .ant-tabs-tab-icon": {
                 display: "flex",
+                marginRight: 0,
             },
+        },
+        "& .ant-tabs-tab": {
+            padding: "0px 0px",
+            marginRight: "0px",
         },
     },
     command: {
@@ -70,6 +79,9 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
     tabs: {
         height: "100%",
         overflowY: "auto",
+        "& .ant-tabs-nav": {
+            marginBottom: 24,
+        },
         "& .ant-tabs-content-holder": {
             height: "100%",
             overflowY: "auto",

@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo} from "react"
 
 import {CaretDown, Check, Plus} from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip, type MenuProps} from "antd"
+import {Button, Dropdown, Space, Tooltip, type MenuProps} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {
@@ -139,15 +139,22 @@ const EvaluationRunsCreateButton = () => {
         <Tooltip title={createTooltip ?? undefined}>
             <div className="inline-flex">
                 {isAllTab ? (
-                    <Dropdown.Button
-                        type="primary"
-                        icon={<CaretDown size={14} />}
-                        disabled={!createEnabled}
-                        menu={{items: dropdownMenuItems, onClick: handleMenuClick}}
-                        onClick={handlePrimaryClick}
-                    >
-                        {buttonLabel}
-                    </Dropdown.Button>
+                    <Space.Compact>
+                        <Button
+                            type="primary"
+                            icon={<Plus size={16} />}
+                            disabled={!createEnabled}
+                            onClick={handlePrimaryClick}
+                        >
+                            {buttonLabel}
+                        </Button>
+                        <Dropdown
+                            menu={{items: dropdownMenuItems, onClick: handleMenuClick}}
+                            disabled={!createEnabled}
+                        >
+                            <Button type="primary" icon={<CaretDown size={14} />} />
+                        </Dropdown>
+                    </Space.Compact>
                 ) : (
                     <Button
                         type="primary"
@@ -155,7 +162,7 @@ const EvaluationRunsCreateButton = () => {
                         disabled={!createEnabled}
                         onClick={handlePrimaryClick}
                     >
-                        New Evaluation
+                        New evaluation
                     </Button>
                 )}
             </div>

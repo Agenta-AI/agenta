@@ -107,7 +107,7 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
             trigger={[]}
             placement="bottomRight"
             destroyOnHidden
-            overlayStyle={{minWidth: 360, maxHeight: 440}}
+            styles={{root: {minWidth: 360, maxHeight: 440}}}
             content={
                 open && availability.canCompare ? (
                     <CompareRunsPopoverContent runId={runId} availability={availability} />
@@ -258,9 +258,9 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
     }, [candidates, compareIds])
 
     return (
-        <Space direction="vertical" style={{width: "100%"}} size="small">
+        <Space orientation="vertical" style={{width: "100%"}} size="small">
             <div>
-                <Space direction="vertical" size={2} style={{width: "100%"}}>
+                <Space orientation="vertical" size={2} style={{width: "100%"}}>
                     {availability.testsetIds.length ? (
                         <Space size={[6, 6]} wrap className="compare-runs-match-tags">
                             {availability.testsetIds.map((id) => {
@@ -336,7 +336,7 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                     const createdLabel = item.createdAt
                         ? dayjs(item.createdAt).format("DD MMM YYYY")
                         : ""
-                    const resolvedTestsetNames =
+                    const _resolvedTestsetNames =
                         item.testsetNames.length > 0
                             ? item.testsetNames
                             : item.structure.testsetIds

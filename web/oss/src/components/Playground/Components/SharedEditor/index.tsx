@@ -77,7 +77,7 @@ const SharedEditor = ({
         <div
             className={clsx(
                 "agenta-shared-editor",
-                "w-full flex flex-col items-start relative group/item transition-all duration-300 ease-in-out border border-solid rounded-lg",
+                "w-auto flex flex-col items-start relative group/item transition-all duration-300 ease-in-out border border-solid rounded-lg",
                 "[&_.agenta-rich-text-editor]:w-full",
                 "[&_.agenta-editor-wrapper]:w-full",
                 "p-[11px]",

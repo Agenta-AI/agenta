@@ -5,7 +5,6 @@ import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
-
 import {
     getCost,
     getLatency,
@@ -13,6 +12,7 @@ import {
     getTraceInputs,
     getTraceOutputs,
 } from "@/oss/state/newObservability"
+
 import CostCell from "../components/CostCell"
 import DurationCell from "../components/DurationCell"
 import EvaluatorMetricsCell from "../components/EvaluatorMetricsCell"

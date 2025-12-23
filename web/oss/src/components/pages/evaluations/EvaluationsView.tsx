@@ -1,6 +1,17 @@
-import {memo, useEffect, useMemo, useRef, useState, useTransition} from "react"
+import {
+    memo,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    useTransition,
+    type CSSProperties,
+    type ReactNode,
+} from "react"
 
-import {Typography} from "antd"
+import {CloudServerOutlined} from "@ant-design/icons"
+import {ChartDonutIcon, CodeIcon, ListChecksIcon} from "@phosphor-icons/react"
+import type {TabsProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -10,12 +21,12 @@ import {
 } from "@/oss/components/EvaluationRunsTablePOC"
 import {evaluationRunsTableContextSetterAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/context"
 import {evaluationRunsTypeFiltersAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/view"
-import {TableDescription, type TableTabsConfig} from "@/oss/components/InfiniteVirtualTable"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useQueryParamState} from "@/oss/state/appState"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {ConcreteEvaluationRunKind} from "../../EvaluationRunsTablePOC/types"
+import PageLayout from "../../PageLayout/PageLayout"
 
 type EvaluationScope = "app" | "project"
 type AppTabKey = EvaluationRunKind
@@ -43,6 +54,14 @@ const TAB_COLOR_MAP: Record<AppTabKey, string> = {
     human: "#ede9fe",
     online: "#dcfce7",
     custom: "#fce7f3",
+}
+
+const TAB_ICON_MAP: Record<AppTabKey, ReactNode> = {
+    all: null,
+    auto: <ChartDonutIcon />,
+    human: <ListChecksIcon />,
+    online: <CloudServerOutlined />,
+    custom: <CodeIcon />,
 }
 
 interface EvaluationTabsProps {
@@ -150,37 +169,48 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
         [tabLabel, router.asPath],
     )
 
-    // Header title with description - passed to InfiniteVirtualTableFeatureShell
-    const headerTitle = useMemo(
-        () => (
-            <div className="flex flex-col gap-1">
-                <Typography.Title level={3} style={{margin: 0}}>
-                    Evaluations
-                </Typography.Title>
-                <TableDescription>Manage all your evaluations in one place.</TableDescription>
-            </div>
-        ),
-        [],
+    const tabIndicatorColor = useMemo(
+        () => tabColorMap[displayedTab] ?? "#dbeafe",
+        [displayedTab, tabColorMap],
+    )
+    const tabItemsWithIcons = useMemo(
+        () =>
+            tabItems.map((item) => ({
+                key: item.key,
+                label: (
+                    <span className="inline-flex items-center gap-2">
+                        {TAB_ICON_MAP[item.key]}
+                        {item.label}
+                    </span>
+                ),
+            })),
+        [tabItems],
     )
 
-    // Tabs configuration for the table header
-    const tabsConfig = useMemo<TableTabsConfig>(
+    const headerTabsProps = useMemo<TabsProps>(
         () => ({
-            items: tabItems,
+            className: "infinite-table-tabs min-w-[320px] [&_.ant-tabs-nav]:mb-0",
+            style: tabIndicatorColor
+                ? ({"--tab-indicator-color": tabIndicatorColor} as CSSProperties)
+                : undefined,
             activeKey: activeTab,
+            items: tabItemsWithIcons,
             onChange: (key) => {
                 startTransition(() => {
                     setKindParam(key)
                 })
             },
-            indicatorColor: tabColorMap[displayedTab] ?? "#dbeafe",
-            className: "evaluations-tabs",
+            destroyOnHidden: true,
         }),
-        [activeTab, displayedTab, setKindParam, startTransition, tabColorMap, tabItems],
+        [activeTab, setKindParam, startTransition, tabIndicatorColor, tabItemsWithIcons],
     )
 
     return (
-        <div className="flex flex-col h-full min-h-0 grow w-full">
+        <PageLayout
+            className="h-full min-h-0"
+            title="Evaluations"
+            headerTabsProps={headerTabsProps}
+        >
             <EvaluationRunsTablePOC
                 includePreview
                 pageSize={15}
@@ -188,10 +218,8 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
                 projectIdOverride={projectId ?? undefined}
                 evaluationKind={displayedRunKind}
                 className="flex-1 min-h-0"
-                headerTitle={headerTitle}
-                tabs={tabsConfig}
             />
-        </div>
+        </PageLayout>
     )
 }
 

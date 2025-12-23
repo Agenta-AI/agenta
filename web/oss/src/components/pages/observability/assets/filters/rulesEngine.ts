@@ -1,13 +1,14 @@
 import {FilterConditions} from "@/oss/lib/Types"
+
 import {FieldConfig} from "./fieldAdapter"
 import {getOperator, valueShapeFor} from "./operatorRegistry"
 
-export type InputPlan = {
+export interface InputPlan {
     needsKey: boolean
     showValue: boolean
     valueAs: "text" | "select" | "tags" | "range" | "none"
     placeholders?: {key?: string; value?: string}
-    valueOptions?: Array<{label: string; value: string | number}>
+    valueOptions?: {label: string; value: string | number}[]
 }
 
 export const planInputs = (field: FieldConfig, opId: FilterConditions): InputPlan => {

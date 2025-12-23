@@ -33,7 +33,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     const traceEndTime = useAtomValue(spanEndTimeAtomFamily(activeTrace))
     return (
         <Flex vertical gap={12}>
-            <Space direction="vertical" size={4}>
+            <Space orientation="vertical" size={4}>
                 <Typography.Text className={classes.title}>Type</Typography.Text>
 
                 <ResultTag
@@ -51,7 +51,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 />
             </Space>
 
-            <Space direction="vertical" size={4}>
+            <Space orientation="vertical" size={4}>
                 <Typography.Text className={classes.title}>Status</Typography.Text>
                 <StatusRenderer
                     status={activeTrace?.status_code}
@@ -60,7 +60,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 />
             </Space>
 
-            <Space direction="vertical" size={4}>
+            <Space orientation="vertical" size={4}>
                 <Typography.Text className={classes.title}>Latency</Typography.Text>
                 <ResultTag
                     bordered={false}
@@ -73,7 +73,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 />
             </Space>
 
-            <Space direction="vertical" size={4}>
+            <Space orientation="vertical" size={4}>
                 <Typography.Text className={classes.title}>Timestamp</Typography.Text>
 
                 <ResultTag
@@ -92,7 +92,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 />
             </Space>
 
-            <Space direction="vertical" size={4}>
+            <Space orientation="vertical" size={4}>
                 <Typography.Text className={classes.title}>Tokens & Cost</Typography.Text>
                 <ResultTag
                     bordered={false}
@@ -104,7 +104,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                         </div>
                     }
                     popoverContent={
-                        <Space direction="vertical">
+                        <Space orientation="vertical">
                             <Space className={classes.tokenContainer}>
                                 <div>{formattedPromptTokens}</div>
                                 <div>Prompt tokens</div>

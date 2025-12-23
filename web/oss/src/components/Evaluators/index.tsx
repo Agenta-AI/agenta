@@ -1,7 +1,8 @@
 import {memo, useCallback, useEffect, useMemo, useState, type ChangeEvent, type Key} from "react"
 
 import {DeleteOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Input, Tabs, Typography} from "antd"
+import {ChartDonutIcon, ListChecksIcon} from "@phosphor-icons/react"
+import {Button, Input, Space} from "antd"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
@@ -16,6 +17,8 @@ import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {deleteEvaluatorConfig} from "@/oss/services/evaluations/api"
 import {deleteHumanEvaluator} from "@/oss/services/evaluators"
 import {useProjectData} from "@/oss/state/project/hooks"
+
+import PageLayout from "../PageLayout/PageLayout"
 
 import {
     DEFAULT_EVALUATOR_TAB,
@@ -275,19 +278,50 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
     )
 
     const isDeleteDisabled = selectedRowKeys.length === 0
+    const evaluatorTabItems = useMemo(
+        () =>
+            EVALUATOR_TABS.map((tab) => ({
+                key: tab.key,
+                label: (
+                    <span className="inline-flex items-center gap-2">
+                        {tab.key === "automatic" ? <ChartDonutIcon /> : <ListChecksIcon />}
+                        {tab.label}
+                    </span>
+                ),
+            })),
+        [],
+    )
+    const headerTabsProps = useMemo(
+        () => ({
+            items: evaluatorTabItems,
+            activeKey: activeTab,
+            onChange: (key: string) => onTabChange(key as EvaluatorCategory),
+        }),
+        [activeTab, evaluatorTabItems, onTabChange],
+    )
 
     return (
-        <section className="flex h-full min-h-0 flex-col gap-4">
-            <Typography.Text className="text-[16px] font-medium">Evaluators</Typography.Text>
-
+        <PageLayout title="Evaluators" headerTabsProps={headerTabsProps}>
             <div className="flex flex-col gap-2">
-                <Tabs
-                    items={EVALUATOR_TABS}
-                    activeKey={activeTab}
-                    onChange={(key) => onTabChange(key as EvaluatorCategory)}
-                />
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
+                    <Input.Search
+                        allowClear
+                        placeholder="Search"
+                        value={searchTerm}
+                        onChange={onSearch}
+                        className="w-[320px]"
+                    />
+
+                    <Space>
+                        <Button
+                            icon={<DeleteOutlined />}
+                            disabled={isDeleteDisabled}
+                            type="text"
+                            danger
+                            onClick={() => setIsDeleteModalOpen(true)}
+                        >
+                            Delete
+                        </Button>
                         <Button
                             type="primary"
                             icon={<PlusOutlined />}
@@ -295,24 +329,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
                         >
                             Create new
                         </Button>
-
-                        <Input.Search
-                            allowClear
-                            placeholder="Search"
-                            value={searchTerm}
-                            onChange={onSearch}
-                            className="w-[320px]"
-                        />
-                    </div>
-                    <Button
-                        icon={<DeleteOutlined />}
-                        disabled={isDeleteDisabled}
-                        type="text"
-                        danger
-                        onClick={() => setIsDeleteModalOpen(true)}
-                    >
-                        Delete
-                    </Button>
+                    </Space>
                 </div>
                 <EnhancedTable
                     uniqueKey={EVALUATOR_TABLE_STORAGE_PREFIX}
@@ -366,7 +383,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
                 createEvaluatorProps={createEvaluatorDrawerProps}
                 closeOnLayoutClick={false}
             />
-        </section>
+        </PageLayout>
     )
 }
 

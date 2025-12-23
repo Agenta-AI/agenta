@@ -688,7 +688,7 @@ const useEvaluationRunsColumns = ({
             {
                 title: "Status",
                 key: "status",
-                width: 56,
+                width: 61,
                 fixed: "left",
                 visibilityLocked: true,
                 align: "left",
@@ -827,7 +827,7 @@ const useEvaluationRunsColumns = ({
         columnConfigs.push({
             title: <ColumnVisibilityMenuTrigger variant="icon" />,
             key: "actions",
-            width: 56,
+            width: 61,
             fixed: "right",
             visibilityLocked: true,
             align: "center",

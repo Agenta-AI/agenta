@@ -1,11 +1,10 @@
 // @ts-nocheck
-import {type FC, type ChangeEvent, ReactNode, useEffect, useState, useCallback} from "react"
+import {type FC, type ChangeEvent, useEffect, useState, useCallback} from "react"
 
 import {type IHeaderParams} from "@ag-grid-community/core"
 import {CheckCircleFilled} from "@ant-design/icons"
 import {Link} from "@phosphor-icons/react"
 import {Button, Input, Typography, Space, Tag, Tooltip} from "antd"
-import {NoticeType} from "antd/es/message/interface"
 import {AxiosResponse} from "axios"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
@@ -44,7 +43,9 @@ export const CHECKBOX_COL = {
     headerCheckboxSelection: true,
     checkboxSelection: true,
     showDisabledCheckboxes: true,
-    maxWidth: 50,
+    width: 48,
+    maxWidth: 48,
+    minWidth: 48,
     editable: false,
 }
 
@@ -343,7 +344,7 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
     )
 
     return (
-        <div>
+        <div className="w-full p-6">
             <Typography.Title level={5} className={classes.title}>
                 <Space size="small" align="center">
                     <span>Edit testset</span>

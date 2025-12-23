@@ -63,6 +63,7 @@ const TraceContent = ({
                             value={rawPayload as any}
                             enableFormatSwitcher
                             fullEditorHeight
+                            enableSearch
                         />
                     ),
                 },
@@ -84,6 +85,7 @@ const TraceContent = ({
                         value={{...filteredTrace}}
                         enableFormatSwitcher
                         fullEditorHeight
+                        enableSearch
                     />
                 ),
             },

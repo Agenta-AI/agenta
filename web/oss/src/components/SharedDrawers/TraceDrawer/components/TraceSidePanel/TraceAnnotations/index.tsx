@@ -25,13 +25,13 @@ interface TraceAnnotationsProps {
 
 type AnnotationCategory = "metric" | "note" | "extra"
 
-type AnnotationChipEntry = {
+interface AnnotationChipEntry {
     annotations: {value: any; user: string}[]
     average?: number
     category: AnnotationCategory
 }
 
-type AnnotationGroup = {
+interface AnnotationGroup {
     refId: string
     evaluator?: Evaluator | EvaluatorPreviewDto | null
     metrics: Record<string, AnnotationChipEntry>
@@ -99,7 +99,7 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
             }
 
             const outputs = (annotation.data?.outputs || {}) as Record<string, any>
-            const categories: Array<[AnnotationCategory, Record<string, any>]> = [
+            const categories: [AnnotationCategory, Record<string, any>][] = [
                 ["note", outputs.notes || {}],
                 ["extra", outputs.extra || {}],
             ]

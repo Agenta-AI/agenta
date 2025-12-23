@@ -1,4 +1,12 @@
+import {memo, useCallback, useEffect, useMemo, useState} from "react"
+
+import {useQueryClient} from "@tanstack/react-query"
+import {Checkbox, Divider, Input, Menu, Tooltip, Typography} from "antd"
+import {ColumnsType} from "antd/es/table"
+import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {Expandable} from "@/oss/components/Tables/ExpandableCell"
@@ -8,13 +16,6 @@ import {fetchTestset} from "@/oss/services/testsets/api"
 import {useTestsetsData} from "@/oss/state/testset"
 import {urlAtom} from "@/oss/state/url"
 import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
-import {useQueryClient} from "@tanstack/react-query"
-import {Checkbox, Divider, Input, Menu, Tooltip, Typography} from "antd"
-import {ColumnsType} from "antd/es/table"
-import clsx from "clsx"
-import {useAtomValue} from "jotai"
-import {useRouter} from "next/router"
-import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import {useTestsetInputsAnalysis} from "../../hooks/useTestsetInputsAnalysis"
 import {LoadTestsetModalContentProps} from "../types"
 
@@ -172,7 +173,7 @@ const LoadTestsetModalContent = ({
         return {id: "", score: 0}
     }, [normalizedExpectedVariables.length, testsetMatchInfo, testsets])
 
-    const {id: bestMatchingTestsetId, score: bestMatchingScore} = bestMatchingTestset
+    const {id: bestMatchingTestsetId, score: _bestMatchingScore} = bestMatchingTestset
 
     const handleCreateTestset = useCallback(() => {
         router.push(`${urlState.projectURL}/testsets`)
@@ -413,7 +414,7 @@ const LoadTestsetModalContent = ({
                 />
             </div>
 
-            <Divider type="vertical" className="m-0 h-full" />
+            <Divider orientation="vertical" className="m-0 h-full" />
 
             <div className="flex flex-col gap-4 flex-1 overflow-x-auto">
                 <div className="flex items-start justify-between gap-4">
@@ -427,7 +428,7 @@ const LoadTestsetModalContent = ({
                     rowSelection={{
                         type: isChat ? "radio" : "checkbox",
                         ...rowSelection,
-                        columnWidth: 46,
+                        columnWidth: 48,
                     }}
                     loading={isLoadingTestset || isLoading}
                     dataSource={dataSource}
