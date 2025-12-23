@@ -5,6 +5,7 @@ import {
     collectKeyPaths,
     filterDataPaths,
     matchColumnsWithSuggestions,
+    spanToTraceData,
     traceSpanAtomFamily,
     type TraceSpan,
 } from "@/oss/state/entities/trace"
@@ -214,6 +215,52 @@ export const openDrawerAtom = atom(null, (get, set, data: TestsetTraceData[]) =>
 
     const spanIds = data.map((trace) => trace.key).filter(Boolean)
     set(traceSpanIdsAtom, spanIds)
+
+    // Open the drawer
+    set(isDrawerOpenAtom, true)
+})
+
+/**
+ * Write atom: Open the testset drawer with span IDs
+ *
+ * Accepts an array of span IDs and builds trace data from the entity cache.
+ * This is the preferred way to open the drawer when you have span IDs
+ * (e.g., from Playground generation results or observability selection).
+ *
+ * Falls back gracefully if spans are not in the cache - skips missing spans.
+ *
+ * Usage:
+ *   const openDrawerWithSpanIds = useSetAtom(openDrawerWithSpanIdsAtom)
+ *   openDrawerWithSpanIds(['span-id-1', 'span-id-2'])
+ */
+export const openDrawerWithSpanIdsAtom = atom(null, (get, set, spanIds: string[]) => {
+    if (spanIds.length === 0) {
+        return
+    }
+
+    // Build trace data from entity cache
+    const traceData: TestsetTraceData[] = []
+
+    spanIds.forEach((spanId, index) => {
+        const span = get(traceSpanAtomFamily(spanId))
+        if (span) {
+            const converted = spanToTraceData(span, index)
+            traceData.push(converted)
+        }
+    })
+
+    if (traceData.length === 0) {
+        return
+    }
+
+    // Initialize trace data
+    set(traceDataAtom, traceData)
+    set(rowDataPreviewAtom, traceData[0]?.key || "")
+    set(previewKeyAtom, traceData[0]?.key || "all")
+    set(
+        traceSpanIdsAtom,
+        spanIds.filter((id) => traceData.some((t) => t.key === id)),
+    )
 
     // Open the drawer
     set(isDrawerOpenAtom, true)

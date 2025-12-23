@@ -8,12 +8,12 @@ import {useSetAtom} from "jotai"
 import {Database} from "lucide-react"
 import dynamic from "next/dynamic"
 
+import {openDrawerAtom} from "@/oss/components/TestsetDrawer/atoms/drawerState"
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {KeyValuePair} from "@/oss/lib/Types"
 import {extractTestsetData} from "@/oss/state/entities/trace"
 
 import AnnotateDrawerButton from "../../../AnnotateDrawer/assets/AnnotateDrawerButton"
-import {openDrawerAtom} from "../../../TestsetDrawer/atoms/drawerState"
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
 
 import {TraceTypeHeaderProps} from "./types"
@@ -21,7 +21,9 @@ import {TraceTypeHeaderProps} from "./types"
 const DeleteTraceModal = dynamic(() => import("../../../../components/DeleteTraceModal"), {
     ssr: false,
 })
-const TestsetDrawer = dynamic(() => import("../../../TestsetDrawer/TestsetDrawer"), {ssr: false})
+const TestsetDrawer = dynamic(() => import("@/oss/components/TestsetDrawer/TestsetDrawer"), {
+    ssr: false,
+})
 
 const TraceTypeHeader = ({
     activeTrace,
