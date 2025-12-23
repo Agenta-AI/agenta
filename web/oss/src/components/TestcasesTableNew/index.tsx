@@ -210,6 +210,8 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 }}
                 changesSummary={isCommitModalOpen ? table.changesSummary : undefined}
                 isSaving={table.isSaving}
+                currentVersion={table.metadata?.revisionVersion}
+                latestVersion={table.availableRevisions[0]?.version}
                 isAddColumnModalOpen={isAddColumnModalOpen}
                 onAddColumnCancel={() => setIsAddColumnModalOpen(false)}
                 onAddColumn={(name) => {

@@ -23,6 +23,8 @@ export interface TestcaseModalsProps {
     onCommit: (message: string) => Promise<void>
     changesSummary?: ChangesSummary
     isSaving: boolean
+    currentVersion?: number
+    latestVersion?: number
 
     // Add Column Modal
     isAddColumnModalOpen: boolean
@@ -52,6 +54,8 @@ export function TestcaseModals(props: TestcaseModalsProps) {
         onCommit,
         changesSummary,
         isSaving,
+        currentVersion,
+        latestVersion,
         isAddColumnModalOpen,
         onAddColumnCancel,
         onAddColumn,
@@ -123,6 +127,8 @@ export function TestcaseModals(props: TestcaseModalsProps) {
                 onCommit={onCommit}
                 isCommitting={isSaving}
                 changesSummary={changesSummary}
+                currentVersion={currentVersion}
+                latestVersion={latestVersion}
             />
 
             {/* Add Column Modal */}
