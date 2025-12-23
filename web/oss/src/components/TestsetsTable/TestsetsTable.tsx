@@ -7,7 +7,7 @@ import {
     LoadingOutlined,
 } from "@ant-design/icons"
 import {Copy, Eye, Note, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, message, Modal, Tag, Typography} from "antd"
+import {Button, Modal, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -29,6 +29,8 @@ import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/Tes
 import useURL from "@/oss/hooks/useURL"
 import type {TestsetCreationMode} from "@/oss/lib/Types"
 import {archiveTestsetRevision} from "@/oss/services/testsets/api"
+
+import {message} from "../AppMessageContext"
 
 const TestsetModal: any = dynamic(() => import("@/oss/components/pages/testset/modals"))
 const DeleteTestsetModal: any = dynamic(
