@@ -9,6 +9,7 @@ import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
+import EmptySessions from "./assets/EmptySessions"
 import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
 
 const ObservabilityHeader = dynamic(() => import("../../components/ObservabilityHeader"), {
@@ -49,40 +50,44 @@ const SessionsTable: React.FC = () => {
         <div className="flex flex-col gap-6">
             <ObservabilityHeader columns={columns} componentType="sessions" />
 
-            <div className="flex flex-col gap-2">
-                <EnhancedTable<SessionRow>
-                    uniqueKey="observability-sessions-table"
-                    rowKey="session_id"
-                    loading={loadingFirstPage}
-                    columns={columns}
-                    dataSource={data}
-                    onRow={(record) => ({
-                        onClick: () => openDrawer({sessionId: record.session_id}),
-                        style: {cursor: "pointer"},
-                    })}
-                    pagination={false}
-                />
+            {sessionIds.length === 0 && !isLoading ? (
+                <EmptySessions />
+            ) : (
+                <div className="flex flex-col gap-2">
+                    <EnhancedTable<SessionRow>
+                        uniqueKey="observability-sessions-table"
+                        rowKey="session_id"
+                        loading={loadingFirstPage}
+                        columns={columns}
+                        dataSource={data}
+                        onRow={(record) => ({
+                            onClick: () => openDrawer({sessionId: record.session_id}),
+                            style: {cursor: "pointer"},
+                        })}
+                        pagination={false}
+                    />
 
-                {hasMoreSessions && (
-                    <div className="flex justify-center py-2">
-                        <Button
-                            onClick={handleLoadMore}
-                            disabled={isFetchingMore}
-                            type="text"
-                            size="large"
-                        >
-                            {isFetchingMore ? (
-                                <span>
-                                    <Spin size="small" className="mr-2" />
-                                    Loading…
-                                </span>
-                            ) : (
-                                "Click here to load more"
-                            )}
-                        </Button>
-                    </div>
-                )}
-            </div>
+                    {hasMoreSessions && (
+                        <div className="flex justify-center py-2">
+                            <Button
+                                onClick={handleLoadMore}
+                                disabled={isFetchingMore}
+                                type="text"
+                                size="large"
+                            >
+                                {isFetchingMore ? (
+                                    <span>
+                                        <Spin size="small" className="mr-2" />
+                                        Loading…
+                                    </span>
+                                ) : (
+                                    "Click here to load more"
+                                )}
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            )}
             <SessionDrawer />
         </div>
     )
