@@ -62,8 +62,10 @@ export interface UseTestcasesTableResult {
     rowRefs: DisplayRowRef[]
     /** List of testcase IDs (for entity atom access) */
     testcaseIds: string[]
-    /** Derived column definitions */
+    /** Expanded column definitions (for table display - objects expanded to sub-columns) */
     columns: Column[]
+    /** Base column definitions (original columns before object expansion - for drawer/editing) */
+    baseColumns: Column[]
     /** Loading state */
     isLoading: boolean
     /** Error state */

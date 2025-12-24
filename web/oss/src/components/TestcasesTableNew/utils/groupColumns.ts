@@ -18,6 +18,9 @@ export interface ColumnGroup<T> {
  */
 export type GroupedColumn<T> = ColumnType<T> | ColumnGroup<T>
 
+/** Default max depth for group expansion (1 = only top-level groups expand by default) */
+const DEFAULT_MAX_DEPTH = 1
+
 /**
  * Options for groupColumns function
  */
@@ -30,6 +33,8 @@ export interface GroupColumnsOptions<T> {
     renderGroupHeader?: (groupName: string, isCollapsed: boolean, childCount: number) => ReactNode
     /** Function to create a collapsed column (shows full JSON) */
     createCollapsedColumnDef?: (groupName: string, childColumns: Column[]) => ColumnType<T>
+    /** Maximum depth for group expansion (default: 2). Beyond this depth, columns show as JSON */
+    maxDepth?: number
 }
 
 /**
@@ -70,15 +75,22 @@ export function getLeafColumnName(key: string): string {
 /**
  * Recursively group columns into nested structure
  * This handles deeply nested paths like "a.b.c.d" by creating nested group headers
+ * Respects maxDepth to limit nesting for performance
  */
 function groupColumnsRecursive<T>(
     columns: Column[],
     createColumnDef: (col: Column, displayName: string) => ColumnType<T>,
     options: GroupColumnsOptions<T> | undefined,
     parentPath: string,
+    currentDepth: number,
 ): ColumnType<T>[] {
-    const {collapsedGroups, onGroupHeaderClick, renderGroupHeader, createCollapsedColumnDef} =
-        options ?? {}
+    const {
+        collapsedGroups,
+        onGroupHeaderClick,
+        renderGroupHeader,
+        createCollapsedColumnDef,
+        maxDepth = DEFAULT_MAX_DEPTH,
+    } = options ?? {}
 
     const result: ColumnType<T>[] = []
     const groupMap = new Map<string, {columns: Column[]; order: number}>()
@@ -111,10 +123,18 @@ function groupColumnsRecursive<T>(
         }
     })
 
-    // Second pass: create group columns (recursively)
+    // Second pass: create group columns (recursively or collapsed based on depth)
     groupMap.forEach((group, groupName) => {
         const fullGroupPath = parentPath ? `${parentPath}.${groupName}` : groupName
-        const isCollapsed = collapsedGroups?.has(fullGroupPath) ?? false
+        const isInCollapsedSet = collapsedGroups?.has(fullGroupPath) ?? false
+        const isAtDepthLimit = currentDepth >= maxDepth
+
+        // Collapse logic with inverted behavior for depth-limited groups:
+        // - Normal groups (depth < maxDepth): collapsed if IN the set, expanded by default
+        // - Depth-limited groups (depth >= maxDepth): collapsed by default, expanded if IN the set
+        // This allows users to click to expand depth-limited groups (adds to set),
+        // and click again to collapse (removes from set)
+        const isCollapsed = isAtDepthLimit ? !isInCollapsedSet : isInCollapsedSet
 
         if (isCollapsed && createCollapsedColumnDef) {
             // Collapsed state: show single column with full JSON
@@ -130,6 +150,7 @@ function groupColumnsRecursive<T>(
                 createColumnDef,
                 options,
                 fullGroupPath,
+                currentDepth + 1,
             )
 
             // Create group header title - click handler is embedded in the rendered element
@@ -197,5 +218,5 @@ export function groupColumns<T>(
     createColumnDef: (col: Column, displayName: string) => ColumnType<T>,
     options?: GroupColumnsOptions<T>,
 ): ColumnType<T>[] {
-    return groupColumnsRecursive(columns, createColumnDef, options, "")
+    return groupColumnsRecursive(columns, createColumnDef, options, "", 0)
 }

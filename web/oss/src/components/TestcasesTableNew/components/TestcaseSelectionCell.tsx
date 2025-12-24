@@ -1,6 +1,5 @@
 import {memo} from "react"
 
-import {Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 
 import {testcaseIsDirtyAtom} from "@/oss/state/entities/testcase/dirtyState"
@@ -12,8 +11,9 @@ interface TestcaseSelectionCellProps {
 }
 
 /**
- * Custom selection cell that shows tooltip with row index
+ * Custom selection cell that shows row index on hover via title attribute
  * Also shows dirty indicator for rows with unsaved changes
+ * Uses native title instead of Tooltip for better scroll performance
  */
 const TestcaseSelectionCell = memo(function TestcaseSelectionCell({
     testcaseId,
@@ -27,9 +27,9 @@ const TestcaseSelectionCell = memo(function TestcaseSelectionCell({
     const tooltipTitle = isDirty ? `Row ${rowIndex + 1} (unsaved changes)` : `Row ${rowIndex + 1}`
 
     return (
-        <Tooltip title={tooltipTitle} mouseEnterDelay={0.3} mouseLeaveDelay={0} placement="right">
-            <div className="flex items-center justify-center w-full h-full">{originNode}</div>
-        </Tooltip>
+        <div className="flex items-center justify-center w-full h-full" title={tooltipTitle}>
+            {originNode}
+        </div>
     )
 })
 

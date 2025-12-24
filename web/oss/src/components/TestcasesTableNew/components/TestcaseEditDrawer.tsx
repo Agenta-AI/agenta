@@ -16,7 +16,7 @@ import {
 
 import TestcaseEditDrawerContent, {
     type TestcaseEditDrawerContentRef,
-} from "./TestcaseEditDrawerContent"
+} from "./TestcaseEditDrawer/index"
 
 type EditMode = "fields" | "json"
 

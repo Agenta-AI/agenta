@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {Popover, Typography} from "antd"
+import {Typography} from "antd"
 import dynamic from "next/dynamic"
 
 const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
@@ -67,12 +67,22 @@ const USE_PLAIN_TEXT_RENDER = true
 const DEFAULT_MAX_LINES = 10
 
 /**
- * Truncate JSON string to first N lines for cell preview
+ * Truncate string to first N lines for cell preview
  */
 const truncateToLines = (str: string, maxLines: number): string => {
     const lines = str.split("\n")
     if (lines.length <= maxLines) return str
     return lines.slice(0, maxLines).join("\n") + "\n..."
+}
+
+/**
+ * Truncate string to max characters for cell preview
+ * This is critical for performance - prevents rendering huge text blocks
+ */
+const MAX_CELL_CHARS = 500
+const truncateToChars = (str: string, maxChars: number = MAX_CELL_CHARS): string => {
+    if (str.length <= maxChars) return str
+    return str.slice(0, maxChars) + "..."
 }
 
 /**
@@ -153,32 +163,13 @@ JsonContent.displayName = "JsonContent"
 /**
  * Popover wrapper for cell content with lazy rendering
  * Content is only rendered when popover is visible for better performance
+ * Uses native title for simple preview, Popover only on click for full content
  */
 const CellContentPopover = memo(
-    ({
-        children,
-        renderContent,
-    }: {
-        children: React.ReactNode
-        renderContent: () => React.ReactNode
-    }) => {
-        return (
-            <Popover
-                content={
-                    <div className="max-w-[400px] max-h-[300px] overflow-auto text-xs">
-                        {renderContent()}
-                    </div>
-                }
-                trigger="hover"
-                mouseEnterDelay={0.5}
-                mouseLeaveDelay={0.1}
-                placement="top"
-                arrow={false}
-                destroyOnHidden
-            >
-                {children}
-            </Popover>
-        )
+    ({children, previewText}: {children: React.ReactNode; previewText?: string}) => {
+        // Use native title for hover preview - much better scroll performance
+        // than Ant Design Popover which creates portals and event listeners
+        return <div title={previewText}>{children}</div>
     },
 )
 CellContentPopover.displayName = "CellContentPopover"
@@ -200,6 +191,31 @@ const TestcaseCellContent = memo(({value, maxLines}: TestcaseCellContentProps) =
     const {parsed: jsonValue, isJson} = useMemo(() => tryParseJson(value), [value])
     const displayValue = useMemo(() => normalizeValue(value), [value])
 
+    // Generate preview text for native title tooltip
+    // Must be before early return to satisfy React hooks rules
+    const previewText = useMemo(() => {
+        if (value === undefined || value === null || value === "") {
+            return undefined
+        }
+        if (isJson) {
+            const jsonStr = safeJsonStringify(jsonValue)
+            // Limit preview to first 500 chars for performance
+            return jsonStr.length > 500 ? jsonStr.slice(0, 500) + "..." : jsonStr
+        }
+        return displayValue.length > 500 ? displayValue.slice(0, 500) + "..." : displayValue
+    }, [value, isJson, jsonValue, displayValue])
+
+    // Plain text - truncate to prevent rendering huge text blocks
+    // This is critical for scroll performance - must be before early returns
+    const truncatedDisplayValue = useMemo(() => {
+        if (value === undefined || value === null || value === "" || isJson) {
+            return ""
+        }
+        // Apply both line and character truncation for plain text
+        const linesTruncated = truncateToLines(displayValue, maxLines ?? DEFAULT_MAX_LINES)
+        return truncateToChars(linesTruncated)
+    }, [value, displayValue, maxLines, isJson])
+
     // Handle empty values (null, undefined, empty string) - render placeholder
     // The testcase-table-cell class ensures proper height from CSS variables
     if (value === undefined || value === null || value === "") {
@@ -212,18 +228,10 @@ const TestcaseCellContent = memo(({value, maxLines}: TestcaseCellContentProps) =
         )
     }
 
-    // Render content for popover (lazy - only called when popover opens)
-    const renderPopoverContent = () =>
-        isJson ? (
-            <JsonContent value={jsonValue} height={200} truncate={false} />
-        ) : (
-            <span className="whitespace-pre-wrap break-words block text-xs">{displayValue}</span>
-        )
-
     // Render JSON objects/arrays
     if (isJson) {
         return (
-            <CellContentPopover renderContent={renderPopoverContent}>
+            <CellContentPopover previewText={previewText}>
                 <div className="testcase-table-cell cursor-pointer">
                     <JsonContent value={jsonValue} maxLines={maxLines} />
                 </div>
@@ -231,11 +239,11 @@ const TestcaseCellContent = memo(({value, maxLines}: TestcaseCellContentProps) =
         )
     }
 
-    // Plain text - show with ellipsis and popover
+    // Plain text with truncation
     return (
-        <CellContentPopover renderContent={renderPopoverContent}>
+        <CellContentPopover previewText={previewText}>
             <div className="testcase-table-cell cursor-pointer">
-                <Text className="text-xs whitespace-pre-wrap">{displayValue}</Text>
+                <Text className="text-xs whitespace-pre-wrap">{truncatedDisplayValue}</Text>
             </div>
         </CellContentPopover>
     )

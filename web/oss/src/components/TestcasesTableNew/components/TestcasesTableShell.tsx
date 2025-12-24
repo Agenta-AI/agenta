@@ -8,6 +8,7 @@ import clsx from "clsx"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {
+    ColumnVisibilityHeader,
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
     type TableScopeConfig,
@@ -112,6 +113,8 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             pageSize: 50, // Paginated loading
             enableInfiniteScroll: true, // Enable infinite scroll for pagination
             columnVisibilityStorageKey: "testcases:columns",
+            // Increase exit debounce to prevent infinite loop on scroll-stop-scroll pattern
+            viewportExitDebounceMs: 300,
         }),
         [scopeIdPrefix, revisionIdParam],
     )
@@ -197,25 +200,29 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         const isShowingSkeleton = table.columns.length === 0
 
         // Create column definition for a single column
+        // Wrap title with ColumnVisibilityHeader to enable viewport tracking
         const createColumnDef = (
             col: Column,
             displayName: string,
         ): ColumnType<TestcaseTableRow> => ({
             key: col.key,
             dataIndex: col.key,
-            title:
-                isEditable && !isShowingSkeleton ? (
-                    <EditableColumnHeader
-                        columnKey={col.key}
-                        columnName={displayName}
-                        onRename={table.renameColumn}
-                        onDelete={table.deleteColumn}
-                    />
-                ) : (
-                    <span className="truncate" title={col.key}>
-                        {displayName}
-                    </span>
-                ),
+            title: (
+                <ColumnVisibilityHeader columnKey={col.key}>
+                    {isEditable && !isShowingSkeleton ? (
+                        <EditableColumnHeader
+                            columnKey={col.key}
+                            columnName={displayName}
+                            onRename={table.renameColumn}
+                            onDelete={table.deleteColumn}
+                        />
+                    ) : (
+                        <span className="truncate" title={col.key}>
+                            {displayName}
+                        </span>
+                    )}
+                </ColumnVisibilityHeader>
+            ),
             width: 200,
             render: (value: unknown, record: TestcaseTableRow) => {
                 // Show skeleton for skeleton rows or when showing skeleton columns
@@ -256,13 +263,15 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             key: groupName,
             dataIndex: groupName,
             title: (
-                <div
-                    className="flex items-center gap-1 cursor-pointer"
-                    onClick={() => toggleGroupCollapse(groupName)}
-                >
-                    <CaretRight size={12} />
-                    <Typography.Text ellipsis>{groupName}</Typography.Text>
-                </div>
+                <ColumnVisibilityHeader columnKey={groupName}>
+                    <div
+                        className="flex items-center gap-1 cursor-pointer"
+                        onClick={() => toggleGroupCollapse(groupName)}
+                    >
+                        <CaretRight size={12} />
+                        <Typography.Text ellipsis>{groupName}</Typography.Text>
+                    </div>
+                </ColumnVisibilityHeader>
             ),
             width: 200,
             render: (_value: unknown, record: TestcaseTableRow) => {
@@ -294,6 +303,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
 
         // Render group header with collapse/expand icon
         // groupPath is the full path (e.g., "current_rfp.event"), display only the last segment
+        // Wrapped with ColumnVisibilityHeader for viewport tracking
         const renderGroupHeader = (groupPath: string, isCollapsed: boolean, childCount: number) => {
             // Get just the last segment for display (e.g., "event" from "current_rfp.event")
             const displayName = groupPath.includes(".")
@@ -301,29 +311,31 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 : groupPath
 
             return (
-                <div
-                    className="flex items-center gap-1 cursor-pointer select-none max-w-full overflow-hidden"
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        e.preventDefault()
-                        toggleGroupCollapse(groupPath)
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
+                <ColumnVisibilityHeader columnKey={groupPath}>
+                    <div
+                        className="flex items-center gap-1 cursor-pointer select-none max-w-full overflow-hidden"
+                        onClick={(e) => {
+                            e.stopPropagation()
                             e.preventDefault()
                             toggleGroupCollapse(groupPath)
-                        }
-                    }}
-                    title={groupPath}
-                >
-                    <span className="flex-shrink-0">
-                        {isCollapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
-                    </span>
-                    <span className="truncate min-w-0">{displayName}</span>
-                    <span className="text-gray-400 text-xs flex-shrink-0">({childCount})</span>
-                </div>
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                toggleGroupCollapse(groupPath)
+                            }
+                        }}
+                        title={groupPath}
+                    >
+                        <span className="flex-shrink-0">
+                            {isCollapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
+                        </span>
+                        <span className="truncate min-w-0">{displayName}</span>
+                        <span className="text-gray-400 text-xs flex-shrink-0">({childCount})</span>
+                    </div>
+                </ColumnVisibilityHeader>
             )
         }
 
@@ -376,7 +388,10 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
 
         return [...dataColumns, ...actionsColumn]
     }, [
-        table,
+        table.columns,
+        table.renameColumn,
+        table.deleteColumn,
+        table.deleteTestcases,
         mode,
         maxLinesForRowHeight,
         rowHeight.heightPx,

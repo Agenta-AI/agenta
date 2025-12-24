@@ -226,8 +226,8 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     // Note: Column reset and v0 draft init are handled by revisionChangeEffectAtom
     // Uses expandedColumnsAtom for dynamic object expansion (e.g., "event" -> "event.type", "event.date")
     // =========================================================================
-    const _baseColumns = useAtomValue(currentColumnsAtom) // Keep for potential future use
-    const columns = useAtomValue(expandedColumnsAtom)
+    const baseColumns = useAtomValue(currentColumnsAtom) // Original columns (for drawer/editing)
+    const columns = useAtomValue(expandedColumnsAtom) // Expanded columns (for table display)
     const addColumn = useSetAtom(addColumnAtom)
     const deleteColumn = useSetAtom(deleteColumnAtom)
     const renameColumnAction = useSetAtom(renameColumnAtom)
@@ -406,7 +406,8 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         // Data - row refs (optimized: cells read from entity atoms)
         rowRefs: displayRowRefs,
         testcaseIds, // IDs for entity atom access
-        columns,
+        columns, // Expanded columns for table display
+        baseColumns, // Original columns for drawer/editing
         isLoading: metadataLoading,
         error: (revisionQuery.error || testsetNameQuery.error) as Error | null,
 
