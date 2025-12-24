@@ -7,6 +7,10 @@ import type {TableProps} from "antd/es/table"
 import clsx from "clsx"
 import {createUseStyles} from "react-jss"
 
+import {
+    NUMERIC_METRIC_TYPES,
+    USEABLE_METRIC_TYPES,
+} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/constants"
 import EvaluatorDetailsPopover from "@/oss/components/SharedDrawers/TraceDrawer/components/EvaluatorDetailsPopover"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
@@ -14,10 +18,6 @@ import {JSSTheme} from "@/oss/lib/Types"
 
 import NoTraceAnnotations from "../../../TraceSidePanel/TraceAnnotations/components/NoTraceAnnotations"
 
-import {
-    NUMERIC_METRIC_TYPES,
-    USEABLE_METRIC_TYPES,
-} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/constants"
 import {getAnnotationTableColumns} from "./assets/getAnnotationTableColumns"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({

@@ -7,15 +7,15 @@ import {useAtomValue} from "jotai"
 
 import CustomAntdTag from "@/oss/components/CustomUIs/CustomAntdTag"
 import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
-import {Evaluator} from "@/oss/lib/Types"
+import EvaluatorDetailsPopover from "@/oss/components/SharedDrawers/TraceDrawer/components/EvaluatorDetailsPopover"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
+import {Evaluator} from "@/oss/lib/Types"
 import {projectIdAtom} from "@/oss/state/project"
 
-import EvaluatorDetailsPopover from "@/oss/components/SharedDrawers/TraceDrawer/components/EvaluatorDetailsPopover"
 import {useStyles} from "./assets/styles"
 import NoTraceAnnotations from "./components/NoTraceAnnotations"
 

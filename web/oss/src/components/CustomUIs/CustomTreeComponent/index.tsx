@@ -3,8 +3,8 @@ import React, {useState} from "react"
 import {MinusSquareOutlined, PlusSquareOutlined} from "@ant-design/icons"
 
 import {TreeContent} from "@/oss/components/SharedDrawers/TraceDrawer/components/TraceTree"
-
 import {TraceSpanNode} from "@/oss/services/tracing/types"
+
 import {useStyles} from "./assets/styles"
 
 /**

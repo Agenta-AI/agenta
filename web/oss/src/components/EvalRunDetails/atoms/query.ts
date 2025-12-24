@@ -189,11 +189,11 @@ const normalizeQueryRevisionSnapshot = (
 const hasLookupValue = (reference: EvaluationQueryReference) =>
     Boolean(
         reference.queryRevisionId ||
-        reference.queryRevisionSlug ||
-        reference.queryVariantId ||
-        reference.queryVariantSlug ||
-        reference.queryId ||
-        reference.querySlug,
+            reference.queryRevisionSlug ||
+            reference.queryVariantId ||
+            reference.queryVariantSlug ||
+            reference.queryId ||
+            reference.querySlug,
     )
 
 type ReferenceDescriptor =

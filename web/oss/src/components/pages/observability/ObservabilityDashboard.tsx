@@ -18,9 +18,12 @@ import {getObservabilityColumns} from "./assets/getObservabilityColumns"
 
 const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})
-const TestsetDrawer = dynamic(() => import("../../SharedDrawers/AddToTestsetDrawer/TestsetDrawer"), {
-    ssr: false,
-})
+const TestsetDrawer = dynamic(
+    () => import("../../SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
+    {
+        ssr: false,
+    },
+)
 
 const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     const slugs = new Set<string>()

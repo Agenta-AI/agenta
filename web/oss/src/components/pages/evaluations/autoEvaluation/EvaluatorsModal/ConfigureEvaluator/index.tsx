@@ -32,13 +32,17 @@ import {
 
 const LoadEvaluatorPreset = dynamic(
     () =>
-        import("@/agenta-oss-common/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/components/modals/LoadEvaluatorPreset"),
+        import(
+            "@/agenta-oss-common/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/components/modals/LoadEvaluatorPreset"
+        ),
     {ssr: false},
 )
 
 const DebugSection: any = dynamic(
     () =>
-        import("@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection"),
+        import(
+            "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection"
+        ),
     {ssr: false},
 )
 

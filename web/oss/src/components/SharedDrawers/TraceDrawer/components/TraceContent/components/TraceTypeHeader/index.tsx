@@ -9,12 +9,12 @@ import {Database} from "lucide-react"
 import dynamic from "next/dynamic"
 
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
+import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import {KeyValuePair} from "@/oss/lib/Types"
 import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
 
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
 
-import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import {TraceTypeHeaderProps} from "./types"
 
 const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {

@@ -2,6 +2,8 @@ import {Flex, Space, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import {PlusCircle, Timer} from "lucide-react"
 
+import {statusMapper} from "@/oss/components/pages/observability/components/AvatarTreeContent"
+import StatusRenderer from "@/oss/components/pages/observability/components/StatusRenderer"
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
@@ -13,9 +15,6 @@ import {
     spanEndTimeAtomFamily,
     spanStartTimeAtomFamily,
 } from "@/oss/state/newObservability"
-
-import {statusMapper} from "@/oss/components/pages/observability/components/AvatarTreeContent"
-import StatusRenderer from "@/oss/components/pages/observability/components/StatusRenderer"
 
 import {useStyles} from "./assets/styles"
 
