@@ -12,10 +12,10 @@ import {
     textModeToStorageValue,
     tryParseAsObject,
     tryParseAsArray,
+    isMessagesArray,
+    isChatMessageObject,
     getNestedValue,
     getArrayItemValue,
-    isChatMessageObject,
-    isMessagesArray,
 } from "./fieldUtils"
 import NestedFieldEditor from "./NestedFieldEditor"
 
@@ -137,15 +137,51 @@ const TestcaseFieldRenderer = memo(
             [value, onFieldChange],
         )
 
-        // Raw mode: always show JSON editor with exact data
+        // Raw mode: show JSON editor, but provide rich editor preview when possible (e.g. outputs.content strings)
         if (fieldMode === "raw") {
+            const parsedObject = tryParseAsObject(value)
+            const contentString =
+                parsedObject && typeof parsedObject.content === "string"
+                    ? parsedObject.content
+                    : null
+
+            if (contentString !== null) {
+                const editorId = `${columnKey}-content-preview`
+                return (
+                    <EditorProvider
+                        key={`${columnKey}-content-provider`}
+                        showToolbar={false}
+                        enableTokens
+                    >
+                        <SharedEditor
+                            id={editorId}
+                            initialValue={contentString}
+                            handleChange={(newValue) => {
+                                const latest = tryParseAsObject(value) || {}
+                                const updatedValue = JSON.stringify({
+                                    ...latest,
+                                    content: newValue,
+                                })
+                                onFieldChange(updatedValue)
+                            }}
+                            placeholder={`Enter ${columnName}...`}
+                            editorType="border"
+                            className="overflow-hidden"
+                            disableDebounce
+                            noProvider
+                            header={<TestcaseFieldHeader id={editorId} value={contentString} />}
+                        />
+                    </EditorProvider>
+                )
+            }
+
             return (
                 <SharedEditor
                     key={`${columnKey}-raw`}
                     initialValue={value}
                     handleChange={onFieldChange}
                     editorType="border"
-                    className="overflow-hidden"
+                    className="min-h-[120px] overflow-hidden"
                     disableDebounce
                     editorProps={{
                         codeOnly: true,
@@ -233,7 +269,7 @@ const TestcaseFieldRenderer = memo(
         // String or plain text: show text editor with beautified value
         const textValue = getTextModeValue(value)
         return (
-            <EditorProvider key={`${columnKey}-text-provider`} showToolbar={false}>
+            <EditorProvider key={`${columnKey}-text-provider`} showToolbar={false} enableTokens>
                 <SharedEditor
                     id={`testcase-field-${columnKey}`}
                     initialValue={textValue}

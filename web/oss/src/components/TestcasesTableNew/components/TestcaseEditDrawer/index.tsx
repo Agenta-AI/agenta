@@ -10,12 +10,16 @@ import {
 import {Button, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {ChatMessageList} from "@/oss/components/ChatMessageEditor"
+import {EditorProvider} from "@/oss/components/Editor/Editor"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 import {
     testcaseEntityAtomFamily,
     updateTestcaseAtom,
 } from "@/oss/state/entities/testcase/testcaseEntity"
+
+import TestcaseFieldHeader from "../TestcaseFieldHeader"
 
 import {
     detectDataType,
@@ -24,6 +28,10 @@ import {
     parseFromJsonDisplay,
     tryParseAsObject,
     tryParseAsArray,
+    isMessagesArray,
+    parseMessages,
+    getTextModeValue,
+    textModeToStorageValue,
 } from "./fieldUtils"
 import TestcaseFieldRenderer, {FieldMode} from "./TestcaseFieldRenderer"
 
@@ -57,12 +65,35 @@ const TestcaseEditDrawerContent = forwardRef<
     const updateTestcase = useSetAtom(updateTestcaseAtom)
 
     // Derive form values from testcase (single source of truth for editing)
+    // Values are stored as strings for the editors - objects/arrays are JSON stringified
     const formValues = useMemo(() => {
         if (!testcase) return {}
         const values: Record<string, string> = {}
         columns.forEach((col) => {
             const value = testcase[col.key]
-            values[col.key] = value != null ? String(value) : ""
+            if (value == null) {
+                values[col.key] = ""
+            } else if (typeof value === "object") {
+                // Objects and arrays need to be JSON stringified
+                values[col.key] = JSON.stringify(value, null, 2)
+            } else if (typeof value === "string") {
+                // Check if string is a stringified JSON - if so, parse and re-stringify for formatting
+                try {
+                    const parsed = JSON.parse(value)
+                    if (typeof parsed === "object" && parsed !== null) {
+                        // It's a stringified JSON object/array - format it nicely
+                        values[col.key] = JSON.stringify(parsed, null, 2)
+                    } else {
+                        // It's a JSON primitive (string, number, boolean) - keep as-is
+                        values[col.key] = value
+                    }
+                } catch {
+                    // Not valid JSON - keep as plain string
+                    values[col.key] = value
+                }
+            } else {
+                values[col.key] = String(value)
+            }
         })
         return values
     }, [testcase, columns])
@@ -393,6 +424,7 @@ const TestcaseEditDrawerContent = forwardRef<
                             <div className="text-gray-500 text-sm">No items to display</div>
                         )}
                         {currentLevelItems.map((item) => {
+                            const dataType = detectDataType(item.value)
                             const fieldMode = item.isColumn
                                 ? getFieldModeForValue(item.value)
                                 : "text"
@@ -508,7 +540,18 @@ const TestcaseEditDrawerContent = forwardRef<
                                                         )
                                                     }
                                                 />
-                                            ) : (
+                                            ) : dataType === "messages" ? (
+                                                <ChatMessageList
+                                                    messages={parseMessages(item.value)}
+                                                    onChange={(messages) =>
+                                                        updateValueAtPath(
+                                                            fullPath,
+                                                            JSON.stringify(messages),
+                                                        )
+                                                    }
+                                                    showControls={isMessagesArray(item.value)}
+                                                />
+                                            ) : dataType === "json-object" ? (
                                                 <SharedEditor
                                                     key={`${fullPath.join("-")}-editor`}
                                                     initialValue={item.value}
@@ -519,19 +562,52 @@ const TestcaseEditDrawerContent = forwardRef<
                                                     className="min-h-[60px] overflow-hidden"
                                                     disableDebounce
                                                     editorProps={{
-                                                        codeOnly:
-                                                            detectDataType(item.value) ===
-                                                            "json-object",
-                                                        language:
-                                                            detectDataType(item.value) ===
-                                                            "json-object"
-                                                                ? "json"
-                                                                : undefined,
-                                                        showLineNumbers:
-                                                            detectDataType(item.value) ===
-                                                            "json-object",
+                                                        codeOnly: true,
+                                                        language: "json",
+                                                        showLineNumbers: true,
                                                     }}
                                                 />
+                                            ) : (
+                                                (() => {
+                                                    const editorId = `drill-field-${fullPath.join("-")}`
+                                                    const textValue = getTextModeValue(item.value)
+                                                    return (
+                                                        <EditorProvider
+                                                            key={`${editorId}-provider`}
+                                                            id={editorId}
+                                                            initialValue={textValue}
+                                                            showToolbar={false}
+                                                            enableTokens
+                                                        >
+                                                            <SharedEditor
+                                                                id={editorId}
+                                                                initialValue={textValue}
+                                                                handleChange={(newValue) => {
+                                                                    const storageValue =
+                                                                        textModeToStorageValue(
+                                                                            newValue,
+                                                                            item.value,
+                                                                        )
+                                                                    updateValueAtPath(
+                                                                        fullPath,
+                                                                        storageValue,
+                                                                    )
+                                                                }}
+                                                                placeholder={`Enter ${item.name}...`}
+                                                                editorType="border"
+                                                                className="overflow-hidden"
+                                                                disableDebounce
+                                                                noProvider
+                                                                header={
+                                                                    <TestcaseFieldHeader
+                                                                        id={editorId}
+                                                                        value={textValue}
+                                                                    />
+                                                                }
+                                                            />
+                                                        </EditorProvider>
+                                                    )
+                                                })()
                                             )}
                                         </div>
                                     )}

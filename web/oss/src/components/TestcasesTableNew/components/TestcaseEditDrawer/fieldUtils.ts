@@ -1,3 +1,5 @@
+import type {SimpleChatMessage} from "@/oss/components/ChatMessageEditor"
+
 /**
  * Utility functions for parsing and detecting field data types
  */
@@ -121,12 +123,60 @@ export function isMessagesArray(value: string): boolean {
     }
 }
 
+function parseMessageObject(msg: Record<string, unknown>): SimpleChatMessage {
+    const role = (msg.role || msg.sender || msg.author || "user") as string
+    let content = msg.content ?? msg.text ?? msg.message
+    if (
+        content !== null &&
+        content !== undefined &&
+        typeof content !== "string" &&
+        !Array.isArray(content)
+    ) {
+        content = ""
+    }
+
+    const result: SimpleChatMessage = {
+        role,
+        content: content as SimpleChatMessage["content"],
+        id: msg.id as string | undefined,
+    }
+
+    if (msg.name) result.name = msg.name as string
+    if (msg.tool_call_id) result.tool_call_id = msg.tool_call_id as string
+    if (msg.tool_calls) result.tool_calls = msg.tool_calls as SimpleChatMessage["tool_calls"]
+    if (msg.function_call)
+        result.function_call = msg.function_call as SimpleChatMessage["function_call"]
+    if (msg.provider_specific_fields)
+        result.provider_specific_fields = msg.provider_specific_fields as Record<string, unknown>
+    if (msg.annotations) result.annotations = msg.annotations as unknown[]
+    if (msg.refusal !== undefined) result.refusal = msg.refusal as string | null
+
+    return result
+}
+
+export function parseMessages(value: string): SimpleChatMessage[] {
+    try {
+        const parsed = JSON.parse(value)
+        if (Array.isArray(parsed)) {
+            return parsed.map(parseMessageObject)
+        }
+        if (isChatMessageObject(parsed)) {
+            return [parseMessageObject(parsed as Record<string, unknown>)]
+        }
+        return []
+    } catch {
+        return []
+    }
+}
+
 // Data types detected from cell content
 export type DataType = "string" | "messages" | "json-object"
 
 /**
  * Detect the data type of a cell value
  * Returns: "string" (can show in text mode), "messages" (can show beautified or raw), "json-object" (raw only)
+ * Note: Only arrays of messages are treated as "messages" type. Single message objects are treated as
+ * "json-object" so all properties (including provider_specific_fields, annotations, etc.) are visible.
  */
 export function detectDataType(value: string): DataType {
     // Empty or whitespace-only is treated as string
@@ -138,7 +188,7 @@ export function detectDataType(value: string): DataType {
         // If it parses to a string, the underlying data is a string
         if (typeof parsed === "string") return "string"
 
-        // Check if it's messages format
+        // Check if it's messages format - only arrays of messages, not single objects
         if (Array.isArray(parsed)) {
             if (parsed.length > 0 && parsed.every(isChatMessageObject)) {
                 return "messages"
@@ -147,10 +197,8 @@ export function detectDataType(value: string): DataType {
             return "json-object"
         }
 
-        // Single message object
-        if (isChatMessageObject(parsed)) return "messages"
-
-        // Any other object/array is a JSON object
+        // Single message objects are treated as json-object to show all properties
+        // (provider_specific_fields, annotations, etc.)
         if (typeof parsed === "object" && parsed !== null) return "json-object"
 
         // Primitives (number, boolean, null) - treat as string for display
