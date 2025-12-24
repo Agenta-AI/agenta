@@ -8,9 +8,10 @@ import {
     Check,
     Code,
     Copy,
+    Plus,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Input, Select, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ChatMessageList} from "@/oss/components/ChatMessageEditor"
@@ -368,6 +369,92 @@ const TestcaseEditDrawerContent = forwardRef<
         setRawModeFields((prev) => ({...prev, [columnKey]: !prev[columnKey]}))
     }, [])
 
+    // Get current path data type (array or object)
+    const currentPathDataType = useMemo((): "array" | "object" | "root" | null => {
+        if (currentPath.length === 0) return "root"
+        const value = getValueAtPath(currentPath)
+        if (!value) return null
+        try {
+            const parsed = JSON.parse(value)
+            if (Array.isArray(parsed)) return "array"
+            if (typeof parsed === "object" && parsed !== null) return "object"
+        } catch {
+            // Not JSON
+        }
+        return null
+    }, [currentPath, getValueAtPath])
+
+    // Add new item to array at current path
+    const addArrayItem = useCallback(() => {
+        if (currentPath.length === 0) return
+        const value = getValueAtPath(currentPath)
+        if (!value) return
+        try {
+            const parsed = JSON.parse(value)
+            if (Array.isArray(parsed)) {
+                // Add empty string as new item
+                const updated = [...parsed, ""]
+                updateValueAtPath(currentPath, JSON.stringify(updated, null, 2))
+            }
+        } catch {
+            // Not valid JSON
+        }
+    }, [currentPath, getValueAtPath, updateValueAtPath])
+
+    // Property type options
+    type PropertyType = "string" | "number" | "boolean" | "object" | "array"
+    const propertyTypeOptions: {value: PropertyType; label: string}[] = [
+        {value: "string", label: "String"},
+        {value: "number", label: "Number"},
+        {value: "boolean", label: "Boolean"},
+        {value: "object", label: "Object"},
+        {value: "array", label: "Array"},
+    ]
+
+    // Get default value for property type
+    const getDefaultValueForType = useCallback((type: PropertyType): unknown => {
+        switch (type) {
+            case "string":
+                return ""
+            case "number":
+                return 0
+            case "boolean":
+                return false
+            case "object":
+                return {}
+            case "array":
+                return []
+            default:
+                return ""
+        }
+    }, [])
+
+    // Add new property to object at current path
+    const addObjectProperty = useCallback(
+        (propertyName: string, propertyType: PropertyType) => {
+            if (currentPath.length === 0) return
+            const value = getValueAtPath(currentPath)
+            if (!value) return
+            try {
+                const parsed = JSON.parse(value)
+                if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+                    // Add new property with type-appropriate default value
+                    const defaultValue = getDefaultValueForType(propertyType)
+                    const updated = {...parsed, [propertyName]: defaultValue}
+                    updateValueAtPath(currentPath, JSON.stringify(updated, null, 2))
+                }
+            } catch {
+                // Not valid JSON
+            }
+        },
+        [currentPath, getValueAtPath, updateValueAtPath, getDefaultValueForType],
+    )
+
+    // State for new property name input
+    const [newPropertyName, setNewPropertyName] = useState("")
+    const [newPropertyType, setNewPropertyType] = useState<PropertyType>("string")
+    const [showAddProperty, setShowAddProperty] = useState(false)
+
     // Determine field mode automatically: JSON objects render in raw mode, everything else in text
     const getFieldModeForValue = useCallback((value: string): FieldMode => {
         return canShowTextMode(value) ? "text" : "raw"
@@ -398,47 +485,142 @@ const TestcaseEditDrawerContent = forwardRef<
                 {editMode === "fields" ? (
                     // Fields mode - path-based navigation
                     <div className="flex flex-col gap-4">
-                        {/* Breadcrumb navigation - always visible and sticky */}
-                        <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md sticky top-0 z-10">
-                            {/* Always render button to prevent layout shift, but make it invisible/disabled at root */}
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={<ArrowLeft size={14} />}
-                                onClick={navigateBack}
-                                className={`!px-2 ${currentPath.length === 0 ? "invisible" : ""}`}
-                                disabled={currentPath.length === 0}
-                            />
-                            <div className="flex items-center gap-1 text-sm text-gray-600 overflow-x-auto">
-                                <button
-                                    type="button"
-                                    onClick={() => navigateToIndex(0)}
-                                    className={`bg-transparent border-none p-0 ${
-                                        currentPath.length === 0
-                                            ? "text-gray-900 font-medium cursor-default"
-                                            : "hover:text-blue-600 cursor-pointer"
-                                    }`}
+                        {/* Breadcrumb navigation and add property - always visible and sticky */}
+                        <div className="flex flex-col gap-2 px-3 py-2 bg-gray-50 rounded-md sticky top-0 z-10">
+                            {/* Breadcrumb row */}
+                            <div className="flex items-center gap-2">
+                                {/* Always render button to prevent layout shift, but make it invisible/disabled at root */}
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<ArrowLeft size={14} />}
+                                    onClick={navigateBack}
+                                    className={`!px-2 ${currentPath.length === 0 ? "invisible" : ""}`}
+                                    disabled={currentPath.length === 0}
+                                />
+                                <div className="flex items-center gap-1 text-sm text-gray-600 overflow-x-auto">
+                                    <button
+                                        type="button"
+                                        onClick={() => navigateToIndex(0)}
+                                        className={`bg-transparent border-none p-0 ${
+                                            currentPath.length === 0
+                                                ? "text-gray-900 font-medium cursor-default"
+                                                : "hover:text-blue-600 cursor-pointer"
+                                        }`}
+                                    >
+                                        Root
+                                    </button>
+                                    {currentPath.map((segment, index) => (
+                                        <span key={index} className="flex items-center gap-1">
+                                            <ChevronRight size={12} className="text-gray-400" />
+                                            <button
+                                                type="button"
+                                                onClick={() => navigateToIndex(index + 1)}
+                                                className={`bg-transparent border-none p-0 ${
+                                                    index === currentPath.length - 1
+                                                        ? "text-gray-900 font-medium"
+                                                        : "hover:text-blue-600 cursor-pointer"
+                                                }`}
+                                            >
+                                                {/^\d+$/.test(segment)
+                                                    ? `Item ${parseInt(segment) + 1}`
+                                                    : segment}
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                                {/* Add item/property buttons when inside an array or object */}
+                                {currentPathDataType === "array" && (
+                                    <Tooltip title="Add item">
+                                        <Button
+                                            type="text"
+                                            size="small"
+                                            icon={<Plus size={14} />}
+                                            onClick={addArrayItem}
+                                            className="!px-2 ml-auto"
+                                        />
+                                    </Tooltip>
+                                )}
+                                {currentPathDataType === "object" && !showAddProperty && (
+                                    <Tooltip title="Add property">
+                                        <Button
+                                            type="text"
+                                            size="small"
+                                            icon={<Plus size={14} />}
+                                            onClick={() => setShowAddProperty(true)}
+                                            className="!px-2 ml-auto"
+                                        />
+                                    </Tooltip>
+                                )}
+                            </div>
+
+                            {/* Add property input row - inside sticky section with transition */}
+                            <div
+                                className={`flex items-center gap-2 px-2 bg-blue-50 rounded-md border border-blue-200 overflow-hidden transition-all duration-200 ease-in-out ${
+                                    showAddProperty && currentPathDataType === "object"
+                                        ? "max-h-20 py-2 opacity-100"
+                                        : "max-h-0 py-0 opacity-0 border-transparent"
+                                }`}
+                            >
+                                <Input
+                                    value={newPropertyName}
+                                    onChange={(e) => setNewPropertyName(e.target.value)}
+                                    placeholder="Property name"
+                                    size="middle"
+                                    className="flex-1"
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" && newPropertyName.trim()) {
+                                            addObjectProperty(
+                                                newPropertyName.trim(),
+                                                newPropertyType,
+                                            )
+                                            setNewPropertyName("")
+                                            setNewPropertyType("string")
+                                            setShowAddProperty(false)
+                                        } else if (e.key === "Escape") {
+                                            setNewPropertyName("")
+                                            setNewPropertyType("string")
+                                            setShowAddProperty(false)
+                                        }
+                                    }}
+                                />
+                                <Select
+                                    value={newPropertyType}
+                                    onChange={(value) => setNewPropertyType(value)}
+                                    size="middle"
+                                    style={{width: 110}}
+                                    options={propertyTypeOptions}
+                                />
+                                <Button
+                                    type="primary"
+                                    size="middle"
+                                    onClick={() => {
+                                        if (newPropertyName.trim()) {
+                                            addObjectProperty(
+                                                newPropertyName.trim(),
+                                                newPropertyType,
+                                            )
+                                            setNewPropertyName("")
+                                            setNewPropertyType("string")
+                                            setShowAddProperty(false)
+                                        }
+                                    }}
+                                    disabled={!newPropertyName.trim()}
                                 >
-                                    Root
-                                </button>
-                                {currentPath.map((segment, index) => (
-                                    <span key={index} className="flex items-center gap-1">
-                                        <ChevronRight size={12} className="text-gray-400" />
-                                        <button
-                                            type="button"
-                                            onClick={() => navigateToIndex(index + 1)}
-                                            className={`bg-transparent border-none p-0 ${
-                                                index === currentPath.length - 1
-                                                    ? "text-gray-900 font-medium"
-                                                    : "hover:text-blue-600 cursor-pointer"
-                                            }`}
-                                        >
-                                            {/^\d+$/.test(segment)
-                                                ? `Item ${parseInt(segment) + 1}`
-                                                : segment}
-                                        </button>
-                                    </span>
-                                ))}
+                                    Add
+                                </Button>
+                                <Button
+                                    type="text"
+                                    size="middle"
+                                    onClick={() => {
+                                        setNewPropertyName("")
+                                        setNewPropertyType("string")
+                                        setShowAddProperty(false)
+                                    }}
+                                >
+                                    Cancel
+                                </Button>
                             </div>
                         </div>
 

@@ -130,6 +130,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                       selectedRowKeys: showRowIndex ? [] : selectedRowKeys,
                       onChange: showRowIndex ? undefined : onSelectedRowKeysChange,
                       columnWidth: 48,
+                      fixed: "left" as const,
                       columnTitle: showRowIndex ? (
                           <span className="text-xs text-gray-500">#</span>
                       ) : undefined,
