@@ -161,6 +161,7 @@ const SharedEditor = ({
                     disabled={disabled}
                     showBorder={false}
                     id={editorId}
+                    noProvider={noProvider}
                     {...editorProps}
                 />
             )}

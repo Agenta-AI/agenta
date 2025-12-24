@@ -3,7 +3,7 @@
  */
 
 // Maximum depth for recursive field expansion
-export const MAX_NESTED_DEPTH = 5
+export const MAX_NESTED_DEPTH = 20
 
 /**
  * Try to parse a value as a plain object (not array)

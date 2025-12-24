@@ -6,7 +6,7 @@ import {JSSTheme} from "@/oss/lib/Types"
 export const useTreeStyles = createUseStyles((theme: JSSTheme) => ({
     treeNode: {
         position: "relative",
-        paddingLeft: 16,
+        paddingLeft: 12,
         paddingTop: 8,
         "&::before": {
             content: "''",

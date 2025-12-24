@@ -117,6 +117,26 @@ const TestcaseFieldRenderer = memo(
             [onFieldChange],
         )
 
+        // Delete a nested property from an object
+        const deleteNestedProperty = useCallback(
+            (propertyKey: string) => {
+                const obj = tryParseAsObject(value) || {}
+                const {[propertyKey]: _, ...rest} = obj
+                onFieldChange(JSON.stringify(rest))
+            },
+            [value, onFieldChange],
+        )
+
+        // Delete an array item by index
+        const deleteArrayItem = useCallback(
+            (index: number) => {
+                const arr = tryParseAsArray(value) || []
+                const updatedArr = arr.filter((_, i) => i !== index)
+                onFieldChange(JSON.stringify(updatedArr))
+            },
+            [value, onFieldChange],
+        )
+
         // Raw mode: always show JSON editor with exact data
         if (fieldMode === "raw") {
             return (
@@ -153,6 +173,7 @@ const TestcaseFieldRenderer = memo(
                                     fieldName={nestedKey}
                                     value={nestedValue}
                                     onChange={(newVal) => onNestedFieldChange(nestedKey, newVal)}
+                                    onDelete={() => deleteNestedProperty(nestedKey)}
                                     depth={1}
                                     isLast={index === keys.length - 1}
                                 />
@@ -175,6 +196,7 @@ const TestcaseFieldRenderer = memo(
                                     fieldName={`Item ${index + 1}`}
                                     value={itemValue}
                                     onChange={(newVal) => onArrayItemChange(index, newVal)}
+                                    onDelete={() => deleteArrayItem(index)}
                                     depth={1}
                                     isLast={index === arr.length - 1}
                                 />
