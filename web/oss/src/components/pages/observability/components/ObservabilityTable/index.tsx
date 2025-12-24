@@ -5,10 +5,8 @@ import {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {
-    openTraceDrawerAtom,
-    setTraceDrawerActiveSpanAtom,
-} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+import PageLayout from "@/oss/components/Layout/PageLayout"
+import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
@@ -68,7 +66,6 @@ const ObservabilityTable = () => {
         isFetchingMore,
     } = useObservability()
     const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
-    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const annotationEvaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
 
     const [traceParamValue, setTraceParam] = useQueryParamState("trace")

@@ -1,14 +1,13 @@
-import {useAtom} from "jotai"
 import {useEffect, useMemo} from "react"
 
 import {Chats, TreeStructure} from "@phosphor-icons/react"
 import {Tabs, Typography} from "antd"
+import {useAtom} from "jotai"
 
 import {useQueryParamState} from "@/oss/state/appState"
 import {observabilityTabAtom} from "@/oss/state/newObservability/atoms/controls"
 
 import ObservabilityTable from "./components/ObservabilityTable"
-
 import SessionsTable from "./components/SessionsTable"
 
 const ObservabilityTabs = () => {

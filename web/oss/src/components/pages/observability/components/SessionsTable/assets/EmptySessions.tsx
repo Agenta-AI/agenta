@@ -1,9 +1,9 @@
 import {MessageOutlined} from "@ant-design/icons"
+import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
 import {filtersAtom, sortAtom} from "@/oss/state/newObservability/atoms/controls"
-import { Typography } from "antd"
 
 const EmptySessions = () => {
     const filters = useAtomValue(filtersAtom)

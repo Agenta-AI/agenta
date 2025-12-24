@@ -80,25 +80,27 @@ const SessionMessagePanel = ({
                             <div className="w-full flex gap-2">
                                 <div className="w-full flex flex-col gap-2 p-4">
                                     <div className="flex flex-col gap-2">
-                                        {(incomingValue as any[])?.map((val: any) => {
-                                            return (
-                                                <div ref={editorRef}>
-                                                    <SimpleSharedEditor
-                                                        headerName={val.role}
-                                                        initialValue={val.content as string}
-                                                        className="bg-[#0517290A] !w-[96%]"
-                                                        headerClassName={
-                                                            val.role === "exception"
-                                                                ? "capitalize text-red-500"
-                                                                : "capitalize"
-                                                        }
-                                                        editorType="borderless"
-                                                        readOnly
-                                                        noProvider
-                                                    />
-                                                </div>
-                                            )
-                                        })}
+                                        {(incomingValue as any[])?.map(
+                                            (val: any, index: number) => {
+                                                return (
+                                                    <div ref={editorRef} key={val.id || index}>
+                                                        <SimpleSharedEditor
+                                                            headerName={val.role}
+                                                            initialValue={val.content as string}
+                                                            className="bg-[#0517290A] !w-[96%]"
+                                                            headerClassName={
+                                                                val.role === "exception"
+                                                                    ? "capitalize text-red-500"
+                                                                    : "capitalize"
+                                                            }
+                                                            editorType="borderless"
+                                                            readOnly
+                                                            noProvider
+                                                        />
+                                                    </div>
+                                                )
+                                            },
+                                        )}
                                     </div>
 
                                     <SharedGenerationResultUtils traceId={trace?.trace_id} />

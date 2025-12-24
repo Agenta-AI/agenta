@@ -4,12 +4,12 @@ import {useMemo} from "react"
 import {Card, Space, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {Environment} from "@/oss/lib/Types"
 import {deployedRevisionByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
 import {useDeploymentCardStyles} from "./styles"
-import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 
 type DeploymentCardProps = {
     env: Environment

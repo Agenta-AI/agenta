@@ -5,12 +5,10 @@ import {atomWithStorage} from "jotai/vanilla/utils"
 
 import {createInfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable"
 import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
-
+import {SessionRow} from "@/oss/components/pages/observability/components/SessionsTable/assets/getSessionColumns"
 import {fetchSessions} from "@/oss/services/tracing/api"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {projectIdAtom} from "@/oss/state/project"
-
-import {SessionRow} from "@/oss/components/pages/observability/components/SessionsTable/assets/getSessionColumns"
 
 // Types
 export interface SessionsTableMeta {

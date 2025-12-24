@@ -17,7 +17,6 @@ import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
 import {useObservability} from "@/oss/state/newObservability"
-import {sessionsLoadingAtom} from "@/oss/state/newObservability/atoms/queries"
 import {
     getAgData,
     getAgDataInputs,
@@ -48,8 +47,6 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
         filters,
         setFilters,
         setSort,
-        fetchTraces,
-        fetchAnnotations,
         selectedRowKeys,
         setTestsetDrawerData,
         setEditColumns,

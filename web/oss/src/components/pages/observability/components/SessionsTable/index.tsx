@@ -4,11 +4,11 @@ import {Button, Spin} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
+import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
 import {useSessions} from "@/oss/state/newObservability/hooks/useSessions"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 
-import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
-import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
 import EmptySessions from "./assets/EmptySessions"
 import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
 
@@ -17,14 +17,8 @@ const ObservabilityHeader = dynamic(() => import("../../components/Observability
 })
 
 const SessionsTable: React.FC = () => {
-    const {
-        sessionIds,
-        isLoading,
-        fetchMoreSessions,
-        hasMoreSessions,
-        isFetchingMore,
-        sessionCount,
-    } = useSessions()
+    const {isLoading, sessionIds, fetchMoreSessions, hasMoreSessions, isFetchingMore} =
+        useSessions()
 
     const openDrawer = useSetAtom(openSessionDrawerWithUrlAtom)
 

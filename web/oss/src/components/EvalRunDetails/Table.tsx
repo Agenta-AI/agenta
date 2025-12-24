@@ -4,6 +4,7 @@ import {useAtomValue, useStore} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
+import ScenarioColumnVisibilityPopoverContent from "@/oss/components/EvalRunDetails/components/columnVisibility/ColumnVisibilityPopoverContent"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
@@ -29,7 +30,6 @@ import {
 import {resolveScenarioColumnValue} from "./export/columnResolvers"
 import {buildGroupMap, resolveScenarioColumnLabel} from "./export/labelResolvers"
 import type {ScenarioColumnExportMetadata} from "./export/types"
-
 import {buildExportMetadata} from "./export/types"
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"

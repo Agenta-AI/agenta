@@ -1,8 +1,8 @@
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
+import {atomFamily, selectAtom} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
 import {atomWithInfiniteQuery, atomWithQuery} from "jotai-tanstack-query"
-import {atomFamily, selectAtom} from "jotai/utils"
 
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
@@ -332,7 +332,6 @@ export const filteredSessionIdsAtom = atom((get) => {
 // Session Spans ---------------------------------------------------------------
 export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
     const appId = get(selectedAppIdAtom)
-    const sort = get(sortAtomFamily("sessions"))
     const filters = get(userFiltersAtomFamily("sessions"))
     const traceTabs = get(traceTabsAtomFamily("sessions"))
     const projectId = get(projectIdAtom)
