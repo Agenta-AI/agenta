@@ -5,11 +5,15 @@ import {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import PageLayout from "@/oss/components/Layout/PageLayout"
+import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
+import PageLayout from "@/oss/components/PageLayout/PageLayout"
+import ResizableTitle from "@/oss/components/ResizableTitle"
 import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
+
+import {getObservabilityColumns} from "../../assets/getObservabilityColumns"
 
 const EmptyObservability = dynamic(() => import("../EmptyObservability"), {ssr: false})
 const TestsetDrawer = dynamic(
@@ -182,7 +186,7 @@ const ObservabilityTable = () => {
     return (
         <PageLayout title={"Observability"}>
             <div className="flex flex-col gap-2">
-                <ObservabilityHeader columns={columns} />
+                <ObservabilityHeader columns={columns} componentType="traces" />
 
                 <div className="flex flex-col gap-2">
                     <Table
