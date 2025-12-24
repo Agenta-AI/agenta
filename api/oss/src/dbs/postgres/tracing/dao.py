@@ -1156,9 +1156,9 @@ class TracingDAO(TracingDAOInterface):
             # Select session IDs from JSONB
             stmt = (
                 select(
-                    SpanDBE.attributes["ag"]["session"]["id"].as_string().label(
-                        "session_id"
-                    ),
+                    SpanDBE.attributes["ag"]["session"]["id"]
+                    .as_string()
+                    .label("session_id"),
                     func.max(SpanDBE.start_time).label("last_active"),
                 )
                 .filter(SpanDBE.project_id == project_id)
