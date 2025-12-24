@@ -170,13 +170,10 @@ export function parseMessages(value: string): SimpleChatMessage[] {
 }
 
 // Data types detected from cell content
-export type DataType = "string" | "messages" | "json-object"
+export type DataType = "string" | "messages" | "json-object" | "json-array" | "boolean" | "number"
 
 /**
- * Detect the data type of a cell value
- * Returns: "string" (can show in text mode), "messages" (can show beautified or raw), "json-object" (raw only)
- * Note: Only arrays of messages are treated as "messages" type. Single message objects are treated as
- * "json-object" so all properties (including provider_specific_fields, annotations, etc.) are visible.
+ * Detect the data type of a field value
  */
 export function detectDataType(value: string): DataType {
     // Empty or whitespace-only is treated as string
@@ -188,20 +185,26 @@ export function detectDataType(value: string): DataType {
         // If it parses to a string, the underlying data is a string
         if (typeof parsed === "string") return "string"
 
+        // Check for boolean type
+        if (typeof parsed === "boolean") return "boolean"
+
+        // Check for number type
+        if (typeof parsed === "number") return "number"
+
         // Check if it's messages format - only arrays of messages, not single objects
         if (Array.isArray(parsed)) {
             if (parsed.length > 0 && parsed.every(isChatMessageObject)) {
                 return "messages"
             }
-            // Non-message array is a JSON object
-            return "json-object"
+            // Non-message array is a json-array
+            return "json-array"
         }
 
         // Single message objects are treated as json-object to show all properties
         // (provider_specific_fields, annotations, etc.)
         if (typeof parsed === "object" && parsed !== null) return "json-object"
 
-        // Primitives (number, boolean, null) - treat as string for display
+        // null - treat as string for display
         return "string"
     } catch {
         // Not valid JSON - it's a plain string

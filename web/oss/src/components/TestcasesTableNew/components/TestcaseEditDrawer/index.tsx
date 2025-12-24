@@ -11,7 +11,7 @@ import {
     Plus,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Input, Select, Tooltip, Typography} from "antd"
+import {Button, Input, InputNumber, Select, Switch, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ChatMessageList} from "@/oss/components/ChatMessageEditor"
@@ -36,6 +36,7 @@ import {
     parseMessages,
     getTextModeValue,
     textModeToStorageValue,
+    type DataType,
 } from "./fieldUtils"
 import TestcaseFieldRenderer, {FieldMode} from "./TestcaseFieldRenderer"
 
@@ -429,6 +430,24 @@ const TestcaseEditDrawerContent = forwardRef<
         }
     }, [])
 
+    // Map PropertyType to DataType
+    const propertyTypeToDataType = useCallback((propType: PropertyType): DataType => {
+        switch (propType) {
+            case "string":
+                return "string"
+            case "number":
+                return "number"
+            case "boolean":
+                return "boolean"
+            case "object":
+                return "json-object"
+            case "array":
+                return "json-array"
+            default:
+                return "string"
+        }
+    }, [])
+
     // Add new property to object at current path
     const addObjectProperty = useCallback(
         (propertyName: string, propertyType: PropertyType) => {
@@ -442,18 +461,35 @@ const TestcaseEditDrawerContent = forwardRef<
                     const defaultValue = getDefaultValueForType(propertyType)
                     const updated = {...parsed, [propertyName]: defaultValue}
                     updateValueAtPath(currentPath, JSON.stringify(updated, null, 2))
+
+                    // Lock the type for this new property so UI doesn't switch
+                    const newFieldPath = [...currentPath, propertyName].join(".")
+                    setLockedFieldTypes((prev) => ({
+                        ...prev,
+                        [newFieldPath]: propertyTypeToDataType(propertyType),
+                    }))
                 }
             } catch {
                 // Not valid JSON
             }
         },
-        [currentPath, getValueAtPath, updateValueAtPath, getDefaultValueForType],
+        [
+            currentPath,
+            getValueAtPath,
+            updateValueAtPath,
+            getDefaultValueForType,
+            propertyTypeToDataType,
+        ],
     )
 
     // State for new property name input
     const [newPropertyName, setNewPropertyName] = useState("")
     const [newPropertyType, setNewPropertyType] = useState<PropertyType>("string")
     const [showAddProperty, setShowAddProperty] = useState(false)
+
+    // Track locked types for fields (to prevent UI switching when content changes)
+    // Key is the full path string, value is the locked DataType
+    const [lockedFieldTypes, setLockedFieldTypes] = useState<Record<string, DataType>>({})
 
     // Determine field mode automatically: JSON objects render in raw mode, everything else in text
     const getFieldModeForValue = useCallback((value: string): FieldMode => {
@@ -629,8 +665,10 @@ const TestcaseEditDrawerContent = forwardRef<
                             <div className="text-gray-500 text-sm">No items to display</div>
                         )}
                         {currentLevelItems.map((item) => {
-                            const dataType = detectDataType(item.value)
                             const fieldKey = `${currentPath.join(".")}.${item.key}`
+                            // Use locked type if available, otherwise detect from value
+                            const dataType =
+                                lockedFieldTypes[fieldKey] ?? detectDataType(item.value)
                             const isRawMode = rawModeFields[fieldKey] ?? false
                             // If raw mode is enabled, force "raw" mode; otherwise use auto-detection
                             const fieldMode: FieldMode = isRawMode
@@ -642,11 +680,14 @@ const TestcaseEditDrawerContent = forwardRef<
                             const expandable = isExpandable(item.value)
                             const itemCount = getItemCount(item.value)
                             const fullPath = [...currentPath, item.key]
-                            // Show raw toggle for all JSON data types (string with JSON, messages, json-object)
+                            // Show raw toggle for all data types that have type-specific UI
                             const canToggleRaw =
                                 dataType === "string" ||
                                 dataType === "messages" ||
-                                dataType === "json-object"
+                                dataType === "json-object" ||
+                                dataType === "json-array" ||
+                                dataType === "boolean" ||
+                                dataType === "number"
 
                             return (
                                 <div key={item.key} className="flex flex-col gap-2">
@@ -800,18 +841,12 @@ const TestcaseEditDrawerContent = forwardRef<
                                                     }
                                                 />
                                             ) : isRawMode ? (
-                                                // Raw mode - show the stringified version (how it's stored in DB)
+                                                // Raw mode - show the actual JSON value (item.value is already JSON string)
                                                 <SharedEditor
                                                     key={`${fullPath.join("-")}-raw-editor-${isRawMode}`}
-                                                    initialValue={JSON.stringify(item.value)}
+                                                    initialValue={item.value}
                                                     handleChange={(value) => {
-                                                        try {
-                                                            // Parse the outer string to get the actual value
-                                                            const parsed = JSON.parse(value)
-                                                            updateValueAtPath(fullPath, parsed)
-                                                        } catch {
-                                                            // Invalid JSON string, ignore
-                                                        }
+                                                        updateValueAtPath(fullPath, value)
                                                     }}
                                                     editorType="border"
                                                     className="min-h-[60px] overflow-hidden"
@@ -822,6 +857,94 @@ const TestcaseEditDrawerContent = forwardRef<
                                                         showLineNumbers: true,
                                                     }}
                                                 />
+                                            ) : dataType === "boolean" ? (
+                                                <div className="flex items-center gap-3 py-2">
+                                                    <Switch
+                                                        checked={JSON.parse(item.value) === true}
+                                                        onChange={(checked) =>
+                                                            updateValueAtPath(
+                                                                fullPath,
+                                                                JSON.stringify(checked),
+                                                            )
+                                                        }
+                                                    />
+                                                    <span className="text-sm text-gray-600">
+                                                        {JSON.parse(item.value) ? "true" : "false"}
+                                                    </span>
+                                                </div>
+                                            ) : dataType === "number" ? (
+                                                <InputNumber
+                                                    value={JSON.parse(item.value)}
+                                                    onChange={(value) =>
+                                                        updateValueAtPath(
+                                                            fullPath,
+                                                            JSON.stringify(value ?? 0),
+                                                        )
+                                                    }
+                                                    className="w-full"
+                                                    size="middle"
+                                                />
+                                            ) : dataType === "json-array" ? (
+                                                (() => {
+                                                    const arrayItems: unknown[] = JSON.parse(
+                                                        item.value,
+                                                    )
+                                                    return (
+                                                        <div className="flex flex-col gap-2">
+                                                            <Select
+                                                                mode="multiple"
+                                                                allowClear
+                                                                placeholder="Select items to view/edit"
+                                                                className="w-full"
+                                                                size="middle"
+                                                                value={[]}
+                                                                options={arrayItems.map(
+                                                                    (arrItem, idx) => ({
+                                                                        value: idx,
+                                                                        label: `Item ${idx + 1}: ${
+                                                                            typeof arrItem ===
+                                                                            "string"
+                                                                                ? arrItem.substring(
+                                                                                      0,
+                                                                                      50,
+                                                                                  ) +
+                                                                                  (arrItem.length >
+                                                                                  50
+                                                                                      ? "..."
+                                                                                      : "")
+                                                                                : typeof arrItem ===
+                                                                                    "object"
+                                                                                  ? JSON.stringify(
+                                                                                        arrItem,
+                                                                                    ).substring(
+                                                                                        0,
+                                                                                        50,
+                                                                                    ) + "..."
+                                                                                  : String(arrItem)
+                                                                        }`,
+                                                                    }),
+                                                                )}
+                                                                onSelect={(idx: number) =>
+                                                                    navigateInto(String(idx))
+                                                                }
+                                                                dropdownRender={(menu) => (
+                                                                    <div>
+                                                                        <div className="px-2 py-1 text-xs text-gray-500 border-b">
+                                                                            Click an item to drill
+                                                                            in
+                                                                        </div>
+                                                                        {menu}
+                                                                    </div>
+                                                                )}
+                                                            />
+                                                            <div className="text-xs text-gray-500">
+                                                                {arrayItems.length} items • Use
+                                                                &quot;Drill In&quot; or select an
+                                                                item above to edit
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })()
                                             ) : dataType === "messages" ? (
                                                 <ChatMessageList
                                                     messages={parseMessages(item.value)}
