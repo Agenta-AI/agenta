@@ -66,8 +66,10 @@ export type SchemaProperty =
 export type ObjectSchema = Extract<SchemaProperty, {type: "object"}>
 
 // Convenience interfaces that extend from the union type
-export interface PrimitiveSchema
-    extends Extract<SchemaProperty, {type: Exclude<SchemaType, "object" | "array" | "compound">}> {}
+export interface PrimitiveSchema extends Extract<
+    SchemaProperty,
+    {type: Exclude<SchemaType, "object" | "array" | "compound">}
+> {}
 export interface ArraySchema extends Extract<SchemaProperty, {type: "array"}> {}
 export interface AnyOfSchema extends Extract<SchemaProperty, {anyOf: SchemaProperty[]}> {}
 
