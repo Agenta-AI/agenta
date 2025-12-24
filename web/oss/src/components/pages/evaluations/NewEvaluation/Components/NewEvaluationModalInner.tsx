@@ -209,12 +209,11 @@ const NewEvaluationModalInner = ({
 
     // Memoised base (deterministic) part of generated name (without random suffix)
     const generatedNameBase = useMemo(() => {
-        if (!selectedVariantRevisionIds.length || !selectedTestsetId) return ""
+        if (!selectedVariantRevisionIds.length || !selectedTestsetName) return ""
         const variant = filteredVariants?.find((v) => selectedVariantRevisionIds.includes(v.id))
-        const testset = testsets?.find((ts) => ts._id === selectedTestsetId)
-        if (!variant || !testset) return ""
-        return `${variant.variantName}-v${variant.revision}-${testset.name}`
-    }, [selectedVariantRevisionIds, selectedTestsetId, filteredVariants, testsets])
+        if (!variant) return ""
+        return `${variant.variantName}-v${variant.revision}-${selectedTestsetName}`
+    }, [selectedVariantRevisionIds, selectedTestsetName, filteredVariants])
 
     // Auto-generate / update evaluation name intelligently to avoid loops
     const lastAutoNameRef = useRef<string>("")
