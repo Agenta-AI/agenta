@@ -9,8 +9,10 @@ import ColumnVisibilityPopoverContent, {
     type ColumnVisibilityPopoverContentProps,
 } from "./ColumnVisibilityPopoverContent"
 
-interface ColumnVisibilityMenuTriggerProps<RowType extends object>
-    extends Omit<ColumnVisibilityPopoverContentProps<RowType>, "onClose"> {
+interface ColumnVisibilityMenuTriggerProps<RowType extends object> extends Omit<
+    ColumnVisibilityPopoverContentProps<RowType>,
+    "onClose"
+> {
     variant?: "icon" | "button"
     label?: string
     controls?: ColumnVisibilityState<RowType>

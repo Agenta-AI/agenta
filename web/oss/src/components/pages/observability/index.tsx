@@ -7,9 +7,10 @@ import {useAtom} from "jotai"
 import {useQueryParamState} from "@/oss/state/appState"
 import {observabilityTabAtom} from "@/oss/state/newObservability/atoms/controls"
 
+import PageLayout from "../../PageLayout/PageLayout"
+
 import ObservabilityTable from "./components/ObservabilityTable"
 import SessionsTable from "./components/SessionsTable"
-import PageLayout from "../../PageLayout/PageLayout"
 
 const ObservabilityTabs = () => {
     const [tabParam, setTabParam] = useQueryParamState("tab", "traces")

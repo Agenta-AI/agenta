@@ -185,96 +185,96 @@ const ObservabilityTable = () => {
     }, [columns, editColumns])
 
     return (
+        <div className="flex flex-col gap-2">
+            <ObservabilityHeader columns={columns} componentType="traces" />
+
             <div className="flex flex-col gap-2">
-                <ObservabilityHeader columns={columns} componentType="traces" />
+                <Table
+                    rowSelection={{
+                        type: "checkbox",
+                        columnWidth: 48,
+                        selectedRowKeys,
+                        ...rowSelection,
+                    }}
+                    loading={showTableLoading}
+                    columns={mergedColumns as TableColumnType<TraceSpanNode>[]}
+                    dataSource={traces}
+                    bordered
+                    style={{cursor: "pointer"}}
+                    sticky={{
+                        offsetHeader: 0,
+                        offsetScroll: 0,
+                    }}
+                    onRow={(record) => ({
+                        onClick: () => {
+                            setSelectedNode(record.span_id)
+                            const isSpanView = traceTabs === "span"
 
-                <div className="flex flex-col gap-2">
-                    <Table
-                        rowSelection={{
-                            type: "checkbox",
-                            columnWidth: 48,
-                            selectedRowKeys,
-                            ...rowSelection,
-                        }}
-                        loading={showTableLoading}
-                        columns={mergedColumns as TableColumnType<TraceSpanNode>[]}
-                        dataSource={traces}
-                        bordered
-                        style={{cursor: "pointer"}}
-                        sticky={{
-                            offsetHeader: 0,
-                            offsetScroll: 0,
-                        }}
-                        onRow={(record) => ({
-                            onClick: () => {
-                                setSelectedNode(record.span_id)
-                                const isSpanView = traceTabs === "span"
+                            const targetTraceId = String(
+                                record.trace_id ||
+                                    (record as any)?.invocationIds?.trace_id ||
+                                    (record as any)?.node?.trace_id ||
+                                    (record as any)?.root?.id ||
+                                    (record as any)?.traceId ||
+                                    (record as any)?.trace?.id ||
+                                    record.span_id ||
+                                    "",
+                            )
 
-                                const targetTraceId = String(
-                                    record.trace_id ||
-                                        (record as any)?.invocationIds?.trace_id ||
-                                        (record as any)?.node?.trace_id ||
-                                        (record as any)?.root?.id ||
-                                        (record as any)?.traceId ||
-                                        (record as any)?.trace?.id ||
-                                        record.span_id ||
-                                        "",
+                            const targetSpanId = isSpanView
+                                ? String(record.span_id || "")
+                                : String(record.span_id || "")
+
+                            if (!targetTraceId) {
+                                console.warn(
+                                    "TraceDrawer: unable to determine trace id for record",
+                                    record,
                                 )
+                                return
+                            }
 
-                                const targetSpanId = isSpanView
-                                    ? String(record.span_id || "")
-                                    : String(record.span_id || "")
-
-                                if (!targetTraceId) {
-                                    console.warn(
-                                        "TraceDrawer: unable to determine trace id for record",
-                                        record,
-                                    )
-                                    return
-                                }
-
-                                setSelectedTraceId(targetTraceId)
-                                setTraceDrawerActiveSpan(targetSpanId || null)
-                                setTraceParam(targetTraceId)
-                                if (targetSpanId) {
-                                    setSpanParam(targetSpanId)
-                                } else {
-                                    setSpanParam(undefined)
-                                }
-                            },
-                        })}
-                        components={{
-                            header: {
-                                cell: ResizableTitle,
-                            },
-                        }}
-                        pagination={false}
-                        scroll={{x: "max-content"}}
-                        locale={{
-                            emptyText: <EmptyObservability />,
-                        }}
-                    />
-                    {hasMoreTraces && (
-                        <Button
-                            onClick={handleLoadMore}
-                            disabled={isFetchingMore}
-                            type="text"
-                            size="large"
-                        >
-                            {isFetchingMore ? "Loading…" : "Click here to load more"}
-                        </Button>
-                    )}
-                </div>
-
-                <TestsetDrawer
-                    open={testsetDrawerData.length > 0}
-                    data={testsetDrawerData}
-                    onClose={() => {
-                        setTestsetDrawerData([])
-                        setSelectedRowKeys([])
+                            setSelectedTraceId(targetTraceId)
+                            setTraceDrawerActiveSpan(targetSpanId || null)
+                            setTraceParam(targetTraceId)
+                            if (targetSpanId) {
+                                setSpanParam(targetSpanId)
+                            } else {
+                                setSpanParam(undefined)
+                            }
+                        },
+                    })}
+                    components={{
+                        header: {
+                            cell: ResizableTitle,
+                        },
+                    }}
+                    pagination={false}
+                    scroll={{x: "max-content"}}
+                    locale={{
+                        emptyText: <EmptyObservability />,
                     }}
                 />
+                {hasMoreTraces && (
+                    <Button
+                        onClick={handleLoadMore}
+                        disabled={isFetchingMore}
+                        type="text"
+                        size="large"
+                    >
+                        {isFetchingMore ? "Loading…" : "Click here to load more"}
+                    </Button>
+                )}
             </div>
+
+            <TestsetDrawer
+                open={testsetDrawerData.length > 0}
+                data={testsetDrawerData}
+                onClose={() => {
+                    setTestsetDrawerData([])
+                    setSelectedRowKeys([])
+                }}
+            />
+        </div>
     )
 }
 
