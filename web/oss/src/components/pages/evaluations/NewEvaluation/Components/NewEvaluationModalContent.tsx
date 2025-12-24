@@ -108,11 +108,6 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         [openEvaluatorDrawer, onSelectTemplate],
     )
 
-    const selectedTestset = useMemo(
-        () => testsets.find((ts) => ts._id === selectedTestsetId) || null,
-        [testsets, selectedTestsetId],
-    )
-
     const selectedVariants = useMemo(
         () => variants?.filter((v) => selectedVariantRevisionIds.includes(v.id)) || [],
         [variants, selectedVariantRevisionIds],
@@ -213,8 +208,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "testsetPanel",
                 label: (
-                    <TabLabel tabTitle="Testset" completed={Boolean(selectedTestsetLabel)}>
-                        {selectedTestsetLabel ? (
+                    <TabLabel tabTitle="Testset" completed={Boolean(selectedTestsetName)}>
+                        {selectedTestsetName ? (
                             <Tag
                                 closeIcon={<CloseCircleOutlined />}
                                 onClose={() => {
@@ -224,7 +219,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                                     setSelectedTestsetVersion(null)
                                 }}
                             >
-                                <span>{selectedTestsetLabel} -</span>
+                                <span>{selectedTestsetName} -</span>
                                 {typeof selectedTestsetVersion === "number" && (
                                     <span className="ml-1 text-xs text-gray-500">
                                         v{selectedTestsetVersion}
@@ -319,7 +314,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 : []),
         ]
     }, [
-        selectedTestsetLabel,
+        selectedTestsetName,
         selectedVariants,
         selectedEvalConfig,
         handlePanelChange,
