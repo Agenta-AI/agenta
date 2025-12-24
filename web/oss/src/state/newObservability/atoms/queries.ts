@@ -511,6 +511,7 @@ export const sessionUsageAtomFamily = atomFamily((sessionId: string) =>
             const attrs = trace.attributes || {}
             const tokens =
                 (attrs as any)?.ag?.metrics?.tokens?.incremental?.total ||
+                (attrs as any)?.ag?.metrics?.tokens?.cumulative?.total ||
                 (attrs["ag.usage.total_tokens"] as number) ||
                 (attrs["total_tokens"] as number) ||
                 0
@@ -526,8 +527,7 @@ export const sessionCostAtomFamily = atomFamily((sessionId: string) =>
             const attrs = trace.attributes || {}
             const cost =
                 (attrs as any)?.ag?.metrics?.costs?.incremental?.total ||
-                (attrs["ag.cost"] as number) ||
-                (attrs["cost"] as number) ||
+                (attrs as any)?.ag?.metrics?.costs?.cumulative?.total ||
                 0
             return acc + (Number(cost) || 0)
         }, 0)

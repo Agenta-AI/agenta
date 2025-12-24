@@ -34,12 +34,17 @@ const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns")
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
-const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps) => {
+const ObservabilityHeader = ({
+    columns,
+    componentType,
+    isLoading: propsLoading,
+    onRefresh,
+}: ObservabilityHeaderProps) => {
     const [isScrolled, setIsScrolled] = useState(false)
 
     const {
         traces,
-        isLoading,
+        isLoading: isTraceLoading,
         searchQuery,
         setSearchQuery,
         traceTabs,
@@ -50,9 +55,12 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
         selectedRowKeys,
         setTestsetDrawerData,
         setEditColumns,
+        fetchAnnotations,
+        fetchTraces,
     } = useObservability()
     const queryClient = useAtomValue(queryClientAtom)
 
+    const isLoading = propsLoading || isTraceLoading
     const attributeKeyOptions = useMemo(() => buildAttributeKeyTreeOptions(traces), [traces])
     const filterColumns = useMemo(
         () => getFilterColumns(attributeKeyOptions),
@@ -234,15 +242,9 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
 
     const handleRefresh = async () => {
         if (componentType === "sessions") {
-            await Promise.all([
-                queryClient.invalidateQueries({queryKey: ["sessions"]}),
-                queryClient.invalidateQueries({queryKey: ["session_spans"]}),
-            ])
+            await onRefresh?.()
         } else {
-            await Promise.all([
-                queryClient.invalidateQueries({queryKey: ["traces"]}),
-                queryClient.invalidateQueries({queryKey: ["annotations"]}),
-            ])
+            await Promise.all([fetchAnnotations(), fetchTraces()])
         }
     }
 

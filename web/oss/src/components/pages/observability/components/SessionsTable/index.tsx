@@ -17,8 +17,15 @@ const ObservabilityHeader = dynamic(() => import("../../components/Observability
 })
 
 const SessionsTable: React.FC = () => {
-    const {isLoading, sessionIds, fetchMoreSessions, hasMoreSessions, isFetchingMore} =
-        useSessions()
+    const {
+        isLoading,
+        sessionIds,
+        fetchMoreSessions,
+        hasMoreSessions,
+        isFetchingMore,
+        refetchSessions,
+        refetchSessionSpans,
+    } = useSessions()
 
     const openDrawer = useSetAtom(openSessionDrawerWithUrlAtom)
 
@@ -40,9 +47,18 @@ const SessionsTable: React.FC = () => {
 
     const loadingFirstPage = isLoading && sessionIds.length === 0
 
+    const handleRefresh = useCallback(async () => {
+        await Promise.all([refetchSessions(), refetchSessionSpans()])
+    }, [refetchSessions, refetchSessionSpans])
+
     return (
         <div className="flex flex-col gap-6">
-            <ObservabilityHeader columns={columns} componentType="sessions" />
+            <ObservabilityHeader
+                columns={columns}
+                componentType="sessions"
+                isLoading={isLoading}
+                onRefresh={handleRefresh}
+            />
 
             {sessionIds.length === 0 && !isLoading ? (
                 <EmptySessions />
