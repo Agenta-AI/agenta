@@ -97,12 +97,13 @@ export const buildTraceQueryParams = (
     filters: any[],
     sort: any,
     traceTabs: string,
-    limit: number,
+    limit?: number,
 ) => {
     const params: Record<string, any> = {
-        size: limit,
         focus: traceTabs === "chat" ? "span" : traceTabs,
     }
+
+    if (limit) params.size = limit
 
     let hasAnnotationConditions: Condition[] = []
     const isHasAnnotationSelected = filters.findIndex((f) => f.field === "has_annotation")

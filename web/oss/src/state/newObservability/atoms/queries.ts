@@ -340,7 +340,7 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
     const sessionIds = get(sessionIdsAtom)
 
     const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
-        buildTraceQueryParams(filters, undefined, traceTabs, limit)
+        buildTraceQueryParams(filters, undefined, traceTabs, undefined)
 
     const sessionExists = get(sessionExistsAtom)
 
