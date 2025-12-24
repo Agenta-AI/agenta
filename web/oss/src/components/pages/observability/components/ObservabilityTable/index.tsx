@@ -14,10 +14,10 @@ import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObs
 
 import {getObservabilityColumns} from "../../assets/getObservabilityColumns"
 
-const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
-const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})
+const ObservabilityHeader = dynamic(() => import("../ObservabilityHeader"), {ssr: false})
+const EmptyObservability = dynamic(() => import("../EmptyObservability"), {ssr: false})
 const TestsetDrawer = dynamic(
-    () => import("../../SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
+    () => import("../../../../SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
     {
         ssr: false,
     },
