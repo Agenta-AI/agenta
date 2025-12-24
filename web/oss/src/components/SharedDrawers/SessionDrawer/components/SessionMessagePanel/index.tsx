@@ -114,7 +114,10 @@ const SessionMessagePanel = ({
                             </div>
                         ),
                         extra: (
-                            <div className="flex items-center gap-2">
+                            <div
+                                className="flex items-center gap-2"
+                                onClick={(e) => e.stopPropagation()}
+                            >
                                 <AddToTestsetButton
                                     className="flex items-center"
                                     label="Add to testset"
