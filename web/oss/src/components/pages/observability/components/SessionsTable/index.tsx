@@ -61,7 +61,7 @@ const SessionsTable: React.FC = () => {
                         pagination={false}
                     />
 
-                    {hasMoreSessions && (
+                    {hasMoreSessions && !loadingFirstPage ? (
                         <div className="flex justify-center py-2">
                             <Button
                                 onClick={handleLoadMore}
@@ -79,7 +79,7 @@ const SessionsTable: React.FC = () => {
                                 )}
                             </Button>
                         </div>
-                    )}
+                    ) : null}
                 </div>
             )}
             <SessionDrawer />
