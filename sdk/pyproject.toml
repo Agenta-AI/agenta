@@ -28,7 +28,6 @@ python = "^3.11"
 # Core dependencies (always loaded)
 pydantic = "^2"
 httpx = "^0.28"
-pyyaml = "^6"
 toml = "^0.10"
 litellm = "^1"
 orjson = "^3"
