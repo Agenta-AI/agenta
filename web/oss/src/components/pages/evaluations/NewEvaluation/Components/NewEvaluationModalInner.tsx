@@ -394,6 +394,7 @@ const NewEvaluationModalInner = ({
                 try {
                     const response = await createEvaluation(targetAppId, {
                         testset_id: selectedTestsetId,
+                        testset_revision_id: selectedTestsetRevisionId,
                         revisions_ids: selectedVariantRevisionIds,
                         evaluators_configs: selectedEvalConfigs,
                         rate_limit: rateLimitValues,

@@ -99,6 +99,7 @@ export const fetchEvaluationStatus = async (evaluationId: string) => {
 export type CreateEvaluationData =
     | {
           testset_id: string
+          testset_revision_id?: string
           variant_ids?: string[]
           evaluators_configs: string[]
           rate_limit: LLMRunRateLimit
@@ -107,6 +108,7 @@ export type CreateEvaluationData =
       }
     | {
           testset_id: string
+          testset_revision_id?: string
           revisions_ids?: string[]
           evaluators_configs: string[]
           rate_limit: LLMRunRateLimit
