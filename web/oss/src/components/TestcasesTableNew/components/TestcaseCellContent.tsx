@@ -1,4 +1,4 @@
-import {memo, useCallback, useMemo, useState} from "react"
+import {memo, useCallback, useMemo} from "react"
 
 import {Copy} from "@phosphor-icons/react"
 import {Button, Popover, Typography} from "antd"
@@ -164,8 +164,41 @@ const JsonContent = memo(
 JsonContent.displayName = "JsonContent"
 
 /**
- * Popover wrapper for cell content with lazy rendering
- * Content is only rendered when popover is visible for better performance
+ * Popover content component - only rendered when popover is open
+ */
+const PopoverContent = memo(
+    ({fullContent, isJson}: {fullContent: React.ReactNode; isJson: boolean}) => {
+        const handleCopy = useCallback(() => {
+            const textToCopy = typeof fullContent === "string" ? fullContent : String(fullContent)
+            navigator.clipboard.writeText(textToCopy)
+            message.success("Copied to clipboard")
+        }, [fullContent])
+
+        return (
+            <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-end">
+                    <Button type="text" size="small" icon={<Copy size={14} />} onClick={handleCopy}>
+                        Copy
+                    </Button>
+                </div>
+                <div className="max-h-[350px] overflow-auto">
+                    {isJson ? (
+                        <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[#9d4edd]">
+                            {fullContent}
+                        </pre>
+                    ) : (
+                        <Text className="text-xs whitespace-pre-wrap">{fullContent}</Text>
+                    )}
+                </div>
+            </div>
+        )
+    },
+)
+PopoverContent.displayName = "PopoverContent"
+
+/**
+ * Popover wrapper for cell content
+ * Uses uncontrolled mode to avoid state updates during scroll
  */
 const CellContentPopover = memo(
     ({
@@ -177,46 +210,15 @@ const CellContentPopover = memo(
         fullContent: React.ReactNode
         isJson: boolean
     }) => {
-        const [isOpen, setIsOpen] = useState(false)
-
-        const handleCopy = useCallback(() => {
-            const textToCopy = typeof fullContent === "string" ? fullContent : String(fullContent)
-            navigator.clipboard.writeText(textToCopy)
-            message.success("Copied to clipboard")
-        }, [fullContent])
-
         return (
             <Popover
-                open={isOpen}
-                onOpenChange={setIsOpen}
                 trigger="hover"
-                mouseEnterDelay={0.3}
-                mouseLeaveDelay={0.1}
+                mouseEnterDelay={0.5}
+                mouseLeaveDelay={0.2}
+                destroyTooltipOnHide
                 overlayClassName="testcase-cell-popover"
                 overlayStyle={{maxWidth: 500, maxHeight: 400}}
-                content={
-                    <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex justify-end">
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={<Copy size={14} />}
-                                onClick={handleCopy}
-                            >
-                                Copy
-                            </Button>
-                        </div>
-                        <div className="max-h-[350px] overflow-auto">
-                            {isJson ? (
-                                <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[#9d4edd]">
-                                    {fullContent}
-                                </pre>
-                            ) : (
-                                <Text className="text-xs whitespace-pre-wrap">{fullContent}</Text>
-                            )}
-                        </div>
-                    </div>
-                }
+                content={<PopoverContent fullContent={fullContent} isJson={isJson} />}
             >
                 {children}
             </Popover>
