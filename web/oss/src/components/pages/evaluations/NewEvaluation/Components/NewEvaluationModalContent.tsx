@@ -341,7 +341,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
 
     return (
         <>
-            <div className="flex flex-col w-full gap-4 h-full overflow-hidden">
+            <div className="flex flex-col w-full gap-4 h-full max-h-full overflow-hidden [&_.ant-tabs]:!flex [&_.ant-tabs]:!w-full [&_.ant-tabs]:!grow [&_.ant-tabs]:!min-h-0">
                 <div className="flex flex-col gap-2">
                     <Typography.Text className="font-medium">Evaluation name</Typography.Text>
                     <Input
@@ -363,6 +363,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         classes.tabsContainer,
                         "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
                         "[&_.ant-tabs-nav]:!w-[240px]",
+                        "[&_.ant-tabs-content]:!h-full [&_.ant-tabs-content]:!w-full",
+                        "[&_.ant-tabs-tabpane]:!h-full [&_.ant-tabs-tabpane]:!max-h-full [&_.ant-tabs-tabpane]:!w-full",
                     ])}
                 />
             </div>
