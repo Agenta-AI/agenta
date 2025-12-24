@@ -54,7 +54,7 @@ const VariantDropdown = ({
                 },
             },
         ],
-        [record],
+        [handleDeleteVariant, handleDeploy, handleOpenDetails, handleOpenInPlayground, record],
     )
     return (
         <Dropdown trigger={["click"]} styles={{root: {width: 180}}} menu={{items}}>

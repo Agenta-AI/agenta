@@ -1,31 +1,43 @@
 // @ts-nocheck
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {SwapOutlined} from "@ant-design/icons"
-import {Rocket} from "@phosphor-icons/react"
-import {Button, Input, Radio, Space, Typography} from "antd"
+import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
+import {Button, Flex, Input, Radio, Space, Typography} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
+import PageLayout from "@/oss/components/PageLayout/PageLayout"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
+import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
+import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useQueryParamState} from "@/oss/state/appState"
+import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
 import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {selectedVariantsCountAtom} from "@/oss/state/variant/atoms/selection"
+import {
+    selectedVariantsCountAtom,
+    variantTableSelectionAtomFamily,
+} from "@/oss/state/variant/atoms/selection"
 import {
     modelNameByRevisionIdAtomFamily,
     revisionListAtom,
     variantDisplayNameByIdAtomFamily,
 } from "@/oss/state/variant/selectors/variant"
 
-import {useStyles} from "./assets/styles"
+import DeploymentsDashboard from "../DeploymentsDashboard"
+import {envRevisionsAtom} from "../DeploymentsDashboard/atoms"
+import {openDeploymentsDrawerAtom} from "../DeploymentsDashboard/modals/store/deploymentDrawerStore"
+import DeployVariantButton from "../Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
+
 import {
-    openComparisonModalAtom,
     comparisonSelectionScopeAtom,
+    openComparisonModalAtom,
 } from "./Modals/VariantComparisonModal/store/comparisonModalStore"
 import VariantsTable from "./Table"
 
@@ -34,14 +46,55 @@ import VariantsTable from "./Table"
 const VariantsDashboard = () => {
     const appId = useAppId()
     const router = useRouter()
-    const classes = useStyles()
     const [, setQueryVariant] = useQueryParamState("revisionId")
+    const [activeTab, setActiveTab] = useQueryParam("tab", "variants")
+    const [selectedEnv, setSelectedEnv] = useQueryParam("selectedEnvName", "development")
     const [displayMode, setDisplayMode] = useQueryParam("displayMode", "flat")
     const [searchTerm, setSearchTerm] = useState("")
     const {baseAppURL} = useURL()
     // Data: use all revisions list and map once to table rows (no slicing)
     const revisions = useAtomValue(revisionListAtom)
     const isVariantLoading = useAtomValue(variantsPendingAtom)
+    const {environments, isEnvironmentsLoading} = useEnvironments({appId})
+
+    const deploymentRevisionsAtom = useMemo(
+        () => deploymentRevisionsWithAppIdQueryAtomFamily({appId, envName: selectedEnv ?? ""}),
+        [appId, selectedEnv],
+    )
+    const {data: envRevisions} = useAtomValue(deploymentRevisionsAtom)
+    const setEnvRevisions = useSetAtom(envRevisionsAtom)
+    const openDeploymentsDrawer = useSetAtom(openDeploymentsDrawerAtom)
+    const selectionScope = "variants/dashboard"
+    const selectedRowKeys = useAtomValue(variantTableSelectionAtomFamily(selectionScope))
+    const selectedRevisionId = useMemo(() => {
+        const key = selectedRowKeys?.[0]
+        return key ? String(key) : undefined
+    }, [selectedRowKeys])
+
+    const registryHref = useMemo(() => {
+        if (!appId || !baseAppURL) return null
+        return `${baseAppURL}/${appId}/variants`
+    }, [appId, baseAppURL])
+
+    const tabBreadcrumbLabel = activeTab === "deployments" ? "Deployments" : "Variants"
+
+    useBreadcrumbsEffect(
+        {
+            breadcrumbs: {
+                appPage: {
+                    label: "Registry",
+                    ...(registryHref ? {href: registryHref} : {}),
+                },
+                appPageDetail: {label: tabBreadcrumbLabel},
+            },
+        },
+        [registryHref, tabBreadcrumbLabel],
+    )
+
+    useEffect(() => {
+        setEnvRevisions(envRevisions)
+    }, [envRevisions, setEnvRevisions])
+
     const baseRows = useMemo(() => {
         const store = getDefaultStore()
         return (revisions || []).map((r: any) => {
@@ -84,7 +137,7 @@ const VariantsDashboard = () => {
             const children = sorted.slice(1)
             groups.push({
                 ...latest,
-                _parentVariant: true,
+                _isParentRow: true,
                 children,
             })
         })
@@ -92,7 +145,6 @@ const VariantsDashboard = () => {
     }, [filteredRows, displayMode])
 
     // Selection/compare using global atoms with a stable scope
-    const selectionScope = "variants/dashboard"
     const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))
     const openComparisonModal = useSetAtom(openComparisonModalAtom)
     const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
@@ -132,74 +184,139 @@ const VariantsDashboard = () => {
         [setQueryVariant],
     )
 
-    return (
-        <>
-            <div className={classes.container}>
-                <Typography.Text className="text-[16px] font-medium">Variants</Typography.Text>
+    const tabItems = useMemo(
+        () => [
+            {
+                key: "variants",
+                label: (
+                    <span className="inline-flex items-center gap-2">
+                        <LightningIcon />
+                        Variants
+                    </span>
+                ),
+            },
+            {
+                key: "deployments",
+                label: (
+                    <span className="inline-flex items-center gap-2">
+                        <CloudArrowUpIcon />
+                        Deployments
+                    </span>
+                ),
+            },
+        ],
+        [],
+    )
+    const headerTabsProps = useMemo(
+        () => ({
+            items: tabItems,
+            activeKey: activeTab,
+            onChange: (key: string) => setActiveTab(key),
+        }),
+        [activeTab, setActiveTab, tabItems],
+    )
 
-                <Space orientation="vertical">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-1">
-                            <Input.Search
-                                placeholder="Search"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="md:max-w-[300px] lg:max-w-[400px] lg:w-[400px]"
-                                allowClear
-                            />
-                            <Radio.Group
-                                value={displayMode}
-                                onChange={(e) => setDisplayMode(e.target.value)}
-                                className="flex-shrink-0"
-                            >
-                                <Radio.Button value="grouped">Variants</Radio.Button>
-                                <Radio.Button value="flat">Revisions</Radio.Button>
-                            </Radio.Group>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            {selectedCount > 0 && (
-                                <Typography.Text type="secondary" className="flex-shrink-0">
-                                    {selectedCount} selected
-                                </Typography.Text>
-                            )}
-
-                            <Button
-                                type="link"
-                                disabled={selectedCount !== 2}
-                                icon={<SwapOutlined />}
-                                onClick={() => {
-                                    setComparisonSelectionScope(selectionScope)
-                                    openComparisonModal()
-                                }}
-                            >
-                                Compare
-                            </Button>
-
-                            <Button
-                                icon={<Rocket size={14} className="mt-[3px]" />}
-                                onMouseEnter={prefetchPlayground}
-                                onClick={() => handleNavigation()}
-                            >
-                                Playground
-                            </Button>
-                        </div>
-                    </div>
-
-                    <VariantsTable
-                        enableColumnResize
-                        showEnvBadges
-                        showStableName
-                        variants={tableRows}
-                        isLoading={isVariantLoading}
-                        selectionScope={selectionScope}
-                        onRowClick={handleOpenDetails}
-                        handleOpenDetails={handleOpenDetails}
-                        handleOpenInPlayground={(record) => handleNavigation(record)}
+    const variantContent = (
+        <Space direction="vertical" className="w-full">
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-1">
+                    <Input.Search
+                        placeholder="Search"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="md:max-w-[300px] lg:max-w-[400px] lg:w-[400px]"
+                        allowClear
                     />
-                </Space>
+                    <Radio.Group
+                        value={displayMode}
+                        onChange={(e) => setDisplayMode(e.target.value)}
+                        className="flex-shrink-0"
+                    >
+                        <Radio.Button value="grouped">Variants</Radio.Button>
+                        <Radio.Button value="flat">Revisions</Radio.Button>
+                    </Radio.Group>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    {selectedCount > 0 && (
+                        <Typography.Text type="secondary" className="flex-shrink-0">
+                            {selectedCount} selected
+                        </Typography.Text>
+                    )}
+
+                    <Button
+                        type="link"
+                        disabled={selectedCount !== 2}
+                        icon={<SwapOutlined />}
+                        onClick={() => {
+                            setComparisonSelectionScope(selectionScope)
+                            openComparisonModal()
+                        }}
+                    >
+                        Compare
+                    </Button>
+
+                    <DeployVariantButton
+                        type="default"
+                        label="Deploy"
+                        disabled={!selectedRevisionId || selectedCount > 1}
+                        revisionId={selectedRevisionId}
+                    />
+
+                    <Button
+                        type="primary"
+                        disabled={!envRevisions}
+                        icon={<CodeSimpleIcon size={14} />}
+                        onClick={() =>
+                            openDeploymentsDrawer({
+                                initialWidth: 1200,
+                                revisionId: selectedRevisionId,
+                                mode: "variant",
+                            })
+                        }
+                    >
+                        Use API
+                    </Button>
+                </div>
             </div>
-        </>
+
+            <VariantsTable
+                enableColumnResize
+                showEnvBadges
+                showStableName
+                variants={tableRows}
+                isLoading={isVariantLoading}
+                selectionScope={selectionScope}
+                onRowClick={handleOpenDetails}
+                handleOpenDetails={handleOpenDetails}
+                handleOpenInPlayground={(record) => handleNavigation(record)}
+            />
+        </Space>
+    )
+
+    const deploymentsContent = (
+        <div className="flex flex-col gap-4">
+            <Flex align="center" gap={16}>
+                <EnvironmentCardRow
+                    environments={environments}
+                    isLoading={isEnvironmentsLoading}
+                    selectedEnvName={selectedEnv}
+                    onCardClick={(env) => setSelectedEnv(env.name)}
+                />
+            </Flex>
+
+            <DeploymentsDashboard
+                selectedEnvName={selectedEnv || ""}
+                envRevisions={envRevisions}
+                isLoading={isEnvironmentsLoading}
+            />
+        </div>
+    )
+
+    return (
+        <PageLayout title="Registry" headerTabsProps={headerTabsProps} className="grow min-h-0">
+            {activeTab === "deployments" ? deploymentsContent : variantContent}
+        </PageLayout>
     )
 }
 

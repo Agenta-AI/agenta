@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {ArrowClockwise, Database, Export} from "@phosphor-icons/react"
+import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -253,7 +253,7 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
         <>
             <section
                 className={clsx([
-                    "flex justify-between gap-3 flex-col transition-all duration-200 ease-linear",
+                    "flex justify-between gap-2 flex-col transition-all duration-200 ease-linear",
                     {
                         "!flex-row sticky top-2 z-10 bg-white py-2 px-2 border border-solid border-gray-200 rounded-lg mx-2 shadow-md":
                             isScrolled,
@@ -266,7 +266,7 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
                         {!isScrolled && (
                             <EnhancedButton
                                 icon={
-                                    <ArrowClockwise
+                                    <ArrowsClockwiseIcon
                                         size={14}
                                         className={clsx("mt-[0.8px]", {"animate-spin": isLoading})}
                                     />
@@ -276,12 +276,12 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
                             />
                         )}
                         <Input.Search
-                            placeholder="Full-text search"
+                            placeholder="Search"
                             value={searchQuery}
                             onChange={onSearchChange}
                             onPressEnter={onSearchQueryApply}
                             onSearch={onSearchClear}
-                            className={clsx("w-[220px] xl:w-[300px] shrink-0", {
+                            className={clsx("w-[320px] shrink-0", {
                                 "!w-[200px] xl:!w-[260px]": isScrolled,
                             })}
                             allowClear
@@ -307,7 +307,7 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
 
                                 <EnhancedButton
                                     onClick={() => getTestsetTraceData()}
-                                    icon={<Database size={14} />}
+                                    icon={<DatabaseIcon size={14} />}
                                     disabled={traces.length === 0 || selectedRowKeys.length === 0}
                                     tooltipProps={{title: "Add to testset"}}
                                 />
@@ -328,18 +328,10 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
                             <Button
                                 type="text"
                                 onClick={onExport}
-                                icon={<Export size={14} className="mt-0.5" />}
+                                icon={<ExportIcon size={14} className="mt-0.5" />}
                                 disabled={traces.length === 0}
                             >
                                 Export as CSV
-                            </Button>
-
-                            <Button
-                                onClick={() => getTestsetTraceData()}
-                                icon={<Database size={14} />}
-                                disabled={traces.length === 0 || selectedRowKeys.length === 0}
-                            >
-                                Add to testset
                             </Button>
 
                             <EditColumns
@@ -349,6 +341,14 @@ const ObservabilityHeader = ({columns, componentType}: ObservabilityHeaderProps)
                                     setEditColumns(keys)
                                 }}
                             />
+
+                            <Button
+                                onClick={() => getTestsetTraceData()}
+                                icon={<DatabaseIcon size={14} />}
+                                disabled={traces.length === 0 || selectedRowKeys.length === 0}
+                            >
+                                Add to testset
+                            </Button>
                         </Space>
                     </div>
                 ) : null}

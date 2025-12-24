@@ -22,6 +22,7 @@ export const usePromptsSelection = ({flattenedTableRows, getRowKey}: UsePromptsS
                 setSelectedRowKeys(keys as string[])
                 setSelectedRow(selectedRows[0] ?? null)
             },
+            columnWidth: 48,
         }),
         [selectedRowKeys],
     )

@@ -3,7 +3,7 @@ import {useMemo} from "react"
 import {atom, useStore} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {evaluationPreviewTableStore} from "../../EvalRunDetails/evaluationPreviewTableStore"
+import {evaluationPreviewTableStore} from "@/oss/components/EvalRunDetails/evaluationPreviewTableStore"
 
 interface UseComparisonPaginationsArgs {
     compareSlots: (string | null)[]

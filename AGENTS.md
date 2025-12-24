@@ -12,6 +12,84 @@
 ## PR instructions
 - If the user provides you with the issue id, title the PR: [issue-id] fix(frontend): <Title> where fix is the type (fix, feat, chore, ci, doc, test.. [we're using better-branch) and frontend is where and it could be api, sdk, frontend, docs, ..
 
+## Import Aliases Best Practices
+
+The monorepo uses TypeScript path aliases for cleaner imports. Understanding when to use each pattern is important for maintainability.
+
+### Available Aliases
+
+1. **`@/oss/*`** - Resolves with fallback order: `ee/src/*` → `oss/src/*`
+2. **`@agenta/oss/src/*`** - Explicit import from OSS package (npm workspace)
+3. **`@/agenta-oss-common/*`** - Similar fallback to `@/oss/*` (less common)
+
+### When to Use Each Pattern
+
+#### Use `@/oss/*` for shared utilities and state
+
+Use this pattern when importing shared utilities, helpers, types, hooks, or state that work the same in both EE and OSS:
+
+```typescript
+// ✅ Good - Shared utilities
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
+import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+import {User, JSSTheme} from "@/oss/lib/Types"
+import {selectedOrgIdAtom} from "@/oss/state/org"
+import axios from "@/oss/lib/api/assets/axiosConfig"
+```
+
+**Why:** The fallback mechanism allows EE to override implementations if needed, while falling back to OSS by default.
+
+#### Use `@agenta/oss/src/*` for explicit OSS imports
+
+Use this pattern when EE code needs to **explicitly reference the OSS version** of a component or page, typically for:
+- Extending/wrapping OSS components
+- Re-exporting OSS pages with EE enhancements
+- Ensuring you get the OSS implementation (not an EE override)
+
+```typescript
+// ✅ Good - Explicit OSS component import
+import OssSidebarBanners from "@agenta/oss/src/components/SidebarBanners"
+import ObservabilityPage from "@agenta/oss/src/pages/w/[workspace_id]/p/[project_id]/observability"
+import {DeploymentRevisions} from "@agenta/oss/src/lib/types_ee"
+```
+
+**Why:** This bypasses the fallback mechanism and guarantees you're importing from the OSS package.
+
+#### Never use relative paths for cross-package imports
+
+```typescript
+// ❌ Bad - Fragile and hard to maintain
+import OssSidebarBanners from "../../../../oss/src/components/SidebarBanners"
+
+// ✅ Good - Use explicit alias
+import OssSidebarBanners from "@agenta/oss/src/components/SidebarBanners"
+```
+
+**Why:** Relative paths break easily with refactoring and are harder to read.
+
+### Examples in the Codebase
+
+**Shared utilities with `@/oss/*`:**
+- `web/ee/src/state/billing/atoms.ts` - Uses `@/oss/*` for API utilities, types, and state atoms
+- `web/ee/src/hooks/useCrispChat.ts` - Uses `@/oss/*` for environment helpers
+
+**Explicit OSS imports with `@agenta/oss/src/*`:**
+- `web/ee/src/components/SidebarBanners/index.tsx` - Wraps OSS component
+- `web/ee/src/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/traces/index.tsx` - Re-exports OSS page
+- `web/ee/src/components/DeploymentHistory/DeploymentHistory.tsx` - Uses EE-specific types from OSS
+
+### Quick Decision Guide
+
+```
+Are you in EE code importing from OSS?
+├─ Is it a component/page that EE extends or wraps?
+│  └─ Use: @agenta/oss/src/*
+├─ Is it a utility, helper, type, or state atom?
+│  └─ Use: @/oss/*
+└─ Not sure?
+   └─ Use: @agenta/oss/src/* (explicit is safer)
+```
+
 
 ### Architecture Overview
 
@@ -208,7 +286,7 @@ This structure supports:
 -   Natural code organization based on usage
 -   Scalable architecture that grows with the application
 
-### State and Data Fetching (Jotai-First)
+### Data Fetching Best Practices
 
 **Primary Pattern: Jotai Atoms with TanStack Query**
 

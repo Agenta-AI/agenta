@@ -4,7 +4,7 @@ const TRACE_ENABLED_PATH_MATCHERS = [
     "/playground",
     "/evaluations",
 ] as const
-const VARIANT_ENABLED_PATH_MATCHERS = ["/variants", "/deployments", "/overview"] as const
+const VARIANT_ENABLED_PATH_MATCHERS = ["/variants", "/overview"] as const
 
 const SESSION_ENABLED_PATH_MATCHERS = ["/observability", "/sessions"] as const
 

@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
 import {useAtom, useAtomValue} from "jotai"
 
@@ -41,15 +41,44 @@ export const useObservability = () => {
     const [selectedNode, setSelectedNode] = useAtom(selectedNodeAtom)
     const [limit] = useAtom(limitAtom)
 
-    const [{refetch: refetchTraces, fetchNextPage, hasNextPage, isFetchingNextPage}] =
-        useAtom(tracesQueryAtom)
-    const [{data: annotationsData, refetch: refetchAnnotations}] = useAtom(annotationsQueryAtom)
+    const [
+        {
+            refetch: refetchTraces,
+            fetchNextPage,
+            hasNextPage,
+            isFetchingNextPage,
+            isLoading: isLoadingTraces,
+            isFetching: isFetchingTraces,
+            isRefetching: isRefetchingTraces,
+        },
+    ] = useAtom(tracesQueryAtom)
+
+    const [
+        {
+            data: annotationsData,
+            refetch: refetchAnnotations,
+            isLoading: isLoadingAnnotations,
+            isFetching: isFetchingAnnotations,
+            isRefetching: isRefetchingAnnotations,
+        },
+    ] = useAtom(annotationsQueryAtom)
+
+    const isLoadingObservability = useAtomValue(observabilityLoadingAtom)
+
     const traces = useAtomValue(tracesWithAnnotationsAtom)
-    const isLoading = useAtomValue(observabilityLoadingAtom)
     const activeTraceIndex = useAtomValue(activeTraceIndexAtom)
     const activeTrace = useAtomValue(activeTraceAtom)
     const selectedItem = useAtomValue(selectedItemAtom)
     const annotations = annotationsData ?? []
+
+    const isRefreshing = useMemo(
+        () =>
+            isFetchingTraces ||
+            isFetchingAnnotations ||
+            isRefetchingTraces ||
+            isRefetchingAnnotations,
+        [isFetchingTraces, isFetchingAnnotations, isRefetchingTraces, isRefetchingAnnotations],
+    )
 
     const fetchTraces = useCallback(async () => {
         const res = await refetchTraces()
@@ -78,7 +107,8 @@ export const useObservability = () => {
     return {
         traces,
         annotations,
-        isLoading,
+        isLoading:
+            isLoadingObservability || isLoadingTraces || isLoadingAnnotations || isRefreshing,
         fetchMoreTraces,
         hasMoreTraces: hasNextPage,
         isFetchingMore: isFetchingNextPage,

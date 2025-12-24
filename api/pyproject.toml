@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.69.3"
+version = "0.71.0"
 description = "Agenta API"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
@@ -19,7 +19,7 @@ agenta = ">=0.64.1"
 #
 python = "^3.11"
 #
-fastapi = "^0.122"
+fastapi = ">=0.122"
 pydantic = "^2"
 python-dotenv = "^1"
 uvicorn = "^0.38"
@@ -32,11 +32,11 @@ newrelic = "^11"
 openai = "^2"
 sqlalchemy = "^2"
 sqlalchemy-utils = "^0.42.0"
-asyncpg = "^0.30"
-uuid-utils = "^0.11"
+asyncpg = "^0.31"
+uuid-utils = "^0.12"
 alembic = "^1"
 numpy = "^2"
-autoevals = "^0.0.83"
+autoevals = "^0.0.130"
 supertokens-python = "^0.29"
 opentelemetry-proto = "^1"
 posthog = "^7"
@@ -51,8 +51,8 @@ sqlalchemy-json = "^0.7"
 gunicorn = "^23"
 python-jsonpath = "^2"
 bson = "^0.5"
-python-multipart = "^0.0.20"
-daytona = "^0.121"
+python-multipart = "^0.0.21"
+daytona = "^0.125"
 cachetools = "^6"
 
 # BLOCKED BY NEW RELIC INCOMPATIBILITY

@@ -154,7 +154,12 @@ const TurnMessageHeaderOptions = ({
     }, [text])
 
     return (
-        <div className={clsx("flex items-center gap-1 relative", className)}>
+        <div
+            className={clsx(
+                "flex items-center gap-1 relative invisible group-hover/item:visible",
+                className,
+            )}
+        >
             {onRerun ? (
                 <EnhancedButton
                     icon={<ArrowClockwise size={14} />}

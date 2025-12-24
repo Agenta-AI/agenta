@@ -65,12 +65,14 @@ const PromptMessageConfig = ({
     isTool,
     message: messageProp,
     viewOnly,
+    defaultMinimized,
+    showMinimizeOnly,
     ...props
 }: PromptMessageConfigProps) => {
     const editorIdRef = useRef(id || uuidv4())
     // Allow null to represent an empty upload slot
     // const [uploadedFileItems, setUploadedFileItems] = useState<(UploadFile | null)[]>([])
-    const [minimized, setMinimized] = useState(false)
+    const [minimized, setMinimized] = useState(Boolean(defaultMinimized))
 
     // Use optimized hook for chat detection and message data
     const {
@@ -320,6 +322,7 @@ const PromptMessageConfig = ({
                     uploadCount={imageProperties?.length || 0}
                     viewOnly={viewOnly}
                     hideMarkdownToggle={Boolean(isFunction || isTool)}
+                    showMinimizeOnly={showMinimizeOnly}
                     actions={{
                         onDelete: deleteMessage,
                         onMinimize: () => setMinimized((c) => !c),
