@@ -179,7 +179,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
 
             <TestcaseEditDrawer
                 testcaseId={editingTestcaseId}
-                columns={table.columns}
+                columns={table.baseColumns}
                 open={!!editingTestcaseId}
                 onClose={() => setEditingTestcaseId(null)}
                 isNewRow={editingTestcaseId?.startsWith("new-") ?? false}

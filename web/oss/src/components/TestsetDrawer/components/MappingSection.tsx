@@ -1,3 +1,5 @@
+import {useMemo} from "react"
+
 import {ArrowRight, Plus, Trash} from "@phosphor-icons/react"
 import {AutoComplete, Button, Select, Typography} from "antd"
 
@@ -36,6 +38,37 @@ export function MappingSection({
     isNewTestset = false,
 }: MappingSectionProps) {
     const classes = useStyles()
+
+    // Get columns that are already mapped (excluding "create" which is a special value)
+    const mappedColumns = useMemo(() => {
+        const mapped = new Set<string>()
+        mappingData.forEach((m) => {
+            if (m.column && m.column !== "create") {
+                mapped.add(m.column)
+            }
+            if (m.newColumn) {
+                mapped.add(m.newColumn)
+            }
+        })
+        return mapped
+    }, [mappingData])
+
+    // Get available column options for a specific mapping row
+    // Filters out columns that are already mapped by other rows
+    const getAvailableColumnOptions = (currentIdx: number) => {
+        const currentMapping = mappingData[currentIdx]
+        const currentColumn = currentMapping?.column
+        const currentNewColumn = currentMapping?.newColumn
+
+        return columnOptions.filter((opt) => {
+            // Always show the currently selected column for this row
+            if (opt.value === currentColumn || opt.value === currentNewColumn) {
+                return true
+            }
+            // Filter out columns mapped by other rows
+            return !mappedColumns.has(opt.value)
+        })
+    }
 
     return (
         <div className={classes.container}>
@@ -100,7 +133,7 @@ export function MappingSection({
                                         ...(testsetId
                                             ? customSelectOptions(selectedTestsetColumns.length > 0)
                                             : []),
-                                        ...columnOptions,
+                                        ...getAvailableColumnOptions(idx),
                                     ]}
                                 />
 
@@ -108,7 +141,7 @@ export function MappingSection({
                                     <AutoComplete
                                         className="flex-1"
                                         value={mapping.newColumn || undefined}
-                                        options={columnOptions}
+                                        options={getAvailableColumnOptions(idx)}
                                         onSelect={(value) =>
                                             onMappingOptionChange({
                                                 pathName: "newColumn",

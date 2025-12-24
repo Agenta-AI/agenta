@@ -1,21 +1,25 @@
-import {useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
+import {CaretDown, CaretRight} from "@phosphor-icons/react"
 import {PencilSimple, Trash} from "@phosphor-icons/react"
-import {Input, Skeleton} from "antd"
-import type {ColumnsType} from "antd/es/table"
+import {Input, Skeleton, Typography} from "antd"
+import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {
+    ColumnVisibilityHeader,
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
     type TableScopeConfig,
 } from "@/oss/components/InfiniteVirtualTable"
+import type {Column} from "@/oss/state/entities/testcase/columnState"
 import {testcaseIsDirtyAtom} from "@/oss/state/entities/testcase/dirtyState"
 
 import {message} from "../../AppMessageContext"
 import {testcasesDatasetStore, type TestcaseTableRow} from "../atoms/tableStore"
 import type {UseTestcasesTableResult} from "../hooks/types"
+import {groupColumns} from "../utils/groupColumns"
 
 import EditableColumnHeader from "./EditableColumnHeader"
 import {TestcaseCell} from "./TestcaseCell"
@@ -88,6 +92,20 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         scopeIdPrefix = "testcases",
     } = props
 
+    // Collapsed groups state (using useState for simplicity - persists only during session)
+    const [collapsedGroups, setCollapsedGroups] = useState<string[]>([])
+    const collapsedGroupsSet = useMemo(() => new Set(collapsedGroups), [collapsedGroups])
+
+    // Toggle collapse state for a group
+    const toggleGroupCollapse = useCallback((groupName: string) => {
+        setCollapsedGroups((prev) => {
+            if (prev.includes(groupName)) {
+                return prev.filter((g) => g !== groupName)
+            }
+            return [...prev, groupName]
+        })
+    }, [])
+
     // Table scope configuration
     const tableScope = useMemo<TableScopeConfig>(
         () => ({
@@ -95,6 +113,8 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             pageSize: 50, // Paginated loading
             enableInfiniteScroll: true, // Enable infinite scroll for pagination
             columnVisibilityStorageKey: "testcases:columns",
+            // Increase exit debounce to prevent infinite loop on scroll-stop-scroll pattern
+            viewportExitDebounceMs: 300,
         }),
         [scopeIdPrefix, revisionIdParam],
     )
@@ -171,6 +191,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
 
     // Columns definition
     // Use TestcaseCell for entity-aware rendering (reads from entity atoms in global store)
+    // Supports grouped columns (e.g., "group.column" renders under "group" header)
     const columns = useMemo<ColumnsType<TestcaseTableRow>>(() => {
         const isEditable = mode === "edit"
 
@@ -178,20 +199,30 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         const columnsToRender = table.columns.length > 0 ? table.columns : skeletonColumns
         const isShowingSkeleton = table.columns.length === 0
 
-        const dataColumns: ColumnsType<TestcaseTableRow> = columnsToRender.map((col) => ({
+        // Create column definition for a single column
+        // Wrap title with ColumnVisibilityHeader to enable viewport tracking
+        const createColumnDef = (
+            col: Column,
+            displayName: string,
+        ): ColumnType<TestcaseTableRow> => ({
             key: col.key,
             dataIndex: col.key,
-            title:
-                isEditable && !isShowingSkeleton ? (
-                    <EditableColumnHeader
-                        columnKey={col.key}
-                        columnName={col.name}
-                        onRename={table.renameColumn}
-                        onDelete={table.deleteColumn}
-                    />
-                ) : (
-                    col.name
-                ),
+            title: (
+                <ColumnVisibilityHeader columnKey={col.key}>
+                    {isEditable && !isShowingSkeleton ? (
+                        <EditableColumnHeader
+                            columnKey={col.key}
+                            columnName={displayName}
+                            onRename={table.renameColumn}
+                            onDelete={table.deleteColumn}
+                        />
+                    ) : (
+                        <span className="truncate" title={col.key}>
+                            {displayName}
+                        </span>
+                    )}
+                </ColumnVisibilityHeader>
+            ),
             width: 200,
             render: (value: unknown, record: TestcaseTableRow) => {
                 // Show skeleton for skeleton rows or when showing skeleton columns
@@ -222,7 +253,99 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 // Fallback for rows without id
                 return <TestcaseCellContent value={value} maxLines={maxLinesForRowHeight} />
             },
-        }))
+        })
+
+        // Create collapsed column definition (shows full JSON when group is collapsed)
+        const createCollapsedColumnDef = (
+            groupName: string,
+            _childColumns: Column[],
+        ): ColumnType<TestcaseTableRow> => ({
+            key: groupName,
+            dataIndex: groupName,
+            title: (
+                <ColumnVisibilityHeader columnKey={groupName}>
+                    <div
+                        className="flex items-center gap-1 cursor-pointer"
+                        onClick={() => toggleGroupCollapse(groupName)}
+                    >
+                        <CaretRight size={12} />
+                        <Typography.Text ellipsis>{groupName}</Typography.Text>
+                    </div>
+                </ColumnVisibilityHeader>
+            ),
+            width: 200,
+            render: (_value: unknown, record: TestcaseTableRow) => {
+                if (record.__isSkeleton || isShowingSkeleton) {
+                    const skeletonHeight = Math.max(24, rowHeight.heightPx - 32)
+                    return (
+                        <Skeleton.Input
+                            active
+                            size="small"
+                            className="w-full"
+                            style={{height: skeletonHeight, minHeight: skeletonHeight}}
+                        />
+                    )
+                }
+                const rowId = record.id || String(record.key)
+                if (rowId) {
+                    // Show the parent column (full JSON object)
+                    return (
+                        <TestcaseCell
+                            testcaseId={rowId}
+                            columnKey={groupName}
+                            maxLines={maxLinesForRowHeight}
+                        />
+                    )
+                }
+                return null
+            },
+        })
+
+        // Render group header with collapse/expand icon
+        // groupPath is the full path (e.g., "current_rfp.event"), display only the last segment
+        // Wrapped with ColumnVisibilityHeader for viewport tracking
+        const renderGroupHeader = (groupPath: string, isCollapsed: boolean, childCount: number) => {
+            // Get just the last segment for display (e.g., "event" from "current_rfp.event")
+            const displayName = groupPath.includes(".")
+                ? groupPath.substring(groupPath.lastIndexOf(".") + 1)
+                : groupPath
+
+            return (
+                <ColumnVisibilityHeader columnKey={groupPath}>
+                    <div
+                        className="flex items-center gap-1 cursor-pointer select-none max-w-full overflow-hidden"
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            e.preventDefault()
+                            toggleGroupCollapse(groupPath)
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                toggleGroupCollapse(groupPath)
+                            }
+                        }}
+                        title={groupPath}
+                    >
+                        <span className="flex-shrink-0">
+                            {isCollapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
+                        </span>
+                        <span className="truncate min-w-0">{displayName}</span>
+                        <span className="text-gray-400 text-xs flex-shrink-0">({childCount})</span>
+                    </div>
+                </ColumnVisibilityHeader>
+            )
+        }
+
+        // Group columns that have "." in their key (e.g., "inputs.country" groups under "inputs")
+        const dataColumns = groupColumns<TestcaseTableRow>(columnsToRender, createColumnDef, {
+            collapsedGroups: collapsedGroupsSet,
+            onGroupHeaderClick: toggleGroupCollapse,
+            renderGroupHeader,
+            createCollapsedColumnDef,
+        })
 
         if (mode === "view") {
             return [...dataColumns]
@@ -265,13 +388,18 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
 
         return [...dataColumns, ...actionsColumn]
     }, [
-        table,
+        table.columns,
+        table.renameColumn,
+        table.deleteColumn,
+        table.deleteTestcases,
         mode,
         maxLinesForRowHeight,
         rowHeight.heightPx,
         skeletonColumns,
         onRowClick,
         hideControls,
+        collapsedGroupsSet,
+        toggleGroupCollapse,
     ])
 
     // Export configuration

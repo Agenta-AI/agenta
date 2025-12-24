@@ -65,8 +65,10 @@ export const getValueAtPath = (obj: any, rawPath: string): any => {
 /**
  * Collect all key paths from an object recursively
  * Special handling for 'outputs' key (doesn't recurse into it)
+ * Only returns leaf paths (primitives/arrays) by default
+ * Set includeObjectPaths=true to also include intermediate object paths
  */
-export const collectKeyPaths = (obj: any, prefix = ""): string[] => {
+export const collectKeyPaths = (obj: any, prefix = "", includeObjectPaths = false): string[] => {
     const paths: string[] = []
     if (!obj || typeof obj !== "object") return paths
 
@@ -80,7 +82,12 @@ export const collectKeyPaths = (obj: any, prefix = ""): string[] => {
         }
 
         if (value && typeof value === "object" && !Array.isArray(value)) {
-            const nestedPaths = collectKeyPaths(value, fullPath)
+            // Optionally add the object path itself (for mapping entire objects)
+            if (includeObjectPaths) {
+                paths.push(fullPath)
+            }
+            // Also add nested paths
+            const nestedPaths = collectKeyPaths(value, fullPath, includeObjectPaths)
             paths.push(...nestedPaths)
         } else {
             paths.push(fullPath)

@@ -1,0 +1,643 @@
+import {forwardRef, useCallback, useImperativeHandle, useMemo, useState} from "react"
+
+import {
+    ArrowLeft,
+    CaretDown,
+    CaretRight,
+    CaretRight as ChevronRight,
+    Trash,
+} from "@phosphor-icons/react"
+import {Button, Typography} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
+
+import {ChatMessageList} from "@/oss/components/ChatMessageEditor"
+import {EditorProvider} from "@/oss/components/Editor/Editor"
+import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
+import type {Column} from "@/oss/state/entities/testcase/columnState"
+import {
+    testcaseEntityAtomFamily,
+    updateTestcaseAtom,
+} from "@/oss/state/entities/testcase/testcaseEntity"
+
+import TestcaseFieldHeader from "../TestcaseFieldHeader"
+
+import {
+    detectDataType,
+    canShowTextMode,
+    formatForJsonDisplay,
+    parseFromJsonDisplay,
+    tryParseAsObject,
+    tryParseAsArray,
+    isMessagesArray,
+    parseMessages,
+    getTextModeValue,
+    textModeToStorageValue,
+} from "./fieldUtils"
+import TestcaseFieldRenderer, {FieldMode} from "./TestcaseFieldRenderer"
+
+const {Text} = Typography
+
+type EditMode = "fields" | "json"
+
+export interface TestcaseEditDrawerContentRef {
+    handleSave: () => void
+}
+
+interface TestcaseEditDrawerContentProps {
+    /** Testcase ID (reads from draft store) */
+    testcaseId: string
+    columns: Column[]
+    isNewRow: boolean
+    onClose: () => void
+    editMode: EditMode
+    onEditModeChange?: (mode: EditMode) => void
+}
+
+const TestcaseEditDrawerContent = forwardRef<
+    TestcaseEditDrawerContentRef,
+    TestcaseEditDrawerContentProps
+>(({testcaseId, columns, isNewRow, editMode}, ref) => {
+    // Read testcase from entity atom (same source as cells)
+    const testcaseAtom = useMemo(() => testcaseEntityAtomFamily(testcaseId), [testcaseId])
+    const testcase = useAtomValue(testcaseAtom)
+
+    // Update testcase (creates draft if needed)
+    const updateTestcase = useSetAtom(updateTestcaseAtom)
+
+    // Derive form values from testcase (single source of truth for editing)
+    // Values are stored as strings for the editors - objects/arrays are JSON stringified
+    const formValues = useMemo(() => {
+        if (!testcase) return {}
+        const values: Record<string, string> = {}
+        columns.forEach((col) => {
+            const value = testcase[col.key]
+            if (value == null) {
+                values[col.key] = ""
+            } else if (typeof value === "object") {
+                // Objects and arrays need to be JSON stringified
+                values[col.key] = JSON.stringify(value, null, 2)
+            } else if (typeof value === "string") {
+                // Check if string is a stringified JSON - if so, parse and re-stringify for formatting
+                try {
+                    const parsed = JSON.parse(value)
+                    if (typeof parsed === "object" && parsed !== null) {
+                        // It's a stringified JSON object/array - format it nicely
+                        values[col.key] = JSON.stringify(parsed, null, 2)
+                    } else {
+                        // It's a JSON primitive (string, number, boolean) - keep as-is
+                        values[col.key] = value
+                    }
+                } catch {
+                    // Not valid JSON - keep as plain string
+                    values[col.key] = value
+                }
+            } else {
+                values[col.key] = String(value)
+            }
+        })
+        return values
+    }, [testcase, columns])
+
+    // Per-field collapse state
+    const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
+    // Path state for drill-down navigation: [columnKey, ...nestedPath]
+    // e.g., ["messages", "0", "content"] means we're viewing messages[0].content
+    const [currentPath, setCurrentPath] = useState<string[]>([])
+
+    // Get value at current path
+    const getValueAtPath = useCallback(
+        (path: string[]): string => {
+            if (path.length === 0) return ""
+            const [columnKey, ...nestedPath] = path
+            let value: unknown = formValues[columnKey]
+            if (value === undefined) return ""
+
+            // Parse the column value
+            try {
+                value = JSON.parse(String(value))
+            } catch {
+                // Keep as string
+            }
+
+            // Navigate through nested path
+            for (const key of nestedPath) {
+                if (value === null || value === undefined) return ""
+                if (Array.isArray(value)) {
+                    const index = parseInt(key, 10)
+                    if (isNaN(index) || index < 0 || index >= value.length) return ""
+                    value = value[index]
+                } else if (typeof value === "object") {
+                    value = (value as Record<string, unknown>)[key]
+                } else {
+                    return ""
+                }
+            }
+
+            if (value === null || value === undefined) return ""
+            if (typeof value === "string") return value
+            return JSON.stringify(value, null, 2)
+        },
+        [formValues],
+    )
+
+    // Update value at current path
+    const updateValueAtPath = useCallback(
+        (path: string[], newValue: string) => {
+            if (path.length === 0) return
+            const [columnKey, ...nestedPath] = path
+
+            if (nestedPath.length === 0) {
+                // Direct column update
+                updateTestcase({id: testcaseId, updates: {[columnKey]: newValue}})
+                return
+            }
+
+            // Parse the column value
+            let rootValue: unknown
+            try {
+                rootValue = JSON.parse(formValues[columnKey] || "{}")
+            } catch {
+                rootValue = {}
+            }
+
+            // Parse the new value
+            let parsedNewValue: unknown = newValue
+            try {
+                parsedNewValue = JSON.parse(newValue)
+            } catch {
+                // Keep as string
+            }
+
+            // Navigate and update
+            const updateNested = (obj: unknown, keys: string[], value: unknown): unknown => {
+                if (keys.length === 0) return value
+                const [key, ...rest] = keys
+
+                if (Array.isArray(obj)) {
+                    const index = parseInt(key, 10)
+                    const newArr = [...obj]
+                    newArr[index] = updateNested(obj[index], rest, value)
+                    return newArr
+                } else if (typeof obj === "object" && obj !== null) {
+                    return {
+                        ...(obj as Record<string, unknown>),
+                        [key]: updateNested((obj as Record<string, unknown>)[key], rest, value),
+                    }
+                }
+                return value
+            }
+
+            const updatedValue = updateNested(rootValue, nestedPath, parsedNewValue)
+            updateTestcase({id: testcaseId, updates: {[columnKey]: JSON.stringify(updatedValue)}})
+        },
+        [formValues, updateTestcase, testcaseId],
+    )
+
+    // Navigate into a nested field
+    const navigateInto = useCallback((key: string) => {
+        setCurrentPath((prev) => [...prev, key])
+    }, [])
+
+    // Navigate back to parent
+    const navigateBack = useCallback(() => {
+        setCurrentPath((prev) => prev.slice(0, -1))
+    }, [])
+
+    // Navigate to specific path index
+    const navigateToIndex = useCallback((index: number) => {
+        setCurrentPath((prev) => prev.slice(0, index))
+    }, [])
+
+    // Get current level items (fields at current path)
+    const currentLevelItems = useMemo(() => {
+        if (currentPath.length === 0) {
+            // Root level - show all columns
+            return columns.map((col) => ({
+                key: col.key,
+                name: col.name,
+                value: formValues[col.key] || "",
+                isColumn: true,
+            }))
+        }
+
+        // Get value at current path
+        const value = getValueAtPath(currentPath)
+        if (!value) return []
+
+        try {
+            const parsed = JSON.parse(value)
+            if (Array.isArray(parsed)) {
+                return parsed.map((item, index) => ({
+                    key: String(index),
+                    name: `Item ${index + 1}`,
+                    value: typeof item === "string" ? item : JSON.stringify(item, null, 2),
+                    isColumn: false,
+                }))
+            } else if (typeof parsed === "object" && parsed !== null) {
+                return Object.keys(parsed)
+                    .sort()
+                    .map((key) => ({
+                        key,
+                        name: key,
+                        value:
+                            typeof parsed[key] === "string"
+                                ? parsed[key]
+                                : JSON.stringify(parsed[key], null, 2),
+                        isColumn: false,
+                    }))
+            }
+        } catch {
+            // Not JSON, return empty
+        }
+
+        return []
+    }, [currentPath, columns, formValues, getValueAtPath])
+
+    // Check if a value is expandable (object or array)
+    const isExpandable = useCallback((value: string): boolean => {
+        try {
+            const parsed = JSON.parse(value)
+            return (
+                (Array.isArray(parsed) && parsed.length > 0) ||
+                (typeof parsed === "object" && parsed !== null && Object.keys(parsed).length > 0)
+            )
+        } catch {
+            return false
+        }
+    }, [])
+
+    // Get item count for arrays/objects
+    const getItemCount = useCallback((value: string): string => {
+        try {
+            const parsed = JSON.parse(value)
+            if (Array.isArray(parsed)) return `${parsed.length} items`
+            if (typeof parsed === "object" && parsed !== null)
+                return `${Object.keys(parsed).length} properties`
+        } catch {
+            // Not JSON
+        }
+        return ""
+    }, [])
+
+    // Derive JSON display value from formValues (single source of truth)
+    const jsonDisplayValue = useMemo(() => formatForJsonDisplay(formValues), [formValues])
+
+    // Handle JSON editor change - update entity (creates draft if needed)
+    const handleJsonChange = useCallback(
+        (value: string) => {
+            const parsed = parseFromJsonDisplay(value)
+            if (parsed) {
+                updateTestcase({id: testcaseId, updates: parsed})
+            }
+        },
+        [updateTestcase, testcaseId],
+    )
+
+    // Handle field change - update entity (creates draft if needed)
+    const handleFieldChange = useCallback(
+        (columnKey: string, value: string) => {
+            updateTestcase({id: testcaseId, updates: {[columnKey]: value}})
+        },
+        [updateTestcase, testcaseId],
+    )
+
+    // Update a nested field within an object
+    const handleNestedFieldChange = useCallback(
+        (columnKey: string, nestedKey: string, newValue: string) => {
+            const currentValue = formValues[columnKey] || "{}"
+            const obj = tryParseAsObject(currentValue) || {}
+
+            // Try to parse the new value as JSON, otherwise use as string
+            let parsedNewValue: unknown = newValue
+            try {
+                parsedNewValue = JSON.parse(newValue)
+            } catch {
+                // Keep as string
+            }
+
+            const updatedObj = {...obj, [nestedKey]: parsedNewValue}
+            const updatedValue = JSON.stringify(updatedObj)
+            updateTestcase({id: testcaseId, updates: {[columnKey]: updatedValue}})
+        },
+        [formValues, updateTestcase, testcaseId],
+    )
+
+    // Update an array item at a specific index
+    const handleArrayItemChange = useCallback(
+        (columnKey: string, index: number, newValue: string) => {
+            const currentValue = formValues[columnKey] || "[]"
+            const arr = tryParseAsArray(currentValue) || []
+
+            // Try to parse the new value as JSON, otherwise use as string
+            let parsedNewValue: unknown = newValue
+            try {
+                parsedNewValue = JSON.parse(newValue)
+            } catch {
+                // Keep as string
+            }
+
+            const updatedArr = [...arr]
+            updatedArr[index] = parsedNewValue
+            const updatedValue = JSON.stringify(updatedArr)
+            updateTestcase({id: testcaseId, updates: {[columnKey]: updatedValue}})
+        },
+        [formValues, updateTestcase, testcaseId],
+    )
+
+    // Toggle field collapse state
+    const toggleFieldCollapse = useCallback((columnKey: string) => {
+        setCollapsedFields((prev) => ({...prev, [columnKey]: !prev[columnKey]}))
+    }, [])
+
+    // Determine field mode automatically: JSON objects render in raw mode, everything else in text
+    const getFieldModeForValue = useCallback((value: string): FieldMode => {
+        return canShowTextMode(value) ? "text" : "raw"
+    }, [])
+
+    // Handle save - no-op since edits are already in entity atom
+    const handleSave = useCallback(() => {
+        // Edits are already saved to testcaseDraftAtomFamily via updateTestcase
+        // No additional action needed
+    }, [])
+
+    // Expose save handler to parent via ref
+    useImperativeHandle(ref, () => ({handleSave}), [handleSave])
+
+    return (
+        <div className="flex flex-col h-full overflow-hidden w-full [&_.agenta-shared-editor]:w-[calc(100%-24px)]">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden">
+                {isNewRow && (
+                    <div className="rounded-md bg-green-50 border border-green-200 p-3 mb-4">
+                        <Text type="secondary" className="text-green-700">
+                            This is a new testcase that hasn&apos;t been saved to the server yet.
+                            Fill in the fields below and click &quot;Save Testset&quot; to persist
+                            all changes.
+                        </Text>
+                    </div>
+                )}
+
+                {editMode === "fields" ? (
+                    // Fields mode - path-based navigation
+                    <div className="flex flex-col gap-4">
+                        {/* Breadcrumb navigation */}
+                        {currentPath.length > 0 && (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md">
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<ArrowLeft size={14} />}
+                                    onClick={navigateBack}
+                                    className="!px-2"
+                                />
+                                <div className="flex items-center gap-1 text-sm text-gray-600 overflow-x-auto">
+                                    <button
+                                        type="button"
+                                        onClick={() => navigateToIndex(0)}
+                                        className="hover:text-blue-600 cursor-pointer bg-transparent border-none p-0"
+                                    >
+                                        Root
+                                    </button>
+                                    {currentPath.map((segment, index) => (
+                                        <span key={index} className="flex items-center gap-1">
+                                            <ChevronRight size={12} className="text-gray-400" />
+                                            <button
+                                                type="button"
+                                                onClick={() => navigateToIndex(index + 1)}
+                                                className={`bg-transparent border-none p-0 ${
+                                                    index === currentPath.length - 1
+                                                        ? "text-gray-900 font-medium"
+                                                        : "hover:text-blue-600 cursor-pointer"
+                                                }`}
+                                            >
+                                                {/^\d+$/.test(segment)
+                                                    ? `Item ${parseInt(segment) + 1}`
+                                                    : segment}
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Current level items */}
+                        {currentLevelItems.length === 0 && (
+                            <div className="text-gray-500 text-sm">No items to display</div>
+                        )}
+                        {currentLevelItems.map((item) => {
+                            const dataType = detectDataType(item.value)
+                            const fieldMode = item.isColumn
+                                ? getFieldModeForValue(item.value)
+                                : "text"
+                            const isCollapsed =
+                                collapsedFields[`${currentPath.join(".")}.${item.key}`] ?? false
+                            const expandable = isExpandable(item.value)
+                            const itemCount = getItemCount(item.value)
+                            const fullPath = [...currentPath, item.key]
+
+                            return (
+                                <div key={item.key} className="flex flex-col gap-2">
+                                    {/* Field header */}
+                                    <div className="flex items-center justify-between py-2 px-3 bg-[#FAFAFA] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)]">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    toggleFieldCollapse(
+                                                        `${currentPath.join(".")}.${item.key}`,
+                                                    )
+                                                }
+                                                className="flex items-center gap-2 text-left hover:text-gray-700 transition-colors bg-transparent border-none p-0 cursor-pointer"
+                                            >
+                                                {isCollapsed ? (
+                                                    <CaretRight size={14} />
+                                                ) : (
+                                                    <CaretDown size={14} />
+                                                )}
+                                                <span className="text-gray-700">{item.name}</span>
+                                            </button>
+                                            {itemCount && (
+                                                <span className="text-xs text-gray-400">
+                                                    [{itemCount}]
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {expandable && (
+                                                <Button
+                                                    type="text"
+                                                    size="small"
+                                                    onClick={() => navigateInto(item.key)}
+                                                    className="!px-2 !h-6 text-xs text-gray-500"
+                                                >
+                                                    <CaretRight size={12} className="mr-1" />
+                                                    Drill In
+                                                </Button>
+                                            )}
+                                            {!item.isColumn && (
+                                                <Button
+                                                    type="text"
+                                                    size="small"
+                                                    danger
+                                                    icon={<Trash size={12} />}
+                                                    onClick={() => {
+                                                        // Delete this item
+                                                        const parentPath = currentPath
+                                                        const parentValue =
+                                                            getValueAtPath(parentPath)
+                                                        try {
+                                                            const parsed = JSON.parse(parentValue)
+                                                            if (Array.isArray(parsed)) {
+                                                                const index = parseInt(item.key, 10)
+                                                                const updated = parsed.filter(
+                                                                    (_, i) => i !== index,
+                                                                )
+                                                                updateValueAtPath(
+                                                                    parentPath,
+                                                                    JSON.stringify(updated),
+                                                                )
+                                                            } else if (typeof parsed === "object") {
+                                                                const {[item.key]: _, ...rest} =
+                                                                    parsed
+                                                                updateValueAtPath(
+                                                                    parentPath,
+                                                                    JSON.stringify(rest),
+                                                                )
+                                                            }
+                                                        } catch {
+                                                            // Ignore
+                                                        }
+                                                    }}
+                                                    className="!px-1 !h-6"
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Field content - collapsible */}
+                                    {!isCollapsed && (
+                                        <div className="px-4">
+                                            {item.isColumn ? (
+                                                <TestcaseFieldRenderer
+                                                    columnKey={item.key}
+                                                    columnName={item.name}
+                                                    value={item.value}
+                                                    fieldMode={fieldMode}
+                                                    onFieldChange={(value) =>
+                                                        handleFieldChange(item.key, value)
+                                                    }
+                                                    onNestedFieldChange={(nestedKey, value) =>
+                                                        handleNestedFieldChange(
+                                                            item.key,
+                                                            nestedKey,
+                                                            value,
+                                                        )
+                                                    }
+                                                    onArrayItemChange={(index, value) =>
+                                                        handleArrayItemChange(
+                                                            item.key,
+                                                            index,
+                                                            value,
+                                                        )
+                                                    }
+                                                />
+                                            ) : dataType === "messages" ? (
+                                                <ChatMessageList
+                                                    messages={parseMessages(item.value)}
+                                                    onChange={(messages) =>
+                                                        updateValueAtPath(
+                                                            fullPath,
+                                                            JSON.stringify(messages),
+                                                        )
+                                                    }
+                                                    showControls={isMessagesArray(item.value)}
+                                                />
+                                            ) : dataType === "json-object" ? (
+                                                <SharedEditor
+                                                    key={`${fullPath.join("-")}-editor`}
+                                                    initialValue={item.value}
+                                                    handleChange={(value) =>
+                                                        updateValueAtPath(fullPath, value)
+                                                    }
+                                                    editorType="border"
+                                                    className="min-h-[60px] overflow-hidden"
+                                                    disableDebounce
+                                                    editorProps={{
+                                                        codeOnly: true,
+                                                        language: "json",
+                                                        showLineNumbers: true,
+                                                    }}
+                                                />
+                                            ) : (
+                                                (() => {
+                                                    const editorId = `drill-field-${fullPath.join("-")}`
+                                                    const textValue = getTextModeValue(item.value)
+                                                    return (
+                                                        <EditorProvider
+                                                            key={`${editorId}-provider`}
+                                                            id={editorId}
+                                                            initialValue={textValue}
+                                                            showToolbar={false}
+                                                            enableTokens
+                                                        >
+                                                            <SharedEditor
+                                                                id={editorId}
+                                                                initialValue={textValue}
+                                                                handleChange={(newValue) => {
+                                                                    const storageValue =
+                                                                        textModeToStorageValue(
+                                                                            newValue,
+                                                                            item.value,
+                                                                        )
+                                                                    updateValueAtPath(
+                                                                        fullPath,
+                                                                        storageValue,
+                                                                    )
+                                                                }}
+                                                                placeholder={`Enter ${item.name}...`}
+                                                                editorType="border"
+                                                                className="overflow-hidden"
+                                                                disableDebounce
+                                                                noProvider
+                                                                header={
+                                                                    <TestcaseFieldHeader
+                                                                        id={editorId}
+                                                                        value={textValue}
+                                                                    />
+                                                                }
+                                                            />
+                                                        </EditorProvider>
+                                                    )
+                                                })()
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+                ) : (
+                    // JSON mode - single JSON editor using derived value from formValues
+                    <div className="w-[calc(100%-32px)] px-4">
+                        <SharedEditor
+                            key="json-editor"
+                            initialValue={jsonDisplayValue}
+                            handleChange={handleJsonChange}
+                            editorType="border"
+                            className="min-h-[300px] overflow-hidden"
+                            disableDebounce
+                            editorProps={{
+                                codeOnly: true,
+                                language: "json",
+                                showLineNumbers: true,
+                            }}
+                        />
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+})
+
+TestcaseEditDrawerContent.displayName = "TestcaseEditDrawerContent"
+
+export default TestcaseEditDrawerContent

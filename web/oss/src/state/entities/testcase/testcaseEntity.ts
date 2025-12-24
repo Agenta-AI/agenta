@@ -1,5 +1,5 @@
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -749,18 +749,48 @@ export const addColumnToTestcasesAtom = atom(
 // ============================================================================
 // CELL ACCESSOR
 // Optimized atom for reading a single cell value
+// Uses selectAtom for fine-grained subscriptions - only re-renders when
+// the specific cell value changes, not when other fields change
 // ============================================================================
 
 /**
+ * Equality check for cell values
+ * Handles primitives and simple object comparison
+ */
+const cellValueEquals = (a: unknown, b: unknown): boolean => {
+    if (a === b) return true
+    if (a === undefined || a === null || b === undefined || b === null) return a === b
+    if (typeof a !== typeof b) return false
+    // For strings, compare directly (most common case)
+    if (typeof a === "string") return a === b
+    // For objects, do shallow JSON comparison (handles most cases)
+    if (typeof a === "object") {
+        try {
+            return JSON.stringify(a) === JSON.stringify(b)
+        } catch {
+            return false
+        }
+    }
+    return a === b
+}
+
+/**
  * Read a specific cell value from a testcase
+ * Uses selectAtom with equality check to prevent re-renders when value hasn't changed
  */
 export const testcaseCellAtomFamily = atomFamily(
-    ({id, column}: {id: string; column: string}) =>
-        atom((get) => {
-            const entity = get(testcaseEntityAtomFamily(id))
-            if (!entity) return undefined
-            return (entity as Record<string, unknown>)[column]
-        }),
+    ({id, column}: {id: string; column: string}) => {
+        // Use selectAtom for fine-grained subscriptions
+        // Only re-renders when the specific column value changes
+        return selectAtom(
+            testcaseEntityAtomFamily(id),
+            (entity) => {
+                if (!entity) return undefined
+                return (entity as Record<string, unknown>)[column]
+            },
+            cellValueEquals,
+        )
+    },
     (a, b) => a.id === b.id && a.column === b.column,
 )
 

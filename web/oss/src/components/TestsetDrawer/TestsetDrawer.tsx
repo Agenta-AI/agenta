@@ -87,12 +87,11 @@ const TestsetDrawer = () => {
                             setRowDataPreview={drawer.setRowDataPreview}
                             setUpdatedTraceData={drawer.setUpdatedTraceData}
                             editorFormat={drawer.editorFormat}
-                            setEditorFormat={drawer.setEditorFormat}
                             formatDataPreview={drawer.formatDataPreview}
-                            updatedTraceData={drawer.updatedTraceData}
                             selectedTraceData={drawer.selectedTraceData}
                             onRemoveTraceData={drawer.onRemoveTraceData}
                             onSaveEditedTrace={drawer.onSaveEditedTrace}
+                            onRevertEditedTrace={drawer.onRevertEditedTrace}
                         />
 
                         <MappingSection

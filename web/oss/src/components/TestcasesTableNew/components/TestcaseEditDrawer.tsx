@@ -11,12 +11,12 @@ import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
 import {
     testcaseDraftAtomFamily,
     testcaseEntityAtomFamily,
-    testcaseHasDraftAtomFamily,
+    testcaseIsDirtyAtomFamily,
 } from "@/oss/state/entities/testcase/testcaseEntity"
 
 import TestcaseEditDrawerContent, {
     type TestcaseEditDrawerContentRef,
-} from "./TestcaseEditDrawerContent"
+} from "./TestcaseEditDrawer/index"
 
 type EditMode = "fields" | "json"
 
@@ -63,9 +63,9 @@ const TestcaseEditDrawer = ({
     const testcaseAtom = useMemo(() => testcaseEntityAtomFamily(testcaseId || ""), [testcaseId])
     const testcase = useAtomValue(testcaseAtom)
 
-    // Check if entity has local edits
-    const hasDraftAtom = useMemo(() => testcaseHasDraftAtomFamily(testcaseId || ""), [testcaseId])
-    const isDirty = useAtomValue(hasDraftAtom)
+    // Check if entity has actual data changes (compares draft vs server state)
+    const isDirtyAtom = useMemo(() => testcaseIsDirtyAtomFamily(testcaseId || ""), [testcaseId])
+    const isDirty = useAtomValue(isDirtyAtom)
 
     // Draft setter for restoring session state
     const setDraft = useSetAtom(testcaseDraftAtomFamily(testcaseId || ""))
@@ -230,11 +230,16 @@ const TestcaseEditDrawer = ({
                                         key: "commit",
                                         label: "Apply and Commit Changes",
                                         onClick: handleSaveTestset,
+                                        disabled: !isDirty,
                                     },
                                 ],
                             }}
                         >
-                            <Button type="primary" icon={<CaretUp size={14} />} />
+                            <Button
+                                type="primary"
+                                icon={<CaretUp size={14} />}
+                                disabled={!isDirty}
+                            />
                         </Dropdown>
                     </Space.Compact>
                 </div>

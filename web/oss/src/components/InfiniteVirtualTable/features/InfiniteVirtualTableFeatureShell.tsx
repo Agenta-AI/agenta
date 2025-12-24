@@ -33,6 +33,10 @@ export interface TableScopeConfig {
     columnVisibilityStorageKey?: string | null
     columnVisibilityDefaults?: Key[]
     viewportTrackingEnabled?: boolean
+    /** Margin around viewport for preloading columns (e.g., "0px 200px" to preload 200px on left/right) */
+    viewportMargin?: string
+    /** Debounce time in ms before marking a column as hidden after it exits viewport (default: 150) */
+    viewportExitDebounceMs?: number
 }
 
 export interface TableFeaturePagination<Row extends InfiniteTableRowBase> {
@@ -488,6 +492,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             storageKey: tableScope.columnVisibilityStorageKey ?? undefined,
             defaultHiddenKeys: tableScope.columnVisibilityDefaults,
             viewportTrackingEnabled,
+            viewportMargin: tableScope.viewportMargin,
+            viewportExitDebounceMs: tableScope.viewportExitDebounceMs,
             renderMenuContent: columnVisibilityRenderer,
             renderMenuTrigger: useSettingsDropdown ? settingsDropdownRenderer : undefined,
         }),
@@ -496,6 +502,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             settingsDropdownRenderer,
             tableScope.columnVisibilityDefaults,
             tableScope.columnVisibilityStorageKey,
+            tableScope.viewportExitDebounceMs,
+            tableScope.viewportMargin,
             useSettingsDropdown,
             viewportTrackingEnabled,
         ],

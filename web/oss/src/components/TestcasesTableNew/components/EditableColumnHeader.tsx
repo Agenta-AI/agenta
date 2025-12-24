@@ -91,7 +91,7 @@ const EditableColumnHeader = ({
     ]
 
     if (disabled) {
-        return <span>{columnName}</span>
+        return <Typography.Text ellipsis>{columnName}</Typography.Text>
     }
 
     return (
