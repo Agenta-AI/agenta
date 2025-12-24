@@ -5,9 +5,11 @@ import {
     CaretDown,
     CaretRight,
     CaretRight as ChevronRight,
+    Check,
+    Copy,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ChatMessageList} from "@/oss/components/ChatMessageEditor"
@@ -100,6 +102,8 @@ const TestcaseEditDrawerContent = forwardRef<
 
     // Per-field collapse state
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
+    // Track which field was just copied (for visual feedback)
+    const [copiedField, setCopiedField] = useState<string | null>(null)
     // Path state for drill-down navigation: [columnKey, ...nestedPath]
     // e.g., ["messages", "0", "content"] means we're viewing messages[0].content
     const [currentPath, setCurrentPath] = useState<string[]>([])
@@ -192,6 +196,13 @@ const TestcaseEditDrawerContent = forwardRef<
         },
         [formValues, updateTestcase, testcaseId],
     )
+
+    // Copy field value to clipboard
+    const copyFieldValue = useCallback((fieldKey: string, value: string) => {
+        navigator.clipboard.writeText(value)
+        setCopiedField(fieldKey)
+        setTimeout(() => setCopiedField(null), 1000)
+    }, [])
 
     // Navigate into a nested field
     const navigateInto = useCallback((key: string) => {
@@ -462,6 +473,31 @@ const TestcaseEditDrawerContent = forwardRef<
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2">
+                                            {/* Show copy button in header only when collapsed OR when expandable (objects/arrays)
+                                                For primitives when expanded, the editor inside has its own copy button */}
+                                            {(isCollapsed || expandable) && (
+                                                <Tooltip
+                                                    title={
+                                                        copiedField === item.key ? "Copied" : "Copy"
+                                                    }
+                                                >
+                                                    <Button
+                                                        type="text"
+                                                        size="small"
+                                                        className="!px-1 !h-6 text-xs text-gray-500"
+                                                        icon={
+                                                            copiedField === item.key ? (
+                                                                <Check size={12} />
+                                                            ) : (
+                                                                <Copy size={12} />
+                                                            )
+                                                        }
+                                                        onClick={() =>
+                                                            copyFieldValue(item.key, item.value)
+                                                        }
+                                                    />
+                                                </Tooltip>
+                                            )}
                                             {expandable && (
                                                 <Button
                                                     type="text"

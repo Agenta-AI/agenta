@@ -1,7 +1,7 @@
 import {memo, useCallback, useState} from "react"
 
-import {CaretDown, CaretRight, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Input, Popover, Typography} from "antd"
+import {CaretDown, CaretRight, Check, Copy, Plus, Trash} from "@phosphor-icons/react"
+import {Button, Dropdown, Input, Popover, Tooltip, Typography} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 
@@ -107,6 +107,19 @@ const NestedFieldEditor = memo(
     }: NestedFieldEditorProps) => {
         const classes = useTreeStyles()
         const [isExpanded, setIsExpanded] = useState(false)
+        const [isCopied, setIsCopied] = useState(false)
+
+        // Copy value to clipboard
+        const onCopyValue = useCallback(() => {
+            if (value) {
+                setIsCopied(true)
+                navigator.clipboard.writeText(value)
+                setTimeout(() => {
+                    setIsCopied(false)
+                }, 1000)
+            }
+        }, [value])
+
         const obj = tryParseAsObject(value)
         const arr = tryParseAsArray(value)
         const canExpandObj = obj !== null && Object.keys(obj).length > 0 && depth < MAX_NESTED_DEPTH
@@ -252,6 +265,15 @@ const NestedFieldEditor = memo(
                                 {fieldName}
                             </Text>
                             <div className="flex items-center gap-1">
+                                <Tooltip title={isCopied ? "Copied" : "Copy"}>
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        className="!px-1 !h-5 text-xs text-gray-500"
+                                        icon={isCopied ? <Check size={12} /> : <Copy size={12} />}
+                                        onClick={onCopyValue}
+                                    />
+                                </Tooltip>
                                 <Popover
                                     open={addPropertyOpen}
                                     onOpenChange={setAddPropertyOpen}
@@ -339,6 +361,15 @@ const NestedFieldEditor = memo(
                                 </span>
                             </Text>
                             <div className="flex items-center gap-1">
+                                <Tooltip title={isCopied ? "Copied" : "Copy"}>
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        className="!px-1 !h-5 text-xs text-gray-500"
+                                        icon={isCopied ? <Check size={12} /> : <Copy size={12} />}
+                                        onClick={onCopyValue}
+                                    />
+                                </Tooltip>
                                 <Dropdown
                                     menu={{
                                         items: addShapeMenuItems,
@@ -470,6 +501,15 @@ const NestedFieldEditor = memo(
                             )}
                         </Text>
                         <div className="flex items-center gap-1">
+                            <Tooltip title={isCopied ? "Copied" : "Copy"}>
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    className="!px-1 !h-5 text-xs text-gray-500"
+                                    icon={isCopied ? <Check size={12} /> : <Copy size={12} />}
+                                    onClick={onCopyValue}
+                                />
+                            </Tooltip>
                             {onDelete && (
                                 <Button
                                     type="text"
