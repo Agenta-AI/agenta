@@ -137,44 +137,9 @@ const TestcaseFieldRenderer = memo(
             [value, onFieldChange],
         )
 
-        // Raw mode: show JSON editor, but provide rich editor preview when possible (e.g. outputs.content strings)
+        // Raw mode: show JSON editor for all JSON objects
+        // This ensures all properties are visible and editable (e.g., provider_specific_fields, annotations)
         if (fieldMode === "raw") {
-            const parsedObject = tryParseAsObject(value)
-            const contentString =
-                parsedObject && typeof parsedObject.content === "string"
-                    ? parsedObject.content
-                    : null
-
-            if (contentString !== null) {
-                const editorId = `${columnKey}-content-preview`
-                return (
-                    <EditorProvider
-                        key={`${columnKey}-content-provider`}
-                        showToolbar={false}
-                        enableTokens
-                    >
-                        <SharedEditor
-                            id={editorId}
-                            initialValue={contentString}
-                            handleChange={(newValue) => {
-                                const latest = tryParseAsObject(value) || {}
-                                const updatedValue = JSON.stringify({
-                                    ...latest,
-                                    content: newValue,
-                                })
-                                onFieldChange(updatedValue)
-                            }}
-                            placeholder={`Enter ${columnName}...`}
-                            editorType="border"
-                            className="overflow-hidden"
-                            disableDebounce
-                            noProvider
-                            header={<TestcaseFieldHeader id={editorId} value={contentString} />}
-                        />
-                    </EditorProvider>
-                )
-            }
-
             return (
                 <SharedEditor
                     key={`${columnKey}-raw`}
