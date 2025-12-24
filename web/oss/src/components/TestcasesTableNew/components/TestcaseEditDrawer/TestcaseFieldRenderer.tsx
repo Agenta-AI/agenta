@@ -1,8 +1,50 @@
-import {memo, useCallback} from "react"
+import {memo, useCallback, useState} from "react"
 
 import {ChatMessageList, SimpleChatMessage} from "@/oss/components/ChatMessageEditor"
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
+
+// JSON Editor wrapper that manages local state to prevent breaking on invalid JSON
+const JsonEditorWithLocalState = ({
+    initialValue,
+    onValidChange,
+    editorKey,
+}: {
+    initialValue: string
+    onValidChange: (value: string) => void
+    editorKey: string
+}) => {
+    const [localValue, setLocalValue] = useState(initialValue)
+
+    const handleChange = useCallback(
+        (value: string) => {
+            setLocalValue(value)
+            try {
+                JSON.parse(value)
+                onValidChange(value)
+            } catch {
+                // Invalid JSON - keep local state but don't sync to parent
+            }
+        },
+        [onValidChange],
+    )
+
+    return (
+        <SharedEditor
+            key={editorKey}
+            initialValue={localValue}
+            handleChange={handleChange}
+            editorType="border"
+            className="min-h-[120px] overflow-hidden"
+            disableDebounce
+            editorProps={{
+                codeOnly: true,
+                language: "json",
+                showLineNumbers: true,
+            }}
+        />
+    )
+}
 
 import TestcaseFieldHeader from "../TestcaseFieldHeader"
 
@@ -141,18 +183,10 @@ const TestcaseFieldRenderer = memo(
         // This ensures all properties are visible and editable (e.g., provider_specific_fields, annotations)
         if (fieldMode === "raw") {
             return (
-                <SharedEditor
-                    key={`${columnKey}-raw`}
+                <JsonEditorWithLocalState
+                    editorKey={`${columnKey}-raw`}
                     initialValue={value}
-                    handleChange={onFieldChange}
-                    editorType="border"
-                    className="min-h-[120px] overflow-hidden"
-                    disableDebounce
-                    editorProps={{
-                        codeOnly: true,
-                        language: "json",
-                        showLineNumbers: true,
-                    }}
+                    onValidChange={onFieldChange}
                 />
             )
         }
@@ -208,13 +242,10 @@ const TestcaseFieldRenderer = memo(
             }
             // Fallback to raw editor if expanded mode but not expandable
             return (
-                <SharedEditor
-                    key={`${columnKey}-expanded-fallback`}
+                <JsonEditorWithLocalState
+                    editorKey={`${columnKey}-expanded-fallback`}
                     initialValue={value}
-                    handleChange={onFieldChange}
-                    editorType="border"
-                    className="overflow-hidden"
-                    disableDebounce
+                    onValidChange={onFieldChange}
                 />
             )
         }

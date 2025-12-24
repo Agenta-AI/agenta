@@ -42,6 +42,48 @@ import TestcaseFieldRenderer, {FieldMode} from "./TestcaseFieldRenderer"
 
 const {Text} = Typography
 
+// JSON Editor wrapper that manages local state to prevent breaking on invalid JSON
+const JsonEditorWithLocalState = ({
+    initialValue,
+    onValidChange,
+    editorKey,
+}: {
+    initialValue: string
+    onValidChange: (value: string) => void
+    editorKey: string
+}) => {
+    const [localValue, setLocalValue] = useState(initialValue)
+
+    const handleChange = useCallback(
+        (value: string) => {
+            setLocalValue(value)
+            try {
+                JSON.parse(value)
+                onValidChange(value)
+            } catch {
+                // Invalid JSON - keep local state but don't sync to parent
+            }
+        },
+        [onValidChange],
+    )
+
+    return (
+        <SharedEditor
+            key={editorKey}
+            initialValue={localValue}
+            handleChange={handleChange}
+            editorType="border"
+            className="min-h-[60px] overflow-hidden"
+            disableDebounce
+            editorProps={{
+                codeOnly: true,
+                language: "json",
+                showLineNumbers: true,
+            }}
+        />
+    )
+}
+
 type EditMode = "fields" | "json"
 
 export interface TestcaseEditDrawerContentRef {
@@ -842,20 +884,12 @@ const TestcaseEditDrawerContent = forwardRef<
                                                 />
                                             ) : isRawMode ? (
                                                 // Raw mode - show the actual JSON value (item.value is already JSON string)
-                                                <SharedEditor
-                                                    key={`${fullPath.join("-")}-raw-editor-${isRawMode}`}
+                                                <JsonEditorWithLocalState
+                                                    editorKey={`${fullPath.join("-")}-raw-editor-${isRawMode}`}
                                                     initialValue={item.value}
-                                                    handleChange={(value) => {
+                                                    onValidChange={(value) =>
                                                         updateValueAtPath(fullPath, value)
-                                                    }}
-                                                    editorType="border"
-                                                    className="min-h-[60px] overflow-hidden"
-                                                    disableDebounce
-                                                    editorProps={{
-                                                        codeOnly: true,
-                                                        language: "json",
-                                                        showLineNumbers: true,
-                                                    }}
+                                                    }
                                                 />
                                             ) : dataType === "boolean" ? (
                                                 <div className="flex items-center gap-3 py-2">
@@ -961,20 +995,12 @@ const TestcaseEditDrawerContent = forwardRef<
                                                     showControls={isMessagesArray(item.value)}
                                                 />
                                             ) : dataType === "json-object" ? (
-                                                <SharedEditor
-                                                    key={`${fullPath.join("-")}-editor`}
+                                                <JsonEditorWithLocalState
+                                                    editorKey={`${fullPath.join("-")}-editor`}
                                                     initialValue={item.value}
-                                                    handleChange={(value) =>
+                                                    onValidChange={(value) =>
                                                         updateValueAtPath(fullPath, value)
                                                     }
-                                                    editorType="border"
-                                                    className="min-h-[60px] overflow-hidden"
-                                                    disableDebounce
-                                                    editorProps={{
-                                                        codeOnly: true,
-                                                        language: "json",
-                                                        showLineNumbers: true,
-                                                    }}
                                                 />
                                             ) : (
                                                 (() => {
