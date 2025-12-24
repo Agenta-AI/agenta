@@ -706,349 +706,371 @@ const TestcaseEditDrawerContent = forwardRef<
                         {currentLevelItems.length === 0 && (
                             <div className="text-gray-500 text-sm">No items to display</div>
                         )}
-                        {currentLevelItems.map((item) => {
-                            const fieldKey = `${currentPath.join(".")}.${item.key}`
-                            // Use locked type if available, otherwise detect from value
-                            const dataType =
-                                lockedFieldTypes[fieldKey] ?? detectDataType(item.value)
-                            const isRawMode = rawModeFields[fieldKey] ?? false
-                            // If raw mode is enabled, force "raw" mode; otherwise use auto-detection
-                            const fieldMode: FieldMode = isRawMode
-                                ? "raw"
-                                : item.isColumn
-                                  ? getFieldModeForValue(item.value)
-                                  : "text"
-                            const isCollapsed = collapsedFields[fieldKey] ?? false
-                            const expandable = isExpandable(item.value)
-                            const itemCount = getItemCount(item.value)
-                            const fullPath = [...currentPath, item.key]
-                            // Show raw toggle for all data types that have type-specific UI
-                            const canToggleRaw =
-                                dataType === "string" ||
-                                dataType === "messages" ||
-                                dataType === "json-object" ||
-                                dataType === "json-array" ||
-                                dataType === "boolean" ||
-                                dataType === "number"
+                        <div className="flex flex-col gap-2">
+                            {currentLevelItems.map((item) => {
+                                const fieldKey = `${currentPath.join(".")}.${item.key}`
+                                // Use locked type if available, otherwise detect from value
+                                const dataType =
+                                    lockedFieldTypes[fieldKey] ?? detectDataType(item.value)
+                                const isRawMode = rawModeFields[fieldKey] ?? false
+                                // If raw mode is enabled, force "raw" mode; otherwise use auto-detection
+                                const fieldMode: FieldMode = isRawMode
+                                    ? "raw"
+                                    : item.isColumn
+                                      ? getFieldModeForValue(item.value)
+                                      : "text"
+                                const isCollapsed = collapsedFields[fieldKey] ?? false
+                                const expandable = isExpandable(item.value)
+                                const itemCount = getItemCount(item.value)
+                                const fullPath = [...currentPath, item.key]
+                                // Show raw toggle for all data types that have type-specific UI
+                                const canToggleRaw =
+                                    dataType === "string" ||
+                                    dataType === "messages" ||
+                                    dataType === "json-object" ||
+                                    dataType === "json-array" ||
+                                    dataType === "boolean" ||
+                                    dataType === "number"
 
-                            return (
-                                <div key={item.key} className="flex flex-col gap-2">
-                                    {/* Field header */}
-                                    <div className="flex items-center justify-between py-2 px-3 bg-[#FAFAFA] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)]">
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    toggleFieldCollapse(
-                                                        `${currentPath.join(".")}.${item.key}`,
-                                                    )
-                                                }
-                                                className="flex items-center gap-2 text-left hover:text-gray-700 transition-colors bg-transparent border-none p-0 cursor-pointer"
-                                            >
-                                                {isCollapsed ? (
-                                                    <CaretRight size={14} />
-                                                ) : (
-                                                    <CaretDown size={14} />
+                                return (
+                                    <div key={item.key} className="flex flex-col gap-2">
+                                        {/* Field header */}
+                                        <div className="flex items-center justify-between py-2 px-3 bg-[#FAFAFA] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)]">
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        toggleFieldCollapse(
+                                                            `${currentPath.join(".")}.${item.key}`,
+                                                        )
+                                                    }
+                                                    className="flex items-center gap-2 text-left hover:text-gray-700 transition-colors bg-transparent border-none p-0 cursor-pointer"
+                                                >
+                                                    {isCollapsed ? (
+                                                        <CaretRight size={14} />
+                                                    ) : (
+                                                        <CaretDown size={14} />
+                                                    )}
+                                                    <span className="text-gray-700">
+                                                        {item.name}
+                                                    </span>
+                                                </button>
+                                                {itemCount && (
+                                                    <span className="text-xs text-gray-400">
+                                                        [{itemCount}]
+                                                    </span>
                                                 )}
-                                                <span className="text-gray-700">{item.name}</span>
-                                            </button>
-                                            {itemCount && (
-                                                <span className="text-xs text-gray-400">
-                                                    [{itemCount}]
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {/* Show copy button in header only when collapsed OR when expandable (objects/arrays)
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {/* Show copy button in header only when collapsed OR when expandable (objects/arrays)
                                                 For primitives when expanded, the editor inside has its own copy button */}
-                                            {(isCollapsed || expandable) && (
-                                                <Tooltip
-                                                    title={
-                                                        copiedField === item.key ? "Copied" : "Copy"
-                                                    }
-                                                >
-                                                    <Button
-                                                        type="text"
-                                                        size="small"
-                                                        className="!px-1 !h-6 text-xs text-gray-500"
-                                                        icon={
-                                                            copiedField === item.key ? (
-                                                                <Check size={12} />
-                                                            ) : (
-                                                                <Copy size={12} />
-                                                            )
+                                                {(isCollapsed || expandable) && (
+                                                    <Tooltip
+                                                        title={
+                                                            copiedField === item.key
+                                                                ? "Copied"
+                                                                : "Copy"
                                                         }
-                                                        onClick={() =>
-                                                            copyFieldValue(
-                                                                item.key,
-                                                                isRawMode
-                                                                    ? JSON.stringify(item.value)
-                                                                    : item.value,
-                                                            )
-                                                        }
-                                                    />
-                                                </Tooltip>
-                                            )}
-                                            {canToggleRaw && (
-                                                <Tooltip
-                                                    title={
-                                                        isRawMode ? "Show formatted" : "Show raw"
-                                                    }
-                                                >
-                                                    <Button
-                                                        type="text"
-                                                        size="small"
-                                                        className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500" : "text-gray-500"}`}
-                                                        icon={<Code size={12} />}
-                                                        onClick={() => toggleRawMode(fieldKey)}
-                                                    />
-                                                </Tooltip>
-                                            )}
-                                            {expandable && (
-                                                <Button
-                                                    type="text"
-                                                    size="small"
-                                                    onClick={() => navigateInto(item.key)}
-                                                    className="!px-2 !h-6 text-xs text-gray-500"
-                                                >
-                                                    <CaretRight size={12} className="mr-1" />
-                                                    Drill In
-                                                </Button>
-                                            )}
-                                            {!item.isColumn && (
-                                                <Button
-                                                    type="text"
-                                                    size="small"
-                                                    danger
-                                                    icon={<Trash size={12} />}
-                                                    onClick={() => {
-                                                        // Delete this item
-                                                        const parentPath = currentPath
-                                                        const parentValue =
-                                                            getValueAtPath(parentPath)
-                                                        try {
-                                                            const parsed = JSON.parse(parentValue)
-                                                            if (Array.isArray(parsed)) {
-                                                                const index = parseInt(item.key, 10)
-                                                                const updated = parsed.filter(
-                                                                    (_, i) => i !== index,
-                                                                )
-                                                                updateValueAtPath(
-                                                                    parentPath,
-                                                                    JSON.stringify(updated),
-                                                                )
-                                                            } else if (typeof parsed === "object") {
-                                                                const {[item.key]: _, ...rest} =
-                                                                    parsed
-                                                                updateValueAtPath(
-                                                                    parentPath,
-                                                                    JSON.stringify(rest),
+                                                    >
+                                                        <Button
+                                                            type="text"
+                                                            size="small"
+                                                            className="!px-1 !h-6 text-xs text-gray-500"
+                                                            icon={
+                                                                copiedField === item.key ? (
+                                                                    <Check size={12} />
+                                                                ) : (
+                                                                    <Copy size={12} />
                                                                 )
                                                             }
-                                                        } catch {
-                                                            // Ignore
+                                                            onClick={() =>
+                                                                copyFieldValue(
+                                                                    item.key,
+                                                                    isRawMode
+                                                                        ? JSON.stringify(item.value)
+                                                                        : item.value,
+                                                                )
+                                                            }
+                                                        />
+                                                    </Tooltip>
+                                                )}
+                                                {canToggleRaw && (
+                                                    <Tooltip
+                                                        title={
+                                                            isRawMode
+                                                                ? "Show formatted"
+                                                                : "Show raw"
                                                         }
-                                                    }}
-                                                    className="!px-1 !h-6"
-                                                />
-                                            )}
+                                                    >
+                                                        <Button
+                                                            type="text"
+                                                            size="small"
+                                                            className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500" : "text-gray-500"}`}
+                                                            icon={<Code size={12} />}
+                                                            onClick={() => toggleRawMode(fieldKey)}
+                                                        />
+                                                    </Tooltip>
+                                                )}
+                                                {expandable && (
+                                                    <Button
+                                                        type="text"
+                                                        size="small"
+                                                        onClick={() => navigateInto(item.key)}
+                                                        className="!px-2 !h-6 text-xs text-gray-500"
+                                                    >
+                                                        <CaretRight size={12} className="mr-1" />
+                                                        Drill In
+                                                    </Button>
+                                                )}
+                                                {!item.isColumn && (
+                                                    <Button
+                                                        type="text"
+                                                        size="small"
+                                                        danger
+                                                        icon={<Trash size={12} />}
+                                                        onClick={() => {
+                                                            // Delete this item
+                                                            const parentPath = currentPath
+                                                            const parentValue =
+                                                                getValueAtPath(parentPath)
+                                                            try {
+                                                                const parsed =
+                                                                    JSON.parse(parentValue)
+                                                                if (Array.isArray(parsed)) {
+                                                                    const index = parseInt(
+                                                                        item.key,
+                                                                        10,
+                                                                    )
+                                                                    const updated = parsed.filter(
+                                                                        (_, i) => i !== index,
+                                                                    )
+                                                                    updateValueAtPath(
+                                                                        parentPath,
+                                                                        JSON.stringify(updated),
+                                                                    )
+                                                                } else if (
+                                                                    typeof parsed === "object"
+                                                                ) {
+                                                                    const {[item.key]: _, ...rest} =
+                                                                        parsed
+                                                                    updateValueAtPath(
+                                                                        parentPath,
+                                                                        JSON.stringify(rest),
+                                                                    )
+                                                                }
+                                                            } catch {
+                                                                // Ignore
+                                                            }
+                                                        }}
+                                                        className="!px-1 !h-6"
+                                                    />
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    {/* Field content - collapsible */}
-                                    {!isCollapsed && (
-                                        <div className="px-4">
-                                            {item.isColumn ? (
-                                                <TestcaseFieldRenderer
-                                                    columnKey={item.key}
-                                                    columnName={item.name}
-                                                    value={item.value}
-                                                    fieldMode={fieldMode}
-                                                    onFieldChange={(value) =>
-                                                        handleFieldChange(item.key, value)
-                                                    }
-                                                    onNestedFieldChange={(nestedKey, value) =>
-                                                        handleNestedFieldChange(
-                                                            item.key,
-                                                            nestedKey,
-                                                            value,
-                                                        )
-                                                    }
-                                                    onArrayItemChange={(index, value) =>
-                                                        handleArrayItemChange(
-                                                            item.key,
-                                                            index,
-                                                            value,
-                                                        )
-                                                    }
-                                                />
-                                            ) : isRawMode ? (
-                                                // Raw mode - show the actual JSON value (item.value is already JSON string)
-                                                <JsonEditorWithLocalState
-                                                    editorKey={`${fullPath.join("-")}-raw-editor-${isRawMode}`}
-                                                    initialValue={item.value}
-                                                    onValidChange={(value) =>
-                                                        updateValueAtPath(fullPath, value)
-                                                    }
-                                                />
-                                            ) : dataType === "boolean" ? (
-                                                <div className="flex items-center gap-3 py-2">
-                                                    <Switch
-                                                        checked={JSON.parse(item.value) === true}
-                                                        onChange={(checked) =>
-                                                            updateValueAtPath(
-                                                                fullPath,
-                                                                JSON.stringify(checked),
+                                        {/* Field content - collapsible */}
+                                        {!isCollapsed && (
+                                            <div className="px-4">
+                                                {item.isColumn ? (
+                                                    <TestcaseFieldRenderer
+                                                        columnKey={item.key}
+                                                        columnName={item.name}
+                                                        value={item.value}
+                                                        fieldMode={fieldMode}
+                                                        onFieldChange={(value) =>
+                                                            handleFieldChange(item.key, value)
+                                                        }
+                                                        onNestedFieldChange={(nestedKey, value) =>
+                                                            handleNestedFieldChange(
+                                                                item.key,
+                                                                nestedKey,
+                                                                value,
+                                                            )
+                                                        }
+                                                        onArrayItemChange={(index, value) =>
+                                                            handleArrayItemChange(
+                                                                item.key,
+                                                                index,
+                                                                value,
                                                             )
                                                         }
                                                     />
-                                                    <span className="text-sm text-gray-600">
-                                                        {JSON.parse(item.value) ? "true" : "false"}
-                                                    </span>
-                                                </div>
-                                            ) : dataType === "number" ? (
-                                                <InputNumber
-                                                    value={JSON.parse(item.value)}
-                                                    onChange={(value) =>
-                                                        updateValueAtPath(
-                                                            fullPath,
-                                                            JSON.stringify(value ?? 0),
+                                                ) : isRawMode ? (
+                                                    // Raw mode - show the actual JSON value (item.value is already JSON string)
+                                                    <JsonEditorWithLocalState
+                                                        editorKey={`${fullPath.join("-")}-raw-editor-${isRawMode}`}
+                                                        initialValue={item.value}
+                                                        onValidChange={(value) =>
+                                                            updateValueAtPath(fullPath, value)
+                                                        }
+                                                    />
+                                                ) : dataType === "boolean" ? (
+                                                    <div className="flex items-center gap-3 py-2">
+                                                        <Switch
+                                                            checked={
+                                                                JSON.parse(item.value) === true
+                                                            }
+                                                            onChange={(checked) =>
+                                                                updateValueAtPath(
+                                                                    fullPath,
+                                                                    JSON.stringify(checked),
+                                                                )
+                                                            }
+                                                        />
+                                                        <span className="text-sm text-gray-600">
+                                                            {JSON.parse(item.value)
+                                                                ? "true"
+                                                                : "false"}
+                                                        </span>
+                                                    </div>
+                                                ) : dataType === "number" ? (
+                                                    <InputNumber
+                                                        value={JSON.parse(item.value)}
+                                                        onChange={(value) =>
+                                                            updateValueAtPath(
+                                                                fullPath,
+                                                                JSON.stringify(value ?? 0),
+                                                            )
+                                                        }
+                                                        className="w-full"
+                                                        size="middle"
+                                                    />
+                                                ) : dataType === "json-array" ? (
+                                                    (() => {
+                                                        const arrayItems: unknown[] = JSON.parse(
+                                                            item.value,
                                                         )
-                                                    }
-                                                    className="w-full"
-                                                    size="middle"
-                                                />
-                                            ) : dataType === "json-array" ? (
-                                                (() => {
-                                                    const arrayItems: unknown[] = JSON.parse(
-                                                        item.value,
-                                                    )
-                                                    return (
-                                                        <div className="flex flex-col gap-2">
-                                                            <Select
-                                                                mode="multiple"
-                                                                allowClear
-                                                                placeholder="Select items to view/edit"
-                                                                className="w-full"
-                                                                size="middle"
-                                                                value={[]}
-                                                                options={arrayItems.map(
-                                                                    (arrItem, idx) => ({
-                                                                        value: idx,
-                                                                        label: `Item ${idx + 1}: ${
-                                                                            typeof arrItem ===
-                                                                            "string"
-                                                                                ? arrItem.substring(
-                                                                                      0,
-                                                                                      50,
-                                                                                  ) +
-                                                                                  (arrItem.length >
-                                                                                  50
-                                                                                      ? "..."
-                                                                                      : "")
-                                                                                : typeof arrItem ===
-                                                                                    "object"
-                                                                                  ? JSON.stringify(
-                                                                                        arrItem,
-                                                                                    ).substring(
-                                                                                        0,
-                                                                                        50,
-                                                                                    ) + "..."
-                                                                                  : String(arrItem)
-                                                                        }`,
-                                                                    }),
-                                                                )}
-                                                                onSelect={(idx: number) => {
-                                                                    // Navigate into the field first, then into the array index
-                                                                    setCurrentPath([
-                                                                        ...fullPath,
-                                                                        String(idx),
-                                                                    ])
-                                                                }}
-                                                                dropdownRender={(menu) => (
-                                                                    <div>
-                                                                        <div className="px-2 py-1 text-xs text-gray-500 border-b">
-                                                                            Click an item to drill
-                                                                            in
+                                                        return (
+                                                            <div className="flex flex-col gap-2">
+                                                                <Select
+                                                                    mode="multiple"
+                                                                    allowClear
+                                                                    placeholder="Select items to view/edit"
+                                                                    className="w-full"
+                                                                    size="middle"
+                                                                    value={[]}
+                                                                    options={arrayItems.map(
+                                                                        (arrItem, idx) => ({
+                                                                            value: idx,
+                                                                            label: `Item ${idx + 1}: ${
+                                                                                typeof arrItem ===
+                                                                                "string"
+                                                                                    ? arrItem.substring(
+                                                                                          0,
+                                                                                          50,
+                                                                                      ) +
+                                                                                      (arrItem.length >
+                                                                                      50
+                                                                                          ? "..."
+                                                                                          : "")
+                                                                                    : typeof arrItem ===
+                                                                                        "object"
+                                                                                      ? JSON.stringify(
+                                                                                            arrItem,
+                                                                                        ).substring(
+                                                                                            0,
+                                                                                            50,
+                                                                                        ) + "..."
+                                                                                      : String(
+                                                                                            arrItem,
+                                                                                        )
+                                                                            }`,
+                                                                        }),
+                                                                    )}
+                                                                    onSelect={(idx: number) => {
+                                                                        // Navigate into the field first, then into the array index
+                                                                        setCurrentPath([
+                                                                            ...fullPath,
+                                                                            String(idx),
+                                                                        ])
+                                                                    }}
+                                                                    dropdownRender={(menu) => (
+                                                                        <div>
+                                                                            <div className="px-2 py-1 text-xs text-gray-500 border-b">
+                                                                                Click an item to
+                                                                                drill in
+                                                                            </div>
+                                                                            {menu}
                                                                         </div>
-                                                                        {menu}
-                                                                    </div>
-                                                                )}
-                                                            />
-                                                            <div className="text-xs text-gray-500">
-                                                                {arrayItems.length} items • Use
-                                                                &quot;Drill In&quot; or select an
-                                                                item above to edit
+                                                                    )}
+                                                                />
+                                                                <div className="text-xs text-gray-500">
+                                                                    {arrayItems.length} items • Use
+                                                                    &quot;Drill In&quot; or select
+                                                                    an item above to edit
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )
-                                                })()
-                                            ) : dataType === "messages" ? (
-                                                <ChatMessageList
-                                                    messages={parseMessages(item.value)}
-                                                    onChange={(messages) =>
-                                                        updateValueAtPath(
-                                                            fullPath,
-                                                            JSON.stringify(messages),
                                                         )
-                                                    }
-                                                    showControls={isMessagesArray(item.value)}
-                                                />
-                                            ) : dataType === "json-object" ? (
-                                                <JsonEditorWithLocalState
-                                                    editorKey={`${fullPath.join("-")}-editor`}
-                                                    initialValue={item.value}
-                                                    onValidChange={(value) =>
-                                                        updateValueAtPath(fullPath, value)
-                                                    }
-                                                />
-                                            ) : (
-                                                (() => {
-                                                    const editorId = `drill-field-${fullPath.join("-")}`
-                                                    const textValue = getTextModeValue(item.value)
-                                                    return (
-                                                        <EditorProvider
-                                                            key={`${editorId}-provider`}
-                                                            id={editorId}
-                                                            initialValue={textValue}
-                                                            showToolbar={false}
-                                                            enableTokens
-                                                        >
-                                                            <SharedEditor
+                                                    })()
+                                                ) : dataType === "messages" ? (
+                                                    <ChatMessageList
+                                                        messages={parseMessages(item.value)}
+                                                        onChange={(messages) =>
+                                                            updateValueAtPath(
+                                                                fullPath,
+                                                                JSON.stringify(messages),
+                                                            )
+                                                        }
+                                                        showControls={isMessagesArray(item.value)}
+                                                    />
+                                                ) : dataType === "json-object" ? (
+                                                    <JsonEditorWithLocalState
+                                                        editorKey={`${fullPath.join("-")}-editor`}
+                                                        initialValue={item.value}
+                                                        onValidChange={(value) =>
+                                                            updateValueAtPath(fullPath, value)
+                                                        }
+                                                    />
+                                                ) : (
+                                                    (() => {
+                                                        const editorId = `drill-field-${fullPath.join("-")}`
+                                                        const textValue = getTextModeValue(
+                                                            item.value,
+                                                        )
+                                                        return (
+                                                            <EditorProvider
+                                                                key={`${editorId}-provider`}
                                                                 id={editorId}
                                                                 initialValue={textValue}
-                                                                handleChange={(newValue) => {
-                                                                    const storageValue =
-                                                                        textModeToStorageValue(
-                                                                            newValue,
-                                                                            item.value,
+                                                                showToolbar={false}
+                                                                enableTokens
+                                                            >
+                                                                <SharedEditor
+                                                                    id={editorId}
+                                                                    initialValue={textValue}
+                                                                    handleChange={(newValue) => {
+                                                                        const storageValue =
+                                                                            textModeToStorageValue(
+                                                                                newValue,
+                                                                                item.value,
+                                                                            )
+                                                                        updateValueAtPath(
+                                                                            fullPath,
+                                                                            storageValue,
                                                                         )
-                                                                    updateValueAtPath(
-                                                                        fullPath,
-                                                                        storageValue,
-                                                                    )
-                                                                }}
-                                                                placeholder={`Enter ${item.name}...`}
-                                                                editorType="border"
-                                                                className="overflow-hidden"
-                                                                disableDebounce
-                                                                noProvider
-                                                                header={
-                                                                    <TestcaseFieldHeader
-                                                                        id={editorId}
-                                                                        value={textValue}
-                                                                    />
-                                                                }
-                                                            />
-                                                        </EditorProvider>
-                                                    )
-                                                })()
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })}
+                                                                    }}
+                                                                    placeholder={`Enter ${item.name}...`}
+                                                                    editorType="border"
+                                                                    className="overflow-hidden"
+                                                                    disableDebounce
+                                                                    noProvider
+                                                                    header={
+                                                                        <TestcaseFieldHeader
+                                                                            id={editorId}
+                                                                            value={textValue}
+                                                                        />
+                                                                    }
+                                                                />
+                                                            </EditorProvider>
+                                                        )
+                                                    })()
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
                     </div>
                 ) : (
                     // JSON mode - single JSON editor using derived value from formValues
