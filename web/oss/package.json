@@ -131,6 +131,7 @@
         "@types/node": "^20.8.10",
         "@types/prismjs": "^1.26.5",
         "@types/semver": "^7.7.1",
+        "prettier": "^3.0.0",
         "node-mocks-http": "^1.17.2",
         "tailwind-scrollbar": "^3"
     }

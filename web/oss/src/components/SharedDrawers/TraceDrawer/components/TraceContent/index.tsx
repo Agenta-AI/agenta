@@ -4,9 +4,9 @@ import {Skeleton, Splitter, Tabs, TabsProps} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
+import AccordionTreePanel from "@/oss/components/SharedDrawers/TraceDrawer/components/AccordionTreePanel"
 import {traceSidePanelOpenAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
-import AccordionTreePanel from "../../components/AccordionTreePanel"
 import TraceSidePanel from "../TraceSidePanel"
 
 import {useStyles} from "./assets/styles"
