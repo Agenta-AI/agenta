@@ -1,4 +1,4 @@
-import {forwardRef, useCallback, useImperativeHandle, useMemo, useState} from "react"
+import {forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState} from "react"
 
 import {
     ArrowLeft,
@@ -53,6 +53,11 @@ const JsonEditorWithLocalState = ({
     editorKey: string
 }) => {
     const [localValue, setLocalValue] = useState(initialValue)
+
+    // Sync local value when initialValue changes (e.g., when toggling raw mode)
+    useEffect(() => {
+        setLocalValue(initialValue)
+    }, [initialValue])
 
     const handleChange = useCallback(
         (value: string) => {
@@ -896,13 +901,37 @@ const TestcaseEditDrawerContent = forwardRef<
                                                         }
                                                     />
                                                 ) : isRawMode ? (
-                                                    // Raw mode - show the actual JSON value (item.value is already JSON string)
+                                                    // Raw mode - for objects/arrays show stringified with escapes, for primitives show as-is
                                                     <JsonEditorWithLocalState
                                                         editorKey={`${fullPath.join("-")}-raw-editor-${isRawMode}`}
-                                                        initialValue={item.value}
-                                                        onValidChange={(value) =>
-                                                            updateValueAtPath(fullPath, value)
+                                                        initialValue={
+                                                            dataType === "json-object" ||
+                                                            dataType === "json-array" ||
+                                                            dataType === "messages"
+                                                                ? JSON.stringify(item.value)
+                                                                : item.value
                                                         }
+                                                        onValidChange={(value) => {
+                                                            if (
+                                                                dataType === "json-object" ||
+                                                                dataType === "json-array" ||
+                                                                dataType === "messages"
+                                                            ) {
+                                                                // Parse the outer string to get the actual value
+                                                                try {
+                                                                    const parsed = JSON.parse(value)
+                                                                    updateValueAtPath(
+                                                                        fullPath,
+                                                                        parsed,
+                                                                    )
+                                                                } catch {
+                                                                    // Invalid, ignore
+                                                                }
+                                                            } else {
+                                                                // Primitives - use value directly
+                                                                updateValueAtPath(fullPath, value)
+                                                            }
+                                                        }}
                                                     />
                                                 ) : dataType === "boolean" ? (
                                                     <div className="flex items-center gap-3 py-2">

@@ -1,4 +1,4 @@
-import {memo, useCallback, useState} from "react"
+import {memo, useCallback, useEffect, useState} from "react"
 
 import {ChatMessageList, SimpleChatMessage} from "@/oss/components/ChatMessageEditor"
 import {EditorProvider} from "@/oss/components/Editor/Editor"
@@ -15,6 +15,11 @@ const JsonEditorWithLocalState = ({
     editorKey: string
 }) => {
     const [localValue, setLocalValue] = useState(initialValue)
+
+    // Sync local value when initialValue changes (e.g., when toggling raw mode)
+    useEffect(() => {
+        setLocalValue(initialValue)
+    }, [initialValue])
 
     const handleChange = useCallback(
         (value: string) => {
