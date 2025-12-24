@@ -1,10 +1,15 @@
-import {forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState} from "react"
+import {forwardRef, useCallback, useImperativeHandle, useMemo, useState} from "react"
 
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
-import {Typography} from "antd"
+import {
+    ArrowLeft,
+    CaretDown,
+    CaretRight,
+    CaretRight as ChevronRight,
+    Trash,
+} from "@phosphor-icons/react"
+import {Button, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import SimpleDropdownSelect from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/SimpleDropdownSelect"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 import {
@@ -15,7 +20,6 @@ import {
 import {
     detectDataType,
     canShowTextMode,
-    canExpand,
     formatForJsonDisplay,
     parseFromJsonDisplay,
     tryParseAsObject,
@@ -63,29 +67,186 @@ const TestcaseEditDrawerContent = forwardRef<
         return values
     }, [testcase, columns])
 
-    // Per-field mode tracking (text or json or expanded)
-    const [fieldModes, setFieldModes] = useState<Record<string, FieldMode>>({})
     // Per-field collapse state
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
+    // Path state for drill-down navigation: [columnKey, ...nestedPath]
+    // e.g., ["messages", "0", "content"] means we're viewing messages[0].content
+    const [currentPath, setCurrentPath] = useState<string[]>([])
 
-    // Initialize field modes when testcase changes (on open or testcase switch)
-    useEffect(() => {
-        if (!testcase) return
-        const initialFieldModes: Record<string, FieldMode> = {}
-        columns.forEach((col) => {
-            const value = testcase[col.key]
-            const stringValue = value != null ? String(value) : ""
-            const dataType = detectDataType(stringValue)
-            // JSON objects can only be shown in raw mode
-            // Strings and messages default to text mode (beautified)
-            if (dataType === "json-object") {
-                initialFieldModes[col.key] = "raw"
-            } else {
-                initialFieldModes[col.key] = "text"
+    // Get value at current path
+    const getValueAtPath = useCallback(
+        (path: string[]): string => {
+            if (path.length === 0) return ""
+            const [columnKey, ...nestedPath] = path
+            let value: unknown = formValues[columnKey]
+            if (value === undefined) return ""
+
+            // Parse the column value
+            try {
+                value = JSON.parse(String(value))
+            } catch {
+                // Keep as string
             }
-        })
-        setFieldModes(initialFieldModes)
-    }, [testcaseId]) // Only reset when switching to a different testcase
+
+            // Navigate through nested path
+            for (const key of nestedPath) {
+                if (value === null || value === undefined) return ""
+                if (Array.isArray(value)) {
+                    const index = parseInt(key, 10)
+                    if (isNaN(index) || index < 0 || index >= value.length) return ""
+                    value = value[index]
+                } else if (typeof value === "object") {
+                    value = (value as Record<string, unknown>)[key]
+                } else {
+                    return ""
+                }
+            }
+
+            if (value === null || value === undefined) return ""
+            if (typeof value === "string") return value
+            return JSON.stringify(value, null, 2)
+        },
+        [formValues],
+    )
+
+    // Update value at current path
+    const updateValueAtPath = useCallback(
+        (path: string[], newValue: string) => {
+            if (path.length === 0) return
+            const [columnKey, ...nestedPath] = path
+
+            if (nestedPath.length === 0) {
+                // Direct column update
+                updateTestcase({id: testcaseId, updates: {[columnKey]: newValue}})
+                return
+            }
+
+            // Parse the column value
+            let rootValue: unknown
+            try {
+                rootValue = JSON.parse(formValues[columnKey] || "{}")
+            } catch {
+                rootValue = {}
+            }
+
+            // Parse the new value
+            let parsedNewValue: unknown = newValue
+            try {
+                parsedNewValue = JSON.parse(newValue)
+            } catch {
+                // Keep as string
+            }
+
+            // Navigate and update
+            const updateNested = (obj: unknown, keys: string[], value: unknown): unknown => {
+                if (keys.length === 0) return value
+                const [key, ...rest] = keys
+
+                if (Array.isArray(obj)) {
+                    const index = parseInt(key, 10)
+                    const newArr = [...obj]
+                    newArr[index] = updateNested(obj[index], rest, value)
+                    return newArr
+                } else if (typeof obj === "object" && obj !== null) {
+                    return {
+                        ...(obj as Record<string, unknown>),
+                        [key]: updateNested((obj as Record<string, unknown>)[key], rest, value),
+                    }
+                }
+                return value
+            }
+
+            const updatedValue = updateNested(rootValue, nestedPath, parsedNewValue)
+            updateTestcase({id: testcaseId, updates: {[columnKey]: JSON.stringify(updatedValue)}})
+        },
+        [formValues, updateTestcase, testcaseId],
+    )
+
+    // Navigate into a nested field
+    const navigateInto = useCallback((key: string) => {
+        setCurrentPath((prev) => [...prev, key])
+    }, [])
+
+    // Navigate back to parent
+    const navigateBack = useCallback(() => {
+        setCurrentPath((prev) => prev.slice(0, -1))
+    }, [])
+
+    // Navigate to specific path index
+    const navigateToIndex = useCallback((index: number) => {
+        setCurrentPath((prev) => prev.slice(0, index))
+    }, [])
+
+    // Get current level items (fields at current path)
+    const currentLevelItems = useMemo(() => {
+        if (currentPath.length === 0) {
+            // Root level - show all columns
+            return columns.map((col) => ({
+                key: col.key,
+                name: col.name,
+                value: formValues[col.key] || "",
+                isColumn: true,
+            }))
+        }
+
+        // Get value at current path
+        const value = getValueAtPath(currentPath)
+        if (!value) return []
+
+        try {
+            const parsed = JSON.parse(value)
+            if (Array.isArray(parsed)) {
+                return parsed.map((item, index) => ({
+                    key: String(index),
+                    name: `Item ${index + 1}`,
+                    value: typeof item === "string" ? item : JSON.stringify(item, null, 2),
+                    isColumn: false,
+                }))
+            } else if (typeof parsed === "object" && parsed !== null) {
+                return Object.keys(parsed)
+                    .sort()
+                    .map((key) => ({
+                        key,
+                        name: key,
+                        value:
+                            typeof parsed[key] === "string"
+                                ? parsed[key]
+                                : JSON.stringify(parsed[key], null, 2),
+                        isColumn: false,
+                    }))
+            }
+        } catch {
+            // Not JSON, return empty
+        }
+
+        return []
+    }, [currentPath, columns, formValues, getValueAtPath])
+
+    // Check if a value is expandable (object or array)
+    const isExpandable = useCallback((value: string): boolean => {
+        try {
+            const parsed = JSON.parse(value)
+            return (
+                (Array.isArray(parsed) && parsed.length > 0) ||
+                (typeof parsed === "object" && parsed !== null && Object.keys(parsed).length > 0)
+            )
+        } catch {
+            return false
+        }
+    }, [])
+
+    // Get item count for arrays/objects
+    const getItemCount = useCallback((value: string): string => {
+        try {
+            const parsed = JSON.parse(value)
+            if (Array.isArray(parsed)) return `${parsed.length} items`
+            if (typeof parsed === "object" && parsed !== null)
+                return `${Object.keys(parsed).length} properties`
+        } catch {
+            // Not JSON
+        }
+        return ""
+    }, [])
 
     // Derive JSON display value from formValues (single source of truth)
     const jsonDisplayValue = useMemo(() => formatForJsonDisplay(formValues), [formValues])
@@ -157,53 +318,10 @@ const TestcaseEditDrawerContent = forwardRef<
         setCollapsedFields((prev) => ({...prev, [columnKey]: !prev[columnKey]}))
     }, [])
 
-    // Get field type dropdown options for SimpleDropdownSelect
-    const getFieldTypeOptions = useCallback(
-        (columnKey: string) => {
-            const currentValue = formValues[columnKey] || ""
-            const canText = canShowTextMode(currentValue)
-            const expandable = canExpand(currentValue)
-
-            const options = []
-
-            // Text mode only available if not a raw JSON object
-            if (canText) {
-                options.push({key: "text", value: "text", label: "Text"})
-            }
-
-            // Expanded mode available for JSON objects or arrays
-            if (expandable) {
-                options.push({key: "expanded", value: "expanded", label: "Expanded"})
-            }
-
-            // Raw mode always available
-            options.push({key: "raw", value: "raw", label: "Raw Data"})
-
-            return options
-        },
-        [formValues],
-    )
-
-    // Set field mode directly
-    const setFieldMode = useCallback((columnKey: string, newMode: FieldMode) => {
-        setFieldModes((prev) => ({...prev, [columnKey]: newMode}))
+    // Determine field mode automatically: JSON objects render in raw mode, everything else in text
+    const getFieldModeForValue = useCallback((value: string): FieldMode => {
+        return canShowTextMode(value) ? "text" : "raw"
     }, [])
-
-    // Get display label for current field mode
-    const getFieldModeLabel = useCallback(
-        (columnKey: string): string => {
-            const mode = fieldModes[columnKey] || "text"
-            switch (mode) {
-                case "raw":
-                    return "Raw Data"
-                case "expanded":
-                    return "Expanded"
-                default:
-                    return "Text"
-            }
-        },
-        [fieldModes],
-    )
 
     // Handle save - no-op since edits are already in entity atom
     const handleSave = useCallback(() => {
@@ -228,63 +346,193 @@ const TestcaseEditDrawerContent = forwardRef<
                 )}
 
                 {editMode === "fields" ? (
-                    // Fields mode - individual collapsible fields for each column
+                    // Fields mode - path-based navigation
                     <div className="flex flex-col gap-4">
-                        {columns.length === 0 && (
-                            <div className="text-gray-500 text-sm">No columns to display</div>
+                        {/* Breadcrumb navigation */}
+                        {currentPath.length > 0 && (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md">
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<ArrowLeft size={14} />}
+                                    onClick={navigateBack}
+                                    className="!px-2"
+                                />
+                                <div className="flex items-center gap-1 text-sm text-gray-600 overflow-x-auto">
+                                    <button
+                                        type="button"
+                                        onClick={() => navigateToIndex(0)}
+                                        className="hover:text-blue-600 cursor-pointer bg-transparent border-none p-0"
+                                    >
+                                        Root
+                                    </button>
+                                    {currentPath.map((segment, index) => (
+                                        <span key={index} className="flex items-center gap-1">
+                                            <ChevronRight size={12} className="text-gray-400" />
+                                            <button
+                                                type="button"
+                                                onClick={() => navigateToIndex(index + 1)}
+                                                className={`bg-transparent border-none p-0 ${
+                                                    index === currentPath.length - 1
+                                                        ? "text-gray-900 font-medium"
+                                                        : "hover:text-blue-600 cursor-pointer"
+                                                }`}
+                                            >
+                                                {/^\d+$/.test(segment)
+                                                    ? `Item ${parseInt(segment) + 1}`
+                                                    : segment}
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
                         )}
-                        {columns.map((col) => {
-                            const fieldMode = fieldModes[col.key] || "text"
-                            const currentValue = formValues[col.key] ?? ""
-                            const isCollapsed = collapsedFields[col.key] ?? false
+
+                        {/* Current level items */}
+                        {currentLevelItems.length === 0 && (
+                            <div className="text-gray-500 text-sm">No items to display</div>
+                        )}
+                        {currentLevelItems.map((item) => {
+                            const fieldMode = item.isColumn
+                                ? getFieldModeForValue(item.value)
+                                : "text"
+                            const isCollapsed =
+                                collapsedFields[`${currentPath.join(".")}.${item.key}`] ?? false
+                            const expandable = isExpandable(item.value)
+                            const itemCount = getItemCount(item.value)
+                            const fullPath = [...currentPath, item.key]
 
                             return (
-                                <div key={col.key} className="flex flex-col gap-2">
-                                    {/* Field header - simple row with name and type selector */}
+                                <div key={item.key} className="flex flex-col gap-2">
+                                    {/* Field header */}
                                     <div className="flex items-center justify-between py-2 px-3 bg-[#FAFAFA] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)]">
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleFieldCollapse(col.key)}
-                                            className="flex items-center gap-2 text-left hover:text-gray-700 transition-colors bg-transparent border-none p-0 cursor-pointer"
-                                        >
-                                            {isCollapsed ? (
-                                                <CaretRight size={14} />
-                                            ) : (
-                                                <CaretDown size={14} />
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    toggleFieldCollapse(
+                                                        `${currentPath.join(".")}.${item.key}`,
+                                                    )
+                                                }
+                                                className="flex items-center gap-2 text-left hover:text-gray-700 transition-colors bg-transparent border-none p-0 cursor-pointer"
+                                            >
+                                                {isCollapsed ? (
+                                                    <CaretRight size={14} />
+                                                ) : (
+                                                    <CaretDown size={14} />
+                                                )}
+                                                <span className="text-gray-700">{item.name}</span>
+                                            </button>
+                                            {itemCount && (
+                                                <span className="text-xs text-gray-400">
+                                                    [{itemCount}]
+                                                </span>
                                             )}
-                                            <span className="text-gray-700">{col.name}</span>
-                                        </button>
-                                        <SimpleDropdownSelect
-                                            value={getFieldModeLabel(col.key)}
-                                            options={getFieldTypeOptions(col.key)}
-                                            onChange={(value) =>
-                                                setFieldMode(col.key, value as FieldMode)
-                                            }
-                                        />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {expandable && (
+                                                <Button
+                                                    type="text"
+                                                    size="small"
+                                                    onClick={() => navigateInto(item.key)}
+                                                    className="!px-2 !h-6 text-xs text-gray-500"
+                                                >
+                                                    <CaretRight size={12} className="mr-1" />
+                                                    Drill In
+                                                </Button>
+                                            )}
+                                            {!item.isColumn && (
+                                                <Button
+                                                    type="text"
+                                                    size="small"
+                                                    danger
+                                                    icon={<Trash size={12} />}
+                                                    onClick={() => {
+                                                        // Delete this item
+                                                        const parentPath = currentPath
+                                                        const parentValue =
+                                                            getValueAtPath(parentPath)
+                                                        try {
+                                                            const parsed = JSON.parse(parentValue)
+                                                            if (Array.isArray(parsed)) {
+                                                                const index = parseInt(item.key, 10)
+                                                                const updated = parsed.filter(
+                                                                    (_, i) => i !== index,
+                                                                )
+                                                                updateValueAtPath(
+                                                                    parentPath,
+                                                                    JSON.stringify(updated),
+                                                                )
+                                                            } else if (typeof parsed === "object") {
+                                                                const {[item.key]: _, ...rest} =
+                                                                    parsed
+                                                                updateValueAtPath(
+                                                                    parentPath,
+                                                                    JSON.stringify(rest),
+                                                                )
+                                                            }
+                                                        } catch {
+                                                            // Ignore
+                                                        }
+                                                    }}
+                                                    className="!px-1 !h-6"
+                                                />
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* Field content - collapsible */}
                                     {!isCollapsed && (
                                         <div className="px-4">
-                                            <TestcaseFieldRenderer
-                                                columnKey={col.key}
-                                                columnName={col.name}
-                                                value={currentValue}
-                                                fieldMode={fieldMode}
-                                                onFieldChange={(value) =>
-                                                    handleFieldChange(col.key, value)
-                                                }
-                                                onNestedFieldChange={(nestedKey, value) =>
-                                                    handleNestedFieldChange(
-                                                        col.key,
-                                                        nestedKey,
-                                                        value,
-                                                    )
-                                                }
-                                                onArrayItemChange={(index, value) =>
-                                                    handleArrayItemChange(col.key, index, value)
-                                                }
-                                            />
+                                            {item.isColumn ? (
+                                                <TestcaseFieldRenderer
+                                                    columnKey={item.key}
+                                                    columnName={item.name}
+                                                    value={item.value}
+                                                    fieldMode={fieldMode}
+                                                    onFieldChange={(value) =>
+                                                        handleFieldChange(item.key, value)
+                                                    }
+                                                    onNestedFieldChange={(nestedKey, value) =>
+                                                        handleNestedFieldChange(
+                                                            item.key,
+                                                            nestedKey,
+                                                            value,
+                                                        )
+                                                    }
+                                                    onArrayItemChange={(index, value) =>
+                                                        handleArrayItemChange(
+                                                            item.key,
+                                                            index,
+                                                            value,
+                                                        )
+                                                    }
+                                                />
+                                            ) : (
+                                                <SharedEditor
+                                                    key={`${fullPath.join("-")}-editor`}
+                                                    initialValue={item.value}
+                                                    handleChange={(value) =>
+                                                        updateValueAtPath(fullPath, value)
+                                                    }
+                                                    editorType="border"
+                                                    className="min-h-[60px] overflow-hidden"
+                                                    disableDebounce
+                                                    editorProps={{
+                                                        codeOnly:
+                                                            detectDataType(item.value) ===
+                                                            "json-object",
+                                                        language:
+                                                            detectDataType(item.value) ===
+                                                            "json-object"
+                                                                ? "json"
+                                                                : undefined,
+                                                        showLineNumbers:
+                                                            detectDataType(item.value) ===
+                                                            "json-object",
+                                                    }}
+                                                />
+                                            )}
                                         </div>
                                     )}
                                 </div>
