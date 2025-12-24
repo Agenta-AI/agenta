@@ -4,6 +4,7 @@ import {useAtomValue, useStore} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
+import ScenarioColumnVisibilityPopoverContent from "@/oss/components/EvalRunDetails/components/columnVisibility/ColumnVisibilityPopoverContent"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
