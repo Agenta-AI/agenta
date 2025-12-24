@@ -1,7 +1,6 @@
 import {useEffect, useMemo} from "react"
 
 import {Chats, TreeStructure} from "@phosphor-icons/react"
-import {Tabs, Typography} from "antd"
 import {useAtom} from "jotai"
 
 import {useQueryParamState} from "@/oss/state/appState"

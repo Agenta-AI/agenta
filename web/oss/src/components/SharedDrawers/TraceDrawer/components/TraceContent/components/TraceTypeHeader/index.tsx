@@ -8,6 +8,7 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
+import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import {KeyValuePair} from "@/oss/lib/Types"
 import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
