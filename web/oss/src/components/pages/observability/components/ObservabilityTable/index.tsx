@@ -6,7 +6,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
-import PageLayout from "@/oss/components/PageLayout/PageLayout"
 import ResizableTitle from "@/oss/components/ResizableTitle"
 import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
@@ -184,7 +183,6 @@ const ObservabilityTable = () => {
     }, [columns, editColumns])
 
     return (
-        <PageLayout title={"Observability"}>
             <div className="flex flex-col gap-2">
                 <ObservabilityHeader columns={columns} componentType="traces" />
 
@@ -275,7 +273,6 @@ const ObservabilityTable = () => {
                     }}
                 />
             </div>
-        </PageLayout>
     )
 }
 

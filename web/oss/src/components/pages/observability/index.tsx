@@ -9,6 +9,7 @@ import {observabilityTabAtom} from "@/oss/state/newObservability/atoms/controls"
 
 import ObservabilityTable from "./components/ObservabilityTable"
 import SessionsTable from "./components/SessionsTable"
+import PageLayout from "../../PageLayout/PageLayout"
 
 const ObservabilityTabs = () => {
     const [tabParam, setTabParam] = useQueryParamState("tab", "traces")
@@ -45,14 +46,18 @@ const ObservabilityTabs = () => {
     }, [])
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
-                <Typography.Text className="text-[16px] font-medium">Observability</Typography.Text>
-                <Tabs activeKey={activeTab} onChange={(key) => setTabParam(key)} items={tabItems} />
+        <PageLayout
+            title={"Observability"}
+            headerTabsProps={{
+                items: tabItems,
+                activeKey: activeTab,
+                onChange: (key) => setTabParam(key),
+            }}
+        >
+            <div className="flex flex-col gap-6">
+                {activeTab === "traces" ? <ObservabilityTable /> : <SessionsTable />}
             </div>
-
-            {activeTab === "traces" ? <ObservabilityTable /> : <SessionsTable />}
-        </div>
+        </PageLayout>
     )
 }
 
