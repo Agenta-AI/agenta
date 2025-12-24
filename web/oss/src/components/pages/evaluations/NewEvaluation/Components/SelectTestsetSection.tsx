@@ -129,7 +129,7 @@ const SelectTestsetSection = ({
     const hasExpectedVariables = expectedVariables.length > 0
 
     return (
-        <div className={clsx(className, "w-full grow h-full flex flex-col w-full")}>
+        <div className={clsx(className, "w-full h-[calc(100%-16px)] flex flex-col")}>
             {hasExpectedVariables && (
                 <div className="mb-2 text-xs text-gray-600">
                     Expected input variables for selected variant(s):{" "}
