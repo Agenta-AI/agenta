@@ -924,9 +924,13 @@ const TestcaseEditDrawerContent = forwardRef<
                                                                         }`,
                                                                     }),
                                                                 )}
-                                                                onSelect={(idx: number) =>
-                                                                    navigateInto(String(idx))
-                                                                }
+                                                                onSelect={(idx: number) => {
+                                                                    // Navigate into the field first, then into the array index
+                                                                    setCurrentPath([
+                                                                        ...fullPath,
+                                                                        String(idx),
+                                                                    ])
+                                                                }}
                                                                 dropdownRender={(menu) => (
                                                                     <div>
                                                                         <div className="px-2 py-1 text-xs text-gray-500 border-b">
