@@ -6,6 +6,7 @@ import {
     CaretRight,
     CaretRight as ChevronRight,
     Check,
+    Code,
     Copy,
     Trash,
 } from "@phosphor-icons/react"
@@ -102,6 +103,8 @@ const TestcaseEditDrawerContent = forwardRef<
 
     // Per-field collapse state
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
+    // Per-field raw mode state (shows stringified JSON instead of parsed view)
+    const [rawModeFields, setRawModeFields] = useState<Record<string, boolean>>({})
     // Track which field was just copied (for visual feedback)
     const [copiedField, setCopiedField] = useState<string | null>(null)
     // Path state for drill-down navigation: [columnKey, ...nestedPath]
@@ -360,6 +363,11 @@ const TestcaseEditDrawerContent = forwardRef<
         setCollapsedFields((prev) => ({...prev, [columnKey]: !prev[columnKey]}))
     }, [])
 
+    // Toggle field raw mode (stringified view)
+    const toggleRawMode = useCallback((columnKey: string) => {
+        setRawModeFields((prev) => ({...prev, [columnKey]: !prev[columnKey]}))
+    }, [])
+
     // Determine field mode automatically: JSON objects render in raw mode, everything else in text
     const getFieldModeForValue = useCallback((value: string): FieldMode => {
         return canShowTextMode(value) ? "text" : "raw"
@@ -390,45 +398,49 @@ const TestcaseEditDrawerContent = forwardRef<
                 {editMode === "fields" ? (
                     // Fields mode - path-based navigation
                     <div className="flex flex-col gap-4">
-                        {/* Breadcrumb navigation */}
-                        {currentPath.length > 0 && (
-                            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md">
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<ArrowLeft size={14} />}
-                                    onClick={navigateBack}
-                                    className="!px-2"
-                                />
-                                <div className="flex items-center gap-1 text-sm text-gray-600 overflow-x-auto">
-                                    <button
-                                        type="button"
-                                        onClick={() => navigateToIndex(0)}
-                                        className="hover:text-blue-600 cursor-pointer bg-transparent border-none p-0"
-                                    >
-                                        Root
-                                    </button>
-                                    {currentPath.map((segment, index) => (
-                                        <span key={index} className="flex items-center gap-1">
-                                            <ChevronRight size={12} className="text-gray-400" />
-                                            <button
-                                                type="button"
-                                                onClick={() => navigateToIndex(index + 1)}
-                                                className={`bg-transparent border-none p-0 ${
-                                                    index === currentPath.length - 1
-                                                        ? "text-gray-900 font-medium"
-                                                        : "hover:text-blue-600 cursor-pointer"
-                                                }`}
-                                            >
-                                                {/^\d+$/.test(segment)
-                                                    ? `Item ${parseInt(segment) + 1}`
-                                                    : segment}
-                                            </button>
-                                        </span>
-                                    ))}
-                                </div>
+                        {/* Breadcrumb navigation - always visible and sticky */}
+                        <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md sticky top-0 z-10">
+                            {/* Always render button to prevent layout shift, but make it invisible/disabled at root */}
+                            <Button
+                                type="text"
+                                size="small"
+                                icon={<ArrowLeft size={14} />}
+                                onClick={navigateBack}
+                                className={`!px-2 ${currentPath.length === 0 ? "invisible" : ""}`}
+                                disabled={currentPath.length === 0}
+                            />
+                            <div className="flex items-center gap-1 text-sm text-gray-600 overflow-x-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => navigateToIndex(0)}
+                                    className={`bg-transparent border-none p-0 ${
+                                        currentPath.length === 0
+                                            ? "text-gray-900 font-medium cursor-default"
+                                            : "hover:text-blue-600 cursor-pointer"
+                                    }`}
+                                >
+                                    Root
+                                </button>
+                                {currentPath.map((segment, index) => (
+                                    <span key={index} className="flex items-center gap-1">
+                                        <ChevronRight size={12} className="text-gray-400" />
+                                        <button
+                                            type="button"
+                                            onClick={() => navigateToIndex(index + 1)}
+                                            className={`bg-transparent border-none p-0 ${
+                                                index === currentPath.length - 1
+                                                    ? "text-gray-900 font-medium"
+                                                    : "hover:text-blue-600 cursor-pointer"
+                                            }`}
+                                        >
+                                            {/^\d+$/.test(segment)
+                                                ? `Item ${parseInt(segment) + 1}`
+                                                : segment}
+                                        </button>
+                                    </span>
+                                ))}
                             </div>
-                        )}
+                        </div>
 
                         {/* Current level items */}
                         {currentLevelItems.length === 0 && (
@@ -436,14 +448,23 @@ const TestcaseEditDrawerContent = forwardRef<
                         )}
                         {currentLevelItems.map((item) => {
                             const dataType = detectDataType(item.value)
-                            const fieldMode = item.isColumn
-                                ? getFieldModeForValue(item.value)
-                                : "text"
-                            const isCollapsed =
-                                collapsedFields[`${currentPath.join(".")}.${item.key}`] ?? false
+                            const fieldKey = `${currentPath.join(".")}.${item.key}`
+                            const isRawMode = rawModeFields[fieldKey] ?? false
+                            // If raw mode is enabled, force "raw" mode; otherwise use auto-detection
+                            const fieldMode: FieldMode = isRawMode
+                                ? "raw"
+                                : item.isColumn
+                                  ? getFieldModeForValue(item.value)
+                                  : "text"
+                            const isCollapsed = collapsedFields[fieldKey] ?? false
                             const expandable = isExpandable(item.value)
                             const itemCount = getItemCount(item.value)
                             const fullPath = [...currentPath, item.key]
+                            // Show raw toggle for all JSON data types (string with JSON, messages, json-object)
+                            const canToggleRaw =
+                                dataType === "string" ||
+                                dataType === "messages" ||
+                                dataType === "json-object"
 
                             return (
                                 <div key={item.key} className="flex flex-col gap-2">
@@ -493,8 +514,28 @@ const TestcaseEditDrawerContent = forwardRef<
                                                             )
                                                         }
                                                         onClick={() =>
-                                                            copyFieldValue(item.key, item.value)
+                                                            copyFieldValue(
+                                                                item.key,
+                                                                isRawMode
+                                                                    ? JSON.stringify(item.value)
+                                                                    : item.value,
+                                                            )
                                                         }
+                                                    />
+                                                </Tooltip>
+                                            )}
+                                            {canToggleRaw && (
+                                                <Tooltip
+                                                    title={
+                                                        isRawMode ? "Show formatted" : "Show raw"
+                                                    }
+                                                >
+                                                    <Button
+                                                        type="text"
+                                                        size="small"
+                                                        className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500" : "text-gray-500"}`}
+                                                        icon={<Code size={12} />}
+                                                        onClick={() => toggleRawMode(fieldKey)}
                                                     />
                                                 </Tooltip>
                                             )}
@@ -575,6 +616,29 @@ const TestcaseEditDrawerContent = forwardRef<
                                                             value,
                                                         )
                                                     }
+                                                />
+                                            ) : isRawMode ? (
+                                                // Raw mode - show the stringified version (how it's stored in DB)
+                                                <SharedEditor
+                                                    key={`${fullPath.join("-")}-raw-editor-${isRawMode}`}
+                                                    initialValue={JSON.stringify(item.value)}
+                                                    handleChange={(value) => {
+                                                        try {
+                                                            // Parse the outer string to get the actual value
+                                                            const parsed = JSON.parse(value)
+                                                            updateValueAtPath(fullPath, parsed)
+                                                        } catch {
+                                                            // Invalid JSON string, ignore
+                                                        }
+                                                    }}
+                                                    editorType="border"
+                                                    className="min-h-[60px] overflow-hidden"
+                                                    disableDebounce
+                                                    editorProps={{
+                                                        codeOnly: true,
+                                                        language: "json",
+                                                        showLineNumbers: true,
+                                                    }}
                                                 />
                                             ) : dataType === "messages" ? (
                                                 <ChatMessageList

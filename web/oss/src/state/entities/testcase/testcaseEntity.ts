@@ -420,6 +420,34 @@ const DIRTY_EXCLUDE_FIELDS = new Set([
 ])
 
 /**
+ * Normalize a value for comparison - handles object vs string JSON comparison
+ * Returns a canonical string representation for comparison
+ */
+function normalizeValueForComparison(value: unknown): string {
+    if (value === undefined || value === null || value === "") return ""
+
+    // If it's already a string, try to parse it as JSON for normalization
+    if (typeof value === "string") {
+        try {
+            const parsed = JSON.parse(value)
+            // Re-stringify to get canonical form (sorted keys, consistent spacing)
+            return JSON.stringify(parsed)
+        } catch {
+            // Not valid JSON, return as-is
+            return value
+        }
+    }
+
+    // If it's an object/array, stringify it
+    if (typeof value === "object") {
+        return JSON.stringify(value)
+    }
+
+    // For primitives (number, boolean), convert to string
+    return String(value)
+}
+
+/**
  * Check if a testcase is dirty by comparing draft vs server state
  * Returns true if:
  * - Draft exists AND differs from server state
@@ -493,9 +521,9 @@ export const testcaseIsDirtyAtomFamily = atomFamily((testcaseId: string) =>
 
             const draftValue = draftRecord[key]
             const serverValue = serverRecord[key]
-            // Normalize: undefined/null/"" are equivalent for comparison
-            const normalizedDraft = draftValue ?? ""
-            const normalizedServer = serverValue ?? ""
+            // Normalize values for comparison - handles object vs string JSON comparison
+            const normalizedDraft = normalizeValueForComparison(draftValue)
+            const normalizedServer = normalizeValueForComparison(serverValue)
             if (normalizedDraft !== normalizedServer) {
                 return true
             }
