@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
 import {Button, Spin} from "antd"
 import {useSetAtom} from "jotai"
@@ -32,6 +32,10 @@ const SessionsTable: React.FC = () => {
         isFetchingMore,
         refetchSessions,
         refetchSessionSpans,
+        realtimeMode,
+        setRealtimeMode,
+        autoRefresh,
+        setAutoRefresh,
     } = useSessions()
 
     const openDrawer = useSetAtom(openSessionDrawerWithUrlAtom)
@@ -58,6 +62,17 @@ const SessionsTable: React.FC = () => {
         await Promise.all([refetchSessions(), refetchSessionSpans()])
     }, [refetchSessions, refetchSessionSpans])
 
+    // Auto-refresh logic: refresh every 15 seconds when enabled
+    useEffect(() => {
+        if (!autoRefresh) return
+
+        const intervalId = setInterval(() => {
+            handleRefresh().catch((error) => console.error("Auto-refresh failed", error))
+        }, 15000) // 15 seconds
+
+        return () => clearInterval(intervalId)
+    }, [autoRefresh, handleRefresh])
+
     return (
         <div className="flex flex-col gap-6">
             <ObservabilityHeader
@@ -65,6 +80,10 @@ const SessionsTable: React.FC = () => {
                 componentType="sessions"
                 isLoading={isLoading}
                 onRefresh={handleRefresh}
+                realtimeMode={realtimeMode}
+                setRealtimeMode={setRealtimeMode}
+                autoRefresh={autoRefresh}
+                setAutoRefresh={setAutoRefresh}
             />
 
             {sessionIds.length === 0 && !isLoading ? (
@@ -84,7 +103,8 @@ const SessionsTable: React.FC = () => {
                         pagination={false}
                     />
 
-                    {hasMoreSessions && !loadingFirstPage ? (
+                    {/* Hide load more button in realtime mode (latest activity shows fixed LIMIT items) */}
+                    {hasMoreSessions && !loadingFirstPage && !realtimeMode ? (
                         <div className="flex justify-center py-2">
                             <Button
                                 onClick={handleLoadMore}

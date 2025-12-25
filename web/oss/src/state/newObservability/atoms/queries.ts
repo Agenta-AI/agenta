@@ -24,6 +24,7 @@ import {sessionExistsAtom} from "../../session"
 import {
     filtersAtomFamily,
     limitAtomFamily,
+    realtimeModeAtomFamily,
     selectedNodeAtom,
     selectedTraceIdAtom,
     sortAtomFamily,
@@ -261,7 +262,7 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
 
     const sort = get(sortAtomFamily("sessions"))
     // const filters = get(userFiltersAtomFamily("sessions"))
-    const windowing: {oldest?: string; newest?: string} = {}
+    const windowing: {oldest?: string; newest?: string; order?: string} = {}
 
     if (sort?.type === "standard" && sort.sorted) {
         windowing.oldest = sort.sorted
@@ -276,18 +277,25 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
 
     const limit = get(limitAtomFamily("sessions"))
     const sessionExists = get(sessionExistsAtom)
+    const realtimeMode = get(realtimeModeAtomFamily("sessions"))
 
     return {
-        queryKey: ["sessions", projectId, appId, windowing, limit],
-        initialPageParam: {next: undefined as string | undefined},
+        queryKey: ["sessions", projectId, appId, windowing, limit, realtimeMode],
+        initialPageParam: {newest: undefined as string | undefined, oldest: undefined as string | undefined},
 
-        queryFn: async ({pageParam}: {pageParam?: {next?: string}}) => {
+        queryFn: async ({pageParam}: {pageParam?: {newest?: string; oldest?: string}}) => {
             const {fetchSessions} = await import("@/oss/services/tracing/api")
 
             const response: any = await fetchSessions({
                 appId: (appId as string) || undefined,
-                windowing: {...windowing, limit, next: pageParam?.next},
+                windowing: {
+                    ...windowing,
+                    limit,
+                    newest: pageParam?.newest,
+                    oldest: pageParam?.oldest,
+                },
                 filter: undefined,
+                realtime: realtimeMode,
             })
 
             return {
@@ -299,9 +307,19 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
         enabled: sessionExists && Boolean(appId || projectId),
 
         getNextPageParam: (lastPage: any) => {
-            return lastPage.session_ids.length === limit && lastPage.nextWindowing?.next
-                ? {next: lastPage.nextWindowing.next}
-                : undefined
+            // Disable pagination in realtime mode (latest activity shows fixed LIMIT items)
+            if (realtimeMode) {
+                return undefined
+            }
+
+            // Use the windowing object from response for time-based pagination
+            const hasMore = lastPage.session_ids.length === limit && lastPage.nextWindowing
+            if (!hasMore) return undefined
+
+            return {
+                newest: lastPage.nextWindowing.newest,
+                oldest: lastPage.nextWindowing.oldest,
+            }
         },
 
         refetchOnWindowFocus: false,

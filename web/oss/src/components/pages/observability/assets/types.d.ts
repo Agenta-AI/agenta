@@ -8,6 +8,11 @@ export interface ObservabilityHeaderProps {
     componentType: "traces" | "sessions"
     isLoading?: boolean
     onRefresh?: () => void
+    // Session-specific props
+    realtimeMode?: boolean
+    setRealtimeMode?: (value: boolean) => void
+    autoRefresh?: boolean
+    setAutoRefresh?: (value: boolean) => void
 }
 
 export type AvatarTreeContentProps = {

@@ -140,7 +140,27 @@ export const filtersAtom = atom(
 // Table/UI controls -----------------------------------------------------------
 export const selectedTraceIdAtom = atom<string>("")
 export const selectedNodeAtom = atom<string>("")
-export const editColumnsAtom = atom<string[]>(["span_type", "key", "usage", "tag"])
+export const editColumnsAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
+    atom<string[]>(["span_type", "key", "usage", "tag"]),
+)
+export const editColumnsAtom = atom(
+    (get) => get(editColumnsAtomFamily(get(observabilityTabAtom))),
+    (get, set, value: string[]) => set(editColumnsAtomFamily(get(observabilityTabAtom)), value),
+)
 export const selectedRowKeysAtom = atom<Key[]>([])
 export const testsetDrawerDataAtom = atom<TestsetTraceData[]>([])
 export const isAnnotationsSectionOpenAtom = atom<boolean>(true)
+
+// Activity mode control: false = "all activity" (stable, first_active), true = "latest activity" (unstable, last_active)
+export const realtimeModeAtomFamily = atomFamily((_tab: ObservabilityTabInfo) => atom<boolean>(false))
+export const realtimeModeAtom = atom(
+    (get) => get(realtimeModeAtomFamily(get(observabilityTabAtom))),
+    (get, set, value: boolean) => set(realtimeModeAtomFamily(get(observabilityTabAtom)), value),
+)
+
+// Auto-refresh control: when true, refreshes every 15 seconds
+export const autoRefreshAtomFamily = atomFamily((_tab: ObservabilityTabInfo) => atom<boolean>(false))
+export const autoRefreshAtom = atom(
+    (get) => get(autoRefreshAtomFamily(get(observabilityTabAtom))),
+    (get, set, value: boolean) => set(autoRefreshAtomFamily(get(observabilityTabAtom)), value),
+)

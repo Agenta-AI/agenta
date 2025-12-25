@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon} from "@phosphor-icons/react"
-import {Button, Input, Radio, RadioChangeEvent, Space} from "antd"
+import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -39,6 +39,10 @@ const ObservabilityHeader = ({
     componentType,
     isLoading: propsLoading,
     onRefresh,
+    realtimeMode,
+    setRealtimeMode,
+    autoRefresh,
+    setAutoRefresh,
 }: ObservabilityHeaderProps) => {
     const [isScrolled, setIsScrolled] = useState(false)
 
@@ -312,6 +316,30 @@ const ObservabilityHeader = ({
                                 />
                             </>
                         ) : null}
+                        {isScrolled && componentType === "sessions" && setRealtimeMode ? (
+                            <Space>
+                                <Radio.Group
+                                    value={realtimeMode ? "latest" : "all"}
+                                    onChange={(e) => setRealtimeMode(e.target.value === "latest")}
+                                    size="small"
+                                >
+                                    <Radio.Button value="all">All activity</Radio.Button>
+                                    <Radio.Button value="latest">Latest activity</Radio.Button>
+                                </Radio.Group>
+                                {setAutoRefresh && (
+                                    <Space size="small">
+                                        <Typography.Text style={{fontSize: 13}}>
+                                            Auto-refresh
+                                        </Typography.Text>
+                                        <Switch
+                                            size="small"
+                                            checked={autoRefresh}
+                                            onChange={setAutoRefresh}
+                                        />
+                                    </Space>
+                                )}
+                            </Space>
+                        ) : null}
                     </div>
                 </div>
                 {!isScrolled && componentType === "traces" ? (
@@ -348,6 +376,25 @@ const ObservabilityHeader = ({
                             >
                                 Add to testset
                             </Button>
+                        </Space>
+                    </div>
+                ) : null}
+                {!isScrolled && componentType === "sessions" && setRealtimeMode ? (
+                    <div className="w-full flex items-center justify-end">
+                        <Space>
+                            <Radio.Group
+                                value={realtimeMode ? "latest" : "all"}
+                                onChange={(e) => setRealtimeMode(e.target.value === "latest")}
+                            >
+                                <Radio.Button value="all">All activity</Radio.Button>
+                                <Radio.Button value="latest">Latest activity</Radio.Button>
+                            </Radio.Group>
+                            {setAutoRefresh && (
+                                <Space size="small">
+                                    <Typography.Text>Auto-refresh</Typography.Text>
+                                    <Switch checked={autoRefresh} onChange={setAutoRefresh} />
+                                </Space>
+                            )}
                         </Space>
                     </div>
                 ) : null}
