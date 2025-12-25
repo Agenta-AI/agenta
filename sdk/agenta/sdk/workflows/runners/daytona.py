@@ -2,6 +2,7 @@ import os
 import json
 from typing import Any, Dict, Union, Optional, TYPE_CHECKING
 
+import agenta as ag
 from agenta.sdk.workflows.runners.base import CodeRunner
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.utils.lazy import _load_daytona
@@ -9,7 +10,7 @@ from agenta.sdk.utils.lazy import _load_daytona
 from agenta.sdk.utils.logging import get_module_logger
 
 if TYPE_CHECKING:
-    from daytona import Daytona, Sandbox
+    from daytona import Sandbox
 
 log = get_module_logger(__name__)
 

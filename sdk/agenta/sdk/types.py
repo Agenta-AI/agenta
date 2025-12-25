@@ -492,7 +492,6 @@ class TemplateFormatError(PromptTemplateError):
         super().__init__(message)
 
 
-import json
 import re
 from typing import Any, Dict, Iterable, Tuple, Optional
 
