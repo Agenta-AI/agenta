@@ -77,7 +77,7 @@ const AutoRefreshControl: React.FC<{
             <Switch size="small" checked={checked} onChange={onChange} />
             <div className="relative inline-block">
                 <Typography.Text style={{fontSize: 12}} className="text-gray-600">
-                    auto-refresh
+                    Auto-refresh
                 </Typography.Text>
                 {checked && (
                     <div
@@ -367,13 +367,13 @@ const ObservabilityHeader = ({
 
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
 
-                        {!isScrolled && (
+                        {!isScrolled && componentType === "sessions" ? (
                             <AutoRefreshControl
                                 checked={autoRefresh}
                                 onChange={setAutoRefresh}
                                 resetTrigger={refreshTrigger}
                             />
-                        )}
+                        ) : null}
 
                         {isScrolled && componentType === "traces" ? (
                             <>
@@ -406,14 +406,14 @@ const ObservabilityHeader = ({
                             </Space>
                         ) : null}
 
-                        {isScrolled && (
+                        {isScrolled && componentType === "sessions" ? (
                             <AutoRefreshControl
                                 checked={autoRefresh}
                                 onChange={setAutoRefresh}
                                 isScrolled
                                 resetTrigger={refreshTrigger}
                             />
-                        )}
+                        ) : null}
                     </div>
                 </div>
                 {!isScrolled && componentType === "traces" ? (
