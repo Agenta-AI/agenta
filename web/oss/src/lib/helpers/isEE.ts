@@ -1,4 +1,4 @@
-import {getEnv} from "./dynamicEnv"
+import {getEffectiveAuthConfig, getEnv} from "./dynamicEnv"
 
 export const isEE = () => {
     const license = getEnv("NEXT_PUBLIC_AGENTA_LICENSE")?.toLowerCase()
@@ -9,8 +9,8 @@ export const isEE = () => {
 }
 
 export const isEmailAuthEnabled = () => {
-    const authnEmail = getEnv("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL") || "password"
-    return authnEmail === "password" || authnEmail === "otp"
+    const {authEmailEnabled} = getEffectiveAuthConfig()
+    return authEmailEnabled
 }
 
 export const isEmailInvitationsEnabled = () => {

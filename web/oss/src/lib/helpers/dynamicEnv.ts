@@ -16,6 +16,32 @@ export const processEnv = {
     // process.env.NEXT_PUBLIC_ENABLE_ATOM_LOGS,
 }
 
+const normalizeBoolean = (value: string | undefined) => {
+    return (value || "").toLowerCase() === "true"
+}
+
+export const getEffectiveAuthConfig = () => {
+    const googleOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID")
+    const githubOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GITHUB_OAUTH_CLIENT_ID")
+    const authOidcEnabled =
+        normalizeBoolean(getEnv("NEXT_PUBLIC_AGENTA_AUTH_OIDC_ENABLED")) ||
+        Boolean(googleOAuthClientId || githubOAuthClientId)
+    const authnEmailRaw = getEnv("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL")
+    const authnEmail = authnEmailRaw || (authOidcEnabled ? "" : "password")
+    const authEmailEnabled =
+        normalizeBoolean(getEnv("NEXT_PUBLIC_AGENTA_AUTH_EMAIL_ENABLED")) ||
+        authnEmail === "password" ||
+        authnEmail === "otp"
+
+    return {
+        authnEmail,
+        authEmailEnabled,
+        authOidcEnabled,
+        googleOAuthClientId,
+        githubOAuthClientId,
+    }
+}
+
 export const getEnv = (envKey: string) => {
     let envSource = ""
     // Check for window.__env if in browser

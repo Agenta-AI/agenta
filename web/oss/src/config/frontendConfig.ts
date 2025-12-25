@@ -6,12 +6,10 @@ import SessionReact from "supertokens-auth-react/recipe/session"
 import ThirdPartyReact from "supertokens-auth-react/recipe/thirdparty"
 
 import {appInfo} from "./appInfo"
-import {getEnv} from "../lib/helpers/dynamicEnv"
+import {getEffectiveAuthConfig} from "../lib/helpers/dynamicEnv"
 
 export const frontendConfig = (): SuperTokensConfig => {
-    const authnEmail = getEnv("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL") || "password"
-    const googleOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID")
-    const githubOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GITHUB_OAUTH_CLIENT_ID")
+    const {authnEmail, googleOAuthClientId, githubOAuthClientId} = getEffectiveAuthConfig()
 
     // Build recipe list based on enabled auth methods
     const recipeList: any[] = []

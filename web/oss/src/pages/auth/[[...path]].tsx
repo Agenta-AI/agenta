@@ -13,7 +13,7 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
+import {getEffectiveAuthConfig, getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
 
@@ -38,9 +38,7 @@ const Auth = () => {
     }>({})
     const [invite, setInvite] = useLocalStorage("invite", {})
     const router = useRouter()
-    const authnEmail = getEnv("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL") || "password"
-    const authEmailEnabled = (getEnv("NEXT_PUBLIC_AGENTA_AUTH_EMAIL_ENABLED") || "").toLowerCase() === "true"
-    const authOidcEnabled = (getEnv("NEXT_PUBLIC_AGENTA_AUTH_OIDC_ENABLED") || "").toLowerCase() === "true"
+    const {authnEmail, authEmailEnabled, authOidcEnabled} = getEffectiveAuthConfig()
     const isPasswordlessDemo = isDemo() && authnEmail === "otp"
 
     const firstString = (value: string | string[] | undefined): string | undefined => {
@@ -118,7 +116,10 @@ const Auth = () => {
         const emailForDiscover = emailFromQuery ?? ""
 
         // Only probe discover if either auth path is configured
-        if (!authEmailEnabled && !authOidcEnabled) return
+        if (!authEmailEnabled && !authOidcEnabled) {
+            console.warn("⚠️ Both authEmailEnabled and authOidcEnabled are false - no auth methods available!")
+            return
+        }
 
         const fetchDiscover = async () => {
             try {

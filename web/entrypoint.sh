@@ -20,17 +20,24 @@ fi
 mkdir -p "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public"
 
 # Derive frontend auth feature flags
-AUTH_EMAIL_ENABLED="false"
-if [ "${AGENTA_AUTHN_EMAIL}" = "password" ] || [ "${AGENTA_AUTHN_EMAIL}" = "otp" ]; then
-  AUTH_EMAIL_ENABLED="true"
-fi
-
+# First, check if OIDC providers are configured
 AUTH_OIDC_ENABLED="false"
 if [ -n "${GOOGLE_OAUTH_CLIENT_ID}" ] && [ -n "${GOOGLE_OAUTH_CLIENT_SECRET}" ]; then
   AUTH_OIDC_ENABLED="true"
 fi
 if [ -n "${GITHUB_OAUTH_CLIENT_ID}" ] && [ -n "${GITHUB_OAUTH_CLIENT_SECRET}" ]; then
   AUTH_OIDC_ENABLED="true"
+fi
+
+# Apply fallback logic: if AGENTA_AUTHN_EMAIL is empty and no OIDC, default to "password"
+EFFECTIVE_AUTHN_EMAIL="${AGENTA_AUTHN_EMAIL}"
+if [ -z "${EFFECTIVE_AUTHN_EMAIL}" ] && [ "${AUTH_OIDC_ENABLED}" = "false" ]; then
+  EFFECTIVE_AUTHN_EMAIL="password"
+fi
+
+AUTH_EMAIL_ENABLED="false"
+if [ "${EFFECTIVE_AUTHN_EMAIL}" = "password" ] || [ "${EFFECTIVE_AUTHN_EMAIL}" = "otp" ]; then
+  AUTH_EMAIL_ENABLED="true"
 fi
 
 cat > "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public/__env.js" <<EOF
@@ -40,7 +47,7 @@ window.__env = {
   NEXT_PUBLIC_AGENTA_WEB_URL: "${AGENTA_WEB_URL:-${WEBSITE_DOMAIN_NAME:-${DOMAIN_NAME:-http://localhost}}}",
   NEXT_PUBLIC_POSTHOG_API_KEY: "${POSTHOG_API_KEY}",
   NEXT_PUBLIC_CRISP_WEBSITE_ID: "${CRISP_WEBSITE_ID}",
-  NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: "${AGENTA_AUTHN_EMAIL}",
+  NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: "${EFFECTIVE_AUTHN_EMAIL}",
   NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID: "${GOOGLE_OAUTH_CLIENT_ID}",
   NEXT_PUBLIC_AGENTA_AUTH_GITHUB_OAUTH_CLIENT_ID: "${GITHUB_OAUTH_CLIENT_ID}",
   NEXT_PUBLIC_AGENTA_SENDGRID_ENABLED: "${AGENTA_SENDGRID_ENABLED}",

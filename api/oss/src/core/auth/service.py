@@ -164,7 +164,7 @@ class AuthService:
         else:
             sso_response = False
 
-        return {
+        response = {
             "user_exists": user_exists,
             "primary_method": primary_method,
             "methods": {
@@ -179,6 +179,8 @@ class AuthService:
                 "sso": sso_response,
             },
         }
+
+        return response
 
     # ============================================================================
     # AUTHENTICATION: Support authentication flows
@@ -303,7 +305,9 @@ class AuthService:
 
         return None
 
-    def _matches_policy(self, identities: List[str], allowed_methods: List[str]) -> bool:
+    def _matches_policy(
+        self, identities: List[str], allowed_methods: List[str]
+    ) -> bool:
         """
         Check if user's identities satisfy the allowed_methods policy.
 

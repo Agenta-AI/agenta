@@ -376,6 +376,8 @@ services:
             - "${SUPERTOKENS_PORT:-3567}:3567"
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS:-postgresql://username:password@postgres:5432/agenta_oss_supertokens}
         networks:
             - agenta-gh-ssl-network
         healthcheck:
