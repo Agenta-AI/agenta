@@ -81,6 +81,7 @@ class TestsetsService:
         project_id: UUID,
         #
         testset_revision: TestsetRevision,
+        #
         include_testcases: Optional[bool],
     ) -> None:
         """Conditionally populate testcases in revision data.
@@ -512,6 +513,7 @@ class TestsetsService:
         user_id: UUID,
         #
         testset_revision_create: TestsetRevisionCreate,
+        #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
         revision_create = RevisionCreate(
@@ -552,6 +554,7 @@ class TestsetsService:
         testset_ref: Optional[Reference] = None,
         testset_variant_ref: Optional[Reference] = None,
         testset_revision_ref: Optional[Reference] = None,
+        #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
         if not testset_ref and not testset_variant_ref and not testset_revision_ref:
@@ -617,6 +620,7 @@ class TestsetsService:
         user_id: UUID,
         #
         testset_revision_edit: TestsetRevisionEdit,
+        #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
         revision_edit = TestsetRevisionEdit(
@@ -713,6 +717,7 @@ class TestsetsService:
         testset_revision_refs: Optional[List[Reference]] = None,
         #
         include_archived: Optional[bool] = None,
+        include_testcases: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
     ) -> List[TestsetRevision]:
@@ -771,6 +776,7 @@ class TestsetsService:
         user_id: UUID,
         #
         testset_revision_commit: TestsetRevisionCommit,
+        #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
         if testset_revision_commit.data and testset_revision_commit.data.testcases:
@@ -825,6 +831,7 @@ class TestsetsService:
         project_id: UUID,
         #
         testset_revisions_log: TestsetRevisionsLog,
+        #
         include_testcases: Optional[bool] = None,
     ) -> List[TestsetRevision]:
         revisions = await self.testsets_dao.log_revisions(

@@ -116,9 +116,9 @@ class TestsetRevisionQueryRequest(BaseModel):
     testset_revision_refs: Optional[List[Reference]] = None
     #
     include_archived: Optional[bool] = None
+    include_testcases: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
-    include_testcases: Optional[bool] = None
 
 
 class TestsetRevisionCommitRequest(BaseModel):
