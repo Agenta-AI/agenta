@@ -37,7 +37,7 @@ from oss.src.core.testsets.dtos import (
     TestsetCreate,
     TestsetEdit,
     TestsetQuery,
-    TestsetLog,
+    TestsetRevisionsLog,
     #
     TestsetVariant,
     TestsetVariantCreate,
@@ -75,6 +75,45 @@ class TestsetsService:
     ):
         self.testsets_dao = testsets_dao
         self.testcases_service = testcases_service
+
+    async def _populate_testcases(
+        self,
+        project_id: UUID,
+        #
+        testset_revision: TestsetRevision,
+        include_testcases: Optional[bool],
+    ) -> None:
+        """Conditionally populate testcases in revision data.
+
+        Args:
+            testset_revision: The testset revision to populate
+            project_id: Project ID for fetching testcases
+            include_testcases: If None or True, fetch and include testcases.
+                              If False, leave testcases as None (only testcase_ids).
+        """
+        if not testset_revision.data:
+            return
+
+        # Default to True if None (backward compatible)
+        if include_testcases is None or include_testcases:
+            # Include full testcases, exclude testcase_ids
+            if testset_revision.data.testcase_ids:
+                testset_revision.data.testcases = (
+                    await self.testcases_service.fetch_testcases(
+                        project_id=project_id,
+                        testcase_ids=testset_revision.data.testcase_ids,
+                    )
+                )
+                # Clear testcase_ids when including full testcases
+                testset_revision.data.testcase_ids = None
+
+                # Clear alias fields from testcases for clean API responses
+                if testset_revision.data.testcases:
+                    for testcase in testset_revision.data.testcases:
+                        testcase.set_id = None
+        else:
+            # Include only testcase_ids, exclude full testcases
+            testset_revision.data.testcases = None
 
     ## -- testset --------------------------------------------------------------
 
@@ -473,6 +512,7 @@ class TestsetsService:
         user_id: UUID,
         #
         testset_revision_create: TestsetRevisionCreate,
+        include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
         revision_create = RevisionCreate(
             **testset_revision_create.model_dump(
@@ -496,14 +536,11 @@ class TestsetsService:
             ),
         )
 
-        if testset_revision.data and testset_revision.data.testcase_ids:
-            testset_revision.data.testcases = (
-                await self.testcases_service.fetch_testcases(
-                    project_id=project_id,
-                    #
-                    testcase_ids=testset_revision.data.testcase_ids,
-                )
-            )
+        await self._populate_testcases(
+            project_id,
+            testset_revision,
+            include_testcases,
+        )
 
         return testset_revision
 
@@ -515,6 +552,7 @@ class TestsetsService:
         testset_ref: Optional[Reference] = None,
         testset_variant_ref: Optional[Reference] = None,
         testset_revision_ref: Optional[Reference] = None,
+        include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
         if not testset_ref and not testset_variant_ref and not testset_revision_ref:
             return None
@@ -564,14 +602,11 @@ class TestsetsService:
             ),
         )
 
-        if testset_revision.data and testset_revision.data.testcase_ids:
-            testset_revision.data.testcases = (
-                await self.testcases_service.fetch_testcases(
-                    project_id=project_id,
-                    #
-                    testcase_ids=testset_revision.data.testcase_ids,
-                )
-            )
+        await self._populate_testcases(
+            project_id,
+            testset_revision,
+            include_testcases,
+        )
 
         return testset_revision
 
@@ -582,6 +617,7 @@ class TestsetsService:
         user_id: UUID,
         #
         testset_revision_edit: TestsetRevisionEdit,
+        include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
         revision_edit = TestsetRevisionEdit(
             **testset_revision_edit.model_dump(
@@ -605,14 +641,11 @@ class TestsetsService:
             ),
         )
 
-        if testset_revision.data and testset_revision.data.testcase_ids:
-            testset_revision.data.testcases = (
-                await self.testcases_service.fetch_testcases(
-                    project_id=project_id,
-                    #
-                    testcase_ids=testset_revision.data.testcase_ids,
-                )
-            )
+        await self._populate_testcases(
+            project_id,
+            testset_revision,
+            include_testcases,
+        )
 
         return testset_revision
 
@@ -719,14 +752,11 @@ class TestsetsService:
                 ),
             )
 
-            if testset_revision.data and testset_revision.data.testcase_ids:
-                testset_revision.data.testcases = (
-                    await self.testcases_service.fetch_testcases(
-                        project_id=project_id,
-                        #
-                        testcase_ids=testset_revision.data.testcase_ids,
-                    )
-                )
+            await self._populate_testcases(
+                project_id,
+                testset_revision,
+                include_testcases,
+            )
 
             testset_revisions.append(testset_revision)
 
@@ -741,6 +771,7 @@ class TestsetsService:
         user_id: UUID,
         #
         testset_revision_commit: TestsetRevisionCommit,
+        include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
         if testset_revision_commit.data and testset_revision_commit.data.testcases:
             if testset_revision_commit.data.testcases:
@@ -780,14 +811,11 @@ class TestsetsService:
             ),
         )
 
-        if testset_revision.data and testset_revision.data.testcase_ids:
-            testset_revision.data.testcases = (
-                await self.testcases_service.fetch_testcases(
-                    project_id=project_id,
-                    #
-                    testcase_ids=testset_revision.data.testcase_ids,
-                )
-            )
+        await self._populate_testcases(
+            project_id,
+            testset_revision,
+            include_testcases,
+        )
 
         return testset_revision
 
@@ -796,13 +824,13 @@ class TestsetsService:
         *,
         project_id: UUID,
         #
-        testset_log: TestsetLog,
-        depth: Optional[int] = None,
+        testset_revisions_log: TestsetRevisionsLog,
+        include_testcases: Optional[bool] = None,
     ) -> List[TestsetRevision]:
         revisions = await self.testsets_dao.log_revisions(
             project_id=project_id,
             #
-            revisions_log=testset_log,
+            revisions_log=testset_revisions_log,
         )
 
         if not revisions:
@@ -817,14 +845,11 @@ class TestsetsService:
                 ),
             )
 
-            if testset_revision.data and testset_revision.data.testcase_ids:
-                testset_revision.data.testcases = (
-                    await self.testcases_service.fetch_testcases(
-                        project_id=project_id,
-                        #
-                        testcase_ids=testset_revision.data.testcase_ids,
-                    )
-                )
+            await self._populate_testcases(
+                project_id,
+                testset_revision,
+                include_testcases,
+            )
 
             testset_revisions.append(testset_revision)
 
@@ -840,7 +865,7 @@ class TestsetsService:
     ) -> Optional[TestsetRevision]:
         """
         Apply a patch to a testset revision.
-        
+
         This method:
         1. Fetches the base revision (latest if not specified) with all testcases
         2. Loads all current testcase data
@@ -849,7 +874,7 @@ class TestsetsService:
            - create: Add new testcases
            - delete: Remove testcases by ID
         4. Calls the regular commit flow with the full testcases data
-        
+
         This approach ensures consistency with the regular commit flow and
         avoids any deduplication issues.
         """
@@ -865,7 +890,9 @@ class TestsetsService:
         )
 
         if not base_revision:
-            log.error(f"Base revision not found for testset {testset_revision_patch.testset_id}")
+            log.error(
+                f"Base revision not found for testset {testset_revision_patch.testset_id}"
+            )
             return None
 
         # Load all current testcases from the base revision
@@ -890,7 +917,9 @@ class TestsetsService:
                     if operations.columns.rename:
                         for rename_op in operations.columns.rename:
                             if rename_op.old_name in tc.data:
-                                tc.data[rename_op.new_name] = tc.data.pop(rename_op.old_name)
+                                tc.data[rename_op.new_name] = tc.data.pop(
+                                    rename_op.old_name
+                                )
 
                     # Apply column deletions
                     if operations.columns.delete:
@@ -936,30 +965,36 @@ class TestsetsService:
         for tc_id, tc in testcases_by_id.items():
             if tc_id not in ids_to_delete:
                 # Keep existing testcase data
-                final_testcases.append(Testcase(
-                    id=None,  # Will be assigned by create_testcases
-                    set_id=testset_revision_patch.testset_id,
-                    data=tc.data,
-                ))
+                final_testcases.append(
+                    Testcase(
+                        id=None,  # Will be assigned by create_testcases
+                        set_id=testset_revision_patch.testset_id,
+                        data=tc.data,
+                    )
+                )
 
         # Add updated testcases
         if operations.update:
             for updated_tc in operations.update:
                 if updated_tc.id:
-                    final_testcases.append(Testcase(
-                        id=None,
-                        set_id=testset_revision_patch.testset_id,
-                        data=updated_tc.data,
-                    ))
+                    final_testcases.append(
+                        Testcase(
+                            id=None,
+                            set_id=testset_revision_patch.testset_id,
+                            data=updated_tc.data,
+                        )
+                    )
 
         # Add new testcases from create operations
         if operations.create:
             for new_tc in operations.create:
-                final_testcases.append(Testcase(
-                    id=None,
-                    set_id=testset_revision_patch.testset_id,
-                    data=new_tc.data,
-                ))
+                final_testcases.append(
+                    Testcase(
+                        id=None,
+                        set_id=testset_revision_patch.testset_id,
+                        data=new_tc.data,
+                    )
+                )
 
         # Get variant_id from base revision (required for commit)
         variant_id = (

@@ -64,14 +64,17 @@ class TestsetRevisionIdAlias(AliasConfig):
     )
 
 
-class TestsetLog(
+class TestsetRevisionsLog(
     RevisionsLog,
+    TestsetIdAlias,
     TestsetVariantIdAlias,
     TestsetRevisionIdAlias,
 ):
+    testset_id: Optional[UUID] = None
     testset_variant_id: Optional[UUID] = None
 
     def model_post_init(self, _context) -> None:
+        sync_alias("testset_id", "artifact_id", self)
         sync_alias("testset_variant_id", "variant_id", self)
         sync_alias("testset_revision_id", "revision_id", self)
 
