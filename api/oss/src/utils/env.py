@@ -165,6 +165,8 @@ class SendgridConfig(BaseModel):
     from_address: str | None = (
         os.getenv("SENDGRID_FROM_ADDRESS")
         #
+        or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
+        #
         or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
     )
 

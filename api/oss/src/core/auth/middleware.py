@@ -119,9 +119,7 @@ class OrganizationPolicyMiddleware(BaseHTTPMiddleware):
     Only active when EE features are enabled.
     """
 
-    async def dispatch(
-        self, request: Request, call_next: Callable
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # Skip if EE not enabled
         if not is_ee():
             return await call_next(request)

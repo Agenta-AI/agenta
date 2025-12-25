@@ -534,7 +534,10 @@ def _init_supertokens():
     recipe_list.append(dashboard.init())
 
     # Initialize SuperTokens with selected recipes
-    from oss.src.core.auth.supertokens_config import get_app_info, get_supertokens_config
+    from oss.src.core.auth.supertokens_config import (
+        get_app_info,
+        get_supertokens_config,
+    )
 
     init(
         app_info=get_app_info(),

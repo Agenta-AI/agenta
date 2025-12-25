@@ -119,7 +119,10 @@ async def send_invitation_email(
         username_placeholder=user.username,
         action_placeholder="invited you to join",
         workspace_placeholder="their organization",
-        call_to_action=f"""Click the link below to accept the invitation:</p><br><a href="{env.agenta.web_url}/auth?token={token}&organization_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}">Accept Invitation</a>""",
+        call_to_action=(
+            "Click the link below to accept the invitation:</p><br>"
+            f'<a href="{invite_link}">Accept Invitation</a>'
+        ),
     )
 
     if not env.sendgrid.from_address:
@@ -249,8 +252,13 @@ async def resend_user_organization_invite(
     if existing_invitation:
         invitation = existing_invitation
     elif existing_role:
-        # Create a new invitation
-        invitation = await create_invitation("editor", project_id, payload.email)
+        # Create a new invitation with the previous role
+        invitation = await create_invitation(existing_role, project_id, payload.email)
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail="No existing invitation found for the user",
+        )
 
     # Get project by id
     project_db = await db_manager.get_project_by_id(project_id=project_id)

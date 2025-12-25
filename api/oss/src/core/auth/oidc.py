@@ -64,9 +64,7 @@ class OIDCClient:
         }
         return f"{self.authorization_endpoint}?{urlencode(params)}"
 
-    async def exchange_code_for_tokens(
-        self, code: str
-    ) -> Dict[str, Any]:
+    async def exchange_code_for_tokens(self, code: str) -> Dict[str, Any]:
         """Exchange authorization code for tokens."""
         data = {
             "grant_type": "authorization_code",

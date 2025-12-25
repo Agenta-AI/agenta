@@ -84,9 +84,7 @@ class OrganizationPoliciesDAO:
 
 
 class OrganizationDomainsDAO:
-    async def create(
-        self, dto: OrganizationDomainCreate
-    ) -> OrganizationDomain:
+    async def create(self, dto: OrganizationDomainCreate) -> OrganizationDomain:
         domain_dbe = map_create_domain_dto_to_dbe(dto)
 
         async with engine.core_session() as session:
@@ -150,9 +148,7 @@ class OrganizationDomainsDAO:
 
 
 class OrganizationProvidersDAO:
-    async def create(
-        self, dto: OrganizationProviderCreate
-    ) -> OrganizationProvider:
+    async def create(self, dto: OrganizationProviderCreate) -> OrganizationProvider:
         provider_dbe = map_create_provider_dto_to_dbe(dto)
 
         async with engine.core_session() as session:
@@ -237,9 +233,7 @@ class OrganizationProvidersDAO:
 
 
 class OrganizationInvitationsDAO:
-    async def create(
-        self, dto: OrganizationInvitationCreate
-    ) -> OrganizationInvitation:
+    async def create(self, dto: OrganizationInvitationCreate) -> OrganizationInvitation:
         invitation_dbe = map_create_invitation_dto_to_dbe(dto)
 
         async with engine.core_session() as session:
