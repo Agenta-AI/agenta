@@ -1253,7 +1253,11 @@ class TracingDAO(TracingDAOInterface):
                 id_value = getattr(row, f"{group}_id")
                 if id_value:
                     ids.append(str(id_value))
-                    # Access by the label we set above
+                    # Activity cursor is set to the timestamp of the last row in the result set.
+                    # This represents the boundary timestamp for the next page of results:
+                    # - In descending order: cursor is the oldest timestamp in this page
+                    # - In ascending order: cursor is the newest timestamp in this page
+                    # The next query uses this as the starting point (oldest/newest boundary)
                     activity_cursor = getattr(row, activity_label)
 
             return ids, activity_cursor
