@@ -13,6 +13,7 @@ import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
 
 import {getObservabilityColumns} from "../../assets/getObservabilityColumns"
+import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
 const ObservabilityHeader = dynamic(() => import("../ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("../EmptyObservability"), {ssr: false})
@@ -22,8 +23,6 @@ const TestsetDrawer = dynamic(
         ssr: false,
     },
 )
-
-const AUTO_REFRESH_INTERVAL = 15000 // 15 seconds
 
 const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     const slugs = new Set<string>()

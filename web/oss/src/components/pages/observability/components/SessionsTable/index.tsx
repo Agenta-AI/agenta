@@ -9,14 +9,13 @@ import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
 import {useSessions} from "@/oss/state/newObservability/hooks/useSessions"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 
+import {AUTO_REFRESH_INTERVAL} from "../../constants"
 import EmptySessions from "./assets/EmptySessions"
 import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
 
 const ObservabilityHeader = dynamic(() => import("../../components/ObservabilityHeader"), {
     ssr: false,
 })
-
-const AUTO_REFRESH_INTERVAL = 15000 // 15 seconds
 
 /**
  * Next iteration plan:

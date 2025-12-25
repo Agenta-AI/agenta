@@ -29,12 +29,11 @@ import {
 import {buildAttributeKeyTreeOptions} from "../../assets/filters/attributeKeyOptions"
 import getFilterColumns from "../../assets/getFilterColumns"
 import {ObservabilityHeaderProps} from "../../assets/types"
+import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
 const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
-
-const AUTO_REFRESH_INTERVAL = 15000 // 15 seconds
 
 const AutoRefreshControl: React.FC<{
     checked: boolean
@@ -367,13 +366,13 @@ const ObservabilityHeader = ({
 
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
 
-                        {!isScrolled && componentType === "sessions" ? (
+                        {!isScrolled && (
                             <AutoRefreshControl
                                 checked={autoRefresh}
                                 onChange={setAutoRefresh}
                                 resetTrigger={refreshTrigger}
                             />
-                        ) : null}
+                        )}
 
                         {isScrolled && componentType === "traces" ? (
                             <>
@@ -406,14 +405,14 @@ const ObservabilityHeader = ({
                             </Space>
                         ) : null}
 
-                        {isScrolled && componentType === "sessions" ? (
+                        {isScrolled && (
                             <AutoRefreshControl
                                 checked={autoRefresh}
                                 onChange={setAutoRefresh}
                                 isScrolled
                                 resetTrigger={refreshTrigger}
                             />
-                        ) : null}
+                        )}
                     </div>
                 </div>
                 {!isScrolled && componentType === "traces" ? (
