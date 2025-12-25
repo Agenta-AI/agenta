@@ -1,5 +1,4 @@
-import {memo, useEffect, useMemo, useRef, type ReactNode, type RefObject} from "react"
-import {Suspense} from "react"
+import {memo, Suspense, useEffect, useMemo, useRef, type ReactNode, type RefObject} from "react"
 
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import {ConfigProvider, Layout, Modal, Skeleton, Space, theme} from "antd"
@@ -18,7 +17,7 @@ import {useProfileData} from "@/oss/state/profile"
 import {getProjectValues, useProjectData} from "@/oss/state/project"
 
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
-import CustomWorkflowBanner from "../CustomWorkflowBanner"
+import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
 
 import BreadcrumbContainer from "./assets/Breadcrumbs"

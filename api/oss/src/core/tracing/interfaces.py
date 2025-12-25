@@ -189,7 +189,7 @@ class TracingDAOInterface(ABC):
         project_id: UUID,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[str]:
+    ) -> Any:
         raise NotImplementedError
 
     @abstractmethod
@@ -199,5 +199,5 @@ class TracingDAOInterface(ABC):
         project_id: UUID,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[str]:
+    ) -> Any:
         raise NotImplementedError
