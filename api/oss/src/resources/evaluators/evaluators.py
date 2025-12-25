@@ -213,7 +213,7 @@ evaluators = [
                 "default": [
                     {
                         "role": "system",
-                        "content": "You are an expert evaluator grading model outputs. Your task is to grade the responses based on the criteria and requirements provided below. \n\nGiven the model output and inputs (and any other data you might get) assign a grade to the output. \n\n## Grading considerations\n- Evaluate the overall value provided in the model output\n- Verify all claims in the output meticulously\n- Differentiate between minor errors and major errors\n- Evaluate the outputs based on the inputs and whether they follow the instruction in the inputs if any\n- Give the highst and lowest score for cases where you have complete certainty about correctness and value\n\n## output format\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER\n",
+                        "content": "You are an expert evaluator grading model outputs. Your task is to grade the responses based on the criteria and requirements provided below. \n\nGiven the model output and inputs (and any other data you might get) assign a grade to the output. \n\n## Grading considerations\n- Evaluate the overall value provided in the model output\n- Verify all claims in the output meticulously\n- Differentiate between minor errors and major errors\n- Evaluate the outputs based on the inputs and whether they follow the instruction in the inputs if any\n- Give the highst and lowest score for cases where you have complete certainty about correctness and value\n\n## output format\nDO NOT USE MARKDOWN. \n",
                     },
                     {
                         "role": "user",
@@ -232,7 +232,7 @@ evaluators = [
             },
             "model": {
                 "label": "Model",
-                "default": "gpt-4o-mini",
+                "default": "gpt-4o",
                 "type": "multiple_choice",
                 "options": [
                     "gpt-4-turbo",
@@ -298,6 +298,41 @@ evaluators = [
         "name": "Code Evaluation",
         "key": "auto_custom_code_run",
         "direct_use": False,
+        "settings_presets": [
+            {
+                "key": "python_default",
+                "name": "Exact Match (Python)",
+                "values": {
+                    "requires_llm_api_keys": False,
+                    "runtime": "python",
+                    "correct_answer_key": "correct_answer",
+                    "code": "from typing import Dict, Union, Any\n\n\ndef evaluate(\n    app_params: Dict[str, str],  # deprecated; currently receives {}\n    inputs: Dict[str, str],\n    output: Union[str, Dict[str, Any]],\n    correct_answer: str,\n) -> float:\n    if output == correct_answer:\n        return 1.0\n    return 0.0\n",
+                },
+                "description": "Exact match evaluator implemented in Python.",
+            },
+            {
+                "key": "javascript_default",
+                "name": "Exact Match (JavaScript)",
+                "values": {
+                    "requires_llm_api_keys": False,
+                    "runtime": "javascript",
+                    "correct_answer_key": "correct_answer",
+                    "code": 'function evaluate(appParams, inputs, output, correctAnswer) {\n  void appParams\n  void inputs\n\n  const outputStr =\n    typeof output === "string" ? output : JSON.stringify(output)\n\n  return outputStr === String(correctAnswer) ? 1.0 : 0.0\n}\n',
+                },
+                "description": "Exact match evaluator implemented in JavaScript.",
+            },
+            {
+                "key": "typescript_default",
+                "name": "Exact Match (TypeScript)",
+                "values": {
+                    "requires_llm_api_keys": False,
+                    "runtime": "typescript",
+                    "correct_answer_key": "correct_answer",
+                    "code": 'type OutputValue = string | Record<string, unknown>\n\nfunction evaluate(\n  app_params: Record<string, string>,\n  inputs: Record<string, string>,\n  output: OutputValue,\n  correct_answer: string\n): number {\n  void app_params\n  void inputs\n\n  const outputStr =\n    (typeof output === "string" ? output : JSON.stringify(output)) as string\n\n  return outputStr === String(correct_answer) ? 1.0 : 0.0\n}\n',
+                },
+                "description": "Exact match evaluator implemented in TypeScript.",
+            },
+        ],
         "settings_template": {
             "requires_llm_api_keys": {
                 "label": "Requires LLM API Key(s)",
@@ -310,9 +345,17 @@ evaluators = [
             "code": {
                 "label": "Evaluation Code",
                 "type": "code",
-                "default": "from typing import Dict, Union, Any\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: Union[str, Dict[str, Any]], # output of the llm app\n    correct_answer: str # contains the testset row \n) -> float:\n    if output in correct_answer:\n        return 1.0\n    else:\n        return 0.0\n",
+                "default": "from typing import Dict, Union, Any\n\n\ndef evaluate(\n    app_params: Dict[str, str],  # deprecated; currently receives {}\n    inputs: Dict[str, str],\n    output: Union[str, Dict[str, Any]],\n    correct_answer: str,\n) -> float:\n    if output == correct_answer:\n        return 1.0\n    return 0.0\n",
                 "description": "Code for evaluating submissions",
                 "required": True,
+            },
+            "runtime": {
+                "label": "Runtime",
+                "type": "multiple_choice",
+                "default": "python",
+                "options": ["python", "javascript", "typescript"],
+                "advanced": True,
+                "description": "Runtime environment used to execute the evaluator code.",
             },
             "correct_answer_key": {
                 "label": "Expected Answer Column",
@@ -734,30 +777,30 @@ evaluators = [
         "oss": True,
         "tags": ["similarity"],
     },
-    {
-        "name": "RAG Faithfulness",
-        "key": "rag_faithfulness",
-        "direct_use": False,
-        "archived": True,
-        "requires_llm_api_keys": True,
-        "settings_template": rag_evaluator_settings_template,
-        "description": "RAG Faithfulness evaluator assesses the accuracy and reliability of responses generated by Retrieval-Augmented Generation (RAG) models. It evaluates how faithfully the responses adhere to the retrieved documents or sources, ensuring that the generated text accurately reflects the information from the original sources.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "tags": ["rag"],
-    },
-    {
-        "name": "RAG Context Relevancy",
-        "key": "rag_context_relevancy",
-        "direct_use": False,
-        "archived": True,
-        "requires_llm_api_keys": True,
-        "settings_template": rag_evaluator_settings_template,
-        "description": "RAG Context Relevancy evaluator measures how relevant the retrieved documents or contexts are to the given question or prompt. It ensures that the selected documents provide the necessary information for generating accurate and meaningful responses, improving the overall quality of the RAG model's output.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "tags": ["rag"],
-    },
+    # {
+    #     "name": "RAG Faithfulness",
+    #     "key": "rag_faithfulness",
+    #     "direct_use": False,
+    #     "archived": True,
+    #     "requires_llm_api_keys": True,
+    #     "settings_template": rag_evaluator_settings_template,
+    #     "description": "RAG Faithfulness evaluator assesses the accuracy and reliability of responses generated by Retrieval-Augmented Generation (RAG) models. It evaluates how faithfully the responses adhere to the retrieved documents or sources, ensuring that the generated text accurately reflects the information from the original sources.",
+    #     "requires_testcase": "always",
+    #     "requires_trace": "always",
+    #     "tags": ["rag"],
+    # },
+    # {
+    #     "name": "RAG Context Relevancy",
+    #     "key": "rag_context_relevancy",
+    #     "direct_use": False,
+    #     "archived": True,
+    #     "requires_llm_api_keys": True,
+    #     "settings_template": rag_evaluator_settings_template,
+    #     "description": "RAG Context Relevancy evaluator measures how relevant the retrieved documents or contexts are to the given question or prompt. It ensures that the selected documents provide the necessary information for generating accurate and meaningful responses, improving the overall quality of the RAG model's output.",
+    #     "requires_testcase": "always",
+    #     "requires_trace": "always",
+    #     "tags": ["rag"],
+    # },
 ]
 
 

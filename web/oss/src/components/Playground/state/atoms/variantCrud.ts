@@ -163,6 +163,8 @@ export const addVariantMutationAtom = atom(
                     displayedVariantsAfterSwap: updatedVariants,
                 })
 
+                // Update atom directly for immediate reactivity, then sync to URL
+                set(selectedVariantsAtom, updatedVariants)
                 void writePlaygroundSelectionToQuery(updatedVariants)
 
                 // Clear draft state for the base revision used to create the new variant
@@ -179,7 +181,11 @@ export const addVariantMutationAtom = atom(
 
                 return {
                     success: true,
-                    variant: createVariantResponse,
+                    variant: {
+                        ...createVariantResponse,
+                        // Include the revision ID we waited for so the modal can use it
+                        id: newestRevisionId,
+                    } as any,
                     message: `Variant "${variantName}" created successfully`,
                 }
             }
@@ -267,19 +273,19 @@ export const saveVariantMutationAtom = atom(
             const waitResult = await set(waitForNewRevisionAfterMutationAtom, {
                 variantId: savedVariant.variantId || currentVariant.variantId || variantId,
                 prevRevisionId: variantId,
+                timeoutMs: 10_000,
             })
 
             if (waitResult.newestRevisionId && waitResult.newestRevisionId !== variantId) {
                 const newRevisionId = waitResult.newestRevisionId
                 const previousRevisionId = variantId
 
-                let logicalIdsForNewRevision: string[] = []
-
                 const currentDisplayedVariants = get(selectedVariantsAtom)
                 const updatedVariants = currentDisplayedVariants.map((id) =>
                     id === variantId ? newRevisionId : id,
                 )
-                // Update selected variants by pushing the change to the URL listener
+                // Update atom directly for immediate reactivity, then sync to URL
+                set(selectedVariantsAtom, updatedVariants)
                 void writePlaygroundSelectionToQuery(updatedVariants)
                 duplicateChatHistoryForRevision({
                     get,
@@ -295,7 +301,13 @@ export const saveVariantMutationAtom = atom(
                 set(clearLocalCustomPropsForRevisionAtomFamily(variantId))
                 return {
                     success: true,
-                    variant: savedVariant,
+                    // Ensure consumers (e.g. Commit modal) get the *new revision id*
+                    // even if the backend returns a parent-variant payload.
+                    variant: {
+                        ...(savedVariant as any),
+                        id: newRevisionId,
+                        variantId: (savedVariant as any)?.variantId || currentVariant.variantId,
+                    } as any,
                     message: `Variant saved successfully`,
                 }
             }
@@ -308,7 +320,12 @@ export const saveVariantMutationAtom = atom(
             set(clearLocalCustomPropsForRevisionAtomFamily(variantId))
             return {
                 success: true,
-                variant: savedVariant,
+                // No revision swap detected; keep the current revision id stable for callers.
+                variant: {
+                    ...(savedVariant as any),
+                    id: variantId,
+                    variantId: (savedVariant as any)?.variantId || currentVariant.variantId,
+                } as any,
                 message: "Variant saved successfully",
             }
         } catch (error) {

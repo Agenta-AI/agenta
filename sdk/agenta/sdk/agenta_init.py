@@ -1,16 +1,14 @@
-import toml
-from os import getenv
-from typing import Optional, Callable, Any
 from importlib.metadata import version
+from os import getenv
+from typing import Any, Callable, Optional
 
-from agenta.sdk.utils.helpers import parse_url
-from agenta.sdk.utils.globals import set_global
-from agenta.sdk.utils.logging import get_module_logger
+import httpx
 from agenta.client.client import AgentaApi, AsyncAgentaApi
-
-from agenta.sdk.tracing import Tracing
 from agenta.sdk.contexts.routing import RoutingContext
-
+from agenta.sdk.tracing import Tracing
+from agenta.sdk.utils.globals import set_global
+from agenta.sdk.utils.helpers import parse_url
+from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
@@ -38,6 +36,11 @@ class AgentaSingleton:
 
         self.scope_type = None
         self.scope_id = None
+
+        # Cached scope information for URL building
+        self.organization_id: Optional[str] = None
+        self.workspace_id: Optional[str] = None
+        self.project_id: Optional[str] = None
 
     def __new__(cls):
         if not cls._instance:
@@ -82,22 +85,13 @@ class AgentaSingleton:
 
         log.info("Agenta -     SDK ver: %s", version("agenta"))
 
-        config = {}
-        if config_fname:
-            config = toml.load(config_fname)
-
-        _host = (
-            host
-            or getenv("AGENTA_HOST")
-            or config.get("host")
-            or "https://cloud.agenta.ai"
-        )
+        _host = host or getenv("AGENTA_HOST") or "https://cloud.agenta.ai"
 
         _api_url = (
             api_url
+            #
             or getenv("AGENTA_API_INTERNAL_URL")
             or getenv("AGENTA_API_URL")
-            or config.get("api_url")
             or None  # NO FALLBACK
         )
 
@@ -110,7 +104,7 @@ class AgentaSingleton:
 
         try:
             assert _api_url and isinstance(_api_url, str), (
-                "API URL is required. Please provide a valid API URL or set AGENTA_API_URL environment variable."
+                "API URL is required. Please set AGENTA_API_URL environment variable or pass api_url parameter in ag.init()."
             )
             self.host = _host
             self.api_url = _api_url
@@ -123,24 +117,29 @@ class AgentaSingleton:
 
         self.api_key = (
             api_key
+            #
             or getenv("AGENTA_API_KEY")
-            or config.get("api_key")
             or None  # NO FALLBACK
         )
+
+        if self.api_key is None:
+            log.warning(
+                "API key is required (in most cases). Please set AGENTA_API_KEY environment variable or pass api_key parameter in ag.init()."
+            )
 
         log.info("Agenta -     API URL: %s", self.api_url)
 
         self.scope_type = (
             scope_type
+            #
             or getenv("AGENTA_SCOPE_TYPE")
-            or config.get("scope_type")
             or None  # NO FALLBACK
         )
 
         self.scope_id = (
             scope_id
+            #
             or getenv("AGENTA_SCOPE_ID")
-            or config.get("scope_id")
             or None  # NO FALLBACK
         )
 
@@ -164,43 +163,62 @@ class AgentaSingleton:
             api_key=self.api_key if self.api_key else "",
         )
 
-        self.config = Config(
-            host=self.host,
-            api_key=self.api_key,
-        )
+        # Reset cached scope info on re-init
+        self.organization_id = None
+        self.workspace_id = None
+        self.project_id = None
 
-
-class Config:
-    def __init__(
-        self,
-        **kwargs,
-    ):
-        self.default_parameters = {**kwargs}
-
-    def set_default(self, **kwargs):
-        self.default_parameters.update(kwargs)
-
-    def get_default(self):
-        return self.default_parameters
-
-    def __getattr__(self, key):
-        context = RoutingContext.get()
-
-        parameters = context.parameters
-
-        if not parameters:
+    def resolve_scopes(self) -> Optional[tuple[str, str, str]]:
+        """Fetch and cache workspace_id and project_id from the API."""
+        if (
+            self.organization_id is not None
+            and self.workspace_id is not None
+            and self.project_id is not None
+        ):
             return None
 
-        if key in parameters:
-            value = parameters[key]
+        if self.api_url is None or self.api_key is None:
+            log.error("API URL or API key is not set. Please call ag.init() first.")
+            return None
 
-            if isinstance(value, dict):
-                nested_config = Config()
-                nested_config.set_default(**value)
+        try:
+            with httpx.Client() as client:
+                response = client.get(
+                    f"{self.api_url}/projects/current",
+                    headers={"Authorization": f"ApiKey {self.api_key}"},
+                    timeout=10,
+                )
+                response.raise_for_status()
+                project_info = response.json()
 
-                return nested_config
+            if not project_info:
+                log.error(
+                    "No project context found. Please ensure your API key is valid."
+                )
 
-            return value
+            self.organization_id = project_info.get("organization_id")
+            self.workspace_id = project_info.get("workspace_id")
+            self.project_id = project_info.get("project_id")
+
+            if (
+                not self.organization_id
+                and not self.workspace_id
+                or not self.project_id
+            ):
+                log.error(
+                    "Could not determine organization/workspace/project from API response."
+                )
+
+        except Exception as e:
+            log.error(f"Failed to fetch scope information: {e}")
+            return None
+
+        if self.organization_id and self.workspace_id and self.project_id:
+            return (
+                self.organization_id,
+                self.workspace_id,
+                self.project_id,
+            )
 
         return None
 
@@ -209,11 +227,12 @@ def init(
     host: Optional[str] = None,
     api_url: Optional[str] = None,
     api_key: Optional[str] = None,
-    config_fname: Optional[str] = None,
     redact: Optional[Callable[..., Any]] = None,
     redact_on_error: Optional[bool] = True,
     scope_type: Optional[str] = None,
     scope_id: Optional[str] = None,
+    # DEPRECATED
+    config_fname: Optional[str] = None,
 ):
     """Main function to initialize the agenta sdk.
 
@@ -238,14 +257,10 @@ def init(
         host=host,
         api_url=api_url,
         api_key=api_key,
-        config_fname=config_fname,
         redact=redact,
         redact_on_error=redact_on_error,
         scope_type=scope_type,
         scope_id=scope_id,
     )
 
-    set_global(
-        config=singleton.config,
-        tracing=singleton.tracing,
-    )
+    set_global(tracing=singleton.tracing)

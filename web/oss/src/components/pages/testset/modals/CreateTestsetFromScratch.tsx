@@ -2,13 +2,15 @@ import {useMemo, useState} from "react"
 
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Input, Typography} from "antd"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import {message} from "@/oss/components/AppMessageContext"
+import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import useURL from "@/oss/hooks/useURL"
 import {JSSTheme, KeyValuePair, testset, TestsetCreationMode} from "@/oss/lib/Types"
-import {createNewTestset, fetchTestset, updateTestset} from "@/oss/services/testsets/api"
+import {cloneTestset, renameTestset} from "@/oss/services/testsets/api"
 import {useTestsetsData} from "@/oss/state/testset"
 
 const {Text} = Typography
@@ -49,33 +51,37 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
     )
     const [isLoading, setIsLoading] = useState(false)
     const {mutate} = useTestsetsData()
+    const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
 
-    const handleCreateTestset = async (data?: KeyValuePair[]) => {
-        setIsLoading(true)
-        try {
-            const rowData = data
-            const response = await createNewTestset(testsetName, rowData)
-
-            await mutate()
-            message.success("Testset created successfully")
-            router.push(`${projectURL}/testsets/${response.data.id}`)
-        } catch (error) {
-            console.error("Error saving testset:", error)
-            message.error("Failed to create Testset. Please try again!")
-        } finally {
-            setIsLoading(false)
-        }
+    const handleCreateTestset = async (_data?: KeyValuePair[]) => {
+        // Navigate to testset page with "new" as the ID and testset name as query param
+        // The testset page will handle local state and save via simple API on commit
+        const encodedName = encodeURIComponent(testsetName)
+        router.push(`${projectURL}/testsets/new?name=${encodedName}`)
+        onCancel()
     }
 
     const handleCloneTestset = async (testsetId: string) => {
         setIsLoading(true)
         try {
-            const fetchedTestset = await fetchTestset(testsetId)
-            if (fetchedTestset.csvdata) {
-                await handleCreateTestset(fetchedTestset.csvdata)
+            const response = await cloneTestset(testsetId, testsetName)
+
+            // Revalidate both legacy testsets data and the new table store
+            await mutate()
+            setRefreshTrigger((prev) => prev + 1)
+            message.success("Testset cloned successfully")
+
+            // Navigate to the new revision
+            const revisionId = response.data?.revisionId
+            if (revisionId) {
+                router.push(`${projectURL}/testsets/${revisionId}`)
             } else {
-                throw new Error("Failed to load instances")
+                const newTestsetId = response.data?.testset?.id
+                if (newTestsetId) {
+                    router.push(`${projectURL}/testsets/${newTestsetId}`)
+                }
             }
+            onCancel()
         } catch (error) {
             console.error("Error cloning testset:", error)
             message.error("Failed to clone Testset. Please try again!")
@@ -87,15 +93,11 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
     const handleRenameTestset = async (testsetId: string) => {
         setIsLoading(true)
         try {
-            const fetchedTestset = await fetchTestset(testsetId)
-            if (fetchedTestset.csvdata) {
-                await updateTestset(testsetId, testsetName, fetchedTestset.csvdata)
-                message.success("Testset renamed successfully")
-                mutate()
-                onCancel()
-            } else {
-                throw new Error("Failed to load instances")
-            }
+            await renameTestset(testsetId, testsetName)
+            message.success("Testset renamed successfully")
+            await mutate()
+            setRefreshTrigger((prev) => prev + 1)
+            onCancel()
         } catch (error) {
             console.error("Error renaming testset:", error)
             message.error("Failed to rename Testset. Please try again!")

@@ -8,7 +8,6 @@ import {
     extractInputKeysFromSchema,
 } from "@/oss/lib/shared/variant/inputHelpers"
 import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {currentAppAtom} from "@/oss/state/app"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
@@ -99,7 +98,7 @@ export const earlyRevisionIdsAtom = atom((get) => {
     // Get all revision IDs from raw variant revision queries
     const allRevisionIds: string[] = []
 
-    rawVariants.forEach((variant, index) => {
+    rawVariants.forEach((variant) => {
         if (variant.variantId) {
             const revisionsQuery = get(variantRevisionsQueryFamily(variant.variantId))
             const revisions = (revisionsQuery as any)?.data || []

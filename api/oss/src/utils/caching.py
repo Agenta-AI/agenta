@@ -98,7 +98,7 @@ async def _scan(pattern: str) -> list[str]:
         return keys
 
     except Exception as e:
-        log.warn(f"Error scanning keys with pattern {pattern}: {e}")
+        log.error(f"[cache] SCAN ERROR: pattern={pattern} error={e}", exc_info=True)
 
         return []
 
@@ -182,7 +182,7 @@ async def _try_get_and_maybe_renew(
                 value=raw if CACHE_DEBUG_VALUE else "***",
             )
 
-        # Populate local cache from Redis hit
+        # Populate local cache from Redis hit (raw is bytes from decode_responses=False)
         local_cache[cache_name] = raw
 
         data = _deserialize(raw, model=model, is_list=is_list)
@@ -466,14 +466,55 @@ async def invalidate_cache(
 
             keys = await _scan(cache_name)
 
+            if CACHE_DEBUG:
+                log.debug(
+                    f"[cache] INVALIDATE pattern={cache_name} redis_keys_found={len(keys)}"
+                )
+
             # Clear from local cache (pattern matching)
+            # Pattern is like "cache:p:PROJECT:u:USER:*:*"
+            # We need to convert Redis wildcard pattern to a prefix match
+            # Strategy: Find the last concrete segment before wildcards start
+            parts = cache_name.split(":")
+            # Find the first part that contains "*"
+            concrete_parts = []
+            for part in parts:
+                if "*" in part:
+                    break
+                concrete_parts.append(part)
+            # Reconstruct prefix with trailing colon
+            local_prefix = ":".join(concrete_parts) + ":" if concrete_parts else ""
+            local_keys_deleted = 0
+
+            if CACHE_DEBUG:
+                log.debug(f"[cache] INVALIDATE local_prefix={local_prefix}")
+                log.debug(f"[cache] INVALIDATE local_cache has {len(local_cache)} keys")
+                for lk in list(local_cache.keys()):
+                    log.debug(f"[cache] INVALIDATE local_cache_key={lk}")
+
             for local_key in list(local_cache.keys()):
-                if local_key.startswith(cache_name.rstrip("*")):
+                if local_key.startswith(local_prefix):
                     local_cache.pop(local_key, None)
+                    local_keys_deleted += 1
+                    if CACHE_DEBUG:
+                        log.debug(f"[cache] INVALIDATE deleted local_key={local_key}")
+
+            if CACHE_DEBUG:
+                log.debug(f"[cache] INVALIDATE local_keys_deleted={local_keys_deleted}")
 
             # Clear from Redis
+            redis_keys_deleted = 0
             for i in range(0, len(keys), AGENTA_CACHE_DELETE_BATCH_SIZE):
-                await r.delete(*keys[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE])
+                batch = keys[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE]
+                deleted_count = await r.delete(*batch)
+                redis_keys_deleted += deleted_count
+
+                if CACHE_DEBUG:
+                    for key in batch:
+                        log.debug(f"[cache] INVALIDATE redis_key={key}")
+
+            if CACHE_DEBUG:
+                log.debug(f"[cache] INVALIDATE redis_keys_deleted={redis_keys_deleted}")
 
         if CACHE_DEBUG:
             log.debug(

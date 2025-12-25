@@ -1,15 +1,15 @@
-import {useCallback, memo, useState} from "react"
+import {memo, useCallback, useState} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {
-    MinusCircle,
-    Copy,
-    Check,
     ArrowClockwise,
     CaretDown,
     CaretUp,
-    Image as PhImage,
+    Check,
+    Copy,
     MarkdownLogoIcon,
+    MinusCircle,
+    Image as PhImage,
     TextAa,
 } from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -17,8 +17,8 @@ import {useAtom, useAtomValue} from "jotai"
 
 import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {getTextContent} from "@/oss/components/Playground/adapters/TurnMessageHeaderOptions"
-import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
 import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
 import {findPropertyInObject} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
 import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
@@ -43,6 +43,7 @@ const PromptMessageContentOptions = ({
     uploadCount,
     viewOnly,
     hideMarkdownToggle,
+    showMinimizeOnly,
 }: PromptMessageContentOptionsProps) => {
     const [editor] = useLexicalComposerContext()
     const [markdownView] = useAtom(markdownViewAtom(id))
@@ -68,6 +69,25 @@ const PromptMessageContentOptions = ({
             }, 1000)
         }
     }, [message])
+
+    const minimizeButton = (
+        <EnhancedButton
+            icon={!minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
+            type="text"
+            onClick={() => minimize?.(messageId)}
+            disabled={disabled}
+            tooltipProps={{title: minimized ? "Minimize" : "Maximize"}}
+        />
+    )
+
+    if (showMinimizeOnly) {
+        return (
+            <div className={clsx("flex items-center gap-1", className)}>
+                {minimizeButton}
+                {children}
+            </div>
+        )
+    }
 
     return (
         <div className={clsx("flex items-center gap-1", className)}>
@@ -134,13 +154,7 @@ const PromptMessageContentOptions = ({
                 />
             )}
 
-            <EnhancedButton
-                icon={!minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
-                type="text"
-                onClick={() => minimize?.(messageId)}
-                disabled={disabled}
-                tooltipProps={{title: minimized ? "Minimize" : "Maximize"}}
-            />
+            {minimizeButton}
 
             {children}
         </div>

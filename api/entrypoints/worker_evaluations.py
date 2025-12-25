@@ -1,7 +1,6 @@
 import sys
 
 from redis.asyncio import Redis
-from taskiq import TaskiqEvents
 from taskiq.cli.worker.run import run_worker
 from taskiq.cli.worker.args import WorkerArgs
 from taskiq_redis import RedisStreamBroker
@@ -40,7 +39,6 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 
 import agenta as ag
@@ -59,6 +57,15 @@ broker = RedisStreamBroker(
     url=env.redis.uri_durable,
     queue_name="queues:evaluations",
     consumer_group_name="worker-evaluations",
+    # Disable automatic redelivery for long-running evaluation tasks
+    # Evaluations can run for hours, so we set idle_timeout to effectively infinity
+    # to prevent XAUTOCLAIM from redelivering tasks that are still processing.
+    # Default is 600,000ms (10 min) which causes duplicate processing every 10 minutes.
+    idle_timeout=1209600000,  # 14 days in milliseconds - effectively disabled for long evaluations
+    # Ensure socket doesn't timeout during blocking reads (xread_block defaults to 2000ms)
+    # socket_timeout must be >= xread_block / 1000 to avoid connection errors
+    socket_timeout=30,  # seconds - safely covers the 2000ms block time
+    socket_connect_timeout=30,  # seconds
 )
 
 
@@ -150,22 +157,20 @@ tracing_router = TracingRouter(
     tracing_worker=tracing_worker,
 )
 
-simple_testsets_router = SimpleTestsetsRouter(
-    simple_testsets_service=simple_testsets_service,
-)
-
 simple_evaluators_router = SimpleEvaluatorsRouter(
     simple_evaluators_service=simple_evaluators_service,
 )
 
 evaluations_worker = EvaluationsWorker(
     broker=broker,
-    evaluations_service=evaluations_service,
+    #
+    tracing_router=tracing_router,
+    simple_evaluators_router=simple_evaluators_router,
+    #
+    testsets_service=testsets_service,
     queries_service=queries_service,
     workflows_service=workflows_service,
-    simple_testsets_router=simple_testsets_router,
-    simple_evaluators_router=simple_evaluators_router,
-    tracing_router=tracing_router,
+    evaluations_service=evaluations_service,
 )
 
 

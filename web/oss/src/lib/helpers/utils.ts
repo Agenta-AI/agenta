@@ -14,7 +14,6 @@ import {waitForValidURL} from "@/oss/state/url"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 
-import {getEnv} from "./dynamicEnv"
 import {getErrorMessage} from "./errorHandler"
 import {isEE} from "./isEE"
 
@@ -58,8 +57,8 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.auto_semantic_similarity]: "Semantic Similarity Match",
     [EvaluationType.auto_webhook_test]: "Webhook Test",
     [EvaluationType.single_model_test]: "Single Model Test",
-    [EvaluationType.rag_faithfulness]: "RAG Faithfulness",
-    [EvaluationType.rag_context_relevancy]: "RAG Context Relevancy",
+    // [EvaluationType.rag_faithfulness]: "RAG Faithfulness",
+    // [EvaluationType.rag_context_relevancy]: "RAG Context Relevancy",
 }
 
 export const apiKeyObject = (apiKeys: LlmProvider[]) => {
@@ -480,7 +479,7 @@ export const convertToStringOrJson = (value: any) => {
 }
 
 // Helper function to convert base64 data to object URL
-export type FileAttachment = {
+export interface FileAttachment {
     filename: string
     data: string
     format?: string

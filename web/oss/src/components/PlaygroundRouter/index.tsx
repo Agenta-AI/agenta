@@ -3,7 +3,7 @@ import {memo} from "react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import CustomWorkflowBanner from "@/oss/components/CustomWorkflowBanner"
+import CustomWorkflowBanner from "@/oss/components/CustomWorkflow/CustomWorkflowBanner"
 import {shouldRenderPlaygroundAtom} from "@/oss/state/app/selectors/app"
 
 const Playground = dynamic(() => import("../Playground/Playground"), {ssr: false})

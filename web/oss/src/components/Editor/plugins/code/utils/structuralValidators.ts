@@ -7,7 +7,13 @@ export function isContentIncomplete(
 ): boolean {
     const trimmed = text.trim()
 
-    if (language === "json" || language === "code") {
+    if (
+        language === "json" ||
+        language === "code" ||
+        language === "python" ||
+        language === "javascript" ||
+        language === "typescript"
+    ) {
         // JSON incomplete patterns
         return (
             trimmed.endsWith(":") || // "key":

@@ -60,6 +60,16 @@ export interface SimpleTableStoreConfig<
      * Defaults to checking if projectId exists.
      */
     isEnabled?: (meta: TMeta | undefined) => boolean
+    /**
+     * Optional atom that provides client-side rows (e.g., unsaved drafts)
+     * These rows will be prepended to server rows
+     */
+    clientRowsAtom?: Atom<TRow[]>
+    /**
+     * Optional atom providing IDs of rows to exclude from display
+     * Useful for filtering out soft-deleted rows before save
+     */
+    excludeRowIdsAtom?: Atom<Set<string>>
 }
 
 /**
@@ -103,7 +113,15 @@ export function createSimpleTableStore<
     TApiRow,
     TMeta extends BaseTableMeta,
 >(config: SimpleTableStoreConfig<TRow, TApiRow, TMeta>): SimpleTableStore<TRow, TApiRow, TMeta> {
-    const {key, metaAtom, rowHelpers: rowHelpersConfig, fetchData, isEnabled} = config
+    const {
+        key,
+        metaAtom,
+        rowHelpers: rowHelpersConfig,
+        fetchData,
+        isEnabled,
+        clientRowsAtom,
+        excludeRowIdsAtom,
+    } = config
 
     // Create row helpers
     const rowHelpers = createTableRowHelpers<TRow, TApiRow>(rowHelpersConfig)
@@ -118,6 +136,8 @@ export function createSimpleTableStore<
         createSkeletonRow: rowHelpers.createSkeletonRow,
         mergeRow: rowHelpers.mergeRow,
         isEnabled: isEnabled ?? ((meta) => Boolean(meta?.projectId)),
+        clientRowsAtom,
+        excludeRowIdsAtom,
         fetchPage: async ({limit, offset, cursor, meta}) => {
             if (!meta?.projectId) {
                 return {

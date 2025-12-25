@@ -62,7 +62,7 @@ async function globalTeardown(config: any) {
             `[teardown] Extracted session token from state.json: ${sessionToken ? "present" : "absent"}`,
         )
 
-        const secretsResp = await fetch(`${apiURL}/vault/v1/secrets`, {
+        const secretsResp = await fetch(`${apiURL}/vault/v1/secrets/`, {
             headers: {Authorization: `Bearer ${sessionToken}`},
         })
 

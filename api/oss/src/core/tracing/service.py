@@ -1,5 +1,6 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
+from datetime import datetime
 
 from oss.src.utils.logging import get_module_logger
 
@@ -12,6 +13,8 @@ from oss.src.core.tracing.dtos import (
     Bucket,
     MetricSpec,
     MetricsBucket,
+    #
+    Windowing,
 )
 
 
@@ -239,3 +242,37 @@ class TracingService:
         )
 
         return bucket_dtos
+
+    async def sessions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        realtime: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> Tuple[List[str], Optional[datetime]]:
+        return await self.tracing_dao.sessions(
+            project_id=project_id,
+            #
+            realtime=realtime,
+            #
+            windowing=windowing,
+        )
+
+    async def users(
+        self,
+        *,
+        project_id: UUID,
+        #
+        realtime: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> Tuple[List[str], Optional[datetime]]:
+        return await self.tracing_dao.users(
+            project_id=project_id,
+            #
+            realtime=realtime,
+            #
+            windowing=windowing,
+        )

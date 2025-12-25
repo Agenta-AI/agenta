@@ -106,7 +106,7 @@ const WorkspaceManage: FC = () => {
                                 text = "Invitation Expired"
                             }
                             return (
-                                <Space direction="vertical">
+                                <Space orientation="vertical">
                                     <Typography.Text>
                                         {formatDay({date: user.created_at})}
                                     </Typography.Text>
@@ -118,7 +118,7 @@ const WorkspaceManage: FC = () => {
                     {
                         title: <GearSix size={16} />,
                         key: "key",
-                        width: 56,
+                        width: 61,
                         fixed: "right",
                         align: "center",
                         render: (_, member) => {

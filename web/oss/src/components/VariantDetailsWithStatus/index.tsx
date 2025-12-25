@@ -17,6 +17,7 @@ const VariantDetailsWithStatus = ({
     className,
     showRevisionAsTag,
     showStable = false,
+    showLatestTag = true,
 }: {
     variant?: Pick<Variant, "deployedIn" | "isLatestRevision" | "id">
     hideName?: boolean
@@ -25,6 +26,7 @@ const VariantDetailsWithStatus = ({
     revision: number | string | undefined | null
     showRevisionAsTag?: boolean
     showStable?: boolean
+    showLatestTag?: boolean
     className?: string
 }) => {
     const _isDirty = useAtomValue(variantIsDirtyAtomFamily(variant?.id || ""))
@@ -38,6 +40,7 @@ const VariantDetailsWithStatus = ({
                 variant={variant}
                 showRevisionAsTag={showRevisionAsTag}
                 hasChanges={isDirty}
+                showLatestTag={showLatestTag}
             />
             {showBadges && variant && <EnvironmentStatus variant={variant} />}
         </div>

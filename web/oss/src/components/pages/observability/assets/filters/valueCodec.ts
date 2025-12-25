@@ -1,6 +1,7 @@
 import {Filter} from "@/oss/lib/Types"
-import {ScalarType, ValueShape, valueShapeFor} from "./operatorRegistry"
 import {coerceNumericValue} from "@/oss/state/newObservability"
+
+import {ScalarType, ValueShape, valueShapeFor} from "./operatorRegistry"
 
 const toStringList = (v: unknown): string[] => {
     if (Array.isArray(v)) return v.map(String)
@@ -43,7 +44,7 @@ const toNumberPair = (v: unknown): number[] => {
     return out.length === 2 ? out : []
 }
 
-export type NormalizerCtx = {
+export interface NormalizerCtx {
     fieldType: ScalarType
     opId: Filter["operator"]
     toExternal?: (normalized: any) => any

@@ -1,8 +1,11 @@
-import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
+import {memo, useCallback, useMemo} from "react"
+
 import {Play} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
-import {memo, useCallback, useMemo} from "react"
+
+import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
+
 import {useTestsetInputsAnalysis} from "../../hooks/useTestsetInputsAnalysis"
 import {LoadTestsetModalFooterProps} from "../types"
 
@@ -30,14 +33,15 @@ const LoadTestsetModalFooter = ({
     }, [expectedInputVariables, hasCompatibilityIssue])
 
     const loadTestset = useCallback(() => {
-        const selectedTestcase = testsetCsvData.filter((_, index) =>
-            selectedRowKeys.includes(index),
-        )
-        if (selectedTestcase) {
-            setTestsetData(selectedTestcase)
-            onClose()
+        // testsetCsvData already contains only the selected testcases (filtered by useSelectedTestcasesData hook)
+        if (!testsetCsvData.length) {
+            console.warn("No testcases selected")
+            return
         }
-    }, [onClose, selectedRowKeys, setTestsetData, testsetCsvData])
+
+        setTestsetData(testsetCsvData)
+        onClose()
+    }, [onClose, setTestsetData, testsetCsvData])
 
     return (
         <div className="flex items-center justify-end gap-2">
@@ -49,7 +53,7 @@ const LoadTestsetModalFooter = ({
                         type="primary"
                         danger={hasCompatibilityIssue}
                         icon={<Play />}
-                        iconPosition="end"
+                        iconPlacement="end"
                         disabled={!selectedRowKeys.length}
                         loading={isLoadingTestset}
                         onClick={loadTestset}
