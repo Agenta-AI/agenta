@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button, Spin} from "antd"
 import {useSetAtom} from "jotai"
@@ -15,6 +15,8 @@ import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
 const ObservabilityHeader = dynamic(() => import("../../components/ObservabilityHeader"), {
     ssr: false,
 })
+
+const AUTO_REFRESH_INTERVAL = 15000 // 15 seconds
 
 /**
  * Next iteration plan:
@@ -39,6 +41,7 @@ const SessionsTable: React.FC = () => {
     } = useSessions()
 
     const openDrawer = useSetAtom(openSessionDrawerWithUrlAtom)
+    const [refreshTrigger, setRefreshTrigger] = useState(0)
 
     const handleLoadMore = useCallback(() => {
         if (isFetchingMore || !hasMoreSessions) return
@@ -60,6 +63,7 @@ const SessionsTable: React.FC = () => {
 
     const handleRefresh = useCallback(async () => {
         await Promise.all([refetchSessions(), refetchSessionSpans()])
+        setRefreshTrigger((prev) => prev + 1)
     }, [refetchSessions, refetchSessionSpans])
 
     // Auto-refresh logic: refresh every 15 seconds when enabled
@@ -68,7 +72,7 @@ const SessionsTable: React.FC = () => {
 
         const intervalId = setInterval(() => {
             handleRefresh().catch((error) => console.error("Auto-refresh failed", error))
-        }, 15000) // 15 seconds
+        }, AUTO_REFRESH_INTERVAL)
 
         return () => clearInterval(intervalId)
     }, [autoRefresh, handleRefresh])
@@ -84,6 +88,7 @@ const SessionsTable: React.FC = () => {
                 setRealtimeMode={setRealtimeMode}
                 autoRefresh={autoRefresh}
                 setAutoRefresh={setAutoRefresh}
+                refreshTrigger={refreshTrigger}
             />
 
             {sessionIds.length === 0 && !isLoading ? (

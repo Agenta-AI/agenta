@@ -23,6 +23,8 @@ const TestsetDrawer = dynamic(
     },
 )
 
+const AUTO_REFRESH_INTERVAL = 15000 // 15 seconds
+
 const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     const slugs = new Set<string>()
 
@@ -143,9 +145,12 @@ const ObservabilityTable = () => {
         }
     }, [activeTrace, selectedNode])
 
+    const [refreshTrigger, setRefreshTrigger] = useState(0)
+
     // Auto-refresh logic: refresh every 15 seconds when enabled
     const handleRefresh = useCallback(async () => {
         await Promise.all([fetchAnnotations(), fetchTraces()])
+        setRefreshTrigger((prev) => prev + 1)
     }, [fetchAnnotations, fetchTraces])
 
     useEffect(() => {
@@ -153,7 +158,7 @@ const ObservabilityTable = () => {
 
         const intervalId = setInterval(() => {
             handleRefresh().catch((error) => console.error("Auto-refresh failed", error))
-        }, 15000) // 15 seconds
+        }, AUTO_REFRESH_INTERVAL)
 
         return () => clearInterval(intervalId)
     }, [autoRefresh, handleRefresh])
@@ -197,7 +202,12 @@ const ObservabilityTable = () => {
 
     return (
         <div className="flex flex-col gap-2">
-            <ObservabilityHeader columns={columns} componentType="traces" />
+            <ObservabilityHeader
+                columns={columns}
+                componentType="traces"
+                onRefresh={handleRefresh}
+                refreshTrigger={refreshTrigger}
+            />
 
             <div className="flex flex-col gap-2">
                 <Table

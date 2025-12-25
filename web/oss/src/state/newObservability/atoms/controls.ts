@@ -159,8 +159,5 @@ export const realtimeModeAtom = atom(
 )
 
 // Auto-refresh control: when true, refreshes every 15 seconds
-export const autoRefreshAtomFamily = atomFamily((_tab: ObservabilityTabInfo) => atom<boolean>(false))
-export const autoRefreshAtom = atom(
-    (get) => get(autoRefreshAtomFamily(get(observabilityTabAtom))),
-    (get, set, value: boolean) => set(autoRefreshAtomFamily(get(observabilityTabAtom)), value),
-)
+// Shared across all tabs (traces and sessions)
+export const autoRefreshAtom = atom<boolean>(false)

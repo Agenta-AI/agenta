@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Typography} from "antd"
@@ -34,6 +34,62 @@ const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns")
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
+const AUTO_REFRESH_INTERVAL = 15000 // 15 seconds
+
+const AutoRefreshControl: React.FC<{
+    checked: boolean
+    onChange: (checked: boolean) => void
+    isScrolled?: boolean
+    resetTrigger?: number
+}> = ({checked, onChange, isScrolled, resetTrigger}) => {
+    const [progress, setProgress] = useState(0)
+    const [key, setKey] = useState(0)
+
+    // Reset animation when resetTrigger changes
+    useEffect(() => {
+        if (checked && resetTrigger !== undefined) {
+            setProgress(0)
+            setKey((prev) => prev + 1)
+        }
+    }, [resetTrigger, checked])
+
+    useEffect(() => {
+        if (!checked) {
+            setProgress(0)
+            return
+        }
+
+        // Start fresh animation
+        setProgress(0)
+
+        const startTime = Date.now()
+        const interval = setInterval(() => {
+            const elapsed = Date.now() - startTime
+            const newProgress = Math.min((elapsed / AUTO_REFRESH_INTERVAL) * 100, 100)
+            setProgress(newProgress)
+        }, 100) // Update every 100ms for smooth animation
+
+        return () => clearInterval(interval)
+    }, [checked, key])
+
+    return (
+        <Space size="small" className="ml-4">
+            <Switch size="small" checked={checked} onChange={onChange} />
+            <div className="relative inline-block">
+                <Typography.Text style={{fontSize: 12}} className="text-gray-600">
+                    auto-refresh
+                </Typography.Text>
+                {checked && (
+                    <div
+                        className="absolute bottom-0 left-0 h-[2px] bg-gray-600 transition-all duration-100"
+                        style={{width: `${progress}%`}}
+                    />
+                )}
+            </div>
+        </Space>
+    )
+}
+
 const ObservabilityHeader = ({
     columns,
     componentType,
@@ -43,8 +99,10 @@ const ObservabilityHeader = ({
     setRealtimeMode,
     autoRefresh: propsAutoRefresh,
     setAutoRefresh: propsSetAutoRefresh,
+    refreshTrigger: propsRefreshTrigger,
 }: ObservabilityHeaderProps) => {
     const [isScrolled, setIsScrolled] = useState(false)
+    const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0)
 
     const {
         traces,
@@ -256,7 +314,11 @@ const ObservabilityHeader = ({
         } else {
             await Promise.all([fetchAnnotations(), fetchTraces()])
         }
+        setInternalRefreshTrigger((prev) => prev + 1)
     }
+
+    // Use external refresh trigger if provided (from parent auto-refresh), otherwise use internal
+    const refreshTrigger = propsRefreshTrigger ?? internalRefreshTrigger
 
     return (
         <>
@@ -306,10 +368,11 @@ const ObservabilityHeader = ({
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
 
                         {!isScrolled && (
-                            <Space size="small">
-                                <Typography.Text>Auto-refresh</Typography.Text>
-                                <Switch checked={autoRefresh} onChange={setAutoRefresh} />
-                            </Space>
+                            <AutoRefreshControl
+                                checked={autoRefresh}
+                                onChange={setAutoRefresh}
+                                resetTrigger={refreshTrigger}
+                            />
                         )}
 
                         {isScrolled && componentType === "traces" ? (
@@ -344,10 +407,12 @@ const ObservabilityHeader = ({
                         ) : null}
 
                         {isScrolled && (
-                            <Space size="small">
-                                <Typography.Text style={{fontSize: 13}}>Auto-refresh</Typography.Text>
-                                <Switch size="small" checked={autoRefresh} onChange={setAutoRefresh} />
-                            </Space>
+                            <AutoRefreshControl
+                                checked={autoRefresh}
+                                onChange={setAutoRefresh}
+                                isScrolled
+                                resetTrigger={refreshTrigger}
+                            />
                         )}
                     </div>
                 </div>
