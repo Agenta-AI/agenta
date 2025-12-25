@@ -262,17 +262,17 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
 
     const sort = get(sortAtomFamily("sessions"))
     // const filters = get(userFiltersAtomFamily("sessions"))
-    const windowing: {oldest?: string; newest?: string; order?: string} = {}
+    const baseWindowing: {oldest?: string; newest?: string; order?: string} = {}
 
     if (sort?.type === "standard" && sort.sorted) {
-        windowing.oldest = sort.sorted
+        baseWindowing.oldest = sort.sorted
     } else if (
         sort?.type === "custom" &&
         (sort.customRange?.startTime || sort.customRange?.endTime)
     ) {
         const {startTime, endTime} = sort.customRange
-        if (startTime) windowing.oldest = startTime
-        if (endTime) windowing.newest = endTime
+        if (startTime) baseWindowing.oldest = startTime
+        if (endTime) baseWindowing.newest = endTime
     }
 
     const limit = get(limitAtomFamily("sessions"))
@@ -280,7 +280,7 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
     const realtimeMode = get(realtimeModeAtomFamily("sessions"))
 
     return {
-        queryKey: ["sessions", projectId, appId, windowing, limit, realtimeMode],
+        queryKey: ["sessions", projectId, appId, baseWindowing, limit, realtimeMode],
         initialPageParam: {newest: undefined as string | undefined, oldest: undefined as string | undefined},
 
         queryFn: async ({pageParam}: {pageParam?: {newest?: string; oldest?: string}}) => {
@@ -289,10 +289,13 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
             const response: any = await fetchSessions({
                 appId: (appId as string) || undefined,
                 windowing: {
-                    ...windowing,
                     limit,
-                    newest: pageParam?.newest,
-                    oldest: pageParam?.oldest,
+                    // Base time window from sort (fixed boundaries)
+                    oldest: baseWindowing.oldest,
+                    newest: baseWindowing.newest,
+                    // Pagination cursor (moves within the boundaries)
+                    ...(pageParam?.oldest && {oldest: pageParam.oldest}),
+                    ...(pageParam?.newest && {newest: pageParam.newest}),
                 },
                 filter: undefined,
                 realtime: realtimeMode,

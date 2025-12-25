@@ -69,6 +69,8 @@ const ObservabilityTable = () => {
         fetchMoreTraces,
         hasMoreTraces,
         isFetchingMore,
+        autoRefresh,
+        fetchAnnotations,
     } = useObservability()
     const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const annotationEvaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
@@ -141,11 +143,20 @@ const ObservabilityTable = () => {
         }
     }, [activeTrace, selectedNode])
 
-    useEffect(() => {
-        const interval = setInterval(fetchTraces, 300000)
+    // Auto-refresh logic: refresh every 15 seconds when enabled
+    const handleRefresh = useCallback(async () => {
+        await Promise.all([fetchAnnotations(), fetchTraces()])
+    }, [fetchAnnotations, fetchTraces])
 
-        return () => clearInterval(interval)
-    }, [])
+    useEffect(() => {
+        if (!autoRefresh) return
+
+        const intervalId = setInterval(() => {
+            handleRefresh().catch((error) => console.error("Auto-refresh failed", error))
+        }, 15000) // 15 seconds
+
+        return () => clearInterval(intervalId)
+    }, [autoRefresh, handleRefresh])
 
     const handleLoadMore = useCallback(() => {
         if (isFetchingMore || !hasMoreTraces) return

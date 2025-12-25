@@ -41,8 +41,8 @@ const ObservabilityHeader = ({
     onRefresh,
     realtimeMode,
     setRealtimeMode,
-    autoRefresh,
-    setAutoRefresh,
+    autoRefresh: propsAutoRefresh,
+    setAutoRefresh: propsSetAutoRefresh,
 }: ObservabilityHeaderProps) => {
     const [isScrolled, setIsScrolled] = useState(false)
 
@@ -61,8 +61,14 @@ const ObservabilityHeader = ({
         setEditColumns,
         fetchAnnotations,
         fetchTraces,
+        autoRefresh: hookAutoRefresh,
+        setAutoRefresh: hookSetAutoRefresh,
     } = useObservability()
     const queryClient = useAtomValue(queryClientAtom)
+
+    // Use props if provided (sessions), otherwise use hook (traces)
+    const autoRefresh = propsAutoRefresh ?? hookAutoRefresh
+    const setAutoRefresh = propsSetAutoRefresh ?? hookSetAutoRefresh
 
     const isLoading = propsLoading || isTraceLoading
     const attributeKeyOptions = useMemo(() => buildAttributeKeyTreeOptions(traces), [traces])
@@ -298,6 +304,14 @@ const ObservabilityHeader = ({
                         />
 
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
+
+                        {!isScrolled && (
+                            <Space size="small">
+                                <Typography.Text>Auto-refresh</Typography.Text>
+                                <Switch checked={autoRefresh} onChange={setAutoRefresh} />
+                            </Space>
+                        )}
+
                         {isScrolled && componentType === "traces" ? (
                             <>
                                 <Space>
@@ -326,20 +340,15 @@ const ObservabilityHeader = ({
                                     <Radio.Button value="all">All activity</Radio.Button>
                                     <Radio.Button value="latest">Latest activity</Radio.Button>
                                 </Radio.Group>
-                                {setAutoRefresh && (
-                                    <Space size="small">
-                                        <Typography.Text style={{fontSize: 13}}>
-                                            Auto-refresh
-                                        </Typography.Text>
-                                        <Switch
-                                            size="small"
-                                            checked={autoRefresh}
-                                            onChange={setAutoRefresh}
-                                        />
-                                    </Space>
-                                )}
                             </Space>
                         ) : null}
+
+                        {isScrolled && (
+                            <Space size="small">
+                                <Typography.Text style={{fontSize: 13}}>Auto-refresh</Typography.Text>
+                                <Switch size="small" checked={autoRefresh} onChange={setAutoRefresh} />
+                            </Space>
+                        )}
                     </div>
                 </div>
                 {!isScrolled && componentType === "traces" ? (
@@ -389,12 +398,6 @@ const ObservabilityHeader = ({
                                 <Radio.Button value="all">All activity</Radio.Button>
                                 <Radio.Button value="latest">Latest activity</Radio.Button>
                             </Radio.Group>
-                            {setAutoRefresh && (
-                                <Space size="small">
-                                    <Typography.Text>Auto-refresh</Typography.Text>
-                                    <Switch checked={autoRefresh} onChange={setAutoRefresh} />
-                                </Space>
-                            )}
                         </Space>
                     </div>
                 ) : null}
