@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Optional, List
 
 from pydantic import BaseModel
@@ -56,7 +55,7 @@ class SessionsQueryRequest(BaseModel):
 class SessionIdsResponse(BaseModel):
     count: int = 0
     session_ids: List[str] = []
-    next_cursor: Optional[datetime] = None
+    windowing: Optional[Windowing] = None
 
 
 class UsersQueryRequest(BaseModel):
@@ -66,3 +65,4 @@ class UsersQueryRequest(BaseModel):
 class UserIdsResponse(BaseModel):
     count: int = 0
     user_ids: List[str] = []
+    windowing: Optional[Windowing] = None

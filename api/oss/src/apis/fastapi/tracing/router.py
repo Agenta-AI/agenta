@@ -54,6 +54,7 @@ from oss.src.core.tracing.dtos import (
     MetricType,
     MetricSpec,
 )
+from oss.src.core.shared.dtos import Windowing
 
 log = get_module_logger(__name__)
 
@@ -709,15 +710,32 @@ class TracingRouter:
         request: Request,
         sessions_query_request: SessionsQueryRequest,
     ):
-        session_ids, next_cursor = await self.service.sessions(
+        session_ids, last_active = await self.service.sessions(
             project_id=request.state.project_id,
             windowing=sessions_query_request.windowing,
         )
 
+        # Compute next windowing cursor
+        windowing = None
+        if (
+            sessions_query_request.windowing
+            and sessions_query_request.windowing.limit
+            and session_ids
+            and len(session_ids) >= sessions_query_request.windowing.limit
+            and last_active
+        ):
+            windowing = Windowing(
+                newest=sessions_query_request.windowing.newest,
+                oldest=sessions_query_request.windowing.oldest,
+                next=last_active,
+                limit=sessions_query_request.windowing.limit,
+                order=sessions_query_request.windowing.order,
+            )
+
         session_ids_response = SessionIdsResponse(
             count=len(session_ids) if session_ids else 0,
             session_ids=session_ids,
-            next_cursor=next_cursor,
+            windowing=windowing,
         )
 
         return session_ids_response
@@ -729,15 +747,32 @@ class TracingRouter:
         request: Request,
         users_query_request: UsersQueryRequest,
     ):
-        user_ids, next_cursor = await self.service.users(
+        user_ids, last_active = await self.service.users(
             project_id=request.state.project_id,
             windowing=users_query_request.windowing,
         )
 
+        # Compute next windowing cursor
+        windowing = None
+        if (
+            users_query_request.windowing
+            and users_query_request.windowing.limit
+            and user_ids
+            and len(user_ids) >= users_query_request.windowing.limit
+            and last_active
+        ):
+            windowing = Windowing(
+                newest=users_query_request.windowing.newest,
+                oldest=users_query_request.windowing.oldest,
+                next=last_active,
+                limit=users_query_request.windowing.limit,
+                order=users_query_request.windowing.order,
+            )
+
         user_ids_response = UserIdsResponse(
             count=len(user_ids) if user_ids else 0,
             user_ids=user_ids,
-            # next_cursor=next_cursor, # UserIdsResponse doesn't have it yet, leaving it for now
+            windowing=windowing,
         )
 
         return user_ids_response

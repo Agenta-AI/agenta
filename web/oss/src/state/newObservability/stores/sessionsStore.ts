@@ -207,14 +207,14 @@ const sessionsDatasetStoreInternal = createInfiniteDatasetStore<
 
         const sessionIds = result.session_ids || []
         const totalCount = result.count || 0
-        const nextCursor = result.next_cursor || null
+        const nextWindowing = result.windowing || null
 
         return {
             rows: sessionIds,
             totalCount,
-            hasMore: !!nextCursor,
+            hasMore: !!nextWindowing?.next,
             nextOffset: offset + sessionIds.length,
-            nextCursor,
+            nextCursor: nextWindowing?.next || null,
             nextWindowing: null,
         }
     },

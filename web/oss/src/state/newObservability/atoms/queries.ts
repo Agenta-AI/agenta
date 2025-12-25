@@ -279,28 +279,28 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
 
     return {
         queryKey: ["sessions", projectId, appId, windowing, limit],
-        initialPageParam: {newest: undefined as string | undefined},
+        initialPageParam: {next: undefined as string | undefined},
 
-        queryFn: async ({pageParam}: {pageParam?: {newest?: string}}) => {
+        queryFn: async ({pageParam}: {pageParam?: {next?: string}}) => {
             const {fetchSessions} = await import("@/oss/services/tracing/api")
 
             const response: any = await fetchSessions({
                 appId: (appId as string) || undefined,
-                windowing: {...windowing, limit, newest: pageParam?.newest},
+                windowing: {...windowing, limit, next: pageParam?.next},
                 filter: undefined,
             })
 
             return {
                 session_ids: response.session_ids || [],
                 count: response.count || 0,
-                nextCursor: response.next_cursor as string | undefined,
+                nextWindowing: response.windowing,
             }
         },
         enabled: sessionExists && Boolean(appId || projectId),
 
         getNextPageParam: (lastPage: any) => {
-            return lastPage.session_ids.length === limit && lastPage.nextCursor
-                ? {newest: lastPage.nextCursor}
+            return lastPage.session_ids.length === limit && lastPage.nextWindowing?.next
+                ? {next: lastPage.nextWindowing.next}
                 : undefined
         },
 

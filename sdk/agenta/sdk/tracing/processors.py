@@ -91,6 +91,8 @@ class TraceProcessor(SpanProcessor):
                     if isinstance(ref, dict):
                         for field, val in ref.items():
                             span.set_attribute(f"{key}.{field}", str(val))
+                    elif isinstance(ref, (str, bool, int, float, bytes)):
+                        span.set_attribute(key, ref)
                 else:
                     # Not a reference - only set if it's a valid attribute type
                     if isinstance(value, (str, bool, int, float, bytes)):

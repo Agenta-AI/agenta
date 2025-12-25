@@ -1174,6 +1174,9 @@ class TracingDAO(TracingDAOInterface):
                     stmt = stmt.having(func.max(SpanDBE.start_time) >= windowing.oldest)
                 if windowing.newest:
                     stmt = stmt.having(func.max(SpanDBE.start_time) < windowing.newest)
+                # Use 'next' as cursor for pagination
+                if windowing.next:
+                    stmt = stmt.having(func.max(SpanDBE.start_time) < windowing.next)
 
             # Order by latest activity (MAX start_time)
             stmt = stmt.order_by(func.max(SpanDBE.start_time).desc())
@@ -1229,6 +1232,9 @@ class TracingDAO(TracingDAOInterface):
                     stmt = stmt.having(func.max(SpanDBE.start_time) >= windowing.oldest)
                 if windowing.newest:
                     stmt = stmt.having(func.max(SpanDBE.start_time) < windowing.newest)
+                # Use 'next' as cursor for pagination
+                if windowing.next:
+                    stmt = stmt.having(func.max(SpanDBE.start_time) < windowing.next)
 
             # Order by latest activity (MAX start_time)
             stmt = stmt.order_by(func.max(SpanDBE.start_time).desc())
