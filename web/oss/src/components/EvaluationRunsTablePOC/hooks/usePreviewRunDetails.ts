@@ -6,7 +6,7 @@ import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 import {
     evaluationRunQueryAtomFamily,
     evaluationRunWithProjectQueryAtomFamily,
-} from "@/oss/components/EvalRunDetails2/atoms/table/run"
+} from "@/oss/components/EvalRunDetails/atoms/table/run"
 
 const idleRunQueryAtom = atom({
     data: null,

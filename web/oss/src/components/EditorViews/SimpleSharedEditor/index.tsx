@@ -21,7 +21,7 @@ import {EditorProvider, useLexicalComposerContext} from "@/oss/components/Editor
 import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
 import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeBlockNode"
 import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 
 import {checkIsHTML, checkIsJSON, checkIsYAML, getDisplayedContent} from "../assets/helper"

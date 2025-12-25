@@ -1,6 +1,6 @@
 import {getDefaultStore} from "jotai"
 
-import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
+import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"

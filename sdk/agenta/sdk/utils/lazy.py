@@ -39,6 +39,7 @@ class _FastAPIModule(Protocol):
 class _YamlModule(Protocol):
     def safe_load(self, *args: Any, **kwargs: Any) -> Any: ...
 
+
 _litellm_module: Optional[_LitellmModule] = None
 _litellm_checked = False
 

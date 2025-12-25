@@ -32,9 +32,12 @@ import {urlAtom} from "@/oss/state/url"
 
 import {LoadTestsetModalContentProps} from "../types"
 
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const TestcasesTablePreview = ({
     revisionId,

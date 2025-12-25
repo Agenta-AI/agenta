@@ -49,6 +49,7 @@ log = get_module_logger(__name__)
 
 AGENTA_RUNTIME_PREFIX = environ.get("AGENTA_RUNTIME_PREFIX", "")
 
+
 # Lazy FastAPI initialization
 class _LazyApp:
     """Lazy wrapper for FastAPI app - only imported when accessed."""

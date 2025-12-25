@@ -1,7 +1,7 @@
-import ObservabilityDashboard from "@/oss/components/pages/observability/ObservabilityDashboard"
+import ObservabilityTabs from "@/oss/components/pages/observability"
 
 const GlobalObservability = () => {
-    return <ObservabilityDashboard />
+    return <ObservabilityTabs />
 }
 
 export default () => <GlobalObservability />

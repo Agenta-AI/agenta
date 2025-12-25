@@ -108,7 +108,7 @@ Our folder structure follows a module-based architecture that prioritizes mainta
     - Components are organized by their scope of use
     - Each component may contain:
         - Presentational logic (`Component.tsx`)
-        - UI-only subcomponents (`assets/*.tsx`)
+        - UI-only subcomponents (`components/*.tsx`)
         - Component-specific hooks (`hooks/*.ts`)
         - Local constants and utilities (`assets/*.ts`)
         - Type definitions (`types.d.ts`)
@@ -125,10 +125,9 @@ Our folder structure follows a module-based architecture that prioritizes mainta
 
 1. **Store Organization**
 
-    - Each module can have its own `store` folder containing:
-        - Jotai atoms for reactive state
-        - Context providers for complex state/dependency injection
-    - Global store at root level for cross-module state
+ - Each module can have its own `store` folder containing:
+     - Jotai atoms for reactive state
+   - Global store at root level for cross-module state
 
 2. **State Movement Guidelines**
 
@@ -142,9 +141,8 @@ Our folder structure follows a module-based architecture that prioritizes mainta
         - Data persistence requirements
 
 3. **State Management Tools**
-    - Prefer Jotai atoms for simple reactive state
-    - Use Context for complex state with multiple consumers
-    - Local component state for UI-only concerns
+   - Prefer Jotai atoms for all kind of shared state
+   - Local component state for UI-only concerns
 
 4. **Avoiding Prop Drilling**
     - **When state is only meaningful within a component tree**: Use Jotai atoms instead of prop drilling
@@ -610,20 +608,18 @@ For example, in the `AccordionTreePanel` component, the `items` prop is passed a
 ❌ **Avoid this pattern:**
 
 ```javascript
-
 <AccordionTreePanel
-    items={[
-        {
-            title: "Item 1",
-            content: <div>Content 1</div>,
-        },
-        {
-            title: "Item 2",
-            content: <div>Content 2</div>,
-        },
-    ]}
+  items={[
+    {
+      title: "Item 1",
+      content: <div>Content 1</div>,
+    },
+    {
+      title: "Item 2",
+      content: <div>Content 2</div>,
+    },
+  ]}
 />
-
 ```
 
 ✅ **Use this pattern:**
