@@ -1,5 +1,6 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
+from datetime import datetime
 
 from oss.src.utils.logging import get_module_logger
 
@@ -247,10 +248,14 @@ class TracingService:
         *,
         project_id: UUID,
         #
+        realtime: Optional[bool] = None,
+        #
         windowing: Optional[Windowing] = None,
-    ):
+    ) -> Tuple[List[str], Optional[datetime]]:
         return await self.tracing_dao.sessions(
             project_id=project_id,
+            #
+            realtime=realtime,
             #
             windowing=windowing,
         )
@@ -260,10 +265,14 @@ class TracingService:
         *,
         project_id: UUID,
         #
+        realtime: Optional[bool] = None,
+        #
         windowing: Optional[Windowing] = None,
-    ):
+    ) -> Tuple[List[str], Optional[datetime]]:
         return await self.tracing_dao.users(
             project_id=project_id,
+            #
+            realtime=realtime,
             #
             windowing=windowing,
         )
