@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, List, cast as type_cast
+from typing import Tuple, Any, Dict, Optional, List, Literal, cast as type_cast
 from uuid import UUID
 from traceback import format_exc
 from datetime import datetime
@@ -1140,60 +1140,148 @@ class TracingDAO(TracingDAOInterface):
 
     ### SESSIONS AND USERS
 
+    async def _query_by_group(
+        self,
+        *,
+        project_id: UUID,
+        #
+        group: Literal["session", "user"],
+        #
+        realtime: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> Tuple[List[str], Optional[datetime]]:
+        """Query unique session or user IDs with windowing support.
+
+        Args:
+            group: Either "session" or "user"
+            realtime: If True, use last_active (mutable, shows recent activity but unstable cursors).
+                     If False/None, use first_active (immutable, stable cursors but doesn't reflect new activity).
+        """
+        async with engine.tracing_session() as session:
+            # TIMEOUT
+            await session.execute(TIMEOUT_STMT)
+
+            # Determine ordering direction from windowing parameter
+            # Default to descending (most recent first) if not specified
+            order_direction = "descending"
+            if windowing and windowing.order:
+                order_direction = windowing.order.lower()
+
+            # BASE QUERY: Use DISTINCT ON pattern (like query() does for traces)
+            # DISTINCT ON picks one row per identifier based on ORDER BY
+            id_column = SpanDBE.attributes["ag"][group]["id"].as_string()
+            base = (
+                select(
+                    id_column.label(f"{group}_id"),
+                    SpanDBE.start_time,
+                )
+                .distinct(id_column)
+                .filter(SpanDBE.project_id == project_id)
+                .filter(SpanDBE.attributes["ag"][group].has_key("id"))
+            )
+
+            # Apply time-range filters on base query (before deduplication)
+            # Follows apply_windowing() logic for oldest/newest based on order direction
+            if windowing:
+                if order_direction == "ascending":
+                    # ASC: Moving forward in time
+                    if windowing.newest:
+                        base = base.filter(SpanDBE.start_time <= windowing.newest)
+                    if windowing.oldest:
+                        if windowing.next:
+                            base = base.filter(SpanDBE.start_time >= windowing.oldest)
+                        else:
+                            base = base.filter(SpanDBE.start_time > windowing.oldest)
+                else:
+                    # DESC: Moving backward in time
+                    if windowing.newest:
+                        if windowing.next:
+                            base = base.filter(SpanDBE.start_time <= windowing.newest)
+                        else:
+                            base = base.filter(SpanDBE.start_time < windowing.newest)
+                    if windowing.oldest:
+                        base = base.filter(SpanDBE.start_time >= windowing.oldest)
+
+            # ORDER BY for DISTINCT ON: identifier first, then start_time
+            # This determines which row to pick per identifier
+            # realtime=True: pick latest (mutable), realtime=False/None: pick earliest (stable)
+            if realtime:
+                # Realtime mode: Pick latest activity (unstable but shows recent activity)
+                base = base.order_by(
+                    id_column,
+                    SpanDBE.start_time.desc(),
+                )
+            else:
+                # Stable mode: Pick earliest activity (stable cursor)
+                base = base.order_by(
+                    id_column,
+                    SpanDBE.start_time.asc(),
+                )
+
+            # Create subquery (like query() does with inner/uniq pattern)
+            inner = base.subquery(f"unique_{group}s")
+
+            # Build final query that orders and limits the unique identifiers
+            # Label depends on realtime mode
+            activity_label = "last_active" if realtime else "first_active"
+            uniq = select(
+                getattr(inner.c, f"{group}_id").label(f"{group}_id"),
+                inner.c.start_time.label(activity_label),
+            )
+
+            # Order the unique identifiers by their activity time
+            # (regardless of realtime mode, order by the picked timestamp)
+            if order_direction == "ascending":
+                uniq = uniq.order_by(inner.c.start_time.asc())
+            else:
+                uniq = uniq.order_by(inner.c.start_time.desc())
+
+            # Apply limit (no additional cursor filtering needed here)
+            # Time-range filtering already applied in base query via oldest/newest
+            if windowing and windowing.limit:
+                uniq = uniq.limit(windowing.limit)
+
+            result = await session.execute(uniq)
+            rows = result.all()
+
+            # Return IDs as strings with cursor
+            # Cursor is either last_active (realtime) or first_active (stable)
+            ids = []
+            activity_cursor = None
+            for row in rows:
+                id_value = getattr(row, f"{group}_id")
+                if id_value:
+                    ids.append(str(id_value))
+                    # Activity cursor is set to the timestamp of the last row in the result set.
+                    # This represents the boundary timestamp for the next page of results:
+                    # - In descending order: cursor is the oldest timestamp in this page
+                    # - In ascending order: cursor is the newest timestamp in this page
+                    # The next query uses this as the starting point (oldest/newest boundary)
+                    activity_cursor = getattr(row, activity_label)
+
+            return ids, activity_cursor
+
     @suppress_exceptions(default=([], None))
     async def sessions(
         self,
         *,
         project_id: UUID,
         #
+        realtime: Optional[bool] = None,
+        #
         windowing: Optional[Windowing] = None,
-    ):
+    ) -> Tuple[List[str], Optional[datetime]]:
         """Query unique session IDs with windowing support."""
-        async with engine.tracing_session() as session:
-            # TIMEOUT
-            await session.execute(TIMEOUT_STMT)
-
-            # Select session IDs from JSONB
-            stmt = (
-                select(
-                    SpanDBE.attributes["ag"]["session"]["id"]
-                    .as_string()
-                    .label("session_id"),
-                    func.max(SpanDBE.start_time).label("last_active"),
-                )
-                .filter(SpanDBE.project_id == project_id)
-                .filter(SpanDBE.attributes["ag"]["session"].has_key("id"))
-            )
-
-            # Group by session ID to get unique sessions
-            stmt = stmt.group_by("session_id")
-
-            # Apply windowing filters after aggregation
-            if windowing:
-                if windowing.oldest:
-                    stmt = stmt.having(func.max(SpanDBE.start_time) >= windowing.oldest)
-                if windowing.newest:
-                    stmt = stmt.having(func.max(SpanDBE.start_time) < windowing.newest)
-
-            # Order by latest activity (MAX start_time)
-            stmt = stmt.order_by(func.max(SpanDBE.start_time).desc())
-
-            # Apply limit
-            if windowing and windowing.limit:
-                stmt = stmt.limit(windowing.limit)
-
-            result = await session.execute(stmt)
-            rows = result.all()
-
-            # Return session IDs as strings
-            session_ids = []
-            next_cursor = None
-            for row in rows:
-                if row.session_id:
-                    session_ids.append(str(row.session_id))
-                    next_cursor = row.last_active
-
-            return session_ids, next_cursor
+        return await self._query_by_group(
+            project_id=project_id,
+            #
+            realtime=realtime,
+            #
+            windowing=windowing,
+            #
+            group="session",
+        )
 
     @suppress_exceptions(default=([], None))
     async def users(
@@ -1201,50 +1289,17 @@ class TracingDAO(TracingDAOInterface):
         *,
         project_id: UUID,
         #
+        realtime: Optional[bool] = None,
+        #
         windowing: Optional[Windowing] = None,
-    ):
+    ) -> Tuple[List[str], Optional[datetime]]:
         """Query unique user IDs with windowing support."""
-        async with engine.tracing_session() as session:
-            # TIMEOUT
-            await session.execute(TIMEOUT_STMT)
-
-            # Select distinct user IDs from JSONB
-            stmt = (
-                select(
-                    SpanDBE.attributes["ag"]["user"]["id"].as_string().label("user_id"),
-                    func.max(SpanDBE.start_time).label("last_active"),
-                )
-                .filter(SpanDBE.project_id == project_id)
-                .filter(SpanDBE.attributes["ag"]["user"].has_key("id"))
-            )
-
-            # We cannot use apply_windowing() because it adds an ORDER BY clause
-            # which conflicts with GROUP BY
-            # Group by user ID to get unique users
-            stmt = stmt.group_by("user_id")
-
-            # Apply windowing filters after aggregation
-            if windowing:
-                if windowing.oldest:
-                    stmt = stmt.having(func.max(SpanDBE.start_time) >= windowing.oldest)
-                if windowing.newest:
-                    stmt = stmt.having(func.max(SpanDBE.start_time) < windowing.newest)
-
-            # Order by latest activity (MAX start_time)
-            stmt = stmt.order_by(func.max(SpanDBE.start_time).desc())
-
-            # Apply limit
-            if windowing and windowing.limit:
-                stmt = stmt.limit(windowing.limit)
-
-            result = await session.execute(stmt)
-            rows = result.all()
-
-            user_ids = []
-            next_cursor = None
-            for row in rows:
-                if row.user_id:
-                    user_ids.append(str(row.user_id))
-                    next_cursor = row.last_active
-
-            return user_ids, next_cursor
+        return await self._query_by_group(
+            project_id=project_id,
+            #
+            realtime=realtime,
+            #
+            windowing=windowing,
+            #
+            group="user",
+        )

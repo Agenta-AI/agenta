@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button, Spin} from "antd"
 import {useSetAtom} from "jotai"
@@ -9,6 +9,7 @@ import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
 import {useSessions} from "@/oss/state/newObservability/hooks/useSessions"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 
+import {AUTO_REFRESH_INTERVAL} from "../../constants"
 import EmptySessions from "./assets/EmptySessions"
 import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
 
@@ -32,9 +33,14 @@ const SessionsTable: React.FC = () => {
         isFetchingMore,
         refetchSessions,
         refetchSessionSpans,
+        realtimeMode,
+        setRealtimeMode,
+        autoRefresh,
+        setAutoRefresh,
     } = useSessions()
 
     const openDrawer = useSetAtom(openSessionDrawerWithUrlAtom)
+    const [refreshTrigger, setRefreshTrigger] = useState(0)
 
     const handleLoadMore = useCallback(() => {
         if (isFetchingMore || !hasMoreSessions) return
@@ -56,7 +62,19 @@ const SessionsTable: React.FC = () => {
 
     const handleRefresh = useCallback(async () => {
         await Promise.all([refetchSessions(), refetchSessionSpans()])
+        setRefreshTrigger((prev) => prev + 1)
     }, [refetchSessions, refetchSessionSpans])
+
+    // Auto-refresh logic: refresh every 15 seconds when enabled
+    useEffect(() => {
+        if (!autoRefresh) return
+
+        const intervalId = setInterval(() => {
+            handleRefresh().catch((error) => console.error("Auto-refresh failed", error))
+        }, AUTO_REFRESH_INTERVAL)
+
+        return () => clearInterval(intervalId)
+    }, [autoRefresh, handleRefresh])
 
     return (
         <div className="flex flex-col gap-6">
@@ -65,6 +83,11 @@ const SessionsTable: React.FC = () => {
                 componentType="sessions"
                 isLoading={isLoading}
                 onRefresh={handleRefresh}
+                realtimeMode={realtimeMode}
+                setRealtimeMode={setRealtimeMode}
+                autoRefresh={autoRefresh}
+                setAutoRefresh={setAutoRefresh}
+                refreshTrigger={refreshTrigger}
             />
 
             {sessionIds.length === 0 && !isLoading ? (
@@ -84,7 +107,8 @@ const SessionsTable: React.FC = () => {
                         pagination={false}
                     />
 
-                    {hasMoreSessions && !loadingFirstPage ? (
+                    {/* Hide load more button in realtime mode (latest activity shows fixed LIMIT items) */}
+                    {hasMoreSessions && !loadingFirstPage && !realtimeMode ? (
                         <div className="flex justify-center py-2">
                             <Button
                                 onClick={handleLoadMore}

@@ -1859,17 +1859,20 @@ const Filters: React.FC<Props> = ({
                 className="flex items-center gap-2 px-2"
                 {...buttonProps}
             >
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 min-w-[18px]">
                     <FunnelIcon size={14} />
-                    {sanitizedFilters.filter(({field, operator}) => field && operator).length >
-                        0 && (
-                        <CustomAntdBadge
-                            count={
-                                sanitizedFilters.filter(({field, operator}) => field && operator)
-                                    .length
-                            }
-                        />
-                    )}
+                    <div className="w-[14px] flex items-center justify-center">
+                        {sanitizedFilters.filter(({field, operator}) => field && operator).length >
+                            0 && (
+                            <CustomAntdBadge
+                                count={
+                                    sanitizedFilters.filter(
+                                        ({field, operator}) => field && operator,
+                                    ).length
+                                }
+                            />
+                        )}
+                    </div>
                 </div>
             </Button>
         </Popover>

@@ -24,6 +24,7 @@ import {sessionExistsAtom} from "../../session"
 import {
     filtersAtomFamily,
     limitAtomFamily,
+    realtimeModeAtomFamily,
     selectedNodeAtom,
     selectedTraceIdAtom,
     sortAtomFamily,
@@ -261,47 +262,72 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
 
     const sort = get(sortAtomFamily("sessions"))
     // const filters = get(userFiltersAtomFamily("sessions"))
-    const windowing: {oldest?: string; newest?: string} = {}
+    const baseWindowing: {oldest?: string; newest?: string; order?: string} = {}
 
     if (sort?.type === "standard" && sort.sorted) {
-        windowing.oldest = sort.sorted
+        baseWindowing.oldest = sort.sorted
     } else if (
         sort?.type === "custom" &&
         (sort.customRange?.startTime || sort.customRange?.endTime)
     ) {
         const {startTime, endTime} = sort.customRange
-        if (startTime) windowing.oldest = startTime
-        if (endTime) windowing.newest = endTime
+        if (startTime) baseWindowing.oldest = startTime
+        if (endTime) baseWindowing.newest = endTime
     }
 
     const limit = get(limitAtomFamily("sessions"))
     const sessionExists = get(sessionExistsAtom)
+    const realtimeMode = get(realtimeModeAtomFamily("sessions"))
 
     return {
-        queryKey: ["sessions", projectId, appId, windowing, limit],
-        initialPageParam: {newest: undefined as string | undefined},
+        queryKey: ["sessions", projectId, appId, baseWindowing, limit, realtimeMode],
+        initialPageParam: {
+            newest: undefined as string | undefined,
+            oldest: undefined as string | undefined,
+        },
 
-        queryFn: async ({pageParam}: {pageParam?: {newest?: string}}) => {
+        queryFn: async ({pageParam}: {pageParam?: {newest?: string; oldest?: string}}) => {
             const {fetchSessions} = await import("@/oss/services/tracing/api")
 
             const response: any = await fetchSessions({
                 appId: (appId as string) || undefined,
-                windowing: {...windowing, limit, newest: pageParam?.newest},
+                windowing: {
+                    limit,
+                    // Base time window from sort (initial boundaries for first page)
+                    oldest: baseWindowing.oldest,
+                    newest: baseWindowing.newest,
+                    // Pagination cursors override base boundaries for subsequent pages:
+                    // - In DESC order: pageParam.newest moves backward, oldest stays fixed
+                    // - In ASC order: pageParam.oldest moves forward, newest stays fixed
+                    ...(pageParam?.oldest && {oldest: pageParam.oldest}),
+                    ...(pageParam?.newest && {newest: pageParam.newest}),
+                },
                 filter: undefined,
+                realtime: realtimeMode,
             })
 
             return {
                 session_ids: response.session_ids || [],
                 count: response.count || 0,
-                nextCursor: response.next_cursor as string | undefined,
+                nextWindowing: response.windowing,
             }
         },
         enabled: sessionExists && Boolean(appId || projectId),
 
         getNextPageParam: (lastPage: any) => {
-            return lastPage.session_ids.length === limit && lastPage.nextCursor
-                ? {newest: lastPage.nextCursor}
-                : undefined
+            // Disable pagination in realtime mode (latest activity shows fixed LIMIT items)
+            if (realtimeMode) {
+                return undefined
+            }
+
+            // Use the windowing object from response for time-based pagination
+            const hasMore = lastPage.session_ids.length === limit && lastPage.nextWindowing
+            if (!hasMore) return undefined
+
+            return {
+                newest: lastPage.nextWindowing.newest,
+                oldest: lastPage.nextWindowing.oldest,
+            }
         },
 
         refetchOnWindowFocus: false,

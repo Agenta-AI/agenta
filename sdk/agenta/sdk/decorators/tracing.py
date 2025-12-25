@@ -322,6 +322,19 @@ class instrument:  # pylint: disable=invalid-name
             for k, v in context.references.items():
                 if v is None:
                     continue
+                if isinstance(v, BaseModel):
+                    try:
+                        v = v.model_dump(mode="json", exclude_none=True)
+                    except Exception:  # pylint: disable=bare-except
+                        pass
+                if isinstance(v, dict):
+                    for field, value in v.items():
+                        otel_ctx = set_baggage(
+                            name=f"ag.refs.{k}.{field}",
+                            value=str(value),
+                            context=otel_ctx,
+                        )
+                    continue
                 otel_ctx = set_baggage(
                     name=f"ag.refs.{k}", value=str(v), context=otel_ctx
                 )

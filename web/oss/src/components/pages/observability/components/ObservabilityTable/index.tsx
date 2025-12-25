@@ -13,6 +13,7 @@ import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
 
 import {getObservabilityColumns} from "../../assets/getObservabilityColumns"
+import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
 const ObservabilityHeader = dynamic(() => import("../ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("../EmptyObservability"), {ssr: false})
@@ -69,6 +70,8 @@ const ObservabilityTable = () => {
         fetchMoreTraces,
         hasMoreTraces,
         isFetchingMore,
+        autoRefresh,
+        fetchAnnotations,
     } = useObservability()
     const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const annotationEvaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
@@ -141,11 +144,23 @@ const ObservabilityTable = () => {
         }
     }, [activeTrace, selectedNode])
 
-    useEffect(() => {
-        const interval = setInterval(fetchTraces, 300000)
+    const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-        return () => clearInterval(interval)
-    }, [])
+    // Auto-refresh logic: refresh every 15 seconds when enabled
+    const handleRefresh = useCallback(async () => {
+        await Promise.all([fetchAnnotations(), fetchTraces()])
+        setRefreshTrigger((prev) => prev + 1)
+    }, [fetchAnnotations, fetchTraces])
+
+    useEffect(() => {
+        if (!autoRefresh) return
+
+        const intervalId = setInterval(() => {
+            handleRefresh().catch((error) => console.error("Auto-refresh failed", error))
+        }, AUTO_REFRESH_INTERVAL)
+
+        return () => clearInterval(intervalId)
+    }, [autoRefresh, handleRefresh])
 
     const handleLoadMore = useCallback(() => {
         if (isFetchingMore || !hasMoreTraces) return
@@ -186,7 +201,12 @@ const ObservabilityTable = () => {
 
     return (
         <div className="flex flex-col gap-2">
-            <ObservabilityHeader columns={columns} componentType="traces" />
+            <ObservabilityHeader
+                columns={columns}
+                componentType="traces"
+                onRefresh={handleRefresh}
+                refreshTrigger={refreshTrigger}
+            />
 
             <div className="flex flex-col gap-2">
                 <Table
