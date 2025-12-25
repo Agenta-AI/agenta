@@ -61,9 +61,9 @@ class SessionIdsResponse(BaseModel):
 
 
 class UsersQueryRequest(BaseModel):
-    windowing: Optional[Windowing] = None
     # True: use last_active (unstable), False/None: use first_active (stable)
     realtime: Optional[bool] = None
+    windowing: Optional[Windowing] = None
 
 
 class UserIdsResponse(BaseModel):

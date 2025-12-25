@@ -189,8 +189,9 @@ class TracingDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        windowing: Optional[Windowing] = None,
         realtime: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> Tuple[List[str], Optional[datetime]]:
         raise NotImplementedError
 
@@ -200,7 +201,8 @@ class TracingDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        windowing: Optional[Windowing] = None,
         realtime: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> Tuple[List[str], Optional[datetime]]:
         raise NotImplementedError

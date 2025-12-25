@@ -712,7 +712,9 @@ class TracingRouter:
     ):
         session_ids, activity_cursor = await self.service.sessions(
             project_id=request.state.project_id,
+            #
             realtime=sessions_query_request.realtime,
+            #
             windowing=sessions_query_request.windowing,
         )
 
@@ -769,7 +771,9 @@ class TracingRouter:
     ):
         user_ids, activity_cursor = await self.service.users(
             project_id=request.state.project_id,
+            #
             realtime=users_query_request.realtime,
+            #
             windowing=users_query_request.windowing,
         )
 

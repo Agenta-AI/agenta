@@ -1,4 +1,4 @@
-from typing import Tuple, Any, Dict, Optional, List, cast as type_cast
+from typing import Tuple, Any, Dict, Optional, List, Literal, cast as type_cast
 from uuid import UUID
 from traceback import format_exc
 from datetime import datetime
@@ -1144,8 +1144,11 @@ class TracingDAO(TracingDAOInterface):
         self,
         *,
         project_id: UUID,
-        group: str,  # "session" or "user"
+        #
+        group: Literal["session", "user"],
+        #
         realtime: Optional[bool] = None,
+        #
         windowing: Optional[Windowing] = None,
     ) -> Tuple[List[str], Optional[datetime]]:
         """Query unique session or user IDs with windowing support.
