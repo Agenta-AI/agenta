@@ -182,10 +182,10 @@ const sessionsDatasetStoreInternal = createInfiniteDatasetStore<
         // Otherwise, construct from sort settings
         let apiWindowing: any
 
-        if (cursor && typeof cursor === "object") {
+        if (cursor && typeof cursor === "object" && !Array.isArray(cursor)) {
             // cursor is the nextWindowing from previous page, use it as-is
             apiWindowing = {
-                ...cursor,
+                ...(cursor as Record<string, any>),
                 limit, // Ensure limit is set
             }
         } else {
