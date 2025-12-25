@@ -1,17 +1,15 @@
-from typing import Optional, Dict, List
 from threading import Lock
+from typing import Dict, List, Optional
 
+from agenta.sdk.utils.logging import get_module_logger
 from opentelemetry.baggage import get_all as get_baggage
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import Span, SpanProcessor
 from opentelemetry.sdk.trace.export import (
-    SpanExporter,
-    ReadableSpan,
     BatchSpanProcessor,
+    ReadableSpan,
+    SpanExporter,
 )
-
-from agenta.sdk.utils.logging import get_module_logger
-from agenta.sdk.engines.tracing.conventions import Reference
 
 log = get_module_logger(__name__)
 
@@ -55,11 +53,11 @@ class TraceProcessor(SpanProcessor):
 
         baggage = get_baggage(parent_context)
 
-        for key in baggage.keys():
-            if key.startswith("ag.refs."):
-                _key = key.replace("ag.refs.", "")
-                if _key in [_.value for _ in Reference.__members__.values()]:
-                    span.set_attribute(key, baggage[key])
+        # Copy any `ag.*` baggage entries onto the span attributes so they can be
+        # used for filtering and grouping (for example `ag.meta.session_id`).
+        for key, value in baggage.items():
+            if key.startswith("ag."):
+                span.set_attribute(key, value)
 
         trace_id = span.context.trace_id
         span_id = span.context.span_id

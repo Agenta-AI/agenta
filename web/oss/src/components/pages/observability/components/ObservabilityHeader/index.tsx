@@ -26,20 +26,25 @@ import {
     getTokens,
 } from "@/oss/state/newObservability/selectors/tracing"
 
-import {buildAttributeKeyTreeOptions} from "../filters/attributeKeyOptions"
-import getFilterColumns from "../getFilterColumns"
-import {ObservabilityHeaderProps} from "../types"
+import {buildAttributeKeyTreeOptions} from "../../assets/filters/attributeKeyOptions"
+import getFilterColumns from "../../assets/getFilterColumns"
+import {ObservabilityHeaderProps} from "../../assets/types"
 
 const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
-const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
+const ObservabilityHeader = ({
+    columns,
+    componentType,
+    isLoading: propsLoading,
+    onRefresh,
+}: ObservabilityHeaderProps) => {
     const [isScrolled, setIsScrolled] = useState(false)
 
     const {
         traces,
-        isLoading,
+        isLoading: isTraceLoading,
         searchQuery,
         setSearchQuery,
         traceTabs,
@@ -47,14 +52,15 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         filters,
         setFilters,
         setSort,
-        fetchTraces,
-        fetchAnnotations,
         selectedRowKeys,
         setTestsetDrawerData,
         setEditColumns,
+        fetchAnnotations,
+        fetchTraces,
     } = useObservability()
     const queryClient = useAtomValue(queryClientAtom)
 
+    const isLoading = propsLoading || isTraceLoading
     const attributeKeyOptions = useMemo(() => buildAttributeKeyTreeOptions(traces), [traces])
     const filterColumns = useMemo(
         () => getFilterColumns(attributeKeyOptions),
@@ -234,6 +240,14 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         }
     }, [traces, columns])
 
+    const handleRefresh = async () => {
+        if (componentType === "sessions") {
+            await onRefresh?.()
+        } else {
+            await Promise.all([fetchAnnotations(), fetchTraces()])
+        }
+    }
+
     return (
         <>
             <section
@@ -256,9 +270,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                                         className={clsx("mt-[0.8px]", {"animate-spin": isLoading})}
                                     />
                                 }
-                                onClick={async () => {
-                                    await Promise.all([fetchAnnotations(), fetchTraces()])
-                                }}
+                                onClick={handleRefresh}
                                 tooltipProps={{title: "Refresh data"}}
                             />
                         )}
@@ -273,14 +285,16 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                             })}
                             allowClear
                         />
+
                         <Filters
                             filterData={filters}
                             columns={filterColumns}
                             onApplyFilter={onApplyFilter}
                             onClearFilter={onClearFilter}
                         />
+
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
-                        {isScrolled && (
+                        {isScrolled && componentType === "traces" ? (
                             <>
                                 <Space>
                                     <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
@@ -297,10 +311,10 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                                     tooltipProps={{title: "Add to testset"}}
                                 />
                             </>
-                        )}
+                        ) : null}
                     </div>
                 </div>
-                {!isScrolled && (
+                {!isScrolled && componentType === "traces" ? (
                     <div className="w-full flex items-center justify-between">
                         <Space>
                             <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
@@ -336,7 +350,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                             </Button>
                         </Space>
                     </div>
-                )}
+                ) : null}
             </section>
             {/* This element is to reduce the pixel shift of the table */}
             {isScrolled && <div className="w-full h-[10px]"></div>}{" "}

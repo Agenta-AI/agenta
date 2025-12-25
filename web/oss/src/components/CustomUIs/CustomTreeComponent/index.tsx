@@ -58,7 +58,9 @@ const TreeNodeComponent: React.FC<{
     isRoot?: boolean
 }> = ({node, isLast, settings, selectedKey, onSelect, isRoot = false}) => {
     const classes = useStyles()
-    const [expanded, setExpanded] = useState(true)
+    const [expanded, setExpanded] = useState(
+        typeof (node as any).expanded === "boolean" ? (node as any).expanded : true,
+    )
     const hasChildren = node.children && node.children.length > 0
 
     const toggle = () => setExpanded((prev) => !prev)

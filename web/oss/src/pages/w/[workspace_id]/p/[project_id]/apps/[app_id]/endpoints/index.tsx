@@ -78,7 +78,7 @@ export const createParams = (
         mainParams["messages"] = [
             {
                 role: "user",
-                content: "Example message",
+                content: "",
             },
         ]
         mainParams["inputs"] = secondaryParams

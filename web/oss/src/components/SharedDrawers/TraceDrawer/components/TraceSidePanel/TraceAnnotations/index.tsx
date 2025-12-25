@@ -37,7 +37,7 @@ interface AnnotationGroup {
     metrics: Record<string, AnnotationChipEntry>
 }
 
-const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
+const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
     const classes = useStyles()
     const [isAnnotationsPopoverOpen, setIsAnnotationsPopoverOpen] = useState<string | null>(null)
     const getPopoverKey = (refId: string, key: string) => `${refId}-${key}`

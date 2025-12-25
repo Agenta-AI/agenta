@@ -4,9 +4,10 @@ import {Button, Popover, Typography} from "antd"
 
 import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
-import useEvaluatorNavigation from "@/oss/components/SharedDrawers/TraceDrawer/hooks/useEvaluatorNavigation"
 import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {Evaluator} from "@/oss/lib/Types"
+
+import useEvaluatorNavigation from "../hooks/useEvaluatorNavigation"
 
 type EvaluatorLike = EvaluatorPreviewDto | Evaluator | null | undefined
 

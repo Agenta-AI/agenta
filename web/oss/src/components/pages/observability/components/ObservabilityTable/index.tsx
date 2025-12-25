@@ -5,21 +5,19 @@ import {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
+import ResizableTitle from "@/oss/components/ResizableTitle"
 import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
 
-import {filterColumns} from "../../Filters/EditColumns/assets/helper"
-import PageLayout from "../../PageLayout/PageLayout"
-import ResizableTitle from "../../ResizableTitle"
+import {getObservabilityColumns} from "../../assets/getObservabilityColumns"
 
-import {getObservabilityColumns} from "./assets/getObservabilityColumns"
-
-const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
-const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})
+const ObservabilityHeader = dynamic(() => import("../ObservabilityHeader"), {ssr: false})
+const EmptyObservability = dynamic(() => import("../EmptyObservability"), {ssr: false})
 const TestsetDrawer = dynamic(
-    () => import("../../SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
+    () => import("../../../../SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
     {
         ssr: false,
     },
@@ -52,7 +50,7 @@ const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     return Array.from(slugs)
 }
 
-const ObservabilityDashboard = () => {
+const ObservabilityTable = () => {
     const {
         traces,
         isLoading,
@@ -73,6 +71,7 @@ const ObservabilityDashboard = () => {
         isFetchingMore,
     } = useObservability()
     const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
+    const annotationEvaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
 
     const [traceParamValue, setTraceParam] = useQueryParamState("trace")
     const traceParam = Array.isArray(traceParamValue)
@@ -83,8 +82,6 @@ const ObservabilityDashboard = () => {
     const spanParam = Array.isArray(spanParamValue)
         ? (spanParamValue[0] ?? "")
         : ((spanParamValue as string | undefined) ?? "")
-
-    const annotationEvaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
 
     const traceEvaluatorSlugs = useMemo(() => collectEvaluatorSlugsFromTraces(traces), [traces])
 
@@ -188,99 +185,97 @@ const ObservabilityDashboard = () => {
     }, [columns, editColumns])
 
     return (
-        <PageLayout title={"Observability"}>
+        <div className="flex flex-col gap-2">
+            <ObservabilityHeader columns={columns} componentType="traces" />
+
             <div className="flex flex-col gap-2">
-                <ObservabilityHeader columns={columns} />
+                <Table
+                    rowSelection={{
+                        type: "checkbox",
+                        columnWidth: 48,
+                        selectedRowKeys,
+                        ...rowSelection,
+                    }}
+                    loading={showTableLoading}
+                    columns={mergedColumns as TableColumnType<TraceSpanNode>[]}
+                    dataSource={traces}
+                    bordered
+                    style={{cursor: "pointer"}}
+                    sticky={{
+                        offsetHeader: 0,
+                        offsetScroll: 0,
+                    }}
+                    onRow={(record) => ({
+                        onClick: () => {
+                            setSelectedNode(record.span_id)
+                            const isSpanView = traceTabs === "span"
 
-                <div className="flex flex-col gap-2">
-                    <Table
-                        rowSelection={{
-                            type: "checkbox",
-                            columnWidth: 48,
-                            selectedRowKeys,
-                            ...rowSelection,
-                        }}
-                        loading={showTableLoading}
-                        columns={mergedColumns as TableColumnType<TraceSpanNode>[]}
-                        dataSource={traces}
-                        bordered
-                        style={{cursor: "pointer"}}
-                        sticky={{
-                            offsetHeader: 0,
-                            offsetScroll: 0,
-                        }}
-                        onRow={(record) => ({
-                            onClick: () => {
-                                setSelectedNode(record.span_id)
-                                const isSpanView = traceTabs === "span"
+                            const targetTraceId = String(
+                                record.trace_id ||
+                                    (record as any)?.invocationIds?.trace_id ||
+                                    (record as any)?.node?.trace_id ||
+                                    (record as any)?.root?.id ||
+                                    (record as any)?.traceId ||
+                                    (record as any)?.trace?.id ||
+                                    record.span_id ||
+                                    "",
+                            )
 
-                                const targetTraceId = String(
-                                    record.trace_id ||
-                                        (record as any)?.invocationIds?.trace_id ||
-                                        (record as any)?.node?.trace_id ||
-                                        (record as any)?.root?.id ||
-                                        (record as any)?.traceId ||
-                                        (record as any)?.trace?.id ||
-                                        record.span_id ||
-                                        "",
+                            const targetSpanId = isSpanView
+                                ? String(record.span_id || "")
+                                : String(record.span_id || "")
+
+                            if (!targetTraceId) {
+                                console.warn(
+                                    "TraceDrawer: unable to determine trace id for record",
+                                    record,
                                 )
+                                return
+                            }
 
-                                const targetSpanId = isSpanView
-                                    ? String(record.span_id || "")
-                                    : String(record.span_id || "")
-
-                                if (!targetTraceId) {
-                                    console.warn(
-                                        "TraceDrawer: unable to determine trace id for record",
-                                        record,
-                                    )
-                                    return
-                                }
-
-                                setSelectedTraceId(targetTraceId)
-                                setTraceDrawerActiveSpan(targetSpanId || null)
-                                setTraceParam(targetTraceId)
-                                if (targetSpanId) {
-                                    setSpanParam(targetSpanId)
-                                } else {
-                                    setSpanParam(undefined)
-                                }
-                            },
-                        })}
-                        components={{
-                            header: {
-                                cell: ResizableTitle,
-                            },
-                        }}
-                        pagination={false}
-                        scroll={{x: "max-content"}}
-                        locale={{
-                            emptyText: <EmptyObservability />,
-                        }}
-                    />
-                    {hasMoreTraces && (
-                        <Button
-                            onClick={handleLoadMore}
-                            disabled={isFetchingMore}
-                            type="text"
-                            size="large"
-                        >
-                            {isFetchingMore ? "Loading…" : "Click here to load more"}
-                        </Button>
-                    )}
-                </div>
-
-                <TestsetDrawer
-                    open={testsetDrawerData.length > 0}
-                    data={testsetDrawerData}
-                    onClose={() => {
-                        setTestsetDrawerData([])
-                        setSelectedRowKeys([])
+                            setSelectedTraceId(targetTraceId)
+                            setTraceDrawerActiveSpan(targetSpanId || null)
+                            setTraceParam(targetTraceId)
+                            if (targetSpanId) {
+                                setSpanParam(targetSpanId)
+                            } else {
+                                setSpanParam(undefined)
+                            }
+                        },
+                    })}
+                    components={{
+                        header: {
+                            cell: ResizableTitle,
+                        },
+                    }}
+                    pagination={false}
+                    scroll={{x: "max-content"}}
+                    locale={{
+                        emptyText: <EmptyObservability />,
                     }}
                 />
+                {hasMoreTraces && (
+                    <Button
+                        onClick={handleLoadMore}
+                        disabled={isFetchingMore}
+                        type="text"
+                        size="large"
+                    >
+                        {isFetchingMore ? "Loading…" : "Click here to load more"}
+                    </Button>
+                )}
             </div>
-        </PageLayout>
+
+            <TestsetDrawer
+                open={testsetDrawerData.length > 0}
+                data={testsetDrawerData}
+                onClose={() => {
+                    setTestsetDrawerData([])
+                    setSelectedRowKeys([])
+                }}
+            />
+        </div>
     )
 }
 
-export default ObservabilityDashboard
+export default ObservabilityTable

@@ -24,6 +24,7 @@ const AnnotateDrawer = ({
     evalSlugs,
     initialStep = AnnotateDrawerSteps.ANNOTATE,
     createEvaluatorProps,
+    queryKey,
     ...props
 }: AnnotateDrawerProps) => {
     const {projectId} = getProjectValues()
@@ -220,6 +221,7 @@ const AnnotateDrawer = ({
                     onCaptureError={onCaptureError}
                     traceSpanIds={traceSpanIds}
                     showOnly={showOnly}
+                    queryKey={queryKey}
                 />
             }
             closeIcon={null}

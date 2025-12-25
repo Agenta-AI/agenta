@@ -1,4 +1,4 @@
-import {getBaseUrl, fetchJson, ensureProjectId, ensureAppId} from "@/oss/lib/api/assets/fetchClient"
+import {ensureAppId, ensureProjectId, fetchJson, getBaseUrl} from "@/oss/lib/api/assets/fetchClient"
 import {getProjectValues} from "@/oss/state/project"
 
 import {rangeToIntervalMinutes, tracingToGeneration} from "../lib/helpers"
@@ -55,6 +55,48 @@ export const deletePreviewTrace = async (traceId: string) => {
     if (projectId) url.searchParams.set("project_id", projectId)
 
     return fetchJson(url, {method: "DELETE"})
+}
+
+export const fetchSessions = async (params: {
+    appId?: string
+    windowing?: {
+        oldest?: string
+        newest?: string
+        next?: string
+        limit?: number
+    }
+    cursor?: string
+    filter?: any
+}) => {
+    const base = getBaseUrl()
+    const projectId = ensureProjectId()
+    const applicationId = params.appId ? ensureAppId(params.appId) : undefined
+
+    const url = new URL(`${base}/tracing/sessions/query`)
+    if (projectId) url.searchParams.set("project_id", projectId)
+    if (applicationId) url.searchParams.set("application_id", applicationId)
+
+    const payload: Record<string, any> = {}
+
+    // Initialize windowing if it doesn't exist but we have a cursor
+    if (params.windowing || params.cursor) {
+        payload.windowing = {...(params.windowing || {})}
+
+        // If cursor is provided, it goes into windowing.next
+        if (params.cursor) {
+            payload.windowing.next = params.cursor
+        }
+    }
+
+    if (params.filter) {
+        payload.filter = params.filter
+    }
+
+    return fetchJson(url, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+    })
 }
 
 export const fetchGenerationsDashboardData = async (

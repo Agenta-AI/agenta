@@ -15,6 +15,7 @@ const AnnotateDrawerButton = ({
     traceSpanIds,
     showOnly,
     evalSlugs,
+    queryKey,
     ...props
 }: AnnotateDrawerButtonProps) => {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -36,7 +37,11 @@ const AnnotateDrawerButton = ({
                 <EnhancedButton
                     label={label}
                     icon={icon && <PencilSimpleLine size={14} />}
-                    onClick={() => setIsDrawerOpen(true)}
+                    onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setIsDrawerOpen(true)
+                    }}
                     {...props}
                 />
             )}
@@ -48,6 +53,7 @@ const AnnotateDrawerButton = ({
                 traceSpanIds={traceSpanIds}
                 showOnly={showOnly}
                 evalSlugs={evalSlugs}
+                queryKey={queryKey}
             />
         </>
     )

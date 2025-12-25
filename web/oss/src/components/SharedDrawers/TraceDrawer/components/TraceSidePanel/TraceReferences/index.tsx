@@ -11,10 +11,10 @@ import {
     VariantReferenceLabel,
 } from "@/oss/components/References"
 import useEvaluatorNavigation from "@/oss/components/SharedDrawers/TraceDrawer/hooks/useEvaluatorNavigation"
+import {linksAndReferencesAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import useURL from "@/oss/hooks/useURL"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {linksAndReferencesAtom} from "../../../store/traceDrawerStore"
 import {useStyles} from "../TraceDetails/assets/styles"
 
 const labelMap: Record<string, string> = {

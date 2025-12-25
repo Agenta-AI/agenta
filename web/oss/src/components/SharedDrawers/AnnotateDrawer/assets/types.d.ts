@@ -31,6 +31,7 @@ export interface AnnotateDrawerProps extends DrawerProps {
     initialStep?: AnnotateDrawerStepsType
     createEvaluatorProps?: Partial<CreateEvaluatorProps>
     closeOnLayoutClick?: boolean
+    queryKey?: string
 }
 
 export interface AnnotateDrawerTitleProps {
@@ -43,6 +44,7 @@ export interface AnnotateDrawerTitleProps {
     onClose: () => void
     onCaptureError?: (error: string[], addPrevVal?: boolean) => void
     showOnly?: ShowOnlyType
+    queryKey?: string
 }
 
 export interface AnnotateDrawerButtonProps extends TooltipButtonProps {
@@ -52,6 +54,9 @@ export interface AnnotateDrawerButtonProps extends TooltipButtonProps {
     traceSpanIds?: AnnotateDrawerIdsType
     showOnly?: ShowOnlyType
     evalSlugs?: string[]
+    queryKey?: string
+    icon?: boolean
+    size?: "small" | "middle" | "large"
 }
 
 export interface AnnotateProps {

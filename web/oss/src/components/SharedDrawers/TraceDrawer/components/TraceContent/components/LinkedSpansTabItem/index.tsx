@@ -4,7 +4,7 @@ import {Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
+import EnhancedTooltip from "@/oss/components/EnhancedUIs/Tooltip"
 import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
 import {
     LinkedSpanRow,
@@ -89,7 +89,7 @@ const LinkedSpansTabItem = ({isActive: _isActive}: LinkedSpansTabItemProps) => {
                 const spanId = record.span_id || ""
                 const shortId = spanId ? spanId.split("-")[0] : "-"
                 return (
-                    <TooltipWithCopyAction copyText={spanId} title="Copy span id">
+                    <EnhancedTooltip copyText={spanId} title="Copy span id">
                         <Tag
                             bordered={false}
                             className="font-mono bg-[#0517290F]"
@@ -97,7 +97,7 @@ const LinkedSpansTabItem = ({isActive: _isActive}: LinkedSpansTabItemProps) => {
                         >
                             # {shortId}
                         </Tag>
-                    </TooltipWithCopyAction>
+                    </EnhancedTooltip>
                 )
             },
         }
