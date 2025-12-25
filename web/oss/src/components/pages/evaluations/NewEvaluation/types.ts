@@ -32,12 +32,18 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     evaluationType: "auto" | "human"
     activePanel: string | null
     selectedTestsetId: string
+    selectedTestsetRevisionId: string
+    selectedTestsetName: string
+    selectedTestsetVersion: number | null
     selectedVariantRevisionIds: string[]
     selectedEvalConfigs: string[]
     evaluationName: string
     preview?: boolean
     isLoading?: boolean
     setSelectedTestsetId: Dispatch<SetStateAction<string>>
+    setSelectedTestsetRevisionId: Dispatch<SetStateAction<string>>
+    setSelectedTestsetName: Dispatch<SetStateAction<string>>
+    setSelectedTestsetVersion: Dispatch<SetStateAction<number | null>>
     onSuccess?: () => void
     handlePanelChange: (key: string | string[]) => void
     setSelectedVariantRevisionIds: Dispatch<SetStateAction<string[]>>
@@ -72,9 +78,15 @@ export interface SelectVariantSectionProps extends HTMLProps<HTMLDivElement> {
 }
 
 export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {
-    testsets: testset[]
+    testsets?: testset[]
     selectedTestsetId: string
+    selectedTestsetRevisionId?: string
     setSelectedTestsetId: Dispatch<SetStateAction<string>>
+    setSelectedTestsetRevisionId?: Dispatch<SetStateAction<string>>
+    selectedTestsetName?: string
+    setSelectedTestsetName?: Dispatch<SetStateAction<string>>
+    selectedTestsetVersion?: number | null
+    setSelectedTestsetVersion?: Dispatch<SetStateAction<number | null>>
     handlePanelChange: (key: string | string[]) => void
     preview?: boolean
     selectedVariantRevisionIds: string[]

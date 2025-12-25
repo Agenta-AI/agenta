@@ -1,15 +1,15 @@
 import os
 import json
-from typing import Any, Dict, Union, Optional
-
-from daytona import Daytona, DaytonaConfig, Sandbox
+from typing import Any, Dict, Union, Optional, TYPE_CHECKING
 
 from agenta.sdk.workflows.runners.base import CodeRunner
 from agenta.sdk.contexts.running import RunningContext
+from agenta.sdk.utils.lazy import _load_daytona
 
 from agenta.sdk.utils.logging import get_module_logger
 
-import agenta as ag
+if TYPE_CHECKING:
+    from daytona import Daytona, Sandbox
 
 log = get_module_logger(__name__)
 
@@ -32,7 +32,7 @@ class DaytonaRunner(CodeRunner):
             return
 
         self._initialized = True
-        self.daytona: Optional[Daytona] = None
+        self.daytona = None
         self._validate_config()
 
     def _validate_config(self) -> None:
@@ -52,6 +52,8 @@ class DaytonaRunner(CodeRunner):
             return
 
         try:
+            Daytona, DaytonaConfig, _, _ = _load_daytona()
+
             # Get configuration with fallbacks
             api_url = os.getenv("DAYTONA_API_URL") or "https://app.daytona.io/api"
             api_key = os.getenv("DAYTONA_API_KEY")
@@ -134,7 +136,7 @@ class DaytonaRunner(CodeRunner):
                     f"Set DAYTONA_SNAPSHOT environment variable."
                 )
 
-            from daytona import CreateSandboxFromSnapshotParams
+            _, _, _, CreateSandboxFromSnapshotParams = _load_daytona()
 
             agenta_host = (
                 ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host

@@ -6,7 +6,7 @@ import EvaluatorTagsCell from "./cells/EvaluatorTagsCell"
 import EvaluatorTypePill from "./cells/EvaluatorTypePill"
 import {EvaluatorRegistryRow, GetColumnsParams} from "./types"
 
-const UserAvatarTag = dynamic(() => import("@/oss/components/ui/UserAvatarTag"), {
+const UserAvatarTag = dynamic(() => import("@/oss/components/CustomUIs/UserAvatarTag"), {
     ssr: false,
     loading: () => <div className="h-6 w-[120px] bg-[#0517290F]"></div>,
 })

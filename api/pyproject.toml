@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.71.0"
+version = "0.72.1"
 description = "Agenta API"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
@@ -15,45 +15,56 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
-agenta = ">=0.64.1"
-#
 python = "^3.11"
-#
-fastapi = ">=0.122"
+
+# Agenta SDK
+agenta = ">=0.72.1"
+
+# Core framework dependencies
+fastapi = ">=0.127"
 pydantic = "^2"
-python-dotenv = "^1"
-uvicorn = "^0.38"
-redis = "^7"
-sendgrid = "^6"
-restrictedpython =  { version = "^8", python = ">=3.11,<3.14" }
-taskiq = "^0.12"
-taskiq-redis = "^1"
-newrelic = "^11"
-openai = "^2"
-sqlalchemy = "^2"
-sqlalchemy-utils = "^0.42.0"
-asyncpg = "^0.31"
-uuid-utils = "^0.12"
-alembic = "^1"
-numpy = "^2"
-# autoevals = "^0.0.130"  # Removed due to compatibility issues
-supertokens-python = "^0.29"
-opentelemetry-proto = "^1"
-posthog = "^7"
-stripe = "^14"
-structlog= "^25"
-httpx = "^0.28"
-genson = "^1"
-jsonschema = "^4"
-orjson = "^3"
-pandas = "^2"
-sqlalchemy-json = "^0.7"
+uvicorn = "^0.40"
 gunicorn = "^23"
+httpx = "^0.28"
+structlog = "^25"
+python-dotenv = "^1"
+python-multipart = "^0.0.21"
+
+# Database dependencies
+sqlalchemy = "^2"
+sqlalchemy-utils = "^0.42"
+sqlalchemy-json = "^0.7"
+asyncpg = "^0.31"
+alembic = "^1"
+
+# Data processing
+polars = "^1"
+orjson = "^3"
+jsonschema = "^4"
+genson = "^1"
 python-jsonpath = "^2"
 bson = "^0.5"
-python-multipart = "^0.0.21"
-daytona = "^0.125"
+uuid-utils = "^0.12"
+
+# caches, channels, streams
+taskiq = "^0.12"
+taskiq-redis = "^1"
+redis = "^7"
 cachetools = "^6"
+
+# Sandbox
+restrictedpython = { version = "^8", python = ">=3.11,<3.14" }
+
+# Integrations & external services
+supertokens-python = "^0.29"
+openai = "^2"
+sendgrid = "^6"
+stripe = "^14"
+posthog = "^7"
+newrelic = "^11"
+
+# Observability (limited - see comment below)
+opentelemetry-proto = "^1"
 
 # BLOCKED BY NEW RELIC INCOMPATIBILITY
 # opentelemetry-api = "^1"

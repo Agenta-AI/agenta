@@ -3,7 +3,7 @@ import {memo} from "react"
 import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import LabelValuePill from "@/oss/components/ui/LabelValuePill"
+import LabelValuePill from "@/oss/components/CustomUIs/LabelValuePill"
 import {traceAnnotationInfoAtomFamily} from "@/oss/state/newObservability"
 
 interface Props {

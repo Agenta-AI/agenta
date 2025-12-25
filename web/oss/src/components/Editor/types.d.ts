@@ -21,6 +21,8 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     id?: string
     initialEditorState?: LexicalEditor["_editorState"]
     initialValue?: string
+    /** Controlled value - when provided, editor re-hydrates when this changes (for undo/redo support) */
+    value?: string
     onChange?: (value: {textContent: string; tokens?: unknown[]; value?: string}) => void
     placeholder?: string
     singleLine?: boolean
@@ -63,6 +65,8 @@ export interface EditorPluginsProps {
     placeholder?: string
     /** Initial text value for the editor */
     initialValue: string
+    /** Controlled value - when provided, editor re-hydrates when this changes (for undo/redo support) */
+    value?: string
     validationSchema?: unknown
     tokens?: string[]
     templateFormat?: "curly" | "fstring" | "jinja2"

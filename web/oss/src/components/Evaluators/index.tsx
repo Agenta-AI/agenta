@@ -9,7 +9,7 @@ import {useLocalStorage} from "usehooks-ts"
 
 import {message} from "@/oss/components/AppMessageContext"
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
-import {AnnotateDrawerSteps} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/enum"
+import {AnnotateDrawerSteps} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/enum"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
@@ -31,10 +31,9 @@ import DeleteEvaluatorsModal from "./components/DeleteEvaluatorsModal"
 import SelectEvaluatorModal from "./components/SelectEvaluatorModal"
 import useEvaluatorsRegistryData from "./hooks/useEvaluatorsRegistryData"
 
-const AnnotateDrawer = dynamic(
-    () => import("@/oss/components/pages/observability/drawer/AnnotateDrawer"),
-    {ssr: false},
-)
+const AnnotateDrawer = dynamic(() => import("@/oss/components/SharedDrawers/AnnotateDrawer"), {
+    ssr: false,
+})
 
 const isValidEvaluatorTab = (value: string): value is EvaluatorCategory => {
     return EVALUATOR_TABS.some(({key}) => key === value)

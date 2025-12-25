@@ -8,8 +8,8 @@ import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {activePreviewProjectIdAtom} from "@/oss/components/EvalRunDetails2/atoms/run"
-import {clearAllMetricStatsCaches} from "@/oss/components/EvalRunDetails2/atoms/runMetrics"
+import {activePreviewProjectIdAtom} from "@/oss/components/EvalRunDetails/atoms/run"
+import {clearAllMetricStatsCaches} from "@/oss/components/EvalRunDetails/atoms/runMetrics"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
@@ -29,21 +29,21 @@ import {
 } from "../../atoms/context"
 import {EVALUATION_RUNS_QUERY_KEY_ROOT, evaluationRunsDatasetStore} from "../../atoms/tableStore"
 import {
-    evaluationRunsDeleteModalOpenAtom,
     evaluationRunsCreateModalOpenAtom,
+    evaluationRunsCreateSelectedTypeAtom,
+    evaluationRunsDeleteModalOpenAtom,
     evaluationRunsMetaUpdaterAtom,
     evaluationRunsSelectedRowKeysAtom,
+    evaluationRunsSelectionSnapshotAtom,
     evaluationRunsTableComponentSliceAtom,
-    evaluationRunsTableResetAtom,
     evaluationRunsTableContextSetterAtom,
     evaluationRunsTablePageSizeAtom,
-    evaluationRunsSelectionSnapshotAtom,
-    evaluationRunsCreateSelectedTypeAtom,
+    evaluationRunsTableResetAtom,
 } from "../../atoms/view"
 import useEvaluationRunNavigationActions from "../../hooks/useEvaluationRunNavigationActions"
 import {
-    useEvaluationRunsColumns,
     resolveReferenceExportValue,
+    useEvaluationRunsColumns,
 } from "../../hooks/useEvaluationRunsColumns"
 import useEvaluationRunsPolling from "../../hooks/useEvaluationRunsPolling"
 import {clearMetricSelectionCache} from "../../hooks/useRunMetricSelection"

@@ -7,7 +7,7 @@ import {Button, Flex, Input, Radio, Space, Typography} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import EnvironmentCardRow from "@/oss/components/DeploymentCard/EnvironmentCardRow"
+import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
 import PageLayout from "@/oss/components/PageLayout/PageLayout"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
@@ -36,8 +36,8 @@ import {openDeploymentsDrawerAtom} from "../DeploymentsDashboard/modals/store/de
 import DeployVariantButton from "../Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
 
 import {
-    openComparisonModalAtom,
     comparisonSelectionScopeAtom,
+    openComparisonModalAtom,
 } from "./Modals/VariantComparisonModal/store/comparisonModalStore"
 import VariantsTable from "./Table"
 

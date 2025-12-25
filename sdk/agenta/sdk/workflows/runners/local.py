@@ -1,6 +1,7 @@
 from typing import Any, Dict, Union, Optional
 
 from agenta.sdk.workflows.runners.base import CodeRunner
+from agenta.sdk.utils.lazy import _load_restrictedpython
 
 
 class LocalRunner(CodeRunner):

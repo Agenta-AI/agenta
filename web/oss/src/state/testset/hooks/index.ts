@@ -1,30 +1,72 @@
-import {useAtom} from "jotai"
+import {useCallback, useMemo} from "react"
 
-import {PreviewTestsetsQueryPayload} from "@/oss/services/testsets/api/types"
+import {useAtom, useAtomValue} from "jotai"
 
-import {
-    previewTestsetsQueryAtom,
-    previewTestsetsQueryAtomFamily,
-    testsetsQueryAtom,
-} from "../atoms/fetcher"
+import {useEntityList} from "@/oss/state/entities/hooks/useEntityList"
+import {testsetStore} from "@/oss/state/entities/testset/store"
+import {projectIdAtom} from "@/oss/state/project"
 
-export {useTestset, testsetQueryAtomFamily} from "./useTestset"
+import {previewTestsetsQueryAtom} from "../atoms/fetcher"
 
 /**
- * Hook for regular/legacy testsets.
+ * Hook for regular testsets - uses entity-based testset store
  *
  * @param options.enabled - Whether the query is enabled (default: true)
- * @returns Object with `testsets`, `isError`, `error`, `isLoading`, `mutate`
+ * @returns Object with `testsets`, `isError`, `error`, `isLoading`, `mutate`, `columnsByTestsetId`, `getColumnsFor`
  */
-export const useTestsetsData = ({enabled = true} = {}) => {
-    const [{data: testsets, isPending, refetch, error, isError}] = useAtom(testsetsQueryAtom)
+export const useTestsetsData = ({enabled = true}: {enabled?: boolean} = {}) => {
+    const projectId = useAtomValue(projectIdAtom)
 
-    return {
-        testsets: testsets ?? [],
+    // Memoize params to prevent infinite re-renders from new object references
+    const listParams = useMemo(() => ({projectId: projectId ?? ""}), [projectId])
+
+    const {
+        data: testsetListResponse,
+        isLoading,
+        isFetching,
         isError,
         error,
-        isLoading: isPending,
+        refetch,
+    } = useEntityList(testsetStore, listParams, {
+        extractEntities: (response) => response?.testsets ?? [],
+    })
+
+    const safeTestsets = useMemo(() => testsetListResponse?.testsets ?? [], [testsetListResponse])
+
+    const columnsByTestsetId = useMemo(() => {
+        const result: Record<string, string[] | undefined> = {}
+        safeTestsets.forEach((ts: any) => {
+            const id = ts?.id
+            if (!id || typeof id !== "string") return
+
+            const columns = Array.isArray(ts?.columns)
+                ? (ts.columns as unknown[])
+                      .map((column) => (typeof column === "string" ? column.trim() : ""))
+                      .filter((column): column is string => column.length > 0)
+                : undefined
+
+            result[id] = columns && columns.length > 0 ? columns : undefined
+        })
+        return result
+    }, [safeTestsets])
+
+    const getColumnsFor = useCallback(
+        (id?: string) => {
+            if (!id) return []
+            const value = columnsByTestsetId[id]
+            return Array.isArray(value) ? value : []
+        },
+        [columnsByTestsetId],
+    )
+
+    return {
+        testsets: safeTestsets,
+        isError,
+        error,
+        isLoading: Boolean(isLoading || isFetching),
         mutate: refetch,
+        columnsByTestsetId,
+        getColumnsFor,
     }
 }
 
@@ -43,43 +85,4 @@ export const usePreviewTestsetsData = () => {
         isLoading: isPending,
         mutate: refetch,
     }
-}
-
-/**
- * Hook for preview testsets with filters.
- *
- * Use `useMemo` to pass a stable `payload` object so the query key remains stable.
- *
- * @param payload - Filter payload matching PreviewTestsetsQueryPayload
- * @param options.enabled - Whether the query is enabled (default: true)
- * @returns Object with `testsets`, `isError`, `error`, `isLoading`, `mutate`
- */
-export const usePreviewTestsetsDataWithFilters = (
-    payload: PreviewTestsetsQueryPayload = {},
-    {enabled = true}: {enabled?: boolean} = {},
-) => {
-    const [{data: testsets, isPending, refetch, error, isError}] = useAtom(
-        previewTestsetsQueryAtomFamily({payload, enabled}),
-    )
-
-    return {
-        testsets: testsets ?? [],
-        isError,
-        error,
-        isLoading: isPending,
-        mutate: refetch,
-    }
-}
-
-/**
- * Combined hook that supports both regular and preview testsets.
- *
- * @param preview - If true, returns preview testsets; otherwise regular testsets
- * @returns Same shape as the underlying hook
- */
-export const useTestsetsDataWithPreview = (preview = false) => {
-    const regularData = useTestsetsData()
-    const previewData = usePreviewTestsetsData()
-
-    return preview ? previewData : regularData
 }

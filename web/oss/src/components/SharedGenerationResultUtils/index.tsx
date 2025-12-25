@@ -1,6 +1,6 @@
-import {memo, useMemo, useCallback} from "react"
+import {memo, useCallback, useMemo} from "react"
 
-import {TreeView, Timer, PlusCircle} from "@phosphor-icons/react"
+import {PlusCircle, Timer, TreeView} from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
 import {Button, Space, Tag} from "antd"
 import clsx from "clsx"
@@ -8,6 +8,10 @@ import {getDefaultStore} from "jotai"
 
 import StatusRenderer from "@/oss/components/pages/observability/components/StatusRenderer"
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
+import {
+    openTraceDrawerAtom,
+    setTraceDrawerActiveSpanAtom,
+} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {resolvePath} from "@/oss/lib/traces/traceUtils"
 import {sortSpansByStartTime} from "@/oss/lib/traces/tracing"
@@ -15,11 +19,6 @@ import {fetchPreviewTrace} from "@/oss/services/tracing/api"
 import {transformTracesResponseToTree} from "@/oss/services/tracing/lib/helpers"
 import {StatusCode, type TraceSpan, type TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
-
-import {
-    openTraceDrawerAtom,
-    setTraceDrawerActiveSpanAtom,
-} from "../Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 
 // Use the global Jotai store to ensure the TraceDrawer (rendered in AppGlobalWrappers)
 // receives the state updates, even when this component is inside an isolated store context

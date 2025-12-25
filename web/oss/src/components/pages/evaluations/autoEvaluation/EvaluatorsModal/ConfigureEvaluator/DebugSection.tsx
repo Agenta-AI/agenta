@@ -322,7 +322,7 @@ const DebugSection = () => {
     ) as any
 
     const activeTestset = useMemo(() => {
-        return testsets?.find((item) => item._id === selectedTestset)
+        return testsets?.find((item) => item.id === selectedTestset)
     }, [selectedTestset, testsets])
 
     const isPlainObject = (value: unknown): value is Record<string, any> =>
