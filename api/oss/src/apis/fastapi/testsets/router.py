@@ -967,6 +967,7 @@ class TestsetsRouter:
             testset_revision_refs=testset_revision_query_request.testset_revision_refs,
             #
             include_archived=testset_revision_query_request.include_archived,
+            include_testcases=testset_revision_query_request.include_testcases,
             #
             windowing=testset_revision_query_request.windowing,
         )
