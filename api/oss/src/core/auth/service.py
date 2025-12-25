@@ -72,13 +72,17 @@ class AuthService:
             }
         }
         """
-        # Extract domain from email
-        domain = email.split("@")[1] if "@" in email else None
+        # Extract domain from email (if provided)
+        domain = email.split("@")[1] if email and "@" in email else None
 
-        # Check if user exists
-        user = await db_manager.get_user_with_email(email)
-        user_exists = user is not None
-        user_id = UUID(str(user.id)) if user else None
+        # Check if user exists only when email looks valid
+        user = None
+        user_exists = False
+        user_id = None
+        if email and "@" in email:
+            user = await db_manager.get_user_with_email(email)
+            user_exists = user is not None
+            user_id = UUID(str(user.id)) if user else None
 
         # Get user's organization memberships
         org_ids: List[UUID] = []

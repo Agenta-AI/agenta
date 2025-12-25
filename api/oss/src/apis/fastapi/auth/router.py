@@ -9,11 +9,11 @@ from oss.src.core.auth.service import AuthService
 from oss.src.utils.common import is_ee
 
 
-router = APIRouter()
+auth_router = APIRouter()
 auth_service = AuthService()
 
 
-@router.post("/discover", response_model=DiscoverResponse)
+@auth_router.post("/discover", response_model=DiscoverResponse)
 async def discover(request: DiscoverRequest):
     """
     Discover authentication methods available for a given email.
@@ -32,7 +32,7 @@ async def discover(request: DiscoverRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/authorize/oidc")
+@auth_router.get("/authorize/oidc")
 async def oidc_authorize(provider_id: str, redirect: str = "/"):
     """
     Initiate OIDC/SSO authorization flow using SuperTokens third-party recipe (EE only).
@@ -67,7 +67,9 @@ async def oidc_authorize(provider_id: str, redirect: str = "/"):
         provider = await providers_dao.get_by_id(UUID(provider_id))
 
         if not provider or not provider.enabled:
-            raise HTTPException(status_code=404, detail="Provider not found or disabled")
+            raise HTTPException(
+                status_code=404, detail="Provider not found or disabled"
+            )
 
         # Build third_party_id for SuperTokens
         # Format: "oidc:{org_id}:{provider_slug}"
@@ -75,7 +77,9 @@ async def oidc_authorize(provider_id: str, redirect: str = "/"):
 
         # Redirect to SuperTokens third-party signin
         # SuperTokens will use our get_dynamic_oidc_provider to fetch config
-        supertokens_url = f"/auth/signinup?thirdPartyId={third_party_id}&redirectToPath={redirect}"
+        supertokens_url = (
+            f"/auth/signinup?thirdPartyId={third_party_id}&redirectToPath={redirect}"
+        )
 
         return RedirectResponse(url=supertokens_url, status_code=302)
 

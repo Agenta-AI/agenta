@@ -73,6 +73,7 @@ from oss.src.core.evaluations.service import SimpleEvaluationsService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
+from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
@@ -389,6 +390,12 @@ app.include_router(
     router=otlp.router,
     prefix="/otlp/v1",
     tags=["Observability"],
+)
+
+app.include_router(
+    router=auth_router,
+    prefix="/auth",
+    tags=["Auth"],
 )
 
 app.include_router(
