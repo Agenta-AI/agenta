@@ -3,7 +3,9 @@ import {useCallback} from "react"
 import {useAtom, useAtomValue} from "jotai"
 
 import {
+    autoRefreshAtom,
     filtersAtom,
+    realtimeModeAtom,
     searchQueryAtom,
     selectedTraceIdAtom,
     sortAtom,
@@ -23,6 +25,8 @@ export const useSessions = () => {
     const [filters, setFilters] = useAtom(filtersAtom)
     const [sort, setSort] = useAtom(sortAtom)
     const [selectedTraceId, setSelectedTraceId] = useAtom(selectedTraceIdAtom)
+    const [realtimeMode, setRealtimeMode] = useAtom(realtimeModeAtom)
+    const [autoRefresh, setAutoRefresh] = useAtom(autoRefreshAtom)
 
     const [{refetch: refetchSessions, fetchNextPage, hasNextPage, isFetchingNextPage}] =
         useAtom(sessionsQueryAtom)
@@ -57,5 +61,9 @@ export const useSessions = () => {
         setSort,
         selectedTraceId,
         setSelectedTraceId,
+        realtimeMode,
+        setRealtimeMode,
+        autoRefresh,
+        setAutoRefresh,
     }
 }

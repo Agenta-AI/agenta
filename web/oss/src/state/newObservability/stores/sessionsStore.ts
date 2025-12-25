@@ -178,44 +178,53 @@ const sessionsDatasetStoreInternal = createInfiniteDatasetStore<
         }
 
         // Construct windowing object for API
-        const apiWindowing: any = {
-            limit,
-        }
+        // If we have a cursor from previous page, use it directly (it contains the full windowing)
+        // Otherwise, construct from sort settings
+        let apiWindowing: any
 
-        if (meta.sort?.type === "standard" && meta.sort.sorted) {
-            apiWindowing.oldest = meta.sort.sorted
-        } else if (
-            meta.sort?.type === "custom" &&
-            (meta.sort.customRange?.startTime || meta.sort.customRange?.endTime)
-        ) {
-            const {startTime, endTime} = meta.sort.customRange || {}
-            if (startTime) apiWindowing.oldest = startTime
-            if (endTime) apiWindowing.newest = endTime
-        }
+        if (cursor && typeof cursor === "object" && !Array.isArray(cursor)) {
+            // cursor is the nextWindowing from previous page, use it as-is
+            apiWindowing = {
+                ...(cursor as Record<string, any>),
+                limit, // Ensure limit is set
+            }
+        } else {
+            // First page: construct windowing from sort settings
+            apiWindowing = {
+                limit,
+            }
 
-        // If we have a cursor, it overrides other pagination
-        if (cursor) {
-            apiWindowing.next = cursor
+            if (meta.sort?.type === "standard" && meta.sort.sorted) {
+                apiWindowing.oldest = meta.sort.sorted
+            } else if (
+                meta.sort?.type === "custom" &&
+                (meta.sort.customRange?.startTime || meta.sort.customRange?.endTime)
+            ) {
+                const {startTime, endTime} = meta.sort.customRange || {}
+                if (startTime) apiWindowing.oldest = startTime
+                if (endTime) apiWindowing.newest = endTime
+            }
         }
 
         const result = await fetchSessions({
             appId: meta.appIds[0], // Assuming single app selection for now
             windowing: apiWindowing,
             filter: meta.filters && meta.filters.length > 0 ? meta.filters : undefined,
-            cursor: cursor || undefined,
         })
 
         const sessionIds = result.session_ids || []
         const totalCount = result.count || 0
-        const nextCursor = result.next_cursor || null
+        const nextWindowing = result.windowing || null
 
         return {
             rows: sessionIds,
             totalCount,
-            hasMore: !!nextCursor,
+            // nextWindowing exists if there are more pages (backend returns it when limit is reached)
+            hasMore: !!nextWindowing,
             nextOffset: offset + sessionIds.length,
-            nextCursor,
-            nextWindowing: null,
+            // Store the entire windowing object as the cursor for next page
+            nextCursor: nextWindowing || null,
+            nextWindowing: nextWindowing,
         }
     },
 })

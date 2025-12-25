@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon} from "@phosphor-icons/react"
-import {Button, Input, Radio, RadioChangeEvent, Space} from "antd"
+import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -29,18 +29,79 @@ import {
 import {buildAttributeKeyTreeOptions} from "../../assets/filters/attributeKeyOptions"
 import getFilterColumns from "../../assets/getFilterColumns"
 import {ObservabilityHeaderProps} from "../../assets/types"
+import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
 const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
+
+const AutoRefreshControl: React.FC<{
+    checked: boolean
+    onChange: (checked: boolean) => void
+    isScrolled?: boolean
+    resetTrigger?: number
+}> = ({checked, onChange, isScrolled, resetTrigger}) => {
+    const [progress, setProgress] = useState(0)
+    const [key, setKey] = useState(0)
+
+    // Reset animation when resetTrigger changes
+    useEffect(() => {
+        if (checked && resetTrigger !== undefined) {
+            setProgress(0)
+            setKey((prev) => prev + 1)
+        }
+    }, [resetTrigger, checked])
+
+    useEffect(() => {
+        if (!checked) {
+            setProgress(0)
+            return
+        }
+
+        // Start fresh animation
+        setProgress(0)
+
+        const startTime = Date.now()
+        const interval = setInterval(() => {
+            const elapsed = Date.now() - startTime
+            const newProgress = Math.min((elapsed / AUTO_REFRESH_INTERVAL) * 100, 100)
+            setProgress(newProgress)
+        }, 100) // Update every 100ms for smooth animation
+
+        return () => clearInterval(interval)
+    }, [checked, key])
+
+    return (
+        <Space size="small" className="ml-4">
+            <Switch size="small" checked={checked} onChange={onChange} />
+            <div className="relative inline-block">
+                <Typography.Text style={{fontSize: 12}} className="text-gray-600">
+                    Auto-refresh
+                </Typography.Text>
+                {checked && (
+                    <div
+                        className="absolute bottom-0 left-0 h-[2px] bg-gray-600 transition-all duration-100"
+                        style={{width: `${progress}%`}}
+                    />
+                )}
+            </div>
+        </Space>
+    )
+}
 
 const ObservabilityHeader = ({
     columns,
     componentType,
     isLoading: propsLoading,
     onRefresh,
+    realtimeMode,
+    setRealtimeMode,
+    autoRefresh: propsAutoRefresh,
+    setAutoRefresh: propsSetAutoRefresh,
+    refreshTrigger: propsRefreshTrigger,
 }: ObservabilityHeaderProps) => {
     const [isScrolled, setIsScrolled] = useState(false)
+    const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0)
 
     const {
         traces,
@@ -57,8 +118,14 @@ const ObservabilityHeader = ({
         setEditColumns,
         fetchAnnotations,
         fetchTraces,
+        autoRefresh: hookAutoRefresh,
+        setAutoRefresh: hookSetAutoRefresh,
     } = useObservability()
     const queryClient = useAtomValue(queryClientAtom)
+
+    // Use props if provided (sessions), otherwise use hook (traces)
+    const autoRefresh = propsAutoRefresh ?? hookAutoRefresh
+    const setAutoRefresh = propsSetAutoRefresh ?? hookSetAutoRefresh
 
     const isLoading = propsLoading || isTraceLoading
     const attributeKeyOptions = useMemo(() => buildAttributeKeyTreeOptions(traces), [traces])
@@ -246,7 +313,11 @@ const ObservabilityHeader = ({
         } else {
             await Promise.all([fetchAnnotations(), fetchTraces()])
         }
+        setInternalRefreshTrigger((prev) => prev + 1)
     }
+
+    // Use external refresh trigger if provided (from parent auto-refresh), otherwise use internal
+    const refreshTrigger = propsRefreshTrigger ?? internalRefreshTrigger
 
     return (
         <>
@@ -294,6 +365,15 @@ const ObservabilityHeader = ({
                         />
 
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
+
+                        {!isScrolled && (
+                            <AutoRefreshControl
+                                checked={autoRefresh}
+                                onChange={setAutoRefresh}
+                                resetTrigger={refreshTrigger}
+                            />
+                        )}
+
                         {isScrolled && componentType === "traces" ? (
                             <>
                                 <Space>
@@ -312,6 +392,27 @@ const ObservabilityHeader = ({
                                 />
                             </>
                         ) : null}
+                        {isScrolled && componentType === "sessions" && setRealtimeMode ? (
+                            <Space>
+                                <Radio.Group
+                                    value={realtimeMode ? "latest" : "all"}
+                                    onChange={(e) => setRealtimeMode(e.target.value === "latest")}
+                                    size="small"
+                                >
+                                    <Radio.Button value="all">All activity</Radio.Button>
+                                    <Radio.Button value="latest">Latest activity</Radio.Button>
+                                </Radio.Group>
+                            </Space>
+                        ) : null}
+
+                        {isScrolled && (
+                            <AutoRefreshControl
+                                checked={autoRefresh}
+                                onChange={setAutoRefresh}
+                                isScrolled
+                                resetTrigger={refreshTrigger}
+                            />
+                        )}
                     </div>
                 </div>
                 {!isScrolled && componentType === "traces" ? (
@@ -348,6 +449,19 @@ const ObservabilityHeader = ({
                             >
                                 Add to testset
                             </Button>
+                        </Space>
+                    </div>
+                ) : null}
+                {!isScrolled && componentType === "sessions" && setRealtimeMode ? (
+                    <div className="w-full flex items-center justify-end">
+                        <Space>
+                            <Radio.Group
+                                value={realtimeMode ? "latest" : "all"}
+                                onChange={(e) => setRealtimeMode(e.target.value === "latest")}
+                            >
+                                <Radio.Button value="all">All activity</Radio.Button>
+                                <Radio.Button value="latest">Latest activity</Radio.Button>
+                            </Radio.Group>
                         </Space>
                     </div>
                 ) : null}

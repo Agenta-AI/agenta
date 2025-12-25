@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.72.0",
+    "version": "0.72.1",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -131,8 +131,8 @@
         "@types/node": "^20.8.10",
         "@types/prismjs": "^1.26.5",
         "@types/semver": "^7.7.1",
-        "prettier": "^3.0.0",
         "node-mocks-http": "^1.17.2",
+        "prettier": "^3.0.0",
         "tailwind-scrollbar": "^3"
     }
 }

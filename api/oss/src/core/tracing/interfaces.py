@@ -1,6 +1,7 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Tuple
 from uuid import UUID
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.tracing.dtos import (
@@ -188,8 +189,10 @@ class TracingDAOInterface(ABC):
         *,
         project_id: UUID,
         #
+        realtime: Optional[bool] = None,
+        #
         windowing: Optional[Windowing] = None,
-    ) -> Any:
+    ) -> Tuple[List[str], Optional[datetime]]:
         raise NotImplementedError
 
     @abstractmethod
@@ -198,6 +201,8 @@ class TracingDAOInterface(ABC):
         *,
         project_id: UUID,
         #
+        realtime: Optional[bool] = None,
+        #
         windowing: Optional[Windowing] = None,
-    ) -> Any:
+    ) -> Tuple[List[str], Optional[datetime]]:
         raise NotImplementedError

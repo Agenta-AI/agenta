@@ -64,9 +64,11 @@ export const fetchSessions = async (params: {
         newest?: string
         next?: string
         limit?: number
+        order?: string
     }
     cursor?: string
     filter?: any
+    realtime?: boolean
 }) => {
     const base = getBaseUrl()
     const projectId = ensureProjectId()
@@ -90,6 +92,11 @@ export const fetchSessions = async (params: {
 
     if (params.filter) {
         payload.filter = params.filter
+    }
+
+    // Add realtime parameter (true = latest/unstable, false/undefined = all/stable)
+    if (params.realtime !== undefined) {
+        payload.realtime = params.realtime
     }
 
     return fetchJson(url, {
