@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Typography, message} from "antd"
+import {message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -16,36 +16,36 @@ import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
-import {createFolder, deleteFolder, editFolder, queryFolders} from "@/oss/services/folders"
-import {useTemplates, useAppsData} from "@/oss/state/app"
-import {useProjectData} from "@/oss/state/project"
-import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
-import {useProfileData} from "@/oss/state/profile"
-
-import {getAppTypeIcon} from "./assets/iconHelpers"
-import {FolderTreeItem, FolderTreeNode, slugify} from "./assets/utils"
-import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
-import MoveFolderModal from "./modals/MoveFolderModal"
-import DeleteFolderModal from "./modals/DeleteFolderModal"
-import NewFolderModal, {FolderModalState} from "./modals/NewFolderModal"
-
-import {Folder, FolderKind} from "@/oss/services/folders/types"
+import {isDemo} from "@/oss/lib/helpers/utils"
+import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {ListAppsItem, Template} from "@/oss/lib/Types"
+import {waitForAppToStart} from "@/oss/services/api"
 import {
     ServiceType,
     createAndStartTemplate,
     deleteApp,
     updateAppFolder,
 } from "@/oss/services/app-selector/api"
-import {isDemo} from "@/oss/lib/helpers/utils"
-import {waitForAppToStart} from "@/oss/services/api"
+import {createFolder, deleteFolder, editFolder, queryFolders} from "@/oss/services/folders"
+import {Folder, FolderKind} from "@/oss/services/folders/types"
+import {useTemplates, useAppsData} from "@/oss/state/app"
+import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
+import {useProfileData} from "@/oss/state/profile"
+import {useProjectData} from "@/oss/state/project"
 
+import PageLayout from "../../PageLayout/PageLayout"
+
+import {getAppTypeIcon} from "./assets/iconHelpers"
+import {FolderTreeItem, slugify} from "./assets/utils"
+import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
+import {PromptsTableSection} from "./components/PromptsTableSection"
+import {usePromptsColumns} from "./hooks/usePromptsColumns"
 import {usePromptsFolderTree} from "./hooks/usePromptsFolderTree"
 import {usePromptsSelection} from "./hooks/usePromptsSelection"
-import {usePromptsColumns} from "./hooks/usePromptsColumns"
-import {PromptsTableSection} from "./components/PromptsTableSection"
+import DeleteFolderModal from "./modals/DeleteFolderModal"
+import MoveFolderModal from "./modals/MoveFolderModal"
+import NewFolderModal, {FolderModalState} from "./modals/NewFolderModal"
 import {promptsDatasetStore, promptsTableMetaAtom} from "./store"
 import {PromptsTableRow} from "./types"
 
@@ -57,8 +57,6 @@ const AddAppFromTemplatedModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/AddAppFromTemplateModal"),
 )
 
-const {Title} = Typography
-
 const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
     name: "",
     modalOpen: false,
@@ -67,7 +65,7 @@ const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
 }
 
 const PromptsPage = () => {
-    const {project, projectId} = useProjectData()
+    const {projectId} = useProjectData()
     const {secrets} = useVaultSecret()
     const posthog = usePostHogAg()
     const router = useRouter()
@@ -124,7 +122,6 @@ const PromptsPage = () => {
         moveDestinationName: getMoveDestinationName,
         moveItemName: getMoveItemName,
         deleteFolderName: getDeleteFolderName,
-        isLoadingInitialData,
         searchExpandedRowKeys,
         tableRows,
         flattenedTableRows,
@@ -200,11 +197,10 @@ const PromptsPage = () => {
         afterConfigSave: async () => mutateApps(),
     })
 
-    const {selectedRowKeys, setSelectedRowKeys, selectedRow, setSelectedRow, rowSelection} =
-        usePromptsSelection({
-            flattenedTableRows,
-            getRowKey,
-        })
+    const {setSelectedRowKeys, selectedRow, setSelectedRow, rowSelection} = usePromptsSelection({
+        flattenedTableRows,
+        getRowKey,
+    })
 
     const appNameExist = useMemo(
         () => apps.some((app: any) => (app.app_name || "").toLowerCase() === newApp.toLowerCase()),
@@ -778,11 +774,7 @@ const PromptsPage = () => {
     })
 
     return (
-        <div className="flex flex-col gap-4 grow w-full min-h-0 p-6">
-            <Title className="!m-0" level={2}>
-                Prompts
-            </Title>
-
+        <PageLayout className="grow min-h-0" title="Prompts">
             <PromptsBreadcrumb
                 foldersById={foldersById}
                 currentFolderId={currentFolderId}
@@ -886,7 +878,7 @@ const PromptsPage = () => {
 
             <DeleteAppModal />
             <EditAppModal />
-        </div>
+        </PageLayout>
     )
 }
 

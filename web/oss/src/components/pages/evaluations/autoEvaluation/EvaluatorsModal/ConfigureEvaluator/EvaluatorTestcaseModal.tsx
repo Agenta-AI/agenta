@@ -1,171 +1,196 @@
-import {useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {CloseOutlined} from "@ant-design/icons"
-import {Play} from "@phosphor-icons/react"
-import {Button, Divider, Input, Menu, Modal, Table, Typography} from "antd"
-import {ColumnsType} from "antd/es/table"
+import {Button, Modal, Select, Space, Table, Typography} from "antd"
+import {useAtomValue} from "jotai"
 
-import {Testset} from "@/oss/lib/Types"
-import {fetchTestset} from "@/oss/services/testsets/api"
+import type {testset} from "@/oss/lib/Types"
+import {fetchTestcasesPage} from "@/oss/state/entities/testcase/queries"
+import {projectIdAtom} from "@/oss/state/project"
 
-import {useEvaluatorTestcaseModalStyles as useStyles} from "./assets/styles"
-import {EvaluatorTestcaseModalProps} from "./types"
+interface EvaluatorTestcaseModalProps {
+    open: boolean
+    onCancel: () => void
+    testsets: testset[]
+    setSelectedTestcase: (data: {testcase: Record<string, any> | null}) => void
+    selectedTestset: string
+    setSelectedTestset: (id: string) => void
+}
 
+/**
+ * Modal for selecting a testcase from a testset for evaluator testing
+ * Uses fetchTestcasesPage for data fetching
+ */
 const EvaluatorTestcaseModal = ({
+    open,
+    onCancel,
     testsets,
     setSelectedTestcase,
     selectedTestset,
     setSelectedTestset,
-    ...props
 }: EvaluatorTestcaseModalProps) => {
-    const classes = useStyles()
-    const [isLoadingTestset, setIsLoadingTestset] = useState(false)
-    const [testsetCsvData, setTestsetCsvData] = useState<Testset["csvdata"]>([])
-    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-    const [searchTerm, setSearchTerm] = useState("")
+    const projectId = useAtomValue(projectIdAtom)
+    const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null)
+    const [testcases, setTestcases] = useState<any[]>([])
+    const [isLoading, setIsLoading] = useState(false)
 
-    const filteredTestset = useMemo(() => {
-        if (!searchTerm) return testsets
-        return testsets.filter((item) => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    }, [searchTerm, testsets])
+    // Get the selected testset's latest revision ID
+    const activeTestset = useMemo(
+        () => testsets.find((ts) => ts._id === selectedTestset),
+        [testsets, selectedTestset],
+    )
 
+    // Fetch testcases when testset changes
     useEffect(() => {
-        const testsetFetcher = async () => {
+        if (!projectId || !activeTestset?._id || !open) {
+            setTestcases([])
+            return
+        }
+
+        const fetchData = async () => {
+            setIsLoading(true)
             try {
-                setIsLoadingTestset(true)
-                const data = await fetchTestset(selectedTestset)
-                if (data) {
-                    setTestsetCsvData(data.csvdata)
-                }
+                const result = await fetchTestcasesPage(projectId, activeTestset._id, null)
+                setTestcases(result.testcases)
             } catch (error) {
-                console.error(error)
+                console.error("Failed to fetch testcases:", error)
+                setTestcases([])
             } finally {
-                setIsLoadingTestset(false)
+                setIsLoading(false)
             }
         }
 
-        testsetFetcher()
-    }, [selectedTestset])
+        fetchData()
+    }, [projectId, activeTestset?._id, open])
 
-    type TestcaseRow = Record<string, any> & {id: number}
-    const columnDef = useMemo(() => {
-        const columns: ColumnsType<TestcaseRow> = []
+    // Build table columns from testcase data
+    const columns = useMemo(() => {
+        if (!testcases.length) return []
 
-        if (testsetCsvData.length > 0) {
-            const keys = Object.keys(testsetCsvData[0])
+        // Get all unique keys from testcases (excluding metadata)
+        const allKeys = new Set<string>()
+        testcases.forEach((tc: any) => {
+            const data = tc.testcase || tc.data || tc
+            if (data && typeof data === "object") {
+                Object.keys(data).forEach((key) => {
+                    // Skip metadata fields
+                    if (
+                        ![
+                            "id",
+                            "testset_id",
+                            "set_id",
+                            "created_at",
+                            "updated_at",
+                            "deleted_at",
+                            "created_by_id",
+                            "updated_by_id",
+                            "deleted_by_id",
+                        ].includes(key)
+                    ) {
+                        allKeys.add(key)
+                    }
+                })
+            }
+        })
 
-            columns.push(
-                ...keys.map((key, index) => ({
-                    title: key,
-                    dataIndex: key,
-                    key: index,
-                    width: 300,
-                    onHeaderCell: () => ({
-                        style: {minWidth: 160},
-                    }),
-                    render: (_: any, record: TestcaseRow) => {
-                        return <div>{record[key]}</div>
-                    },
-                })),
-            )
+        return Array.from(allKeys).map((key) => ({
+            title: key,
+            dataIndex: key,
+            key,
+            ellipsis: true,
+            width: 150,
+            render: (value: any) => {
+                if (value === null || value === undefined) return "-"
+                if (typeof value === "object") return JSON.stringify(value)
+                return String(value)
+            },
+        }))
+    }, [testcases])
+
+    // Transform testcases to table data
+    const tableData = useMemo(() => {
+        return testcases.map((tc: any, index: number) => {
+            const data = tc.testcase || tc.data || tc
+            return {
+                key: tc.id || `row-${index}`,
+                ...data,
+                __original: tc,
+            }
+        })
+    }, [testcases])
+
+    const handleSelect = useCallback(() => {
+        if (!selectedRowKey) return
+
+        const selected = tableData.find((row) => row.key === selectedRowKey)
+        if (selected) {
+            // Extract just the testcase data (without metadata)
+            const {key, __original, ...testcaseData} = selected
+            setSelectedTestcase({testcase: testcaseData})
         }
+        onCancel()
+    }, [selectedRowKey, tableData, setSelectedTestcase, onCancel])
 
-        return columns
-    }, [testsetCsvData])
-
-    const rowSelection = {
-        selectedRowKeys,
-        onChange: (keys: React.Key[]) => {
-            setSelectedRowKeys(keys)
-        },
-    }
-
-    const loadTestcase = () => {
-        const selectedTestcase = testsetCsvData.find((_, index) => index === selectedRowKeys[0])
-
-        if (selectedTestcase) {
-            setSelectedTestcase({testcase: selectedTestcase})
-            props.onCancel?.({} as any)
-        }
-    }
+    const testsetOptions = useMemo(
+        () =>
+            testsets.map((ts) => ({
+                label: ts.name,
+                value: ts._id,
+            })),
+        [testsets],
+    )
 
     return (
         <Modal
-            centered
-            width={1150}
-            closeIcon={null}
-            okText="Load testcase"
-            okButtonProps={{
-                icon: <Play />,
-                iconPosition: "end",
-                disabled: !selectedRowKeys.length,
-                onClick: loadTestcase,
-                loading: isLoadingTestset,
-            }}
-            className={classes.container}
-            title={
-                <div className="flex items-center justify-between">
-                    <Typography.Text className={classes.title}>Load Testcase</Typography.Text>
-                    <Button
-                        onClick={() => props.onCancel?.({} as any)}
-                        type="text"
-                        icon={<CloseOutlined />}
-                    />
-                </div>
+            title="Select Testcase"
+            open={open}
+            onCancel={onCancel}
+            width={800}
+            footer={
+                <Space>
+                    <Button onClick={onCancel}>Cancel</Button>
+                    <Button type="primary" disabled={!selectedRowKey} onClick={handleSelect}>
+                        Select
+                    </Button>
+                </Space>
             }
-            {...props}
         >
-            <div className="flex gap-4 flex-1 mt-4">
-                <div className={classes.sidebar}>
-                    <Input.Search
-                        placeholder="Search"
-                        allowClear
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-
-                    <Divider className="m-0" />
-
-                    <Menu
-                        items={filteredTestset.map((testset) => ({
-                            key: testset._id,
-                            label: testset.name,
-                        }))}
-                        onSelect={({key}) => {
-                            setSelectedTestset(key)
-                            setSelectedRowKeys([])
+            <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2">
+                    <Typography.Text>Testset:</Typography.Text>
+                    <Select
+                        style={{width: 300}}
+                        placeholder="Select a testset"
+                        value={selectedTestset || undefined}
+                        onChange={(value) => {
+                            setSelectedTestset(value)
+                            setSelectedRowKey(null)
                         }}
-                        defaultSelectedKeys={[selectedTestset]}
-                        className={classes.menu}
+                        options={testsetOptions}
                     />
                 </div>
-                <Divider type="vertical" className="m-0 h-full" />
-                <div className="flex flex-col gap-4 flex-1 overflow-x-auto">
-                    <Typography.Text className={classes.subTitle}>
-                        Select a testcase
-                    </Typography.Text>
 
-                    <Table
-                        rowSelection={{type: "radio", ...rowSelection}}
-                        loading={isLoadingTestset}
-                        dataSource={testsetCsvData.map(
-                            (data, index) => ({...data, id: index}) as TestcaseRow,
-                        )}
-                        columns={columnDef}
-                        className="flex-1"
-                        bordered
-                        rowKey={"id"}
-                        pagination={false}
-                        scroll={{y: 500, x: "max-content"}}
-                        onRow={(_, rowIndex) => ({
-                            className: "cursor-pointer",
-                            onClick: () => {
-                                if (rowIndex !== undefined) {
-                                    setSelectedRowKeys([rowIndex])
-                                }
-                            },
-                        })}
-                    />
-                </div>
+                <Table
+                    size="small"
+                    loading={isLoading}
+                    columns={columns}
+                    dataSource={tableData}
+                    scroll={{x: "max-content", y: 400}}
+                    pagination={{pageSize: 10, showSizeChanger: false}}
+                    rowSelection={{
+                        type: "radio",
+                        selectedRowKeys: selectedRowKey ? [selectedRowKey] : [],
+                        onChange: (keys) => setSelectedRowKey(keys[0] as string),
+                    }}
+                    onRow={(record) => ({
+                        onClick: () => setSelectedRowKey(record.key as string),
+                        style: {cursor: "pointer"},
+                    })}
+                    locale={{
+                        emptyText: selectedTestset
+                            ? "No testcases found"
+                            : "Select a testset to view testcases",
+                    }}
+                />
             </div>
         </Modal>
     )

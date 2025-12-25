@@ -1,9 +1,7 @@
 import {produce} from "immer"
 import {atom} from "jotai"
 
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
-
-import type {PlaygroundConfig, PlaygroundVariantConfig} from "../types"
+import type {PlaygroundConfig} from "../types"
 
 /**
  * Core Config Atoms

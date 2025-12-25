@@ -1,7 +1,9 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Tuple
 from uuid import UUID
 from abc import ABC, abstractmethod
+from datetime import datetime
 
+from oss.src.core.shared.dtos import Windowing
 from oss.src.core.tracing.dtos import (
     OTelLink,
     OTelFlatSpan,
@@ -177,4 +179,30 @@ class TracingDAOInterface(ABC):
         query: TracingQuery,
         specs: List[MetricSpec],
     ) -> List[MetricsBucket]:
+        raise NotImplementedError
+
+    ### SESSIONS AND USERS
+
+    @abstractmethod
+    async def sessions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        realtime: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> Tuple[List[str], Optional[datetime]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def users(
+        self,
+        *,
+        project_id: UUID,
+        #
+        realtime: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> Tuple[List[str], Optional[datetime]]:
         raise NotImplementedError

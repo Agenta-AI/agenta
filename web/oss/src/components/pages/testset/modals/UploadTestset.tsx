@@ -2,14 +2,18 @@ import {useState} from "react"
 
 import {UploadOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileCsv, Trash} from "@phosphor-icons/react"
-import {Button, Collapse, Form, Input, Radio, Typography, Upload, UploadFile} from "antd"
+import {Button, Collapse, Form, Input, Typography, Upload, UploadFile} from "antd"
+import {useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import {message} from "@/oss/components/AppMessageContext"
+import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
+import useURL from "@/oss/hooks/useURL"
 import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
 import {isValidCSVFile, isValidJSONFile} from "@/oss/lib/helpers/fileManipulations"
 import {GenericObject, JSSTheme} from "@/oss/lib/Types"
-import {uploadTestsets} from "@/oss/services/testsets/api"
+import {uploadTestsetPreview} from "@/oss/services/testsets/api"
 import {useTestsetsData} from "@/oss/state/testset"
 
 const {Text} = Typography
@@ -54,19 +58,29 @@ interface Props {
     onCancel: () => void
 }
 
+const getFileType = (fileName: string): "JSON" | "CSV" | undefined => {
+    const extension = fileName.split(".").pop()?.toLowerCase()
+    if (extension === "csv") return "CSV"
+    if (extension === "json") return "JSON"
+    return undefined
+}
+
 const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
     const classes = useStyles()
+    const router = useRouter()
+    const {projectURL} = useURL()
     const [form] = Form.useForm()
     const testsetFile = Form.useWatch("file", form)
-    const [uploadType, setUploadType] = useState<"JSON" | "CSV" | undefined>("CSV")
+    const [uploadType, setUploadType] = useState<"JSON" | "CSV" | undefined>(undefined)
     const [testsetName, setTestsetName] = useState("")
     const [uploadLoading, setUploadLoading] = useState(false)
     const [fileProgress, setFileProgress] = useState<UploadFile>({} as UploadFile)
     const {mutate} = useTestsetsData()
+    const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
 
     const onFinish = async (values: any) => {
         const {file} = values
-        const fileObj = file[0].originFileObj
+        const fileObj = file[0].originFileObj as File
         const malformedFileError = `The file you uploaded is either malformed or is not a valid ${uploadType} file`
 
         if (file && file.length > 0 && uploadType) {
@@ -78,19 +92,29 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                 return
             }
 
-            const formData = new FormData()
-            formData.append("upload_type", uploadType)
-            formData.append("file", fileObj)
-            if (testsetName && testsetName.trim() !== "") {
-                formData.append("testset_name", testsetName)
-            }
-
             try {
                 setUploadLoading(true)
-                await uploadTestsets(formData)
+                // Use the new preview API that creates testset + variant + v1 revision
+                const response = await uploadTestsetPreview(
+                    fileObj,
+                    uploadType.toLowerCase() as "csv" | "json",
+                    testsetName.trim() || undefined,
+                )
+
                 form.resetFields()
                 setTestsetName("")
+
+                // Revalidate testsets data
                 mutate()
+                setRefreshTrigger((prev) => prev + 1)
+
+                message.success("Testset uploaded successfully")
+
+                // Get the revision ID from the response and navigate to it
+                const revisionId = response.data?.testset?.revision_id
+                if (revisionId) {
+                    router.push(`${projectURL}/testsets/${revisionId}`)
+                }
                 onCancel()
             } catch (e: any) {
                 console.log(e)
@@ -130,14 +154,6 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
             <div className="flex flex-col gap-6">
                 <Text>Upload your testset as CSV or JSON</Text>
 
-                <div className="grid gap-2">
-                    <Text className={classes.label}>Select type</Text>
-                    <Radio.Group value={uploadType} onChange={(e) => setUploadType(e.target.value)}>
-                        <Radio value="CSV">CSV</Radio>
-                        <Radio value="JSON">JSON</Radio>
-                    </Radio.Group>
-                </div>
-
                 <div className="grid gap-1">
                     <Text className={classes.label}>Testset Name</Text>
                     <Input
@@ -149,7 +165,12 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
 
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                        <Text className={classes.label}>Upload CSV or JSON</Text>
+                        <div className="flex flex-col">
+                            <Text className={classes.label}>Upload your testset file</Text>
+                            <Text type="secondary" style={{fontSize: 11}}>
+                                CSV and JSON formats are supported
+                            </Text>
+                        </div>
 
                         <Form onFinish={onFinish} form={form}>
                             <Form.Item
@@ -161,16 +182,20 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                             >
                                 <Upload
                                     name="file"
-                                    accept={uploadType == "CSV" ? ".csv" : ".json"}
+                                    accept=".csv,.json"
                                     multiple={false}
                                     maxCount={1}
                                     showUploadList={false}
                                     onChange={(e) => {
-                                        setFileProgress(e.fileList[0])
-                                        !testsetName &&
-                                            setTestsetName(
-                                                e.fileList[0].name.split(".")[0] as string,
-                                            )
+                                        const file = e.fileList[0]
+                                        if (file) {
+                                            setFileProgress(file)
+                                            const detectedType = getFileType(file.name)
+                                            setUploadType(detectedType)
+                                            if (!testsetName) {
+                                                setTestsetName(file.name.split(".")[0] as string)
+                                            }
+                                        }
                                     }}
                                 >
                                     <Button icon={<UploadOutlined />}>Upload</Button>
@@ -202,6 +227,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                 onClick={() => {
                                     form.resetFields()
                                     setTestsetName("")
+                                    setUploadType(undefined)
                                     setFileProgress({} as UploadFile)
                                 }}
                             />

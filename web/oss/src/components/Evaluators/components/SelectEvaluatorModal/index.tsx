@@ -16,8 +16,8 @@ const SelectEvaluatorModal = ({open, onCancel, ...modalProps}: SelectEvaluatorMo
             onCancel={onCancel}
             footer={null}
             width={520}
-            className="[&_.ant-modal-content]:!rounded-xl [&_.ant-modal-content]:!p-0"
-            classNames={{body: "!px-0"}}
+            className="[&_.ant-modal-container]:!p-0 [&_.ant-modal-content]:!rounded-xl [&_.ant-modal-content]:!p-0"
+            classNames={{body: "!p-0"}}
             {...modalProps}
         >
             <SelectEvaluatorModalContent />

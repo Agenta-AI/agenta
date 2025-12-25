@@ -134,7 +134,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                             }))}
                             disabled={subscription?.plan !== Plan.Business}
                             optionRender={(option) => (
-                                <Space direction="vertical" size="small">
+                                <Space orientation="vertical" size="small">
                                     <Typography.Text>{option.label}</Typography.Text>
                                     <Typography.Text className="text-wrap" type="secondary">
                                         {option.data.desc}

@@ -1,9 +1,9 @@
 import type {InfiniteTableRowBase} from "@/oss/components/InfiniteVirtualTable/types"
-import type {SnakeToCamelCaseKeys} from "@/oss/lib/Types"
 import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
-import type {QueryWindowingPayload} from "../../services/onlineEvaluations/api"
+import type {SnakeToCamelCaseKeys} from "@/oss/lib/Types"
 
 import type {LegacyAutoEvaluation} from "../../state/evaluations/legacyAtoms"
+
 import type {EvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 
 export type PreviewEvaluationRun = SnakeToCamelCaseKeys<EvaluationRun>
@@ -13,24 +13,24 @@ export type EvaluationRunKind = "auto" | "human" | "online" | "custom" | "all"
 export type ConcreteEvaluationRunKind = Exclude<EvaluationRunKind, "all">
 
 export interface PreviewRunColumnMeta {
-    steps: Array<{
+    steps: {
         key: string
         type?: string | null
         origin?: string | null
         references?: Record<string, unknown> | null
-    }>
-    mappings: Array<{
+    }[]
+    mappings: {
         kind?: string | null
         name?: string | null
         stepKey?: string | null
         path?: string | null
         outputType?: string | null
-    }>
-    evaluators?: Array<{
+    }[]
+    evaluators?: {
         id?: string | null
         slug?: string | null
         name?: string | null
-    }>
+    }[]
 }
 
 export interface EvaluationRunApiRow {

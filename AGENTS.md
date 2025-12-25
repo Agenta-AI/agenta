@@ -1,8 +1,8 @@
 # Contributor Guide
 
 ## Dev Environment Tips
-- If you make changes to the frontend, make sure to run `pnpm format-fix` within the web folder
-- If you make changes to the backend or sdk, make sure to run black within the sdk or api folder
+- If you make changes to the frontend, make sure to run `pnpm lint-fix` within the web folder
+- If you make changes to the backend or sdk, make sure to run `ruff format` and `ruff check --fix` within the sdk or api folder
 - If you update Ant Design tokens, run `pnpm generate:tailwind-tokens` in the web folder and commit the generated file
 
 
@@ -11,6 +11,84 @@
 
 ## PR instructions
 - If the user provides you with the issue id, title the PR: [issue-id] fix(frontend): <Title> where fix is the type (fix, feat, chore, ci, doc, test.. [we're using better-branch) and frontend is where and it could be api, sdk, frontend, docs, ..
+
+## Import Aliases Best Practices
+
+The monorepo uses TypeScript path aliases for cleaner imports. Understanding when to use each pattern is important for maintainability.
+
+### Available Aliases
+
+1. **`@/oss/*`** - Resolves with fallback order: `ee/src/*` → `oss/src/*`
+2. **`@agenta/oss/src/*`** - Explicit import from OSS package (npm workspace)
+3. **`@/agenta-oss-common/*`** - Similar fallback to `@/oss/*` (less common)
+
+### When to Use Each Pattern
+
+#### Use `@/oss/*` for shared utilities and state
+
+Use this pattern when importing shared utilities, helpers, types, hooks, or state that work the same in both EE and OSS:
+
+```typescript
+// ✅ Good - Shared utilities
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
+import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+import {User, JSSTheme} from "@/oss/lib/Types"
+import {selectedOrgIdAtom} from "@/oss/state/org"
+import axios from "@/oss/lib/api/assets/axiosConfig"
+```
+
+**Why:** The fallback mechanism allows EE to override implementations if needed, while falling back to OSS by default.
+
+#### Use `@agenta/oss/src/*` for explicit OSS imports
+
+Use this pattern when EE code needs to **explicitly reference the OSS version** of a component or page, typically for:
+- Extending/wrapping OSS components
+- Re-exporting OSS pages with EE enhancements
+- Ensuring you get the OSS implementation (not an EE override)
+
+```typescript
+// ✅ Good - Explicit OSS component import
+import OssSidebarBanners from "@agenta/oss/src/components/SidebarBanners"
+import ObservabilityPage from "@agenta/oss/src/pages/w/[workspace_id]/p/[project_id]/observability"
+import {DeploymentRevisions} from "@agenta/oss/src/lib/types_ee"
+```
+
+**Why:** This bypasses the fallback mechanism and guarantees you're importing from the OSS package.
+
+#### Never use relative paths for cross-package imports
+
+```typescript
+// ❌ Bad - Fragile and hard to maintain
+import OssSidebarBanners from "../../../../oss/src/components/SidebarBanners"
+
+// ✅ Good - Use explicit alias
+import OssSidebarBanners from "@agenta/oss/src/components/SidebarBanners"
+```
+
+**Why:** Relative paths break easily with refactoring and are harder to read.
+
+### Examples in the Codebase
+
+**Shared utilities with `@/oss/*`:**
+- `web/ee/src/state/billing/atoms.ts` - Uses `@/oss/*` for API utilities, types, and state atoms
+- `web/ee/src/hooks/useCrispChat.ts` - Uses `@/oss/*` for environment helpers
+
+**Explicit OSS imports with `@agenta/oss/src/*`:**
+- `web/ee/src/components/SidebarBanners/index.tsx` - Wraps OSS component
+- `web/ee/src/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/traces/index.tsx` - Re-exports OSS page
+- `web/ee/src/components/DeploymentHistory/DeploymentHistory.tsx` - Uses EE-specific types from OSS
+
+### Quick Decision Guide
+
+```
+Are you in EE code importing from OSS?
+├─ Is it a component/page that EE extends or wraps?
+│  └─ Use: @agenta/oss/src/*
+├─ Is it a utility, helper, type, or state atom?
+│  └─ Use: @/oss/*
+└─ Not sure?
+   └─ Use: @agenta/oss/src/* (explicit is safer)
+```
 
 
 ### Architecture Overview
@@ -30,7 +108,7 @@ Our folder structure follows a module-based architecture that prioritizes mainta
     - Components are organized by their scope of use
     - Each component may contain:
         - Presentational logic (`Component.tsx`)
-        - UI-only subcomponents (`assets/*.tsx`)
+        - UI-only subcomponents (`components/*.tsx`)
         - Component-specific hooks (`hooks/*.ts`)
         - Local constants and utilities (`assets/*.ts`)
         - Type definitions (`types.d.ts`)
@@ -47,10 +125,9 @@ Our folder structure follows a module-based architecture that prioritizes mainta
 
 1. **Store Organization**
 
-    - Each module can have its own `store` folder containing:
-        - Jotai atoms for reactive state
-        - Context providers for complex state/dependency injection
-    - Global store at root level for cross-module state
+ - Each module can have its own `store` folder containing:
+     - Jotai atoms for reactive state
+   - Global store at root level for cross-module state
 
 2. **State Movement Guidelines**
 
@@ -64,9 +141,8 @@ Our folder structure follows a module-based architecture that prioritizes mainta
         - Data persistence requirements
 
 3. **State Management Tools**
-    - Prefer Jotai atoms for simple reactive state
-    - Use Context for complex state with multiple consumers
-    - Local component state for UI-only concerns
+   - Prefer Jotai atoms for all kind of shared state
+   - Local component state for UI-only concerns
 
 4. **Avoiding Prop Drilling**
     - **When state is only meaningful within a component tree**: Use Jotai atoms instead of prop drilling
@@ -532,20 +608,18 @@ For example, in the `AccordionTreePanel` component, the `items` prop is passed a
 ❌ **Avoid this pattern:**
 
 ```javascript
-
 <AccordionTreePanel
-    items={[
-        {
-            title: "Item 1",
-            content: <div>Content 1</div>,
-        },
-        {
-            title: "Item 2",
-            content: <div>Content 2</div>,
-        },
-    ]}
+  items={[
+    {
+      title: "Item 1",
+      content: <div>Content 1</div>,
+    },
+    {
+      title: "Item 2",
+      content: <div>Content 2</div>,
+    },
+  ]}
 />
-
 ```
 
 ✅ **Use this pattern:**

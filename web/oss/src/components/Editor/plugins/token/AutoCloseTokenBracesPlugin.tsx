@@ -8,7 +8,6 @@ import {
     KEY_BACKSPACE_COMMAND,
     COMMAND_PRIORITY_NORMAL,
     TextNode,
-    ElementNode,
     $createTextNode,
     $isElementNode,
 } from "lexical"
@@ -127,8 +126,6 @@ export function AutoCloseTokenBracesPlugin(): null {
                         // Move cursor to after the token
                         const nextSibling = node.getNextSibling()
                         if (nextSibling) {
-                            const nextText = nextSibling.getTextContent()
-
                             navigateCursor({nodeKey: nextSibling.getKey(), offset: 1})
                         } else {
                             // If no next sibling, create a text node and move cursor there

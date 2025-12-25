@@ -2,13 +2,7 @@ import dayjs from "dayjs"
 
 import {sortSpansByStartTime} from "@/oss/lib/traces/tracing"
 
-import {
-    TraceSpanNode,
-    TracesResponse,
-    SpansResponse,
-    TracingDashboardData,
-    GenerationDashboardData,
-} from "../types"
+import {TraceSpanNode, TracesResponse, SpansResponse, TracingDashboardData} from "../types"
 
 export const isTracesResponse = (data: any): data is TracesResponse => {
     return typeof data === "object" && "traces" in data

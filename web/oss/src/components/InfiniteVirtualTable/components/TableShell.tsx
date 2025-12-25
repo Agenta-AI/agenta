@@ -53,34 +53,47 @@ const TableShell = ({
 
     const renderDefaultHeader = () => (
         <div className="flex flex-col items-start gap-4 w-full">
-            {title || headerExtra ? (
-                <div className="w-full flex items-start justify-between gap-4 mb-4">
+            {title || headerExtra || (!filters && (primaryActions || secondaryActions)) ? (
+                <div className="w-full flex flex-wrap items-center justify-between gap-4">
                     {title ? (
                         <div className="flex items-center gap-3 shrink min-w-0">
                             <div className="font-medium text-[#101828]">{title}</div>
                             {badge}
                         </div>
-                    ) : null}
-                    {headerExtra ? (
-                        <div className="flex items-center justify-end shrink-0">{headerExtra}</div>
-                    ) : null}
+                    ) : (
+                        <div className="min-w-0" />
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-end gap-3 ml-auto">
+                        {headerExtra}
+                        {!filters ? (
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                                {secondaryActions}
+                                {primaryActions}
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
             ) : null}
+
             {description ? <div className="text-[#475467]">{description}</div> : null}
-            <div className="w-full flex flex-wrap items-start justify-between gap-4">
-                <div className="flex min-w-[200px] flex-1 flex-col gap-2">{filters}</div>
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                    {secondaryActions}
-                    {primaryActions}
+
+            {filters ? (
+                <div className="w-full flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex min-w-[200px] flex-1 flex-col gap-2">{filters}</div>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                        {secondaryActions}
+                        {primaryActions}
+                    </div>
                 </div>
-            </div>
+            ) : null}
         </div>
     )
 
     const headerNode = header ?? renderDefaultHeader()
 
     return (
-        <div className={clsx("flex min-h-0 flex-col gap-4", className)}>
+        <div className={clsx("flex min-h-0 flex-col gap-2", className)}>
             {headerNode ? (
                 <div ref={headerRef} className="flex-shrink-0">
                     {headerNode}

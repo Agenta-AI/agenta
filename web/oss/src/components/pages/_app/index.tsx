@@ -22,7 +22,7 @@ import AppContextComponent from "../../AppMessageContext"
 enableMapSet()
 
 const NoMobilePageWrapper = dynamic(
-    () => import("@/oss/components/NoMobilePageWrapper/NoMobilePageWrapper"),
+    () => import("@/oss/components/Placeholders/NoMobilePageWrapper/NoMobilePageWrapper"),
     {
         ssr: false,
     },

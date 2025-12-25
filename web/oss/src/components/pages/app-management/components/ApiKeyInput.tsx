@@ -3,14 +3,11 @@ import {useMemo, useState} from "react"
 import {Button, Input, Space, Typography} from "antd"
 
 import {message} from "@/oss/components/AppMessageContext"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {createApiKey} from "@/oss/services/apiKeys/api"
 import {fetchAllProjects} from "@/oss/services/project"
 import {useOrgData} from "@/oss/state/org"
 import {getProjectValues} from "@/oss/state/project"
 import {waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
-
-const {Text} = Typography
 
 interface ApiKeyInputProps {
     apiKeyValue: string
@@ -82,8 +79,8 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
     }
 
     return (
-        <Space direction="vertical">
-            <Text>Create or enter your API key</Text>
+        <Space orientation="vertical" size={0}>
+            <Typography.Text className="font-medium">Create or enter your API key</Typography.Text>
             <Space>
                 <Input
                     className="w-[300px]"

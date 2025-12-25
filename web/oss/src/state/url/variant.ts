@@ -25,7 +25,13 @@ export const clearVariantDrawerState = () => {
     }
 }
 
-const resolveDrawerTypeForPath = (pathname: string): "variant" | "deployment" => {
+const resolveDrawerTypeForPath = (
+    pathname: string,
+    tab?: string | null,
+): "variant" | "deployment" => {
+    if (tab === "deployments") {
+        return "deployment"
+    }
     if (pathname.includes("/deployments")) {
         return "deployment"
     }
@@ -41,6 +47,7 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
         const revisionParam = url.searchParams.get("revisionId")
         const resolvedRevisionId = revisionParam?.trim() || undefined
         const drawerTypeParam = url.searchParams.get("drawerType")
+        const tabParam = url.searchParams.get("tab")
         const routeSupportsVariant = isVariantSupportedRoute(url.pathname)
         const currentState = store.get(variantDrawerAtom)
 
@@ -107,7 +114,7 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
         ensureUrlClean()
 
         const desiredType =
-            sanitizeDrawerType(drawerTypeParam) ?? resolveDrawerTypeForPath(url.pathname)
+            sanitizeDrawerType(drawerTypeParam) ?? resolveDrawerTypeForPath(url.pathname, tabParam)
 
         if (
             currentState.selectedVariantId === resolvedRevisionId &&

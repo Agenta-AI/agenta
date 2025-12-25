@@ -104,9 +104,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const EvaluatorVariantModal = ({
     variants: _variants,
@@ -419,7 +422,7 @@ const EvaluatorVariantModal = ({
                         type="primary"
                         danger={selectedVariantHasWarning}
                         icon={<Play />}
-                        iconPosition="end"
+                        iconPlacement="end"
                         disabled={!selectedRowKeys.length}
                         loading={variantsLoading}
                         onClick={loadVariant}
@@ -720,7 +723,7 @@ const EvaluatorVariantModal = ({
                 activeKey={activePanel}
                 onChange={handlePanelChange}
                 items={tabs}
-                tabPosition="left"
+                tabPlacement="left"
                 className={clsx([
                     classes.tabsContainer,
                     "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",

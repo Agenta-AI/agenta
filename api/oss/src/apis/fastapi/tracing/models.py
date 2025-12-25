@@ -2,6 +2,10 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
+from oss.src.core.shared.dtos import (
+    Windowing,
+)
+
 from oss.src.core.tracing.dtos import (
     OTelLink,  # needed for annotations at the moment
     OTelLinks,
@@ -42,3 +46,27 @@ class AnalyticsResponse(BaseModel):
     #
     query: TracingQuery = TracingQuery()
     specs: List[MetricSpec] = []
+
+
+class SessionsQueryRequest(BaseModel):
+    # True: use last_active (unstable), False/None: use first_active (stable)
+    realtime: Optional[bool] = None
+    windowing: Optional[Windowing] = None
+
+
+class SessionIdsResponse(BaseModel):
+    count: int = 0
+    session_ids: List[str] = []
+    windowing: Optional[Windowing] = None
+
+
+class UsersQueryRequest(BaseModel):
+    # True: use last_active (unstable), False/None: use first_active (stable)
+    realtime: Optional[bool] = None
+    windowing: Optional[Windowing] = None
+
+
+class UserIdsResponse(BaseModel):
+    count: int = 0
+    user_ids: List[str] = []
+    windowing: Optional[Windowing] = None

@@ -1,4 +1,4 @@
-FROM python:3.11-slim-bullseye
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
@@ -23,6 +23,9 @@ RUN poetry config virtualenvs.create false \
 #
 COPY ./oss /app/oss/
 COPY ./entrypoints /app/entrypoints/
+
+# Set PYTHONPATH so worker scripts can import from oss module
+ENV PYTHONPATH=/app
 
 #
 

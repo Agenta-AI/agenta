@@ -3,10 +3,8 @@ import {EvaluationFlow, EvaluationType} from "@/oss/lib/enums"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {assertValidId} from "@/oss/lib/helpers/serviceValidations"
 import {
-    abTestingEvaluationTransformer,
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
-    singleModelTestEvaluationTransformer,
 } from "@/oss/lib/transformers"
 import {
     EvaluationResponseType,
@@ -120,7 +118,7 @@ export const createNewEvaluation = async (
     },
     ignoreAxiosError = false,
 ) => {
-    const app = assertValidId(appId, "appId")
+    const _app = assertValidId(appId, "appId")
     const testset = assertValidId(testsetId, "testsetId")
     const customId = selectedCustomEvaluationID
         ? assertValidId(selectedCustomEvaluationID, "customEvaluationId")

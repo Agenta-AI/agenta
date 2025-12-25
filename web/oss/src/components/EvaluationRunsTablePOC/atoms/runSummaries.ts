@@ -29,15 +29,13 @@ const collectTestsetReferences = (
     const ids = new Set<string>()
     const referencesByStep: Record<string, unknown> = {}
     const namesById: Record<string, string | null> = {}
-    steps.forEach((step: any) => {
+    steps.forEach((step: any, index: number) => {
         const references = step?.references
         if (!references || typeof references !== "object") {
             return
         }
-        const stepKey = typeof step?.step === "string" ? step.step : undefined
-        if (stepKey) {
-            referencesByStep[stepKey] = references
-        }
+        const stepKey = typeof step?.step === "string" ? step.step : `step_${index}`
+        referencesByStep[stepKey] = references
         const maybeTestset = references.testset ?? references.test_set ?? references.testsetVariant
         if (maybeTestset && typeof maybeTestset.id === "string") {
             const id = maybeTestset.id

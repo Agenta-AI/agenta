@@ -1,7 +1,5 @@
 import React, {useCallback, useMemo} from "react"
 
-import {Tag} from "antd"
-import deepEqual from "fast-deep-equal"
 import {useSetAtom} from "jotai"
 
 import {getPromptById, getArrayVal} from "@/oss/components/Playground/context/promptShape"

@@ -109,7 +109,7 @@ const PromptVersioningDrawer: React.FC<PromptVersioningDrawerProps> = ({
                                     <Divider className={classes.divider} />
 
                                     <Space style={{justifyContent: "space-between"}}>
-                                        <Space direction="vertical">
+                                        <Space orientation="vertical">
                                             <div>
                                                 <Text strong>Config Name: </Text>
                                                 <Text>{item.config.config_name}</Text>

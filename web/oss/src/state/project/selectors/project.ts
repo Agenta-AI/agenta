@@ -1,7 +1,4 @@
-import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
-import {selectAtom, unwrap} from "jotai/utils"
-import {eagerAtom} from "jotai-eager"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryClient} from "@/oss/lib/api/queryClient"
@@ -68,17 +65,16 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
 })
 
 const logProjects = process.env.NEXT_PUBLIC_LOG_PROJECT_ATOMS === "true"
-const debugProjectSelection = process.env.NEXT_PUBLIC_APP_STATE_DEBUG === "true"
+const _debugProjectSelection = process.env.NEXT_PUBLIC_APP_STATE_DEBUG === "true"
 logAtom(projectsQueryAtom, "projectsQueryAtom", logProjects)
 
 const EmptyProjects: ProjectsResponse[] = []
-export const projectsAtom = selectAtom(
-    unwrap(projectsQueryAtom),
-    (res) => (res as any)?.data ?? EmptyProjects,
-    deepEqual,
-)
+export const projectsAtom = atom((get) => {
+    const res = get(projectsQueryAtom)
+    return (res as any)?.data ?? EmptyProjects
+})
 
-const projectBelongsToWorkspace = (project: ProjectsResponse, workspaceId: string) => {
+const _projectBelongsToWorkspace = (project: ProjectsResponse, workspaceId: string) => {
     if (project.workspace_id && project.workspace_id === workspaceId) return true
     if (project.organization_id && project.organization_id === workspaceId) return true
     return false
@@ -129,7 +125,7 @@ const pickPreferredProject = (
 
 export const projectIdAtom = atom((get) => get(appIdentifiersAtom).projectId)
 
-export const projectAtom = eagerAtom((get) => {
+export const projectAtom = atom((get) => {
     const projects = get(projectsAtom) as ProjectsResponse[]
     const organization = get(selectedOrgAtom)
     const workspaceId = organization?.default_workspace?.id || null

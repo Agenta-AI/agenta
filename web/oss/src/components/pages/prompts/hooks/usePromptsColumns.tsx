@@ -82,7 +82,7 @@ export const usePromptsColumns = ({
             {
                 title: <GearSixIcon size={16} />,
                 key: "actions",
-                width: 56,
+                width: 61,
                 fixed: "right",
                 align: "center",
                 render: (_, record) => {
@@ -177,7 +177,11 @@ export const usePromptsColumns = ({
                     return (
                         <Dropdown
                             trigger={["click"]}
-                            overlayStyle={{width: 180}}
+                            styles={{
+                                root: {
+                                    width: 180,
+                                },
+                            }}
                             menu={{items: isFolder ? folderActions : appActions}}
                         >
                             <Button

@@ -1,18 +1,29 @@
 import {type FC, memo, useCallback, useMemo} from "react"
 
 import {CloseCircleOutlined} from "@ant-design/icons"
-import {Input, Typography, Tabs, Tag} from "antd"
+import {Input, Tabs, Tag, Typography} from "antd"
 import clsx from "clsx"
+import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import useFocusInput from "@/oss/hooks/useFocusInput"
 import useURL from "@/oss/hooks/useURL"
+import type {Evaluator} from "@/oss/lib/Types"
 
+import {openEvaluatorDrawerAtom} from "../../autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
 import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
 
+import {openHumanEvaluatorDrawerAtom} from "./CreateHumanEvaluatorDrawer/state"
+
 const SelectAppSection = dynamic(() => import("./SelectAppSection"), {ssr: false})
+
+const CreateEvaluatorDrawer = dynamic(() => import("./CreateEvaluatorDrawer"), {ssr: false})
+
+const CreateHumanEvaluatorDrawer = dynamic(() => import("./CreateHumanEvaluatorDrawer"), {
+    ssr: false,
+})
 
 const SelectEvaluatorSection = dynamic(
     () => import("./SelectEvaluatorSection/SelectEvaluatorSection"),
@@ -31,16 +42,25 @@ const AdvancedSettings = dynamic(() => import("./AdvancedSettings"), {
     ssr: false,
 })
 
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     onSuccess,
     handlePanelChange,
     activePanel,
     selectedTestsetId,
+    selectedTestsetRevisionId,
+    selectedTestsetName,
+    selectedTestsetVersion,
     setSelectedTestsetId,
+    setSelectedTestsetRevisionId,
+    setSelectedTestsetName,
+    setSelectedTestsetVersion,
     selectedVariantRevisionIds,
     setSelectedVariantRevisionIds,
     selectedEvalConfigs,
@@ -60,6 +80,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     selectedAppId,
     onSelectApp,
     appSelectionDisabled,
+    onSelectTemplate,
+    onEvaluatorCreated,
     ...props
 }) => {
     const classes = useStyles()
@@ -68,13 +90,25 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     const appSelectionComplete = Boolean(selectedAppId)
     const hasAppOptions = appOptions.length > 0
 
+    const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
+    const openHumanEvaluatorDrawer = useSetAtom(openHumanEvaluatorDrawerAtom)
+
     const handleCreateApp = useCallback(() => {
         redirectUrl()
     }, [redirectUrl])
 
-    const selectedTestset = useMemo(
-        () => testsets.find((ts) => ts._id === selectedTestsetId) || null,
-        [testsets, selectedTestsetId],
+    // Handler for opening the human evaluator creation drawer (preview mode)
+    const handleCreateHumanEvaluator = useCallback(() => {
+        openHumanEvaluatorDrawer()
+    }, [openHumanEvaluatorDrawer])
+
+    // Handler for opening the evaluator creation drawer
+    const handleSelectTemplate = useCallback(
+        (evaluator: Evaluator) => {
+            openEvaluatorDrawer({evaluator, mode: "create"})
+            onSelectTemplate?.(evaluator)
+        },
+        [openEvaluatorDrawer, onSelectTemplate],
     )
 
     const selectedVariants = useMemo(
@@ -177,15 +211,23 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "testsetPanel",
                 label: (
-                    <TabLabel tabTitle="Testset" completed={selectedTestset !== null}>
-                        {selectedTestset ? (
+                    <TabLabel tabTitle="Testset" completed={Boolean(selectedTestsetName)}>
+                        {selectedTestsetName ? (
                             <Tag
                                 closeIcon={<CloseCircleOutlined />}
                                 onClose={() => {
                                     setSelectedTestsetId("")
+                                    setSelectedTestsetRevisionId("")
+                                    setSelectedTestsetName("")
+                                    setSelectedTestsetVersion(null)
                                 }}
                             >
-                                {selectedTestset.name}
+                                <span>{selectedTestsetName} -</span>
+                                {typeof selectedTestsetVersion === "number" && (
+                                    <span className="ml-1 text-xs text-gray-500">
+                                        v{selectedTestsetVersion}
+                                    </span>
+                                )}
                             </Tag>
                         ) : null}
                     </TabLabel>
@@ -194,7 +236,13 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                     <SelectTestsetSection
                         handlePanelChange={handlePanelChange}
                         selectedTestsetId={selectedTestsetId}
+                        selectedTestsetRevisionId={selectedTestsetRevisionId}
+                        selectedTestsetName={selectedTestsetName}
+                        selectedTestsetVersion={selectedTestsetVersion}
                         setSelectedTestsetId={setSelectedTestsetId}
+                        setSelectedTestsetRevisionId={setSelectedTestsetRevisionId}
+                        setSelectedTestsetName={setSelectedTestsetName}
+                        setSelectedTestsetVersion={setSelectedTestsetVersion}
                         testsets={testsets}
                         selectedVariantRevisionIds={selectedVariantRevisionIds}
                         selectedVariants={selectedVariants}
@@ -235,6 +283,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         evaluators={evaluators as any}
                         evaluatorConfigs={evaluatorConfigs}
                         selectedAppId={selectedAppId}
+                        onSelectTemplate={handleSelectTemplate}
+                        onCreateHumanEvaluator={handleCreateHumanEvaluator}
                         className="pt-2"
                     />
                 ) : (
@@ -267,7 +317,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 : []),
         ]
     }, [
-        selectedTestset,
+        selectedTestsetName,
         selectedVariants,
         selectedEvalConfig,
         handlePanelChange,
@@ -288,34 +338,46 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         appSelectionDisabled,
         hasAppOptions,
         handleCreateApp,
+        handleSelectTemplate,
+        handleCreateHumanEvaluator,
     ])
 
     return (
-        <div className="flex flex-col w-full gap-4 h-full overflow-hidden">
-            <div className="flex flex-col gap-2">
-                <Typography.Text className="font-medium">Evaluation name</Typography.Text>
-                <Input
-                    ref={inputRef}
-                    placeholder="Enter a name"
-                    value={evaluationName}
-                    onChange={(e) => {
-                        setEvaluationName(e.target.value)
-                    }}
+        <>
+            <div className="flex flex-col w-full gap-4 h-full max-h-full overflow-hidden [&_.ant-tabs]:!flex [&_.ant-tabs]:!w-full [&_.ant-tabs]:!grow [&_.ant-tabs]:!min-h-0">
+                <div className="flex flex-col gap-2">
+                    <Typography.Text className="font-medium">Evaluation name</Typography.Text>
+                    <Input
+                        ref={inputRef}
+                        placeholder="Enter a name"
+                        value={evaluationName}
+                        onChange={(e) => {
+                            setEvaluationName(e.target.value)
+                        }}
+                    />
+                </div>
+
+                <Tabs
+                    activeKey={activePanel || "appPanel"}
+                    onChange={handlePanelChange as any}
+                    items={items}
+                    tabPlacement="left"
+                    className={clsx([
+                        classes.tabsContainer,
+                        "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
+                        "[&_.ant-tabs-nav]:!w-[240px]",
+                        "[&_.ant-tabs-content]:!h-full [&_.ant-tabs-content]:!w-full",
+                        "[&_.ant-tabs-tabpane]:!h-full [&_.ant-tabs-tabpane]:!max-h-full [&_.ant-tabs-tabpane]:!w-full",
+                    ])}
                 />
             </div>
 
-            <Tabs
-                activeKey={activePanel || "appPanel"}
-                onChange={handlePanelChange as any}
-                items={items}
-                tabPosition="left"
-                className={clsx([
-                    classes.tabsContainer,
-                    "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
-                    "[&_.ant-tabs-nav]:!w-[240px]",
-                ])}
-            />
-        </div>
+            {/* Inline evaluator creation drawer (automatic evaluators) */}
+            <CreateEvaluatorDrawer onEvaluatorCreated={onEvaluatorCreated} />
+
+            {/* Inline human evaluator creation drawer (preview/human mode) */}
+            <CreateHumanEvaluatorDrawer onEvaluatorCreated={onEvaluatorCreated} />
+        </>
     )
 }
 

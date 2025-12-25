@@ -96,7 +96,10 @@ const columnViewportVisibilityAtomFamily = atomFamily(
     ({scopeId, columnKey}: {scopeId: string | null; columnKey: string}) =>
         selectAtom(
             viewportStateAtomFamily(scopeId),
-            (state) => (state.get(columnKey) ?? false) as boolean,
+            // Default to true (visible) when no visibility data exists yet
+            // This ensures cells render immediately on scope change (e.g., revision switch)
+            // and then optimize later when visibility tracking kicks in
+            (state) => (state.size === 0 ? true : (state.get(columnKey) ?? false)) as boolean,
             (a, b) => a === b,
         ),
     (a, b) =>

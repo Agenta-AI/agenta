@@ -37,6 +37,12 @@ export interface PromptMessageConfigProps extends BaseContainerProps, SharedEdit
 
     allowFileUpload?: boolean
 
+    /** Whether the editor should start minimized */
+    defaultMinimized?: boolean
+
+    /** When true, only show the minimize toggle in the header actions */
+    showMinimizeOnly?: boolean
+
     editorProps?: EditorProps
 
     /** Whether the component is in view-only mode or in mutable mode */

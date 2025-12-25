@@ -16,7 +16,6 @@ import {
     // chatTurnsByIdFamilyAtom,
     chatTurnIdsAtom,
     // logicalTurnIndexAtom,
-    runStatusByRowRevisionAtom,
 } from "@/oss/state/generation/entities"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {cancelTestAtom} from "@/oss/state/newPlayground/mutations/execution"
