@@ -27,8 +27,8 @@ import useContainerResize from "../hooks/useContainerResize"
 import useExpandableRows from "../hooks/useExpandableRows"
 import useHeaderViewportVisibility from "../hooks/useHeaderViewportVisibility"
 import useInfiniteScroll from "../hooks/useInfiniteScroll"
-import useResizableColumns from "../hooks/useResizableColumns"
 import useScrollContainer from "../hooks/useScrollContainer"
+import useSmartResizableColumns from "../hooks/useSmartResizableColumns"
 import useTableKeyboardShortcuts from "../hooks/useTableKeyboardShortcuts"
 import useTableRowSelection from "../hooks/useTableRowSelection"
 import ColumnVisibilityProvider from "../providers/ColumnVisibilityProvider"
@@ -119,16 +119,21 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         useColumnVisibilityControlsBuilder<RecordType>(columnVisibilityResult)
     const lastReportedVersionRef = useRef<number | null>(null)
 
+    // Calculate selection column width before using resizable columns hook
+    const selectionColumnWidth = rowSelection ? (rowSelection.columnWidth ?? 48) : 0
+
     const {
         columns: resizableProcessedColumns,
         headerComponents: resizableHeaderComponents,
         getTotalWidth,
         isResizing,
-    } = useResizableColumns<RecordType>({
+    } = useSmartResizableColumns<RecordType>({
         columns: visibleColumns,
         enabled: resizableEnabled,
         minWidth: resizable?.minWidth,
         scopeId: resolvedScopeId,
+        containerWidth: scrollX > 0 ? scrollX : 1200, // fallback to 1200 if no width yet
+        selectionColumnWidth,
     })
     const visibilityTrackingEnabled = baseTrackingEnabled && active
 
@@ -277,7 +282,41 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         version,
     ])
 
-    const selectionColumnWidth = rowSelection ? (rowSelection.columnWidth ?? 48) : 0
+    // Ensure the Ant Design selection column (checkbox column) keeps the configured
+    // width, even when using resizable columns and fixed headers. AntD renders the
+    // selection column via col.ant-table-selection-col and th.ant-table-selection-column,
+    // which are not part of our normal column tree, so we adjust them directly.
+    useLayoutEffect(() => {
+        if (!rowSelection) return
+        if (!selectionColumnWidth || !Number.isFinite(selectionColumnWidth)) return
+
+        const container = containerRef.current
+        if (!container) return
+
+        const widthPx = `${selectionColumnWidth}px`
+
+        const tables = container.querySelectorAll<HTMLTableElement>(".ant-table table")
+        tables.forEach((table) => {
+            const selectionCol = table.querySelector<HTMLTableColElement>(
+                "colgroup col.ant-table-selection-col",
+            )
+            if (selectionCol) {
+                selectionCol.style.width = widthPx
+                selectionCol.style.minWidth = widthPx
+                selectionCol.style.maxWidth = widthPx
+            }
+        })
+
+        const headerCells = container.querySelectorAll<HTMLTableCellElement>(
+            ".ant-table-thead th.ant-table-selection-column",
+        )
+        headerCells.forEach((cell) => {
+            cell.style.width = widthPx
+            cell.style.minWidth = widthPx
+            cell.style.maxWidth = widthPx
+        })
+    }, [rowSelection, selectionColumnWidth, resizableProcessedColumns])
+
     const computedTotalWidth = useMemo(
         () => getTotalWidth(finalColumns),
         [finalColumns, getTotalWidth],
@@ -344,10 +383,14 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             if (typeof rawX === "number" || typeof rawX === "string") {
                 return rawX
             }
-            if (Number.isFinite(computedScrollX) && computedScrollX > 0) {
-                return computedScrollX
-            }
-            return scrollX > 0 ? scrollX : undefined
+            // Use the larger of computedScrollX or scrollX (container width)
+            // This ensures columns fill available space when total < container
+            // and enables horizontal scroll when total > container
+            const computed =
+                Number.isFinite(computedScrollX) && computedScrollX > 0 ? computedScrollX : 0
+            const container = scrollX > 0 ? scrollX : 0
+            const maxWidth = Math.max(computed, container)
+            return maxWidth > 0 ? maxWidth : undefined
         })()
 
         if (resolvedY === undefined || resolvedY <= 0) {

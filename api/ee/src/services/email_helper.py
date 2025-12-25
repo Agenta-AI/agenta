@@ -1,6 +1,6 @@
 import time
 
-import requests
+import httpx
 
 from oss.src.utils.env import env
 
@@ -18,7 +18,7 @@ def add_contact_to_loops(email, max_retries=5, initial_delay=1):
         ConnectionError: If max retries reached and unable to connect to Loops API.
 
     Returns:
-        requests.Response: Response object from the Loops API.
+        httpx.Response: Response object from the Loops API.
     """
 
     # Endpoint URL
@@ -35,7 +35,7 @@ def add_contact_to_loops(email, max_retries=5, initial_delay=1):
 
     while retries < max_retries:
         # Making the POST request
-        response = requests.post(url, json=data, headers=headers, timeout=20)
+        response = httpx.post(url, json=data, headers=headers, timeout=20)
 
         # If response code is 429, it indicates rate limiting
         if response.status_code == 429:

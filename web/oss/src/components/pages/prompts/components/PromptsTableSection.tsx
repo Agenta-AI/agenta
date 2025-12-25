@@ -100,6 +100,7 @@ export const PromptsTableSection = ({
 
                 <Space>
                     <Button
+                        type="text"
                         icon={<TrashIcon />}
                         danger
                         disabled={!selectedRow}
@@ -126,7 +127,7 @@ export const PromptsTableSection = ({
             </div>
 
             <InfiniteVirtualTableFeatureShell<PromptsTableRow>
-                className="grow min-h-0 [&_.ant-table-cell]:!align-middle [&_.ant-table-container]:!border-b"
+                className="grow min-h-0 [&>div]:!gap-0 [&_.ant-table-cell]:!align-middle [&_.ant-table-container]:!border-b"
                 datasetStore={datasetStore}
                 tableScope={tableScope}
                 columns={columns}

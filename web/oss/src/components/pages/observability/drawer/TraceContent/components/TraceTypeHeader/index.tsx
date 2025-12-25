@@ -1,16 +1,17 @@
-import {useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {DeleteOutlined} from "@ant-design/icons"
 import {SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useSetAtom} from "jotai"
 import {Database} from "lucide-react"
 import dynamic from "next/dynamic"
 
+import {openDrawerAtom} from "@/oss/components/TestsetDrawer/atoms/drawerState"
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {KeyValuePair} from "@/oss/lib/Types"
-import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
+import {extractTestsetData} from "@/oss/state/entities/trace"
 
 import AnnotateDrawerButton from "../../../AnnotateDrawer/assets/AnnotateDrawerButton"
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
@@ -20,7 +21,9 @@ import {TraceTypeHeaderProps} from "./types"
 const DeleteTraceModal = dynamic(() => import("../../../../components/DeleteTraceModal"), {
     ssr: false,
 })
-const TestsetDrawer = dynamic(() => import("../../../TestsetDrawer/TestsetDrawer"), {ssr: false})
+const TestsetDrawer = dynamic(() => import("@/oss/components/TestsetDrawer/TestsetDrawer"), {
+    ssr: false,
+})
 
 const TraceTypeHeader = ({
     activeTrace,
@@ -30,19 +33,26 @@ const TraceTypeHeader = ({
     setIsAnnotationsSectionOpen,
     isAnnotationsSectionOpen,
 }: TraceTypeHeaderProps) => {
-    const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-    const activeTraceData = useAtomValue(spanAgDataAtomFamily(activeTrace))
+    const openDrawer = useSetAtom(openDrawerAtom)
+
+    // Use extractTestsetData for consistent data shape (only inputs/outputs, no parameters)
     const testsetData = useMemo(() => {
         if (!activeTrace?.key) return [] as {data: KeyValuePair; key: string; id: number}[]
         return [
             {
-                data: activeTraceData as KeyValuePair,
+                data: extractTestsetData(activeTrace) as KeyValuePair,
                 key: activeTrace.key,
                 id: 1,
             },
         ]
-    }, [activeTrace?.key, activeTraceData])
+    }, [activeTrace])
+
+    const handleOpenTestsetDrawer = useCallback(() => {
+        if (testsetData.length > 0) {
+            openDrawer(testsetData)
+        }
+    }, [testsetData, openDrawer])
 
     const displayTrace = activeTrace || traces?.[0]
 
@@ -72,7 +82,7 @@ const TraceTypeHeader = ({
                 </TooltipWithCopyAction>
                 <Button
                     className="flex items-center"
-                    onClick={() => setIsTestsetDrawerOpen(true)}
+                    onClick={handleOpenTestsetDrawer}
                     disabled={!activeTrace?.key}
                     size="small"
                 >
@@ -107,11 +117,7 @@ const TraceTypeHeader = ({
                 )}
             </div>
 
-            <TestsetDrawer
-                open={isTestsetDrawerOpen && !!activeTrace?.key}
-                data={testsetData}
-                onClose={() => setIsTestsetDrawerOpen(false)}
-            />
+            <TestsetDrawer />
             <DeleteTraceModal
                 open={isDeleteModalOpen}
                 onCancel={() => setIsDeleteModalOpen(false)}

@@ -1,14 +1,15 @@
 import {useCallback, useEffect, useState, useMemo} from "react"
 
-import {ArrowClockwise, Database, Export} from "@phosphor-icons/react"
+import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import dynamic from "next/dynamic"
 
 import {SortResult} from "@/oss/components/Filters/Sort"
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
+import {openDrawerAtom} from "@/oss/components/TestsetDrawer/atoms/drawerState"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
@@ -16,9 +17,9 @@ import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers
 import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
+import {extractTestsetData} from "@/oss/state/entities/trace"
 import {useObservability} from "@/oss/state/newObservability"
 import {
-    getAgData,
     getAgDataInputs,
     getAgDataOutputs,
     getCost,
@@ -50,10 +51,10 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         fetchTraces,
         fetchAnnotations,
         selectedRowKeys,
-        setTestsetDrawerData,
         setEditColumns,
     } = useObservability()
     const queryClient = useAtomValue(queryClientAtom)
+    const openDrawer = useSetAtom(openDrawerAtom)
 
     const attributeKeyOptions = useMemo(() => buildAttributeKeyTreeOptions(traces), [traces])
     const filterColumns = useMemo(
@@ -171,15 +172,23 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
     const getTestsetTraceData = useCallback(() => {
         if (!traces?.length) return []
 
-        const extractData = selectedRowKeys.map((key, idx) => {
-            const node = getNodeById(traces, key as string)
-            return {data: getAgData(node) as KeyValuePair, key: node?.key, id: idx + 1}
-        })
+        const extractData = selectedRowKeys
+            .map((key, idx) => {
+                const node = getNodeById(traces, key as string)
+                if (!node?.key) return null
+                // Use extractTestsetData to get only inputs/outputs (consistent with playground)
+                return {
+                    data: extractTestsetData(node) as KeyValuePair,
+                    key: node.key,
+                    id: idx + 1,
+                }
+            })
+            .filter((item): item is NonNullable<typeof item> => item !== null)
 
         if (extractData.length > 0) {
-            setTestsetDrawerData(extractData)
+            openDrawer(extractData)
         }
-    }, [traces, selectedRowKeys, setTestsetDrawerData])
+    }, [traces, selectedRowKeys, openDrawer])
 
     const onExport = useCallback(async () => {
         try {
@@ -238,7 +247,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         <>
             <section
                 className={clsx([
-                    "flex justify-between gap-3 flex-col transition-all duration-200 ease-linear",
+                    "flex justify-between gap-2 flex-col transition-all duration-200 ease-linear",
                     {
                         "!flex-row sticky top-2 z-10 bg-white py-2 px-2 border border-solid border-gray-200 rounded-lg mx-2 shadow-md":
                             isScrolled,
@@ -251,25 +260,24 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                         {!isScrolled && (
                             <EnhancedButton
                                 icon={
-                                    <ArrowClockwise
+                                    <ArrowsClockwiseIcon
                                         size={14}
                                         className={clsx("mt-[0.8px]", {"animate-spin": isLoading})}
                                     />
                                 }
-                                onClick={() => {
-                                    fetchAnnotations()
-                                    fetchTraces()
+                                onClick={async () => {
+                                    await Promise.all([fetchAnnotations(), fetchTraces()])
                                 }}
                                 tooltipProps={{title: "Refresh data"}}
                             />
                         )}
                         <Input.Search
-                            placeholder="Full-text search"
+                            placeholder="Search"
                             value={searchQuery}
                             onChange={onSearchChange}
                             onPressEnter={onSearchQueryApply}
                             onSearch={onSearchClear}
-                            className={clsx("w-[220px] xl:w-[300px] shrink-0", {
+                            className={clsx("w-[320px] shrink-0", {
                                 "!w-[200px] xl:!w-[260px]": isScrolled,
                             })}
                             allowClear
@@ -293,7 +301,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
 
                                 <EnhancedButton
                                     onClick={() => getTestsetTraceData()}
-                                    icon={<Database size={14} />}
+                                    icon={<DatabaseIcon size={14} />}
                                     disabled={traces.length === 0 || selectedRowKeys.length === 0}
                                     tooltipProps={{title: "Add to testset"}}
                                 />
@@ -314,18 +322,10 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                             <Button
                                 type="text"
                                 onClick={onExport}
-                                icon={<Export size={14} className="mt-0.5" />}
+                                icon={<ExportIcon size={14} className="mt-0.5" />}
                                 disabled={traces.length === 0}
                             >
                                 Export as CSV
-                            </Button>
-
-                            <Button
-                                onClick={() => getTestsetTraceData()}
-                                icon={<Database size={14} />}
-                                disabled={traces.length === 0 || selectedRowKeys.length === 0}
-                            >
-                                Add to testset
                             </Button>
 
                             <EditColumns
@@ -335,6 +335,14 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                                     setEditColumns(keys)
                                 }}
                             />
+
+                            <Button
+                                onClick={() => getTestsetTraceData()}
+                                icon={<DatabaseIcon size={14} />}
+                                disabled={traces.length === 0 || selectedRowKeys.length === 0}
+                            >
+                                Add to testset
+                            </Button>
                         </Space>
                     </div>
                 )}

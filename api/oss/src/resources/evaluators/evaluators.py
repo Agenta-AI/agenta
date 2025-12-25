@@ -213,7 +213,7 @@ evaluators = [
                 "default": [
                     {
                         "role": "system",
-                        "content": "You are an expert evaluator grading model outputs. Your task is to grade the responses based on the criteria and requirements provided below. \n\nGiven the model output and inputs (and any other data you might get) assign a grade to the output. \n\n## Grading considerations\n- Evaluate the overall value provided in the model output\n- Verify all claims in the output meticulously\n- Differentiate between minor errors and major errors\n- Evaluate the outputs based on the inputs and whether they follow the instruction in the inputs if any\n- Give the highst and lowest score for cases where you have complete certainty about correctness and value\n\n## output format\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER\n",
+                        "content": "You are an expert evaluator grading model outputs. Your task is to grade the responses based on the criteria and requirements provided below. \n\nGiven the model output and inputs (and any other data you might get) assign a grade to the output. \n\n## Grading considerations\n- Evaluate the overall value provided in the model output\n- Verify all claims in the output meticulously\n- Differentiate between minor errors and major errors\n- Evaluate the outputs based on the inputs and whether they follow the instruction in the inputs if any\n- Give the highst and lowest score for cases where you have complete certainty about correctness and value\n\n## output format\nDO NOT USE MARKDOWN. \n",
                     },
                     {
                         "role": "user",
@@ -232,7 +232,7 @@ evaluators = [
             },
             "model": {
                 "label": "Model",
-                "default": "gpt-4o-mini",
+                "default": "gpt-4o",
                 "type": "multiple_choice",
                 "options": [
                     "gpt-4-turbo",

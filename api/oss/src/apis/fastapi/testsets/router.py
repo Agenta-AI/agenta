@@ -4,7 +4,7 @@ from json import loads, JSONDecodeError
 from io import BytesIO
 
 import orjson
-import pandas as pd
+import polars as pl
 from pydantic import ValidationError
 
 from fastapi.responses import StreamingResponse
@@ -79,6 +79,7 @@ from oss.src.apis.fastapi.testsets.models import (
     TestsetRevisionRetrieveRequest,
     TestsetRevisionCommitRequest,
     TestsetRevisionsLogRequest,
+    TestsetRevisionPatchRequest,
     TestsetRevisionResponse,
     TestsetRevisionsResponse,
     #
@@ -350,6 +351,16 @@ class TestsetsRouter:
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
             response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
+        )
+
+        self.router.add_api_route(
+            "/revisions/patch",
+            self.patch_testset_revision,
+            methods=["POST"],
+            operation_id="patch_testset_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=TestsetRevisionResponse,
+            response_model_exclude_none=True,
         )
 
         self.router.add_api_route(
@@ -708,6 +719,9 @@ class TestsetsRouter:
             #
             testset_variant_query=testset_variant_query_request.testset_variant,
             #
+            testset_refs=testset_variant_query_request.testset_refs,
+            testset_variant_refs=testset_variant_query_request.testset_variant_refs,
+            #
             include_archived=testset_variant_query_request.include_archived,
             #
             windowing=testset_variant_query_request.windowing,
@@ -947,7 +961,14 @@ class TestsetsRouter:
             project_id=UUID(request.state.project_id),
             #
             testset_revision_query=testset_revision_query_request.testset_revision,
-            include_testcases=testset_revision_query_request.include_testcases,
+            #
+            testset_refs=testset_revision_query_request.testset_refs,
+            testset_variant_refs=testset_revision_query_request.testset_variant_refs,
+            testset_revision_refs=testset_revision_query_request.testset_revision_refs,
+            #
+            include_archived=testset_revision_query_request.include_archived,
+            #
+            windowing=testset_revision_query_request.windowing,
         )
 
         testset_revisions_response = TestsetRevisionsResponse(
@@ -977,6 +998,34 @@ class TestsetsRouter:
             #
             testset_revision_commit=testset_revision_commit_request.testset_revision_commit,
             include_testcases=testset_revision_commit_request.include_testcases,
+        )
+
+        testset_revision_response = TestsetRevisionResponse(
+            count=1 if testset_revision else 0,
+            testset_revision=testset_revision,
+        )
+
+        return testset_revision_response
+
+    async def patch_testset_revision(
+        self,
+        request: Request,
+        *,
+        testset_revision_patch_request: TestsetRevisionPatchRequest,
+    ) -> TestsetRevisionResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        testset_revision = await self.testsets_service.patch_testset_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            testset_revision_patch=testset_revision_patch_request.testset_revision_patch,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -1824,7 +1873,7 @@ class SimpleTestsetsRouter:
 
         elif file_type.lower() == "csv":
             buffer = BytesIO()
-            pd.DataFrame(testcases_data).to_csv(buffer, index=False)
+            pl.DataFrame(testcases_data).write_csv(buffer)
             buffer.seek(0)
 
             return StreamingResponse(

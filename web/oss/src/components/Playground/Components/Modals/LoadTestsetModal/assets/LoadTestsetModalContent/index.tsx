@@ -1,390 +1,290 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
-import {useQueryClient} from "@tanstack/react-query"
-import {Checkbox, Divider, Input, Menu, Tooltip, Typography} from "antd"
-import {ColumnsType} from "antd/es/table"
-import clsx from "clsx"
+import {RightOutlined} from "@ant-design/icons"
+import {Divider, Input, Menu, Popover, Spin, Typography} from "antd"
+import {atom, useAtom, useSetAtom} from "jotai"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
-import {Expandable} from "@/oss/components/Tables/ExpandableCell"
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
-import {Testset, testset} from "@/oss/lib/Types"
-import {fetchTestset} from "@/oss/services/testsets/api"
-import {useTestsetsData} from "@/oss/state/testset"
+import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
+import {buildRevisionMenuItems} from "@/oss/components/TestcasesTableNew/components/RevisionMenuItems"
+import {TestcasesTableShell} from "@/oss/components/TestcasesTableNew/components/TestcasesTableShell"
+import {useTestcasesTable} from "@/oss/components/TestcasesTableNew/hooks/useTestcasesTable"
+import {
+    testcaseRowHeightAtom,
+    TESTCASE_ROW_HEIGHT_CONFIG,
+} from "@/oss/components/TestcasesTableNew/state/rowHeight"
+import {Testset} from "@/oss/lib/Types"
+import {useEntityList} from "@/oss/state/entities/hooks/useEntityList"
+import {
+    latestRevisionForTestsetAtomFamily,
+    revisionsListQueryAtomFamily,
+    testsetStore,
+} from "@/oss/state/entities/testset"
+import {projectIdAtom} from "@/oss/state/project/selectors/project"
+import {
+    selectTestsetAtom,
+    selectedRevisionIdAtom,
+    selectedTestsetIdAtom,
+} from "@/oss/state/testsetSelection"
 import {urlAtom} from "@/oss/state/url"
-import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
-import {useTestsetInputsAnalysis} from "../../hooks/useTestsetInputsAnalysis"
 import {LoadTestsetModalContentProps} from "../types"
 
 const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
     ssr: false,
 })
 
+const TestcasesTablePreview = ({
+    revisionId,
+    selectedRowKeys,
+    setSelectedRowKeys,
+}: {
+    revisionId: string
+    selectedRowKeys: React.Key[]
+    setSelectedRowKeys: React.Dispatch<React.SetStateAction<React.Key[]>>
+}) => {
+    const table = useTestcasesTable({revisionId, mode: "view"})
+    const rowHeight = useRowHeight(testcaseRowHeightAtom, TESTCASE_ROW_HEIGHT_CONFIG)
+
+    const handleRowClick = useCallback(
+        (record: any) => {
+            const key = record?.key
+            if (key === undefined || key === null) return
+            setSelectedRowKeys((prev) => {
+                const exists = prev.includes(key)
+                if (exists) {
+                    return prev.filter((k) => k !== key)
+                }
+                return [...prev, key]
+            })
+        },
+        [setSelectedRowKeys],
+    )
+
+    return (
+        <div className="relative min-h-0 flex flex-col overflow-hidden h-full w-full">
+            <TestcasesTableShell
+                mode="view"
+                revisionIdParam={revisionId}
+                table={table}
+                rowHeight={rowHeight}
+                selectedRowKeys={selectedRowKeys}
+                onSelectedRowKeysChange={setSelectedRowKeys}
+                onRowClick={handleRowClick}
+                onDeleteSelected={() => {}}
+                searchTerm={table.searchTerm}
+                onSearchChange={table.setSearchTerm}
+                header={null}
+                actions={null}
+                hideControls={false}
+                enableSelection
+                autoHeight
+                disableDeleteAction
+            />
+        </div>
+    )
+}
+
 const LoadTestsetModalContent = ({
     modalProps,
-    selectedTestset,
-    setSelectedTestset,
     testsetCsvData,
     selectedRowKeys,
     setSelectedRowKeys,
     isLoadingTestset,
-    isChat,
-}: LoadTestsetModalContentProps) => {
-    const {testsets, columnsByTestsetId, isLoading} = useTestsetsData({enabled: modalProps.open})
-    const queryClient = useQueryClient()
+}: Omit<
+    LoadTestsetModalContentProps,
+    | "selectedTestset"
+    | "setSelectedTestset"
+    | "selectedRevisionId"
+    | "setSelectedRevisionId"
+    | "isChat"
+>) => {
+    // Use shared atoms for testset/revision selection
+    const [selectedTestset, setSelectedTestset] = useAtom(selectedTestsetIdAtom)
+    const [selectedRevisionId, setSelectedRevisionId] = useAtom(selectedRevisionIdAtom)
+    const selectTestset = useSetAtom(selectTestsetAtom)
+    const projectId = useAtomValue(projectIdAtom)
+    const listParams = useMemo(() => ({projectId: projectId ?? ""}), [projectId])
+    const {data: testsetListResponse, isLoading: isLoadingTestsets} = useEntityList(
+        testsetStore,
+        listParams,
+    )
+    const testsets = useMemo(() => testsetListResponse?.testsets ?? [], [testsetListResponse])
     const router = useRouter()
 
     const [searchTerm, setSearchTerm] = useState("")
-    const appUriInfo = useAtomValue(appUriInfoAtom)
-    const routePath = appUriInfo?.routePath
     const urlState = useAtomValue(urlAtom)
+    const [revisionPanelTestsetId, setRevisionPanelTestsetId] = useState("")
 
-    // High-level analysis of inputs vs testset columns, including schema + dynamic variables
-    const {expectedInputVariables, hasCompatibilityIssue} = useTestsetInputsAnalysis({
-        routePath,
-        testsetCsvData,
-    })
-
-    const normalizedExpectedVariables = useMemo(
+    const emptyQueryAtom = useMemo(
         () =>
-            expectedInputVariables
-                .map((variable) => (typeof variable === "string" ? variable.trim() : ""))
-                .filter(Boolean),
-        [expectedInputVariables],
+            atom({
+                data: [] as {
+                    id: string
+                    version: number
+                    created_at?: string | null
+                    message?: string | null
+                }[],
+                isFetching: false,
+                isPending: false,
+                isLoading: false,
+            }),
+        [],
+    )
+    const selectedRevisionsQueryAtom = useMemo(
+        () => (selectedTestset ? revisionsListQueryAtomFamily(selectedTestset) : emptyQueryAtom),
+        [selectedTestset, emptyQueryAtom],
+    )
+    const popoverRevisionsQueryAtom = useMemo(
+        () =>
+            revisionPanelTestsetId
+                ? revisionsListQueryAtomFamily(revisionPanelTestsetId)
+                : selectedRevisionsQueryAtom,
+        [revisionPanelTestsetId, selectedRevisionsQueryAtom],
+    )
+    const selectedRevisionsQuery = useAtomValue(selectedRevisionsQueryAtom)
+    const popoverRevisionsQuery = useAtomValue(popoverRevisionsQueryAtom)
+
+    const revisions = useMemo(
+        () =>
+            (selectedRevisionsQuery.data as {
+                id: string
+                version: number
+                created_at?: string | null
+                message?: string | null
+            }[]) || [],
+        [selectedRevisionsQuery.data],
     )
 
-    const testsetMatchInfo = useMemo(() => {
-        return testsets.reduce(
-            (acc, ts) => {
-                const id = ts?._id
-                if (!id) return acc
+    const popoverRevisions = useMemo(
+        () =>
+            (popoverRevisionsQuery.data as {
+                id: string
+                version: number
+                created_at?: string | null
+                message?: string | null
+            }[]) || [],
+        [popoverRevisionsQuery.data],
+    )
 
-                const columns = columnsByTestsetId?.[id]
-                if (!Array.isArray(columns) || columns.length === 0) {
-                    acc[id] = {score: 0, hasColumns: false}
-                    return acc
-                }
+    const filteredRevisions = revisions
+    const filteredPopoverRevisions = popoverRevisions
+    const popoverRevisionsLoading =
+        popoverRevisionsQuery.isPending ||
+        (popoverRevisionsQuery as any).isLoading ||
+        (popoverRevisionsQuery as any).isFetching
 
-                const normalizedColumns = new Set(
-                    columns
-                        .map((column) => (typeof column === "string" ? column.trim() : undefined))
-                        .filter(Boolean) as string[],
-                )
-
-                if (normalizedColumns.size === 0) {
-                    acc[id] = {score: 0, hasColumns: false}
-                    return acc
-                }
-
-                const score = normalizedExpectedVariables.reduce((count, variable) => {
-                    if (!variable) return count
-                    return normalizedColumns.has(variable) ? count + 1 : count
-                }, 0)
-
-                acc[id] = {score, hasColumns: true}
-                return acc
-            },
-            {} as Record<string, {score: number; hasColumns: boolean}>,
-        )
-    }, [columnsByTestsetId, normalizedExpectedVariables, testsets])
-
-    const compatibilityByTestset = useMemo(() => {
-        return testsets.reduce(
-            (acc, ts) => {
-                const id = ts?._id
-                if (!id) return acc
-
-                const rawColumns = columnsByTestsetId?.[id]
-                const columnsKnown = Array.isArray(rawColumns)
-                const trimmedColumns = columnsKnown
-                    ? (rawColumns as string[])
-                          .map((column) => (typeof column === "string" ? column.trim() : ""))
-                          .filter(Boolean)
-                    : []
-                const columnsLower = new Set(trimmedColumns.map((column) => column.toLowerCase()))
-
-                const missingExpected = columnsKnown
-                    ? normalizedExpectedVariables.filter(
-                          (variable) => !columnsLower.has(variable.toLowerCase()),
-                      )
-                    : []
-
-                const matched = columnsKnown
-                    ? normalizedExpectedVariables.filter((variable) =>
-                          columnsLower.has(variable.toLowerCase()),
-                      )
-                    : []
-
-                acc[id] = {
-                    columns: trimmedColumns,
-                    missingExpected,
-                    matched,
-                    columnsKnown,
-                    hasWarning: columnsKnown && missingExpected.length > 0,
-                }
-
-                return acc
-            },
-            {} as Record<
-                string,
-                {
-                    columns: string[]
-                    missingExpected: string[]
-                    matched: string[]
-                    columnsKnown: boolean
-                    hasWarning: boolean
-                }
-            >,
-        )
-    }, [columnsByTestsetId, normalizedExpectedVariables, testsets])
-
-    const bestMatchingTestset = useMemo(() => {
-        if (!testsets.length) return {id: "", score: -1}
-
-        if (normalizedExpectedVariables.length === 0) {
-            const firstId = testsets[0]?._id || ""
-            return {id: firstId, score: 0}
-        }
-
-        let bestId = ""
-        let bestScore = 0
-
-        testsets.forEach((ts) => {
-            const id = ts?._id
-            if (!id) return
-            const info = testsetMatchInfo[id]
-            if (!info?.hasColumns) return
-            if (info.score > bestScore) {
-                bestScore = info.score
-                bestId = id
-            }
-        })
-
-        if (bestScore > 0 && bestId) {
-            return {id: bestId, score: bestScore}
-        }
-
-        return {id: "", score: 0}
-    }, [normalizedExpectedVariables.length, testsetMatchInfo, testsets])
-
-    const {id: bestMatchingTestsetId, score: _bestMatchingScore} = bestMatchingTestset
+    const latestRevisionAtom = useMemo(
+        () => latestRevisionForTestsetAtomFamily(selectedTestset),
+        [selectedTestset],
+    )
+    const latestRevision = useAtomValue(latestRevisionAtom)
 
     const handleCreateTestset = useCallback(() => {
         router.push(`${urlState.projectURL}/testsets`)
     }, [router, urlState?.projectURL])
 
+    // Auto-select first testset when modal opens (uses shared selectTestsetAtom which also selects latest revision)
     useEffect(() => {
         if (!modalProps.open || !testsets.length) return
 
-        setSelectedTestset((prev) => {
-            const prevExists = prev && testsets.some((ts) => ts?._id === prev)
-            if (prevExists) {
-                return prev
-            }
+        const prevExists =
+            selectedTestset && testsets.some((ts: Testset) => ts?.id === selectedTestset)
+        if (!prevExists && testsets[0]) {
+            selectTestset({
+                testsetId: testsets[0].id,
+                testsetName: testsets[0].name,
+                autoSelectLatest: true,
+            })
+        }
+    }, [modalProps.open, testsets, selectedTestset, selectTestset])
 
-            if (!normalizedExpectedVariables.length) {
-                return testsets[0]?._id || ""
-            }
-
-            return bestMatchingTestsetId || testsets[0]?._id || ""
-        })
-    }, [bestMatchingTestsetId, modalProps.open, normalizedExpectedVariables.length, testsets])
+    // Auto-select latest revision when revisions load and none is selected
+    useEffect(() => {
+        if (!selectedTestset || selectedRevisionId) return
+        const latestId =
+            filteredRevisions.find((rev) => rev.id === latestRevision?.id)?.id ||
+            filteredRevisions[0]?.id
+        if (latestId) {
+            setSelectedRevisionId(latestId)
+        }
+    }, [
+        filteredRevisions,
+        latestRevision?.id,
+        selectedRevisionId,
+        selectedTestset,
+        setSelectedRevisionId,
+    ])
 
     const filteredTestset = useMemo(() => {
         if (!searchTerm) return testsets
-        return testsets.filter((item: testset) =>
+        return testsets.filter((item: Testset) =>
             item.name.toLowerCase().includes(searchTerm.toLowerCase()),
         )
     }, [searchTerm, testsets])
 
-    // Prefetch CSV data for the first N visible testsets to populate column cache
-    useEffect(() => {
-        if (!modalProps.open) return
+    const testsetMenuItems = useMemo(() => {
+        if (!filteredTestset.length) return []
+        return filteredTestset.map((ts: Testset) => ({
+            key: ts.id,
+            label: ts.name,
+            hasRevisions:
+                ts.latest_revision_version === undefined ? true : ts.latest_revision_version > 0,
+        }))
+    }, [filteredTestset])
 
-        const BATCH = 8
-        const list = (filteredTestset.length ? filteredTestset : testsets).slice(0, BATCH)
-        list.forEach((ts: any) => {
-            if (!ts?._id) return
-            queryClient.prefetchQuery({
-                queryKey: ["testsetCsvData", ts._id],
-                queryFn: async () => {
-                    const data = await fetchTestset(ts._id)
-                    return data.csvdata ?? []
-                },
-                staleTime: 1000 * 60 * 2,
+    const onChangeTestset = useCallback(
+        ({key}: any) => {
+            setSelectedRowKeys([])
+            const testset = testsets.find((ts: Testset) => ts.id === key)
+            selectTestset({
+                testsetId: key,
+                testsetName: testset?.name || "",
+                autoSelectLatest: true,
             })
-        })
-    }, [modalProps.open, testsets, filteredTestset])
-
-    const selectionWarningMessage = useMemo(() => {
-        if (!hasCompatibilityIssue || !selectedTestset) return undefined
-
-        const variantList = normalizedExpectedVariables.length
-            ? normalizedExpectedVariables.join(", ")
-            : "—"
-
-        return `The testset has no CSV columns matching the expected variables {{${variantList}}}`
-    }, [hasCompatibilityIssue, normalizedExpectedVariables, selectedTestset])
-
-    const rowSelection = useMemo(
-        () => ({
-            selectedRowKeys,
-            onChange: (keys: React.Key[]) => {
-                setSelectedRowKeys(keys)
-            },
-            columnTitle: (
-                <Tooltip title={selectionWarningMessage}>
-                    <span style={{display: "inline-block"}}>
-                        <Checkbox
-                            indeterminate={
-                                selectedRowKeys.length > 0 &&
-                                selectedRowKeys.length < testsetCsvData.length
-                            }
-                            checked={
-                                testsetCsvData.length > 0 &&
-                                selectedRowKeys.length === testsetCsvData.length
-                            }
-                            onChange={() => {
-                                const allKeys = testsetCsvData.map((_, idx) => idx)
-                                if (selectedRowKeys.length === allKeys.length) {
-                                    setSelectedRowKeys([])
-                                } else if (isChat) {
-                                    setSelectedRowKeys(allKeys.slice(0, 1))
-                                } else {
-                                    setSelectedRowKeys(allKeys)
-                                }
-                            }}
-                        />
-                    </span>
-                </Tooltip>
-            ),
-        }),
-        [isChat, selectedRowKeys, selectionWarningMessage, setSelectedRowKeys, testsetCsvData],
+        },
+        [setSelectedRowKeys, testsets, selectTestset],
     )
 
-    const columnDef = useMemo(() => {
-        if (!testsetCsvData.length) {
-            return [
-                {title: "-", width: 300},
-                {title: "-", width: 300},
-            ]
-        }
+    const onChangeRevision = useCallback(
+        ({key}: any) => {
+            setSelectedRowKeys([])
+            setSelectedRevisionId(key)
+            setRevisionPanelTestsetId("")
+        },
+        [setRevisionPanelTestsetId, setSelectedRevisionId, setSelectedRowKeys],
+    )
 
-        const columns: ColumnsType<Testset["csvdata"]> = []
+    const popoverMenuItems = useMemo(
+        () =>
+            buildRevisionMenuItems(filteredPopoverRevisions, (revisionId) => {
+                setSelectedTestset(revisionPanelTestsetId || selectedTestset || "")
+                onChangeRevision({key: revisionId})
+                setRevisionPanelTestsetId("")
+            }) ?? [],
+        [filteredPopoverRevisions, onChangeRevision, revisionPanelTestsetId, selectedTestset],
+    )
 
-        if (testsetCsvData.length > 0) {
-            const keys = Object.keys(testsetCsvData[0]).filter((key) => key !== "testcase_dedup_id")
+    const menuSelectedKeys = useMemo(
+        () => (selectedTestset ? [selectedTestset] : []),
+        [selectedTestset],
+    )
+    const revisionSelectedKeys = useMemo(
+        () => (selectedRevisionId ? [selectedRevisionId] : []),
+        [selectedRevisionId],
+    )
 
-            columns.push(
-                ...keys.map((key, index) => ({
-                    title: key,
-                    dataIndex: key,
-                    key: index,
-                    width: 300,
-                    onHeaderCell: () => ({
-                        style: {minWidth: 160},
-                    }),
-                    onCell: () => ({
-                        title: selectionWarningMessage,
-                    }),
-                    render: (_: any, record: any) => {
-                        const display = getStringOrJson(record[key])
-                        const content = (
-                            <Expandable
-                                expandKey={`${index}-${key}`}
-                                className="whitespace-pre-wrap break-words !mb-0"
-                            >
-                                {display}
-                            </Expandable>
-                        )
-                        return selectionWarningMessage ? (
-                            <Tooltip title={selectionWarningMessage}>{content}</Tooltip>
-                        ) : (
-                            content
-                        )
-                    },
-                })),
-            )
-        }
+    if (!projectId) {
+        return (
+            <div className="flex items-center justify-center py-6">
+                <Spin />
+            </div>
+        )
+    }
 
-        return columns
-    }, [selectionWarningMessage, testsetCsvData])
-
-    const dataSource = useMemo(() => {
-        if (!testsetCsvData.length) return []
-        return testsetCsvData.map((data, index) => ({...data, id: index}))
-    }, [testsetCsvData])
-
-    const menuItems = useMemo(() => {
-        if (!filteredTestset.length) return []
-
-        const items = filteredTestset.map((ts: testset) => {
-            const diagnostics = compatibilityByTestset[ts._id]
-            const columnsKnown = diagnostics?.columnsKnown ?? false
-            const hasWarning = diagnostics?.hasWarning ?? false
-
-            const tooltip =
-                !columnsKnown && normalizedExpectedVariables.length
-                    ? "Analyzing columns..."
-                    : hasWarning && diagnostics?.missingExpected.length
-                      ? `This testset has no CSV columns matching the expected variables`
-                      : undefined
-
-            return {
-                key: ts._id,
-                label: (
-                    <Tooltip title={tooltip}>
-                        <span
-                            className={clsx(
-                                "flex items-center gap-2 transition-opacity",
-                                hasWarning && "opacity-70 text-gray-600",
-                            )}
-                        >
-                            <span>{ts.name}</span>
-                        </span>
-                    </Tooltip>
-                ),
-                __diag: {
-                    id: ts._id,
-                    name: ts.name,
-                    columnsKnown,
-                    columns: diagnostics?.columns ?? [],
-                    expected: normalizedExpectedVariables,
-                    missing: diagnostics?.missingExpected ?? [],
-                    hasWarning,
-                },
-            }
-        })
-
-        try {
-            console.table(
-                items.map((it: any) => ({
-                    id: it.__diag.id,
-                    name: it.__diag.name,
-                    columnsKnown: it.__diag.columnsKnown,
-                    columns: it.__diag.columns?.join(", ") || "",
-                    expected: it.__diag.expected?.join(", ") || "",
-                    missing: it.__diag.missing?.join(", ") || "",
-                    hasWarning: it.__diag.hasWarning,
-                })),
-            )
-        } catch {}
-
-        return items
-    }, [compatibilityByTestset, filteredTestset, normalizedExpectedVariables])
-
-    const onChangeTestset = useCallback(({key}: any) => {
-        setSelectedRowKeys([])
-        setSelectedTestset(key)
-    }, [])
-
-    const menuSelectedKeys = selectedTestset ? [selectedTestset] : []
-
-    if (!testsets.length && !testsetCsvData.length && !isLoadingTestset && !isLoading)
+    if (!testsets.length && !testsetCsvData.length && !isLoadingTestset && !isLoadingTestsets)
         return (
             <NoResultsFound
                 primaryActionLabel="Create new testset"
@@ -393,69 +293,148 @@ const LoadTestsetModalContent = ({
         )
 
     return (
-        <section className="flex gap-4 flex-1 mt-4">
-            <div className="flex flex-col gap-4 w-[200px]">
-                <Input.Search
-                    placeholder="Search"
-                    allowClear
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+        <div className="w-full flex flex-col h-full min-h-0 overflow-hidden">
+            <section className="flex grow gap-4 min-h-0 overflow-hidden ">
+                <div className="flex flex-col gap-4 w-[280px]">
+                    <Input.Search
+                        placeholder="Search testsets"
+                        allowClear
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
 
-                <Divider className="m-0" />
+                    <Divider className="m-0" />
 
-                <Menu
-                    items={menuItems}
-                    onSelect={onChangeTestset}
-                    defaultSelectedKeys={menuSelectedKeys}
-                    selectedKeys={menuSelectedKeys}
-                    className="h-[500px] overflow-y-auto !border-none"
-                />
-            </div>
+                    <div className="flex items-center justify-between">
+                        <Typography.Text className="font-medium">Testsets</Typography.Text>
+                    </div>
 
-            <Divider orientation="vertical" className="m-0 h-full" />
-
-            <div className="flex flex-col gap-4 flex-1 overflow-x-auto">
-                <div className="flex items-start justify-between gap-4">
-                    <Typography.Text className="text-lg font-medium -mt-1">
-                        Select a testcase
-                    </Typography.Text>
+                    <Menu
+                        selectable={false}
+                        items={testsetMenuItems.map((ts) => {
+                            // Destructure hasRevisions to prevent it from being passed to DOM
+                            const {hasRevisions: _hasRevisions, ...restTs} = ts as any
+                            const hasRevisions = _hasRevisions ?? true
+                            return {
+                                ...restTs,
+                                label: (
+                                    <div className="flex items-center gap-2 pl-1 pr-1 w-full">
+                                        <span
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                onChangeTestset({key: ts.key})
+                                                setRevisionPanelTestsetId(ts.key as string)
+                                            }}
+                                            className="cursor-pointer flex-1 min-w-0 truncate text-left"
+                                            title={ts.label as string}
+                                        >
+                                            {ts.label}
+                                        </span>
+                                        {hasRevisions && (
+                                            <Popover
+                                                placement="right"
+                                                trigger={["click"]}
+                                                open={revisionPanelTestsetId === ts.key}
+                                                onOpenChange={(open) => {
+                                                    if (open) {
+                                                        setRevisionPanelTestsetId(ts.key as string)
+                                                    } else if (revisionPanelTestsetId === ts.key) {
+                                                        setRevisionPanelTestsetId("")
+                                                    }
+                                                }}
+                                                content={
+                                                    popoverRevisionsLoading ? (
+                                                        <div className="flex items-center justify-center px-3 py-2">
+                                                            <Spin size="small" />
+                                                        </div>
+                                                    ) : popoverMenuItems.length ? (
+                                                        <div className="max-h-80 overflow-y-auto">
+                                                            <Menu
+                                                                items={popoverMenuItems}
+                                                                onSelect={(info) => {
+                                                                    setSelectedTestset(
+                                                                        ts.key as string,
+                                                                    )
+                                                                    onChangeRevision(info)
+                                                                    setRevisionPanelTestsetId("")
+                                                                }}
+                                                                selectedKeys={revisionSelectedKeys}
+                                                                className="min-w-[220px] !border-none !p-0 !m-0 [&_.ant-menu-item]:h-auto [&_.ant-menu-item]:min-h-[32px] [&_.ant-menu-item]:leading-normal [&_.ant-menu-item]:!py-1 [&_.ant-menu-item]:!px-3 [&_.ant-menu-item]:!my-0 [&_.ant-menu-title-content]:whitespace-normal"
+                                                                rootClassName="!p-0 !m-0"
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="px-3 py-2 text-xs text-gray-500">
+                                                            No revisions
+                                                        </div>
+                                                    )
+                                                }
+                                                overlayClassName="load-testset-revision-popover"
+                                                styles={{body: {padding: 0}}}
+                                            >
+                                                <span
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    aria-label="Show revisions"
+                                                    className={`shrink-0 inline-flex h-6 w-6 items-center justify-center rounded transition-all duration-150 cursor-pointer ${
+                                                        revisionPanelTestsetId === ts.key
+                                                            ? "text-blue-600"
+                                                            : "text-gray-400 hover:text-gray-600"
+                                                    }`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setRevisionPanelTestsetId(ts.key as string)
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter" || e.key === " ") {
+                                                            e.preventDefault()
+                                                            e.stopPropagation()
+                                                            setRevisionPanelTestsetId(
+                                                                ts.key as string,
+                                                            )
+                                                        }
+                                                    }}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault()
+                                                        e.stopPropagation()
+                                                    }}
+                                                >
+                                                    <RightOutlined className="text-xs" />
+                                                </span>
+                                            </Popover>
+                                        )}
+                                    </div>
+                                ),
+                            }
+                        })}
+                        selectedKeys={menuSelectedKeys}
+                        className="h-[400px] overflow-y-auto !border-none !p-0 [&_.ant-menu-item]:px-2 [&_.ant-menu-item]:py-1.5 [&_.ant-menu-item]:h-auto [&_.ant-menu-item]:min-h-[38px] [&_.ant-menu-title-content]:flex [&_.ant-menu-title-content]:items-center [&_.ant-menu-title-content]:w-full"
+                    />
+                    {isLoadingTestsets && (
+                        <div className="flex items-center justify-center py-2">
+                            <Spin size="small" />
+                        </div>
+                    )}
                 </div>
 
-                <EnhancedTable
-                    uniqueKey="load-testset-playground"
-                    rowSelection={{
-                        type: isChat ? "radio" : "checkbox",
-                        ...rowSelection,
-                        columnWidth: 46,
-                    }}
-                    loading={isLoadingTestset || isLoading}
-                    dataSource={dataSource}
-                    columns={columnDef}
-                    className="flex-1"
-                    bordered
-                    rowKey={"id"}
-                    pagination={false}
-                    scroll={{y: 520, x: "max-content"}}
-                    virtualized
-                    onRow={(_, rowIndex) => ({
-                        className: "cursor-pointer",
-                        title: selectionWarningMessage,
-                        onClick: () => {
-                            if (rowIndex === undefined) return
-                            if (selectedRowKeys.includes(rowIndex)) {
-                                setSelectedRowKeys(
-                                    selectedRowKeys.filter((row) => row !== rowIndex),
-                                )
-                            } else if (isChat) {
-                                setSelectedRowKeys([rowIndex])
-                            } else {
-                                setSelectedRowKeys([...selectedRowKeys, rowIndex])
-                            }
-                        },
-                    })}
-                />
-            </div>
-        </section>
+                <Divider orientation="vertical" className="m-0 h-full" />
+
+                <div className="w-full h-full flex flex-col gap-4 grow min-h-0 overflow-hidden">
+                    {selectedRevisionId ? (
+                        <TestcasesTablePreview
+                            revisionId={selectedRevisionId}
+                            selectedRowKeys={selectedRowKeys}
+                            setSelectedRowKeys={setSelectedRowKeys}
+                        />
+                    ) : (
+                        <div className="flex items-start">
+                            <Typography.Text className="text-lg font-medium -mt-1">
+                                Select a revision to view testcases.
+                            </Typography.Text>
+                        </div>
+                    )}
+                </div>
+            </section>
+        </div>
     )
 }
 

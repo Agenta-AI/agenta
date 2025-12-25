@@ -1,18 +1,18 @@
-import {cloneElement, isValidElement, useMemo, useState} from "react"
+import {cloneElement, isValidElement, useCallback, useMemo} from "react"
 
 import {Database} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {TestsetTraceData} from "@/oss/components/pages/observability/drawer/TestsetDrawer/assets/types"
+import {TestsetTraceData} from "@/oss/components/TestsetDrawer/assets/types"
+import {openDrawerAtom} from "@/oss/components/TestsetDrawer/atoms/drawerState"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 import EnhancedButton from "../../../assets/EnhancedButton"
 
 import {TestsetDrawerButtonProps} from "./types"
 
-const TestsetDrawer = dynamic(
-    () => import("@/oss/components/pages/observability/drawer/TestsetDrawer/TestsetDrawer"),
-)
+const TestsetDrawer = dynamic(() => import("@/oss/components/TestsetDrawer/TestsetDrawer"))
 
 const TestsetDrawerButton = ({
     label,
@@ -24,40 +24,35 @@ const TestsetDrawerButton = ({
     messageId,
     ...props
 }: TestsetDrawerButtonProps) => {
-    const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
+    const openDrawer = useSetAtom(openDrawerAtom)
 
-    let traces: (Record<string, any> | null | undefined)[] = []
-    const testsetTraceData = useMemo(() => {
-        if (!isTestsetDrawerOpen) return []
+    // Build trace data from results/hashes
+    const buildTraceData = useCallback((): TestsetTraceData[] => {
+        let traces: (Record<string, any> | null | undefined)[] = []
 
         if (results) {
             traces = Array.isArray(results) ? results : [results]
         } else if (resultHashes) {
             const traceHashes = Array.isArray(resultHashes) ? resultHashes : [resultHashes]
             traces = traceHashes
-                .map((hash) => {
-                    return hash ? getResponseLazy(hash) : undefined
-                })
+                .map((hash) => (hash ? getResponseLazy(hash) : undefined))
                 .filter((tr) => !!tr)
         }
 
         if (traces.length === 0) return []
-        const extractedData = traces
-            ?.map((result, idx) => {
-                return {
-                    data:
-                        (result?.response?.tree?.nodes?.[0]?.data as Record<string, any>) ||
-                        result?.response?.data,
-                    key:
-                        (result?.response?.tree?.nodes?.[0]?.node?.id as string) ||
-                        result?.response?.span_id,
-                    id: idx + 1,
-                }
-            })
-            .filter((result) => result.data)
 
-        return extractedData
-    }, [resultHashes, results, isTestsetDrawerOpen])
+        return traces
+            .map((result, idx) => ({
+                data:
+                    (result?.response?.tree?.nodes?.[0]?.data as Record<string, any>) ||
+                    result?.response?.data,
+                key:
+                    (result?.response?.tree?.nodes?.[0]?.node?.id as string) ||
+                    result?.response?.span_id,
+                id: idx + 1,
+            }))
+            .filter((result) => result.data)
+    }, [resultHashes, results])
 
     // Count of valid result hashes (may include failed ones; see validResultsCount for success only)
     // const isResults = useMemo(() => resultHashes?.filter(Boolean)?.length, [resultHashes])
@@ -87,6 +82,17 @@ const TestsetDrawerButton = ({
             }).length
     }, [results, resultHashes])
 
+    // Handler to open the drawer with trace data
+    const handleOpenDrawer = useCallback(() => {
+        if (validResultsCount <= 0) return
+        onClickTestsetDrawer?.(messageId)
+
+        const traceData = buildTraceData()
+        if (traceData.length > 0) {
+            openDrawer(traceData)
+        }
+    }, [validResultsCount, onClickTestsetDrawer, messageId, buildTraceData, openDrawer])
+
     return (
         <>
             {isValidElement(children) ? (
@@ -95,11 +101,7 @@ const TestsetDrawerButton = ({
                         onClick: () => void
                     }>,
                     {
-                        onClick: () => {
-                            if (validResultsCount <= 0) return
-                            onClickTestsetDrawer?.(messageId)
-                            setIsTestsetDrawerOpen(true)
-                        },
+                        onClick: handleOpenDrawer,
                     },
                 )
             ) : (
@@ -112,21 +114,11 @@ const TestsetDrawerButton = ({
                     tooltipProps={{
                         title: validResultsCount <= 0 ? "No successful generations to add" : "",
                     }}
-                    onClick={() => {
-                        onClickTestsetDrawer?.(messageId)
-                        setIsTestsetDrawerOpen(true)
-                    }}
+                    onClick={handleOpenDrawer}
                 />
             )}
 
-            <TestsetDrawer
-                open={isTestsetDrawerOpen}
-                data={testsetTraceData as TestsetTraceData[]}
-                showSelectedSpanText={false}
-                onClose={() => {
-                    setIsTestsetDrawerOpen(false)
-                }}
-            />
+            <TestsetDrawer />
         </>
     )
 }

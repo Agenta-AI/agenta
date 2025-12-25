@@ -33,6 +33,10 @@ export interface TableScopeConfig {
     columnVisibilityStorageKey?: string | null
     columnVisibilityDefaults?: Key[]
     viewportTrackingEnabled?: boolean
+    /** Margin around viewport for preloading columns (e.g., "0px 200px" to preload 200px on left/right) */
+    viewportMargin?: string
+    /** Debounce time in ms before marking a column as hidden after it exits viewport (default: 150) */
+    viewportExitDebounceMs?: number
 }
 
 export interface TableFeaturePagination<Row extends InfiniteTableRowBase> {
@@ -164,6 +168,12 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      */
     dataSource?: Row[]
     /**
+     * Jotai store to use for the table. When provided, the table will use this store
+     * instead of creating an isolated one. Useful when cells need to read from
+     * atoms in a shared store (e.g., entity atoms).
+     */
+    store?: InfiniteVirtualTableProps<Row>["store"]
+    /**
      * Ref to access the underlying Ant Design Table instance.
      * Useful for programmatic scrolling via `tableRef.current?.scrollTo({ index })`.
      */
@@ -244,6 +254,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         expandable,
         dataSource,
         tableRef,
+        store,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
 
@@ -481,6 +492,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             storageKey: tableScope.columnVisibilityStorageKey ?? undefined,
             defaultHiddenKeys: tableScope.columnVisibilityDefaults,
             viewportTrackingEnabled,
+            viewportMargin: tableScope.viewportMargin,
+            viewportExitDebounceMs: tableScope.viewportExitDebounceMs,
             renderMenuContent: columnVisibilityRenderer,
             renderMenuTrigger: useSettingsDropdown ? settingsDropdownRenderer : undefined,
         }),
@@ -489,6 +502,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             settingsDropdownRenderer,
             tableScope.columnVisibilityDefaults,
             tableScope.columnVisibilityStorageKey,
+            tableScope.viewportExitDebounceMs,
+            tableScope.viewportMargin,
             useSettingsDropdown,
             viewportTrackingEnabled,
         ],
@@ -539,7 +554,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             >
                 {beforeTable}
                 <InfiniteVirtualTable<Row>
-                    useIsolatedStore
+                    useIsolatedStore={!store}
+                    store={store}
                     columns={columns}
                     dataSource={dataSource ?? pagination.rows}
                     loadMore={handleLoadMore}
