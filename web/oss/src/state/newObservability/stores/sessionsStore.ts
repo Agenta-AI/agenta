@@ -178,31 +178,38 @@ const sessionsDatasetStoreInternal = createInfiniteDatasetStore<
         }
 
         // Construct windowing object for API
-        const apiWindowing: any = {
-            limit,
-        }
+        // If we have a cursor from previous page, use it directly (it contains the full windowing)
+        // Otherwise, construct from sort settings
+        let apiWindowing: any
 
-        if (meta.sort?.type === "standard" && meta.sort.sorted) {
-            apiWindowing.oldest = meta.sort.sorted
-        } else if (
-            meta.sort?.type === "custom" &&
-            (meta.sort.customRange?.startTime || meta.sort.customRange?.endTime)
-        ) {
-            const {startTime, endTime} = meta.sort.customRange || {}
-            if (startTime) apiWindowing.oldest = startTime
-            if (endTime) apiWindowing.newest = endTime
-        }
+        if (cursor && typeof cursor === "object") {
+            // cursor is the nextWindowing from previous page, use it as-is
+            apiWindowing = {
+                ...cursor,
+                limit, // Ensure limit is set
+            }
+        } else {
+            // First page: construct windowing from sort settings
+            apiWindowing = {
+                limit,
+            }
 
-        // If we have a cursor, it overrides other pagination
-        if (cursor) {
-            apiWindowing.next = cursor
+            if (meta.sort?.type === "standard" && meta.sort.sorted) {
+                apiWindowing.oldest = meta.sort.sorted
+            } else if (
+                meta.sort?.type === "custom" &&
+                (meta.sort.customRange?.startTime || meta.sort.customRange?.endTime)
+            ) {
+                const {startTime, endTime} = meta.sort.customRange || {}
+                if (startTime) apiWindowing.oldest = startTime
+                if (endTime) apiWindowing.newest = endTime
+            }
         }
 
         const result = await fetchSessions({
             appId: meta.appIds[0], // Assuming single app selection for now
             windowing: apiWindowing,
             filter: meta.filters && meta.filters.length > 0 ? meta.filters : undefined,
-            cursor: cursor || undefined,
         })
 
         const sessionIds = result.session_ids || []
@@ -212,10 +219,12 @@ const sessionsDatasetStoreInternal = createInfiniteDatasetStore<
         return {
             rows: sessionIds,
             totalCount,
-            hasMore: !!nextWindowing?.next,
+            // nextWindowing exists if there are more pages (backend returns it when limit is reached)
+            hasMore: !!nextWindowing,
             nextOffset: offset + sessionIds.length,
-            nextCursor: nextWindowing?.next || null,
-            nextWindowing: null,
+            // Store the entire windowing object as the cursor for next page
+            nextCursor: nextWindowing || null,
+            nextWindowing: nextWindowing,
         }
     },
 })

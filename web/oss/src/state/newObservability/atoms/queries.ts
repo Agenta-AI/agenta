@@ -293,10 +293,12 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
                 appId: (appId as string) || undefined,
                 windowing: {
                     limit,
-                    // Base time window from sort (fixed boundaries)
+                    // Base time window from sort (initial boundaries for first page)
                     oldest: baseWindowing.oldest,
                     newest: baseWindowing.newest,
-                    // Pagination cursor (moves within the boundaries)
+                    // Pagination cursors override base boundaries for subsequent pages:
+                    // - In DESC order: pageParam.newest moves backward, oldest stays fixed
+                    // - In ASC order: pageParam.oldest moves forward, newest stays fixed
                     ...(pageParam?.oldest && {oldest: pageParam.oldest}),
                     ...(pageParam?.newest && {newest: pageParam.newest}),
                 },
