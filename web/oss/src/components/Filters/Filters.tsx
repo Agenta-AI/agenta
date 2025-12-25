@@ -1866,8 +1866,9 @@ const Filters: React.FC<Props> = ({
                             0 && (
                             <CustomAntdBadge
                                 count={
-                                    sanitizedFilters.filter(({field, operator}) => field && operator)
-                                        .length
+                                    sanitizedFilters.filter(
+                                        ({field, operator}) => field && operator,
+                                    ).length
                                 }
                             />
                         )}

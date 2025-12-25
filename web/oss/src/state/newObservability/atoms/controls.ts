@@ -152,7 +152,9 @@ export const testsetDrawerDataAtom = atom<TestsetTraceData[]>([])
 export const isAnnotationsSectionOpenAtom = atom<boolean>(true)
 
 // Activity mode control: false = "all activity" (stable, first_active), true = "latest activity" (unstable, last_active)
-export const realtimeModeAtomFamily = atomFamily((_tab: ObservabilityTabInfo) => atom<boolean>(false))
+export const realtimeModeAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
+    atom<boolean>(false),
+)
 export const realtimeModeAtom = atom(
     (get) => get(realtimeModeAtomFamily(get(observabilityTabAtom))),
     (get, set, value: boolean) => set(realtimeModeAtomFamily(get(observabilityTabAtom)), value),

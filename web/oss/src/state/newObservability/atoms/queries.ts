@@ -281,7 +281,10 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
 
     return {
         queryKey: ["sessions", projectId, appId, baseWindowing, limit, realtimeMode],
-        initialPageParam: {newest: undefined as string | undefined, oldest: undefined as string | undefined},
+        initialPageParam: {
+            newest: undefined as string | undefined,
+            oldest: undefined as string | undefined,
+        },
 
         queryFn: async ({pageParam}: {pageParam?: {newest?: string; oldest?: string}}) => {
             const {fetchSessions} = await import("@/oss/services/tracing/api")
