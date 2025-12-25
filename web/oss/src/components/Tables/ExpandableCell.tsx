@@ -4,7 +4,7 @@ import {CaretLineDown, CaretLineUp} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {atom, useAtom} from "jotai"
 
-import TooltipButton, {TooltipButtonProps} from "@/oss/components/Playground/assets/EnhancedButton"
+import TooltipButton, {TooltipButtonProps} from "@/oss/components/EnhancedUIs/Button"
 import useResizeObserver from "@/oss/hooks/useResizeObserver"
 
 // Global jotai store that keeps the expanded/collapsed state for each individual cell.

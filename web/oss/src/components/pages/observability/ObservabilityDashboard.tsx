@@ -5,7 +5,7 @@ import {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {setTraceDrawerActiveSpanAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
+import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
@@ -18,7 +18,12 @@ import {getObservabilityColumns} from "./assets/getObservabilityColumns"
 
 const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})
-const TestsetDrawer = dynamic(() => import("./drawer/TestsetDrawer/TestsetDrawer"), {ssr: false})
+const TestsetDrawer = dynamic(
+    () => import("../../SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
+    {
+        ssr: false,
+    },
+)
 
 const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     const slugs = new Set<string>()

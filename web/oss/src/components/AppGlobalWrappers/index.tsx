@@ -8,12 +8,12 @@ import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appStat
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
 
 const TraceDrawer = dynamic(
-    () => import("@/oss/components/Playground/Components/Drawers/TraceDrawer/TraceDrawer"),
+    () => import("@/oss/components/SharedDrawers/TraceDrawer/components/TraceDrawer"),
     {ssr: false},
 )
 
 const EvalRunFocusDrawerPreview = dynamic(
-    () => import("@/oss/components/EvalRunDetails2/components/FocusDrawer"),
+    () => import("@/oss/components/EvalRunDetails/components/FocusDrawer"),
     {ssr: false},
 )
 
@@ -71,7 +71,7 @@ const DeleteVariantModalWrapper = dynamic(
 )
 
 const CustomWorkflowModalMount = dynamic(
-    () => import("@/oss/components/Modals/CustomWorkflowModalMount"),
+    () => import("@/oss/components/CustomWorkflow/CustomWorkflowModalMount"),
     {ssr: false},
 )
 

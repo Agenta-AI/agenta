@@ -20,9 +20,12 @@ import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 import {useTestsetInputsAnalysis} from "../../hooks/useTestsetInputsAnalysis"
 import {LoadTestsetModalContentProps} from "../types"
 
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const LoadTestsetModalContent = ({
     modalProps,
