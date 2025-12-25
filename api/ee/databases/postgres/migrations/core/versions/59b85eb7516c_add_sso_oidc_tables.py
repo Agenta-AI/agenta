@@ -1,7 +1,7 @@
 """add sso oidc tables
 
 Revision ID: 59b85eb7516c
-Revises: cfa14a847972
+Revises: 80910d2fa9a4
 Create Date: 2025-12-10 08:53:56.000000+00:00
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "59b85eb7516c"
-down_revision: Union[str, None] = "cfa14a847972"
+down_revision: Union[str, None] = "80910d2fa9a4"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

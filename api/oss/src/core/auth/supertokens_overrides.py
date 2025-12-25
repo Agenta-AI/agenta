@@ -14,6 +14,10 @@ from supertokens_python.recipe.thirdparty.interfaces import (
     APIInterface as ThirdPartyAPIInterface,
     SignInUpOkResult,
 )
+from supertokens_python.recipe.passwordless.interfaces import (
+    RecipeInterface as PasswordlessRecipeInterface,
+    ConsumeCodeOkResult,
+)
 from supertokens_python.recipe.session.interfaces import (
     RecipeInterface as SessionRecipeInterface,
 )
@@ -22,6 +26,7 @@ from supertokens_python.types import User, RecipeUserId
 from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.core.users.types import UserIdentityCreate
+from oss.src.services import db_manager
 
 
 # DAOs for accessing user identities (always available)
@@ -138,9 +143,16 @@ def override_thirdparty_functions(
             # Format: oidc:{org_id}:{provider_slug} -> sso:{org_slug}:{provider_slug}
             parts = third_party_id.split(":")
             org_id_str, provider_slug = parts[1], parts[2]
-            # TODO: Fetch org_slug from organization table
-            org_slug = "org"  # Placeholder
-            method = f"sso:{org_slug}:{provider_slug}"
+
+            # Fetch organization to get slug (if available)
+            try:
+                org = await db_manager.get_organization_by_id(org_id_str)
+                org_identifier = org.slug if org and org.slug else org_id_str
+            except Exception as e:
+                print(f"Error fetching organization for SSO method: {e}")
+                org_identifier = org_id_str  # Fallback to org_id
+
+            method = f"sso:{org_identifier}:{provider_slug}"
         elif third_party_id == "google":
             method = "social:google"
         elif third_party_id == "github":
@@ -238,4 +250,94 @@ def override_session_functions(
         )
 
     original_implementation.create_new_session = create_new_session
+    return original_implementation
+
+
+def override_passwordless_functions(
+    original_implementation: PasswordlessRecipeInterface,
+) -> PasswordlessRecipeInterface:
+    """Override passwordless recipe functions to track email:otp identity."""
+
+    original_consume_code = original_implementation.consume_code
+
+    async def consume_code(
+        pre_auth_session_id: str,
+        user_input_code: Optional[str],
+        device_id: Optional[str],
+        link_code: Optional[str],
+        session: Optional[Any],
+        should_try_linking_with_session_user: Optional[bool],
+        tenant_id: str,
+        user_context: Dict[str, Any],
+    ) -> Union[ConsumeCodeOkResult, Any]:
+        """
+        Override consume_code to:
+        1. Create user_identity record for email:otp after successful login
+        2. Populate session with identities array
+        """
+        # Call original implementation
+        result = await original_consume_code(
+            pre_auth_session_id=pre_auth_session_id,
+            user_input_code=user_input_code,
+            device_id=device_id,
+            link_code=link_code,
+            session=session,
+            should_try_linking_with_session_user=should_try_linking_with_session_user,
+            tenant_id=tenant_id,
+            user_context=user_context,
+        )
+
+        # Only process if successful
+        if not isinstance(result, ConsumeCodeOkResult):
+            return result
+
+        # Determine method and subject
+        method = "email:otp"
+        user_id_str = result.user.id
+        email = result.user.emails[0] if result.user.emails else None
+
+        if not email:
+            # Can't create identity without email
+            user_context["identities"] = [method]
+            return result
+
+        # Extract domain from email
+        domain = email.split("@")[1] if "@" in email and email.count("@") == 1 else None
+
+        # Create or update user_identity
+        try:
+            # Check if identity already exists
+            existing = await identities_dao.get_by_method_subject(
+                method=method,
+                subject=email,  # For email:otp, subject is the email
+            )
+
+            if not existing:
+                # Create new identity
+                await identities_dao.create(
+                    UserIdentityCreate(
+                        user_id=UUID(user_id_str),
+                        method=method,
+                        subject=email,
+                        domain=domain,
+                    )
+                )
+        except Exception as e:
+            # Log error but don't block authentication
+            print(f"Error creating user_identity for passwordless: {e}")
+
+        # Fetch all user identities for session payload
+        try:
+            all_identities = await identities_dao.list_by_user(UUID(user_id_str))
+            identities_array = [identity.method for identity in all_identities]
+        except Exception as e:
+            print(f"Error fetching user identities: {e}")
+            identities_array = [method]  # Fallback to current method only
+
+        # Store identities in user_context for session creation
+        user_context["identities"] = identities_array
+
+        return result
+
+    original_implementation.consume_code = consume_code
     return original_implementation

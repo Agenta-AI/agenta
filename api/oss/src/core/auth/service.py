@@ -11,6 +11,7 @@ from uuid import UUID
 
 from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
+from oss.src.services import db_manager
 
 # Organization DAOs (EE only)
 if is_ee():
@@ -75,13 +76,20 @@ class AuthService:
         domain = email.split("@")[1] if "@" in email else None
 
         # Check if user exists
-        # For now, we'll use a simple query - in production, check users table
-        user_exists = False  # TODO: Query users table
-        user_id = None  # TODO: Get from users table
+        user = await db_manager.get_user_with_email(email)
+        user_exists = user is not None
+        user_id = UUID(str(user.id)) if user else None
 
-        # Get user's organization memberships and their policies
-        # TODO: Query organization_members to get org_ids
-        org_ids: List[UUID] = []  # Placeholder
+        # Get user's organization memberships
+        org_ids: List[UUID] = []
+        if user_exists and user_id:
+            try:
+                orgs = await db_manager.get_user_organizations(str(user_id))
+                org_ids = [org.id for org in orgs]
+            except Exception as e:
+                # Log error but don't block discovery
+                print(f"Error fetching user organizations: {e}")
+                org_ids = []
 
         # Aggregate allowed methods across all organizations (EE only)
         all_allowed_methods: set[str] = set()

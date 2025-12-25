@@ -96,6 +96,17 @@ class OrganizationDomainsDAO:
 
         return map_domain_dbe_to_dto(domain_dbe)
 
+    async def get_by_id(self, domain_id: UUID) -> Optional[OrganizationDomain]:
+        async with engine.core_session() as session:
+            stmt = select(OrganizationDomainDBE).filter_by(id=domain_id)
+            result = await session.execute(stmt)
+            domain_dbe = result.scalar()
+
+            if domain_dbe is None:
+                return None
+
+            return map_domain_dbe_to_dto(domain_dbe)
+
     async def get_by_domain(self, domain: str) -> Optional[OrganizationDomain]:
         async with engine.core_session() as session:
             stmt = select(OrganizationDomainDBE).filter_by(domain=domain)

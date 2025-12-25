@@ -14,6 +14,7 @@ from time import time
 from alembic import context
 
 from sqlalchemy import Connection, func, insert, select, update
+from sqlalchemy.orm import load_only
 
 import stripe
 
@@ -61,6 +62,7 @@ def upgrade() -> None:
             # --> GET ORGANIZATION BATCH
             query = (
                 select(OrganizationDB)
+                .options(load_only(OrganizationDB.id, OrganizationDB.owner))
                 .limit(organization_batch_size)
                 .offset(organization_batch_index * organization_batch_size)
             )

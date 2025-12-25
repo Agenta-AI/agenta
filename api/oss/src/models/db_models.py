@@ -33,6 +33,7 @@ class OrganizationDB(Base):
         nullable=False,
     )
     name = Column(String, default="agenta")
+    slug = Column(String, unique=True, nullable=True)  # URL-safe identifier for SSO
     description = Column(
         String,
         default="The open-source LLM developer platform for cross-functional teams.",

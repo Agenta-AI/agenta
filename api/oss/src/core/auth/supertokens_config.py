@@ -8,7 +8,10 @@ from supertokens_python.recipe import (
     dashboard,
     thirdparty,
 )
-from supertokens_python.recipe.passwordless import ContactEmailOnlyConfig
+from supertokens_python.recipe.passwordless import (
+    ContactEmailOnlyConfig,
+    InputOverrideConfig as PasswordlessInputOverrideConfig,
+)
 from supertokens_python.recipe.thirdparty import (
     ProviderInput,
     ProviderConfig,
@@ -23,6 +26,7 @@ from oss.src.utils.env import env
 from oss.src.core.auth.supertokens_overrides import (
     override_thirdparty_functions,
     override_thirdparty_apis,
+    override_passwordless_functions,
     override_session_functions,
 )
 
@@ -115,6 +119,9 @@ def init_supertokens():
             passwordless.init(
                 contact_config=ContactEmailOnlyConfig(),
                 flow_type="USER_INPUT_CODE_AND_MAGIC_LINK",
+                override=PasswordlessInputOverrideConfig(
+                    functions=override_passwordless_functions,
+                ),
             ),
             # Third-party OAuth (social + dynamic OIDC)
             thirdparty.init(

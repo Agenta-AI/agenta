@@ -1,0 +1,242 @@
+###
+# Database Setup & Verification
+# SQL commands to set up test data and verify schema
+#
+# Run these in psql or your database client BEFORE running other tests
+###
+
+###
+# 1. Verify Migrations Applied
+###
+
+# Check user_identities table exists
+# \d user_identities
+
+# Expected columns:
+# - id (uuid)
+# - user_id (uuid, FK to users.id)
+# - method (text)
+# - subject (text)
+# - domain (text, nullable)
+# - created_at (timestamp)
+# - updated_at (timestamp)
+#
+# Expected constraints:
+# - UNIQUE (method, subject)
+# - INDEX on (user_id, method)
+# - INDEX on (domain)
+
+
+###
+# 2. Verify Organization Slug Column Added
+###
+
+# Check organizations table has slug column
+# \d organizations
+
+# Expected: slug column (text, unique, nullable)
+
+
+###
+# 3. Setup Test Organization (EE Mode)
+###
+
+-- Create test organization with slug
+-- INSERT INTO organizations (id, name, slug, description, created_at, updated_at)
+-- VALUES (
+--   gen_random_uuid(),
+--   'ACME Corporation',
+--   'acme',
+--   'Test organization for SSO',
+--   now(),
+--   now()
+-- )
+-- RETURNING id;
+-- Save the returned ID as @testOrgId
+
+
+###
+# 4. Setup Organization Policy (EE Mode)
+###
+
+-- Allow SSO only for test organization
+-- INSERT INTO organization_policies (
+--   id,
+--   organization_id,
+--   allowed_methods,
+--   invitation_only,
+--   domains_only,
+--   disable_root,
+--   created_at,
+--   updated_at
+-- )
+-- VALUES (
+--   gen_random_uuid(),
+--   '<testOrgId>',  -- Replace with actual org ID
+--   ARRAY['sso:*'],  -- Only SSO allowed
+--   true,
+--   false,
+--   false,
+--   now(),
+--   now()
+-- );
+
+
+###
+# 5. Setup Verified Domain (EE Mode)
+###
+
+-- Add verified domain for SSO
+-- INSERT INTO organization_domains (
+--   id,
+--   organization_id,
+--   domain,
+--   verified,
+--   verification_token,
+--   created_at,
+--   updated_at
+-- )
+-- VALUES (
+--   gen_random_uuid(),
+--   '<testOrgId>',
+--   'acme.com',
+--   true,  -- Already verified
+--   null,
+--   now(),
+--   now()
+-- )
+-- RETURNING id;
+-- Save as @testDomainId
+
+
+###
+# 6. Setup OIDC Provider (EE Mode)
+###
+
+-- Add OIDC provider configuration
+-- INSERT INTO organization_providers (
+--   id,
+--   organization_id,
+--   slug,
+--   name,
+--   description,
+--   enabled,
+--   domain_id,
+--   config,
+--   created_at,
+--   updated_at
+-- )
+-- VALUES (
+--   gen_random_uuid(),
+--   '<testOrgId>',
+--   'okta',
+--   'Okta SSO',
+--   'ACME Okta integration',
+--   true,
+--   '<testDomainId>',
+--   '{
+--     "issuer": "https://dev-12345.okta.com",
+--     "client_id": "0oa...",
+--     "client_secret": "xxx",
+--     "scopes": ["openid", "profile", "email"],
+--     "authorization_endpoint": "https://dev-12345.okta.com/oauth2/v1/authorize",
+--     "token_endpoint": "https://dev-12345.okta.com/oauth2/v1/token",
+--     "userinfo_endpoint": "https://dev-12345.okta.com/oauth2/v1/userinfo"
+--   }'::jsonb,
+--   now(),
+--   now()
+-- )
+-- RETURNING id;
+-- Save as @testProviderId
+
+
+###
+# 7. Create Test User
+###
+
+-- Create test user
+-- INSERT INTO users (id, uid, username, email, created_at, updated_at)
+-- VALUES (
+--   gen_random_uuid(),
+--   'st_user_123',  -- SuperTokens user ID
+--   'Test User',
+--   'test@acme.com',
+--   now(),
+--   now()
+-- )
+-- RETURNING id;
+-- Save as @testUserId
+
+
+###
+# 8. Add User to Organization (EE Mode)
+###
+
+-- Create organization membership
+-- INSERT INTO organization_members (id, user_id, organization_id)
+-- VALUES (
+--   gen_random_uuid(),
+--   '<testUserId>',
+--   '<testOrgId>'
+-- );
+
+
+###
+# 9. Verification Queries
+###
+
+-- Check all test data created successfully
+
+-- Verify organization
+-- SELECT id, name, slug FROM organizations WHERE slug = 'acme';
+
+-- Verify policy
+-- SELECT allowed_methods FROM organization_policies WHERE organization_id = '<testOrgId>';
+
+-- Verify domain
+-- SELECT domain, verified FROM organization_domains WHERE organization_id = '<testOrgId>';
+
+-- Verify provider
+-- SELECT slug, name, enabled, config->>'issuer' as issuer
+-- FROM organization_providers
+-- WHERE organization_id = '<testOrgId>';
+
+-- Verify user
+-- SELECT id, email FROM users WHERE email = 'test@acme.com';
+
+-- Verify membership
+-- SELECT om.id, u.email, o.name
+-- FROM organization_members om
+-- JOIN users u ON u.id = om.user_id
+-- JOIN organizations o ON o.id = om.organization_id
+-- WHERE u.email = 'test@acme.com';
+
+
+###
+# 10. Cleanup (Run after testing)
+###
+
+-- Clean up test data
+-- DELETE FROM organization_members WHERE user_id = '<testUserId>';
+-- DELETE FROM organization_providers WHERE organization_id = '<testOrgId>';
+-- DELETE FROM organization_domains WHERE organization_id = '<testOrgId>';
+-- DELETE FROM organization_policies WHERE organization_id = '<testOrgId>';
+-- DELETE FROM user_identities WHERE user_id = '<testUserId>';
+-- DELETE FROM users WHERE id = '<testUserId>';
+-- DELETE FROM organizations WHERE id = '<testOrgId>';
+
+
+###
+# Quick Setup Script (OSS Mode - Email OTP Only)
+###
+
+-- For OSS mode testing, just verify migrations:
+-- SELECT EXISTS (
+--   SELECT FROM information_schema.tables
+--   WHERE table_name = 'user_identities'
+-- ) as user_identities_exists;
+
+-- SELECT EXISTS (
+--   SELECT FROM information_schema.columns
+--   WHERE table_name = 'organizations' AND column_name = 'slug'
+-- ) as org_slug_exists;
