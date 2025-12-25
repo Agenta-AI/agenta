@@ -16,6 +16,13 @@ const ObservabilityHeader = dynamic(() => import("../../components/Observability
     ssr: false,
 })
 
+/**
+ * Next iteration plan:
+ * - Add infinite scroll for spans query
+ * - Replace EnhancedTable with InfiniteVirtualTable
+ * - For Session drawer add infinite scroll for spans
+ */
+
 const SessionsTable: React.FC = () => {
     const {
         isLoading,
