@@ -1,7 +1,7 @@
 import {memo, useMemo} from "react"
 
-import {Timer, PlusCircle} from "@phosphor-icons/react"
-import {Tag, Space} from "antd"
+import {PlusCircle, Timer} from "@phosphor-icons/react"
+import {Space, Tag} from "antd"
 import clsx from "clsx"
 
 import StatusRenderer from "@/oss/components/pages/observability/components/StatusRenderer"
@@ -46,7 +46,7 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({
             {showStatus && <StatusRenderer status={status} />}
 
             {durations ? (
-                <Tag color="default" bordered={false} className="flex items-center gap-1">
+                <Tag color="default" variant="filled" className="flex items-center gap-1">
                     <Timer size={14} /> {formattedLatency}
                 </Tag>
             ) : null}
@@ -54,7 +54,7 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({
             {tokens || costs ? (
                 <ResultTag
                     color="default"
-                    bordered={false}
+                    variant="filled"
                     value1={
                         <div className="flex items-center gap-1 text-nowrap">
                             <PlusCircle size={14} /> {formattedTokens} / {formattedCosts}

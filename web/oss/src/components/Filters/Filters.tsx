@@ -7,24 +7,24 @@ import {
     PlusIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
+import type {TreeSelectProps} from "antd"
 import {
     Button,
     Divider,
+    Dropdown,
     Input,
+    MenuProps,
     Popover,
     Select,
     Space,
-    Typography,
-    Dropdown,
-    MenuProps,
     TreeSelect,
+    Typography,
 } from "antd"
-import type {TreeSelectProps} from "antd"
 import isEqual from "lodash/isEqual"
 
 import {
-    fieldConfigByOptionKey,
     FieldConfig,
+    fieldConfigByOptionKey,
 } from "@/oss/components/pages/observability/assets/filters/fieldAdapter"
 import {
     getOperator,
@@ -66,14 +66,14 @@ import {
     valueToPathLabel,
 } from "./helpers/utils"
 import {
-    FilterMenuNode,
-    FilterLeaf,
-    FilterGroup,
-    SelectOption,
-    Props,
-    FilterItem,
     FieldMenuItem,
+    FilterGroup,
+    FilterItem,
+    FilterLeaf,
+    FilterMenuNode,
+    Props,
     RowValidation,
+    SelectOption,
 } from "./types"
 
 type AnnotationFeedbackValueType = "string" | "number" | "boolean"
@@ -1314,7 +1314,7 @@ const Filters: React.FC<Props> = ({
                                                                 className="w-[260px]"
                                                                 treeData={treeData}
                                                                 treeNodeLabelProp="pathLabel"
-                                                                dropdownMatchSelectWidth={false}
+                                                                popupMatchSelectWidth={false}
                                                                 styles={{
                                                                     popup: {
                                                                         root: {

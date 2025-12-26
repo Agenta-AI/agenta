@@ -1,8 +1,8 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
-import {GearSix, Note, Copy} from "@phosphor-icons/react"
-import {Button, Dropdown, Input, Table, Tag, Space} from "antd"
+import {Copy, GearSix, Note} from "@phosphor-icons/react"
+import {Button, Dropdown, Input, Space, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
@@ -30,7 +30,7 @@ const EvaluatorMetrics = memo(({evaluator}: {evaluator: EvaluatorDto<"response">
         <div className="flex flex-wrap gap-2">
             {Object.entries(metrics).map(([key, value]) => {
                 return (
-                    <Tag bordered={false} key={key}>
+                    <Tag variant="filled" key={key}>
                         {key}
                     </Tag>
                 )

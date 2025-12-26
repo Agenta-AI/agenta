@@ -5,13 +5,13 @@ import {PlusCircle, Timer} from "lucide-react"
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
-    formattedSpanLatencyAtomFamily,
-    formattedSpanTokensAtomFamily,
-    formattedSpanCostAtomFamily,
-    formattedSpanPromptTokensAtomFamily,
     formattedSpanCompletionTokensAtomFamily,
-    spanStartTimeAtomFamily,
+    formattedSpanCostAtomFamily,
+    formattedSpanLatencyAtomFamily,
+    formattedSpanPromptTokensAtomFamily,
+    formattedSpanTokensAtomFamily,
     spanEndTimeAtomFamily,
+    spanStartTimeAtomFamily,
 } from "@/oss/state/newObservability"
 
 import {statusMapper} from "../../../components/AvatarTreeContent"
@@ -42,7 +42,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                         color: color,
                     }}
                     className="font-mono"
-                    bordered={false}
+                    variant="filled"
                     value1={
                         <>
                             {icon} {activeTrace?.span_type}
@@ -56,14 +56,14 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 <StatusRenderer
                     status={activeTrace?.status_code}
                     message={activeTrace?.status_message}
-                    tagProps={{bordered: false}}
+                    tagProps={{variant: "filled"}}
                 />
             </Space>
 
             <Space orientation="vertical" size={4}>
                 <Typography.Text className={classes.title}>Latency</Typography.Text>
                 <ResultTag
-                    bordered={false}
+                    variant="filled"
                     className="bg-[#0517290F]"
                     value1={
                         <div className={classes.resultTag}>
@@ -78,11 +78,11 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
 
                 <ResultTag
                     value1={<div className={classes.resultTag}>Start - {traceStartTime}</div>}
-                    bordered={false}
+                    variant="filled"
                     className="bg-[#0517290F]"
                 />
                 <ResultTag
-                    bordered={false}
+                    variant="filled"
                     className="bg-[#0517290F]"
                     value1={
                         <div className={classes.resultTag}>
@@ -95,7 +95,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             <Space orientation="vertical" size={4}>
                 <Typography.Text className={classes.title}>Tokens & Cost</Typography.Text>
                 <ResultTag
-                    bordered={false}
+                    variant="filled"
                     className="bg-[#0517290F]"
                     value1={
                         <div className={classes.resultTag}>

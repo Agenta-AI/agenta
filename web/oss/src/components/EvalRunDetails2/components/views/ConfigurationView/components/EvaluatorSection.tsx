@@ -184,7 +184,7 @@ const EvaluatorCard = ({
                                         />
                                     ) : null}
                                     {evaluator.version ? (
-                                        <Tag className="!m-0 !bg-[#0517290F]" bordered={false}>
+                                        <Tag className="!m-0 !bg-[#0517290F]" variant="filled">
                                             V{evaluator.version}
                                         </Tag>
                                     ) : null}

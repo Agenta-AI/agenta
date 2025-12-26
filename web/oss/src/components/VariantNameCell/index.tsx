@@ -8,8 +8,8 @@ import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import type {Variant} from "@/oss/lib/Types"
 import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 import {
-    variantDisplayNameByIdAtomFamily,
     latestAppRevisionIdAtom,
+    variantDisplayNameByIdAtomFamily,
 } from "@/oss/state/variant/selectors/variant"
 
 type Rev = {
@@ -50,7 +50,7 @@ const VariantNameCell = memo(
 
         if (!rev) {
             return (
-                <Tag color="default" bordered={false} className="-ml-1">
+                <Tag color="default" variant="filled" className="-ml-1">
                     No deployment
                 </Tag>
             )

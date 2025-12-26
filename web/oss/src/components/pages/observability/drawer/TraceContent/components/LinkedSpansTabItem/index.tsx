@@ -7,8 +7,8 @@ import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
 import {
     LinkedSpanRow,
-    linkedSpanTargetsAtom,
     linkedSpansAtom,
+    linkedSpanTargetsAtom,
     linkedSpanTracesQueryAtom,
     setTraceDrawerTraceAtom,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
@@ -91,7 +91,7 @@ const LinkedSpansTabItem = ({isActive: _isActive}: LinkedSpansTabItemProps) => {
                 return (
                     <TooltipWithCopyAction copyText={spanId} title="Copy span id">
                         <Tag
-                            bordered={false}
+                            variant="filled"
                             className="font-mono bg-[#0517290F]"
                             onClick={() => navigateToLink(record)}
                         >

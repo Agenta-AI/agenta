@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 
 import {CloseOutlined} from "@ant-design/icons"
 import {Button, Popover, Space, Typography} from "antd"
@@ -190,7 +190,7 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                                             <Typography.Text>Total mean:</Typography.Text>
                                             <CustomAntdTag
                                                 value={`μ ${metric.average}`}
-                                                bordered={false}
+                                                variant="filled"
                                             />
                                         </Space>
                                         <Button

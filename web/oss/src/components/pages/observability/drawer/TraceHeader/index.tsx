@@ -5,9 +5,9 @@ import {Button, Space, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
+    setTraceDrawerTraceAtom,
     traceDrawerBackTargetAtom,
     traceDrawerIsLinkedViewAtom,
-    setTraceDrawerTraceAtom,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
@@ -22,8 +22,8 @@ import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {useObservability} from "@/oss/state/newObservability"
 import buildTraceQueryParams from "@/oss/state/newObservability/utils/buildTraceQueryParams"
 
-import {getTraceIdFromNode, getSpanIdFromNode, getNodeTimestamp, toISOString} from "./assets/helper"
-import {TraceHeaderProps, NavState, NavSource} from "./assets/types"
+import {getNodeTimestamp, getSpanIdFromNode, getTraceIdFromNode, toISOString} from "./assets/helper"
+import {NavSource, NavState, TraceHeaderProps} from "./assets/types"
 
 const TraceHeader = ({
     activeTrace: propActiveTrace,
@@ -478,7 +478,7 @@ const TraceHeader = ({
                         copyText={getTraceIdFromNode(displayTrace) || ""}
                         title="Copy trace id"
                     >
-                        <Tag className="font-mono bg-[#0517290F]" bordered={false}>
+                        <Tag className="font-mono bg-[#0517290F]" variant="filled">
                             # {getTraceIdFromNode(displayTrace) || "-"}
                         </Tag>
                     </TooltipWithCopyAction>
