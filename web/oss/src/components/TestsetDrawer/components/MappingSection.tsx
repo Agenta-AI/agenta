@@ -71,7 +71,7 @@ export function MappingSection({
     }
 
     return (
-        <div className={classes.container}>
+        <div className={classes.container} data-testid="mapping-section">
             <Typography.Text
                 className={classes.label}
                 type={hasDuplicateColumns ? "danger" : "secondary"}
@@ -84,7 +84,9 @@ export function MappingSection({
                 </Typography.Text>
             )}
 
-            {(selectedRevisionId && selectedRevisionId !== "draft") || isNewTestset ? (
+            {(selectedRevisionId && selectedRevisionId !== "draft") ||
+            isNewTestset ||
+            mappingData.length > 0 ? (
                 <>
                     <div className="flex flex-col gap-2">
                         {mappingData.map((mapping, idx) => (

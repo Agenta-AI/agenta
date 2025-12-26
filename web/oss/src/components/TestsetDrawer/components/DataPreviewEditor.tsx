@@ -1,13 +1,22 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import {ArrowCounterClockwise, CaretLeft, CaretRight, Trash} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {
+    ArrowCounterClockwise,
+    CaretLeft,
+    CaretRight,
+    Code,
+    TreeStructure,
+    Trash,
+} from "@phosphor-icons/react"
+import {Button, Segmented, Tooltip, Typography} from "antd"
 
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 
 import {useStyles} from "../assets/styles"
 import {TestsetTraceData} from "../assets/types"
+
+import TraceDataDrillIn from "./TraceDataDrillIn"
 
 interface DataPreviewEditorProps {
     traceData: TestsetTraceData[]
@@ -20,7 +29,17 @@ interface DataPreviewEditorProps {
     onRemoveTraceData: () => void
     onSaveEditedTrace: (value?: string) => void
     onRevertEditedTrace: () => void
+    /** Column options for mapping dropdown */
+    columnOptions?: {value: string; label: string}[]
+    /** Callback when user wants to map a field to a column - receives the full data path and selected column */
+    onMapToColumn?: (dataPath: string, column: string) => void
+    /** Callback when user wants to remove a mapping - receives the full data path */
+    onUnmap?: (dataPath: string) => void
+    /** Map of data paths to column names (for visual indication and display) */
+    mappedPaths?: Map<string, string>
 }
+
+type ViewMode = "editor" | "drill-in"
 
 export function DataPreviewEditor({
     traceData,
@@ -33,11 +52,17 @@ export function DataPreviewEditor({
     onRemoveTraceData,
     onSaveEditedTrace,
     onRevertEditedTrace,
+    columnOptions,
+    onMapToColumn,
+    onUnmap,
+    mappedPaths,
 }: DataPreviewEditorProps) {
     const classes = useStyles()
     const lastSavedRef = useRef(formatDataPreview)
     // Counter to force editor remount only on explicit revert (not on every edit)
     const [editorVersion, setEditorVersion] = useState(0)
+    // View mode toggle: editor (JSON/YAML) or drill-in (tree navigation)
+    const [viewMode, setViewMode] = useState<ViewMode>("drill-in")
 
     // Stable initial value - only updates when key changes (trace switch or revert)
     // This prevents cursor position reset during typing
@@ -90,35 +115,79 @@ export function DataPreviewEditor({
         [setUpdatedTraceData, onSaveEditedTrace],
     )
 
+    // Handle drill-in data changes
+    const handleDrillInDataChange = useCallback(
+        (updatedData: Record<string, unknown>) => {
+            // Wrap in {data: ...} format to match the expected structure
+            const wrappedData = {data: updatedData}
+            const jsonValue = JSON.stringify(wrappedData, null, 2)
+            setUpdatedTraceData(jsonValue)
+            lastSavedRef.current = jsonValue
+            onSaveEditedTrace(jsonValue)
+        },
+        [setUpdatedTraceData, onSaveEditedTrace],
+    )
+
+    // Span navigation prefix for breadcrumb
+    const spanNavigationPrefix = useMemo(
+        () => (
+            <div className="flex items-center gap-1 mr-2 pr-2 border-r border-gray-200">
+                <Button
+                    type="text"
+                    size="small"
+                    icon={<CaretLeft size={14} />}
+                    disabled={!canGoPrev}
+                    onClick={goToPrev}
+                    className="!px-1"
+                />
+                <Typography.Text className="text-sm whitespace-nowrap">
+                    Span {currentIndex + 1} of {traceData.length}
+                    {selectedTraceData?.isEdited && (
+                        <span className={classes.customTag}> (edited)</span>
+                    )}
+                </Typography.Text>
+                <Button
+                    type="text"
+                    size="small"
+                    icon={<CaretRight size={14} />}
+                    disabled={!canGoNext}
+                    onClick={goToNext}
+                    className="!px-1"
+                />
+            </div>
+        ),
+        [
+            canGoPrev,
+            canGoNext,
+            goToPrev,
+            goToNext,
+            currentIndex,
+            traceData.length,
+            selectedTraceData?.isEdited,
+            classes.customTag,
+        ],
+    )
+
     return (
         <div className={classes.container}>
-            <Typography.Text className={classes.label}>Data preview</Typography.Text>
-
-            {/* Spans selected info with navigation */}
             <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center gap-1">
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<CaretLeft size={14} />}
-                        disabled={!canGoPrev}
-                        onClick={goToPrev}
-                    />
-                    <Typography.Text>
-                        Span {currentIndex + 1} of {traceData.length}
-                        {selectedTraceData?.isEdited && (
-                            <span className={classes.customTag}> (edited)</span>
-                        )}
-                    </Typography.Text>
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<CaretRight size={14} />}
-                        disabled={!canGoNext}
-                        onClick={goToNext}
-                    />
-                </div>
+                <Typography.Text className={classes.label}>Data preview</Typography.Text>
                 <div className="flex items-center gap-2">
+                    <Segmented
+                        size="small"
+                        value={viewMode}
+                        onChange={(value) => setViewMode(value as ViewMode)}
+                        options={[
+                            {
+                                value: "drill-in",
+                                icon: <TreeStructure size={14} />,
+                            },
+                            {
+                                value: "editor",
+                                icon: <Code size={14} />,
+                            },
+                        ]}
+                    />
                     {selectedTraceData?.isEdited && (
                         <Tooltip title="Revert changes">
                             <Button
@@ -143,26 +212,42 @@ export function DataPreviewEditor({
                     )}
                 </div>
             </div>
-            <EditorProvider
-                key={editorKey}
-                codeOnly
-                language={editorFormat.toLowerCase() as "json" | "yaml"}
-                showToolbar={false}
-            >
-                <SharedEditor
-                    initialValue={stableInitialValue}
-                    handleChange={handleEditorChange}
-                    editorType="border"
-                    className={selectedTraceData?.isEdited ? "border-blue-400" : ""}
-                    disableDebounce
-                    noProvider
-                    editorProps={{
-                        codeOnly: true,
-                        language: editorFormat.toLowerCase() as "json" | "yaml",
-                        showLineNumbers: false,
-                    }}
+
+            {viewMode === "drill-in" ? (
+                <TraceDataDrillIn
+                    data={selectedTraceData?.data || {}}
+                    title="data"
+                    breadcrumbPrefix={spanNavigationPrefix}
+                    showBackArrow={false}
+                    editable
+                    onDataChange={handleDrillInDataChange}
+                    columnOptions={columnOptions}
+                    onMapToColumn={onMapToColumn}
+                    onUnmap={onUnmap}
+                    mappedPaths={mappedPaths}
                 />
-            </EditorProvider>
+            ) : (
+                <EditorProvider
+                    key={editorKey}
+                    codeOnly
+                    language={editorFormat.toLowerCase() as "json" | "yaml"}
+                    showToolbar={false}
+                >
+                    <SharedEditor
+                        initialValue={stableInitialValue}
+                        handleChange={handleEditorChange}
+                        editorType="border"
+                        className={selectedTraceData?.isEdited ? "border-blue-400" : ""}
+                        disableDebounce
+                        noProvider
+                        editorProps={{
+                            codeOnly: true,
+                            language: editorFormat.toLowerCase() as "json" | "yaml",
+                            showLineNumbers: false,
+                        }}
+                    />
+                </EditorProvider>
+            )}
         </div>
     )
 }

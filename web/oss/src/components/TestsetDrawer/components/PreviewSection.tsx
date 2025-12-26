@@ -54,6 +54,7 @@ export function PreviewSection({
                             autoHeight={true}
                             disableDeleteAction={true}
                             scopeIdPrefix="drawer-preview"
+                            maxRows={5}
                         />
                     ) : (
                         <Typography.Text type="secondary">

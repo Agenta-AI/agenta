@@ -92,6 +92,10 @@ const TestsetDrawer = () => {
                             onRemoveTraceData={drawer.onRemoveTraceData}
                             onSaveEditedTrace={drawer.onSaveEditedTrace}
                             onRevertEditedTrace={drawer.onRevertEditedTrace}
+                            columnOptions={drawer.columnOptions}
+                            onMapToColumn={drawer.onMapToColumnFromDrillIn}
+                            onUnmap={drawer.onUnmapFromDrillIn}
+                            mappedPaths={drawer.mappedPaths}
                         />
 
                         <MappingSection
