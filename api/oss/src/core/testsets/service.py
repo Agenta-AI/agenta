@@ -82,7 +82,7 @@ class TestsetsService:
         #
         testset_revision: TestsetRevision,
         #
-        include_testcases: Optional[bool],
+        include_testcases: Optional[bool] = None,
     ) -> None:
         """Conditionally populate testcases in revision data.
 
