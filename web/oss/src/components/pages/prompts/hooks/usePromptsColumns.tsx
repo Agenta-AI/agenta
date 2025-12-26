@@ -8,7 +8,7 @@ import {
     PencilSimpleIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
-import {Dropdown, Button, MenuProps, Tag} from "antd"
+import {Button, Dropdown, MenuProps, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
@@ -74,9 +74,9 @@ export const usePromptsColumns = ({
                 width: 160,
                 render: (_, record) =>
                     record.type === "folder" ? (
-                        <Tag bordered={false}>Folder</Tag>
+                        <Tag variant="filled">Folder</Tag>
                     ) : (
-                        <Tag bordered={false}>{record.app_type || "App"}</Tag>
+                        <Tag variant="filled">{record.app_type || "App"}</Tag>
                     ),
             },
             {

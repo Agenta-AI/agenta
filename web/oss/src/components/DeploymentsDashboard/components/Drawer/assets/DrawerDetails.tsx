@@ -81,14 +81,14 @@ const DrawerDetails = ({revisionId}: DrawerDetailsProps) => {
 
             <div className="flex flex-col">
                 <Typography.Text className={classes.subTitle}>Date modified</Typography.Text>
-                <Tag bordered={false} className="w-fit bg-[#0517290f]">
+                <Tag variant="filled" className="w-fit bg-[#0517290f]">
                     {record?.created_at}
                 </Tag>
             </div>
 
             <div className="flex flex-col">
                 <Typography.Text className={classes.subTitle}>Modified by</Typography.Text>
-                <Tag bordered={false} className="w-fit bg-[#0517290f]">
+                <Tag variant="filled" className="w-fit bg-[#0517290f]">
                     {record?.modified_by}
                 </Tag>
             </div>
@@ -96,7 +96,7 @@ const DrawerDetails = ({revisionId}: DrawerDetailsProps) => {
             {record?.commit_message && (
                 <div className="flex flex-col">
                     <Typography.Text className={classes.subTitle}>Notes</Typography.Text>
-                    <Tag bordered={false} className="w-fit bg-[#0517290f]">
+                    <Tag variant="filled" className="w-fit bg-[#0517290f]">
                         {record?.commit_message}
                     </Tag>
                 </div>

@@ -327,7 +327,7 @@ const VariantDrawerContent = ({
 
                 <div className="flex flex-col gap-1">
                     <Text className="font-medium">Date modified</Text>
-                    <Tag bordered={false} className="bg-[#0517290F]">
+                    <Tag variant="filled" className="bg-[#0517290F]">
                         {(() => {
                             const ts =
                                 (selectedVariant as any)?.updatedAtTimestamp ??

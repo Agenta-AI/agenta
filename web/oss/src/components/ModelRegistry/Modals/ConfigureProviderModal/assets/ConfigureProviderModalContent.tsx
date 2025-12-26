@@ -16,7 +16,7 @@ const ConfigureProviderModalContent = ({
         <div className="flex flex-col gap-4">
             <div className="flex flex-col items-start gap-1">
                 <Text>Provider</Text>
-                <Tag bordered={false} color="default" className="bg-[#0517290F] px-2 py-[1px]">
+                <Tag variant="filled" color="default" className="bg-[#0517290F] px-2 py-[1px]">
                     {selectedProvider?.title}
                 </Tag>
             </div>

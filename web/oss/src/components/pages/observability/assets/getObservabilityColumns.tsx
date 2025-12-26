@@ -42,7 +42,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                 const shortId = spanId ? spanId.split("-")[0] : "-"
                 return (
                     <TooltipWithCopyAction copyText={spanId || ""} title="Copy span id">
-                        <Tag className="font-mono bg-[#0517290F]" bordered={false}>
+                        <Tag className="font-mono bg-[#0517290F]" variant="filled">
                             # {shortId}
                         </Tag>
                     </TooltipWithCopyAction>

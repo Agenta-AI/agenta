@@ -7,6 +7,7 @@ import {
     PlusIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
+import type {TreeSelectProps} from "antd"
 import {
     Button,
     Divider,
@@ -1313,7 +1314,7 @@ const Filters: React.FC<Props> = ({
                                                                 className="w-[260px]"
                                                                 treeData={treeData}
                                                                 treeNodeLabelProp="pathLabel"
-                                                                dropdownMatchSelectWidth={false}
+                                                                popupMatchSelectWidth={false}
                                                                 styles={{
                                                                     popup: {
                                                                         root: {

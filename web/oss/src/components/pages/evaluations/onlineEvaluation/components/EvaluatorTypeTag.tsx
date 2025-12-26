@@ -18,7 +18,7 @@ const EvaluatorTypeTag = ({label, color, fallback}: EvaluatorTypeTagProps) => {
             : {fontSize: 12}
 
     return (
-        <Tag className="!m-0" bordered={false} color={color} style={style}>
+        <Tag className="!m-0" variant="filled" color={color} style={style}>
             {label}
         </Tag>
     )

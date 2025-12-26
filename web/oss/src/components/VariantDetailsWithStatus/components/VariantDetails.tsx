@@ -1,8 +1,8 @@
 // no react hooks needed here beyond Jotai
 
 import {PencilSimpleLine} from "@phosphor-icons/react"
-import {Dropdown, Space, Tag, Typography} from "antd"
 import type {MenuProps} from "antd"
+import {Dropdown, Space, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
@@ -84,7 +84,7 @@ const VariantDetails = ({
             {variantName ? <Typography>{variantName}</Typography> : null}
             {revision !== undefined &&
                 (showRevisionAsTag ? (
-                    <Tag className={`bg-[rgba(5,23,41,0.06)]`} bordered={false}>
+                    <Tag className={`bg-[rgba(5,23,41,0.06)]`} variant="filled">
                         v{revision}
                     </Tag>
                 ) : (
@@ -99,7 +99,7 @@ const VariantDetails = ({
                 >
                     <Tag
                         color="#586673"
-                        bordered={false}
+                        variant="filled"
                         className="flex items-center gap-1 font-normal cursor-pointer"
                     >
                         <PencilSimpleLine size={14} /> Draft
@@ -108,7 +108,7 @@ const VariantDetails = ({
             ) : (
                 isAppLatest &&
                 showLatestTag && (
-                    <Tag className={`bg-[#E6F4FF] text-[#1677FF]`} bordered={false}>
+                    <Tag className={`bg-[#E6F4FF] text-[#1677FF]`} variant="filled">
                         Last modified
                     </Tag>
                 )

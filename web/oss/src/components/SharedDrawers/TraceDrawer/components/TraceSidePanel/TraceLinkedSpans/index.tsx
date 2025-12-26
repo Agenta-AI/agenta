@@ -49,7 +49,7 @@ const TraceLinkedSpans = () => {
                         return (
                             <Tag
                                 key={`${link.trace_id}-${link.span_id}-${link.key || ""}`}
-                                bordered={false}
+                                variant="filled"
                                 className="cursor-pointer self-start bg-[#0517290F] flex gap-1 items-center"
                                 onClick={() => handleNavigate(link)}
                             >

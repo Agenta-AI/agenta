@@ -92,7 +92,7 @@ const SelectEvaluatorModalContent = () => {
                             )}
                         >
                             <div className="flex items-center gap-2">
-                                <Tag bordered={false} className={clsx("w-fit", tagClassnames)}>
+                                <Tag variant="filled" className={clsx("w-fit", tagClassnames)}>
                                     {item.name}
                                 </Tag>
                                 <ArrowRight

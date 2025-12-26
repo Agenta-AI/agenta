@@ -118,17 +118,17 @@ const EvaluatorDetailsPreview = ({
                         <ReadOnlyBox>
                             <div className="flex flex-wrap items-center gap-2">
                                 <span className="font-semibold text-[#475467]">{metric.name}</span>
-                                <Tag className="!m-0" bordered={false}>
+                                <Tag className="!m-0" variant="filled">
                                     {renderOutputType(metric)}
                                 </Tag>
                                 {metric.required ? (
-                                    <Tag className="!m-0" bordered={false} color="success">
+                                    <Tag className="!m-0" variant="filled" color="success">
                                         Required
                                     </Tag>
                                 ) : (
                                     <Tag
                                         className="!m-0"
-                                        bordered={false}
+                                        variant="filled"
                                         style={{backgroundColor: "#F2F4F7", color: "#475467"}}
                                     >
                                         Optional

@@ -106,7 +106,7 @@ const EvaluatorTemplateDropdown = ({
                         >
                             <div className="flex items-center gap-2">
                                 <Tag
-                                    bordered={false}
+                                    variant="filled"
                                     className={clsx("w-fit text-xs", tagClassnames)}
                                 >
                                     {item.name}
