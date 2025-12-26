@@ -137,6 +137,10 @@ interface TraceDataDrillInProps {
     onUnmap?: (dataPath: string) => void
     /** Map of data paths to column names (for visual indication and display) */
     mappedPaths?: Map<string, string>
+    /** Path to focus/navigate to (e.g., "data.inputs.prompt") */
+    focusPath?: string
+    /** Callback when focusPath has been handled */
+    onFocusPathHandled?: () => void
 }
 
 interface PathItem {
@@ -179,10 +183,36 @@ const TraceDataDrillIn = memo(
         onMapToColumn,
         onUnmap,
         mappedPaths,
+        focusPath,
+        onFocusPathHandled,
     }: TraceDataDrillInProps) => {
         const [currentPath, setCurrentPath] = useState<string[]>([])
         const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
         const [rawModeFields, setRawModeFields] = useState<Record<string, boolean>>({})
+
+        // Handle focusPath - navigate to the path and expand the field
+        useEffect(() => {
+            if (focusPath && title) {
+                // Parse the path (e.g., "data.inputs.prompt" -> ["inputs", "prompt"])
+                const pathParts = focusPath.split(".")
+                // Remove the title prefix if present
+                const startIndex = pathParts[0] === title ? 1 : 0
+                const targetPath = pathParts.slice(startIndex)
+
+                if (targetPath.length > 0) {
+                    // Navigate to the parent of the target field
+                    const parentPath = targetPath.slice(0, -1)
+                    setCurrentPath(parentPath)
+
+                    // Expand the target field (uncollapse it)
+                    const fieldKey = `${parentPath.join(".")}.${targetPath[targetPath.length - 1]}`
+                    setCollapsedFields((prev) => ({...prev, [fieldKey]: false}))
+
+                    // Notify that we've handled the focus
+                    onFocusPathHandled?.()
+                }
+            }
+        }, [focusPath, title, onFocusPathHandled])
 
         // Toggle raw mode for a field
         const toggleRawMode = useCallback((fieldKey: string) => {
@@ -299,7 +329,7 @@ const TraceDataDrillIn = memo(
 
                 {/* Current level items */}
                 {currentLevelItems.length === 0 ? (
-                    <div className="text-gray-500 text-sm">No items to display</div>
+                    <div className="text-gray-500">No items to display</div>
                 ) : (
                     <div className="flex flex-col gap-2">
                         {currentLevelItems.map((item) => {
@@ -330,6 +360,14 @@ const TraceDataDrillIn = memo(
                             const mappedColumn = mappedPaths?.get(dataPath)
                             const isMapped = !!mappedColumn
 
+                            // Count nested mappings for parent objects
+                            const nestedMappingCount = expandable
+                                ? Array.from(mappedPaths?.keys() || []).filter(
+                                      (path) =>
+                                          path.startsWith(dataPath + ".") && path !== dataPath,
+                                  ).length
+                                : 0
+
                             return (
                                 <div key={item.key} className="flex flex-col gap-2">
                                     {/* Field header - using shared component */}
@@ -355,6 +393,7 @@ const TraceDataDrillIn = memo(
                                         onUnmap={onUnmap ? () => onUnmap(dataPath) : undefined}
                                         isMapped={isMapped}
                                         mappedColumn={mappedColumn}
+                                        nestedMappingCount={nestedMappingCount}
                                     />
 
                                     {/* Field content - only shown when not collapsed */}
@@ -391,7 +430,7 @@ const TraceDataDrillIn = memo(
                                                             updateValueAtPath(fullPath, checked)
                                                         }
                                                     />
-                                                    <span className="text-sm text-gray-600">
+                                                    <span className="text-gray-600">
                                                         {item.value ? "true" : "false"}
                                                     </span>
                                                 </div>

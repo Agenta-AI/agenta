@@ -42,6 +42,8 @@ export interface DrillInFieldHeaderProps {
     isMapped?: boolean
     /** The column name this field is mapped to (for display) */
     mappedColumn?: string
+    /** Number of nested paths that are mapped (for parent objects) */
+    nestedMappingCount?: number
 }
 
 /**
@@ -198,6 +200,7 @@ const DrillInFieldHeader = memo(
         onUnmap,
         isMapped = false,
         mappedColumn,
+        nestedMappingCount = 0,
     }: DrillInFieldHeaderProps) => {
         const [copiedField, setCopiedField] = useState<string | null>(null)
 
@@ -226,6 +229,16 @@ const DrillInFieldHeader = memo(
                         <span className="text-xs text-green-600 font-medium">
                             mapped to {mappedColumn}
                         </span>
+                    ) : nestedMappingCount > 0 ? (
+                        <>
+                            {itemCount && (
+                                <span className="text-xs text-gray-400">[{itemCount}]</span>
+                            )}
+                            <span className="text-xs text-green-600 font-medium">
+                                contains {nestedMappingCount} mapping
+                                {nestedMappingCount > 1 ? "s" : ""}
+                            </span>
+                        </>
                     ) : (
                         itemCount && <span className="text-xs text-gray-400">[{itemCount}]</span>
                     )}

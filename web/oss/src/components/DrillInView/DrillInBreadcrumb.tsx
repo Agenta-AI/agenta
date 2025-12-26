@@ -52,7 +52,7 @@ const DrillInBreadcrumb = memo(
                     <button
                         type="button"
                         onClick={() => onNavigateToIndex(0)}
-                        className={`text-sm px-2 py-1 rounded hover:bg-gray-100 transition-colors bg-transparent border-none cursor-pointer ${currentPath.length === 0 ? "font-semibold text-gray-900" : "text-gray-500"}`}
+                        className={`px-2 py-1 rounded hover:bg-gray-100 transition-colors bg-transparent border-none cursor-pointer ${currentPath.length === 0 ? "font-semibold text-gray-900" : "text-gray-500"}`}
                     >
                         {rootTitle}
                     </button>
@@ -63,7 +63,7 @@ const DrillInBreadcrumb = memo(
                         <button
                             type="button"
                             onClick={() => onNavigateToIndex(index + 1)}
-                            className={`text-sm px-2 py-1 rounded hover:bg-gray-100 transition-colors bg-transparent border-none cursor-pointer ${index === currentPath.length - 1 ? "font-semibold text-gray-900" : "text-gray-500"}`}
+                            className={`px-2 py-1 rounded hover:bg-gray-100 transition-colors bg-transparent border-none cursor-pointer ${index === currentPath.length - 1 ? "font-semibold text-gray-900" : "text-gray-500"}`}
                         >
                             {segment}
                         </button>

@@ -13,7 +13,6 @@ import {Button, Segmented, Tooltip, Typography} from "antd"
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 
-import {useStyles} from "../assets/styles"
 import {TestsetTraceData} from "../assets/types"
 
 import TraceDataDrillIn from "./TraceDataDrillIn"
@@ -37,6 +36,10 @@ interface DataPreviewEditorProps {
     onUnmap?: (dataPath: string) => void
     /** Map of data paths to column names (for visual indication and display) */
     mappedPaths?: Map<string, string>
+    /** Path to focus/navigate to in drill-in view */
+    focusPath?: string
+    /** Callback when focusPath has been handled */
+    onFocusPathHandled?: () => void
 }
 
 type ViewMode = "editor" | "drill-in"
@@ -56,8 +59,9 @@ export function DataPreviewEditor({
     onMapToColumn,
     onUnmap,
     mappedPaths,
+    focusPath,
+    onFocusPathHandled,
 }: DataPreviewEditorProps) {
-    const classes = useStyles()
     const lastSavedRef = useRef(formatDataPreview)
     // Counter to force editor remount only on explicit revert (not on every edit)
     const [editorVersion, setEditorVersion] = useState(0)
@@ -140,10 +144,12 @@ export function DataPreviewEditor({
                     onClick={goToPrev}
                     className="!px-1"
                 />
-                <Typography.Text className="text-sm whitespace-nowrap">
+                <Typography.Text className="whitespace-nowrap">
                     Span {currentIndex + 1} of {traceData.length}
                     {selectedTraceData?.isEdited && (
-                        <span className={classes.customTag}> (edited)</span>
+                        <span className="ml-2 text-[10px] bg-blue-50 text-blue-600 px-1 py-0.5 rounded-sm">
+                            (edited)
+                        </span>
                     )}
                 </Typography.Text>
                 <Button
@@ -164,14 +170,18 @@ export function DataPreviewEditor({
             currentIndex,
             traceData.length,
             selectedTraceData?.isEdited,
-            classes.customTag,
         ],
     )
 
     return (
-        <div className={classes.container}>
-            <div className="flex justify-between items-center mb-2">
-                <Typography.Text className={classes.label}>Data preview</Typography.Text>
+        <div className="flex flex-col gap-1">
+            <div className="flex justify-between items-center">
+                <div className="flex flex-col gap-0.5">
+                    <Typography.Text className="font-medium">2. Map Data Fields</Typography.Text>
+                    <Typography.Text type="secondary" className="text-xs">
+                        Click on any field below to map it to a testset column
+                    </Typography.Text>
+                </div>
                 <div className="flex items-center gap-2">
                     <Segmented
                         size="small"
@@ -225,6 +235,8 @@ export function DataPreviewEditor({
                     onMapToColumn={onMapToColumn}
                     onUnmap={onUnmap}
                     mappedPaths={mappedPaths}
+                    focusPath={focusPath}
+                    onFocusPathHandled={onFocusPathHandled}
                 />
             ) : (
                 <EditorProvider

@@ -1,8 +1,6 @@
 import {PencilSimple} from "@phosphor-icons/react"
 import {Cascader, Input, Typography} from "antd"
 
-import {useStyles} from "../assets/styles"
-
 interface TestsetSelectorProps {
     cascaderValue: string[]
     cascaderOptions: any[]
@@ -30,12 +28,13 @@ export function TestsetSelector({
     setNewTestsetName,
     elementWidth,
 }: TestsetSelectorProps) {
-    const classes = useStyles()
-
     return (
-        <div className={classes.container}>
-            <Typography.Text className={classes.label}>Testset Revision</Typography.Text>
-            <div className="flex gap-2">
+        <div className="flex flex-col gap-1">
+            <Typography.Text className="font-medium">1. Select Testset</Typography.Text>
+            <Typography.Text type="secondary" className="text-xs">
+                Choose an existing testset to append data, or create a new one
+            </Typography.Text>
+            <div className="flex gap-2 mt-1">
                 <Cascader
                     showSearch
                     style={{width: elementWidth}}
