@@ -269,7 +269,7 @@ const SharedGenerationResultUtils = ({
             {showStatus && status ? <StatusRenderer status={status} /> : null}
 
             {durationMs !== undefined ? (
-                <Tag color="default" bordered={false} className="flex items-center gap-1">
+                <Tag color="default" variant="filled" className="flex items-center gap-1">
                     <Timer size={14} /> {formattedLatency}
                 </Tag>
             ) : null}
@@ -277,7 +277,7 @@ const SharedGenerationResultUtils = ({
             {totalTokens !== undefined || totalCost !== undefined ? (
                 <ResultTag
                     color="default"
-                    bordered={false}
+                    variant="filled"
                     value1={
                         <div className="flex items-center gap-1 text-nowrap">
                             <PlusCircle size={14} /> {formattedTokens} / {formattedCosts}

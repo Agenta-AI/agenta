@@ -190,7 +190,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                             <Typography.Text>Total mean:</Typography.Text>
                                             <CustomAntdTag
                                                 value={`μ ${metric.average}`}
-                                                bordered={false}
+                                                variant="filled"
                                             />
                                         </Space>
                                         <Button

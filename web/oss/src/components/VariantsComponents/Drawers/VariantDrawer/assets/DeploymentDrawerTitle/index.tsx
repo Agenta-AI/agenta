@@ -59,7 +59,7 @@ const DeploymentDrawerTitle = ({
                 <div className="flex items-center gap-2">
                     {/*TODO: update this with select variant deployment */}
                     <EnvironmentTagLabel environment={envName || ""} />
-                    <Tag bordered={false} className="bg-[#0517290F]">
+                    <Tag variant="filled" className="bg-[#0517290F]">
                         v{selectedVariant?.revision}
                     </Tag>
                 </div>

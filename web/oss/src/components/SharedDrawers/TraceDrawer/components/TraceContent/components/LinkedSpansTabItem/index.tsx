@@ -91,7 +91,7 @@ const LinkedSpansTabItem = ({isActive: _isActive}: LinkedSpansTabItemProps) => {
                 return (
                     <EnhancedTooltip copyText={spanId} title="Copy span id">
                         <Tag
-                            bordered={false}
+                            variant="filled"
                             className="font-mono bg-[#0517290F]"
                             onClick={() => navigateToLink(record)}
                         >

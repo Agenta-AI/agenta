@@ -50,7 +50,7 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
             dataIndex: "app_type",
             key: "app_type",
             render: (_, record) => {
-                return <Tag bordered={false}>{record.app_type}</Tag>
+                return <Tag variant="filled">{record.app_type}</Tag>
             },
         },
         {

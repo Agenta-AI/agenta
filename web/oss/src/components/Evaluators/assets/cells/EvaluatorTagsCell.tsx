@@ -8,7 +8,7 @@ const EvaluatorTagsCell = memo(({tags}: {tags: string[]}) => {
     return (
         <div className="flex flex-nowrap items-center gap-2">
             {tags.map((tag) => (
-                <Tag key={tag} bordered={false} className="bg-[#0517290F]">
+                <Tag key={tag} variant="filled" className="bg-[#0517290F]">
                     {tag}
                 </Tag>
             ))}

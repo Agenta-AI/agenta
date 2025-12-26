@@ -167,7 +167,7 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
                 />
             </div>
             {selectedOption?.description ? (
-                <Tag bordered={false} className="bg-[#0517290F] font-normal">
+                <Tag variant="filled" className="bg-[#0517290F] font-normal">
                     <Typography.Text copyable={{text: selectedOption.description}}>
                         {selectedOption.description}
                     </Typography.Text>
