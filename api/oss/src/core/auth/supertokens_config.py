@@ -225,17 +225,17 @@ def get_thirdparty_providers() -> List[ProviderInput]:
             },
         )
 
-    # Active Directory OAuth
-    if env.auth.active_directory_enabled:
-        assert env.auth.active_directory_oauth_client_id is not None
-        assert env.auth.active_directory_oauth_client_secret is not None
-        assert env.auth.active_directory_directory_id is not None
+    # Azure AD OAuth
+    if env.auth.azure_ad_enabled:
+        assert env.auth.azure_ad_oauth_client_id is not None
+        assert env.auth.azure_ad_oauth_client_secret is not None
+        assert env.auth.azure_ad_directory_id is not None
         add_provider(
-            provider_id="active-directory",
-            client_id=env.auth.active_directory_oauth_client_id,
-            client_secret=env.auth.active_directory_oauth_client_secret,
+            provider_id="azure-ad",
+            client_id=env.auth.azure_ad_oauth_client_id,
+            client_secret=env.auth.azure_ad_oauth_client_secret,
             additional_config={
-                "directoryId": env.auth.active_directory_directory_id,
+                "directoryId": env.auth.azure_ad_directory_id,
             },
         )
 

@@ -26,7 +26,8 @@ export const frontendConfig = (): SuperTokensConfig => {
         "bitbucket": () => ThirdPartyReact.Bitbucket.init(),
         "linkedin": () => ThirdPartyReact.LinkedIn.init(),
         "okta": () => ThirdPartyReact.Okta.init(),
-        "active-directory": () => ThirdPartyReact.ActiveDirectory.init(),
+        "azure-ad": () =>
+            ThirdPartyReact.ActiveDirectory.init({id: "azure-ad", name: "Azure AD"}),
         "boxy-saml": () => ThirdPartyReact.BoxySAML.init(),
     }
 

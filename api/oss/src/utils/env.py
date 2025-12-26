@@ -43,7 +43,9 @@ class SuperTokensConfig(BaseModel):
 class AuthConfig(BaseModel):
     """Authentication configuration - auto-detects enabled methods from env vars"""
 
-    authn_email: str | None = os.getenv("AGENTA_AUTHN_EMAIL")
+    supertokens_email_disabled: bool = (
+        os.getenv("SUPERTOKENS_EMAIL_DISABLED") or "false"
+    ).lower() in _TRUTHY
 
     google_oauth_client_id: str | None = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
     google_oauth_client_secret: str | None = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
@@ -90,13 +92,13 @@ class AuthConfig(BaseModel):
     okta_oauth_client_secret: str | None = os.getenv("OKTA_OAUTH_CLIENT_SECRET")
     okta_domain: str | None = os.getenv("OKTA_DOMAIN")
 
-    active_directory_oauth_client_id: str | None = os.getenv(
-        "ACTIVE_DIRECTORY_OAUTH_CLIENT_ID"
-    )
-    active_directory_oauth_client_secret: str | None = os.getenv(
-        "ACTIVE_DIRECTORY_OAUTH_CLIENT_SECRET"
-    )
-    active_directory_directory_id: str | None = os.getenv(
+    azure_ad_oauth_client_id: str | None = os.getenv(
+        "AZURE_AD_OAUTH_CLIENT_ID"
+    ) or os.getenv("ACTIVE_DIRECTORY_OAUTH_CLIENT_ID")
+    azure_ad_oauth_client_secret: str | None = os.getenv(
+        "AZURE_AD_OAUTH_CLIENT_SECRET"
+    ) or os.getenv("ACTIVE_DIRECTORY_OAUTH_CLIENT_SECRET")
+    azure_ad_directory_id: str | None = os.getenv("AZURE_AD_DIRECTORY_ID") or os.getenv(
         "ACTIVE_DIRECTORY_DIRECTORY_ID"
     )
 
@@ -109,16 +111,24 @@ class AuthConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     def model_post_init(self, _):
-        """Ensure at least one auth method is enabled; fallback to password email."""
-        if not self.authn_email and not self.oidc_enabled:
-            self.authn_email = "password"
+        """Keep config normalized without relying on deprecated AGENTA_AUTHN_EMAIL."""
+        return
 
     @property
     def email_method(self) -> str:
         """Returns email auth method: 'password', 'otp', or '' (disabled)"""
-        if self.authn_email in ("password", "otp"):
-            return self.authn_email
-        return ""
+        if self.supertokens_email_disabled:
+            return ""
+
+        sendgrid_enabled = bool(
+            os.getenv("SENDGRID_API_KEY")
+            and (
+                os.getenv("SENDGRID_FROM_ADDRESS")
+                or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
+                or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
+            )
+        )
+        return "otp" if sendgrid_enabled else "password"
 
     @property
     def email_enabled(self) -> bool:
@@ -196,12 +206,12 @@ class AuthConfig(BaseModel):
         )
 
     @property
-    def active_directory_enabled(self) -> bool:
-        """Active Directory OAuth enabled if credentials and directory ID are present"""
+    def azure_ad_enabled(self) -> bool:
+        """Azure AD OAuth enabled if credentials and directory ID are present"""
         return bool(
-            self.active_directory_oauth_client_id
-            and self.active_directory_oauth_client_secret
-            and self.active_directory_directory_id
+            self.azure_ad_oauth_client_id
+            and self.azure_ad_oauth_client_secret
+            and self.azure_ad_directory_id
         )
 
     @property
@@ -228,7 +238,7 @@ class AuthConfig(BaseModel):
             or self.bitbucket_enabled
             or self.linkedin_enabled
             or self.okta_enabled
-            or self.active_directory_enabled
+            or self.azure_ad_enabled
             or self.boxy_saml_enabled
         )
 
@@ -243,7 +253,7 @@ class AuthConfig(BaseModel):
         if not self.any_enabled:
             raise ValueError(
                 "At least one authentication method must be configured:\n"
-                "  - AGENTA_AUTHN_EMAIL=password or AGENTA_AUTHN_EMAIL=otp\n"
+                "  - SUPERTOKENS_EMAIL_DISABLED must be false (or unset) for email auth\n"
                 "  - Any supported OAuth provider credentials, e.g.\n"
                 "    GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET\n"
                 "    GITHUB_OAUTH_CLIENT_ID + GITHUB_OAUTH_CLIENT_SECRET\n"
@@ -255,17 +265,12 @@ class AuthConfig(BaseModel):
                 "    BITBUCKET_OAUTH_CLIENT_ID + BITBUCKET_OAUTH_CLIENT_SECRET\n"
                 "    LINKEDIN_OAUTH_CLIENT_ID + LINKEDIN_OAUTH_CLIENT_SECRET\n"
                 "    OKTA_OAUTH_CLIENT_ID + OKTA_OAUTH_CLIENT_SECRET + OKTA_DOMAIN\n"
-                "    ACTIVE_DIRECTORY_OAUTH_CLIENT_ID + ACTIVE_DIRECTORY_OAUTH_CLIENT_SECRET + ACTIVE_DIRECTORY_DIRECTORY_ID\n"
+                "    AZURE_AD_OAUTH_CLIENT_ID + AZURE_AD_OAUTH_CLIENT_SECRET + AZURE_AD_DIRECTORY_ID\n"
                 "    BOXY_SAML_OAUTH_CLIENT_ID + BOXY_SAML_OAUTH_CLIENT_SECRET + BOXY_SAML_URL\n"
                 "    GOOGLE_WORKSPACES_OAUTH_CLIENT_ID + GOOGLE_WORKSPACES_OAUTH_CLIENT_SECRET\n"
             )
 
-        # Email auth value must be valid
-        if self.authn_email and self.authn_email not in ("password", "otp"):
-            raise ValueError(
-                f"Invalid AGENTA_AUTHN_EMAIL value: '{self.authn_email}'. "
-                "Must be 'password', 'otp', or empty (disabled)."
-            )
+        return
 
 
 class PostHogConfig(BaseModel):
@@ -276,7 +281,10 @@ class PostHogConfig(BaseModel):
         or os.getenv("POSTHOG_HOST")
         or "https://alef.agenta.ai"
     )
-    api_key: str | None = os.getenv("POSTHOG_API_KEY")
+    api_key: str | None = (
+        os.getenv("POSTHOG_API_KEY")
+        or "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -489,17 +497,19 @@ class AgentaConfig(BaseModel):
 
     license: str = _LICENSE
 
-    api_url: str = os.getenv("AGENTA_API_URL") or "http://localhost/api"
     web_url: str = os.getenv("AGENTA_WEB_URL") or "http://localhost"
     services_url: str = os.getenv("AGENTA_SERVICES_URL") or "http://localhost/services"
+    api_url: str = os.getenv("AGENTA_API_URL") or "http://localhost/api"
 
-    auth_key: str = os.getenv("AGENTA_AUTH_KEY") or ""
-    crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or ""
+    auth_key: str = os.getenv("AGENTA_AUTH_KEY") or "replace-me"
+    crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
 
     runtime_prefix: str = os.getenv("AGENTA_RUNTIME_PREFIX") or ""
 
     auto_migrations: bool = (
-        os.getenv("AGENTA_AUTO_MIGRATIONS") or "true"
+        os.getenv("ALEMBIC_AUTO_MIGRATIONS")
+        or os.getenv("AGENTA_AUTO_MIGRATIONS")
+        or "true"
     ).lower() in _TRUTHY
 
     demos: str = os.getenv("AGENTA_DEMOS") or ""
@@ -536,21 +546,8 @@ class PostgresConfig(BaseModel):
         f"postgresql://username:password@postgres:5432/agenta_{_LICENSE}_supertokens"
     )
 
-    username: str = (
-        os.getenv("POSTGRES_USERNAME")
-        #
-        or os.getenv("POSTGRES_USER")
-        or "username"
-    )
+    username: str = os.getenv("POSTGRES_USER") or "username"
     password: str = os.getenv("POSTGRES_PASSWORD") or "password"
-
-    username_admin: str = (
-        os.getenv("POSTGRES_USERNAME_ADMIN")
-        #
-        or os.getenv("POSTGRES_USER_ADMIN")
-        or "username"
-    )
-    password_admin: str = os.getenv("POSTGRES_PASSWORD_ADMIN") or "password"
 
     model_config = ConfigDict(extra="ignore")
 

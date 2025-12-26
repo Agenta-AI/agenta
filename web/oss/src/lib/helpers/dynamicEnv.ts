@@ -25,8 +25,8 @@ export const processEnv = {
         process.env.NEXT_PUBLIC_AGENTA_AUTH_LINKEDIN_OAUTH_CLIENT_ID,
     NEXT_PUBLIC_AGENTA_AUTH_OKTA_OAUTH_CLIENT_ID:
         process.env.NEXT_PUBLIC_AGENTA_AUTH_OKTA_OAUTH_CLIENT_ID,
-    NEXT_PUBLIC_AGENTA_AUTH_ACTIVE_DIRECTORY_OAUTH_CLIENT_ID:
-        process.env.NEXT_PUBLIC_AGENTA_AUTH_ACTIVE_DIRECTORY_OAUTH_CLIENT_ID,
+    NEXT_PUBLIC_AGENTA_AUTH_AZURE_AD_OAUTH_CLIENT_ID:
+        process.env.NEXT_PUBLIC_AGENTA_AUTH_AZURE_AD_OAUTH_CLIENT_ID,
     NEXT_PUBLIC_AGENTA_AUTH_BOXY_SAML_OAUTH_CLIENT_ID:
         process.env.NEXT_PUBLIC_AGENTA_AUTH_BOXY_SAML_OAUTH_CLIENT_ID,
     NEXT_PUBLIC_AGENTA_AUTH_EMAIL_ENABLED: process.env.NEXT_PUBLIC_AGENTA_AUTH_EMAIL_ENABLED,
@@ -58,8 +58,8 @@ export const getEffectiveAuthConfig = () => {
     )
     const linkedinOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_LINKEDIN_OAUTH_CLIENT_ID")
     const oktaOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_OKTA_OAUTH_CLIENT_ID")
-    const activeDirectoryOAuthClientId = getEnv(
-        "NEXT_PUBLIC_AGENTA_AUTH_ACTIVE_DIRECTORY_OAUTH_CLIENT_ID",
+    const azureAdOAuthClientId = getEnv(
+        "NEXT_PUBLIC_AGENTA_AUTH_AZURE_AD_OAUTH_CLIENT_ID",
     )
     const boxySamlOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_BOXY_SAML_OAUTH_CLIENT_ID")
     const oidcProviders = [
@@ -74,7 +74,7 @@ export const getEffectiveAuthConfig = () => {
         {id: "bitbucket", clientId: bitbucketOAuthClientId},
         {id: "linkedin", clientId: linkedinOAuthClientId},
         {id: "okta", clientId: oktaOAuthClientId},
-        {id: "active-directory", clientId: activeDirectoryOAuthClientId},
+        {id: "azure-ad", clientId: azureAdOAuthClientId},
         {id: "boxy-saml", clientId: boxySamlOAuthClientId},
     ].filter((provider) => Boolean(provider.clientId))
     const authOidcEnabled =
@@ -102,7 +102,7 @@ export const getEffectiveAuthConfig = () => {
         bitbucketOAuthClientId,
         linkedinOAuthClientId,
         oktaOAuthClientId,
-        activeDirectoryOAuthClientId,
+        azureAdOAuthClientId,
         boxySamlOAuthClientId,
         oidcProviders,
     }

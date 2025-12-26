@@ -485,7 +485,9 @@ def _init_supertokens():
 
     oidc_providers = get_thirdparty_providers()
     if oidc_providers:
-        enabled_providers = [provider.config.third_party_id for provider in oidc_providers]
+        enabled_providers = [
+            provider.config.third_party_id for provider in oidc_providers
+        ]
         logger.info("✓ OIDC providers enabled: %s", ", ".join(enabled_providers))
         recipe_list.append(
             thirdparty.init(

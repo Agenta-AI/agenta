@@ -53,7 +53,7 @@ const Auth = () => {
         "social:bitbucket"?: boolean
         "social:linkedin"?: boolean
         "social:okta"?: boolean
-        "social:active-directory"?: boolean
+        "social:azure-ad"?: boolean
         "social:boxy-saml"?: boolean
     }>({})
     const [invite, setInvite] = useLocalStorage("invite", {})
@@ -175,7 +175,7 @@ const Auth = () => {
         {id: "bitbucket", label: "Bitbucket", icon: <GlobalOutlined />},
         {id: "linkedin", label: "LinkedIn", icon: <LinkedinOutlined />},
         {id: "okta", label: "Okta", icon: <GlobalOutlined />},
-        {id: "active-directory", label: "Active Directory", icon: <GlobalOutlined />},
+        {id: "azure-ad", label: "Azure AD", icon: <GlobalOutlined />},
         {id: "boxy-saml", label: "SAML", icon: <GlobalOutlined />},
     ]
 

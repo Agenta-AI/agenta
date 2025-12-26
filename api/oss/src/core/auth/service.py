@@ -153,8 +153,8 @@ class AuthService:
             if env.auth.okta_enabled:
                 all_allowed_methods.add("social:okta")
 
-            if env.auth.active_directory_enabled:
-                all_allowed_methods.add("social:active-directory")
+            if env.auth.azure_ad_enabled:
+                all_allowed_methods.add("social:azure-ad")
 
             if env.auth.boxy_saml_enabled:
                 all_allowed_methods.add("social:boxy-saml")
@@ -232,8 +232,7 @@ class AuthService:
                 or "social:*" in all_allowed_methods,
                 "social:okta": "social:okta" in all_allowed_methods
                 or "social:*" in all_allowed_methods,
-                "social:active-directory": "social:active-directory"
-                in all_allowed_methods
+                "social:azure-ad": "social:azure-ad" in all_allowed_methods
                 or "social:*" in all_allowed_methods,
                 "social:boxy-saml": "social:boxy-saml" in all_allowed_methods
                 or "social:*" in all_allowed_methods,

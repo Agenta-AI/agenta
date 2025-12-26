@@ -15,6 +15,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             
         ports:
             - "3000:3000"
@@ -41,6 +43,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         labels:
             - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
@@ -92,6 +96,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         depends_on:
             postgres:
@@ -123,6 +129,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         depends_on:
             postgres:
@@ -153,6 +161,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
         
         depends_on:
             - postgres
@@ -180,6 +190,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         depends_on:
             postgres:
@@ -200,6 +212,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         networks:
             - agenta-network
@@ -240,6 +254,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         networks:
             - agenta-network

@@ -13,6 +13,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         networks:
             - agenta-oss-gh-network
@@ -48,6 +50,7 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/api
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
 
         command: >
             newrelic-admin run-program gunicorn entrypoints.routers:app
@@ -87,6 +90,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         command:
             [
@@ -120,6 +125,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         command:
             [
@@ -148,6 +155,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         depends_on:
             - postgres
@@ -175,6 +184,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         command: sh -c "python -m oss.databases.postgres.migrations.runner"
 
@@ -206,6 +217,7 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/services/completion
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
 
         command: >
             newrelic-admin run-program gunicorn oss.src.main:app
@@ -233,6 +245,7 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/services/chat
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         extra_hosts:
             - "host.docker.internal:host-gateway"
         labels:
