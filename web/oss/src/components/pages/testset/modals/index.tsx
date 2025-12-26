@@ -7,7 +7,6 @@ import {testset, TestsetCreationMode} from "@/oss/lib/Types"
 import CreateTestset from "./CreateTestset"
 import CreateTestsetFromApi from "./CreateTestsetFromApi"
 import CreateTestsetFromScratch from "./CreateTestsetFromScratch"
-import UploadTestset from "./UploadTestset"
 
 const useStyles = createUseStyles({
     modal: {
@@ -52,7 +51,7 @@ const TestsetModal: React.FC<Props> = ({
 
     const steps = [
         {
-            content: <CreateTestset setCurrent={setCurrent} />,
+            content: <CreateTestset setCurrent={setCurrent} onCancel={onCancel} />,
         },
         {
             content: (
@@ -65,9 +64,6 @@ const TestsetModal: React.FC<Props> = ({
                     setEditTestsetValues={setEditTestsetValues}
                 />
             ),
-        },
-        {
-            content: <UploadTestset setCurrent={setCurrent} onCancel={onCancel} />,
         },
         {
             content: <CreateTestsetFromApi setCurrent={setCurrent} onCancel={onCancel} />,

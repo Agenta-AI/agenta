@@ -306,6 +306,7 @@ const SimpleSharedEditor = (props: SimpleSharedEditorProps) => {
             codeOnly={props.editorProps?.codeOnly || isJSON || isYAML || isHTML}
             enableTokens={false}
             showToolbar={false}
+            disabled={props.disabled}
         >
             <SimpleSharedEditorContent
                 {...props}

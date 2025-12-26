@@ -8,7 +8,7 @@ export interface UseEvaluationRunsColumnsParams {
     isAutoOrHuman: boolean
     onOpenDetails: (record: EvaluationRunTableRow) => void
     onVariantNavigation: (params: {revisionId: string; appId?: string | null}) => void
-    onTestsetNavigation: (testsetId: string) => void
+    onTestsetNavigation: (testsetId: string, revisionId?: string | null) => void
     onRequestDelete: (record: EvaluationRunTableRow) => void
     resolveAppId: (record: EvaluationRunTableRow) => string | null
     onExportRow?: (record: EvaluationRunTableRow) => void

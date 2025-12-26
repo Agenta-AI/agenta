@@ -26,8 +26,8 @@ const useEvaluationRunNavigationActions = ({
         [],
     )
 
-    const handleTestsetNavigation = useCallback((testsetId: string) => {
-        navigateToTestset(testsetId)
+    const handleTestsetNavigation = useCallback((testsetId: string, revisionId?: string | null) => {
+        navigateToTestset(testsetId, revisionId)
     }, [])
 
     return {

@@ -310,6 +310,7 @@ tracing = TracingRouter(
 
 testcases = TestcasesRouter(
     testcases_service=testcases_service,
+    testsets_service=testsets_service,
 )
 
 testsets = TestsetsRouter(

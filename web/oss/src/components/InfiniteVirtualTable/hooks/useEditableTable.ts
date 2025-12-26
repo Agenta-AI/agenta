@@ -64,6 +64,8 @@ export interface EditableTableActions<Row extends InfiniteTableRowBase> {
     getFinalRowData: (serverRows: Row[]) => Record<string, unknown>[]
     /** Clear all local state (after save) */
     clearLocalState: () => void
+    /** Reset all state including columns (for revision switching) */
+    resetAllState: () => void
     /** Mark changes as saved */
     markAsSaved: () => void
 }
@@ -339,7 +341,7 @@ export function useEditableTable<Row extends InfiniteTableRowBase>(
         [columns, getDisplayRows],
     )
 
-    // Clear local state
+    // Clear local state (edits, new rows, deleted rows)
     const clearLocalState = useCallback(() => {
         setLocalEdits(new Map())
         setNewRows([])
@@ -347,6 +349,15 @@ export function useEditableTable<Row extends InfiniteTableRowBase>(
         // Also sync original columns with current columns after save
         setOriginalColumns(columns)
     }, [columns])
+
+    // Reset all state including columns (for revision switching)
+    const resetAllState = useCallback(() => {
+        setLocalEdits(new Map())
+        setNewRows([])
+        setDeletedRowIds(new Set())
+        setColumnsState([])
+        setOriginalColumns([])
+    }, [])
 
     // Mark as saved (syncs original columns with current)
     const markAsSaved = useCallback(() => {
@@ -417,6 +428,7 @@ export function useEditableTable<Row extends InfiniteTableRowBase>(
             getDisplayRows,
             getFinalRowData,
             clearLocalState,
+            resetAllState,
             markAsSaved,
         }),
         [
@@ -431,6 +443,7 @@ export function useEditableTable<Row extends InfiniteTableRowBase>(
             getDisplayRows,
             getFinalRowData,
             clearLocalState,
+            resetAllState,
             markAsSaved,
         ],
     )

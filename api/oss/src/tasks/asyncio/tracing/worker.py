@@ -350,7 +350,7 @@ class TracingWorker:
             # 3. Create spans per project/user
             for (project_id, user_id), span_dtos in spans_by_proj_user.items():
                 try:
-                    await self.service.create(
+                    await self.service.ingest(
                         project_id=project_id,
                         user_id=user_id,
                         span_dtos=span_dtos,

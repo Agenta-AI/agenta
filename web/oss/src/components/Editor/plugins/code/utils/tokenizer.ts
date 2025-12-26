@@ -4,6 +4,7 @@ import "prismjs/components/prism-json"
 import "prismjs/components/prism-yaml"
 import "prismjs/components/prism-python"
 import "prismjs/components/prism-javascript"
+import "prismjs/components/prism-typescript"
 import type {Token as PrismToken} from "prismjs"
 
 import type {CodeLanguage} from "../types"
@@ -34,6 +35,9 @@ const LANGUAGE_GRAMMAR_MAP: Record<CodeLanguage, string> = {
     json: "json",
     yaml: "yaml",
     code: "python",
+    python: "python",
+    javascript: "javascript",
+    typescript: "typescript",
 }
 
 export function tokenizeCodeLine(line: string, language: CodeLanguage): Token[] {

@@ -82,13 +82,17 @@ class VaultMiddleware(BaseHTTPMiddleware):
         request.state.vault = {}
 
         with suppress():
-            secrets = await self._get_secrets(request)
+            secrets, vault_secrets, local_secrets = await self._get_secrets(request)
 
-            request.state.vault = {"secrets": secrets}
+            request.state.vault = {
+                "secrets": secrets,
+                "vault_secrets": vault_secrets,
+                "local_secrets": local_secrets,
+            }
 
         return await call_next(request)
 
-    async def _get_secrets(self, request: Request) -> Optional[Dict]:
+    async def _get_secrets(self, request: Request) -> tuple[list, list, list]:
         credentials = request.state.auth.get("credentials")
 
         headers = None
@@ -107,8 +111,13 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
             if secrets_cache:
                 secrets = secrets_cache.get("secrets")
+                vault_secrets = secrets_cache.get("vault_secrets")
+                local_secrets = secrets_cache.get("local_secrets")
 
-                return secrets
+                if vault_secrets is None or local_secrets is None:
+                    return secrets, [], []
+
+                return secrets, vault_secrets, local_secrets
 
         local_secrets: List[Dict[str, Any]] = []
         allow_secrets = True
@@ -137,7 +146,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
         except DenyException as e:  # pylint: disable=bare-except
             log.warning(f"Agenta [secrets] {e.status_code}: {e.content}")
             allow_secrets = False
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             display_exception("Vault: Local Secrets Exception")
 
         vault_secrets: List[Dict[str, Any]] = []
@@ -154,33 +163,39 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
                 else:
                     vault_secrets = response.json()
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             display_exception("Vault: Vault Secrets Exception")
 
-        secrets = local_secrets + vault_secrets
-
-        standard_secrets = {}
-        custom_secrets = []
+        local_standard = {}
+        vault_standard = {}
+        vault_custom = []
 
         if local_secrets:
             for secret in local_secrets:
-                standard_secrets[secret["data"]["kind"]] = secret  # type: ignore
+                local_standard[secret["data"]["kind"]] = secret  # type: ignore
 
         if vault_secrets:
             for secret in vault_secrets:
                 if secret["kind"] == "provider_key":  # type: ignore
-                    standard_secrets[secret["data"]["kind"]] = secret  # type: ignore
+                    vault_standard[secret["data"]["kind"]] = secret  # type: ignore
                 elif secret["kind"] == "custom_provider":  # type: ignore
-                    custom_secrets.append(secret)
+                    vault_custom.append(secret)
 
-        standard_secrets = list(standard_secrets.values())
-
-        secrets = standard_secrets + custom_secrets
+        combined_standard = {**local_standard, **vault_standard}
+        combined_vault = list(vault_standard.values()) + vault_custom
+        secrets = list(combined_standard.values()) + vault_custom
 
         if not allow_secrets:
-            _cache.put(_hash, {"secrets": secrets})
+            _cache.put(
+                _hash,
+                {
+                    "secrets": secrets,
+                    "vault_secrets": combined_vault,
+                    "local_secrets": local_secrets,
+                },
+            )
 
-        return secrets
+        return secrets, combined_vault, local_secrets
 
     async def _allow_local_secrets(self, credentials):
         try:

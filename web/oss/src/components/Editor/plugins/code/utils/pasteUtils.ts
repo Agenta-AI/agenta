@@ -1,5 +1,6 @@
 import {$createRangeSelection, $setSelection} from "lexical"
 
+import {$createBase64Node, isBase64String, parseBase64String} from "../nodes/Base64Node"
 import {$createCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {$createCodeTabNode} from "../nodes/CodeTabNode"
@@ -234,25 +235,41 @@ export function $createNodeForLineWithTabs(line: string, language: CodeLanguage)
     if (indentMatch) {
         const indent = indentMatch[0]
         rest = line.slice(indent.length)
-        // Assume 2 spaces = 1 tab for JSON
-        const tabSize = 2
-        let i = 0
-        while (i < indent.length) {
-            if (indent[i] === "\t") {
-                codeLine.append($createCodeTabNode())
-                i += 1
-            } else if (indent[i] === " ") {
-                // Count consecutive spaces
-                let spaceCount = 0
-                while (indent[i + spaceCount] === " ") spaceCount++
-                const tabs = Math.floor(spaceCount / tabSize)
-                for (let t = 0; t < tabs; t++) {
+
+        // For Python/code: NO TRANSFORMATION - preserve exactly as-is (spaces AND tabs)
+        // For JSON/YAML: convert 2 spaces = 1 tab
+        if (
+            language === "code" ||
+            language === "python" ||
+            language === "javascript" ||
+            language === "typescript"
+        ) {
+            // NO transformation for Python/code - keep indent exactly as-is
+            // Just add the indent as a plain text node (preserves spaces AND tabs)
+            if (indent.length > 0) {
+                codeLine.append($createCodeHighlightNode(indent, "plain", false, null))
+            }
+        } else {
+            // JSON/YAML: convert spaces to tabs (2:1)
+            const tabSize = 2
+            let i = 0
+            while (i < indent.length) {
+                if (indent[i] === "\t") {
                     codeLine.append($createCodeTabNode())
-                }
-                i += tabs * tabSize
-                // If any leftover spaces, append as plain
-                for (; i < indent.length && indent[i] === " "; i++) {
-                    codeLine.append($createCodeTabNode())
+                    i += 1
+                } else if (indent[i] === " ") {
+                    // Count consecutive spaces
+                    let spaceCount = 0
+                    while (indent[i + spaceCount] === " ") spaceCount++
+                    const tabs = Math.floor(spaceCount / tabSize)
+                    for (let t = 0; t < tabs; t++) {
+                        codeLine.append($createCodeTabNode())
+                    }
+                    i += tabs * tabSize
+                    // If any leftover spaces, append as plain
+                    for (; i < indent.length && indent[i] === " "; i++) {
+                        codeLine.append($createCodeHighlightNode(" ", "plain", false, null))
+                    }
                 }
             }
         }
@@ -260,7 +277,14 @@ export function $createNodeForLineWithTabs(line: string, language: CodeLanguage)
     // Tokenize the rest of the line
     const tokens = tokenizeCodeLine(rest, language)
     tokens.forEach((token) => {
-        codeLine.append($createCodeHighlightNode(token.content, token.type, false, null))
+        // Check if this is a base64 string token - create Base64Node for collapsed display
+        if (token.type === "string" && isBase64String(token.content)) {
+            const parsed = parseBase64String(token.content)
+            const base64Node = $createBase64Node(parsed.fullValue, parsed.mimeType, token.type)
+            codeLine.append(base64Node)
+        } else {
+            codeLine.append($createCodeHighlightNode(token.content, token.type, false, null))
+        }
     })
     return codeLine
 }

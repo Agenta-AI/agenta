@@ -273,7 +273,12 @@ export function validateAll(
         }
     }
 
-    if (language === "code") {
+    if (
+        language === "code" ||
+        language === "python" ||
+        language === "javascript" ||
+        language === "typescript"
+    ) {
         return {
             allErrors: [],
             errorsByLine: new Map(),
@@ -1035,7 +1040,12 @@ function validateSchema(
 ): ErrorInfo[] {
     const errors: ErrorInfo[] = []
 
-    if (language === "code") {
+    if (
+        language === "code" ||
+        language === "python" ||
+        language === "javascript" ||
+        language === "typescript"
+    ) {
         return errors
     }
 

@@ -1,5 +1,4 @@
 import {atom} from "jotai"
-import {eagerAtom} from "jotai-eager"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryClient} from "@/oss/lib/api/queryClient"
@@ -86,7 +85,7 @@ export const orgsQueryAtom = atomWithQuery<Org[]>((get) => {
 const logOrgs = process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true"
 logAtom(orgsQueryAtom, "orgsQueryAtom", logOrgs)
 
-export const orgsAtom = eagerAtom<Org[]>((get) => {
+export const orgsAtom = atom<Org[]>((get) => {
     const res = (get(orgsQueryAtom) as any)?.data
     return res ?? []
 })
@@ -277,7 +276,7 @@ export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
 
 logAtom(selectedOrgQueryAtom, "selectedOrgQueryAtom", logOrgs)
 
-export const selectedOrgAtom = eagerAtom<OrgDetails | null>((get) => {
+export const selectedOrgAtom = atom<OrgDetails | null>((get) => {
     const res = (get(selectedOrgQueryAtom) as any)?.data
     return res ?? null
 })

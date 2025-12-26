@@ -4,7 +4,7 @@ from json import loads, JSONDecodeError
 from io import BytesIO
 
 import orjson
-import pandas as pd
+import polars as pl
 from pydantic import ValidationError
 
 from fastapi.responses import StreamingResponse
@@ -15,6 +15,7 @@ from fastapi import (
     UploadFile,
     File,
     Form,
+    Query,
     Depends,
     HTTPException,
 )
@@ -63,7 +64,6 @@ from oss.src.apis.fastapi.testsets.models import (
     TestsetCreateRequest,
     TestsetEditRequest,
     TestsetQueryRequest,
-    TestsetLogRequest,
     TestsetResponse,
     TestsetsResponse,
     #
@@ -78,6 +78,8 @@ from oss.src.apis.fastapi.testsets.models import (
     TestsetRevisionQueryRequest,
     TestsetRevisionRetrieveRequest,
     TestsetRevisionCommitRequest,
+    TestsetRevisionsLogRequest,
+    TestsetRevisionPatchRequest,
     TestsetRevisionResponse,
     TestsetRevisionsResponse,
     #
@@ -105,6 +107,25 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+
+# Exclude alias fields from API responses
+TESTSET_REVISION_RESPONSE_EXCLUDE: Dict[str, Any] = {
+    "testset_revision": {
+        "artifact_id",
+        "variant_id",
+        "revision_id",
+    }
+}
+
+TESTSET_REVISIONS_RESPONSE_EXCLUDE: Dict[str, Any] = {
+    "testset_revisions": {
+        "__all__": {
+            "artifact_id",
+            "variant_id",
+            "revision_id",
+        }
+    }
+}
 
 
 class TestsetsRouter:
@@ -252,6 +273,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -262,6 +284,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -272,6 +295,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -282,6 +306,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -292,6 +317,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -302,6 +328,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -312,6 +339,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionsResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISIONS_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -319,6 +347,17 @@ class TestsetsRouter:
             self.commit_testset_revision,
             methods=["POST"],
             operation_id="commit_testset_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=TestsetRevisionResponse,
+            response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
+        )
+
+        self.router.add_api_route(
+            "/revisions/patch",
+            self.patch_testset_revision,
+            methods=["POST"],
+            operation_id="patch_testset_revision",
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
@@ -332,6 +371,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionsResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISIONS_RESPONSE_EXCLUDE,
         )
 
     # TESTSETS -----------------------------------------------------------------
@@ -679,6 +719,9 @@ class TestsetsRouter:
             #
             testset_variant_query=testset_variant_query_request.testset_variant,
             #
+            testset_refs=testset_variant_query_request.testset_refs,
+            testset_variant_refs=testset_variant_query_request.testset_variant_refs,
+            #
             include_archived=testset_variant_query_request.include_archived,
             #
             windowing=testset_variant_query_request.windowing,
@@ -729,6 +772,7 @@ class TestsetsRouter:
                 testset_ref=testset_revision_retrieve_request.testset_ref,  # type: ignore
                 testset_variant_ref=testset_revision_retrieve_request.testset_variant_ref,  # type: ignore
                 testset_revision_ref=testset_revision_retrieve_request.testset_revision_ref,  # type: ignore
+                include_testcases=testset_revision_retrieve_request.include_testcases,
             )
 
             await set_cache(
@@ -765,6 +809,7 @@ class TestsetsRouter:
             user_id=UUID(request.state.user_id),
             #
             testset_revision_create=testset_revision_create_request.testset_revision,
+            include_testcases=testset_revision_create_request.include_testcases,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -779,6 +824,10 @@ class TestsetsRouter:
         request: Request,
         *,
         testset_revision_id: UUID,
+        include_testcases: Optional[bool] = Query(
+            None,
+            description="Include full testcase objects. Default (null/true): include testcases. False: return only testcase IDs.",
+        ),
     ) -> TestsetRevisionResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -792,6 +841,7 @@ class TestsetsRouter:
             project_id=UUID(request.state.project_id),
             #
             testset_revision_ref=Reference(id=testset_revision_id),
+            include_testcases=include_testcases,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -827,6 +877,7 @@ class TestsetsRouter:
             user_id=UUID(request.state.user_id),
             #
             testset_revision_edit=testset_revision_edit_request.testset_revision,
+            include_testcases=testset_revision_edit_request.include_testcases,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -910,6 +961,15 @@ class TestsetsRouter:
             project_id=UUID(request.state.project_id),
             #
             testset_revision_query=testset_revision_query_request.testset_revision,
+            #
+            testset_refs=testset_revision_query_request.testset_refs,
+            testset_variant_refs=testset_revision_query_request.testset_variant_refs,
+            testset_revision_refs=testset_revision_query_request.testset_revision_refs,
+            #
+            include_archived=testset_revision_query_request.include_archived,
+            include_testcases=testset_revision_query_request.include_testcases,
+            #
+            windowing=testset_revision_query_request.windowing,
         )
 
         testset_revisions_response = TestsetRevisionsResponse(
@@ -938,6 +998,35 @@ class TestsetsRouter:
             user_id=UUID(request.state.user_id),
             #
             testset_revision_commit=testset_revision_commit_request.testset_revision_commit,
+            include_testcases=testset_revision_commit_request.include_testcases,
+        )
+
+        testset_revision_response = TestsetRevisionResponse(
+            count=1 if testset_revision else 0,
+            testset_revision=testset_revision,
+        )
+
+        return testset_revision_response
+
+    async def patch_testset_revision(
+        self,
+        request: Request,
+        *,
+        testset_revision_patch_request: TestsetRevisionPatchRequest,
+    ) -> TestsetRevisionResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        testset_revision = await self.testsets_service.patch_testset_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            testset_revision_patch=testset_revision_patch_request.testset_revision_patch,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -951,7 +1040,7 @@ class TestsetsRouter:
         self,
         request: Request,
         *,
-        testset_log_request: TestsetLogRequest,
+        testset_revisions_log_request: TestsetRevisionsLogRequest,
     ) -> TestsetRevisionsResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -964,7 +1053,8 @@ class TestsetsRouter:
         testset_revisions = await self.testsets_service.log_testset_revisions(
             project_id=UUID(request.state.project_id),
             #
-            testset_log=testset_log_request.testset,
+            testset_revisions_log=testset_revisions_log_request.testset_revision,
+            include_testcases=testset_revisions_log_request.include_testcases,
         )
 
         testset_revisions_response = TestsetRevisionsResponse(
@@ -1784,7 +1874,7 @@ class SimpleTestsetsRouter:
 
         elif file_type.lower() == "csv":
             buffer = BytesIO()
-            pd.DataFrame(testcases_data).to_csv(buffer, index=False)
+            pl.DataFrame(testcases_data).write_csv(buffer)
             buffer.seek(0)
 
             return StreamingResponse(

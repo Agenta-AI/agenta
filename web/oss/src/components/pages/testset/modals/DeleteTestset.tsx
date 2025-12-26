@@ -23,7 +23,9 @@ const DeleteTestset = ({
     const [isLoading, setIsLoading] = useState(false)
 
     const onDelete = async () => {
-        const testsetsIds = selectedTestsetToDelete.map((testset) => testset._id.toString())
+        const testsetsIds = selectedTestsetToDelete
+            .map((testset) => ((testset as any)._id ?? (testset as any).id)?.toString())
+            .filter(Boolean) as string[]
 
         try {
             setIsLoading(true)

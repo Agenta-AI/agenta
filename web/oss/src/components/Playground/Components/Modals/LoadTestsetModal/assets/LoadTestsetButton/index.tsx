@@ -23,7 +23,7 @@ const LoadTestsetButton = ({
     const isChat = useAtomValue(appChatModeAtom) ?? false
 
     const [isTestsetModalOpen, setIsTestsetModalOpen] = useState(false)
-    const [testsetData, setTestsetData] = useState<Record<string, any> | null>(null)
+    const [, setTestsetData] = useState<Record<string, any> | null>(null)
 
     const wrappedSetTestsetData = useCallback(
         (d: SetStateAction<Record<string, any> | null>) => {
@@ -77,9 +77,7 @@ const LoadTestsetButton = ({
             <LoadTestsetModal
                 open={isTestsetModalOpen}
                 onCancel={() => setIsTestsetModalOpen(false)}
-                testsetData={testsetData}
                 setTestsetData={wrappedSetTestsetData}
-                isChat={isChat}
             />
         </>
     )

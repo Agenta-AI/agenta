@@ -321,10 +321,14 @@ class workflow:
         _tags = {**(self.tags or {}), **(request.tags or {})}
         _meta = {**(self.meta or {}), **(request.meta or {})}
 
-        credentials = credentials or (
-            f"ApiKey {ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_key}"
-            if ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_key
-            else None
+        credentials = (
+            credentials
+            or request.credentials
+            or (
+                f"ApiKey {ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_key}"
+                if ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_key
+                else None
+            )
         )
 
         with tracing_context_manager(TracingContext.get()):

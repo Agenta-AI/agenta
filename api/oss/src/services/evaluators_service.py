@@ -5,11 +5,11 @@ from typing import Any, Dict, Union, List, Optional
 
 import litellm
 import httpx
-import numpy as np
-from openai import AsyncOpenAI
 from fastapi import HTTPException
-from numpy._core._multiarray_umath import array
-# from autoevals.ragas import Faithfulness, ContextRelevancy  # Commented out due to autoevals removal
+from openai import AsyncOpenAI
+
+# COMMENTED OUT: autoevals dependency removed
+# from autoevals.ragas import Faithfulness, ContextRelevancy
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.services.security import sandbox
@@ -26,7 +26,15 @@ from oss.src.utils.traces import (
     get_field_value_from_trace_tree,
 )
 
+from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.managers.secrets import SecretsManager
+from agenta.sdk.models.workflows import (
+    WorkflowServiceRequest,
+    WorkflowServiceRequestData,
+)
+from agenta.sdk.workflows.builtin import (
+    auto_custom_code_run as sdk_auto_custom_code_run,
+)
 
 
 log = get_module_logger(__name__)
@@ -456,6 +464,54 @@ async def custom_code_run(input: EvaluatorInputInterface) -> EvaluatorOutputInte
         datapoint=input.inputs["ground_truth"],
     )
     return {"outputs": {"score": result}}
+
+
+async def sdk_custom_code_run(
+    input: EvaluatorInputInterface,
+) -> EvaluatorOutputInterface:
+    inputs = input.inputs or {}
+    settings = input.settings or {}
+
+    code = settings.get("code")
+    if code is None:
+        raise ValueError("Missing evaluator setting: code")
+
+    correct_answer_key = settings.get("correct_answer_key")
+    if not correct_answer_key:
+        correct_answer_key = (
+            "ground_truth" if "ground_truth" in inputs else "correct_answer"
+        )
+
+    threshold = settings.get("threshold", 0.5)
+    runtime = settings.get("runtime")
+
+    workflow = sdk_auto_custom_code_run(
+        code=str(code),
+        correct_answer_key=str(correct_answer_key),
+        threshold=float(threshold),
+        runtime=runtime,
+    )
+
+    credentials = RunningContext.get().credentials
+
+    outputs = inputs.get("prediction", inputs.get("output"))
+    request = WorkflowServiceRequest(
+        data=WorkflowServiceRequestData(
+            inputs=inputs,
+            outputs=outputs,
+        ),
+        credentials=credentials,
+    )
+
+    response = await workflow.invoke(request=request)
+    result = response.data.outputs if response.data else None
+
+    if isinstance(result, dict) and "score" in result:
+        score = result["score"]
+    else:
+        score = result
+
+    return {"outputs": {"score": score}}
 
 
 async def auto_ai_critique(
@@ -1566,7 +1622,7 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     return {"outputs": {"score": score}}
 
 
-# COMMENTED OUT: RAG evaluation functions removed due to autoevals dependency removal
+# COMMENTED OUT: autoevals dependency removed
 # async def measure_rag_consistency(
 #     input: EvaluatorInputInterface,
 # ) -> EvaluatorOutputInterface:
@@ -1575,7 +1631,7 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #         raise Exception(
 #             "No OpenAI key was found. RAG evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
 #         )
-#
+
 #     # Initialize RAG evaluator to calculate faithfulness score
 #     faithfulness = Faithfulness(api_key=openai_api_key)
 #     eval_score = await faithfulness._run_eval_async(
@@ -1585,8 +1641,7 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #     )
 #     return {"outputs": {"score": eval_score.score}}
 
-
-# COMMENTED OUT: RAG faithfulness function removed due to autoevals dependency removal
+# COMMENTED OUT: autoevals dependency removed
 # async def rag_faithfulness(
 #     inputs: Dict[str, Any],  # pylint: disable=unused-argument
 #     output: Union[str, Dict[str, Any]],
@@ -1601,13 +1656,13 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #             raise NotImplementedError(
 #                 "Please update the SDK to the latest version, which supports RAG evaluators."
 #             )
-#
+
 #         # Get required keys for rag evaluator
 #         mapping_keys = remove_trace_prefix(settings_values=settings_values)
 #         question_key: Union[str, None] = mapping_keys.get("question_key", None)
 #         answer_key: Union[str, None] = mapping_keys.get("answer_key", None)
 #         contexts_key: Union[str, None] = mapping_keys.get("contexts_key", None)
-#
+
 #         if None in [question_key, answer_key, contexts_key]:
 #             log.error(
 #                 f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
@@ -1615,7 +1670,7 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #             raise ValueError(
 #                 "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your evaluator settings and try again."
 #             )
-#
+
 #         # Turn distributed trace into trace tree
 #         trace = {}
 #         version = output.get("version")
@@ -1623,9 +1678,9 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #             trace = output.get("tree", {})
 #         elif version == "2.0":
 #             trace = output.get("trace", {})
-#
+
 #         trace = process_distributed_trace_into_trace_tree(trace, version)
-#
+
 #         # Get value of required keys for rag evaluator
 #         question_val: Any = get_field_value_from_trace_tree(
 #             trace, question_key, version
@@ -1634,12 +1689,12 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #         contexts_val: Any = get_field_value_from_trace_tree(
 #             trace, contexts_key, version
 #         )
-#
+
 #         if None in [question_val, answer_val, contexts_val]:
 #             log.warn(
 #                 f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
 #             )
-#
+
 #             message = ""
 #             if question_val is None:
 #                 message += (
@@ -1652,9 +1707,9 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #                     f"'contexts_key' is set to {contexts_key} which can't be found. "
 #                 )
 #             message += "Please check your evaluator settings and try again."
-#
+
 #             raise ValueError(message)
-#
+
 #         measurement = await measure_rag_consistency(
 #             input=EvaluatorInputInterface(
 #                 **{
@@ -1669,7 +1724,7 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #             )
 #         )
 #         return Result(type="number", value=measurement["outputs"]["score"])
-#
+
 #     except Exception:
 #         return Result(
 #             type="error",
@@ -1680,8 +1735,7 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #             ),
 #         )
 
-
-# COMMENTED OUT: RAG evaluation functions removed due to autoevals dependency removal
+# COMMENTED OUT: autoevals dependency removed
 # async def measure_context_coherence(
 #     input: EvaluatorInputInterface,
 # ) -> EvaluatorOutputInterface:
@@ -1690,7 +1744,7 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #         raise Exception(
 #             "No OpenAI key was found. RAG evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
 #         )
-#
+
 #     # Initialize RAG evaluator to calculate context relevancy score
 #     context_rel = ContextRelevancy(api_key=openai_api_key)
 #     eval_score = await context_rel._run_eval_async(
@@ -1700,8 +1754,7 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #     )
 #     return {"outputs": {"score": eval_score.score}}
 
-
-# COMMENTED OUT: RAG context relevancy function removed due to autoevals dependency removal
+# COMMENTED OUT: autoevals dependency removed
 # async def rag_context_relevancy(
 #     inputs: Dict[str, Any],  # pylint: disable=unused-argument
 #     output: Union[str, Dict[str, Any]],
@@ -1716,13 +1769,13 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #             raise NotImplementedError(
 #                 "Please update the SDK to the latest version, which supports RAG evaluators."
 #             )
-#
+
 #         # Get required keys for rag evaluator
 #         mapping_keys = remove_trace_prefix(settings_values=settings_values)
 #         question_key: Union[str, None] = mapping_keys.get("question_key", None)
 #         answer_key: Union[str, None] = mapping_keys.get("answer_key", None)
 #         contexts_key: Union[str, None] = mapping_keys.get("contexts_key", None)
-#
+
 #         if None in [question_key, answer_key, contexts_key]:
 #             log.error(
 #                 f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
@@ -1730,7 +1783,7 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #             raise ValueError(
 #                 "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your evaluator settings and try again."
 #             )
-#
+
 #         # Turn distributed trace into trace tree
 #         trace = {}
 #         version = output.get("version")
@@ -1738,9 +1791,9 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #             trace = output.get("tree", {})
 #         elif version == "2.0":
 #             trace = output.get("trace", {})
-#
+
 #         trace = process_distributed_trace_into_trace_tree(trace, version)
-#
+
 #         # Get value of required keys for rag evaluator
 #         question_val: Any = get_field_value_from_trace_tree(
 #             trace, question_key, version
@@ -1749,12 +1802,12 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #         contexts_val: Any = get_field_value_from_trace_tree(
 #             trace, contexts_key, version
 #         )
-#
+
 #         if None in [question_val, answer_val, contexts_val]:
 #             log.warn(
 #                 f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
 #             )
-#
+
 #             message = ""
 #             if question_val is None:
 #                 message += (
@@ -1767,9 +1820,9 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #                     f"'contexts_key' is set to {contexts_key} which can't be found. "
 #                 )
 #             message += "Please check your evaluator settings and try again."
-#
+
 #             raise ValueError(message)
-#
+
 #         measurement = await measure_context_coherence(
 #             input=EvaluatorInputInterface(
 #                 **{
@@ -1784,7 +1837,7 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 #             )
 #         )
 #         return Result(type="number", value=measurement["outputs"]["score"])
-#
+
 #     except Exception:
 #         return Result(
 #             type="error",
@@ -1940,14 +1993,28 @@ async def semantic_similarity(
 
     openai = AsyncOpenAI(api_key=openai_api_key)
 
+    def normalize_vector(vector: List[float]) -> List[float]:
+        """Normalize a vector to unit length if needed."""
+        magnitude_squared = sum(x * x for x in vector)
+        # Skip normalization if already normalized (within tolerance)
+        if abs(magnitude_squared - 1.0) < 1e-3:
+            return vector
+        magnitude = magnitude_squared**0.5
+        if magnitude == 0:
+            return vector
+        return [x / magnitude for x in vector]
+
     async def encode(text: str):
         response = await openai.embeddings.create(
             model="text-embedding-3-small", input=text
         )
-        return np.array(response.data[0].embedding)
+        embedding = response.data[0].embedding
+        return normalize_vector(embedding)
 
-    def cosine_similarity(output_vector: array, correct_answer_vector: array) -> float:
-        return np.dot(output_vector, correct_answer_vector)
+    def cosine_similarity(
+        output_vector: List[float], correct_answer_vector: List[float]
+    ) -> float:
+        return sum(a * b for a, b in zip(output_vector, correct_answer_vector))
 
     output_vector = await encode(input.inputs.get("prediction", ""))
     correct_answer_vector = await encode(input.inputs.get(correct_answer_key, ""))
@@ -2004,6 +2071,7 @@ EVALUATOR_FUNCTIONS = {
     "auto_semantic_similarity": auto_semantic_similarity,
     "auto_levenshtein_distance": auto_levenshtein_distance,
     "auto_similarity_match": auto_similarity_match,
+    # COMMENTED OUT: autoevals dependency removed
     # "rag_faithfulness": rag_faithfulness,
     # "rag_context_relevancy": rag_context_relevancy,
 }
@@ -2013,7 +2081,7 @@ RUN_EVALUATOR_FUNCTIONS = {
     "auto_regex_test": regex_test,
     "field_match_test": field_match_test,
     "auto_webhook_test": webhook_test,
-    "auto_custom_code_run": custom_code_run,
+    "auto_custom_code_run": sdk_custom_code_run,
     "auto_ai_critique": ai_critique,
     "auto_starts_with": starts_with,
     "auto_ends_with": ends_with,
@@ -2025,6 +2093,7 @@ RUN_EVALUATOR_FUNCTIONS = {
     "auto_levenshtein_distance": levenshtein_distance,
     "auto_similarity_match": similarity_match,
     "auto_semantic_similarity": semantic_similarity,
+    # COMMENTED OUT: autoevals dependency removed
     # "rag_faithfulness": measure_rag_consistency,
     # "rag_context_relevancy": measure_context_coherence,
 }

@@ -93,7 +93,13 @@ export function calculateMultiLineIndentation(
  */
 export function isFoldableLine(text: string, language: string): boolean {
     const trimmed = text.trim()
-    if (language === "json" || language === "code") {
+    if (
+        language === "json" ||
+        language === "code" ||
+        language === "python" ||
+        language === "javascript" ||
+        language === "typescript"
+    ) {
         return trimmed.endsWith("{")
     }
     if (language === "yaml") {

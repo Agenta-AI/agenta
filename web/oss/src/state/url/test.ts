@@ -11,11 +11,13 @@ import focusDrawerState from "@/oss/state/url/focusDrawer"
 import {syncAuthStateFromUrl} from "./auth"
 import {syncPlaygroundStateFromUrl} from "./playground"
 import {syncSessionStateFromUrl} from "./session"
+import {syncTestcaseStateFromUrl} from "./testcase"
 import {syncTraceStateFromUrl} from "./trace"
 import {syncVariantStateFromUrl} from "./variant"
 
 export {activeInviteAtom, protectedRouteReadyAtom} from "./auth"
 export {clearSessionParamAtom, clearSessionQueryParam, sessionIdAtom} from "./session"
+export {testcaseIdAtom, clearTestcaseQueryParam, clearTestcaseParamAtom} from "./testcase"
 export {clearTraceParamAtom, clearTraceQueryParam, traceIdAtom} from "./trace"
 
 const isBrowser = typeof window !== "undefined"
@@ -68,6 +70,7 @@ const syncUrlState = (nextUrl?: string) => {
     syncTraceStateFromUrl(nextUrl)
     syncSessionStateFromUrl(nextUrl)
     syncVariantStateFromUrl(nextUrl)
+    syncTestcaseStateFromUrl(nextUrl)
 
     if (typeof focusDrawerState?.syncFocusDrawerStateFromUrl === "function") {
         focusDrawerState.syncFocusDrawerStateFromUrl(nextUrl)
