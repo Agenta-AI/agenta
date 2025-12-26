@@ -9,7 +9,7 @@ import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import router from "next/router"
 
-import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
+import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
 import useURL from "@/oss/hooks/useURL"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
@@ -20,9 +20,12 @@ import type {SelectEvaluatorSectionProps} from "../../types"
 
 import EvaluatorTemplateDropdown from "./EvaluatorTemplateDropdown"
 
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const EvaluatorMetrics = memo(({evaluator}: {evaluator: EvaluatorDto<"response">}) => {
     const metrics = getMetricsFromEvaluator(evaluator)

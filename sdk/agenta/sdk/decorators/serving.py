@@ -1,53 +1,51 @@
-from typing import Type, Any, Callable, Dict, Optional, Tuple, List
+from asyncio import sleep
+from functools import wraps
 from inspect import (
+    Parameter,
+    Signature,
+    isasyncgen,
     iscoroutinefunction,
     isgenerator,
-    isasyncgen,
     signature,
-    Signature,
-    Parameter,
 )
-from functools import wraps
-from traceback import format_exception
-from asyncio import sleep
-from uuid import UUID
-from pydantic import BaseModel, HttpUrl, ValidationError
 from os import environ
-
-from starlette.responses import (
-    Response as StarletteResponse,
-    StreamingResponse,
-)
-from fastapi import Body, FastAPI, HTTPException, Request
-
-from agenta.sdk.middleware.mock import MockMiddleware
-from agenta.sdk.middleware.inline import InlineMiddleware
-from agenta.sdk.middleware.vault import VaultMiddleware
-from agenta.sdk.middleware.config import ConfigMiddleware
-from agenta.sdk.middleware.otel import OTelMiddleware
-from agenta.sdk.middleware.auth import AuthHTTPMiddleware
-from agenta.sdk.middleware.cors import CORSMiddleware
-
-from agenta.sdk.contexts.routing import (
-    routing_context_manager,
-    RoutingContext,
-)
-from agenta.sdk.contexts.tracing import (
-    tracing_context_manager,
-    TracingContext,
-)
-from agenta.sdk.router import router
-from agenta.sdk.utils.exceptions import suppress, display_exception
-from agenta.sdk.utils.logging import get_module_logger
-from agenta.sdk.utils.helpers import get_current_version
-from agenta.sdk.types import (
-    MultipleChoice,
-    BaseResponse,
-    StreamResponse,
-    MCField,
-)
+from traceback import format_exception
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+from uuid import UUID
 
 import agenta as ag
+from agenta.sdk.contexts.routing import (
+    RoutingContext,
+    routing_context_manager,
+)
+from agenta.sdk.contexts.tracing import (
+    TracingContext,
+    tracing_context_manager,
+)
+from agenta.sdk.middleware.auth import AuthHTTPMiddleware
+from agenta.sdk.middleware.config import ConfigMiddleware
+from agenta.sdk.middleware.cors import CORSMiddleware
+from agenta.sdk.middleware.inline import InlineMiddleware
+from agenta.sdk.middleware.mock import MockMiddleware
+from agenta.sdk.middleware.otel import OTelMiddleware
+from agenta.sdk.middleware.vault import VaultMiddleware
+from agenta.sdk.router import router
+from agenta.sdk.types import (
+    BaseResponse,
+    MultipleChoice,
+    StreamResponse,
+)
+from agenta.sdk.utils.exceptions import display_exception, suppress
+from agenta.sdk.utils.helpers import get_current_version
+from agenta.sdk.utils.logging import get_module_logger
+from fastapi import Body, FastAPI, HTTPException, Request
+from pydantic import BaseModel, HttpUrl, ValidationError
+from starlette.responses import (
+    Response as StarletteResponse,
+)
+from starlette.responses import (
+    StreamingResponse,
+)
 
 log = get_module_logger(__name__)
 

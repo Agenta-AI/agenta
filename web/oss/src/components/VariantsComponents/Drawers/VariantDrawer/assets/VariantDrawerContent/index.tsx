@@ -7,6 +7,7 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {useRouter} from "next/router"
 
+import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
 import PlaygroundVariantCustomProperties from "@/oss/components/Playground/Components/PlaygroundVariantCustomProperties"
@@ -16,7 +17,6 @@ import {
     variantByRevisionIdAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
 import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms/dirtyState"
-import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"

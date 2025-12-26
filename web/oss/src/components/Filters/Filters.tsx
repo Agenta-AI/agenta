@@ -40,12 +40,12 @@ import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {Filter, FilterConditions} from "@/oss/lib/Types"
 
+import CustomAntdBadge from "../CustomUIs/CustomAntdBadge"
 import {
     NUM_OPS,
     STRING_EQU_AND_CONTAINS_OPS,
     STRING_EQU_OPS,
 } from "../pages/observability/assets/utils"
-import CustomAntdBadge from "../ui/CustomAntdBadge"
 
 import {useStyles} from "./assets/styles"
 import {
@@ -1860,17 +1860,20 @@ const Filters: React.FC<Props> = ({
                 className="flex items-center gap-2 px-2"
                 {...buttonProps}
             >
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 min-w-[18px]">
                     <FunnelIcon size={14} />
-                    {sanitizedFilters.filter(({field, operator}) => field && operator).length >
-                        0 && (
-                        <CustomAntdBadge
-                            count={
-                                sanitizedFilters.filter(({field, operator}) => field && operator)
-                                    .length
-                            }
-                        />
-                    )}
+                    <div className="w-[14px] flex items-center justify-center">
+                        {sanitizedFilters.filter(({field, operator}) => field && operator).length >
+                            0 && (
+                            <CustomAntdBadge
+                                count={
+                                    sanitizedFilters.filter(
+                                        ({field, operator}) => field && operator,
+                                    ).length
+                                }
+                            />
+                        )}
+                    </div>
                 </div>
             </Button>
         </Popover>

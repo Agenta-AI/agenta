@@ -1,13 +1,16 @@
-from typing import Optional, Dict, List
 from threading import Lock
+from typing import Dict, List, Optional
 
+
+from agenta.sdk.contexts.tracing import TracingContext
+from agenta.sdk.utils.logging import get_module_logger
 from opentelemetry.baggage import get_all as get_baggage
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import Span, SpanProcessor
 from opentelemetry.sdk.trace.export import (
-    SpanExporter,
-    ReadableSpan,
     BatchSpanProcessor,
+    ReadableSpan,
+    SpanExporter,
 )
 from opentelemetry.trace import SpanContext
 
@@ -88,6 +91,8 @@ class TraceProcessor(SpanProcessor):
                     if isinstance(ref, dict):
                         for field, val in ref.items():
                             span.set_attribute(f"{key}.{field}", str(val))
+                    elif isinstance(ref, (str, bool, int, float, bytes)):
+                        span.set_attribute(key, ref)
                 else:
                     # Not a reference - only set if it's a valid attribute type
                     if isinstance(value, (str, bool, int, float, bytes)):

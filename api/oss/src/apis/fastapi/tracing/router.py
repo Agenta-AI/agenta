@@ -1,5 +1,6 @@
 from typing import Optional, List, Tuple, Dict, Union
 from uuid import UUID
+from datetime import datetime
 
 from fastapi import APIRouter, Request, Depends, status, HTTPException
 
@@ -54,6 +55,7 @@ from oss.src.core.tracing.dtos import (
     MetricType,
     MetricSpec,
 )
+from oss.src.core.shared.dtos import Windowing
 
 log = get_module_logger(__name__)
 
@@ -702,6 +704,59 @@ class TracingRouter:
             specs=specs,
         )
 
+    def _compute_next_windowing(
+        self,
+        *,
+        input_windowing: Optional[Windowing],
+        result_ids: List[str],
+        activity_cursor: Optional[datetime],
+    ) -> Optional[Windowing]:
+        """
+        Compute next windowing cursor for time-based pagination.
+
+        Args:
+            input_windowing: The windowing parameters from the request
+            result_ids: The list of IDs returned from the query
+            activity_cursor: The activity timestamp (first_active or last_active)
+
+        Returns:
+            Windowing object for the next page, or None if no more pages
+        """
+        # Only compute cursor if we have all required conditions
+        if not (
+            input_windowing
+            and input_windowing.limit
+            and result_ids
+            and len(result_ids) >= input_windowing.limit
+            and activity_cursor
+        ):
+            return None
+
+        # Determine order direction
+        order_direction = (
+            input_windowing.order.lower() if input_windowing.order else "descending"
+        )
+
+        # Move cursor based on order direction:
+        # DESC (default): newest moves backward, oldest stays fixed
+        # ASC: oldest moves forward, newest stays fixed
+        if order_direction == "ascending":
+            # ASC: Move oldest forward, keep newest fixed
+            return Windowing(
+                newest=input_windowing.newest,
+                oldest=activity_cursor,
+                limit=input_windowing.limit,
+                order=input_windowing.order,
+            )
+        else:
+            # DESC: Move newest backward, keep oldest fixed
+            return Windowing(
+                newest=activity_cursor,
+                oldest=input_windowing.oldest,
+                limit=input_windowing.limit,
+                order=input_windowing.order,
+            )
+
     @intercept_exceptions()
     @suppress_exceptions(default=SessionIdsResponse())
     async def list_sessions(
@@ -709,14 +764,25 @@ class TracingRouter:
         request: Request,
         sessions_query_request: SessionsQueryRequest,
     ):
-        session_ids = await self.service.sessions(
+        session_ids, activity_cursor = await self.service.sessions(
             project_id=request.state.project_id,
+            #
+            realtime=sessions_query_request.realtime,
+            #
             windowing=sessions_query_request.windowing,
+        )
+
+        # Compute next windowing cursor for time-based pagination
+        windowing = self._compute_next_windowing(
+            input_windowing=sessions_query_request.windowing,
+            result_ids=session_ids,
+            activity_cursor=activity_cursor,
         )
 
         session_ids_response = SessionIdsResponse(
             count=len(session_ids) if session_ids else 0,
             session_ids=session_ids,
+            windowing=windowing,
         )
 
         return session_ids_response
@@ -728,14 +794,25 @@ class TracingRouter:
         request: Request,
         users_query_request: UsersQueryRequest,
     ):
-        user_ids = await self.service.users(
+        user_ids, activity_cursor = await self.service.users(
             project_id=request.state.project_id,
+            #
+            realtime=users_query_request.realtime,
+            #
             windowing=users_query_request.windowing,
+        )
+
+        # Compute next windowing cursor for time-based pagination
+        windowing = self._compute_next_windowing(
+            input_windowing=users_query_request.windowing,
+            result_ids=user_ids,
+            activity_cursor=activity_cursor,
         )
 
         user_ids_response = UserIdsResponse(
             count=len(user_ids) if user_ids else 0,
             user_ids=user_ids,
+            windowing=windowing,
         )
 
         return user_ids_response

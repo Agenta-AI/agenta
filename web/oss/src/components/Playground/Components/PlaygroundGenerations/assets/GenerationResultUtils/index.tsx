@@ -6,10 +6,9 @@ import clsx from "clsx"
 
 import StatusRenderer from "@/oss/components/pages/observability/components/StatusRenderer"
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
+import TraceDrawerButton from "@/oss/components/SharedDrawers/TraceDrawer"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {StatusCode} from "@/oss/services/tracing/types"
-
-import TraceDrawerButton from "../../../Drawers/TraceDrawer"
 
 import {GenerationResultUtilsProps} from "./types"
 
