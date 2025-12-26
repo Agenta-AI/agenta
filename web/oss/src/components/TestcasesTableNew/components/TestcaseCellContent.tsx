@@ -1,7 +1,10 @@
-import {memo, useMemo} from "react"
+import {memo, useCallback, useMemo} from "react"
 
-import {Typography} from "antd"
+import {Copy} from "@phosphor-icons/react"
+import {Button, Popover, Typography} from "antd"
 import dynamic from "next/dynamic"
+
+import {message} from "../../AppMessageContext"
 
 const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
 
@@ -161,15 +164,65 @@ const JsonContent = memo(
 JsonContent.displayName = "JsonContent"
 
 /**
- * Popover wrapper for cell content with lazy rendering
- * Content is only rendered when popover is visible for better performance
- * Uses native title for simple preview, Popover only on click for full content
+ * Popover content component - only rendered when popover is open
+ */
+const PopoverContent = memo(
+    ({fullContent, isJson}: {fullContent: React.ReactNode; isJson: boolean}) => {
+        const handleCopy = useCallback(() => {
+            const textToCopy = typeof fullContent === "string" ? fullContent : String(fullContent)
+            navigator.clipboard.writeText(textToCopy)
+            message.success("Copied to clipboard")
+        }, [fullContent])
+
+        return (
+            <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-end">
+                    <Button type="text" size="small" icon={<Copy size={14} />} onClick={handleCopy}>
+                        Copy
+                    </Button>
+                </div>
+                <div className="max-h-[350px] overflow-auto">
+                    {isJson ? (
+                        <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[#9d4edd]">
+                            {fullContent}
+                        </pre>
+                    ) : (
+                        <Text className="text-xs whitespace-pre-wrap">{fullContent}</Text>
+                    )}
+                </div>
+            </div>
+        )
+    },
+)
+PopoverContent.displayName = "PopoverContent"
+
+/**
+ * Popover wrapper for cell content
+ * Uses uncontrolled mode to avoid state updates during scroll
  */
 const CellContentPopover = memo(
-    ({children, previewText}: {children: React.ReactNode; previewText?: string}) => {
-        // Use native title for hover preview - much better scroll performance
-        // than Ant Design Popover which creates portals and event listeners
-        return <div title={previewText}>{children}</div>
+    ({
+        children,
+        fullContent,
+        isJson,
+    }: {
+        children: React.ReactNode
+        fullContent: React.ReactNode
+        isJson: boolean
+    }) => {
+        return (
+            <Popover
+                trigger="hover"
+                mouseEnterDelay={0.5}
+                mouseLeaveDelay={0.2}
+                destroyTooltipOnHide
+                overlayClassName="testcase-cell-popover"
+                overlayStyle={{maxWidth: 500, maxHeight: 400}}
+                content={<PopoverContent fullContent={fullContent} isJson={isJson} />}
+            >
+                {children}
+            </Popover>
+        )
     },
 )
 CellContentPopover.displayName = "CellContentPopover"
@@ -191,18 +244,16 @@ const TestcaseCellContent = memo(({value, maxLines}: TestcaseCellContentProps) =
     const {parsed: jsonValue, isJson} = useMemo(() => tryParseJson(value), [value])
     const displayValue = useMemo(() => normalizeValue(value), [value])
 
-    // Generate preview text for native title tooltip
+    // Generate full content for popover
     // Must be before early return to satisfy React hooks rules
-    const previewText = useMemo(() => {
+    const fullContent = useMemo(() => {
         if (value === undefined || value === null || value === "") {
             return undefined
         }
         if (isJson) {
-            const jsonStr = safeJsonStringify(jsonValue)
-            // Limit preview to first 500 chars for performance
-            return jsonStr.length > 500 ? jsonStr.slice(0, 500) + "..." : jsonStr
+            return safeJsonStringify(jsonValue)
         }
-        return displayValue.length > 500 ? displayValue.slice(0, 500) + "..." : displayValue
+        return displayValue
     }, [value, isJson, jsonValue, displayValue])
 
     // Plain text - truncate to prevent rendering huge text blocks
@@ -231,7 +282,7 @@ const TestcaseCellContent = memo(({value, maxLines}: TestcaseCellContentProps) =
     // Render JSON objects/arrays
     if (isJson) {
         return (
-            <CellContentPopover previewText={previewText}>
+            <CellContentPopover fullContent={fullContent} isJson={isJson}>
                 <div className="testcase-table-cell cursor-pointer">
                     <JsonContent value={jsonValue} maxLines={maxLines} />
                 </div>
@@ -241,7 +292,7 @@ const TestcaseCellContent = memo(({value, maxLines}: TestcaseCellContentProps) =
 
     // Plain text with truncation
     return (
-        <CellContentPopover previewText={previewText}>
+        <CellContentPopover fullContent={fullContent} isJson={isJson}>
             <div className="testcase-table-cell cursor-pointer">
                 <Text className="text-xs whitespace-pre-wrap">{truncatedDisplayValue}</Text>
             </div>

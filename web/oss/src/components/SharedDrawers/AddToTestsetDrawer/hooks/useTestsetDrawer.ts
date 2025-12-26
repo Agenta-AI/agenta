@@ -65,6 +65,12 @@ export interface UseTestsetDrawerResult {
     formatDataPreview: string
     allAvailablePaths: {value: string; label: string}[]
     columnOptions: {value: string; label: string}[]
+    /** Map of data paths to column names (for visual indication in drill-in view) */
+    mappedPaths: Map<string, string>
+    /** Handler to add a mapping from the drill-in view */
+    onMapToColumnFromDrillIn: (dataPath: string, column: string) => void
+    /** Handler to remove a mapping from the drill-in view */
+    onUnmapFromDrillIn: (dataPath: string) => void
 
     // Setters
     setMappingData: (data: Mapping[] | ((prev: Mapping[]) => Mapping[])) => void
@@ -168,6 +174,56 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
         [mappingData],
     )
 
+    // Compute map of data paths to column names for visual indication in drill-in view
+    const mappedPaths = useMemo(() => {
+        const paths = new Map<string, string>()
+        mappingData.forEach((mapping) => {
+            if (mapping.data && mapping.column) {
+                // Use newColumn for "create" mappings, otherwise use column
+                const columnName =
+                    mapping.column === "create"
+                        ? mapping.newColumn || mapping.column
+                        : mapping.column
+                paths.set(mapping.data, columnName)
+            }
+        })
+        return paths
+    }, [mappingData])
+
+    // Handler to add a mapping from the drill-in view
+    const onMapToColumnFromDrillIn = useCallback(
+        (dataPath: string, column: string) => {
+            // Add a new mapping with the data path and column
+            // "create" is a special value that means create a new column - leave newColumn empty for user input
+            if (column === "create") {
+                setMappingData((prev) => [
+                    ...prev,
+                    {data: dataPath, column: "create", newColumn: ""},
+                ])
+                // Scroll to mapping section so user can fill in the column name
+                setTimeout(() => {
+                    const mappingSection = document.querySelector('[data-testid="mapping-section"]')
+                    mappingSection?.scrollIntoView({behavior: "smooth", block: "center"})
+                }, 100)
+            } else {
+                setMappingData((prev) => [...prev, {data: dataPath, column}])
+                // Trigger entity update to sync columns to preview table
+                executeNewColumnBlur(getValueAtPath)
+            }
+        },
+        [setMappingData, executeNewColumnBlur],
+    )
+
+    // Handler to remove a mapping from the drill-in view
+    const onUnmapFromDrillIn = useCallback(
+        (dataPath: string) => {
+            setMappingData((prev) => prev.filter((mapping) => mapping.data !== dataPath))
+            // Trigger entity update to sync columns to preview table
+            executeNewColumnBlur(getValueAtPath)
+        },
+        [setMappingData, executeNewColumnBlur],
+    )
+
     const formatDataPreview = useMemo(() => {
         if (!traceData?.length) return ""
         const jsonObject = {data: selectedTraceData?.data || traceData[0]?.data}
@@ -178,19 +234,32 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
     // All available data paths from trace data (derived from atom)
     const allAvailablePaths = useAtomValue(allTracePathsSelectOptionsAtom)
 
-    // Derive column options directly from entity atoms
+    // Derive column options from entity atoms + columns created via mappings
     const columnOptions = useMemo(() => {
-        if (revisionSelect.isNewTestset) {
-            return saveTestset.localColumns?.map(({column}) => ({
-                value: column,
-                label: column,
-            }))
-        }
-        return currentColumns.map((col) => ({
-            value: col.key,
-            label: col.name,
-        }))
-    }, [currentColumns, saveTestset.localColumns, revisionSelect.isNewTestset])
+        const baseColumns = revisionSelect.isNewTestset
+            ? (saveTestset.localColumns?.map(({column}) => ({
+                  value: column,
+                  label: column,
+              })) ?? [])
+            : currentColumns.map((col) => ({
+                  value: col.key,
+                  label: col.name,
+              }))
+
+        // Also include columns created via mappings (not "create" placeholder)
+        const mappingColumns = mappingData
+            .filter((m) => m.column && m.column !== "create")
+            .map((m) => ({value: m.column, label: m.column}))
+
+        // Merge and dedupe by value
+        const allColumns = [...baseColumns, ...mappingColumns]
+        const seen = new Set<string>()
+        return allColumns.filter((col) => {
+            if (seen.has(col.value)) return false
+            seen.add(col.value)
+            return true
+        })
+    }, [currentColumns, saveTestset.localColumns, revisionSelect.isNewTestset, mappingData])
 
     const handleDrawerClose = useCallback(() => {
         // Close drawer via reducer (resets drawer state, cascader state)
@@ -246,10 +315,10 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
             const dataToSave = valueToSave || updatedTraceData
             console.log("[onSaveEditedTrace] Called", {
                 dataToSave: dataToSave?.slice(0, 100),
-                formatDataPreview: formatDataPreview?.slice(0, 100),
-                isDifferent: dataToSave !== formatDataPreview,
             })
-            if (dataToSave && dataToSave !== formatDataPreview) {
+            // Always call updateEditedTrace - it handles comparison against original data internally
+            // Don't compare against formatDataPreview here because it reflects current (possibly edited) data
+            if (dataToSave) {
                 console.log("[onSaveEditedTrace] Calling updateEditedTrace")
                 const result = updateEditedTrace({
                     updatedData: dataToSave,
@@ -260,12 +329,12 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
                 })
                 console.log("[onSaveEditedTrace] Result:", result)
 
-                if (!result.success && result.error) {
+                if (!result.success && result.error && result.error !== "No changes detected") {
                     message.error(result.error)
                 }
             }
         },
-        [updatedTraceData, formatDataPreview, editorFormat, updateEditedTrace],
+        [updatedTraceData, editorFormat, updateEditedTrace],
     )
 
     const onRevertEditedTrace = useCallback(() => {
@@ -311,6 +380,9 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
         formatDataPreview,
         allAvailablePaths,
         columnOptions,
+        mappedPaths,
+        onMapToColumnFromDrillIn,
+        onUnmapFromDrillIn,
 
         // Setters
         setMappingData,

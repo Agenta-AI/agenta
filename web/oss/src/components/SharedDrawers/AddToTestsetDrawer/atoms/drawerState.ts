@@ -367,20 +367,8 @@ export const updateEditedTraceAtom = atom(
             return {success: false, error: "No data to update"}
         }
 
-        // Check if data actually changed
-        const currentDataString = formatData(format, {data: selectedTrace.data})
-        console.log("[updateEditedTraceAtom] Comparing data", {
-            updatedDataPreview: updatedData.slice(0, 100),
-            currentDataPreview: currentDataString.slice(0, 100),
-            isEqual: updatedData === currentDataString,
-        })
-        if (updatedData === currentDataString) {
-            console.log("[updateEditedTraceAtom] No changes detected")
-            return {success: false, error: "No changes detected"}
-        }
-
         try {
-            // Parse the updated data
+            // Parse the updated data first to normalize it
             const parsedUpdatedData =
                 typeof updatedData === "string"
                     ? format === "YAML"
@@ -392,29 +380,47 @@ export const updateEditedTraceAtom = atom(
                 parsedUpdatedData,
             })
 
+            // Compare using normalized (re-formatted) strings to avoid whitespace/formatting issues
             const updatedDataString = formatData(format, parsedUpdatedData)
+            const currentDataString = formatData(format, {data: selectedTrace.data})
             const originalDataString = formatData(format, {
                 data: selectedTrace.originalData || selectedTrace.data,
             })
+
+            console.log("[updateEditedTraceAtom] Comparing data", {
+                updatedDataPreview: updatedDataString.slice(0, 100),
+                currentDataPreview: currentDataString.slice(0, 100),
+                isEqual: updatedDataString === currentDataString,
+                updatedLength: updatedDataString.length,
+                currentLength: currentDataString.length,
+            })
+
+            // Check if data actually changed (using normalized comparison)
+            if (updatedDataString === currentDataString) {
+                console.log("[updateEditedTraceAtom] No changes detected")
+                return {success: false, error: "No changes detected"}
+            }
+
             const isMatchingOriginalData = updatedDataString === originalDataString
-            const isMatchingData =
-                updatedDataString !== formatData(format, {data: selectedTrace.data})
+            const isMatchingData = updatedDataString !== currentDataString
 
             // Update the trace in the array
             const newTraceData = traceData.map((trace) => {
                 if (trace.key === rowDataPreview) {
                     console.log("[updateEditedTraceAtom] Updating trace", trace.key)
+                    // Extract the data property from parsedUpdatedData (which is {data: {...}})
+                    const newData = (parsedUpdatedData as {data: TestsetTraceData["data"]}).data
                     if (isMatchingOriginalData) {
                         return {
                             ...trace,
-                            ...(parsedUpdatedData as object),
+                            data: newData,
                             isEdited: false,
                             originalData: null,
                         }
                     } else {
                         return {
                             ...trace,
-                            ...(parsedUpdatedData as object),
+                            data: newData,
                             ...(isMatchingData && !trace.originalData
                                 ? {originalData: trace.data}
                                 : {}),
