@@ -10,7 +10,6 @@ import {
     traceDrawerBackTargetAtom,
     traceDrawerIsLinkedViewAtom,
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
 import {
     isSpansResponse,
