@@ -54,6 +54,8 @@ export interface TestcasesTableShellProps {
     showRowIndex?: boolean
     /** Prefix for scopeId to avoid conflicts when multiple tables use same revisionId */
     scopeIdPrefix?: string
+    /** Maximum number of rows to display (for preview mode) */
+    maxRows?: number
 }
 
 /**
@@ -90,6 +92,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         disableDeleteAction = false,
         showRowIndex = false,
         scopeIdPrefix = "testcases",
+        maxRows,
     } = props
 
     // Collapsed groups state (using useState for simplicity - persists only during session)
@@ -110,13 +113,13 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
     const tableScope = useMemo<TableScopeConfig>(
         () => ({
             scopeId: `${scopeIdPrefix}-${revisionIdParam}`,
-            pageSize: 50, // Paginated loading
-            enableInfiniteScroll: true, // Enable infinite scroll for pagination
+            pageSize: maxRows ?? 50, // Use maxRows if provided, otherwise default to 50
+            enableInfiniteScroll: !maxRows, // Disable infinite scroll when maxRows is set
             columnVisibilityStorageKey: "testcases:columns",
             // Increase exit debounce to prevent infinite loop on scroll-stop-scroll pattern
             viewportExitDebounceMs: 300,
         }),
-        [scopeIdPrefix, revisionIdParam],
+        [scopeIdPrefix, revisionIdParam, maxRows],
     )
 
     // Get the global Jotai store so entity atoms are accessible inside the table

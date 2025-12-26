@@ -8,8 +8,6 @@ import {
     TESTCASE_ROW_HEIGHT_CONFIG,
 } from "@/oss/components/TestcasesTableNew/state/rowHeight"
 
-import {useStyles} from "../assets/styles"
-
 interface PreviewSectionProps {
     selectedRevisionId: string
     isMapColumnExist: boolean
@@ -21,8 +19,6 @@ export function PreviewSection({
     isMapColumnExist,
     isNewTestset = false,
 }: PreviewSectionProps) {
-    const classes = useStyles()
-
     const previewTable = useTestcasesTable({
         revisionId: isNewTestset ? "draft" : selectedRevisionId || undefined,
         skipEmptyRevisionInit: true,
@@ -30,10 +26,13 @@ export function PreviewSection({
     const rowHeight = useRowHeight(testcaseRowHeightAtom, TESTCASE_ROW_HEIGHT_CONFIG)
 
     return (
-        <div className={classes.container}>
-            <Typography.Text className={classes.label}>Preview</Typography.Text>
+        <div className="flex flex-col gap-1">
+            <Typography.Text className="font-medium">4. Preview Result</Typography.Text>
+            <Typography.Text type="secondary" className="text-xs">
+                See how your mapped data will appear in the testset
+            </Typography.Text>
             {isMapColumnExist ? (
-                <div>
+                <div className="mt-1">
                     {(selectedRevisionId && selectedRevisionId !== "draft") || isNewTestset ? (
                         <TestcasesTableShell
                             mode="view"
@@ -54,15 +53,22 @@ export function PreviewSection({
                             autoHeight={true}
                             disableDeleteAction={true}
                             scopeIdPrefix="drawer-preview"
+                            maxRows={5}
                         />
                     ) : (
-                        <Typography.Text type="secondary">
-                            Select a testset and configure mappings to preview
-                        </Typography.Text>
+                        <div className="py-4 px-3 bg-gray-50 rounded-md border border-dashed border-gray-200 text-center">
+                            <Typography.Text type="secondary">
+                                Select a testset and configure mappings to see the preview
+                            </Typography.Text>
+                        </div>
                     )}
                 </div>
             ) : (
-                <Typography.Text>Please select testset to view testset preview.</Typography.Text>
+                <div className="py-4 px-3 bg-gray-50 rounded-md border border-dashed border-gray-200 text-center">
+                    <Typography.Text type="secondary">
+                        Add at least one mapping to see how your data will appear
+                    </Typography.Text>
+                </div>
             )}
         </div>
     )
