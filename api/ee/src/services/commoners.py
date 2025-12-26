@@ -116,8 +116,10 @@ async def create_accounts(payload: dict):
         payload (dict): The required payload. It consists of; user_id and user_email
     """
 
+    # Only keep fields expected by UserDB to avoid TypeErrors (e.g., organization_id)
     user_dict = {
-        **payload,
+        "uid": payload["uid"],
+        "email": payload["email"],
         "username": payload["email"].split("@")[0],
     }
 

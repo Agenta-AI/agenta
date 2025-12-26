@@ -119,7 +119,7 @@ from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 import agenta as ag
 
 ag.init(
-    api_url=env.AGENTA_API_URL,
+    api_url=env.agenta.api_url,
 )
 
 ee = None

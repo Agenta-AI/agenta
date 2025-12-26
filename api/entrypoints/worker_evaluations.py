@@ -48,13 +48,13 @@ log = get_module_logger(__name__)
 # Initialize Agenta SDK for workflow invocation in evaluation tasks
 # Idempotent - safe to call multiple times
 ag.init(
-    api_url=env.AGENTA_API_URL,
+    api_url=env.agenta.api_url,
 )
 
 # BROKER -------------------------------------------------------------------
 # Create broker with durable Redis Streams for task queues
 broker = RedisStreamBroker(
-    url=env.REDIS_URI_DURABLE,
+    url=env.redis.uri_durable,
     queue_name="queues:evaluations",
     consumer_group_name="worker-evaluations",
     # Disable automatic redelivery for long-running evaluation tasks

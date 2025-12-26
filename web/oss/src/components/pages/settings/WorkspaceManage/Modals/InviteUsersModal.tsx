@@ -10,6 +10,7 @@ import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
+import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {Plan} from "@/oss/lib/Types"
 import {inviteToWorkspace} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
@@ -48,7 +49,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                 workspaceId,
             })
                 .then((responses) => {
-                    if (!isDemo() && typeof responses.url === "string") {
+                    if (!isEmailInvitationsEnabled() && typeof responses.url === "string") {
                         onSuccess?.({
                             email: emails[0],
                             uri: responses.url,

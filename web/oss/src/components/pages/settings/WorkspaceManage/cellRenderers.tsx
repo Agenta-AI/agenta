@@ -7,7 +7,8 @@ import {Button, Dropdown, Space, Tag, Tooltip, Typography} from "antd"
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {message} from "@/oss/components/AppMessageContext"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
-import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
+import {snakeToTitle} from "@/oss/lib/helpers/utils"
+import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {Plan, User} from "@/oss/lib/Types"
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {
@@ -39,7 +40,7 @@ export const Actions: React.FC<{
         setResendLoading(true)
         resendInviteToWorkspace({organizationId, workspaceId, email: user.email})
             .then((res) => {
-                if (!isDemo() && typeof res.url === "string") {
+                if (!isEmailInvitationsEnabled() && typeof res.url === "string") {
                     onResendInvite({email: user.email, uri: res.url})
                 } else {
                     message.success("Invitation sent!")

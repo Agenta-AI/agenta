@@ -1,7 +1,5 @@
 from typing import Any, Dict
-from os import environ
 from json import loads, decoder
-from uuid import getnode
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 
@@ -14,6 +12,7 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.env import env
 
 from oss.src.services.db_manager import (
     get_user_with_id,
@@ -33,12 +32,15 @@ from ee.src.core.subscriptions.service import (
 
 log = get_module_logger(__name__)
 
-stripe.api_key = environ.get("STRIPE_API_KEY")
+# Initialize Stripe only if enabled
+if env.stripe.enabled:
+    stripe.api_key = env.stripe.api_key
+    log.info("✓ Stripe enabled")
+else:
+    log.info("✗ Stripe disabled")
 
-MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
-STRIPE_WEBHOOK_SECRET = environ.get("STRIPE_WEBHOOK_SECRET")
-STRIPE_TARGET = environ.get("STRIPE_TARGET") or MAC_ADDRESS
-AGENTA_PRICING = loads(environ.get("AGENTA_PRICING") or "{}")
+
+AGENTA_PRICING = env.stripe.pricing
 
 FORBIDDEN_RESPONSE = JSONResponse(
     status_code=403,
@@ -58,7 +60,7 @@ class SubscriptionsRouter:
         # ROUTER
         self.router = APIRouter()
 
-        # USES 'STRIPE_WEBHOOK_SECRET', SHOULD BE IN A DIFFERENT ROUTER
+        # USES 'env.stripe.webhook_secret', SHOULD BE IN A DIFFERENT ROUTER
         self.router.add_api_route(
             "/stripe/events/",
             self.handle_events,
@@ -161,10 +163,11 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if not stripe.api_key:
+        # No-op if Stripe is disabled
+        if not env.stripe.enabled:
             return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={"status": "error", "message": "Missing Stripe API Key"},
+                status_code=status.HTTP_200_OK,
+                content={"status": "ok", "message": "Stripe not configured"},
             )
 
         payload = await request.body()
@@ -190,11 +193,11 @@ class SubscriptionsRouter:
         try:
             sig_header = request.headers.get("stripe-signature")
 
-            if STRIPE_WEBHOOK_SECRET:
+            if env.stripe.webhook_secret:
                 stripe_event = stripe.Webhook.construct_event(
                     payload,
                     sig_header,
-                    STRIPE_WEBHOOK_SECRET,
+                    env.stripe.webhook_secret,
                 )
         except stripe.error.SignatureVerificationError as e:
             log.error("Webhook signature verification failed: %s", e)
@@ -239,7 +242,7 @@ class SubscriptionsRouter:
 
         target = metadata.get("target")
 
-        if target != STRIPE_TARGET:
+        if target != env.stripe.webhook_target:
             log.warn(
                 "Skipping stripe event: %s (wrong target: %s)",
                 stripe_event.type,
@@ -355,10 +358,11 @@ class SubscriptionsRouter:
         self,
         organization_id: str,
     ):
-        if not stripe.api_key:
+        # No-op if Stripe is disabled
+        if not env.stripe.enabled:
             return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={"status": "error", "message": "Missing Stripe API Key"},
+                status_code=status.HTTP_200_OK,
+                content={"status": "ok", "message": "Stripe not configured"},
             )
 
         subscription = await self.subscription_service.read(
@@ -392,10 +396,11 @@ class SubscriptionsRouter:
         plan: Plan,
         success_url: str,
     ):
-        if not stripe.api_key:
+        # No-op if Stripe is disabled
+        if not env.stripe.enabled:
             return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={"status": "error", "message": "Missing Stripe API Key"},
+                status_code=status.HTTP_200_OK,
+                content={"status": "ok", "message": "Stripe not configured"},
             )
 
         if plan.name not in Plan.__members__.keys():
@@ -455,7 +460,7 @@ class SubscriptionsRouter:
                 email=user.email,
                 metadata={
                     "organization_id": organization_id,
-                    "target": STRIPE_TARGET,
+                    "target": env.stripe.webhook_target,
                 },
             )
 
@@ -482,7 +487,7 @@ class SubscriptionsRouter:
                 "metadata": {
                     "organization_id": organization_id,
                     "plan": plan.value,
-                    "target": STRIPE_TARGET,
+                    "target": env.stripe.webhook_target,
                 },
             },
             #
@@ -600,13 +605,11 @@ class SubscriptionsRouter:
                 },
             )
 
-        if not stripe.api_key:
+        # No-op if Stripe is disabled
+        if not env.stripe.enabled:
             return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={
-                    "status": "error",
-                    "message": "Missing Stripe API Key",
-                },
+                status_code=status.HTTP_200_OK,
+                content={"status": "ok", "subscription": None},
             )
 
         try:
@@ -769,7 +772,10 @@ class SubscriptionsRouter:
 
         plan = subscription.plan
         anchor_day = subscription.anchor
-        anchor_month = (now.month + (1 if now.day >= anchor_day else 0)) % 12
+        if not anchor_day or now.day < anchor_day:
+            anchor_month = now.month
+        else:
+            anchor_month = (now.month % 12) + 1
 
         entitlements = ENTITLEMENTS.get(plan)
 
