@@ -11,6 +11,7 @@ from ee.src.core.meters.service import MetersService
 from ee.src.core.subscriptions.service import SubscriptionsService
 
 from ee.src.apis.fastapi.billing.router import SubscriptionsRouter
+from oss.src.apis.fastapi.auth import router as auth_router
 
 # DBS --------------------------------------------------------------------------
 
@@ -64,6 +65,13 @@ def extend_main(app: FastAPI):
     app.include_router(
         workspace_router.router,
         prefix="/workspaces",
+    )
+
+    # Auth router at root level (no /api prefix) for OAuth callbacks
+    app.include_router(
+        auth_router.router,
+        prefix="/auth",
+        tags=["Auth"],
     )
 
     # --------------------------------------------------------------------------

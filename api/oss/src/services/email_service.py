@@ -16,7 +16,10 @@ if env.sendgrid.enabled:
     log.info("✓ SendGrid enabled")
 else:
     sg = None
-    log.warn("✗ SendGrid disabled")
+    if env.sendgrid.api_key and not env.sendgrid.from_address:
+        log.warn("✗ SendGrid disabled: missing sender email address")
+    else:
+        log.warn("✗ SendGrid disabled")
 
 
 def read_email_template(template_file_path):

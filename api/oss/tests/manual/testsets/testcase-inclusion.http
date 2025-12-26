@@ -26,7 +26,7 @@
 # ============================================================================
 
 @host = http://localhost
-@token = change-me-auth
+@token = replace-me
 @base_url = {{host}}/api/preview/testsets
 @simple_base_url = {{host}}/api/preview/simple/testsets
 

@@ -38,30 +38,7 @@ const Callback = () => {
         }
     }
 
-    const handleGoogleCallback = async () => {
-        try {
-            const response = await signInAndUp()
-
-            if (response.status === "OK") {
-                setMessage({message: "Verification successful", type: "success"})
-                const {createdNewRecipeUser, user} = response
-                await handleAuthSuccess({createdNewRecipeUser, user})
-            } else if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
-                setMessage({message: response.reason, type: "error"})
-                await router.push("/auth")
-            } else {
-                setMessage({
-                    message: "No email provided by social login. Please use another form of login",
-                    type: "error",
-                })
-                await router.push("/auth")
-            }
-        } catch (err: any) {
-            handleAuthError(err)
-        }
-    }
-
-    const handleGitHubCallback = async () => {
+    const handleThirdPartyCallback = async () => {
         try {
             const response = await signInAndUp()
 
@@ -95,12 +72,8 @@ const Callback = () => {
     }, [state, code, router.isReady])
 
     useEffect(() => {
-        if (window.location.pathname === "/auth/callback/google") {
-            handleGoogleCallback()
-        }
-
-        if (window.location.pathname === "/auth/callback/github") {
-            handleGitHubCallback()
+        if (window.location.pathname.startsWith("/auth/callback/")) {
+            handleThirdPartyCallback()
         }
     }, [])
 

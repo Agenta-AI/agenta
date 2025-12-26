@@ -1,0 +1,241 @@
+###
+# Organization Policy Enforcement Tests (EE Only)
+# Tests the OrganizationPolicyMiddleware and auth upgrade requirements
+#
+# Prerequisites:
+# 1. AGENTA_LICENSE=ee
+# 2. Organizations set up with different policies
+# 3. Users with various authentication methods
+###
+
+@baseUrl = http://localhost:8000
+@contentType = application/json
+
+# REPLACE THESE WITH ACTUAL VALUES
+@organizationId = 00000000-0000-0000-0000-000000000000
+@projectId = 00000000-0000-0000-0000-000000000000
+
+###
+# Scenario 1: User with email:otp tries to access SSO-only organization
+###
+
+### Step 1: Login with Email OTP
+# Complete OTP login flow first to get session with identities=["email:otp"]
+
+### Step 2: Try to Access SSO-Required Organization
+# Expected: 403 Forbidden with AUTH_UPGRADE_REQUIRED
+GET {{baseUrl}}/api/projects?organization_id={{organizationId}}
+Accept: application/json
+# Cookie: sAccessToken=...; sRefreshToken=...
+
+# Expected Response:
+# {
+#   "error": "AUTH_UPGRADE_REQUIRED",
+#   "message": "Additional authentication required",
+#   "required_methods": ["sso:*"],
+#   "current_identities": ["email:otp"]
+# }
+
+
+###
+# Scenario 2: User completes SSO, then retries access
+###
+
+### Step 1: Complete SSO Authentication
+# User is redirected to SSO provider
+# After successful SSO, session updated to:
+# identities = ["email:otp", "sso:acme:okta"]
+
+### Step 2: Retry Organization Access
+# Expected: 200 OK, access granted
+GET {{baseUrl}}/api/projects?organization_id={{organizationId}}
+Accept: application/json
+# Cookie: sAccessToken=...; sRefreshToken=...
+
+# Expected: Successful response with project data
+
+
+###
+# Scenario 3: Organization allows multiple methods
+###
+
+### Setup:
+# Organization policy: allowed_methods = ["email:otp", "social:*", "sso:*"]
+
+### Test: Access with any valid method
+# User with identities=["email:otp"] should be allowed
+GET {{baseUrl}}/api/projects?organization_id={{organizationId}}
+Accept: application/json
+
+# Expected: 200 OK
+
+
+###
+# Scenario 4: No organization_id in request
+###
+
+### Test: Request without organization context
+# Middleware should skip policy check
+GET {{baseUrl}}/api/health
+Accept: application/json
+
+# Expected: 200 OK (no policy enforcement)
+
+
+###
+# Scenario 5: User not a member of organization
+###
+
+### Setup:
+# User exists but not in organization_members for this org
+
+### Test: Try to access organization
+GET {{baseUrl}}/api/projects?organization_id={{organizationId}}
+Accept: application/json
+
+# Expected: 403 Forbidden
+# {
+#   "error": "NOT_A_MEMBER",
+#   "message": "You are not a member of this organization"
+# }
+
+
+###
+# Scenario 6: Organization has no policy (default allow)
+###
+
+### Setup:
+# No record in organization_policies for this organization
+
+### Test: Access should work with any auth method
+GET {{baseUrl}}/api/projects?organization_id={{organizationId}}
+Accept: application/json
+
+# Expected: 200 OK (no restrictions)
+
+
+###
+# Scenario 7: Wildcard Method Matching
+###
+
+### Test 1: Policy allows "social:*"
+# User with "social:google" should match
+# User with "social:github" should match
+# User with "email:otp" should NOT match
+
+### Test 2: Policy allows "sso:acme:*"
+# User with "sso:acme:okta" should match
+# User with "sso:acme:azure" should match
+# User with "sso:other:okta" should NOT match
+
+
+###
+# Testing Policy Enforcement Logic
+###
+
+# SQL to set different policies:
+
+# Policy 1: SSO Only
+# UPDATE organization_policies
+# SET allowed_methods = ARRAY['sso:*']
+# WHERE organization_id = '<orgId>';
+
+# Policy 2: Email or Social (no SSO)
+# UPDATE organization_policies
+# SET allowed_methods = ARRAY['email:*', 'social:*']
+# WHERE organization_id = '<orgId>';
+
+# Policy 3: Specific SSO provider only
+# UPDATE organization_policies
+# SET allowed_methods = ARRAY['sso:acme:okta']
+# WHERE organization_id = '<orgId>';
+
+# Policy 4: Everything allowed
+# UPDATE organization_policies
+# SET allowed_methods = ARRAY['email:*', 'social:*', 'sso:*']
+# WHERE organization_id = '<orgId>';
+
+
+###
+# Verification Queries
+###
+
+# Check user's current identities
+# SELECT ui.method
+# FROM user_identities ui
+# WHERE ui.user_id = '<userId>'
+# ORDER BY ui.created_at;
+
+# Check organization policy
+# SELECT allowed_methods
+# FROM organization_policies
+# WHERE organization_id = '<orgId>';
+
+# Check if user is organization member
+# SELECT EXISTS (
+#   SELECT 1
+#   FROM organization_members
+#   WHERE user_id = '<userId>'
+#     AND organization_id = '<orgId>'
+# ) as is_member;
+
+
+###
+# Middleware Bypass Routes (Should NOT Check Policy)
+###
+
+### Auth routes (no policy check)
+GET {{baseUrl}}/auth/discover
+Accept: application/json
+
+### Health check (no policy check)
+GET {{baseUrl}}/health
+Accept: application/json
+
+### Public routes (no policy check)
+GET {{baseUrl}}/api/public/status
+Accept: application/json
+
+
+###
+# Edge Cases
+###
+
+# 1. User session has no identities array
+#    → Should treat as empty, enforce policy
+
+# 2. Policy has empty allowed_methods array
+#    → Should block all access
+
+# 3. User has multiple identities, only one matches
+#    → Should allow access (OR logic)
+
+# 4. Organization deleted but policy remains
+#    → Should handle gracefully
+
+# 5. Concurrent policy updates during request
+#    → Should use consistent policy snapshot
+
+
+###
+# Common Issues & Debugging
+###
+
+# Issue: Policy not enforced
+# Check:
+# - Middleware is registered in FastAPI app
+# - Request includes organization_id param
+# - AGENTA_LICENSE=ee
+# - organization_policies table has data
+
+# Issue: Wrong policy applied
+# Check:
+# - organization_id in request matches policy org
+# - No caching issues
+# - Database query returns correct policy
+
+# Issue: Session identities not checked
+# Check:
+# - Session payload includes "identities" array
+# - Middleware can verify session correctly
+# - matches_policy() function logic is correct

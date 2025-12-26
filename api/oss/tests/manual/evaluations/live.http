@@ -1,4 +1,4 @@
-@auth_key = {{$dotenv.AGENTA_AUTH_KEY}} || change-me
+@auth_key = {{$dotenv.AGENTA_AUTH_KEY}} || replace-me
 @api_url = {{$dotenv AGENTA_API_URL}}
 @api_key = {{$dotenv AGENTA_API_KEY}}
 

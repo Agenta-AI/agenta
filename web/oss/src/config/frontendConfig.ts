@@ -6,30 +6,40 @@ import SessionReact from "supertokens-auth-react/recipe/session"
 import ThirdPartyReact from "supertokens-auth-react/recipe/thirdparty"
 
 import {appInfo} from "./appInfo"
-import {getEnv} from "../lib/helpers/dynamicEnv"
+import {getEffectiveAuthConfig} from "../lib/helpers/dynamicEnv"
 
 export const frontendConfig = (): SuperTokensConfig => {
-    const authnEmail = getEnv("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL") || "password"
-    const googleOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID")
-    const githubOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GITHUB_OAUTH_CLIENT_ID")
+    const {authnEmail, oidcProviders} = getEffectiveAuthConfig()
 
     // Build recipe list based on enabled auth methods
     const recipeList: any[] = []
 
-    // Add OIDC (ThirdParty) if Google or GitHub OAuth is configured
-    const oidcProviders = []
-    if (googleOAuthClientId) {
-        oidcProviders.push(ThirdPartyReact.Google.init())
-    }
-    if (githubOAuthClientId) {
-        oidcProviders.push(ThirdPartyReact.Github.init())
+    const providerInitializers: Record<string, () => any> = {
+        "google": () => ThirdPartyReact.Google.init(),
+        "google-workspaces": () => ThirdPartyReact.GoogleWorkspaces.init(),
+        "github": () => ThirdPartyReact.Github.init(),
+        "facebook": () => ThirdPartyReact.Facebook.init(),
+        "apple": () => ThirdPartyReact.Apple.init(),
+        "discord": () => ThirdPartyReact.Discord.init(),
+        "twitter": () => ThirdPartyReact.Twitter.init(),
+        "gitlab": () => ThirdPartyReact.Gitlab.init(),
+        "bitbucket": () => ThirdPartyReact.Bitbucket.init(),
+        "linkedin": () => ThirdPartyReact.LinkedIn.init(),
+        "okta": () => ThirdPartyReact.Okta.init(),
+        "azure-ad": () =>
+            ThirdPartyReact.ActiveDirectory.init({id: "azure-ad", name: "Azure AD"}),
+        "boxy-saml": () => ThirdPartyReact.BoxySAML.init(),
     }
 
-    if (oidcProviders.length > 0) {
+    const thirdPartyProviders = oidcProviders
+        .map((provider) => providerInitializers[provider.id]?.())
+        .filter(Boolean)
+
+    if (thirdPartyProviders.length > 0) {
         recipeList.push(
             ThirdPartyReact.init({
                 signInAndUpFeature: {
-                    providers: oidcProviders,
+                    providers: thirdPartyProviders,
                 },
             })
         )

@@ -157,8 +157,8 @@ tracing_service = TracingService(
 )
 
 # Redis client and TracingWorker for publishing spans to Redis Streams
-if env.REDIS_URI_DURABLE:
-    redis_client = Redis.from_url(env.REDIS_URI_DURABLE, decode_responses=False)
+if env.redis.uri_durable:
+    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
     tracing_worker = TracingWorker(
         service=tracing_service,
         redis_client=redis_client,

@@ -6,9 +6,6 @@ from supertokens_python.asyncio import list_users_by_account_info
 from supertokens_python import init, InputAppInfo, SupertokensConfig
 from supertokens_python.asyncio import get_user as get_user_from_supertokens
 from supertokens_python.recipe.thirdparty import (
-    ProviderInput,
-    ProviderConfig,
-    ProviderClientConfig,
     SignInAndUpFeature,
 )
 from supertokens_python.recipe import (
@@ -439,7 +436,7 @@ def _init_supertokens():
 
     # Validate auth configuration
     try:
-        env.auth.validate()
+        env.auth.validate_config()
     except ValueError as e:
         logger.error(f"[AUTH CONFIG ERROR] {e}")
         raise
@@ -484,40 +481,14 @@ def _init_supertokens():
         )
 
     # Third-Party OIDC Authentication
-    oidc_providers = []
-    if env.auth.google_enabled:
-        logger.info("✓ Google OAuth enabled")
-        oidc_providers.append(
-            ProviderInput(
-                config=ProviderConfig(
-                    third_party_id="google",
-                    clients=[
-                        ProviderClientConfig(
-                            client_id=env.auth.google_oauth_client_id,
-                            client_secret=env.auth.google_oauth_client_secret,
-                        ),
-                    ],
-                ),
-            )
-        )
+    from oss.src.core.auth.supertokens_config import get_thirdparty_providers
 
-    if env.auth.github_enabled:
-        logger.info("✓ GitHub OAuth enabled")
-        oidc_providers.append(
-            ProviderInput(
-                config=ProviderConfig(
-                    third_party_id="github",
-                    clients=[
-                        ProviderClientConfig(
-                            client_id=env.auth.github_oauth_client_id,
-                            client_secret=env.auth.github_oauth_client_secret,
-                        )
-                    ],
-                ),
-            )
-        )
-
+    oidc_providers = get_thirdparty_providers()
     if oidc_providers:
+        enabled_providers = [
+            provider.config.third_party_id for provider in oidc_providers
+        ]
+        logger.info("✓ OIDC providers enabled: %s", ", ".join(enabled_providers))
         recipe_list.append(
             thirdparty.init(
                 sign_in_and_up_feature=SignInAndUpFeature(providers=oidc_providers),
@@ -534,19 +505,14 @@ def _init_supertokens():
     recipe_list.append(dashboard.init())
 
     # Initialize SuperTokens with selected recipes
+    from oss.src.core.auth.supertokens_config import (
+        get_app_info,
+        get_supertokens_config,
+    )
+
     init(
-        app_info=InputAppInfo(
-            app_name="agenta",
-            api_domain=api_domain,
-            website_domain=env.agenta.web_url,
-            api_gateway_path=api_gateway_path,
-            api_base_path="/auth/",
-            website_base_path="/auth",
-        ),
-        supertokens_config=SupertokensConfig(
-            uri_core=env.supertokens.uri_core,
-            api_key=env.supertokens.api_key,
-        ),
+        app_info=get_app_info(),
+        supertokens_config=SupertokensConfig(**get_supertokens_config()),
         framework="fastapi",
         recipe_list=recipe_list,
         mode="asgi",

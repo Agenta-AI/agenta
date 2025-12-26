@@ -1413,6 +1413,15 @@ async def update_organization(organization_id: str, values_to_update: Dict[str, 
         if organization is None:
             raise Exception(f"Organization with ID {organization_id} not found")
 
+        # Validate slug immutability: once set, cannot be changed
+        if "slug" in values_to_update:
+            new_slug = values_to_update["slug"]
+            if organization.slug is not None and new_slug != organization.slug:
+                raise ValueError(
+                    f"Organization slug cannot be changed once set. "
+                    f"Current slug: '{organization.slug}'"
+                )
+
         for key, value in values_to_update.items():
             if hasattr(organization, key):
                 setattr(organization, key, value)
@@ -1498,6 +1507,38 @@ async def get_organization_owner(organization_id: str):
             raise NoResultFound(f"Organization with ID {organization_id} not found")
 
         return await get_user_with_id(user_id=str(organization.owner))
+
+
+async def get_user_organizations(user_id: str) -> List[OrganizationDB]:
+    """
+    Retrieve all organizations that a user is a member of.
+
+    Args:
+        user_id (str): The ID of the user
+
+    Returns:
+        List[OrganizationDB]: List of organizations the user belongs to
+    """
+    # Import OrganizationMemberDB conditionally (EE only)
+    if is_ee():
+        from ee.src.models.db_models import OrganizationMemberDB
+
+        async with engine.core_session() as session:
+            # Query organizations through organization_members table
+            result = await session.execute(
+                select(OrganizationDB)
+                .join(
+                    OrganizationMemberDB,
+                    OrganizationDB.id == OrganizationMemberDB.organization_id,
+                )
+                .filter(OrganizationMemberDB.user_id == uuid.UUID(user_id))
+            )
+            organizations = result.scalars().all()
+            return list(organizations)
+    else:
+        # OSS mode: return empty list or implement simplified logic
+        # In OSS, users might only have one default organization
+        return []
 
 
 async def get_workspace(workspace_id: str) -> WorkspaceDB:
