@@ -333,8 +333,8 @@ class SendgridConfig(BaseModel):
 
     @property
     def enabled(self) -> bool:
-        """SendGrid enabled if API key present"""
-        return bool(self.api_key)
+        """SendGrid enabled only if API key and from address are present"""
+        return bool(self.api_key and self.from_address)
 
 
 class CrispConfig(BaseModel):
