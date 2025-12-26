@@ -96,6 +96,7 @@ const ImagePreview = ({
                 height={600}
             >
                 {isValidPreview && isSafeImageSrc(imageURL) && (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                         src={imageURL}
                         alt={alt}

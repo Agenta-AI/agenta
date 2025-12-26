@@ -116,5 +116,6 @@ export const waitForValidURL = (options: WaitForUrlOptions = {}): Promise<URLSta
     })
 }
 
+export {clearSessionParamAtom} from "./session"
 export {testcaseIdAtom, clearTestcaseParamAtom} from "./testcase"
 export {clearTraceParamAtom} from "./trace"

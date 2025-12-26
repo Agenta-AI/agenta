@@ -1,1 +1,1 @@
-export * from "@/oss/components/EvalRunDetails2/atoms/runMetrics"
+export * from "@/oss/components/EvalRunDetails/atoms/runMetrics"

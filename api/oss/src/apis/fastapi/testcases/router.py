@@ -132,9 +132,15 @@ class TestcasesRouter:
         if testcases_query_request.testset_revision_id:
             testset_revision = await self.testsets_service.fetch_testset_revision(
                 project_id=UUID(request.state.project_id),
-                testset_revision_ref=Reference(id=testcases_query_request.testset_revision_id),
+                testset_revision_ref=Reference(
+                    id=testcases_query_request.testset_revision_id
+                ),
             )
-            if testset_revision and testset_revision.data and testset_revision.data.testcase_ids:
+            if (
+                testset_revision
+                and testset_revision.data
+                and testset_revision.data.testcase_ids
+            ):
                 testcase_ids = testset_revision.data.testcase_ids
             else:
                 # Revision not found or has no testcases
@@ -145,7 +151,9 @@ class TestcasesRouter:
             #
             testcase_ids=testcase_ids,
             #
-            testset_id=testcases_query_request.testset_id if not testcases_query_request.testset_revision_id else None,
+            testset_id=testcases_query_request.testset_id
+            if not testcases_query_request.testset_revision_id
+            else None,
             #
             windowing=testcases_query_request.windowing,
         )

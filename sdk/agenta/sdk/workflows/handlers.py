@@ -90,7 +90,6 @@ import re
 from typing import Any, Dict, Iterable, Tuple, Optional
 
 
-
 # ========= Scheme detection =========
 
 

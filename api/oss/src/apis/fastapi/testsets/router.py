@@ -15,6 +15,7 @@ from fastapi import (
     UploadFile,
     File,
     Form,
+    Query,
     Depends,
     HTTPException,
 )
@@ -63,7 +64,6 @@ from oss.src.apis.fastapi.testsets.models import (
     TestsetCreateRequest,
     TestsetEditRequest,
     TestsetQueryRequest,
-    TestsetLogRequest,
     TestsetResponse,
     TestsetsResponse,
     #
@@ -78,6 +78,7 @@ from oss.src.apis.fastapi.testsets.models import (
     TestsetRevisionQueryRequest,
     TestsetRevisionRetrieveRequest,
     TestsetRevisionCommitRequest,
+    TestsetRevisionsLogRequest,
     TestsetRevisionPatchRequest,
     TestsetRevisionResponse,
     TestsetRevisionsResponse,
@@ -106,6 +107,25 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+
+# Exclude alias fields from API responses
+TESTSET_REVISION_RESPONSE_EXCLUDE: Dict[str, Any] = {
+    "testset_revision": {
+        "artifact_id",
+        "variant_id",
+        "revision_id",
+    }
+}
+
+TESTSET_REVISIONS_RESPONSE_EXCLUDE: Dict[str, Any] = {
+    "testset_revisions": {
+        "__all__": {
+            "artifact_id",
+            "variant_id",
+            "revision_id",
+        }
+    }
+}
 
 
 class TestsetsRouter:
@@ -253,6 +273,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -263,6 +284,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -273,6 +295,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -283,6 +306,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -293,6 +317,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -303,6 +328,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -313,6 +339,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionsResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISIONS_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -323,6 +350,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -343,6 +371,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionsResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISIONS_RESPONSE_EXCLUDE,
         )
 
     # TESTSETS -----------------------------------------------------------------
@@ -743,6 +772,7 @@ class TestsetsRouter:
                 testset_ref=testset_revision_retrieve_request.testset_ref,  # type: ignore
                 testset_variant_ref=testset_revision_retrieve_request.testset_variant_ref,  # type: ignore
                 testset_revision_ref=testset_revision_retrieve_request.testset_revision_ref,  # type: ignore
+                include_testcases=testset_revision_retrieve_request.include_testcases,
             )
 
             await set_cache(
@@ -779,6 +809,7 @@ class TestsetsRouter:
             user_id=UUID(request.state.user_id),
             #
             testset_revision_create=testset_revision_create_request.testset_revision,
+            include_testcases=testset_revision_create_request.include_testcases,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -793,6 +824,10 @@ class TestsetsRouter:
         request: Request,
         *,
         testset_revision_id: UUID,
+        include_testcases: Optional[bool] = Query(
+            None,
+            description="Include full testcase objects. Default (null/true): include testcases. False: return only testcase IDs.",
+        ),
     ) -> TestsetRevisionResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -806,6 +841,7 @@ class TestsetsRouter:
             project_id=UUID(request.state.project_id),
             #
             testset_revision_ref=Reference(id=testset_revision_id),
+            include_testcases=include_testcases,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -841,6 +877,7 @@ class TestsetsRouter:
             user_id=UUID(request.state.user_id),
             #
             testset_revision_edit=testset_revision_edit_request.testset_revision,
+            include_testcases=testset_revision_edit_request.include_testcases,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -930,6 +967,7 @@ class TestsetsRouter:
             testset_revision_refs=testset_revision_query_request.testset_revision_refs,
             #
             include_archived=testset_revision_query_request.include_archived,
+            include_testcases=testset_revision_query_request.include_testcases,
             #
             windowing=testset_revision_query_request.windowing,
         )
@@ -960,6 +998,7 @@ class TestsetsRouter:
             user_id=UUID(request.state.user_id),
             #
             testset_revision_commit=testset_revision_commit_request.testset_revision_commit,
+            include_testcases=testset_revision_commit_request.include_testcases,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -1001,7 +1040,7 @@ class TestsetsRouter:
         self,
         request: Request,
         *,
-        testset_log_request: TestsetLogRequest,
+        testset_revisions_log_request: TestsetRevisionsLogRequest,
     ) -> TestsetRevisionsResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1014,7 +1053,8 @@ class TestsetsRouter:
         testset_revisions = await self.testsets_service.log_testset_revisions(
             project_id=UUID(request.state.project_id),
             #
-            testset_log=testset_log_request.testset,
+            testset_revisions_log=testset_revisions_log_request.testset_revision,
+            include_testcases=testset_revisions_log_request.include_testcases,
         )
 
         testset_revisions_response = TestsetRevisionsResponse(
