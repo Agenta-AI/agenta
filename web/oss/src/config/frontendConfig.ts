@@ -9,25 +9,36 @@ import {appInfo} from "./appInfo"
 import {getEffectiveAuthConfig} from "../lib/helpers/dynamicEnv"
 
 export const frontendConfig = (): SuperTokensConfig => {
-    const {authnEmail, googleOAuthClientId, githubOAuthClientId} = getEffectiveAuthConfig()
+    const {authnEmail, oidcProviders} = getEffectiveAuthConfig()
 
     // Build recipe list based on enabled auth methods
     const recipeList: any[] = []
 
-    // Add OIDC (ThirdParty) if Google or GitHub OAuth is configured
-    const oidcProviders = []
-    if (googleOAuthClientId) {
-        oidcProviders.push(ThirdPartyReact.Google.init())
-    }
-    if (githubOAuthClientId) {
-        oidcProviders.push(ThirdPartyReact.Github.init())
+    const providerInitializers: Record<string, () => any> = {
+        "google": () => ThirdPartyReact.Google.init(),
+        "google-workspaces": () => ThirdPartyReact.GoogleWorkspaces.init(),
+        "github": () => ThirdPartyReact.Github.init(),
+        "facebook": () => ThirdPartyReact.Facebook.init(),
+        "apple": () => ThirdPartyReact.Apple.init(),
+        "discord": () => ThirdPartyReact.Discord.init(),
+        "twitter": () => ThirdPartyReact.Twitter.init(),
+        "gitlab": () => ThirdPartyReact.Gitlab.init(),
+        "bitbucket": () => ThirdPartyReact.Bitbucket.init(),
+        "linkedin": () => ThirdPartyReact.LinkedIn.init(),
+        "okta": () => ThirdPartyReact.Okta.init(),
+        "active-directory": () => ThirdPartyReact.ActiveDirectory.init(),
+        "boxy-saml": () => ThirdPartyReact.BoxySAML.init(),
     }
 
-    if (oidcProviders.length > 0) {
+    const thirdPartyProviders = oidcProviders
+        .map((provider) => providerInitializers[provider.id]?.())
+        .filter(Boolean)
+
+    if (thirdPartyProviders.length > 0) {
         recipeList.push(
             ThirdPartyReact.init({
                 signInAndUpFeature: {
-                    providers: oidcProviders,
+                    providers: thirdPartyProviders,
                 },
             })
         )

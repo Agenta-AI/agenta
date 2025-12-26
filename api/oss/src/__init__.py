@@ -6,9 +6,6 @@ from supertokens_python.asyncio import list_users_by_account_info
 from supertokens_python import init, InputAppInfo, SupertokensConfig
 from supertokens_python.asyncio import get_user as get_user_from_supertokens
 from supertokens_python.recipe.thirdparty import (
-    ProviderInput,
-    ProviderConfig,
-    ProviderClientConfig,
     SignInAndUpFeature,
 )
 from supertokens_python.recipe import (
@@ -484,40 +481,12 @@ def _init_supertokens():
         )
 
     # Third-Party OIDC Authentication
-    oidc_providers = []
-    if env.auth.google_enabled:
-        logger.info("✓ Google OAuth enabled")
-        oidc_providers.append(
-            ProviderInput(
-                config=ProviderConfig(
-                    third_party_id="google",
-                    clients=[
-                        ProviderClientConfig(
-                            client_id=env.auth.google_oauth_client_id,
-                            client_secret=env.auth.google_oauth_client_secret,
-                        ),
-                    ],
-                ),
-            )
-        )
+    from oss.src.core.auth.supertokens_config import get_thirdparty_providers
 
-    if env.auth.github_enabled:
-        logger.info("✓ GitHub OAuth enabled")
-        oidc_providers.append(
-            ProviderInput(
-                config=ProviderConfig(
-                    third_party_id="github",
-                    clients=[
-                        ProviderClientConfig(
-                            client_id=env.auth.github_oauth_client_id,
-                            client_secret=env.auth.github_oauth_client_secret,
-                        )
-                    ],
-                ),
-            )
-        )
-
+    oidc_providers = get_thirdparty_providers()
     if oidc_providers:
+        enabled_providers = [provider.config.third_party_id for provider in oidc_providers]
+        logger.info("✓ OIDC providers enabled: %s", ", ".join(enabled_providers))
         recipe_list.append(
             thirdparty.init(
                 sign_in_and_up_feature=SignInAndUpFeature(providers=oidc_providers),

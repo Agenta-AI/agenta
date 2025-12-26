@@ -2,6 +2,15 @@ import {useEffect, useState} from "react"
 
 import ProtectedRoute from "@agenta/oss/src/components/ProtectedRoute/ProtectedRoute"
 import {Alert, Typography} from "antd"
+import {
+    AppleOutlined,
+    FacebookOutlined,
+    GithubOutlined,
+    GoogleOutlined,
+    LinkedinOutlined,
+    TwitterOutlined,
+    GlobalOutlined,
+} from "@ant-design/icons"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 import Image from "next/image"
@@ -34,11 +43,27 @@ const Auth = () => {
         "email:password"?: boolean
         "email:otp"?: boolean
         "social:google"?: boolean
+        "social:google-workspaces"?: boolean
         "social:github"?: boolean
+        "social:facebook"?: boolean
+        "social:apple"?: boolean
+        "social:discord"?: boolean
+        "social:twitter"?: boolean
+        "social:gitlab"?: boolean
+        "social:bitbucket"?: boolean
+        "social:linkedin"?: boolean
+        "social:okta"?: boolean
+        "social:active-directory"?: boolean
+        "social:boxy-saml"?: boolean
     }>({})
     const [invite, setInvite] = useLocalStorage("invite", {})
     const router = useRouter()
-    const {authnEmail, authEmailEnabled, authOidcEnabled} = getEffectiveAuthConfig()
+    const {
+        authnEmail,
+        authEmailEnabled,
+        authOidcEnabled,
+        oidcProviders,
+    } = getEffectiveAuthConfig()
     const isPasswordlessDemo = isDemo() && authnEmail === "otp"
 
     const firstString = (value: string | string[] | undefined): string | undefined => {
@@ -138,11 +163,35 @@ const Auth = () => {
         fetchDiscover()
     }, [authEmailEnabled, authOidcEnabled, emailFromQuery])
 
-    const socialAvailable =
-        authOidcEnabled &&
-        (availableMethods["social:google"] === true ||
-            availableMethods["social:github"] === true ||
-            Object.keys(availableMethods).length === 0)
+    const oidcProviderMeta = [
+        {id: "google", label: "Google", icon: <GoogleOutlined />},
+        {id: "google-workspaces", label: "Google Workspaces", icon: <GoogleOutlined />},
+        {id: "github", label: "GitHub", icon: <GithubOutlined />},
+        {id: "facebook", label: "Facebook", icon: <FacebookOutlined />},
+        {id: "apple", label: "Apple", icon: <AppleOutlined />},
+        {id: "discord", label: "Discord", icon: <GlobalOutlined />},
+        {id: "twitter", label: "X", icon: <TwitterOutlined />},
+        {id: "gitlab", label: "GitLab", icon: <GlobalOutlined />},
+        {id: "bitbucket", label: "Bitbucket", icon: <GlobalOutlined />},
+        {id: "linkedin", label: "LinkedIn", icon: <LinkedinOutlined />},
+        {id: "okta", label: "Okta", icon: <GlobalOutlined />},
+        {id: "active-directory", label: "Active Directory", icon: <GlobalOutlined />},
+        {id: "boxy-saml", label: "SAML", icon: <GlobalOutlined />},
+    ]
+
+    const configuredProviderIds = new Set(oidcProviders.map((provider) => provider.id))
+    const providersToShow = oidcProviderMeta.filter((provider) => {
+        if (!configuredProviderIds.has(provider.id)) {
+            return false
+        }
+        const methodKey = `social:${provider.id}` as keyof typeof availableMethods
+        if (Object.keys(availableMethods).length === 0) {
+            return true
+        }
+        return availableMethods[methodKey] !== false
+    })
+
+    const socialAvailable = authOidcEnabled && providersToShow.length > 0
 
     const emailPasswordAvailable =
         authEmailEnabled &&
@@ -222,6 +271,7 @@ const Auth = () => {
                             disabled={isAuthLoading}
                             isLoading={isSocialAuthLoading}
                             setIsLoading={setIsSocialAuthLoading}
+                            providers={providersToShow}
                             showDivider={emailOtpAvailable || emailPasswordAvailable}
                         />
                     )}

@@ -68,40 +68,189 @@ def get_thirdparty_providers() -> List[ProviderInput]:
     """
     providers = []
 
-    # Google OAuth
-    if env.auth.google_enabled:
-        assert env.auth.google_oauth_client_id is not None
-        assert env.auth.google_oauth_client_secret is not None
+    def add_provider(
+        *,
+        provider_id: str,
+        client_id: str,
+        client_secret: str | None,
+        additional_config: Dict[str, Any] | None = None,
+    ) -> None:
         providers.append(
             ProviderInput(
                 config=ProviderConfig(
-                    third_party_id="google",
+                    third_party_id=provider_id,
                     clients=[
                         ProviderClientConfig(
-                            client_id=env.auth.google_oauth_client_id,
-                            client_secret=env.auth.google_oauth_client_secret,
+                            client_id=client_id,
+                            client_secret=client_secret,
+                            additional_config=additional_config,
                         ),
                     ],
                 )
             )
         )
 
+    # Google OAuth
+    if env.auth.google_enabled:
+        assert env.auth.google_oauth_client_id is not None
+        assert env.auth.google_oauth_client_secret is not None
+        add_provider(
+            provider_id="google",
+            client_id=env.auth.google_oauth_client_id,
+            client_secret=env.auth.google_oauth_client_secret,
+        )
+
+    # Google Workspaces OAuth
+    if env.auth.google_workspaces_enabled:
+        assert env.auth.google_workspaces_oauth_client_id is not None
+        assert env.auth.google_workspaces_oauth_client_secret is not None
+        add_provider(
+            provider_id="google-workspaces",
+            client_id=env.auth.google_workspaces_oauth_client_id,
+            client_secret=env.auth.google_workspaces_oauth_client_secret,
+            additional_config={
+                "hd": env.auth.google_workspaces_hd,
+            }
+            if env.auth.google_workspaces_hd
+            else None,
+        )
+
     # GitHub OAuth
     if env.auth.github_enabled:
         assert env.auth.github_oauth_client_id is not None
         assert env.auth.github_oauth_client_secret is not None
-        providers.append(
-            ProviderInput(
-                config=ProviderConfig(
-                    third_party_id="github",
-                    clients=[
-                        ProviderClientConfig(
-                            client_id=env.auth.github_oauth_client_id,
-                            client_secret=env.auth.github_oauth_client_secret,
-                        ),
-                    ],
-                )
-            )
+        add_provider(
+            provider_id="github",
+            client_id=env.auth.github_oauth_client_id,
+            client_secret=env.auth.github_oauth_client_secret,
+        )
+
+    # Facebook OAuth
+    if env.auth.facebook_enabled:
+        assert env.auth.facebook_oauth_client_id is not None
+        assert env.auth.facebook_oauth_client_secret is not None
+        add_provider(
+            provider_id="facebook",
+            client_id=env.auth.facebook_oauth_client_id,
+            client_secret=env.auth.facebook_oauth_client_secret,
+        )
+
+    # Apple OAuth
+    if env.auth.apple_enabled:
+        assert env.auth.apple_oauth_client_id is not None
+        additional_config = None
+        if (
+            env.auth.apple_key_id
+            and env.auth.apple_team_id
+            and env.auth.apple_private_key
+        ):
+            additional_config = {
+                "keyId": env.auth.apple_key_id,
+                "teamId": env.auth.apple_team_id,
+                "privateKey": env.auth.apple_private_key,
+            }
+        add_provider(
+            provider_id="apple",
+            client_id=env.auth.apple_oauth_client_id,
+            client_secret=env.auth.apple_oauth_client_secret,
+            additional_config=additional_config,
+        )
+
+    # Discord OAuth
+    if env.auth.discord_enabled:
+        assert env.auth.discord_oauth_client_id is not None
+        assert env.auth.discord_oauth_client_secret is not None
+        add_provider(
+            provider_id="discord",
+            client_id=env.auth.discord_oauth_client_id,
+            client_secret=env.auth.discord_oauth_client_secret,
+        )
+
+    # Twitter OAuth
+    if env.auth.twitter_enabled:
+        assert env.auth.twitter_oauth_client_id is not None
+        assert env.auth.twitter_oauth_client_secret is not None
+        add_provider(
+            provider_id="twitter",
+            client_id=env.auth.twitter_oauth_client_id,
+            client_secret=env.auth.twitter_oauth_client_secret,
+        )
+
+    # GitLab OAuth
+    if env.auth.gitlab_enabled:
+        assert env.auth.gitlab_oauth_client_id is not None
+        assert env.auth.gitlab_oauth_client_secret is not None
+        add_provider(
+            provider_id="gitlab",
+            client_id=env.auth.gitlab_oauth_client_id,
+            client_secret=env.auth.gitlab_oauth_client_secret,
+            additional_config={
+                "gitlabBaseUrl": env.auth.gitlab_base_url,
+            }
+            if env.auth.gitlab_base_url
+            else None,
+        )
+
+    # Bitbucket OAuth
+    if env.auth.bitbucket_enabled:
+        assert env.auth.bitbucket_oauth_client_id is not None
+        assert env.auth.bitbucket_oauth_client_secret is not None
+        add_provider(
+            provider_id="bitbucket",
+            client_id=env.auth.bitbucket_oauth_client_id,
+            client_secret=env.auth.bitbucket_oauth_client_secret,
+        )
+
+    # LinkedIn OAuth
+    if env.auth.linkedin_enabled:
+        assert env.auth.linkedin_oauth_client_id is not None
+        assert env.auth.linkedin_oauth_client_secret is not None
+        add_provider(
+            provider_id="linkedin",
+            client_id=env.auth.linkedin_oauth_client_id,
+            client_secret=env.auth.linkedin_oauth_client_secret,
+        )
+
+    # Okta OAuth
+    if env.auth.okta_enabled:
+        assert env.auth.okta_oauth_client_id is not None
+        assert env.auth.okta_oauth_client_secret is not None
+        assert env.auth.okta_domain is not None
+        add_provider(
+            provider_id="okta",
+            client_id=env.auth.okta_oauth_client_id,
+            client_secret=env.auth.okta_oauth_client_secret,
+            additional_config={
+                "oktaDomain": env.auth.okta_domain,
+            },
+        )
+
+    # Active Directory OAuth
+    if env.auth.active_directory_enabled:
+        assert env.auth.active_directory_oauth_client_id is not None
+        assert env.auth.active_directory_oauth_client_secret is not None
+        assert env.auth.active_directory_directory_id is not None
+        add_provider(
+            provider_id="active-directory",
+            client_id=env.auth.active_directory_oauth_client_id,
+            client_secret=env.auth.active_directory_oauth_client_secret,
+            additional_config={
+                "directoryId": env.auth.active_directory_directory_id,
+            },
+        )
+
+    # BoxySAML OAuth
+    if env.auth.boxy_saml_enabled:
+        assert env.auth.boxy_saml_oauth_client_id is not None
+        assert env.auth.boxy_saml_oauth_client_secret is not None
+        assert env.auth.boxy_saml_url is not None
+        add_provider(
+            provider_id="boxy-saml",
+            client_id=env.auth.boxy_saml_oauth_client_id,
+            client_secret=env.auth.boxy_saml_oauth_client_secret,
+            additional_config={
+                "boxyURL": env.auth.boxy_saml_url,
+            },
         )
 
     return providers

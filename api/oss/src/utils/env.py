@@ -48,8 +48,63 @@ class AuthConfig(BaseModel):
     google_oauth_client_id: str | None = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
     google_oauth_client_secret: str | None = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 
+    google_workspaces_oauth_client_id: str | None = os.getenv(
+        "GOOGLE_WORKSPACES_OAUTH_CLIENT_ID"
+    )
+    google_workspaces_oauth_client_secret: str | None = os.getenv(
+        "GOOGLE_WORKSPACES_OAUTH_CLIENT_SECRET"
+    )
+    google_workspaces_hd: str | None = os.getenv("GOOGLE_WORKSPACES_HD")
+
     github_oauth_client_id: str | None = os.getenv("GITHUB_OAUTH_CLIENT_ID")
     github_oauth_client_secret: str | None = os.getenv("GITHUB_OAUTH_CLIENT_SECRET")
+
+    facebook_oauth_client_id: str | None = os.getenv("FACEBOOK_OAUTH_CLIENT_ID")
+    facebook_oauth_client_secret: str | None = os.getenv("FACEBOOK_OAUTH_CLIENT_SECRET")
+
+    apple_oauth_client_id: str | None = os.getenv("APPLE_OAUTH_CLIENT_ID")
+    apple_oauth_client_secret: str | None = os.getenv("APPLE_OAUTH_CLIENT_SECRET")
+    apple_key_id: str | None = os.getenv("APPLE_KEY_ID")
+    apple_team_id: str | None = os.getenv("APPLE_TEAM_ID")
+    apple_private_key: str | None = os.getenv("APPLE_PRIVATE_KEY")
+
+    discord_oauth_client_id: str | None = os.getenv("DISCORD_OAUTH_CLIENT_ID")
+    discord_oauth_client_secret: str | None = os.getenv("DISCORD_OAUTH_CLIENT_SECRET")
+
+    twitter_oauth_client_id: str | None = os.getenv("TWITTER_OAUTH_CLIENT_ID")
+    twitter_oauth_client_secret: str | None = os.getenv("TWITTER_OAUTH_CLIENT_SECRET")
+
+    gitlab_oauth_client_id: str | None = os.getenv("GITLAB_OAUTH_CLIENT_ID")
+    gitlab_oauth_client_secret: str | None = os.getenv("GITLAB_OAUTH_CLIENT_SECRET")
+    gitlab_base_url: str | None = os.getenv("GITLAB_BASE_URL")
+
+    bitbucket_oauth_client_id: str | None = os.getenv("BITBUCKET_OAUTH_CLIENT_ID")
+    bitbucket_oauth_client_secret: str | None = os.getenv(
+        "BITBUCKET_OAUTH_CLIENT_SECRET"
+    )
+
+    linkedin_oauth_client_id: str | None = os.getenv("LINKEDIN_OAUTH_CLIENT_ID")
+    linkedin_oauth_client_secret: str | None = os.getenv("LINKEDIN_OAUTH_CLIENT_SECRET")
+
+    okta_oauth_client_id: str | None = os.getenv("OKTA_OAUTH_CLIENT_ID")
+    okta_oauth_client_secret: str | None = os.getenv("OKTA_OAUTH_CLIENT_SECRET")
+    okta_domain: str | None = os.getenv("OKTA_DOMAIN")
+
+    active_directory_oauth_client_id: str | None = os.getenv(
+        "ACTIVE_DIRECTORY_OAUTH_CLIENT_ID"
+    )
+    active_directory_oauth_client_secret: str | None = os.getenv(
+        "ACTIVE_DIRECTORY_OAUTH_CLIENT_SECRET"
+    )
+    active_directory_directory_id: str | None = os.getenv(
+        "ACTIVE_DIRECTORY_DIRECTORY_ID"
+    )
+
+    boxy_saml_oauth_client_id: str | None = os.getenv("BOXY_SAML_OAUTH_CLIENT_ID")
+    boxy_saml_oauth_client_secret: str | None = os.getenv(
+        "BOXY_SAML_OAUTH_CLIENT_SECRET"
+    )
+    boxy_saml_url: str | None = os.getenv("BOXY_SAML_URL")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -76,14 +131,106 @@ class AuthConfig(BaseModel):
         return bool(self.google_oauth_client_id and self.google_oauth_client_secret)
 
     @property
+    def google_workspaces_enabled(self) -> bool:
+        """Google Workspaces OAuth enabled if both credentials present"""
+        return bool(
+            self.google_workspaces_oauth_client_id
+            and self.google_workspaces_oauth_client_secret
+        )
+
+    @property
     def github_enabled(self) -> bool:
         """GitHub OAuth enabled if both credentials present"""
         return bool(self.github_oauth_client_id and self.github_oauth_client_secret)
 
     @property
+    def facebook_enabled(self) -> bool:
+        """Facebook OAuth enabled if both credentials present"""
+        return bool(self.facebook_oauth_client_id and self.facebook_oauth_client_secret)
+
+    @property
+    def apple_enabled(self) -> bool:
+        """Apple OAuth enabled if client ID present and secret or key data provided"""
+        return bool(
+            self.apple_oauth_client_id
+            and (
+                self.apple_oauth_client_secret
+                or (self.apple_key_id and self.apple_team_id and self.apple_private_key)
+            )
+        )
+
+    @property
+    def discord_enabled(self) -> bool:
+        """Discord OAuth enabled if both credentials present"""
+        return bool(self.discord_oauth_client_id and self.discord_oauth_client_secret)
+
+    @property
+    def twitter_enabled(self) -> bool:
+        """Twitter OAuth enabled if both credentials present"""
+        return bool(self.twitter_oauth_client_id and self.twitter_oauth_client_secret)
+
+    @property
+    def gitlab_enabled(self) -> bool:
+        """GitLab OAuth enabled if both credentials present"""
+        return bool(self.gitlab_oauth_client_id and self.gitlab_oauth_client_secret)
+
+    @property
+    def bitbucket_enabled(self) -> bool:
+        """Bitbucket OAuth enabled if both credentials present"""
+        return bool(
+            self.bitbucket_oauth_client_id and self.bitbucket_oauth_client_secret
+        )
+
+    @property
+    def linkedin_enabled(self) -> bool:
+        """LinkedIn OAuth enabled if both credentials present"""
+        return bool(self.linkedin_oauth_client_id and self.linkedin_oauth_client_secret)
+
+    @property
+    def okta_enabled(self) -> bool:
+        """Okta OAuth enabled if credentials and domain are present"""
+        return bool(
+            self.okta_oauth_client_id
+            and self.okta_oauth_client_secret
+            and self.okta_domain
+        )
+
+    @property
+    def active_directory_enabled(self) -> bool:
+        """Active Directory OAuth enabled if credentials and directory ID are present"""
+        return bool(
+            self.active_directory_oauth_client_id
+            and self.active_directory_oauth_client_secret
+            and self.active_directory_directory_id
+        )
+
+    @property
+    def boxy_saml_enabled(self) -> bool:
+        """BoxySAML OAuth enabled if credentials and Boxy URL are present"""
+        return bool(
+            self.boxy_saml_oauth_client_id
+            and self.boxy_saml_oauth_client_secret
+            and self.boxy_saml_url
+        )
+
+    @property
     def oidc_enabled(self) -> bool:
         """Any OIDC provider enabled"""
-        return self.google_enabled or self.github_enabled
+        return (
+            self.google_enabled
+            or self.google_workspaces_enabled
+            or self.github_enabled
+            or self.facebook_enabled
+            or self.apple_enabled
+            or self.discord_enabled
+            or self.twitter_enabled
+            or self.gitlab_enabled
+            or self.bitbucket_enabled
+            or self.linkedin_enabled
+            or self.okta_enabled
+            or self.active_directory_enabled
+            or self.boxy_saml_enabled
+        )
 
     @property
     def any_enabled(self) -> bool:
@@ -97,8 +244,20 @@ class AuthConfig(BaseModel):
             raise ValueError(
                 "At least one authentication method must be configured:\n"
                 "  - AGENTA_AUTHN_EMAIL=password or AGENTA_AUTHN_EMAIL=otp\n"
-                "  - GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET\n"
-                "  - GITHUB_OAUTH_CLIENT_ID + GITHUB_OAUTH_CLIENT_SECRET\n"
+                "  - Any supported OAuth provider credentials, e.g.\n"
+                "    GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET\n"
+                "    GITHUB_OAUTH_CLIENT_ID + GITHUB_OAUTH_CLIENT_SECRET\n"
+                "    FACEBOOK_OAUTH_CLIENT_ID + FACEBOOK_OAUTH_CLIENT_SECRET\n"
+                "    APPLE_OAUTH_CLIENT_ID + APPLE_OAUTH_CLIENT_SECRET (or APPLE_KEY_ID/APPLE_TEAM_ID/APPLE_PRIVATE_KEY)\n"
+                "    DISCORD_OAUTH_CLIENT_ID + DISCORD_OAUTH_CLIENT_SECRET\n"
+                "    TWITTER_OAUTH_CLIENT_ID + TWITTER_OAUTH_CLIENT_SECRET\n"
+                "    GITLAB_OAUTH_CLIENT_ID + GITLAB_OAUTH_CLIENT_SECRET\n"
+                "    BITBUCKET_OAUTH_CLIENT_ID + BITBUCKET_OAUTH_CLIENT_SECRET\n"
+                "    LINKEDIN_OAUTH_CLIENT_ID + LINKEDIN_OAUTH_CLIENT_SECRET\n"
+                "    OKTA_OAUTH_CLIENT_ID + OKTA_OAUTH_CLIENT_SECRET + OKTA_DOMAIN\n"
+                "    ACTIVE_DIRECTORY_OAUTH_CLIENT_ID + ACTIVE_DIRECTORY_OAUTH_CLIENT_SECRET + ACTIVE_DIRECTORY_DIRECTORY_ID\n"
+                "    BOXY_SAML_OAUTH_CLIENT_ID + BOXY_SAML_OAUTH_CLIENT_SECRET + BOXY_SAML_URL\n"
+                "    GOOGLE_WORKSPACES_OAUTH_CLIENT_ID + GOOGLE_WORKSPACES_OAUTH_CLIENT_SECRET\n"
             )
 
         # Email auth value must be valid

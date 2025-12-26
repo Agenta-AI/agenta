@@ -123,8 +123,41 @@ class AuthService:
             if env.auth.google_enabled:
                 all_allowed_methods.add("social:google")
 
+            if env.auth.google_workspaces_enabled:
+                all_allowed_methods.add("social:google-workspaces")
+
             if env.auth.github_enabled:
                 all_allowed_methods.add("social:github")
+
+            if env.auth.facebook_enabled:
+                all_allowed_methods.add("social:facebook")
+
+            if env.auth.apple_enabled:
+                all_allowed_methods.add("social:apple")
+
+            if env.auth.discord_enabled:
+                all_allowed_methods.add("social:discord")
+
+            if env.auth.twitter_enabled:
+                all_allowed_methods.add("social:twitter")
+
+            if env.auth.gitlab_enabled:
+                all_allowed_methods.add("social:gitlab")
+
+            if env.auth.bitbucket_enabled:
+                all_allowed_methods.add("social:bitbucket")
+
+            if env.auth.linkedin_enabled:
+                all_allowed_methods.add("social:linkedin")
+
+            if env.auth.okta_enabled:
+                all_allowed_methods.add("social:okta")
+
+            if env.auth.active_directory_enabled:
+                all_allowed_methods.add("social:active-directory")
+
+            if env.auth.boxy_saml_enabled:
+                all_allowed_methods.add("social:boxy-saml")
 
         # Get SSO providers for the domain (EE only)
         sso_providers = []
@@ -178,7 +211,31 @@ class AuthService:
                 or "email:*" in all_allowed_methods,
                 "social:google": "social:google" in all_allowed_methods
                 or "social:*" in all_allowed_methods,
+                "social:google-workspaces": "social:google-workspaces"
+                in all_allowed_methods
+                or "social:*" in all_allowed_methods,
                 "social:github": "social:github" in all_allowed_methods
+                or "social:*" in all_allowed_methods,
+                "social:facebook": "social:facebook" in all_allowed_methods
+                or "social:*" in all_allowed_methods,
+                "social:apple": "social:apple" in all_allowed_methods
+                or "social:*" in all_allowed_methods,
+                "social:discord": "social:discord" in all_allowed_methods
+                or "social:*" in all_allowed_methods,
+                "social:twitter": "social:twitter" in all_allowed_methods
+                or "social:*" in all_allowed_methods,
+                "social:gitlab": "social:gitlab" in all_allowed_methods
+                or "social:*" in all_allowed_methods,
+                "social:bitbucket": "social:bitbucket" in all_allowed_methods
+                or "social:*" in all_allowed_methods,
+                "social:linkedin": "social:linkedin" in all_allowed_methods
+                or "social:*" in all_allowed_methods,
+                "social:okta": "social:okta" in all_allowed_methods
+                or "social:*" in all_allowed_methods,
+                "social:active-directory": "social:active-directory"
+                in all_allowed_methods
+                or "social:*" in all_allowed_methods,
+                "social:boxy-saml": "social:boxy-saml" in all_allowed_methods
                 or "social:*" in all_allowed_methods,
                 "sso": sso_response,
             },
