@@ -28,26 +28,32 @@
 
 
 ###
-# 2. Verify Organization Slug Column Added
+# 2. Verify Organization Slug and Kind Columns Added
 ###
 
-# Check organizations table has slug column
+# Check organizations table has slug and kind columns
 # \d organizations
 
-# Expected: slug column (text, unique, nullable)
+# Expected:
+# - slug column (text, unique, nullable)
+# - kind column (text, NOT NULL, default 'collaborative')
+# - CHECK constraint: kind IN ('personal', 'collaborative')
+# - INDEX on kind
 
 
 ###
-# 3. Setup Test Organization (EE Mode)
+# 3. Setup Test Collaborative Organization (EE Mode)
 ###
 
--- Create test organization with slug
--- INSERT INTO organizations (id, name, slug, description, created_at, updated_at)
+-- Create test collaborative organization with slug
+-- INSERT INTO organizations (id, name, slug, description, kind, owner, created_at, updated_at)
 -- VALUES (
 --   gen_random_uuid(),
 --   'ACME Corporation',
 --   'acme',
---   'Test organization for SSO',
+--   'Test collaborative organization for SSO',
+--   'collaborative',
+--   '<userId>',  -- Replace with actual user ID who will own this org
 --   now(),
 --   now()
 -- )
@@ -56,16 +62,48 @@
 
 
 ###
-# 4. Setup Organization Policy (EE Mode)
+# 4. Setup Test Personal Organization (EE Mode)
 ###
 
--- Allow SSO only for test organization
+-- Create test personal organization (for testing domain verification restrictions)
+-- INSERT INTO organizations (id, name, slug, description, kind, owner, created_at, updated_at)
+-- VALUES (
+--   gen_random_uuid(),
+--   'Personal',
+--   NULL,  -- Personal orgs cannot have slugs
+--   NULL,
+--   'personal',
+--   '<userId>',  -- Replace with actual user ID
+--   now(),
+--   now()
+-- )
+-- RETURNING id;
+-- Save the returned ID as @testPersonalOrgId
+
+-- Add user as member to their personal org
+-- INSERT INTO organization_members (id, user_id, organization_id, role, created_at, updated_at)
+-- VALUES (
+--   gen_random_uuid(),
+--   '<userId>',
+--   '<testPersonalOrgId>',
+--   'owner',
+--   now(),
+--   now()
+-- );
+
+
+###
+# 5. Setup Organization Policy (EE Mode)
+###
+
+-- Allow SSO + auto-join for test collaborative organization
 -- INSERT INTO organization_policies (
 --   id,
 --   organization_id,
 --   allowed_methods,
 --   invitation_only,
 --   domains_only,
+--   auto_join,
 --   disable_root,
 --   created_at,
 --   updated_at
@@ -74,8 +112,9 @@
 --   gen_random_uuid(),
 --   '<testOrgId>',  -- Replace with actual org ID
 --   ARRAY['sso:*'],  -- Only SSO allowed
---   true,
---   false,
+--   false,  -- Not invitation only
+--   true,   -- Enforce verified domains
+--   true,   -- Auto-join users with verified domain emails
 --   false,
 --   now(),
 --   now()
@@ -83,10 +122,10 @@
 
 
 ###
-# 5. Setup Verified Domain (EE Mode)
+# 6. Setup Verified Domain (EE Mode - Collaborative Org)
 ###
 
--- Add verified domain for SSO
+-- Add verified domain for SSO on collaborative org
 -- INSERT INTO organization_domains (
 --   id,
 --   organization_id,
@@ -98,7 +137,7 @@
 -- )
 -- VALUES (
 --   gen_random_uuid(),
---   '<testOrgId>',
+--   '<testOrgId>',  -- Collaborative org ID
 --   'acme.com',
 --   true,  -- Already verified
 --   null,
@@ -110,7 +149,82 @@
 
 
 ###
-# 6. Setup OIDC Provider (EE Mode)
+# 7. Test Domain Verification Restrictions (EE Mode)
+###
+
+-- Attempt to add domain to personal org (should fail at verification)
+-- INSERT INTO organization_domains (
+--   id,
+--   organization_id,
+--   domain,
+--   verified,
+--   verification_token,
+--   created_at,
+--   updated_at
+-- )
+-- VALUES (
+--   gen_random_uuid(),
+--   '<testPersonalOrgId>',  -- Personal org ID
+--   'personal-test.com',
+--   false,  -- Not verified yet
+--   'test-token-123',
+--   now(),
+--   now()
+-- )
+-- RETURNING id;
+-- Save as @personalOrgDomainId
+
+-- NOTE: Attempting to verify this domain should fail with:
+-- "Personal organizations cannot verify domains"
+
+
+###
+# 8. Test Domain Exclusivity (EE Mode)
+###
+
+-- Create second collaborative org to test exclusivity
+-- INSERT INTO organizations (id, name, slug, description, kind, owner, created_at, updated_at)
+-- VALUES (
+--   gen_random_uuid(),
+--   'Second Corp',
+--   'second',
+--   'Test domain exclusivity',
+--   'collaborative',
+--   '<userId>',
+--   now(),
+--   now()
+-- )
+-- RETURNING id;
+-- Save as @secondOrgId
+
+-- Attempt to verify same domain as first org
+-- INSERT INTO organization_domains (
+--   id,
+--   organization_id,
+--   domain,
+--   verified,
+--   verification_token,
+--   created_at,
+--   updated_at
+-- )
+-- VALUES (
+--   gen_random_uuid(),
+--   '<secondOrgId>',
+--   'acme.com',  -- Same domain as testOrgId
+--   false,
+--   'conflict-token-456',
+--   now(),
+--   now()
+-- )
+-- RETURNING id;
+-- Save as @conflictingDomainId
+
+-- NOTE: Attempting to verify this domain should fail with:
+-- "Domain 'acme.com' is already verified by another organization"
+
+
+###
+# 9. Setup OIDC Provider (EE Mode)
 ###
 
 -- Add OIDC provider configuration
@@ -151,7 +265,7 @@
 
 
 ###
-# 7. Create Test User
+# 10. Create Test User
 ###
 
 -- Create test user
@@ -169,7 +283,7 @@
 
 
 ###
-# 8. Add User to Organization (EE Mode)
+# 11. Add User to Organization (EE Mode)
 ###
 
 -- Create organization membership
@@ -182,19 +296,30 @@
 
 
 ###
-# 9. Verification Queries
+# 12. Verification Queries
 ###
 
 -- Check all test data created successfully
 
--- Verify organization
--- SELECT id, name, slug FROM organizations WHERE slug = 'acme';
+-- Verify organizations (check kind column)
+-- SELECT id, name, slug, kind FROM organizations ORDER BY kind;
 
--- Verify policy
--- SELECT allowed_methods FROM organization_policies WHERE organization_id = '<testOrgId>';
+-- Verify collaborative organization
+-- SELECT id, name, slug, kind FROM organizations WHERE slug = 'acme';
 
--- Verify domain
--- SELECT domain, verified FROM organization_domains WHERE organization_id = '<testOrgId>';
+-- Verify personal organization
+-- SELECT id, name, slug, kind FROM organizations WHERE kind = 'personal';
+
+-- Verify policy (check auto_join field)
+-- SELECT allowed_methods, invitation_only, domains_only, auto_join
+-- FROM organization_policies
+-- WHERE organization_id = '<testOrgId>';
+
+-- Verify domains
+-- SELECT od.id, od.domain, od.verified, o.name as org_name, o.kind as org_kind
+-- FROM organization_domains od
+-- JOIN organizations o ON o.id = od.organization_id
+-- ORDER BY o.kind, od.domain;
 
 -- Verify provider
 -- SELECT slug, name, enabled, config->>'issuer' as issuer
@@ -205,32 +330,33 @@
 -- SELECT id, email FROM users WHERE email = 'test@acme.com';
 
 -- Verify membership
--- SELECT om.id, u.email, o.name
+-- SELECT om.id, u.email, o.name, o.kind
 -- FROM organization_members om
 -- JOIN users u ON u.id = om.user_id
 -- JOIN organizations o ON o.id = om.organization_id
--- WHERE u.email = 'test@acme.com';
+-- WHERE u.email = 'test@acme.com'
+-- ORDER BY o.kind;
 
 
 ###
-# 10. Cleanup (Run after testing)
+# 13. Cleanup (Run after testing)
 ###
 
 -- Clean up test data
 -- DELETE FROM organization_members WHERE user_id = '<testUserId>';
--- DELETE FROM organization_providers WHERE organization_id = '<testOrgId>';
--- DELETE FROM organization_domains WHERE organization_id = '<testOrgId>';
--- DELETE FROM organization_policies WHERE organization_id = '<testOrgId>';
+-- DELETE FROM organization_providers WHERE organization_id IN ('<testOrgId>', '<secondOrgId>');
+-- DELETE FROM organization_domains WHERE organization_id IN ('<testOrgId>', '<testPersonalOrgId>', '<secondOrgId>');
+-- DELETE FROM organization_policies WHERE organization_id IN ('<testOrgId>', '<secondOrgId>');
 -- DELETE FROM user_identities WHERE user_id = '<testUserId>';
 -- DELETE FROM users WHERE id = '<testUserId>';
--- DELETE FROM organizations WHERE id = '<testOrgId>';
+-- DELETE FROM organizations WHERE id IN ('<testOrgId>', '<testPersonalOrgId>', '<secondOrgId>');
 
 
 ###
 # Quick Setup Script (OSS Mode - Email OTP Only)
 ###
 
--- For OSS mode testing, just verify migrations:
+-- For OSS mode testing, verify migrations:
 -- SELECT EXISTS (
 --   SELECT FROM information_schema.tables
 --   WHERE table_name = 'user_identities'
@@ -240,3 +366,20 @@
 --   SELECT FROM information_schema.columns
 --   WHERE table_name = 'organizations' AND column_name = 'slug'
 -- ) as org_slug_exists;
+
+-- SELECT EXISTS (
+--   SELECT FROM information_schema.columns
+--   WHERE table_name = 'organizations' AND column_name = 'kind'
+-- ) as org_kind_exists;
+
+-- Verify OSS has exactly 1 collaborative organization
+-- SELECT COUNT(*) as org_count, kind
+-- FROM organizations
+-- GROUP BY kind;
+-- Expected: 1 row with kind='collaborative', count=1
+
+-- Verify no personal organizations exist in OSS
+-- SELECT COUNT(*) as personal_org_count
+-- FROM organizations
+-- WHERE kind = 'personal';
+-- Expected: 0

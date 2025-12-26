@@ -34,6 +34,11 @@ class OrganizationPolicyDBA(OrganizationScopeDBA, LegacyLifecycleDBA):
         nullable=False,
         server_default="false",
     )
+    auto_join = Column(
+        Boolean,
+        nullable=False,
+        server_default="false",
+    )  # Auto-join users with verified domain emails
     disable_root = Column(
         Boolean,
         nullable=False,

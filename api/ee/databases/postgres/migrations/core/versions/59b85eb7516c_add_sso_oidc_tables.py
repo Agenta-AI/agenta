@@ -113,6 +113,12 @@ def upgrade() -> None:
             server_default="false",
         ),
         sa.Column(
+            "auto_join",
+            sa.Boolean(),
+            nullable=False,
+            server_default="false",
+        ),
+        sa.Column(
             "disable_root",
             sa.Boolean(),
             nullable=False,

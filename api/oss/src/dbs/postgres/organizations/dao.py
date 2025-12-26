@@ -132,6 +132,8 @@ class OrganizationDomainsDAO:
             return [map_domain_dbe_to_dto(dbe) for dbe in domain_dbes]
 
     async def mark_verified(self, domain_id: UUID) -> Optional[OrganizationDomain]:
+        from oss.src.models.db_models import OrganizationDB
+
         async with engine.core_session() as session:
             stmt = select(OrganizationDomainDBE).filter_by(id=domain_id)
             result = await session.execute(stmt)
@@ -139,6 +141,37 @@ class OrganizationDomainsDAO:
 
             if domain_dbe is None:
                 return None
+
+            # GOVERNANCE: Domain verification exclusivity enforcement
+            # Only one collaborative organization can verify a domain at a time
+            # Check if organization is collaborative (personal orgs cannot verify domains)
+            org_stmt = select(OrganizationDB).filter_by(id=domain_dbe.organization_id)
+            org_result = await session.execute(org_stmt)
+            org = org_result.scalar()
+
+            if org is None:
+                raise ValueError("Organization not found")
+
+            if org.kind == "personal":
+                raise ValueError(
+                    "Personal organizations cannot verify domains. "
+                    "Domain verification is only available for collaborative organizations."
+                )
+
+            # Check if any OTHER organization has already verified this domain
+            existing_verified = select(OrganizationDomainDBE).filter(
+                OrganizationDomainDBE.domain == domain_dbe.domain,
+                OrganizationDomainDBE.verified == True,
+                OrganizationDomainDBE.organization_id != domain_dbe.organization_id,
+            )
+            existing_result = await session.execute(existing_verified)
+            conflicting_domain = existing_result.scalar()
+
+            if conflicting_domain:
+                raise ValueError(
+                    f"Domain '{domain_dbe.domain}' is already verified by another organization. "
+                    "Each domain can only be verified by one organization at a time."
+                )
 
             domain_dbe.verified = True
             await session.commit()

@@ -1,0 +1,226 @@
+###
+# Domain Verification Testing
+# Tests for organization kind restrictions and domain exclusivity
+#
+# Prerequisites:
+# - Run 00-setup-verification.http first
+# - EE mode enabled (AGENTA_LICENSE=ee)
+# - Test organizations created (collaborative + personal)
+###
+
+@baseUrl = http://localhost:8000
+@testOrgId = <replace-with-collaborative-org-id>
+@testPersonalOrgId = <replace-with-personal-org-id>
+@secondOrgId = <replace-with-second-org-id>
+@personalOrgDomainId = <replace-with-personal-domain-id>
+@conflictingDomainId = <replace-with-conflicting-domain-id>
+
+
+###
+# Test 1: Verify Domain on Collaborative Organization (Should Succeed)
+###
+
+# This should succeed - collaborative orgs can verify domains
+POST {{baseUrl}}/organizations/{{testOrgId}}/domains/verify
+Content-Type: application/json
+
+{
+  "domain_id": "<domain-id-from-setup>"
+}
+
+# Expected: 200 OK
+# {
+#   "id": "...",
+#   "organization_id": "{{testOrgId}}",
+#   "domain": "acme.com",
+#   "verified": true
+# }
+
+
+###
+# Test 2: Attempt to Verify Domain on Personal Organization (Should Fail)
+###
+
+# This should fail - personal orgs cannot verify domains
+POST {{baseUrl}}/organizations/{{testPersonalOrgId}}/domains/verify
+Content-Type: application/json
+
+{
+  "domain_id": "{{personalOrgDomainId}}"
+}
+
+# Expected: 400 Bad Request
+# {
+#   "error": "Personal organizations cannot verify domains. Domain verification is only available for collaborative organizations."
+# }
+
+
+###
+# Test 3: Attempt to Verify Already-Verified Domain (Should Fail)
+###
+
+# This should fail - domain already verified by another org
+POST {{baseUrl}}/organizations/{{secondOrgId}}/domains/verify
+Content-Type: application/json
+
+{
+  "domain_id": "{{conflictingDomainId}}"
+}
+
+# Expected: 400 Bad Request
+# {
+#   "error": "Domain 'acme.com' is already verified by another organization. Each domain can only be verified by one organization at a time."
+# }
+
+
+###
+# Test 4: Add Domain to Collaborative Organization (Should Succeed)
+###
+
+POST {{baseUrl}}/organizations/{{testOrgId}}/domains
+Content-Type: application/json
+
+{
+  "domain": "newdomain.com"
+}
+
+# Expected: 201 Created
+# {
+#   "id": "...",
+#   "organization_id": "{{testOrgId}}",
+#   "domain": "newdomain.com",
+#   "verified": false,
+#   "verification_token": "..."
+# }
+
+
+###
+# Test 5: List Domains for Collaborative Organization
+###
+
+GET {{baseUrl}}/organizations/{{testOrgId}}/domains
+
+# Expected: 200 OK
+# [
+#   {
+#     "id": "...",
+#     "domain": "acme.com",
+#     "verified": true
+#   },
+#   {
+#     "id": "...",
+#     "domain": "newdomain.com",
+#     "verified": false
+#   }
+# ]
+
+
+###
+# Test 6: List Domains for Personal Organization
+###
+
+GET {{baseUrl}}/organizations/{{testPersonalOrgId}}/domains
+
+# Expected: 200 OK
+# [
+#   {
+#     "id": "...",
+#     "domain": "personal-test.com",
+#     "verified": false
+#   }
+# ]
+# NOTE: Personal org can have domains, but cannot verify them
+
+
+###
+# Test 7: Unverify Domain (Transfer Ownership)
+###
+
+# First, unverify the domain from the first org
+DELETE {{baseUrl}}/organizations/{{testOrgId}}/domains/<domain-id>/verification
+
+# Expected: 200 OK
+# {
+#   "id": "...",
+#   "verified": false
+# }
+
+# Now verify it with the second org (should succeed now)
+POST {{baseUrl}}/organizations/{{secondOrgId}}/domains/verify
+Content-Type: application/json
+
+{
+  "domain_id": "{{conflictingDomainId}}"
+}
+
+# Expected: 200 OK
+# {
+#   "verified": true
+# }
+
+
+###
+# Test 8: Check Organization Kind
+###
+
+GET {{baseUrl}}/organizations/{{testOrgId}}
+
+# Expected: 200 OK
+# {
+#   "id": "{{testOrgId}}",
+#   "name": "ACME Corporation",
+#   "slug": "acme",
+#   "kind": "collaborative"
+# }
+
+GET {{baseUrl}}/organizations/{{testPersonalOrgId}}
+
+# Expected: 200 OK
+# {
+#   "id": "{{testPersonalOrgId}}",
+#   "name": "Personal",
+#   "slug": null,
+#   "kind": "personal"
+# }
+
+
+###
+# Test 9: Verify Auto-Join Policy with Verified Domain
+###
+
+# Get organization policy
+GET {{baseUrl}}/organizations/{{testOrgId}}/policy
+
+# Expected: 200 OK
+# {
+#   "organization_id": "{{testOrgId}}",
+#   "allowed_methods": ["sso:*"],
+#   "invitation_only": false,
+#   "domains_only": true,
+#   "auto_join": true,
+#   "disable_root": false
+# }
+
+# When a user authenticates with email from verified domain (e.g., user@acme.com),
+# they should automatically be added to the organization as a member
+# This is tested in the SSO flow tests
+
+
+###
+# Test 10: Update Auto-Join Policy
+###
+
+PATCH {{baseUrl}}/organizations/{{testOrgId}}/policy
+Content-Type: application/json
+
+{
+  "auto_join": false
+}
+
+# Expected: 200 OK
+# {
+#   "auto_join": false
+# }
+
+# Now users with verified domain emails will NOT be auto-added
+# They must be explicitly invited

@@ -34,6 +34,7 @@ class OrganizationDB(Base):
     )
     name = Column(String, default="agenta")
     slug = Column(String, unique=True, nullable=True)  # URL-safe identifier for SSO
+    kind = Column(String, nullable=False, default="collaborative")  # 'personal' or 'collaborative'
     description = Column(
         String,
         default="The open-source LLM developer platform for cross-functional teams.",
