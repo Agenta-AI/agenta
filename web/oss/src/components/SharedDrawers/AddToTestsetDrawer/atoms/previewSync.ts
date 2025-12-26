@@ -1,14 +1,12 @@
 import {atom} from "jotai"
 
 import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
-import {
-    appendTestcasesAtom,
-    deleteTestcasesAtom,
-} from "@/oss/state/entities/testcase/mutations"
+import {appendTestcasesAtom, deleteTestcasesAtom} from "@/oss/state/entities/testcase/mutations"
 import {newEntityIdsAtom} from "@/oss/state/entities/testcase/testcaseEntity"
 import {currentRevisionIdAtom} from "@/oss/state/entities/testset"
 
 import type {TestsetTraceData} from "../assets/types"
+
 import {
     filteredTraceDataAtom,
     hasDuplicateColumnsAtom,
@@ -29,10 +27,10 @@ import {
  * Helper: Convert trace data using mappings
  * This is the core conversion logic extracted from the component
  */
-function convertTraceDataWithMappings(
+function _convertTraceDataWithMappings(
     traceData: TestsetTraceData[],
-    mappings: Array<{data: string; column: string; newColumn?: string}>,
-    columns: Array<{key: string; name: string}>,
+    mappings: {data: string; column: string; newColumn?: string}[],
+    columns: {key: string; name: string}[],
     getValueAtPath: (obj: any, path: string) => any,
 ): Record<string, any>[] {
     if (mappings.length === 0 || traceData.length === 0) {
@@ -104,9 +102,9 @@ export const previewDataAtom = atom((get) => {
         return []
     }
 
-    const filteredTrace = get(filteredTraceDataAtom)
-    const mappings = get(mappingDataAtom)
-    const columns = get(currentColumnsAtom)
+    const _filteredTrace = get(filteredTraceDataAtom)
+    const _mappings = get(mappingDataAtom)
+    const _columns = get(currentColumnsAtom)
 
     // We need getValueAtPath from the component - for now return empty
     // This will be filled in when we integrate with the component
