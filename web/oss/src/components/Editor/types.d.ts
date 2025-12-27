@@ -51,6 +51,10 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     validationSchema?: unknown
     /** Additional plugins to include in code editor */
     additionalCodePlugins?: React.ReactNode[]
+    /** Callback when a JSON property key is Cmd/Meta+clicked (for drill-in navigation) */
+    onPropertyClick?: (path: string) => void
+    /** Disable long text node truncation (show full content instead of [N chars]) */
+    disableLongText?: boolean
 }
 
 export interface EditorPluginsProps {
@@ -73,4 +77,8 @@ export interface EditorPluginsProps {
     handleUpdate: (editorState: EditorState, editor: LexicalEditor) => void
     /** Additional plugins to include in code editor */
     additionalCodePlugins?: React.ReactNode[]
+    /** Callback when a JSON property key is Cmd/Meta+clicked (for drill-in navigation) */
+    onPropertyClick?: (path: string) => void
+    /** Disable long text node truncation (show full content instead of [N chars]) */
+    disableLongText?: boolean
 }

@@ -138,6 +138,9 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                           <span className="text-xs text-gray-500">#</span>
                       ) : undefined,
                       onCell: (record: TestcaseTableRow) => {
+                          // Only show dirty indicator in edit mode
+                          if (mode !== "edit") return {}
+
                           // Check if testcase has unsaved changes (for dirty indicator)
                           const recordKey = String(record.key || record.id)
                           const isNewRow =

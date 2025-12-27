@@ -164,8 +164,7 @@ export const extractAgData = (span: TraceSpan | TraceSpanNode | null): Record<st
 
 /**
  * Convert span data to the format used by TestsetDrawer
- * Returns { data: { inputs, outputs } } - excludes parameters/internals for consistency
- * This matches the playground format which only includes inputs and outputs
+ * Returns all ag.data fields (inputs, outputs, parameters, internals, etc.)
  */
 export const spanToTraceData = (
     span: TraceSpan | TraceSpanNode,
@@ -176,10 +175,7 @@ export const spanToTraceData = (
     return {
         key: span.span_id,
         id: index + 1,
-        data: {
-            inputs: agData.inputs || {},
-            outputs: agData.outputs,
-        },
+        data: agData,
     }
 }
 

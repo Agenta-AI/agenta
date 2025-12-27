@@ -1,6 +1,9 @@
-import {useAtomValue} from "jotai"
+import {useEffect} from "react"
+
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {
+    hydrateSpanCacheEffectAtom,
     senitizedTracesAtom,
     traceDrawerAnnotationsQueryAtom,
     traceDrawerFlatAnnotatedTracesAtom,
@@ -19,6 +22,14 @@ export const useTraceDrawer = () => {
     const _flatAnnotatedTraces = useAtomValue(traceDrawerFlatAnnotatedTracesAtom)
     const resolvedActiveSpanId = useAtomValue(traceDrawerResolvedActiveSpanIdAtom)
     const getTraceById = useAtomValue(traceDrawerGetTraceByIdAtom)
+
+    // Hydrate entity cache when traces are loaded
+    const hydrateSpanCache = useSetAtom(hydrateSpanCacheEffectAtom)
+    useEffect(() => {
+        if (traces.length > 0) {
+            hydrateSpanCache()
+        }
+    }, [traces, hydrateSpanCache])
 
     const loadingState =
         Boolean(traceId) &&

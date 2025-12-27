@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -39,9 +39,12 @@ import {
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {
+    hasInitialFetchCompletedAtom,
+    markFetchCompletedForRevisionAtom,
     revisionChangeEffectAtom,
     setDebouncedSearchTermAtom,
     syncRowIdsToEntityAtom,
+    tableQueryFetchingAtom,
     testcaseRowDataMapAtom,
     testcaseRowIdsAtom,
     testcasesSearchTermAtom,
@@ -167,34 +170,90 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         }
     }, [isNewTestset, initialTestsetName, revisionId, setDraft])
 
+    // Extract metadata loading state early (needed by initialization logic)
+    const metadata = useAtomValue(testsetMetadataAtom)
+    const metadataLoading = useAtomValue(metadataLoadingAtom)
+
     // Row IDs are synced automatically via revisionChangeEffectAtom
     // which subscribes to testcaseRowIdsAtom changes
     const rowIds = useAtomValue(testcaseRowIdsAtom)
 
     // Trigger sync when row IDs change (data arrives from paginated fetch)
     const syncRowIds = useSetAtom(syncRowIdsToEntityAtom)
-    // Using useMemo to avoid creating effect - sync happens synchronously when rowIds change
-    useMemo(() => {
+    const markFetchCompleted = useSetAtom(markFetchCompletedForRevisionAtom)
+
+    // Sync rowIds to entities when data arrives
+    useEffect(() => {
+        console.log("[useTestcasesTable] Sync effect running:", {
+            revisionId,
+            rowIdsLength: rowIds.length,
+        })
+
         if (rowIds.length > 0) {
+            console.log("[useTestcasesTable] Syncing rowIds to entities")
             syncRowIds()
         }
-    }, [rowIds, syncRowIds])
+    }, [rowIds, syncRowIds, revisionId])
 
-    // Initialize empty revision when revision query completes
-    // This is the single point of initialization for empty revisions (any version)
-    // Adds default columns and one empty row to improve UX
-    // Can be skipped via skipEmptyRevisionInit option (e.g., for TestsetDrawer which manages its own columns)
+    // Monitor table query fetching state and mark fetch completed when query finishes
+    // This works for both empty and non-empty revisions by watching the actual query state
+    const isFetching = useAtomValue(tableQueryFetchingAtom)
+    const prevFetchingRef = useRef(isFetching)
+
+    useEffect(() => {
+        const wasFetching = prevFetchingRef.current
+        const isCurrentlyFetching = isFetching
+
+        console.log("[useTestcasesTable] Query state:", {
+            revisionId,
+            wasFetching,
+            isCurrentlyFetching,
+            rowIdsLength: rowIds.length,
+        })
+
+        // Detect transition from fetching -> not fetching (query completed)
+        if (wasFetching && !isCurrentlyFetching && revisionId) {
+            console.log(
+                "[useTestcasesTable] Query completed, marking fetch done:",
+                revisionId,
+                "rowIds:",
+                rowIds.length,
+            )
+            markFetchCompleted()
+        }
+
+        prevFetchingRef.current = isCurrentlyFetching
+    }, [isFetching, revisionId, markFetchCompleted, rowIds.length])
+
+    // Initialize empty revision ONLY after initial fetch completes
+    // This ensures testcasesAlreadyLoaded check in initializeEmptyRevisionAtom is accurate
     const initializeEmptyRevision = useSetAtom(initializeEmptyRevisionAtom)
+    const hasInitialFetchCompleted = useAtomValue(hasInitialFetchCompletedAtom)
+
     useEffect(() => {
         if (skipEmptyRevisionInit) return
-        if (!revisionQuery.isPending && revisionId && revisionQuery.data) {
-            initializeEmptyRevision()
-        }
+        if (!revisionId) return
+        if (revisionQuery.isPending) return
+        if (!revisionQuery.data) return
+        if (!hasInitialFetchCompleted) return // Wait for fetch to complete
+
+        console.log("[useTestcasesTable] Running initialization check for revision:", revisionId)
+
+        // Now that fetch has completed, check if we need to initialize
+        // initializeEmptyRevisionAtom will check loadedTestcaseIds.length and only
+        // initialize if truly empty (no server data, no local data, no columns)
+        const wasInitialized = initializeEmptyRevision()
+
+        console.log("[useTestcasesTable] Initialization result:", {
+            revisionId,
+            wasInitialized,
+        })
     }, [
         skipEmptyRevisionInit,
+        revisionId,
         revisionQuery.isPending,
         revisionQuery.data,
-        revisionId,
+        hasInitialFetchCompleted,
         initializeEmptyRevision,
     ])
 
@@ -202,10 +261,6 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     const testsetId = useAtomValue(testsetIdAtom)
     const availableRevisions = revisionsListQuery.data ?? []
     const loadingRevisions = revisionsListQuery.isPending
-
-    // Metadata from query atoms (automatically updates when queries complete)
-    const metadata = useAtomValue(testsetMetadataAtom)
-    const metadataLoading = useAtomValue(metadataLoadingAtom)
 
     // Update testcase atom - for local edits
     const executeUpdateTestcase = useSetAtom(updateTestcaseAtom)

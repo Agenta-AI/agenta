@@ -82,7 +82,7 @@ let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
  * Write-only atom to set search term with debouncing
  * Updates UI immediately but delays API fetch by 300ms
  */
-export const setDebouncedSearchTermAtom = atom(null, (get, set, searchTerm: string) => {
+export const setDebouncedSearchTermAtom = atom(null, (_get, set, searchTerm: string) => {
     // Update immediate value for UI responsiveness
     set(testcasesSearchTermAtom, searchTerm)
 
@@ -100,6 +100,36 @@ export const setDebouncedSearchTermAtom = atom(null, (get, set, searchTerm: stri
 
 // Atom to trigger a refresh
 export const testcasesRefreshTriggerAtom = atom(0)
+
+// Atom to signal when initial fetch completes for a revision (for triggering initialization)
+// Maps revisionId -> true when first fetch completes
+const initialFetchCompletedMapAtom = atom<Record<string, boolean>>({})
+
+export const markInitialFetchCompletedAtom = atom(null, (_get, set, revisionId: string) => {
+    set(initialFetchCompletedMapAtom, (prev) => ({...prev, [revisionId]: true}))
+})
+
+export const hasInitialFetchCompletedAtom = atom((get) => {
+    const revisionId = get(testcasesRevisionIdAtom)
+    if (!revisionId) return false
+    const map = get(initialFetchCompletedMapAtom)
+    return map[revisionId] ?? false
+})
+
+/**
+ * Atom that reads the table query fetching state from the datasetStore
+ * Returns true when the query is currently fetching data
+ */
+export const tableQueryFetchingAtom = atom((get) => {
+    const meta = get(testcasesTableMetaAtom)
+    if (!meta.revisionId) return false
+
+    const scopeId = `testcases-${meta.revisionId}`
+    const paginationAtom = datasetStore.atoms.paginationAtom({scopeId, pageSize: PAGE_SIZE})
+    const pagination = get(paginationAtom)
+
+    return pagination.isFetching
+})
 
 // Atom for full testcases metadata (read-only derived)
 // Uses debounced search term to prevent excessive API calls
@@ -349,6 +379,17 @@ export const syncRowIdsToEntityAtom = atom(null, (get, set) => {
     }
 })
 
+/**
+ * Effect atom that marks initial fetch as completed for the current revision
+ * This should be called after the first data sync to signal that we can now initialize placeholders
+ */
+export const markFetchCompletedForRevisionAtom = atom(null, (get, set) => {
+    const revisionId = get(testcasesRevisionIdAtom)
+    if (revisionId) {
+        set(markInitialFetchCompletedAtom, revisionId)
+    }
+})
+
 // ============================================================================
 // REVISION CHANGE EFFECT ATOM
 // Consolidates all side effects when revision changes
@@ -391,4 +432,13 @@ export const revisionChangeEffectAtom = atom(null, (get, set, newRevisionId: str
     set(clearPendingRenamesAtom)
     set(clearPendingDeletedColumnsAtom)
     set(clearPendingAddedColumnsAtom)
+
+    // 4. Reset initial fetch completed flag for new revision
+    set(initialFetchCompletedMapAtom, (prev) => {
+        const updated = {...prev}
+        if (newRevisionId) {
+            delete updated[newRevisionId]
+        }
+        return updated
+    })
 })

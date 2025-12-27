@@ -5,8 +5,9 @@ import {useAtom, useAtomValue} from "jotai"
 
 import {FiltersPopoverTrigger} from "@/oss/components/InfiniteVirtualTable"
 
-import {testsetsSearchTermAtom} from "../atoms/tableStore"
 import {testsetsFiltersButtonStateAtom} from "../atoms/filters"
+import {testsetsSearchTermAtom} from "../atoms/tableStore"
+
 import TestsetsFiltersContent from "./TestsetsFiltersContent"
 import TestsetsFiltersSummary from "./TestsetsFiltersSummary"
 

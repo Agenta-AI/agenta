@@ -33,6 +33,12 @@ import {
 } from "../nodes/CodeHighlightNode"
 import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {$isCodeTabNode} from "../nodes/CodeTabNode"
+import {
+    $createLongTextNode,
+    $isLongTextNode,
+    isLongTextString,
+    parseLongTextString,
+} from "../nodes/LongTextNode"
 import {createLogger} from "../utils/createLogger"
 import {getDiffRange} from "../utils/getDiffRange"
 import {isPluginLocked, lockPlugin, unlockPlugin} from "../utils/pluginLocks"
@@ -199,12 +205,14 @@ interface SyntaxHighlightPluginProps {
     editorId: string
     schema?: any
     debug?: boolean
+    disableLongText?: boolean
 }
 
 export function SyntaxHighlightPlugin({
     editorId,
     schema,
     debug = false,
+    disableLongText = false,
 }: SyntaxHighlightPluginProps) {
     const [editor] = useLexicalComposerContext()
 
@@ -311,6 +319,13 @@ export function SyntaxHighlightPlugin({
                         return t.content === existing.content
                     }
 
+                    // Check if both are long text (existing is longtext node, new is string token with long text content)
+                    const newIsLongText = t.type === "string" && isLongTextString(t.content)
+                    const existingIsLongText = existing.type === "longtext"
+                    if (newIsLongText && existingIsLongText) {
+                        return t.content === existing.content
+                    }
+
                     return t.content === existing.content && t.type === existing.type
                 })
             log(`🔍 [SyntaxHighlightPlugin] Token comparison:`, {
@@ -346,16 +361,30 @@ export function SyntaxHighlightPlugin({
                         const current = lineNode.getChildren()
                         const tabs = current.filter($isCodeTabNode)
                         const highlights = current.filter(
-                            (child) => $isCodeHighlightNode(child) || $isBase64Node(child),
+                            (child) =>
+                                $isCodeHighlightNode(child) ||
+                                $isBase64Node(child) ||
+                                $isLongTextNode(child),
                         )
 
                         // Create new highlight nodes from tokens (pure syntax highlighting)
-                        // Check for base64 strings and create Base64Nodes for them
+                        // Check for base64 strings and long text strings and create special nodes for them
                         const newHighlights: LexicalNode[] = tokens.map(({content, type}) => {
                             // Check if this is a base64 string token - create Base64Node for collapsed display
                             if (type === "string" && isBase64String(content)) {
                                 const parsed = parseBase64String(content)
                                 return $createBase64Node(parsed.fullValue, parsed.mimeType, type)
+                            }
+
+                            // Check if this is a long text string - create LongTextNode for truncated display
+                            // Skip if disableLongText is true
+                            if (
+                                type === "string" &&
+                                !disableLongText &&
+                                isLongTextString(content)
+                            ) {
+                                const parsed = parseLongTextString(content)
+                                return $createLongTextNode(parsed.fullValue, type)
                             }
 
                             const node = $createCodeHighlightNode(

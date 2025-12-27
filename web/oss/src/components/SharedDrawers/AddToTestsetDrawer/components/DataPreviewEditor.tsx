@@ -1,14 +1,7 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import {
-    ArrowCounterClockwise,
-    CaretLeft,
-    CaretRight,
-    Code,
-    TreeStructure,
-    Trash,
-} from "@phosphor-icons/react"
-import {Button, Segmented, Tooltip, Typography} from "antd"
+import {ArrowCounterClockwise, Code, TreeStructure, Trash} from "@phosphor-icons/react"
+import {Button, Segmented, Select, Tooltip, Typography} from "antd"
 
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
@@ -40,6 +33,8 @@ interface DataPreviewEditorProps {
     focusPath?: string
     /** Callback when focusPath has been handled */
     onFocusPathHandled?: () => void
+    /** Callback when a JSON property key is Cmd/Meta+clicked in editor view (for drill-in navigation) */
+    onPropertyClick?: (path: string) => void
 }
 
 type ViewMode = "editor" | "drill-in"
@@ -61,12 +56,22 @@ export function DataPreviewEditor({
     mappedPaths,
     focusPath,
     onFocusPathHandled,
+    onPropertyClick,
 }: DataPreviewEditorProps) {
     const lastSavedRef = useRef(formatDataPreview)
     // Counter to force editor remount only on explicit revert (not on every edit)
     const [editorVersion, setEditorVersion] = useState(0)
     // View mode toggle: editor (JSON/YAML) or drill-in (tree navigation)
     const [viewMode, setViewMode] = useState<ViewMode>("drill-in")
+
+    // Handle property click from JSON editor - switch to drill-in and navigate to path
+    const handlePropertyClick = useCallback(
+        (path: string) => {
+            setViewMode("drill-in")
+            onPropertyClick?.(path)
+        },
+        [onPropertyClick],
+    )
 
     // Stable initial value - only updates when key changes (trace switch or revert)
     // This prevents cursor position reset during typing
@@ -76,28 +81,6 @@ export function DataPreviewEditor({
         stableInitialValueRef.current = {key: editorKey, value: formatDataPreview}
     }
     const stableInitialValue = stableInitialValueRef.current.value
-
-    // Navigation state
-    const currentIndex = useMemo(() => {
-        return traceData.findIndex((t) => t.key === rowDataPreview)
-    }, [traceData, rowDataPreview])
-
-    const canGoPrev = currentIndex > 0
-    const canGoNext = currentIndex < traceData.length - 1
-
-    const goToPrev = useCallback(() => {
-        if (canGoPrev) {
-            setRowDataPreview(traceData[currentIndex - 1].key)
-            setUpdatedTraceData("")
-        }
-    }, [canGoPrev, currentIndex, traceData, setRowDataPreview, setUpdatedTraceData])
-
-    const goToNext = useCallback(() => {
-        if (canGoNext) {
-            setRowDataPreview(traceData[currentIndex + 1].key)
-            setUpdatedTraceData("")
-        }
-    }, [canGoNext, currentIndex, traceData, setRowDataPreview, setUpdatedTraceData])
 
     // Handle editor changes - update local state and trigger save
     const handleEditorChange = useCallback(
@@ -132,45 +115,47 @@ export function DataPreviewEditor({
         [setUpdatedTraceData, onSaveEditedTrace],
     )
 
-    // Span navigation prefix for breadcrumb
+    // Build span select options
+    const spanSelectOptions = useMemo(
+        () =>
+            traceData.map((trace, index) => ({
+                value: trace.key,
+                label: (
+                    <span className="flex items-center gap-1.5">
+                        <span>Span {index + 1}</span>
+                        {trace.isEdited && (
+                            <span className="text-[9px] bg-blue-100 text-blue-700 px-1 py-0.5 rounded">
+                                edited
+                            </span>
+                        )}
+                    </span>
+                ),
+            })),
+        [traceData],
+    )
+
+    // Span navigation prefix for breadcrumb - now a Select dropdown with bordered style to match testset selector
     const spanNavigationPrefix = useMemo(
         () => (
-            <div className="flex items-center gap-1 mr-2 pr-2 border-r border-gray-200">
-                <Button
-                    type="text"
+            <div className="flex items-center">
+                <Select
                     size="small"
-                    icon={<CaretLeft size={14} />}
-                    disabled={!canGoPrev}
-                    onClick={goToPrev}
-                    className="!px-1"
-                />
-                <Typography.Text className="whitespace-nowrap">
-                    Span {currentIndex + 1} of {traceData.length}
-                    {selectedTraceData?.isEdited && (
-                        <span className="ml-2 text-[10px] bg-blue-50 text-blue-600 px-1 py-0.5 rounded-sm">
-                            (edited)
-                        </span>
+                    value={rowDataPreview}
+                    onChange={(value) => {
+                        setRowDataPreview(value)
+                        setUpdatedTraceData("")
+                    }}
+                    options={spanSelectOptions}
+                    popupMatchSelectWidth={false}
+                    labelRender={({label}) => (
+                        <span className="font-medium text-gray-700">{label}</span>
                     )}
-                </Typography.Text>
-                <Button
-                    type="text"
-                    size="small"
-                    icon={<CaretRight size={14} />}
-                    disabled={!canGoNext}
-                    onClick={goToNext}
-                    className="!px-1"
                 />
+                {/* Use a slash separator instead of chevron to differentiate from breadcrumb navigation */}
+                <span className="text-gray-300 mx-2 text-sm">/</span>
             </div>
         ),
-        [
-            canGoPrev,
-            canGoNext,
-            goToPrev,
-            goToNext,
-            currentIndex,
-            traceData.length,
-            selectedTraceData?.isEdited,
-        ],
+        [rowDataPreview, setRowDataPreview, setUpdatedTraceData, spanSelectOptions],
     )
 
     return (
@@ -237,6 +222,7 @@ export function DataPreviewEditor({
                     mappedPaths={mappedPaths}
                     focusPath={focusPath}
                     onFocusPathHandled={onFocusPathHandled}
+                    onPropertyClick={onPropertyClick}
                 />
             ) : (
                 <EditorProvider
@@ -252,6 +238,7 @@ export function DataPreviewEditor({
                         className={selectedTraceData?.isEdited ? "border-blue-400" : ""}
                         disableDebounce
                         noProvider
+                        onPropertyClick={handlePropertyClick}
                         editorProps={{
                             codeOnly: true,
                             language: editorFormat.toLowerCase() as "json" | "yaml",

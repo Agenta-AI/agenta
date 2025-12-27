@@ -4,7 +4,7 @@ import {revisionDraftAtomFamily} from "../testset"
 
 import {addColumnAtom, currentColumnsAtom} from "./columnState"
 import {currentRevisionIdAtom, revisionQueryAtom, testsetNameQueryAtom} from "./queries"
-import {newEntityIdsAtom} from "./testcaseEntity"
+import {newEntityIdsAtom, testcaseIdsAtom} from "./testcaseEntity"
 import {addTestcaseAtom} from "./testcaseMutations"
 
 // Re-export for backward compatibility
@@ -29,6 +29,7 @@ export const initializeEmptyRevisionAtom = atom(null, (get, set) => {
     const currentRevId = get(currentRevisionIdAtom)
     const newIds = get(newEntityIdsAtom)
     const columns = get(currentColumnsAtom)
+    const loadedTestcaseIds = get(testcaseIdsAtom)
 
     // Only initialize if:
     // - Query has settled and returned data
@@ -44,16 +45,36 @@ export const initializeEmptyRevisionAtom = atom(null, (get, set) => {
         revisionQuery.data?.flags?.has_testcases === true ||
         (revisionQuery.data?.data?.testcase_ids?.length ?? 0) > 0
 
+    // CRITICAL FIX: Don't initialize if testcases have already started loading
+    // This happens when table store fetches data but columns haven't synced yet
+    // Without this check, we get flaky behavior where placeholders appear even for revisions with data
+    const testcasesAlreadyLoaded = loadedTestcaseIds.length > 0
+
     const isEmpty =
         !revisionQuery.isPending &&
         revisionQuery.data?.id === currentRevId &&
         !hasTestcasesInRevision && // Check revision data directly
+        !testcasesAlreadyLoaded && // Don't initialize if data is already loading/loaded
         columns.length === 0 && // No columns synced yet
         newIds.length === 0
+
+    console.log("[initializeEmptyRevisionAtom] Checking initialization:", {
+        revisionId: currentRevId,
+        isPending: revisionQuery.isPending,
+        queryDataMatchesCurrent: revisionQuery.data?.id === currentRevId,
+        hasTestcasesInRevision,
+        testcasesAlreadyLoaded,
+        loadedTestcaseIdsLength: loadedTestcaseIds.length,
+        columnsLength: columns.length,
+        newIdsLength: newIds.length,
+        isEmpty,
+    })
 
     if (!isEmpty) {
         return false
     }
+
+    console.log("[initializeEmptyRevisionAtom] Initializing empty revision:", currentRevId)
 
     // Set revision name from testset name for empty revisions
     const revisionId = get(currentRevisionIdAtom)

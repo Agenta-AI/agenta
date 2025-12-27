@@ -4,14 +4,11 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
-import {KeyValuePair} from "@/oss/lib/Types"
-import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
 
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
 
@@ -30,17 +27,12 @@ const TraceTypeHeader = ({
     isAnnotationsSectionOpen,
 }: TraceTypeHeaderProps) => {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-    const activeTraceData = useAtomValue(spanAgDataAtomFamily(activeTrace))
-    const testsetData = useMemo(() => {
-        if (!activeTrace?.key) return [] as {data: KeyValuePair; key: string; id: number}[]
-        return [
-            {
-                data: activeTraceData as KeyValuePair,
-                key: activeTrace.key,
-                id: 1,
-            },
-        ]
-    }, [activeTrace?.key, activeTraceData])
+
+    // Get span ID for AddToTestsetButton - drawer will fetch data from entity cache
+    const spanIds = useMemo(() => {
+        if (!activeTrace?.span_id) return []
+        return [activeTrace.span_id]
+    }, [activeTrace?.span_id])
 
     const displayTrace = activeTrace || traces?.[0]
 
@@ -72,8 +64,8 @@ const TraceTypeHeader = ({
                     className="flex items-center"
                     label="Add to testset"
                     size="small"
-                    testsetData={testsetData}
-                    disabled={!activeTrace?.key}
+                    spanIds={spanIds}
+                    disabled={!activeTrace?.span_id}
                 />
 
                 <AnnotateDrawerButton

@@ -170,7 +170,14 @@ export function parseMessages(value: string): SimpleChatMessage[] {
 }
 
 // Data types detected from cell content
-export type DataType = "string" | "messages" | "json-object" | "json-array" | "boolean" | "number"
+export type DataType =
+    | "string"
+    | "messages"
+    | "json-object"
+    | "json-array"
+    | "boolean"
+    | "number"
+    | "null"
 
 /**
  * Detect the data type of a field value
@@ -200,11 +207,13 @@ export function detectDataType(value: string): DataType {
             return "json-array"
         }
 
+        // null type
+        if (parsed === null) return "null"
+
         // Single message objects are treated as json-object to show all properties
         // (provider_specific_fields, annotations, etc.)
         if (typeof parsed === "object" && parsed !== null) return "json-object"
 
-        // null - treat as string for display
         return "string"
     } catch {
         // Not valid JSON - it's a plain string

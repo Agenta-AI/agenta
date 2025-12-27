@@ -215,7 +215,7 @@ const CellContentPopover = memo(
                 trigger="hover"
                 mouseEnterDelay={0.5}
                 mouseLeaveDelay={0.2}
-                destroyTooltipOnHide
+                destroyOnHidden
                 overlayClassName="testcase-cell-popover"
                 overlayStyle={{maxWidth: 500, maxHeight: 400}}
                 content={<PopoverContent fullContent={fullContent} isJson={isJson} />}
