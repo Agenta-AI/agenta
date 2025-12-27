@@ -15,13 +15,13 @@ const TraceTreeSettings = ({settings, setSettings}: TraceTreeSettingsProps) => {
 
     return (
         <div>
-            <div className="px-4 py-2">
+            <div className="px-3 py-2">
                 <Typography.Text className="font-medium">Settings</Typography.Text>
             </div>
 
             <div
                 className={clsx(
-                    "flex flex-col gap-3 px-4 py-2 border-0 border-t border-solid border-colorSplit",
+                    "flex flex-col gap-2 px-3 py-2 border-0 border-t border-solid border-colorSplit",
                 )}
             >
                 <Flex justify="space-between" align="center">
