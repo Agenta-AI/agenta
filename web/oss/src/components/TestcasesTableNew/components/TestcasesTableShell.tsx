@@ -263,50 +263,57 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         })
 
         // Create collapsed column definition (shows full JSON when group is collapsed)
+        // groupPath is the full path (e.g., "current_rfp.event"), display only the last segment
         const createCollapsedColumnDef = (
-            groupName: string,
+            groupPath: string,
             _childColumns: Column[],
-        ): ColumnType<TestcaseTableRow> => ({
-            key: groupName,
-            dataIndex: groupName,
-            title: (
-                <ColumnVisibilityHeader columnKey={groupName}>
-                    <div
-                        className="flex items-center gap-1 cursor-pointer"
-                        onClick={() => toggleGroupCollapse(groupName)}
-                    >
-                        <CaretRight size={12} />
-                        <Typography.Text ellipsis>{groupName}</Typography.Text>
-                    </div>
-                </ColumnVisibilityHeader>
-            ),
-            width: 200,
-            render: (_value: unknown, record: TestcaseTableRow) => {
-                if (record.__isSkeleton || isShowingSkeleton) {
-                    const skeletonHeight = Math.max(24, rowHeight.heightPx - 32)
-                    return (
-                        <Skeleton.Input
-                            active
-                            size="small"
-                            className="w-full"
-                            style={{height: skeletonHeight, minHeight: skeletonHeight}}
-                        />
-                    )
-                }
-                const rowId = record.id || String(record.key)
-                if (rowId) {
-                    // Show the parent column (full JSON object)
-                    return (
-                        <TestcaseCell
-                            testcaseId={rowId}
-                            columnKey={groupName}
-                            maxLines={maxLinesForRowHeight}
-                        />
-                    )
-                }
-                return null
-            },
-        })
+        ): ColumnType<TestcaseTableRow> => {
+            const displayName = groupPath.includes(".")
+                ? groupPath.substring(groupPath.lastIndexOf(".") + 1)
+                : groupPath
+
+            return {
+                key: groupPath,
+                dataIndex: groupPath,
+                title: (
+                    <ColumnVisibilityHeader columnKey={groupPath}>
+                        <div
+                            className="flex items-center gap-1 cursor-pointer"
+                            onClick={() => toggleGroupCollapse(groupPath)}
+                        >
+                            <CaretRight size={12} />
+                            <Typography.Text ellipsis>{displayName}</Typography.Text>
+                        </div>
+                    </ColumnVisibilityHeader>
+                ),
+                width: 200,
+                render: (_value: unknown, record: TestcaseTableRow) => {
+                    if (record.__isSkeleton || isShowingSkeleton) {
+                        const skeletonHeight = Math.max(24, rowHeight.heightPx - 32)
+                        return (
+                            <Skeleton.Input
+                                active
+                                size="small"
+                                className="w-full"
+                                style={{height: skeletonHeight, minHeight: skeletonHeight}}
+                            />
+                        )
+                    }
+                    const rowId = record.id || String(record.key)
+                    if (rowId) {
+                        // Show the parent column (full JSON object)
+                        return (
+                            <TestcaseCell
+                                testcaseId={rowId}
+                                columnKey={groupPath}
+                                maxLines={maxLinesForRowHeight}
+                            />
+                        )
+                    }
+                    return null
+                },
+            }
+        }
 
         // Render group header with collapse/expand icon
         // groupPath is the full path (e.g., "current_rfp.event"), display only the last segment
