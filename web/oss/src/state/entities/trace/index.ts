@@ -48,6 +48,8 @@ export {
     spanInputsAtomFamily,
     spanOutputsAtomFamily,
     spanAgDataAtomFamily,
+    // Trace entity atom family
+    traceEntityAtomFamily,
 } from "./store"
 
 // Selectors and helpers

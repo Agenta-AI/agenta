@@ -467,7 +467,11 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
             const evalType = get(previewEvalTypeAtom)
 
             const stepsQuery = get(scenarioStepsQueryFamily({scenarioId, runId}))
-            const stepsQueryLoading = stepsQuery.isLoading || stepsQuery.isPending
+            // Stale-while-revalidate: only show loading when there's no data yet
+            // Don't show loading during background refetches (isFetching with existing data)
+            const hasStepsData = Boolean(stepsQuery.data)
+            const stepsQueryLoading =
+                !hasStepsData && (stepsQuery.isLoading || stepsQuery.isPending)
             const baseSteps = stepsQuery.data?.steps ?? []
             const runIndex = get(evaluationRunIndexAtomFamily(runId ?? null))
             const derivedByKind = extractStepsByKind(baseSteps, runIndex)
@@ -502,16 +506,18 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     )
 
                     if (valueFromTestcase !== undefined) {
+                        // Stale-while-revalidate: if we have a value, never show loading
                         return {
                             value: valueFromTestcase,
                             displayValue: valueFromTestcase,
-                            isLoading: testcaseMeta.isLoading,
+                            isLoading: false,
                             isFetching: testcaseMeta.isFetching,
                             error: testcaseMeta.error,
                         }
                     }
 
-                    // If testcase exists but value not found at path, still return loading state
+                    // If testcase exists but value not found at path, only show loading on initial load
+                    // (when isLoading is true and we haven't found any value yet)
                     if (testcaseMeta.isLoading) {
                         return {
                             value: undefined,
@@ -785,27 +791,20 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     })
                 }
 
+                // Stale-while-revalidate: only show loading if we have no value yet
+                const hasValue =
+                    value !== undefined ||
+                    scenarioInvocationValue !== undefined ||
+                    traceValue !== undefined ||
+                    fallbackValue !== undefined
                 return {
                     value,
                     displayValue: value,
                     isLoading:
                         !scenarioId ||
-                        stepsQueryLoading ||
-                        Boolean(stepsQuery.isLoading) ||
-                        Boolean(
-                            traceMeta?.isLoading &&
-                            scenarioInvocationValue === undefined &&
-                            traceValue === undefined &&
-                            fallbackValue === undefined,
-                        ),
-                    isFetching:
-                        Boolean(stepsQuery.isFetching) ||
-                        Boolean(
-                            traceMeta?.isFetching &&
-                            scenarioInvocationValue === undefined &&
-                            traceValue === undefined &&
-                            fallbackValue === undefined,
-                        ),
+                        (!hasValue && stepsQueryLoading) ||
+                        (!hasValue && Boolean(traceMeta?.isLoading)),
+                    isFetching: Boolean(stepsQuery.isFetching) || Boolean(traceMeta?.isFetching),
                     error: traceMeta?.error,
                 }
             }
@@ -910,10 +909,12 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                 // String metrics don't store values, so we need to fall back to annotation data
                 const isPlaceholder = isStringTypePlaceholder(metricValue)
 
+                // Stale-while-revalidate: only show loading if we have no metric value yet
+                const hasMetricValue = metricValue !== undefined && !isPlaceholder
                 metricCandidate = {
                     value: isPlaceholder ? undefined : metricValue,
                     displayValue: isPlaceholder ? undefined : metricDisplayValue,
-                    isLoading: metricMeta.isLoading,
+                    isLoading: !hasMetricValue && metricMeta.isLoading,
                     isFetching: metricMeta.isFetching,
                     error: metricMeta.error,
                     resolvedStepKey: resolvedMetricStepKey,
@@ -1140,25 +1141,19 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     })
                 }
 
+                // Stale-while-revalidate: only show loading if we have no value yet
+                const hasAnnotationValue =
+                    value !== undefined ||
+                    valueFromAnnotation !== undefined ||
+                    fallbackValue !== undefined
                 return {
                     value,
                     displayValue,
                     isLoading:
                         !scenarioId ||
-                        stepsQueryLoading ||
-                        Boolean(stepsQuery.isLoading) ||
-                        Boolean(
-                            annotationQuery.isLoading &&
-                            valueFromAnnotation === undefined &&
-                            fallbackValue === undefined,
-                        ),
+                        (!hasAnnotationValue && (stepsQueryLoading || annotationQuery.isLoading)),
                     isFetching:
-                        Boolean(stepsQuery.isFetching) ||
-                        Boolean(
-                            annotationQuery.isFetching &&
-                            valueFromAnnotation === undefined &&
-                            fallbackValue === undefined,
-                        ),
+                        Boolean(stepsQuery.isFetching) || Boolean(annotationQuery.isFetching),
                     error: annotationQuery.error,
                 }
             }

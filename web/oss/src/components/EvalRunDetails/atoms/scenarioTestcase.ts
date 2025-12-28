@@ -87,9 +87,10 @@ export const scenarioTestcaseMetaAtomFamily = atomFamily(
         atom((get) => {
             const effectiveRunId = runId ?? get(activePreviewRunIdAtom) ?? undefined
 
-            // Check if steps are still loading
+            // Check if steps are still loading (stale-while-revalidate: only if no data yet)
             const stepsQuery = get(scenarioStepsQueryFamily({scenarioId, runId: effectiveRunId}))
-            if (stepsQuery.isLoading || stepsQuery.isPending) {
+            const hasStepsData = Boolean(stepsQuery.data)
+            if (!hasStepsData && (stepsQuery.isLoading || stepsQuery.isPending)) {
                 return {
                     isLoading: true,
                     isFetching: stepsQuery.isFetching ?? false,
@@ -108,10 +109,11 @@ export const scenarioTestcaseMetaAtomFamily = atomFamily(
                 }
             }
 
-            // Check testcase query state
+            // Check testcase query state (stale-while-revalidate: only loading if no data)
             const testcaseQuery = get(testcaseQueryAtomFamily(testcaseId))
+            const hasTestcaseData = Boolean(testcaseQuery.data)
             return {
-                isLoading: testcaseQuery.isLoading ?? false,
+                isLoading: !hasTestcaseData && (testcaseQuery.isLoading ?? false),
                 isFetching: testcaseQuery.isFetching ?? false,
                 error: testcaseQuery.error,
                 hasTestcase: true,

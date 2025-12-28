@@ -78,8 +78,13 @@ const CellContentPopover = memo(
                 trigger="hover"
                 mouseEnterDelay={0.5}
                 mouseLeaveDelay={0.2}
-                destroyTooltipOnHide
-                overlayStyle={{maxWidth, maxHeight: 400}}
+                destroyOnHidden
+                styles={{
+                    root: {
+                        maxWidth,
+                        maxHeight: 400,
+                    },
+                }}
                 content={
                     <PopoverContentWrapper onCopy={showCopy && copyText ? handleCopy : undefined}>
                         {fullContent}
