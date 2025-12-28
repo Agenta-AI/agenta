@@ -49,7 +49,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .ant-popover-title": {
             marginBottom: theme.margin,
         },
-        "& .ant-popover-inner": {
+        "& .ant-popover-container": {
             padding: `${theme.paddingSM}px ${theme.padding}px`,
         },
     },
