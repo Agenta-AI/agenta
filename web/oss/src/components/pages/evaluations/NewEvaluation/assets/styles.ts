@@ -4,7 +4,7 @@ import {JSSTheme} from "@/oss/lib/Types"
 
 export const useStyles = createUseStyles((theme: JSSTheme) => ({
     modalContainer: {
-        height: 800,
+        // height: 800,
         overflowY: "hidden",
         "& > div": {
             height: "100%",

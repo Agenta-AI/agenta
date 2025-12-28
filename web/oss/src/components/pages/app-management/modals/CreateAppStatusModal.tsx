@@ -22,17 +22,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         alignItems: "center",
         gap: 8,
     },
-    modal: {
-        "& .ant-modal-content": {
-            padding: 0,
-            overflow: "hidden",
-            borderRadius: 16,
-            "& > .ant-modal-footer": {
-                padding: theme.paddingContentHorizontalLG,
-                paddingTop: 0,
-            },
-        },
-    },
     topContainer: {
         wdith: "100%",
         height: 200,
@@ -195,7 +184,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
             title={null}
             {...props}
             onCancel={closable ? props.onCancel : undefined}
-            className={classes.modal}
+            classNames={{container: "!p-0 overflow-hidden rounded-lg", footer: "!p-6 !pt-0"}}
             width={480}
             centered
         >
