@@ -19,6 +19,7 @@ import {evaluationAnnotationQueryAtomFamily} from "./annotations"
 import {scenarioMetricMetaAtomFamily, scenarioMetricValueAtomFamily} from "./metrics"
 import {activePreviewRunIdAtom} from "./run"
 import {scenarioStepsQueryFamily} from "./scenarioSteps"
+import {scenarioTestcaseMetaAtomFamily, scenarioTestcaseValueAtomFamily} from "./scenarioTestcase"
 import type {EvaluationTableColumn} from "./table"
 import {
     columnValueDescriptorMapAtomFamily,
@@ -27,7 +28,6 @@ import {
     type ColumnValueDescriptor,
 } from "./table/columnAccess"
 import {evaluationRunIndexAtomFamily} from "./table/run"
-import {testcaseQueryMetaAtomFamily, testcaseValueAtomFamily} from "./table/testcases"
 import {traceQueryMetaAtomFamily, traceValueAtomFamily} from "./traces"
 
 export interface QueryState<T> {
@@ -299,11 +299,6 @@ const toTraceId = (step: IStepResponse | undefined) => {
     )
 }
 
-const toTestcaseId = (step: IStepResponse | undefined) => {
-    if (!step) return undefined
-    return (step as any)?.testcaseId || (step as any)?.testcase_id || undefined
-}
-
 /**
  * Extract step error if the step has status "failure" and an error object.
  * This is used to display evaluator errors in the UI.
@@ -496,54 +491,101 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                         error: undefined,
                     }
                 }
-                const targetStep = pickStep(inputs.length ? inputs : steps, column.stepKey)
-                const testcaseId = toTestcaseId(targetStep)
-                const pathSegments = descriptor.pathSegments
-                const traceId = toTraceId(targetStep)
-                const testcaseMeta = testcaseId
-                    ? get(testcaseQueryMetaAtomFamily({testcaseId, runId}))
-                    : null
-                const valueFromTestcase = testcaseId
-                    ? get(testcaseValueAtomFamily({testcaseId, path: column.path, runId}))
-                    : undefined
-                const stepValue = resolveInputStepValueByPath(targetStep, pathSegments)
 
-                const traceCandidates: {path: string; valueKey?: string}[] = [
-                    {path: column.path, valueKey: column.valueKey},
-                ]
-                if (column.path.endsWith(".inputs")) {
-                    traceCandidates.push({
-                        path: column.path.slice(0, -".inputs".length),
-                        valueKey: column.valueKey,
-                    })
+                // Get testcase entity and metadata for this scenario
+                const testcaseMeta = get(scenarioTestcaseMetaAtomFamily({scenarioId, runId}))
+
+                // Primary source: testcase entity (when testcaseId exists)
+                if (testcaseMeta.hasTestcase) {
+                    const valueFromTestcase = get(
+                        scenarioTestcaseValueAtomFamily({scenarioId, runId, path: column.path}),
+                    )
+
+                    if (valueFromTestcase !== undefined) {
+                        return {
+                            value: valueFromTestcase,
+                            displayValue: valueFromTestcase,
+                            isLoading: testcaseMeta.isLoading,
+                            isFetching: testcaseMeta.isFetching,
+                            error: testcaseMeta.error,
+                        }
+                    }
+
+                    // If testcase exists but value not found at path, still return loading state
+                    if (testcaseMeta.isLoading) {
+                        return {
+                            value: undefined,
+                            displayValue: undefined,
+                            isLoading: true,
+                            isFetching: testcaseMeta.isFetching,
+                            error: undefined,
+                        }
+                    }
                 }
 
-                let localTraceValue: unknown = undefined
+                // Fallback for online evaluations: step data or trace data
+                const targetStep = pickStep(inputs.length ? inputs : steps, column.stepKey)
+                const pathSegments = descriptor.pathSegments
+
+                // Try step's embedded inputs first
+                const stepValue = resolveInputStepValueByPath(targetStep, pathSegments)
+                if (stepValue !== undefined) {
+                    return {
+                        value: stepValue,
+                        displayValue: stepValue,
+                        isLoading: false,
+                        isFetching: false,
+                        error: undefined,
+                    }
+                }
+
+                // Try local trace data
                 const localTrace = (targetStep as any)?.trace
                 if (localTrace) {
+                    const traceCandidates: {path: string; valueKey?: string}[] = [
+                        {path: column.path, valueKey: column.valueKey},
+                    ]
+                    if (column.path.endsWith(".inputs")) {
+                        traceCandidates.push({
+                            path: column.path.slice(0, -".inputs".length),
+                            valueKey: column.valueKey,
+                        })
+                    }
+
                     for (const candidate of traceCandidates) {
-                        localTraceValue = resolveInvocationTraceValue(
+                        const localTraceValue = resolveInvocationTraceValue(
                             localTrace,
                             candidate.path,
                             candidate.valueKey,
                         )
-                        if (localTraceValue !== undefined) break
+                        if (localTraceValue !== undefined) {
+                            return {
+                                value: localTraceValue,
+                                displayValue: localTraceValue,
+                                isLoading: false,
+                                isFetching: false,
+                                error: undefined,
+                            }
+                        }
                     }
                 }
 
-                let traceMeta: {isLoading?: boolean; isFetching?: boolean; error?: unknown} | null =
-                    null
-                let remoteTraceValue: unknown = undefined
-                const shouldFetchRemoteTrace =
-                    traceId &&
-                    valueFromTestcase === undefined &&
-                    stepValue === undefined &&
-                    localTraceValue === undefined
+                // Last resort: fetch from remote trace
+                const traceId = toTraceId(targetStep)
+                if (traceId) {
+                    const traceMeta = get(traceQueryMetaAtomFamily({traceId, runId}))
+                    const traceCandidates: {path: string; valueKey?: string}[] = [
+                        {path: column.path, valueKey: column.valueKey},
+                    ]
+                    if (column.path.endsWith(".inputs")) {
+                        traceCandidates.push({
+                            path: column.path.slice(0, -".inputs".length),
+                            valueKey: column.valueKey,
+                        })
+                    }
 
-                if (shouldFetchRemoteTrace && traceId) {
-                    traceMeta = get(traceQueryMetaAtomFamily({traceId, runId})) ?? null
                     for (const candidate of traceCandidates) {
-                        const candidateValue = get(
+                        const remoteTraceValue = get(
                             traceValueAtomFamily({
                                 traceId,
                                 path: candidate.path,
@@ -551,78 +593,55 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                                 runId,
                             }),
                         )
-                        if (candidateValue !== undefined) {
-                            remoteTraceValue = candidateValue
-                            break
+                        if (remoteTraceValue !== undefined) {
+                            return {
+                                value: remoteTraceValue,
+                                displayValue: remoteTraceValue,
+                                isLoading: false,
+                                isFetching: false,
+                                error: undefined,
+                            }
                         }
+                    }
+
+                    // Still loading trace data
+                    if (traceMeta?.isLoading) {
+                        return {
+                            value: undefined,
+                            displayValue: undefined,
+                            isLoading: true,
+                            isFetching: traceMeta.isFetching ?? false,
+                            error: undefined,
+                        }
+                    }
+
+                    return {
+                        value: undefined,
+                        displayValue: undefined,
+                        isLoading: false,
+                        isFetching: false,
+                        error: traceMeta?.error,
                     }
                 }
 
-                const value =
-                    valueFromTestcase ??
-                    stepValue ??
-                    localTraceValue ??
-                    remoteTraceValue ??
-                    undefined
-
-                if (
-                    (value === undefined || value === null) &&
-                    !stepsQueryLoading &&
-                    !stepsQuery.isLoading &&
-                    !(testcaseMeta?.isLoading ?? false)
-                ) {
+                // No data source available
+                if (!stepsQueryLoading && !testcaseMeta.isLoading) {
                     debugScenarioValue("Input column resolved empty value", {
                         scenarioId,
                         runId,
                         columnId: column.id,
                         path: column.path,
                         stepKey: column.stepKey,
-                        hasTargetStep: Boolean(targetStep),
-                        hasTestcaseData: Boolean(valueFromTestcase),
+                        hasTestcase: testcaseMeta.hasTestcase,
                     })
                 }
 
                 return {
-                    value,
-                    displayValue: value,
-                    isLoading:
-                        !scenarioId ||
-                        stepsQueryLoading ||
-                        Boolean(stepsQuery.isLoading) ||
-                        Boolean(
-                            testcaseMeta?.isLoading &&
-                            valueFromTestcase === undefined &&
-                            stepValue === undefined &&
-                            localTraceValue === undefined &&
-                            remoteTraceValue === undefined,
-                        ) ||
-                        Boolean(
-                            traceMeta?.isLoading &&
-                            remoteTraceValue === undefined &&
-                            valueFromTestcase === undefined &&
-                            stepValue === undefined &&
-                            localTraceValue === undefined,
-                        ),
-                    isFetching:
-                        Boolean(stepsQuery.isFetching) ||
-                        Boolean(
-                            testcaseMeta?.isFetching &&
-                            valueFromTestcase === undefined &&
-                            stepValue === undefined &&
-                            localTraceValue === undefined &&
-                            remoteTraceValue === undefined,
-                        ) ||
-                        Boolean(
-                            traceMeta?.isFetching &&
-                            remoteTraceValue === undefined &&
-                            valueFromTestcase === undefined &&
-                            stepValue === undefined &&
-                            localTraceValue === undefined,
-                        ),
-                    error:
-                        valueFromTestcase !== undefined
-                            ? testcaseMeta?.error
-                            : (traceMeta?.error ?? testcaseMeta?.error),
+                    value: undefined,
+                    displayValue: undefined,
+                    isLoading: stepsQueryLoading || testcaseMeta.isLoading,
+                    isFetching: Boolean(stepsQuery.isFetching) || testcaseMeta.isFetching,
+                    error: testcaseMeta.error,
                 }
             }
 
