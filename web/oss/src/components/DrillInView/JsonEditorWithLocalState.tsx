@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useState} from "react"
 
 import {EditorProvider} from "@/oss/components/Editor/Editor"
+import {DrillInProvider} from "@/oss/components/Editor/plugins/code/context/DrillInContext"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 
 interface JsonEditorWithLocalStateProps {
@@ -42,24 +43,26 @@ export function JsonEditorWithLocalState({
     )
 
     return (
-        <EditorProvider key={editorKey} codeOnly language="json" showToolbar={false}>
-            <SharedEditor
-                key={`${editorKey}-shared`}
-                initialValue={localValue}
-                handleChange={handleChange}
-                editorType="border"
-                className="min-h-[60px] overflow-hidden"
-                disableDebounce
-                noProvider
-                onPropertyClick={onPropertyClick}
-                syncWithInitialValueChanges
-                editorProps={{
-                    codeOnly: true,
-                    language: "json",
-                    showLineNumbers: true,
-                    disableLongText: true,
-                }}
-            />
-        </EditorProvider>
+        <DrillInProvider value={{enabled: !!onPropertyClick}}>
+            <EditorProvider key={editorKey} codeOnly language="json" showToolbar={false}>
+                <SharedEditor
+                    key={`${editorKey}-shared`}
+                    initialValue={localValue}
+                    handleChange={handleChange}
+                    editorType="border"
+                    className="min-h-[60px] overflow-hidden"
+                    disableDebounce
+                    noProvider
+                    onPropertyClick={onPropertyClick}
+                    syncWithInitialValueChanges
+                    editorProps={{
+                        codeOnly: true,
+                        language: "json",
+                        showLineNumbers: true,
+                        disableLongText: true,
+                    }}
+                />
+            </EditorProvider>
+        </DrillInProvider>
     )
 }

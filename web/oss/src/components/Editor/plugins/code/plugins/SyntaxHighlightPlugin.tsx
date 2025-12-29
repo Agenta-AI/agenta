@@ -378,13 +378,25 @@ export function SyntaxHighlightPlugin({
 
                             // Check if this is a long text string - create LongTextNode for truncated display
                             // Skip if disableLongText is true
+                            // ALSO skip if user is currently typing in this text (has active selection in this line)
                             if (
                                 type === "string" &&
                                 !disableLongText &&
                                 isLongTextString(content)
                             ) {
-                                const parsed = parseLongTextString(content)
-                                return $createLongTextNode(parsed.fullValue, type)
+                                // Check if the current selection is within this line
+                                // If user is actively typing, keep as regular text node for better UX
+                                const currentSelection = $getSelection()
+                                const isUserTypingInLine =
+                                    $isRangeSelection(currentSelection) &&
+                                    currentSelection.anchor.getNode().getParent() === lineNode
+
+                                // Only convert to LongTextNode if user is NOT actively typing in this line
+                                if (!isUserTypingInLine) {
+                                    const parsed = parseLongTextString(content)
+                                    return $createLongTextNode(parsed.fullValue, type)
+                                }
+                                // Otherwise fall through to create regular CodeHighlightNode
                             }
 
                             const node = $createCodeHighlightNode(

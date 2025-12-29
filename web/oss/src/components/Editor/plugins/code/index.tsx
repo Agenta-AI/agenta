@@ -24,6 +24,7 @@ import {INITIAL_CONTENT_COMMAND, InitialContentPayload} from "../../commands/Ini
 
 export const store = createStore()
 
+import {DrillInProvider} from "./context/DrillInContext"
 import {$createBase64Node, isBase64String, parseBase64String} from "./nodes/Base64Node"
 import {$createCodeBlockNode, $isCodeBlockNode} from "./nodes/CodeBlockNode"
 import {$createCodeHighlightNode} from "./nodes/CodeHighlightNode"
@@ -640,8 +641,10 @@ function InsertInitialCodeBlockPlugin({
         editor.dispatchCommand(INITIAL_CONTENT_COMMAND, payload)
     }, [initialValue, language])
 
+    const drillInContextValue = {enabled: Boolean(onPropertyClick)}
+
     return (
-        <>
+        <DrillInProvider value={drillInContextValue}>
             <AutoFormatAndValidateOnPastePlugin />
             <IndentationPlugin />
             <ClosingBracketIndentationPlugin />
@@ -660,7 +663,7 @@ function InsertInitialCodeBlockPlugin({
                 <Fragment key={index}>{plugin}</Fragment>
             ))}
             <VerticalNavigationPlugin />
-        </>
+        </DrillInProvider>
     )
 }
 

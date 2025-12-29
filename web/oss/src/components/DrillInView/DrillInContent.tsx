@@ -4,6 +4,7 @@ import {Input, InputNumber, Select, Switch} from "antd"
 
 import {ChatMessageList} from "@/oss/components/ChatMessageEditor"
 import {EditorProvider} from "@/oss/components/Editor/Editor"
+import {DrillInProvider} from "@/oss/components/Editor/plugins/code/context/DrillInContext"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {
     detectDataType,
@@ -442,124 +443,164 @@ export function DrillInContent({
         [currentPath, getValue, valueToString, setValue, valueMode],
     )
 
-    return (
-        <div className="flex flex-col gap-4">
-            {/* Optional header content */}
-            {headerContent}
+    // Drill-in is enabled when property click is available (either string mode or external callback)
+    const drillInEnabled = valueMode === "string" || !!onPropertyClick
 
-            {/* Breadcrumb navigation and add controls */}
-            <div className="flex flex-col gap-2 px-3 py-2">
-                <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                        <DrillInBreadcrumb
-                            currentPath={currentPath}
-                            rootTitle={rootTitle}
-                            onNavigateBack={navigateBack}
-                            onNavigateToIndex={navigateToIndex}
-                            prefix={breadcrumbPrefix}
-                            showBackArrow={showBackArrow}
-                        />
+    return (
+        <DrillInProvider value={{enabled: drillInEnabled}}>
+            <div className="flex flex-col gap-4">
+                {/* Optional header content */}
+                {headerContent}
+
+                {/* Breadcrumb navigation and add controls */}
+                <div className="flex flex-col gap-2 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                            <DrillInBreadcrumb
+                                currentPath={currentPath}
+                                rootTitle={rootTitle}
+                                onNavigateBack={navigateBack}
+                                onNavigateToIndex={navigateToIndex}
+                                prefix={breadcrumbPrefix}
+                                showBackArrow={showBackArrow}
+                            />
+                        </div>
+                        {showAddControls && (
+                            <DrillInControls
+                                currentPathDataType={currentPathDataType}
+                                onAddArrayItem={addArrayItem}
+                                onAddObjectProperty={addObjectProperty}
+                            />
+                        )}
                     </div>
-                    {showAddControls && (
-                        <DrillInControls
-                            currentPathDataType={currentPathDataType}
-                            onAddArrayItem={addArrayItem}
-                            onAddObjectProperty={addObjectProperty}
-                        />
-                    )}
+                </div>
+
+                {/* Current level items */}
+                {currentLevelItems.length === 0 && (
+                    <div className="text-gray-500 text-sm">No items to display</div>
+                )}
+
+                <div className="flex flex-col gap-2">
+                    {currentLevelItems.map((item) => {
+                        const fieldKey = `${currentPath.join(".")}.${item.key}`
+                        // When drilling into a primitive, currentPath already contains the full path
+                        // and item.key is just the last segment (duplicate). Use currentPath directly.
+                        const isDrilledPrimitive =
+                            currentPath.length > 0 &&
+                            currentPath[currentPath.length - 1] === item.key &&
+                            currentLevelItems.length === 1
+                        const fullPath = isDrilledPrimitive
+                            ? currentPath
+                            : [...currentPath, item.key]
+                        const stringValue = valueToString(item.value)
+
+                        // Use locked type if available, otherwise detect from value
+                        const dataType = lockedFieldTypes[fieldKey] ?? detectDataType(stringValue)
+                        const isRawMode = rawModeFields[fieldKey] ?? false
+                        const isCollapsed = collapsedFields[fieldKey] ?? false
+                        const expandable = isExpandable(item.value)
+                        const itemCount = getItemCount(item.value)
+                        const showRawToggle = editable && canToggleRawMode(dataType)
+
+                        // Build full data path for mapping
+                        // Skip "ag.data" prefix if present (trace span internal structure)
+                        let pathForMapping = fullPath
+                        let dataPath = ""
+                        let checkPathForNested = ""
+
+                        if (
+                            fullPath.length >= 2 &&
+                            fullPath[0] === "ag" &&
+                            fullPath[1] === "data"
+                        ) {
+                            // Inside ag.data structure - skip the wrapper
+                            pathForMapping = fullPath.slice(2)
+                            dataPath = [rootTitle, ...pathForMapping].join(".")
+                            checkPathForNested = dataPath
+                        } else if (fullPath.length === 1 && fullPath[0] === "ag") {
+                            // At the ag wrapper itself - check for any mappings under "data."
+                            dataPath = [rootTitle, "ag"].join(".")
+                            checkPathForNested = rootTitle
+                        } else {
+                            // Normal path
+                            dataPath = [rootTitle, ...pathForMapping].join(".")
+                            checkPathForNested = dataPath
+                        }
+
+                        const mappedColumn = mappedPaths?.get(dataPath)
+                        const isMapped = !!mappedColumn
+
+                        // Count nested mappings
+                        const nestedMappingCount = expandable
+                            ? Array.from(mappedPaths?.keys() || []).filter(
+                                  (path) =>
+                                      path.startsWith(checkPathForNested + ".") &&
+                                      path !== checkPathForNested,
+                              ).length
+                            : 0
+
+                        return (
+                            <div key={item.key} className="flex flex-col gap-2">
+                                {/* Field header */}
+                                <DrillInFieldHeader
+                                    name={item.name}
+                                    value={item.value}
+                                    isCollapsed={isCollapsed}
+                                    onToggleCollapse={() => toggleFieldCollapse(fieldKey)}
+                                    itemCount={itemCount}
+                                    expandable={expandable}
+                                    onDrillIn={
+                                        expandable ? () => navigateInto(item.key) : undefined
+                                    }
+                                    showRawToggle={showRawToggle}
+                                    isRawMode={isRawMode}
+                                    onToggleRawMode={
+                                        showRawToggle ? () => toggleRawMode(fieldKey) : undefined
+                                    }
+                                    showDelete={showDeleteControls && !item.isColumn}
+                                    onDelete={
+                                        showDeleteControls && !item.isColumn
+                                            ? () => deleteItem(item.key)
+                                            : undefined
+                                    }
+                                    alwaysShowCopy={false}
+                                    columnOptions={columnOptions}
+                                    onMapToColumn={
+                                        onMapToColumn
+                                            ? (column: string) => onMapToColumn(dataPath, column)
+                                            : undefined
+                                    }
+                                    onUnmap={onUnmap ? () => onUnmap(dataPath) : undefined}
+                                    isMapped={isMapped}
+                                    mappedColumn={mappedColumn}
+                                    nestedMappingCount={nestedMappingCount}
+                                />
+
+                                {/* Field content - collapsible */}
+                                {!isCollapsed && (
+                                    <div className="px-4">
+                                        {renderFieldContent({
+                                            item,
+                                            stringValue,
+                                            dataType,
+                                            isRawMode,
+                                            fullPath,
+                                            fieldKey,
+                                            editable,
+                                            setValue,
+                                            valueMode,
+                                            onPropertyClick,
+                                            dataPath,
+                                            setCurrentPath,
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
                 </div>
             </div>
-
-            {/* Current level items */}
-            {currentLevelItems.length === 0 && (
-                <div className="text-gray-500 text-sm">No items to display</div>
-            )}
-
-            <div className="flex flex-col gap-2">
-                {currentLevelItems.map((item) => {
-                    const fieldKey = `${currentPath.join(".")}.${item.key}`
-                    const fullPath = [...currentPath, item.key]
-                    const stringValue = valueToString(item.value)
-
-                    // Use locked type if available, otherwise detect from value
-                    const dataType = lockedFieldTypes[fieldKey] ?? detectDataType(stringValue)
-                    const isRawMode = rawModeFields[fieldKey] ?? false
-                    const isCollapsed = collapsedFields[fieldKey] ?? false
-                    const expandable = isExpandable(item.value)
-                    const itemCount = getItemCount(item.value)
-                    const showRawToggle = editable && canToggleRawMode(dataType)
-
-                    // Build full data path for mapping
-                    const dataPath = [rootTitle, ...fullPath].join(".")
-                    const mappedColumn = mappedPaths?.get(dataPath)
-                    const isMapped = !!mappedColumn
-
-                    // Count nested mappings
-                    const nestedMappingCount = expandable
-                        ? Array.from(mappedPaths?.keys() || []).filter(
-                              (path) => path.startsWith(dataPath + ".") && path !== dataPath,
-                          ).length
-                        : 0
-
-                    return (
-                        <div key={item.key} className="flex flex-col gap-2">
-                            {/* Field header */}
-                            <DrillInFieldHeader
-                                name={item.name}
-                                value={item.value}
-                                isCollapsed={isCollapsed}
-                                onToggleCollapse={() => toggleFieldCollapse(fieldKey)}
-                                itemCount={itemCount}
-                                expandable={expandable}
-                                onDrillIn={expandable ? () => navigateInto(item.key) : undefined}
-                                showRawToggle={showRawToggle}
-                                isRawMode={isRawMode}
-                                onToggleRawMode={
-                                    showRawToggle ? () => toggleRawMode(fieldKey) : undefined
-                                }
-                                showDelete={showDeleteControls && !item.isColumn}
-                                onDelete={
-                                    showDeleteControls && !item.isColumn
-                                        ? () => deleteItem(item.key)
-                                        : undefined
-                                }
-                                alwaysShowCopy={false}
-                                columnOptions={columnOptions}
-                                onMapToColumn={
-                                    onMapToColumn
-                                        ? (column: string) => onMapToColumn(dataPath, column)
-                                        : undefined
-                                }
-                                onUnmap={onUnmap ? () => onUnmap(dataPath) : undefined}
-                                isMapped={isMapped}
-                                mappedColumn={mappedColumn}
-                                nestedMappingCount={nestedMappingCount}
-                            />
-
-                            {/* Field content - collapsible */}
-                            {!isCollapsed && (
-                                <div className="px-4">
-                                    {renderFieldContent({
-                                        item,
-                                        stringValue,
-                                        dataType,
-                                        isRawMode,
-                                        fullPath,
-                                        fieldKey,
-                                        editable,
-                                        setValue,
-                                        valueMode,
-                                        onPropertyClick,
-                                        dataPath,
-                                        setCurrentPath,
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    )
-                })}
-            </div>
-        </div>
+        </DrillInProvider>
     )
 }
 
@@ -767,12 +808,15 @@ function renderFieldContent({
             <div className="flex items-center gap-3 py-2">
                 <Switch
                     checked={boolValue}
-                    onChange={(checked) =>
-                        setValue(
-                            fullPath,
-                            valueMode === "string" ? JSON.stringify(checked) : checked,
-                        )
-                    }
+                    onChange={(checked) => {
+                        // Only stringify if editing a top-level column
+                        // For nested fields, pass native value to preserve types in JSON
+                        const value =
+                            valueMode === "string" && fullPath.length === 1
+                                ? JSON.stringify(checked)
+                                : checked
+                        setValue(fullPath, value)
+                    }}
                 />
                 <span className="text-sm text-gray-600">{boolValue ? "true" : "false"}</span>
             </div>
@@ -784,12 +828,15 @@ function renderFieldContent({
         return (
             <InputNumber
                 value={numValue}
-                onChange={(value) =>
-                    setValue(
-                        fullPath,
-                        valueMode === "string" ? JSON.stringify(value ?? 0) : (value ?? 0),
-                    )
-                }
+                onChange={(value) => {
+                    // Only stringify if editing a top-level column
+                    // For nested fields, pass native value to preserve types in JSON
+                    const finalValue =
+                        valueMode === "string" && fullPath.length === 1
+                            ? JSON.stringify(value ?? 0)
+                            : (value ?? 0)
+                    setValue(fullPath, finalValue)
+                }}
                 className="w-full"
                 size="middle"
             />

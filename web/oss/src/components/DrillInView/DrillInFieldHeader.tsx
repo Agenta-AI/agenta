@@ -230,15 +230,10 @@ const DrillInFieldHeader = memo(
                             mapped to {mappedColumn}
                         </span>
                     ) : nestedMappingCount > 0 ? (
-                        <>
-                            {itemCount && (
-                                <span className="text-xs text-gray-400">[{itemCount}]</span>
-                            )}
-                            <span className="text-xs text-green-600 font-medium">
-                                contains {nestedMappingCount} mapping
-                                {nestedMappingCount > 1 ? "s" : ""}
-                            </span>
-                        </>
+                        <span className="text-xs text-green-600 font-medium">
+                            contains {nestedMappingCount} mapping
+                            {nestedMappingCount > 1 ? "s" : ""}
+                        </span>
                     ) : (
                         itemCount && <span className="text-xs text-gray-400">[{itemCount}]</span>
                     )}
