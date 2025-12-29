@@ -970,9 +970,12 @@ async def create_organization(
     async with engine.core_session() as session:
         create_org_data = payload.model_dump(exclude_unset=True)
 
+        is_demo = create_org_data.pop("is_demo", False)
+        is_personal = create_org_data.pop("is_personal", False)
+
         create_org_data["flags"] = {
-            "is_demo": payload.is_demo,
-            "is_personal": payload.is_personal,
+            "is_demo": is_demo,
+            "is_personal": is_personal,
         }
 
         # Set required audit fields
@@ -1008,14 +1011,7 @@ async def create_organization(
         # construct workspace payload
         workspace_payload = CreateWorkspace(
             name=payload.name,
-            type=payload.type if payload.type else "",
-            description=(
-                "Default Workspace"
-                if payload.type == "default"
-                else payload.description
-                if payload.description
-                else ""
-            ),
+            type="default",
         )
 
         # create workspace
@@ -1069,6 +1065,33 @@ async def update_organization(
         await session.commit()
         await session.refresh(organization)
         return organization
+
+
+async def delete_organization(organization_id: str) -> bool:
+    """
+    Delete an organization and all its related data.
+
+    Args:
+        organization_id (str): The organization ID to delete.
+
+    Returns:
+        bool: True if deletion was successful.
+
+    Raises:
+        NoResultFound: If organization not found.
+    """
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
+        )
+        organization = result.scalars().first()
+
+        if not organization:
+            raise NoResultFound(f"Organization with id {organization_id} not found")
+
+        await session.delete(organization)
+        await session.commit()
+        return True
 
 
 async def delete_invitation(invitation_id: str) -> bool:
@@ -1507,7 +1530,7 @@ async def transfer_organization_ownership(
         member_result = await session.execute(
             select(OrganizationMemberDB).filter_by(
                 user_id=uuid.UUID(new_owner_id),
-                organization_id=uuid.UUID(organization_id)
+                organization_id=uuid.UUID(organization_id),
             )
         )
         member = member_result.scalars().first()

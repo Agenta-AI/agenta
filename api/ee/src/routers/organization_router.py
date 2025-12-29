@@ -23,7 +23,7 @@ from ee.src.utils.permissions import (
 from ee.src.models.api.organization_models import (
     OrganizationUpdate,
     OrganizationOutput,
-    TransferOwnershipRequest,
+    CreateCollaborativeOrganization,
 )
 from ee.src.services.organization_service import (
     update_an_organization,
@@ -239,11 +239,12 @@ async def update_workspace(
 
 
 @router.post(
-    "/{organization_id}/transfer", operation_id="transfer_organization_ownership"
+    "/{organization_id}/transfer/{new_owner_id}",
+    operation_id="transfer_organization_ownership",
 )
 async def transfer_organization_ownership(
     organization_id: str,
-    payload: TransferOwnershipRequest,
+    new_owner_id: str,
     request: Request,
 ):
     """Transfer organization ownership to another member."""
@@ -264,7 +265,7 @@ async def transfer_organization_ownership(
         # Transfer ownership via service layer
         organization = await transfer_ownership_service(
             organization_id=organization_id,
-            new_owner_id=str(payload.owner_id),
+            new_owner_id=new_owner_id,
             current_user_id=str(user_id),
         )
 
@@ -282,6 +283,99 @@ async def transfer_organization_ownership(
             {"detail": str(e)},
             status_code=400,
         )
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=str(e),
+        )
+
+
+@router.post("/", operation_id="create_collaborative_organization")
+async def create_collaborative_organization(
+    payload: CreateCollaborativeOrganization,
+    request: Request,
+):
+    """Create a new collaborative organization."""
+    try:
+        from uuid import UUID
+        from ee.src.services.commoners import create_organization_with_subscription
+
+        user = await db_manager.get_user(request.state.user_id)
+        if not user:
+            return JSONResponse(
+                {"detail": "User not found"},
+                status_code=404,
+            )
+
+        organization = await create_organization_with_subscription(
+            user_id=UUID(str(user.id)),
+            organization_email=user.email,
+            organization_name=payload.name,
+            organization_description=payload.description,
+            is_personal=False,  # Collaborative organization
+            use_reverse_trial=False,  # Use hobby plan instead
+        )
+
+        log.info(
+            "[organization] collaborative organization created",
+            organization_id=organization.id,
+            user_id=user.id,
+        )
+
+        return JSONResponse(
+            {
+                "id": str(organization.id),
+                "name": organization.name,
+                "description": organization.description,
+            },
+            status_code=201,
+        )
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=str(e),
+        )
+
+
+@router.delete("/{organization_id}/", operation_id="delete_organization")
+async def delete_organization(
+    organization_id: str,
+    request: Request,
+):
+    """Delete an organization (owner only)."""
+    try:
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )
+        has_permission = await check_user_org_access(
+            user_org_workspace_data, organization_id, check_owner=True
+        )
+        if not has_permission:
+            return JSONResponse(
+                {"detail": "You do not have permission to perform this action"},
+                status_code=403,
+            )
+
+        await db_manager_ee.delete_organization(organization_id)
+
+        log.info(
+            "[organization] organization deleted",
+            organization_id=organization_id,
+            user_id=request.state.user_id,
+        )
+
+        return JSONResponse(
+            {"detail": "Organization deleted successfully"},
+            status_code=200,
+        )
+
     except Exception as e:
         import traceback
 

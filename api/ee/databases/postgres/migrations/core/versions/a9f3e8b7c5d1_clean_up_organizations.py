@@ -314,6 +314,79 @@ def upgrade() -> None:
         ondelete="SET NULL",
     )
 
+    # Step 16b: Ensure organization_members cascade on organization delete
+    op.drop_constraint(
+        "organization_members_organization_id_fkey",
+        "organization_members",
+        type_="foreignkey",
+    )
+    op.create_foreign_key(
+        "organization_members_organization_id_fkey",
+        "organization_members",
+        "organizations",
+        ["organization_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+
+    # Step 16c: Ensure workspaces cascade on organization delete
+    try:
+        op.drop_constraint(
+            "workspaces_organization_id_fkey",
+            "workspaces",
+            type_="foreignkey",
+        )
+    except Exception:
+        pass  # Constraint might not exist yet
+    op.create_foreign_key(
+        "workspaces_organization_id_fkey",
+        "workspaces",
+        "organizations",
+        ["organization_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+
+    # Step 16c2: Ensure workspace_members cascade on workspace delete
+    try:
+        op.drop_constraint(
+            "workspace_members_workspace_id_fkey",
+            "workspace_members",
+            type_="foreignkey",
+        )
+    except Exception:
+        pass  # Constraint might not exist yet
+    op.create_foreign_key(
+        "workspace_members_workspace_id_fkey",
+        "workspace_members",
+        "workspaces",
+        ["workspace_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+
+    # Step 16d: Ensure projects cascade on organization delete
+    try:
+        op.drop_constraint(
+            "projects_organization_id_fkey",
+            "projects",
+            type_="foreignkey",
+        )
+    except Exception:
+        pass  # Constraint might not exist yet
+    op.create_foreign_key(
+        "projects_organization_id_fkey",
+        "projects",
+        "organizations",
+        ["organization_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+
+    # Note: Other tables (testsets, evaluations, scenarios, etc.) are linked to
+    # organizations via projects, so they will cascade delete through projects.
+    # They should keep SET NULL on organization_id for direct references.
+
     # Step 17: Drop type and owner columns
     op.drop_column("organizations", "type")
     op.drop_column("organizations", "owner")
@@ -332,6 +405,11 @@ def downgrade() -> None:
     op.drop_constraint("fk_organizations_updated_by_id_users", "organizations", type_="foreignkey")
     op.drop_constraint("fk_organizations_created_by_id_users", "organizations", type_="foreignkey")
     op.drop_constraint("fk_organizations_owner_id_users", "organizations", type_="foreignkey")
+    op.drop_constraint(
+        "organization_members_organization_id_fkey",
+        "organization_members",
+        type_="foreignkey",
+    )
 
     # Recreate type column
     op.add_column("organizations", sa.Column("type", sa.String(), nullable=True))
@@ -374,6 +452,43 @@ def downgrade() -> None:
         "updated_at",
         server_default=sa.text("NOW()"),
         nullable=False,
+    )
+
+    # Restore organization_members FK without cascade
+    op.create_foreign_key(
+        "organization_members_organization_id_fkey",
+        "organization_members",
+        "organizations",
+        ["organization_id"],
+        ["id"],
+    )
+
+    # Restore workspaces FK without cascade
+    op.drop_constraint(
+        "workspaces_organization_id_fkey",
+        "workspaces",
+        type_="foreignkey",
+    )
+    op.create_foreign_key(
+        "workspaces_organization_id_fkey",
+        "workspaces",
+        "organizations",
+        ["organization_id"],
+        ["id"],
+    )
+
+    # Restore projects FK without cascade
+    op.drop_constraint(
+        "projects_organization_id_fkey",
+        "projects",
+        type_="foreignkey",
+    )
+    op.create_foreign_key(
+        "projects_organization_id_fkey",
+        "projects",
+        "organizations",
+        ["organization_id"],
+        ["id"],
     )
 
     # Drop new columns

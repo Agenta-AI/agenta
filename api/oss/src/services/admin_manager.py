@@ -29,7 +29,7 @@ log = get_module_logger(__name__)
 
 
 class CreateOrganization(BaseModel):
-    name: Optional[str] = None
+    name: str
     description: Optional[str] = None
     #
     is_demo: bool = False
@@ -185,14 +185,7 @@ async def legacy_create_organization(
         # construct workspace payload
         workspace_payload = CreateWorkspace(
             name=payload.name,
-            type=payload.type if payload.type else "",
-            description=(
-                "Default Workspace"
-                if payload.type == "default"
-                else payload.description
-                if payload.description
-                else ""
-            ),
+            type="default",
         )
 
         # create workspace

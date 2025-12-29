@@ -72,10 +72,17 @@ async def list_organizations(
     response = [
         Organization(
             id=str(organization_db.id),
+            slug=str(organization_db.slug),
+            #
             name=str(organization_db.name),
-            owner=organization_db.owner,
             description=str(organization_db.description),
-            type=organization_db.type,  # type: ignore
+            #
+            flags=organization_db.flags,
+            tags=organization_db.tags,
+            meta=organization_db.meta,
+            #
+            owner_id=organization_db.owner_id,
+            #
             workspaces=[str(active_workspace.id)] if not is_ee() else [],
         ).model_dump(exclude_unset=True)
         for organization_db in organizations_db
@@ -151,10 +158,17 @@ async def fetch_organization_details(
 
     return OrganizationDetails(
         id=str(organization_db.id),
+        slug=str(organization_db.slug),
+        #
         name=str(organization_db.name),
-        owner=organization_db.owner,
         description=str(organization_db.description),
-        type=organization_db.type,  # type: ignore
+        #
+        flags=organization_db.flags,
+        tags=organization_db.tags,
+        meta=organization_db.meta,
+        #
+        owner_id=organization_db.owner_id,
+        #
         default_workspace={
             "id": str(active_workspace.id),
             "name": str(active_workspace.name),

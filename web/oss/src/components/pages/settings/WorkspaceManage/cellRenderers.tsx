@@ -2,13 +2,13 @@ import {useState} from "react"
 
 import {EditOutlined, MoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {ArrowClockwise, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Tag, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Input, Modal, Space, Tag, Tooltip, Typography} from "antd"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {message} from "@/oss/components/AppMessageContext"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
-import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
+import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {Plan, User} from "@/oss/lib/Types"
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {
@@ -18,6 +18,8 @@ import {
     unAssignWorkspaceRole,
 } from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
+import {updateUsername} from "@/oss/services/profile"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
 
 export const Actions: React.FC<{
@@ -26,14 +28,18 @@ export const Actions: React.FC<{
     organizationId: string
     workspaceId: string
     onResendInvite: any
-}> = ({member, hidden, organizationId, workspaceId, onResendInvite}) => {
+    selfMenu?: boolean
+}> = ({member, hidden, organizationId, workspaceId, onResendInvite, selfMenu}) => {
     const {user} = member
     const isMember = user.status === "member"
 
     const [resendLoading, setResendLoading] = useState(false)
     const {refetch} = useOrgData()
+    const {refetch: refetchProfile} = useProfileData()
+    const [renameOpen, setRenameOpen] = useState(false)
+    const [renameValue, setRenameValue] = useState(user.username || "")
 
-    if (hidden) return null
+    if (hidden && !selfMenu) return null
 
     const handleResendInvite = () => {
         if (!organizationId || !user.email || !workspaceId) return
@@ -64,6 +70,25 @@ export const Actions: React.FC<{
         })
     }
 
+    const handleRename = async () => {
+        const nextValue = renameValue.trim()
+        if (!nextValue) {
+            message.error("Username is required.")
+            return
+        }
+
+        try {
+            await updateUsername(nextValue)
+            await Promise.all([refetchProfile(), refetch()])
+            message.success("Username updated")
+            setRenameOpen(false)
+        } catch (error: any) {
+            const detail =
+                error?.response?.data?.detail || error?.message || "Unable to update username"
+            message.error(detail)
+        }
+    }
+
     return (
         <>
             <Dropdown
@@ -74,31 +99,44 @@ export const Actions: React.FC<{
                     },
                 }}
                 menu={{
-                    items: [
-                        ...(!isMember
-                            ? [
-                                  {
-                                      key: "resend_invite",
-                                      label: "Resend invitation",
-                                      icon: <ArrowClockwise size={16} />,
-                                      onClick: (e: any) => {
-                                          e.domEvent.stopPropagation()
-                                          handleResendInvite()
-                                      },
+                    items: selfMenu
+                        ? [
+                              {
+                                  key: "rename",
+                                  label: "Rename",
+                                  icon: <EditOutlined />,
+                                  onClick: (e: any) => {
+                                      e.domEvent.stopPropagation()
+                                      setRenameValue(user.username || "")
+                                      setRenameOpen(true)
                                   },
-                              ]
-                            : []),
-                        {
-                            key: "remove",
-                            label: "Remove",
-                            icon: <Trash size={16} />,
-                            danger: true,
-                            onClick: (e) => {
-                                e.domEvent.stopPropagation()
-                                handleRemove()
-                            },
-                        },
-                    ],
+                              },
+                          ]
+                        : [
+                              ...(!isMember
+                                  ? [
+                                        {
+                                            key: "resend_invite",
+                                            label: "Resend invitation",
+                                            icon: <ArrowClockwise size={16} />,
+                                            onClick: (e: any) => {
+                                                e.domEvent.stopPropagation()
+                                                handleResendInvite()
+                                            },
+                                        },
+                                    ]
+                                  : []),
+                              {
+                                  key: "remove",
+                                  label: "Remove",
+                                  icon: <Trash size={16} />,
+                                  danger: true,
+                                  onClick: (e) => {
+                                      e.domEvent.stopPropagation()
+                                      handleRemove()
+                                  },
+                              },
+                          ],
                 }}
             >
                 <Button
@@ -108,6 +146,24 @@ export const Actions: React.FC<{
                     loading={resendLoading}
                 />
             </Dropdown>
+
+            <Modal
+                title="Rename your username"
+                open={renameOpen}
+                okText="Save"
+                onCancel={() => setRenameOpen(false)}
+                onOk={handleRename}
+                confirmLoading={false}
+                destroyOnHidden
+                centered
+            >
+                <Input
+                    autoFocus
+                    value={renameValue}
+                    onChange={(event) => setRenameValue(event.target.value)}
+                    placeholder="New username"
+                />
+            </Modal>
         </>
     )
 }
@@ -170,7 +226,7 @@ export const Roles: React.FC<{
                     </Tag>
                 </Tooltip>
             )}
-            {!readOnly && !loading && isDemo() && subscription?.plan === Plan.Business && (
+            {!readOnly && !loading && isEE() && subscription?.plan === Plan.Business && (
                 <Dropdown
                     trigger={["click"]}
                     menu={{

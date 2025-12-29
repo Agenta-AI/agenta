@@ -1683,6 +1683,23 @@ async def get_user_with_id(user_id: str) -> UserDB:
         return user
 
 
+async def update_user_username(user_id: str, username: str) -> UserDB:
+    """Update a user's username."""
+
+    async with engine.core_session() as session:
+        result = await session.execute(select(UserDB).filter_by(id=uuid.UUID(user_id)))
+        user = result.scalars().first()
+        if user is None:
+            log.error("Failed to get user with id for username update")
+            raise NoResultFound(f"User with id {user_id} not found")
+
+        user.username = username
+        user.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+        await session.refresh(user)
+        return user
+
+
 async def get_user_with_email(email: str):
     """
     Retrieves a user from the database based on their email address.

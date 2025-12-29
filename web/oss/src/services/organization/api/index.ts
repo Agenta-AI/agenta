@@ -90,3 +90,23 @@ export const updateOrganization = async (
     )
     return response.data
 }
+
+export const createOrganization = async (data: {name: string; description?: string}) => {
+    const response = await axios.post(`${getAgentaApiUrl()}/organizations/`, data)
+    return response.data
+}
+
+export const deleteOrganization = async (organizationId: string) => {
+    const response = await axios.delete(`${getAgentaApiUrl()}/organizations/${organizationId}/`)
+    return response.data
+}
+
+export const transferOrganizationOwnership = async (
+    organizationId: string,
+    newOwnerId: string,
+) => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/organizations/${organizationId}/transfer/${newOwnerId}`,
+    )
+    return response.data
+}

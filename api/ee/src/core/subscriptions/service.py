@@ -153,6 +153,39 @@ class SubscriptionsService:
 
         return subscription
 
+    async def start_free_plan(
+        self,
+        *,
+        organization_id: str,
+    ) -> Optional[SubscriptionDTO]:
+        """Start a free/hobby plan for an organization without trial.
+
+        Args:
+            organization_id: The organization ID
+
+        Returns:
+            SubscriptionDTO: The created subscription or None if already exists
+        """
+        now = datetime.now(tz=timezone.utc)
+
+        subscription = await self.read(organization_id=organization_id)
+
+        if subscription:
+            return None
+
+        subscription = await self.create(
+            subscription=SubscriptionDTO(
+                organization_id=organization_id,
+                plan=FREE_PLAN,
+                active=True,
+                anchor=now.day,
+            )
+        )
+
+        log.info("✓ Free plan started for organization %s", organization_id)
+
+        return subscription
+
     async def process_event(
         self,
         *,

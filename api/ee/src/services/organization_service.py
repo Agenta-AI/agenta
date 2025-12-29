@@ -12,6 +12,9 @@ from ee.src.models.api.organization_models import (
 )
 
 from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 async def update_an_organization(

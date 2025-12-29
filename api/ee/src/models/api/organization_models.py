@@ -8,7 +8,7 @@ class Organization(BaseModel):
     id: str
     slug: Optional[str] = None
     #
-    name: Optional[str] = None
+    name: str
     description: Optional[str] = None
     #
     flags: Optional[Dict[str, Any]] = None
@@ -23,7 +23,7 @@ class Organization(BaseModel):
 
 
 class CreateOrganization(BaseModel):
-    name: Optional[str] = None
+    name: str
     description: Optional[str] = None
     #
     is_demo: bool = False
@@ -43,5 +43,6 @@ class OrganizationOutput(BaseModel):
     name: str
 
 
-class TransferOwnershipRequest(BaseModel):
-    owner_id: UUID
+class CreateCollaborativeOrganization(BaseModel):
+    name: str
+    description: Optional[str] = None

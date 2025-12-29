@@ -61,9 +61,12 @@ Tier = str
 
 class OrganizationRequest(BaseModel):
     name: str
-    description: str
+    description: Optional[str] = None
     #
-    is_personal: bool
+    is_demo: bool = False
+    is_personal: bool = False
+    #
+    owner_id: UUID
 
 
 class WorkspaceRequest(BaseModel):
@@ -195,7 +198,8 @@ async def create_organization(
                 "is_demo": False,
                 "is_personal": request.is_personal,
             },
-            owner="",  # TODO: deprecate and remove
+            owner_id=request.owner_id,
+            created_by_id=request.owner_id,
         )
 
         session.add(organization_db)
