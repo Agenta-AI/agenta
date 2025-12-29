@@ -2,7 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {CaretDown, CaretRight, Copy, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Input, Skeleton, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Input, Skeleton, Tooltip} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -207,6 +207,47 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
     // Empty state columns - shown when user has no data (not loading)
     const emptyStateColumns = useMemo(() => [{key: "__empty", name: "No columns yet"}], [])
 
+    // Handle group column rename - renames all nested columns
+    const handleGroupRename = useCallback(
+        (groupPath: string, newName: string): boolean => {
+            // Get all columns that belong to this group
+            const columnsInGroup = table.columns.filter((col) =>
+                col.key.startsWith(groupPath + "."),
+            )
+
+            if (columnsInGroup.length === 0) return false
+
+            // Rename each nested column
+            let allSucceeded = true
+            columnsInGroup.forEach((col) => {
+                // Replace the group prefix with the new group name
+                const relativePath = col.key.substring(groupPath.length + 1)
+                const newColumnName = `${newName}.${relativePath}`
+                const success = table.renameColumn(col.key, newColumnName)
+                if (!success) allSucceeded = false
+            })
+
+            return allSucceeded
+        },
+        [table],
+    )
+
+    // Handle group column delete - deletes all nested columns
+    const handleGroupDelete = useCallback(
+        (groupPath: string) => {
+            // Get all columns that belong to this group
+            const columnsInGroup = table.columns.filter((col) =>
+                col.key.startsWith(groupPath + "."),
+            )
+
+            // Delete each nested column
+            columnsInGroup.forEach((col) => {
+                table.deleteColumn(col.key)
+            })
+        },
+        [table],
+    )
+
     // Columns definition
     // Use TestcaseCell for entity-aware rendering (reads from entity atoms in global store)
     // Supports grouped columns (e.g., "group.column" renders under "group" header)
@@ -303,12 +344,27 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 key: groupPath,
                 dataIndex: groupPath,
                 title: (
-                    <div
-                        className="flex items-center gap-1 cursor-pointer"
-                        onClick={() => toggleGroupCollapse(groupPath)}
-                    >
-                        <CaretRight size={12} />
-                        <Typography.Text ellipsis>{displayName}</Typography.Text>
+                    <div className="flex items-center gap-1 w-full max-w-full overflow-hidden">
+                        <span
+                            className="flex-shrink-0 cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                e.preventDefault()
+                                toggleGroupCollapse(groupPath)
+                            }}
+                        >
+                            <CaretRight size={12} />
+                        </span>
+                        <div className="flex-1 min-w-0">
+                            <EditableColumnHeader
+                                columnKey={groupPath}
+                                columnName={displayName}
+                                onRename={(oldName, newName) => handleGroupRename(groupPath, newName)} // prettier-ignore
+                                onDelete={() => handleGroupDelete(groupPath)}
+                                disabled={!isEditable}
+                                inlineActionsMinWidth={80}
+                            />
+                        </div>
                     </div>
                 ),
                 width: 200,
@@ -348,7 +404,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             }
         }
 
-        // Render group header with collapse/expand icon
+        // Render group header with collapse/expand icon and editable controls
         // groupPath is the full path (e.g., "current_rfp.event"), display only the last segment
         // Wrapped with ColumnVisibilityHeader for viewport tracking
         const renderGroupHeader = (groupPath: string, isCollapsed: boolean, childCount: number) => {
@@ -358,27 +414,35 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 : groupPath
 
             return (
-                <div
-                    className="flex items-center gap-1 cursor-pointer select-none max-w-full overflow-hidden"
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        e.preventDefault()
-                        toggleGroupCollapse(groupPath)
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
+                <div className="flex items-center gap-1 w-full max-w-full overflow-hidden">
+                    <span
+                        className="flex-shrink-0 cursor-pointer"
+                        onClick={(e) => {
+                            e.stopPropagation()
                             e.preventDefault()
                             toggleGroupCollapse(groupPath)
-                        }
-                    }}
-                    title={groupPath}
-                >
-                    <span className="flex-shrink-0">
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                toggleGroupCollapse(groupPath)
+                            }
+                        }}
+                    >
                         {isCollapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
                     </span>
-                    <span className="truncate min-w-0">{displayName}</span>
+                    <div className="flex-1 min-w-0">
+                        <EditableColumnHeader
+                            columnKey={groupPath}
+                            columnName={displayName}
+                            onRename={(oldName, newName) => handleGroupRename(groupPath, newName)} // prettier-ignore
+                            onDelete={() => handleGroupDelete(groupPath)}
+                            disabled={!isEditable}
+                            inlineActionsMinWidth={80}
+                        />
+                    </div>
                     <span className="text-gray-400 text-xs flex-shrink-0">({childCount})</span>
                 </div>
             )
@@ -503,6 +567,8 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         collapsedGroupsSet,
         toggleGroupCollapse,
         onAddColumn,
+        handleGroupRename,
+        handleGroupDelete,
     ])
 
     // Export configuration
