@@ -33,6 +33,11 @@ def upgrade() -> None:
     - Add updated_by_id (UUID, nullable)
     - Add deleted_at (DateTime, nullable)
     - Add deleted_by_id (UUID, nullable)
+    - Add role field to organization_members (String, default="member")
+    - Populate role='owner' for organization owners
+    - Add LegacyLifecycle fields to organization_members (created_at, updated_at, updated_by_id - all nullable)
+    - Add updated_by_id to workspace_members (nullable)
+    - Add updated_by_id to project_members (nullable)
     - Drop user_organizations table (replaced by organization_members)
     - Drop invitations table (obsolete)
 
@@ -221,14 +226,63 @@ def upgrade() -> None:
     """)
     )
 
+    # Step 10b: Add role column to organization_members
+    op.add_column(
+        "organization_members",
+        sa.Column(
+            "role",
+            sa.String(),
+            nullable=False,
+            server_default="member",
+        ),
+    )
+
+    # Step 10c: Set role='owner' for organization owners based on owner_id
+    conn.execute(
+        text("""
+        UPDATE organization_members om
+        SET role = 'owner'
+        FROM organizations o
+        WHERE om.organization_id = o.id
+        AND om.user_id = o.owner_id
+    """)
+    )
+
+    # Step 10d: Add LegacyLifecycle fields to organization_members
+    op.add_column(
+        "organization_members",
+        sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "organization_members",
+        sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "organization_members",
+        sa.Column("updated_by_id", sa.UUID(), nullable=True),
+    )
+
+    # Step 10e: Add updated_by_id to workspace_members
+    op.add_column(
+        "workspace_members",
+        sa.Column("updated_by_id", sa.UUID(), nullable=True),
+    )
+
+    # Step 10f: Add updated_by_id to project_members
+    op.add_column(
+        "project_members",
+        sa.Column("updated_by_id", sa.UUID(), nullable=True),
+    )
+
     # Step 11: Add users as members to their new personal orgs
     conn.execute(
         text("""
-        INSERT INTO organization_members (id, user_id, organization_id)
+        INSERT INTO organization_members (id, user_id, organization_id, role)
         SELECT
             gen_random_uuid(),
             o.owner_id,
-            o.id
+            o.id,
+            'owner'
         FROM organizations o
         WHERE o.flags->>'is_personal' = 'true'
         AND NOT EXISTS (
@@ -490,6 +544,20 @@ def downgrade() -> None:
         ["organization_id"],
         ["id"],
     )
+
+    # Drop role column from organization_members
+    op.drop_column("organization_members", "role")
+
+    # Drop LegacyLifecycle columns from organization_members
+    op.drop_column("organization_members", "updated_by_id")
+    op.drop_column("organization_members", "updated_at")
+    op.drop_column("organization_members", "created_at")
+
+    # Drop updated_by_id from workspace_members
+    op.drop_column("workspace_members", "updated_by_id")
+
+    # Drop updated_by_id from project_members
+    op.drop_column("project_members", "updated_by_id")
 
     # Drop new columns
     op.drop_column("organizations", "deleted_by_id")

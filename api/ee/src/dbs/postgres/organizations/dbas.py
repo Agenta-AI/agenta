@@ -1,5 +1,5 @@
 import uuid_utils.compat as uuid
-from sqlalchemy import Column, String, UUID, Boolean, ARRAY
+from sqlalchemy import Column, String, UUID
 from sqlalchemy.dialects.postgresql import JSONB
 
 from oss.src.dbs.postgres.shared.dbas import (
@@ -7,43 +7,6 @@ from oss.src.dbs.postgres.shared.dbas import (
     HeaderDBA,
     OrganizationScopeDBA,
 )
-
-
-class OrganizationPolicyDBA(OrganizationScopeDBA, LegacyLifecycleDBA):
-    __abstract__ = True
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    allowed_methods = Column(
-        ARRAY(String),
-        nullable=False,
-        server_default="{}",
-    )
-    invitation_only = Column(
-        Boolean,
-        nullable=False,
-        server_default="true",
-    )
-    domains_only = Column(
-        Boolean,
-        nullable=False,
-        server_default="false",
-    )
-    auto_join = Column(
-        Boolean,
-        nullable=False,
-        server_default="false",
-    )  # Auto-join users with verified domain emails
-    disable_root = Column(
-        Boolean,
-        nullable=False,
-        server_default="false",
-    )
 
 
 class OrganizationDomainDBA(OrganizationScopeDBA, LegacyLifecycleDBA):
@@ -56,17 +19,32 @@ class OrganizationDomainDBA(OrganizationScopeDBA, LegacyLifecycleDBA):
         unique=True,
         nullable=False,
     )
-    domain = Column(
+    slug = Column(
         String,
         nullable=False,
     )
-    verified = Column(
-        Boolean,
-        nullable=False,
-        server_default="false",
-    )
-    verification_token = Column(
+    name = Column(
         String,
+        nullable=False,
+    )
+    description = Column(
+        String,
+        nullable=True,
+    )
+    token = Column(
+        String,
+        nullable=True,
+    )
+    flags = Column(
+        JSONB(none_as_null=True),
+        nullable=True,
+    )
+    tags = Column(
+        JSONB(none_as_null=True),
+        nullable=True,
+    )
+    meta = Column(
+        JSONB(none_as_null=True),
         nullable=True,
     )
 
@@ -85,18 +63,21 @@ class OrganizationProviderDBA(OrganizationScopeDBA, HeaderDBA, LegacyLifecycleDB
         String,
         nullable=False,
     )
-    enabled = Column(
-        Boolean,
-        nullable=False,
-        server_default="true",
-    )
-    domain_id = Column(
-        UUID(as_uuid=True),
-        nullable=True,
-    )
-    config = Column(
+    settings = Column(
         JSONB(none_as_null=True),
         nullable=False,
+    )
+    flags = Column(
+        JSONB(none_as_null=True),
+        nullable=True,
+    )
+    tags = Column(
+        JSONB(none_as_null=True),
+        nullable=True,
+    )
+    meta = Column(
+        JSONB(none_as_null=True),
+        nullable=True,
     )
 
 

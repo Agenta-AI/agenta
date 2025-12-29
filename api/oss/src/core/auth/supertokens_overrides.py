@@ -179,6 +179,7 @@ def override_thirdparty_functions(
                         method=method,
                         subject=third_party_user_id,
                         domain=domain,
+                        created_by_id=UUID(result.user.id),
                     )
                 )
         except Exception as e:
@@ -320,6 +321,7 @@ def override_passwordless_functions(
                         method=method,
                         subject=email,
                         domain=domain,
+                        created_by_id=UUID(user_id_str),
                     )
                 )
         except Exception as e:

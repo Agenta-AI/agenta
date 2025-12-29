@@ -2,33 +2,11 @@
 
 Get started testing in 5 minutes!
 
-## 1️⃣ Run Migrations (1 minute)
+## 1️⃣ Start Services (1 minute)
 
-```bash
-cd vibes/api
-alembic -c ee/databases/postgres/alembic.ini upgrade head
-```
+Nothing to see, here.
 
-**Verify:**
-```bash
-psql <connection-string> -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'user_identities')"
-# Expected: t (true)
-```
-
-## 2️⃣ Start Services (1 minute)
-
-```bash
-# Terminal 1: SuperTokens
-docker run -p 3567:3567 registry.supertokens.io/supertokens/supertokens-postgresql
-
-# Terminal 2: Backend
-cd vibes/api
-export AGENTA_LICENSE=oss  # or 'ee' for full features
-export SUPERTOKENS_URI_CORE=http://localhost:3567
-uvicorn main:app --reload
-```
-
-## 3️⃣ Test Discovery (30 seconds)
+## 2️⃣ Test Discovery (30 seconds)
 
 ```bash
 curl -X POST http://localhost:8000/auth/discover \
@@ -51,7 +29,7 @@ curl -X POST http://localhost:8000/auth/discover \
 }
 ```
 
-## 4️⃣ Test OTP Flow (2 minutes)
+## 3️⃣ Test OTP Flow (2 minutes)
 
 1. Open browser: `http://localhost:8000/auth`
 2. Enter email and click "Send OTP"
@@ -65,7 +43,7 @@ SELECT * FROM user_identities WHERE method = 'email:otp' ORDER BY created_at DES
 
 **Expected:** New row with your email as subject
 
-## 5️⃣ Verify Session (30 seconds)
+## 4️⃣ Verify Session (30 seconds)
 
 After login, check session cookie contains identities:
 

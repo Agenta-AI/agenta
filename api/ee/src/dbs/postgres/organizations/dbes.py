@@ -6,27 +6,10 @@ from sqlalchemy import (
 
 from oss.src.dbs.postgres.shared.base import Base
 from ee.src.dbs.postgres.organizations.dbas import (
-    OrganizationPolicyDBA,
     OrganizationDomainDBA,
     OrganizationProviderDBA,
     OrganizationInvitationDBA,
 )
-
-
-class OrganizationPolicyDBE(Base, OrganizationPolicyDBA):
-    __tablename__ = "organization_policies"
-
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["organization_id"],
-            ["organizations.id"],
-            ondelete="CASCADE",
-        ),
-        UniqueConstraint(
-            "organization_id",
-            name="uq_organization_policies_org",
-        ),
-    )
 
 
 class OrganizationDomainDBE(Base, OrganizationDomainDBA):
@@ -39,13 +22,17 @@ class OrganizationDomainDBE(Base, OrganizationDomainDBA):
             ondelete="CASCADE",
         ),
         UniqueConstraint(
-            "domain",
-            name="uq_organization_domains_domain",
+            "slug",
+            name="uq_organization_domains_slug",
         ),
         Index(
-            "ix_organization_domains_org_verified",
+            "ix_organization_domains_org",
             "organization_id",
-            "verified",
+        ),
+        Index(
+            "ix_organization_domains_flags",
+            "flags",
+            postgresql_using="gin",
         ),
     )
 
@@ -59,20 +46,19 @@ class OrganizationProviderDBE(Base, OrganizationProviderDBA):
             ["organizations.id"],
             ondelete="CASCADE",
         ),
-        ForeignKeyConstraint(
-            ["domain_id"],
-            ["organization_domains.id"],
-            ondelete="SET NULL",
-        ),
         UniqueConstraint(
             "organization_id",
             "slug",
             name="uq_organization_providers_org_slug",
         ),
         Index(
-            "ix_organization_providers_org_enabled",
+            "ix_organization_providers_org",
             "organization_id",
-            "enabled",
+        ),
+        Index(
+            "ix_organization_providers_flags",
+            "flags",
+            postgresql_using="gin",
         ),
     )
 

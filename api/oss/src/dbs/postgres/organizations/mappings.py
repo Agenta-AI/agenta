@@ -1,7 +1,4 @@
 from ee.src.core.organizations.types import (
-    OrganizationPolicy,
-    OrganizationPolicyCreate,
-    OrganizationPolicyUpdate,
     OrganizationDomain,
     OrganizationDomainCreate,
     OrganizationProvider,
@@ -11,50 +8,10 @@ from ee.src.core.organizations.types import (
     OrganizationInvitationCreate,
 )
 from oss.src.dbs.postgres.organizations.dbes import (
-    OrganizationPolicyDBE,
     OrganizationDomainDBE,
     OrganizationProviderDBE,
     OrganizationInvitationDBE,
 )
-
-
-# Policy mappings
-def map_policy_dbe_to_dto(dbe: OrganizationPolicyDBE) -> OrganizationPolicy:
-    return OrganizationPolicy(
-        id=dbe.id,
-        organization_id=dbe.organization_id,
-        allowed_methods=dbe.allowed_methods,
-        invitation_only=dbe.invitation_only,
-        domains_only=dbe.domains_only,
-        disable_root=dbe.disable_root,
-        created_at=dbe.created_at,
-        updated_at=dbe.updated_at,
-    )
-
-
-def map_create_policy_dto_to_dbe(
-    dto: OrganizationPolicyCreate,
-) -> OrganizationPolicyDBE:
-    return OrganizationPolicyDBE(
-        organization_id=dto.organization_id,
-        allowed_methods=dto.allowed_methods,
-        invitation_only=dto.invitation_only,
-        domains_only=dto.domains_only,
-        disable_root=dto.disable_root,
-    )
-
-
-def map_update_policy_dto_to_dbe(
-    dbe: OrganizationPolicyDBE, dto: OrganizationPolicyUpdate
-) -> None:
-    if dto.allowed_methods is not None:
-        dbe.allowed_methods = dto.allowed_methods
-    if dto.invitation_only is not None:
-        dbe.invitation_only = dto.invitation_only
-    if dto.domains_only is not None:
-        dbe.domains_only = dto.domains_only
-    if dto.disable_root is not None:
-        dbe.disable_root = dto.disable_root
 
 
 # Domain mappings
@@ -62,9 +19,13 @@ def map_domain_dbe_to_dto(dbe: OrganizationDomainDBE) -> OrganizationDomain:
     return OrganizationDomain(
         id=dbe.id,
         organization_id=dbe.organization_id,
-        domain=dbe.domain,
-        verified=dbe.verified,
-        verification_token=dbe.verification_token,
+        slug=dbe.slug,
+        name=dbe.name,
+        description=dbe.description,
+        token=dbe.token,
+        flags=dbe.flags,
+        tags=dbe.tags,
+        meta=dbe.meta,
         created_at=dbe.created_at,
         updated_at=dbe.updated_at,
     )
@@ -75,9 +36,13 @@ def map_create_domain_dto_to_dbe(
 ) -> OrganizationDomainDBE:
     return OrganizationDomainDBE(
         organization_id=dto.organization_id,
-        domain=dto.domain,
-        verification_token=dto.verification_token,
-        verified=False,
+        slug=dto.slug,
+        name=dto.name,
+        description=dto.description,
+        token=dto.token,
+        flags=dto.flags,
+        tags=dto.tags,
+        meta=dto.meta,
     )
 
 
@@ -89,9 +54,10 @@ def map_provider_dbe_to_dto(dbe: OrganizationProviderDBE) -> OrganizationProvide
         slug=dbe.slug,
         name=dbe.name,
         description=dbe.description,
-        enabled=dbe.enabled,
-        domain_id=dbe.domain_id,
-        config=dbe.config,
+        settings=dbe.settings,
+        flags=dbe.flags,
+        tags=dbe.tags,
+        meta=dbe.meta,
         created_at=dbe.created_at,
         updated_at=dbe.updated_at,
     )
@@ -105,9 +71,10 @@ def map_create_provider_dto_to_dbe(
         slug=dto.slug,
         name=dto.name,
         description=dto.description,
-        enabled=dto.enabled,
-        domain_id=dto.domain_id,
-        config=dto.config,
+        settings=dto.settings,
+        flags=dto.flags,
+        tags=dto.tags,
+        meta=dto.meta,
     )
 
 
@@ -118,12 +85,14 @@ def map_update_provider_dto_to_dbe(
         dbe.name = dto.name
     if dto.description is not None:
         dbe.description = dto.description
-    if dto.enabled is not None:
-        dbe.enabled = dto.enabled
-    if dto.domain_id is not None:
-        dbe.domain_id = dto.domain_id
-    if dto.config is not None:
-        dbe.config = dto.config
+    if dto.settings is not None:
+        dbe.settings = dto.settings
+    if dto.flags is not None:
+        dbe.flags = dto.flags
+    if dto.tags is not None:
+        dbe.tags = dto.tags
+    if dto.meta is not None:
+        dbe.meta = dto.meta
 
 
 # Invitation mappings

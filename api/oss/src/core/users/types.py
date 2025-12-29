@@ -11,9 +11,13 @@ class UserIdentity(BaseModel):
     user_id: UUID
     method: MethodKind
     subject: str
-    domain: Optional[str]
+    domain: Optional[str] = None
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None
+    created_by_id: UUID
+    updated_by_id: Optional[UUID] = None
+    deleted_by_id: Optional[UUID] = None
 
     class Config:
         from_attributes = True
@@ -24,3 +28,4 @@ class UserIdentityCreate(BaseModel):
     method: MethodKind
     subject: str
     domain: Optional[str] = None
+    created_by_id: UUID

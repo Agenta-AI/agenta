@@ -1,41 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-
-
-# ============================================================================
-# ORGANIZATION POLICIES
-# ============================================================================
-
-
-class OrganizationPolicy(BaseModel):
-    id: UUID
-    organization_id: UUID
-    allowed_methods: List[str]
-    invitation_only: bool
-    domains_only: bool
-    disable_root: bool
-    created_at: datetime
-    updated_at: Optional[datetime]
-
-    class Config:
-        from_attributes = True
-
-
-class OrganizationPolicyCreate(BaseModel):
-    organization_id: UUID
-    allowed_methods: List[str] = ["email:otp", "social:*"]
-    invitation_only: bool = True
-    domains_only: bool = False
-    disable_root: bool = False
-
-
-class OrganizationPolicyUpdate(BaseModel):
-    allowed_methods: Optional[List[str]] = None
-    invitation_only: Optional[bool] = None
-    domains_only: Optional[bool] = None
-    disable_root: Optional[bool] = None
+from typing import Optional, Dict, Any
 
 
 # ============================================================================
@@ -46,11 +12,15 @@ class OrganizationPolicyUpdate(BaseModel):
 class OrganizationDomain(BaseModel):
     id: UUID
     organization_id: UUID
-    domain: str
-    verified: bool
-    verification_token: Optional[str]
+    slug: str
+    name: str
+    description: Optional[str] = None
+    token: Optional[str] = None
+    flags: Optional[Dict[str, Any]] = None
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -58,8 +28,13 @@ class OrganizationDomain(BaseModel):
 
 class OrganizationDomainCreate(BaseModel):
     organization_id: UUID
-    domain: str
-    verification_token: Optional[str] = None
+    slug: str
+    name: str
+    description: Optional[str] = None
+    token: Optional[str] = None
+    flags: Optional[Dict[str, Any]] = None
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
 
 
 # ============================================================================
@@ -72,12 +47,13 @@ class OrganizationProvider(BaseModel):
     organization_id: UUID
     slug: str
     name: str
-    description: Optional[str]
-    enabled: bool
-    domain_id: Optional[UUID]
-    config: Dict[str, Any]
+    description: Optional[str] = None
+    settings: Dict[str, Any]
+    flags: Optional[Dict[str, Any]] = None
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -88,17 +64,19 @@ class OrganizationProviderCreate(BaseModel):
     slug: str
     name: str
     description: Optional[str] = None
-    enabled: bool = True
-    domain_id: Optional[UUID] = None
-    config: Dict[str, Any]
+    settings: Dict[str, Any]
+    flags: Optional[Dict[str, Any]] = None
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
 
 
 class OrganizationProviderUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    enabled: Optional[bool] = None
-    domain_id: Optional[UUID] = None
-    config: Optional[Dict[str, Any]] = None
+    settings: Optional[Dict[str, Any]] = None
+    flags: Optional[Dict[str, Any]] = None
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
 
 
 # ============================================================================

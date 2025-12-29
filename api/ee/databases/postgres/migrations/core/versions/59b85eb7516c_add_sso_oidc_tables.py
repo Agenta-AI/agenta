@@ -59,6 +59,26 @@ def upgrade() -> None:
             sa.TIMESTAMP(timezone=True),
             nullable=True,
         ),
+        sa.Column(
+            "deleted_at",
+            sa.TIMESTAMP(timezone=True),
+            nullable=True,
+        ),
+        sa.Column(
+            "created_by_id",
+            sa.UUID(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_by_id",
+            sa.UUID(),
+            nullable=True,
+        ),
+        sa.Column(
+            "deleted_by_id",
+            sa.UUID(),
+            nullable=True,
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(
             ["user_id"],
@@ -81,93 +101,7 @@ def upgrade() -> None:
         ),
     )
 
-    # 2. organization_policies table
-    op.create_table(
-        "organization_policies",
-        sa.Column(
-            "id",
-            sa.UUID(),
-            nullable=False,
-        ),
-        sa.Column(
-            "organization_id",
-            sa.UUID(),
-            nullable=False,
-        ),
-        sa.Column(
-            "allowed_methods",
-            postgresql.ARRAY(sa.String()),
-            nullable=False,
-            server_default="{}",
-        ),
-        sa.Column(
-            "invitation_only",
-            sa.Boolean(),
-            nullable=False,
-            server_default="true",
-        ),
-        sa.Column(
-            "domains_only",
-            sa.Boolean(),
-            nullable=False,
-            server_default="false",
-        ),
-        sa.Column(
-            "auto_join",
-            sa.Boolean(),
-            nullable=False,
-            server_default="false",
-        ),
-        sa.Column(
-            "disable_root",
-            sa.Boolean(),
-            nullable=False,
-            server_default="false",
-        ),
-        sa.Column(
-            "created_at",
-            sa.TIMESTAMP(timezone=True),
-            server_default=sa.text("CURRENT_TIMESTAMP"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.TIMESTAMP(timezone=True),
-            nullable=True,
-        ),
-        sa.Column(
-            "deleted_at",
-            sa.TIMESTAMP(timezone=True),
-            nullable=True,
-        ),
-        sa.Column(
-            "created_by_id",
-            sa.UUID(),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_by_id",
-            sa.UUID(),
-            nullable=True,
-        ),
-        sa.Column(
-            "deleted_by_id",
-            sa.UUID(),
-            nullable=True,
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.ForeignKeyConstraint(
-            ["organization_id"],
-            ["organizations.id"],
-            ondelete="CASCADE",
-        ),
-        sa.UniqueConstraint(
-            "organization_id",
-            name="uq_organization_policies_org",
-        ),
-    )
-
-    # 3. organization_domains table
+    # 2. organization_domains table
     op.create_table(
         "organization_domains",
         sa.Column(
@@ -181,19 +115,38 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column(
-            "domain",
+            "slug",
             sa.String(),
             nullable=False,
         ),
         sa.Column(
-            "verified",
-            sa.Boolean(),
+            "name",
+            sa.String(),
             nullable=False,
-            server_default="false",
         ),
         sa.Column(
-            "verification_token",
+            "description",
             sa.String(),
+            nullable=True,
+        ),
+        sa.Column(
+            "token",
+            sa.String(),
+            nullable=True,
+        ),
+        sa.Column(
+            "flags",
+            postgresql.JSONB(none_as_null=True),
+            nullable=True,
+        ),
+        sa.Column(
+            "tags",
+            postgresql.JSONB(none_as_null=True),
+            nullable=True,
+        ),
+        sa.Column(
+            "meta",
+            postgresql.JSONB(none_as_null=True),
             nullable=True,
         ),
         sa.Column(
@@ -234,17 +187,21 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.UniqueConstraint(
-            "domain",
-            name="uq_organization_domains_domain",
+            "slug",
+            name="uq_organization_domains_slug",
         ),
         sa.Index(
-            "ix_organization_domains_org_verified",
+            "ix_organization_domains_org",
             "organization_id",
-            "verified",
+        ),
+        sa.Index(
+            "ix_organization_domains_flags",
+            "flags",
+            postgresql_using="gin",
         ),
     )
 
-    # 4. organization_providers table
+    # 3. organization_providers table
     op.create_table(
         "organization_providers",
         sa.Column(
@@ -273,20 +230,24 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.Column(
-            "enabled",
-            sa.Boolean(),
+            "settings",
+            postgresql.JSONB(none_as_null=True, astext_type=sa.Text()),
             nullable=False,
-            server_default="true",
         ),
         sa.Column(
-            "domain_id",
-            sa.UUID(),
+            "flags",
+            postgresql.JSONB(none_as_null=True),
             nullable=True,
         ),
         sa.Column(
-            "config",
-            postgresql.JSONB(none_as_null=True, astext_type=sa.Text()),
-            nullable=False,
+            "tags",
+            postgresql.JSONB(none_as_null=True),
+            nullable=True,
+        ),
+        sa.Column(
+            "meta",
+            postgresql.JSONB(none_as_null=True),
+            nullable=True,
         ),
         sa.Column(
             "created_at",
@@ -325,24 +286,23 @@ def upgrade() -> None:
             ["organizations.id"],
             ondelete="CASCADE",
         ),
-        sa.ForeignKeyConstraint(
-            ["domain_id"],
-            ["organization_domains.id"],
-            ondelete="SET NULL",
-        ),
         sa.UniqueConstraint(
             "organization_id",
             "slug",
             name="uq_organization_providers_org_slug",
         ),
         sa.Index(
-            "ix_organization_providers_org_enabled",
+            "ix_organization_providers_org",
             "organization_id",
-            "enabled",
+        ),
+        sa.Index(
+            "ix_organization_providers_flags",
+            "flags",
+            postgresql_using="gin",
         ),
     )
 
-    # 5. organization_invitations table
+    # 4. organization_invitations table
     op.create_table(
         "organization_invitations",
         sa.Column(
@@ -430,7 +390,7 @@ def upgrade() -> None:
         ),
     )
 
-    # 6. Add is_active to users table
+    # 5. Add is_active to users table
     op.add_column(
         "users",
         sa.Column(
@@ -453,18 +413,24 @@ def downgrade() -> None:
     op.drop_table("organization_invitations")
 
     op.drop_index(
-        "ix_organization_providers_org_enabled",
+        "ix_organization_providers_flags",
+        table_name="organization_providers",
+    )
+    op.drop_index(
+        "ix_organization_providers_org",
         table_name="organization_providers",
     )
     op.drop_table("organization_providers")
 
     op.drop_index(
-        "ix_organization_domains_org_verified",
+        "ix_organization_domains_flags",
+        table_name="organization_domains",
+    )
+    op.drop_index(
+        "ix_organization_domains_org",
         table_name="organization_domains",
     )
     op.drop_table("organization_domains")
-
-    op.drop_table("organization_policies")
 
     op.drop_index(
         "ix_user_identities_domain",

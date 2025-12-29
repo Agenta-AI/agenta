@@ -2,52 +2,6 @@
 
 This directory contains `.http` files for manually testing the SSO/OIDC authentication implementation.
 
-## 📋 Prerequisites
-
-### 1. Database Setup
-```bash
-# Run migrations
-cd vibes/api
-alembic -c ee/databases/postgres/alembic.ini upgrade head
-
-# Verify migrations applied
-psql <connection-string> -c "\d user_identities"
-psql <connection-string> -c "\d organizations" | grep slug
-```
-
-### 2. Backend Configuration
-
-#### OSS Mode (Email OTP + Social only)
-```bash
-export AGENTA_LICENSE=oss
-export SUPERTOKENS_URI_CORE=http://localhost:3567
-export AGENTA_API_URL=http://localhost:8000
-export AGENTA_WEB_URL=http://localhost:3000
-
-# Optional: Enable social providers
-export AUTH_GOOGLE_ENABLED=true
-export AUTH_GOOGLE_OAUTH_CLIENT_ID=<your-google-client-id>
-export AUTH_GOOGLE_OAUTH_CLIENT_SECRET=<your-google-secret>
-```
-
-#### EE Mode (All features including SSO)
-```bash
-export AGENTA_LICENSE=ee
-export SUPERTOKENS_URI_CORE=http://localhost:3567
-# ... other env vars ...
-```
-
-### 3. Start Services
-
-```bash
-# Terminal 1: Start SuperTokens Core
-docker run -p 3567:3567 registry.supertokens.io/supertokens/supertokens-postgresql
-
-# Terminal 2: Start Backend
-cd vibes/api
-uvicorn main:app --reload --port 8000
-```
-
 ## 🧪 Test Execution Order
 
 ### Phase 1: Setup & Verification
@@ -101,7 +55,7 @@ uvicorn main:app --reload --port 8000
 
 ## 🔧 Using the .http Files
 
-### Option 1: VS Code REST Client Extension
+### Option 1: VS Code REST Client
 1. Install "REST Client" extension by Huachao Mao
 2. Open any `.http` file
 3. Click "Send Request" above each test
@@ -185,31 +139,7 @@ curl -X POST http://localhost:8000/auth/discover \
 - `organization_domains` table exists and populated
 - Check constraint on `organizations.kind` is in place
 
-## 📝 Test Data Cleanup
-
-After testing, clean up test data:
-
-```sql
--- Run the cleanup queries from 00-setup-verification.http
-DELETE FROM organization_members WHERE user_id = '<test-user-id>';
-DELETE FROM organization_providers WHERE organization_id = '<test-org-id>';
-DELETE FROM organization_domains WHERE organization_id = '<test-org-id>';
-DELETE FROM organization_policies WHERE organization_id = '<test-org-id>';
-DELETE FROM user_identities WHERE user_id = '<test-user-id>';
-DELETE FROM users WHERE id = '<test-user-id>';
-DELETE FROM organizations WHERE id = '<test-org-id>';
-```
-
 ## 🔍 Debugging Tips
-
-### Enable Debug Logging
-```bash
-# Backend logs
-export LOG_LEVEL=DEBUG
-
-# SuperTokens debug
-export SUPERTOKENS_DEBUG=true
-```
 
 ### Inspect Database State
 ```sql
@@ -245,13 +175,6 @@ curl http://localhost:3567/hello
 curl http://localhost:3567/users?limit=10
 ```
 
-## 📚 Related Documentation
-
-- Architecture specs: `../../../../../../../sandbox/architecture/auth.*.specs.md`
-- Migration files: `../../../databases/postgres/migrations/core/versions/`
-- SuperTokens docs: https://supertokens.com/docs
-- OIDC spec: https://openid.net/specs/openid-connect-core-1_0.html
-
 ## ✅ Test Coverage
 
 These manual tests cover:
@@ -273,12 +196,3 @@ These manual tests cover:
 - ✅ Domain exclusivity enforcement (one domain per org)
 - ✅ Auto-join policy configuration
 - ✅ Auto-join behavior with verified domains
-
-## 🚀 Next Steps
-
-After manual testing passes:
-1. Create automated integration tests
-2. Add frontend components for auth flows
-3. Set up E2E tests with Playwright
-4. Performance test with multiple concurrent SSO flows
-5. Security audit of OIDC implementation

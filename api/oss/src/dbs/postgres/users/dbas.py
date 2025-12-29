@@ -1,10 +1,10 @@
 import uuid_utils.compat as uuid
 from sqlalchemy import Column, String, UUID
 
-from oss.src.dbs.postgres.shared.dbas import LegacyLifecycleDBA
+from oss.src.dbs.postgres.shared.dbas import LifecycleDBA
 
 
-class UserIdentityDBA(LegacyLifecycleDBA):
+class UserIdentityDBA(LifecycleDBA):
     __abstract__ = True
 
     id = Column(

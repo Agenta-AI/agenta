@@ -4,15 +4,11 @@ from sqlalchemy import select
 
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.organizations.dbes import (
-    OrganizationPolicyDBE,
     OrganizationDomainDBE,
     OrganizationProviderDBE,
     OrganizationInvitationDBE,
 )
 from oss.src.dbs.postgres.organizations.mappings import (
-    map_policy_dbe_to_dto,
-    map_create_policy_dto_to_dbe,
-    map_update_policy_dto_to_dbe,
     map_domain_dbe_to_dto,
     map_create_domain_dto_to_dbe,
     map_provider_dbe_to_dto,
@@ -22,9 +18,6 @@ from oss.src.dbs.postgres.organizations.mappings import (
     map_create_invitation_dto_to_dbe,
 )
 from ee.src.core.organizations.types import (
-    OrganizationPolicy,
-    OrganizationPolicyCreate,
-    OrganizationPolicyUpdate,
     OrganizationDomain,
     OrganizationDomainCreate,
     OrganizationProvider,
@@ -33,54 +26,6 @@ from ee.src.core.organizations.types import (
     OrganizationInvitation,
     OrganizationInvitationCreate,
 )
-
-
-class OrganizationPoliciesDAO:
-    async def create(self, dto: OrganizationPolicyCreate) -> OrganizationPolicy:
-        policy_dbe = map_create_policy_dto_to_dbe(dto)
-
-        async with engine.core_session() as session:
-            session.add(policy_dbe)
-            await session.commit()
-            await session.refresh(policy_dbe)
-
-        return map_policy_dbe_to_dto(policy_dbe)
-
-    async def get_by_organization(
-        self, organization_id: UUID
-    ) -> Optional[OrganizationPolicy]:
-        async with engine.core_session() as session:
-            stmt = select(OrganizationPolicyDBE).filter_by(
-                organization_id=organization_id
-            )
-            result = await session.execute(stmt)
-            policy_dbe = result.scalar()
-
-            if policy_dbe is None:
-                return None
-
-            return map_policy_dbe_to_dto(policy_dbe)
-
-    async def update(
-        self,
-        organization_id: UUID,
-        dto: OrganizationPolicyUpdate,
-    ) -> Optional[OrganizationPolicy]:
-        async with engine.core_session() as session:
-            stmt = select(OrganizationPolicyDBE).filter_by(
-                organization_id=organization_id
-            )
-            result = await session.execute(stmt)
-            policy_dbe = result.scalar()
-
-            if policy_dbe is None:
-                return None
-
-            map_update_policy_dto_to_dbe(policy_dbe, dto)
-            await session.commit()
-            await session.refresh(policy_dbe)
-
-            return map_policy_dbe_to_dto(policy_dbe)
 
 
 class OrganizationDomainsDAO:
@@ -105,9 +50,9 @@ class OrganizationDomainsDAO:
 
             return map_domain_dbe_to_dto(domain_dbe)
 
-    async def get_by_domain(self, domain: str) -> Optional[OrganizationDomain]:
+    async def get_by_slug(self, slug: str) -> Optional[OrganizationDomain]:
         async with engine.core_session() as session:
-            stmt = select(OrganizationDomainDBE).filter_by(domain=domain)
+            stmt = select(OrganizationDomainDBE).filter_by(slug=slug)
             result = await session.execute(stmt)
             domain_dbe = result.scalar()
 
@@ -124,7 +69,12 @@ class OrganizationDomainsDAO:
                 organization_id=organization_id
             )
             if verified_only:
-                stmt = stmt.filter_by(verified=True)
+                from sqlalchemy import and_
+                stmt = stmt.filter(
+                    and_(
+                        OrganizationDomainDBE.flags['is_verified'].astext.cast(sqlalchemy.Boolean) == True
+                    )
+                )
 
             result = await session.execute(stmt)
             domain_dbes = result.scalars().all()
@@ -133,6 +83,7 @@ class OrganizationDomainsDAO:
 
     async def mark_verified(self, domain_id: UUID) -> Optional[OrganizationDomain]:
         from oss.src.models.db_models import OrganizationDB
+        import sqlalchemy
 
         async with engine.core_session() as session:
             stmt = select(OrganizationDomainDBE).filter_by(id=domain_id)
@@ -159,21 +110,26 @@ class OrganizationDomainsDAO:
                 )
 
             # Check if any OTHER organization has already verified this domain
+            from sqlalchemy import and_
             existing_verified = select(OrganizationDomainDBE).filter(
-                OrganizationDomainDBE.domain == domain_dbe.domain,
-                OrganizationDomainDBE.verified == True,
-                OrganizationDomainDBE.organization_id != domain_dbe.organization_id,
+                and_(
+                    OrganizationDomainDBE.slug == domain_dbe.slug,
+                    OrganizationDomainDBE.flags['is_verified'].astext.cast(sqlalchemy.Boolean) == True,
+                    OrganizationDomainDBE.organization_id != domain_dbe.organization_id,
+                )
             )
             existing_result = await session.execute(existing_verified)
             conflicting_domain = existing_result.scalar()
 
             if conflicting_domain:
                 raise ValueError(
-                    f"Domain '{domain_dbe.domain}' is already verified by another organization. "
+                    f"Domain '{domain_dbe.slug}' is already verified by another organization. "
                     "Each domain can only be verified by one organization at a time."
                 )
 
-            domain_dbe.verified = True
+            # Set is_verified flag
+            domain_dbe.flags = domain_dbe.flags or {}
+            domain_dbe.flags['is_verified'] = True
             await session.commit()
             await session.refresh(domain_dbe)
 

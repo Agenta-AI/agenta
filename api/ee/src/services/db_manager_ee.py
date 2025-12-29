@@ -995,7 +995,9 @@ async def create_organization(
 
         # create joined organization for user
         user_organization = OrganizationMemberDB(
-            user_id=user.id, organization_id=organization_db.id
+            user_id=user.id,
+            organization_id=organization_db.id,
+            role="owner",
         )
         session.add(user_organization)
 
@@ -1003,6 +1005,7 @@ async def create_organization(
             "[scopes] organization membership created",
             organization_id=organization_db.id,
             user_id=user.id,
+            role="owner",
             membership_id=user_organization.id,
         )
 
@@ -1406,12 +1409,14 @@ async def get_all_workspace_roles() -> List[WorkspaceRole]:
 async def add_user_to_organization(
     organization_id: str,
     user_id: str,
+    role: str = "member",
     # is_demo: bool = False,
 ) -> None:
     async with engine.core_session() as session:
         organization_member = OrganizationMemberDB(
             user_id=user_id,
             organization_id=organization_id,
+            role=role,
         )
 
         session.add(organization_member)
@@ -1420,6 +1425,7 @@ async def add_user_to_organization(
             "[scopes] organization membership created",
             organization_id=organization_id,
             user_id=user_id,
+            role=role,
             membership_id=organization_member.id,
         )
 
@@ -1536,6 +1542,34 @@ async def transfer_organization_ownership(
         member = member_result.scalars().first()
         if not member:
             raise ValueError("The new owner must be a member of the organization")
+
+        # Swap organization roles between current owner and new owner
+        current_owner_org_member_result = await session.execute(
+            select(OrganizationMemberDB).filter_by(
+                user_id=uuid.UUID(current_user_id),
+                organization_id=uuid.UUID(organization_id),
+            )
+        )
+        current_owner_org_member = current_owner_org_member_result.scalars().first()
+
+        if current_owner_org_member:
+            # Swap org roles
+            current_owner_org_old_role = current_owner_org_member.role
+            new_owner_org_old_role = member.role
+
+            current_owner_org_member.role = new_owner_org_old_role
+            member.role = current_owner_org_old_role
+
+            log.info(
+                "[organization] roles swapped",
+                organization_id=organization_id,
+                current_owner_id=current_user_id,
+                current_owner_old_role=current_owner_org_old_role,
+                current_owner_new_role=new_owner_org_old_role,
+                new_owner_id=new_owner_id,
+                new_owner_old_role=new_owner_org_old_role,
+                new_owner_new_role=current_owner_org_old_role,
+            )
 
         # Get all workspaces in this organization
         workspaces_result = await session.execute(
