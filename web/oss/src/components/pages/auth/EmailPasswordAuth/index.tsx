@@ -70,7 +70,7 @@ const EmailPasswordAuth = ({
             >
                 <Form.Item
                     name="email"
-                    label="Email"
+                    // label="Email"
                     className="[&_.ant-form-item-required]:before:!hidden [&_.ant-form-item-required]:font-medium w-full mb-0 flex flex-col gap-1"
                     rules={[{required: true, message: "Please add your email!"}]}
                 >
@@ -85,7 +85,7 @@ const EmailPasswordAuth = ({
                 </Form.Item>
                 <Form.Item
                     name="password"
-                    label="Password"
+                    // label="Password"
                     className="[&_.ant-form-item-required]:before:!hidden [&_.ant-form-item-required]:font-medium w-full mb-0 flex flex-col gap-1"
                     rules={[{required: true, message: "Please add your password!"}]}
                 >
