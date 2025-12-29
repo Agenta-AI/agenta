@@ -430,16 +430,23 @@ function isArrayValue(value: unknown): boolean {
  * @param prefix - Current path prefix (e.g., "event" or "event.location")
  * @param objectSubKeys - Map to populate with results
  * @param currentDepth - Current recursion depth
+ * @param deletedCols - Set of deleted column keys (to filter out deleted paths)
  */
 function collectObjectSubKeysRecursive(
     obj: Record<string, unknown>,
     prefix: string,
     objectSubKeys: Map<string, Set<string>>,
     currentDepth: number,
+    deletedCols: Set<string>,
 ): void {
     if (currentDepth >= MAX_COLUMN_DEPTH) return
 
     Object.entries(obj).forEach(([subKey, subValue]) => {
+        const fullPath = prefix ? `${prefix}.${subKey}` : subKey
+
+        // Skip if this path is marked as deleted
+        if (deletedCols.has(fullPath)) return
+
         // Skip array values entirely - they should be displayed as JSON, not expanded
         if (isArrayValue(subValue)) {
             // Add the key but don't recurse into it
@@ -449,8 +456,6 @@ function collectObjectSubKeysRecursive(
             return
         }
 
-        const fullPath = prefix ? `${prefix}.${subKey}` : subKey
-
         // Add this subKey to the parent's set
         const parentSubKeys = objectSubKeys.get(prefix) || new Set<string>()
         parentSubKeys.add(subKey)
@@ -459,7 +464,7 @@ function collectObjectSubKeysRecursive(
         // If this value is also an object (not array), recurse
         const nestedObj = tryParseAsObject(subValue)
         if (nestedObj && Object.keys(nestedObj).length > 0) {
-            collectObjectSubKeysRecursive(nestedObj, fullPath, objectSubKeys, currentDepth + 1)
+            collectObjectSubKeysRecursive(nestedObj, fullPath, objectSubKeys, currentDepth + 1, deletedCols)
         }
     })
 }
@@ -494,7 +499,8 @@ export const objectColumnSubKeysAtom = atom((get) => {
             const obj = tryParseAsObject(value)
             if (obj && Object.keys(obj).length > 0) {
                 // Recursively collect sub-keys up to MAX_COLUMN_DEPTH
-                collectObjectSubKeysRecursive(obj, key, objectSubKeys, 1)
+                // Pass deletedCols to filter out deleted nested paths
+                collectObjectSubKeysRecursive(obj, key, objectSubKeys, 1, deletedCols)
             }
         })
     })
