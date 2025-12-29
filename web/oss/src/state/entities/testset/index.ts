@@ -43,6 +43,7 @@ export {
 export {
     // Revisions list query (for dropdown)
     revisionsListQueryAtomFamily,
+    enableRevisionsListQueryAtom,
     // Latest revision - derived from revisions list query (preferred)
     latestRevisionForTestsetAtomFamily,
     // Latest revision (legacy - batch fetches latest revision per testset)

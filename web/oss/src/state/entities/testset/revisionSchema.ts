@@ -22,6 +22,7 @@ export const revisionSchema = z.object({
     // Header fields (from Header mixin)
     name: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
+    slug: z.string().nullable().optional(),
 
     // Version number (0 = draft, 1+ = committed)
     version: z.union([z.number(), z.string()]).transform((v) => {

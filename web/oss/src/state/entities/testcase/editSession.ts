@@ -19,8 +19,9 @@ export {currentRevisionIdAtom} from "../testset"
  * Initialize empty revision - adds "input" and "correct_answer" columns and one empty row
  * Only called once when revision query settles (from useTestcasesTable)
  *
- * This improves UX for ANY empty revision (v0, v1, v2, etc.) by providing
- * a starting point for users to add testcases.
+ * IMPORTANT: This should ONLY initialize client-only revisions ("new", "draft").
+ * Real server revisions (UUIDs) should never be initialized with placeholders,
+ * even if they appear empty during data loading transitions.
  *
  * Returns true if initialized, false if skipped
  */
@@ -31,13 +32,18 @@ export const initializeEmptyRevisionAtom = atom(null, (get, set) => {
     const columns = get(currentColumnsAtom)
     const loadedTestcaseIds = get(testcaseIdsAtom)
 
+    // CRITICAL: Only initialize client-only revisions ("new", "draft")
+    // Real server revisions should never get placeholders, even if they appear empty
+    // during data loading transitions (race condition between cleanup and data fetch)
+    const isClientOnlyRevision = currentRevId === "new" || currentRevId === "draft"
+
     // Only initialize if:
+    // - This is a client-only revision (not a real server revision)
     // - Query has settled and returned data
     // - Query data matches current revision (not stale placeholder data)
     // - No server testcases exist (check flags.has_testcases or data.testcase_ids)
     // - No client testcases exist
     // - No columns exist yet
-    // Note: Applies to ALL revisions (v0, v1, v2, etc.), not just v0
     // Check if revision has testcases using the correct schema fields:
     // - flags.has_testcases: boolean flag from API
     // - data.testcase_ids: array of testcase IDs
@@ -51,6 +57,7 @@ export const initializeEmptyRevisionAtom = atom(null, (get, set) => {
     const testcasesAlreadyLoaded = loadedTestcaseIds.length > 0
 
     const isEmpty =
+        isClientOnlyRevision && // ONLY initialize client-only revisions
         !revisionQuery.isPending &&
         revisionQuery.data?.id === currentRevId &&
         !hasTestcasesInRevision && // Check revision data directly
@@ -60,6 +67,7 @@ export const initializeEmptyRevisionAtom = atom(null, (get, set) => {
 
     console.log("[initializeEmptyRevisionAtom] Checking initialization:", {
         revisionId: currentRevId,
+        isClientOnlyRevision,
         isPending: revisionQuery.isPending,
         queryDataMatchesCurrent: revisionQuery.data?.id === currentRevId,
         hasTestcasesInRevision,
@@ -79,8 +87,9 @@ export const initializeEmptyRevisionAtom = atom(null, (get, set) => {
     // Set revision name from testset name for empty revisions
     const revisionId = get(currentRevisionIdAtom)
     const testsetNameQuery = get(testsetNameQueryAtom)
-    if (revisionId && testsetNameQuery.data) {
-        set(revisionDraftAtomFamily(revisionId), {name: testsetNameQuery.data})
+    const testsetData = testsetNameQuery.data
+    if (revisionId && testsetData) {
+        set(revisionDraftAtomFamily(revisionId), {name: testsetData.name})
     }
 
     // Add default columns for empty revision
