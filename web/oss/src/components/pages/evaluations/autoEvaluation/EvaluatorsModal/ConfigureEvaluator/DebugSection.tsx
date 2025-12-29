@@ -1,11 +1,4 @@
 /**
- * DebugSection - Test evaluator configuration
- *
- * This component handles testing evaluators by:
- * 1. Loading testcases from testsets
- * 2. Running a variant to generate output
- * 3. Running the evaluator on the output
- *
  * State is managed via atoms (see ./state/atoms.ts):
  * - playgroundSelectedTestcaseAtom: Selected testcase data
  * - playgroundSelectedVariantAtom: Selected variant for testing
@@ -17,8 +10,14 @@
  * Data fetching:
  * - Testsets: fetched internally via useTestsetsData()
  * - Variants: fetched internally via useAppVariantRevisions()
+ * - Apps: fetched internally via useAppsData()
+ *
+ * Data fetching:
+ * - Testsets: fetched internally via useTestsetsData()
+ * - Variants: fetched internally via useAppVariantRevisions()
+ * - Apps: fetched internally via useAppsData()
  */
-import {useEffect, useMemo, useRef, useState} from "react"
+import {SetStateAction, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     CheckCircleOutlined,
@@ -31,6 +30,7 @@ import {Button, Dropdown, Flex, Space, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
+import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
 import {message} from "@/oss/components/AppMessageContext"
@@ -74,7 +74,6 @@ import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlag
 import {useTestsetsData} from "@/oss/state/testset"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
-import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {
     playgroundEvaluatorAtom,
@@ -137,6 +136,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
+const LoadTestsetModal = dynamic(
+    () => import("@/oss/components/Playground/Components/Modals/LoadTestsetModal"),
+    {ssr: false},
+)
+
 const DebugSection = () => {
     const appId = useAppId()
     const classes = useStyles()
@@ -183,6 +187,24 @@ const DebugSection = () => {
         success: false,
         error: false,
     })
+
+    const handleEvaluatorTestsetData = useCallback(
+        (payload: SetStateAction<Record<string, any>[] | null>) => {
+            const resolved = typeof payload === "function" ? payload(null) : payload
+
+            if (Array.isArray(resolved) && resolved.length > 0) {
+                const testcase = resolved[0]
+                const sanitized =
+                    testcase && typeof testcase === "object"
+                        ? Object.fromEntries(
+                              Object.entries(testcase).filter(([key]) => !key.startsWith("__")),
+                          )
+                        : testcase
+                setSelectedTestcase({testcase: sanitized || null})
+            }
+        },
+        [setSelectedTestcase],
+    )
 
     const defaultAppId = useMemo(() => {
         if (_selectedVariant?.appId) return _selectedVariant.appId
@@ -322,7 +344,7 @@ const DebugSection = () => {
     ) as any
 
     const activeTestset = useMemo(() => {
-        return testsets?.find((item) => item.id === selectedTestset)
+        return testsets?.find((item: any) => item.id === selectedTestset)
     }, [selectedTestset, testsets])
 
     const isPlainObject = (value: unknown): value is Record<string, any> =>
@@ -812,12 +834,11 @@ const DebugSection = () => {
                         )}
                     </Space>
 
-                    <Tooltip title={testsets?.length === 0 ? "No testset" : ""} placement="bottom">
+                    <Tooltip placement="bottom" title="">
                         <Button
                             size="small"
                             className="flex items-center gap-2"
                             onClick={() => setOpenTestcaseModal(true)}
-                            disabled={testsets?.length === 0}
                         >
                             <Database />
                             Load testcase
@@ -1095,16 +1116,11 @@ const DebugSection = () => {
                 selectedTestsetId={selectedTestset}
             />
 
-            {testsets && testsets.length > 0 && (
-                <EvaluatorTestcaseModal
-                    open={openTestcaseModal}
-                    onCancel={() => setOpenTestcaseModal(false)}
-                    testsets={testsets}
-                    setSelectedTestcase={setSelectedTestcase}
-                    selectedTestset={selectedTestset}
-                    setSelectedTestset={setSelectedTestset}
-                />
-            )}
+            <LoadTestsetModal
+                open={openTestcaseModal}
+                onCancel={() => setOpenTestcaseModal(false)}
+                setTestsetData={handleEvaluatorTestsetData}
+            />
         </div>
     )
 }
