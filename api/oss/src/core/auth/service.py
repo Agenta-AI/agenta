@@ -12,14 +12,15 @@ from uuid import UUID
 from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.services import db_manager
+from sqlalchemy import select
 
-# Organization DAOs (EE only)
+# Organization DAOs and models (EE only)
 if is_ee():
     from oss.src.dbs.postgres.organizations.dao import (
-        OrganizationPoliciesDAO,
         OrganizationDomainsDAO,
         OrganizationProvidersDAO,
     )
+    from oss.src.models.db_models import OrganizationDB, OrganizationMemberDB
 
 
 class AuthService:
@@ -35,11 +36,9 @@ class AuthService:
 
         # Initialize EE DAOs if available
         if is_ee():
-            self.policies_dao = OrganizationPoliciesDAO()
             self.domains_dao = OrganizationDomainsDAO()
             self.providers_dao = OrganizationProvidersDAO()
         else:
-            self.policies_dao = None
             self.domains_dao = None
             self.providers_dao = None
 
@@ -99,14 +98,24 @@ class AuthService:
         all_allowed_methods: set[str] = set()
         sso_required_by_some = False
 
-        if is_ee() and self.policies_dao:
+        if is_ee() and org_ids:
+            # Check policy flags for each organization
             for org_id in org_ids:
-                policy = await self.policies_dao.get_by_organization(org_id)
-                if policy:
-                    all_allowed_methods.update(policy.allowed_methods)
-                    # Check if SSO is required (only SSO methods allowed)
-                    if policy.allowed_methods and all(
-                        m.startswith("sso:") for m in policy.allowed_methods
+                org_flags = await self._get_organization_flags(org_id)
+                if org_flags:
+                    # Convert boolean flags to method strings
+                    if org_flags.get("allow_email"):
+                        all_allowed_methods.add("email:*")
+                    if org_flags.get("allow_social"):
+                        all_allowed_methods.add("social:*")
+                    if org_flags.get("allow_sso"):
+                        all_allowed_methods.add("sso:*")
+
+                    # Check if SSO is required (only SSO allowed)
+                    if (
+                        org_flags.get("allow_sso")
+                        and not org_flags.get("allow_email")
+                        and not org_flags.get("allow_social")
                     ):
                         sso_required_by_some = True
 
@@ -330,36 +339,53 @@ class AuthService:
         - AUTH_UPGRADE_REQUIRED: User must authenticate with additional method
         """
         # If EE not enabled, allow access (no policy enforcement in OSS)
-        if not is_ee() or not self.policies_dao:
+        if not is_ee():
             return None
 
-        # TODO: Check if user is a member of organization
-        # For now, assume they are
-        is_member = True
-
+        # Check if user is a member of organization
+        is_member = await self._is_organization_member(user_id, organization_id)
         if not is_member:
             return {
                 "error": "NOT_A_MEMBER",
                 "message": "You are not a member of this organization",
             }
 
-        # Get organization policy
-        policy = await self.policies_dao.get_by_organization(organization_id)
-
-        if not policy:
-            # No policy means no restrictions
+        # Get organization flags
+        org_flags = await self._get_organization_flags(organization_id)
+        if not org_flags:
+            # No flags means no restrictions (default allow all)
             return None
 
-        # TODO: Check for root bypass
-        # If user role is 'owner' and disable_root is False, bypass policy
-        # For now, skip this check
+        # Check for root bypass: if user is owner and allow_root is True, bypass policy
+        is_owner = await self._is_organization_owner(user_id, organization_id)
+        if is_owner and org_flags.get("allow_root", True):
+            # Owner with root access bypasses policy
+            return None
+
+        # Build allowed methods from flags
+        allowed_methods = []
+        if org_flags.get("allow_email"):
+            allowed_methods.append("email:*")
+        if org_flags.get("allow_social"):
+            allowed_methods.append("social:*")
+        if org_flags.get("allow_sso"):
+            allowed_methods.append("sso:*")
+
+        # If no methods are allowed, deny access
+        if not allowed_methods:
+            return {
+                "error": "AUTH_UPGRADE_REQUIRED",
+                "message": "No authentication methods are allowed for this organization",
+                "required_methods": [],
+                "current_identities": identities,
+            }
 
         # Check if identities satisfy allowed_methods
-        if not self._matches_policy(identities, policy.allowed_methods):
+        if not self._matches_policy(identities, allowed_methods):
             return {
                 "error": "AUTH_UPGRADE_REQUIRED",
                 "message": "Additional authentication required",
-                "required_methods": policy.allowed_methods,
+                "required_methods": allowed_methods,
                 "current_identities": identities,
             }
 
@@ -392,3 +418,53 @@ class AuthService:
                         return True
 
         return False
+
+    async def _get_organization_flags(self, organization_id: UUID) -> Optional[Dict[str, Any]]:
+        """
+        Get organization flags from organizations table (EE only).
+
+        Returns flags JSONB field or None if organization not found.
+        """
+        if not is_ee():
+            return None
+
+        async with db_manager.engine.core_session() as session:
+            stmt = select(OrganizationDB.flags).where(OrganizationDB.id == organization_id)
+            result = await session.execute(stmt)
+            flags = result.scalar()
+            return flags or {}
+
+    async def _is_organization_member(
+        self, user_id: UUID, organization_id: UUID
+    ) -> bool:
+        """
+        Check if user is a member of the organization (EE only).
+        """
+        if not is_ee():
+            return False
+
+        async with db_manager.engine.core_session() as session:
+            stmt = select(OrganizationMemberDB).where(
+                OrganizationMemberDB.user_id == user_id,
+                OrganizationMemberDB.organization_id == organization_id,
+            )
+            result = await session.execute(stmt)
+            return result.scalar() is not None
+
+    async def _is_organization_owner(
+        self, user_id: UUID, organization_id: UUID
+    ) -> bool:
+        """
+        Check if user is the owner of the organization (EE only).
+        """
+        if not is_ee():
+            return False
+
+        async with db_manager.engine.core_session() as session:
+            stmt = select(OrganizationMemberDB.role).where(
+                OrganizationMemberDB.user_id == user_id,
+                OrganizationMemberDB.organization_id == organization_id,
+            )
+            result = await session.execute(stmt)
+            role = result.scalar()
+            return role == "owner"

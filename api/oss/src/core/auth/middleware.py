@@ -14,12 +14,9 @@ from oss.src.utils.common import is_ee
 
 # Note: This middleware requires EE organization tables
 # Organization policy enforcement is only available in EE
-if is_ee():
-    from oss.src.dbs.postgres.organizations.dao import OrganizationPoliciesDAO
-
-    policies_dao = OrganizationPoliciesDAO()
-else:
-    policies_dao = None
+# TODO: Policy enforcement needs to be reimplemented to read from organizations.flags
+# Previously used organization_policies table (now removed)
+policies_dao = None
 
 
 def matches_policy(identities: List[str], allowed_methods: List[str]) -> bool:
@@ -75,40 +72,16 @@ async def check_organization_policy(
     payload = session.get_access_token_payload()
     identities = payload.get("identities", [])
 
-    # Get user ID and check membership
-    user_id = session.get_user_id()
+    # Get user ID
+    user_id = UUID(session.get_user_id())
 
-    # TODO: Check if user is a member of organization
-    # For now, assume they are
-    is_member = True
+    # Use AuthService for policy enforcement
+    from oss.src.core.auth.service import AuthService
 
-    if not is_member:
-        return {
-            "error": "NOT_A_MEMBER",
-            "message": "You are not a member of this organization",
-        }
-
-    # Get organization policy
-    policy = await policies_dao.get_by_organization(organization_id)
-
-    if not policy:
-        # No policy means no restrictions
-        return None
-
-    # Check for root bypass
-    # TODO: Check if user role is 'owner' and disable_root is False
-    # For now, skip this check
-
-    # Check if identities satisfy allowed_methods
-    if not matches_policy(identities, policy.allowed_methods):
-        return {
-            "error": "AUTH_UPGRADE_REQUIRED",
-            "message": "Additional authentication required",
-            "required_methods": policy.allowed_methods,
-            "current_identities": identities,
-        }
-
-    return None
+    auth_service = AuthService()
+    return await auth_service.check_organization_access(
+        user_id, organization_id, identities
+    )
 
 
 class OrganizationPolicyMiddleware(BaseHTTPMiddleware):
