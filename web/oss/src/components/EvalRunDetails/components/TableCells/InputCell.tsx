@@ -168,7 +168,7 @@ const PreviewEvaluationInputCell = ({
 
     if (chatNodes && chatNodes.length) {
         return (
-            <CellContentPopover content={popoverContent}>
+            <CellContentPopover content={popoverContent} copyContent={safeJsonStringify(value)}>
                 <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
                     <div className="flex w-full flex-col gap-2">{chatNodes}</div>
                 </div>
@@ -179,7 +179,7 @@ const PreviewEvaluationInputCell = ({
     // Render JSON objects/arrays using the JSON editor
     if (isJson) {
         return (
-            <CellContentPopover content={popoverContent}>
+            <CellContentPopover content={popoverContent} copyContent={safeJsonStringify(jsonValue)}>
                 <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
                     <JsonContent value={jsonValue} />
                 </div>
@@ -188,7 +188,7 @@ const PreviewEvaluationInputCell = ({
     }
 
     return (
-        <CellContentPopover content={popoverContent}>
+        <CellContentPopover content={popoverContent} copyContent={displayValue}>
             <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
                 <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
             </div>
