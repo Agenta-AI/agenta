@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useRef} from "react"
 
+import clsx from "clsx"
 import {useAtomValue, useStore} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
@@ -36,7 +37,6 @@ import usePreviewTableData from "./hooks/usePreviewTableData"
 import useRowHeightMenuItems from "./hooks/useRowHeightMenuItems"
 import {scenarioRowHeightAtom} from "./state/rowHeight"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
-import clsx from "clsx"
 
 type TableRowData = PreviewTableRow
 
