@@ -578,12 +578,18 @@ const TestsetsTable = ({
                 getCheckboxProps: (record: TestsetTableRow) => ({
                     disabled: Boolean(record.__isSkeleton),
                 }),
+                onChange: (_selectedRowKeys: React.Key[], selectedRows: TestsetTableRow[]) => {
+                    // When user clicks the radio button, trigger row click handler
+                    if (selectedRows.length > 0) {
+                        handleRowClick(selectedRows[0])
+                    }
+                },
                 columnWidth: 48,
                 fixed: true,
             }
         }
         return table.rowSelection
-    }, [isSelectMode, selectedRowKey, table.rowSelection])
+    }, [isSelectMode, selectedRowKey, table.rowSelection, handleRowClick])
 
     return (
         <div className={clsx("flex flex-col h-full min-h-0 grow w-full", className)}>
