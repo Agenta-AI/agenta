@@ -676,7 +676,7 @@ const ListOfOrgs = ({
             >
                 <Form layout="vertical">
                     <Form.Item
-                        label="Select New Owner"
+                        label="Select new owner"
                         required
                         tooltip="The new owner will have full administrative rights over the organization."
                     >
@@ -686,6 +686,7 @@ const ListOfOrgs = ({
                             optionFilterProp="label"
                             options={transferOwnerOptions}
                             className="w-full"
+                            popupClassName="[&_.ant-select-item-option-content]:overflow-visible"
                             value={newOwnerId}
                             onChange={(value) => {
                                 console.log("👤 Select owner changed:", {
@@ -737,7 +738,7 @@ const ListOfOrgs = ({
                                             {option.data.displayName}
                                         </span>
                                         {option.data.email && (
-                                            <span className="font-mono text-xs font-normal justify-self-end">
+                                            <span className="font-mono text-xs font-normal justify-self-end pr-2">
                                                 {option.data.email}
                                             </span>
                                         )}

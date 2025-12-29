@@ -70,30 +70,46 @@ async def fetch_organization_details(
     """
 
     try:
-        workspace_id = await db_manager_ee.get_default_workspace_id_from_organization(
-            organization_id=organization_id
-        )
-
-        project_id = await db_manager.get_default_project_id_from_workspace(
-            workspace_id=workspace_id
-        )
-
-        project_memberships = await db_manager_ee.fetch_project_memberships_by_user_id(
-            user_id=str(request.state.user_id)
-        )
-
-        membership = None
-        for project_membership in project_memberships:
-            if str(project_membership.project_id) == project_id:
-                membership = project_membership
-                break
-
-        if not membership:
-            return JSONResponse(
-                status_code=403,
-                content={"detail": "You do not have access to this organization"},
+        # Get workspace and project IDs for permission checking
+        workspace_id = None
+        project_id = None
+        try:
+            workspace_id = (
+                await db_manager_ee.get_default_workspace_id_from_organization(
+                    organization_id=organization_id
+                )
+            )
+            project_id = await db_manager.get_default_project_id_from_workspace(
+                workspace_id=workspace_id
+            )
+        except Exception:
+            # Organization has no workspace or project - check org-level permission directly
+            log.warning(
+                f"Organization {organization_id} has no workspace or project, checking org-level access",
+                exc_info=True,
             )
 
+        # If we have a project, check project membership
+        if project_id:
+            project_memberships = (
+                await db_manager_ee.fetch_project_memberships_by_user_id(
+                    user_id=str(request.state.user_id)
+                )
+            )
+
+            membership = None
+            for project_membership in project_memberships:
+                if str(project_membership.project_id) == project_id:
+                    membership = project_membership
+                    break
+
+            if not membership:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "You do not have access to this organization"},
+                )
+
+        # Check org-level access
         user_org_workspace_data = await get_user_org_and_workspace_id(
             request.state.user_id
         )

@@ -1515,7 +1515,7 @@ async def transfer_organization_ownership(
         ValueError: If new owner is not a member of the organization
     """
     from datetime import datetime, timezone
-    from ee.src.models.db_models import OrganizationMemberDB
+    from ee.src.models.db_models import OrganizationMemberDB, WorkspaceMemberDB
 
     async with engine.core_session() as session:
         # Verify organization exists
@@ -1536,6 +1536,65 @@ async def transfer_organization_ownership(
         member = member_result.scalars().first()
         if not member:
             raise ValueError("The new owner must be a member of the organization")
+
+        # Get all workspaces in this organization
+        workspaces_result = await session.execute(
+            select(WorkspaceDB).filter_by(organization_id=uuid.UUID(organization_id))
+        )
+        workspaces = workspaces_result.scalars().all()
+
+        # Update workspace roles for both users in all workspaces - swap their roles
+        for workspace in workspaces:
+            # Get both members' workspace roles
+            current_owner_member_result = await session.execute(
+                select(WorkspaceMemberDB).filter_by(
+                    user_id=uuid.UUID(current_user_id),
+                    workspace_id=workspace.id,
+                )
+            )
+            current_owner_member = current_owner_member_result.scalars().first()
+
+            new_owner_member_result = await session.execute(
+                select(WorkspaceMemberDB).filter_by(
+                    user_id=uuid.UUID(new_owner_id),
+                    workspace_id=workspace.id,
+                )
+            )
+            new_owner_member = new_owner_member_result.scalars().first()
+
+            # Swap roles between the two users
+            if current_owner_member and new_owner_member:
+                current_owner_old_role = current_owner_member.role
+                new_owner_old_role = new_owner_member.role
+
+                # Swap the roles
+                current_owner_member.role = new_owner_old_role
+                new_owner_member.role = current_owner_old_role
+
+                log.info(
+                    "[workspace] roles swapped",
+                    workspace_id=str(workspace.id),
+                    current_owner_id=current_user_id,
+                    current_owner_old_role=current_owner_old_role,
+                    current_owner_new_role=new_owner_old_role,
+                    new_owner_id=new_owner_id,
+                    new_owner_old_role=new_owner_old_role,
+                    new_owner_new_role=current_owner_old_role,
+                )
+            elif current_owner_member:
+                # Only current owner is a member - keep their role
+                log.info(
+                    "[workspace] new owner not a member",
+                    workspace_id=str(workspace.id),
+                    user_id=new_owner_id,
+                )
+            elif new_owner_member:
+                # Only new owner is a member - keep their role
+                log.info(
+                    "[workspace] current owner not a member",
+                    workspace_id=str(workspace.id),
+                    user_id=current_user_id,
+                )
 
         # Transfer ownership
         organization.owner_id = uuid.UUID(new_owner_id)
