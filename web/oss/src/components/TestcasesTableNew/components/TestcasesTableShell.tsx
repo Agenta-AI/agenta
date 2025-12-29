@@ -1,20 +1,23 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
-import {PencilSimple, Trash} from "@phosphor-icons/react"
-import {Input, Skeleton, Typography} from "antd"
+import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
+import {CaretDown, CaretRight, Copy, PencilSimple, Trash} from "@phosphor-icons/react"
+import {Button, Dropdown, Input, Skeleton, Tooltip, Typography} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {
     ColumnVisibilityHeader,
-    createStandardColumns,
+    ColumnVisibilityMenuTrigger,
     InfiniteVirtualTableFeatureShell,
     type TableScopeConfig,
 } from "@/oss/components/InfiniteVirtualTable"
+import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 import {testcaseIsDirtyAtom} from "@/oss/state/entities/testcase/dirtyState"
+import {testsetMetadataAtom} from "@/oss/state/entities/testcase/queries"
 
 import {message} from "../../AppMessageContext"
 import {testcasesDatasetStore, type TestcaseTableRow} from "../atoms/tableStore"
@@ -56,6 +59,8 @@ export interface TestcasesTableShellProps {
     scopeIdPrefix?: string
     /** Maximum number of rows to display (for preview mode) */
     maxRows?: number
+    /** Callback when add column button is clicked (shown in actions column header) */
+    onAddColumn?: () => void
 }
 
 /**
@@ -93,7 +98,11 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         showRowIndex = false,
         scopeIdPrefix = "testcases",
         maxRows,
+        onAddColumn,
     } = props
+
+    // Get metadata for export filename
+    const metadata = useAtomValue(testsetMetadataAtom)
 
     // Collapsed groups state (using useState for simplicity - persists only during session)
     const [collapsedGroups, setCollapsedGroups] = useState<string[]>([])
@@ -116,8 +125,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             pageSize: maxRows ?? 50, // Use maxRows if provided, otherwise default to 50
             enableInfiniteScroll: !maxRows, // Disable infinite scroll when maxRows is set
             columnVisibilityStorageKey: "testcases:columns",
-            // Increase exit debounce to prevent infinite loop on scroll-stop-scroll pattern
-            viewportExitDebounceMs: 300,
+            viewportTrackingEnabled: true,
         }),
         [scopeIdPrefix, revisionIdParam, maxRows],
     )
@@ -196,15 +204,28 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         [],
     )
 
+    // Empty state columns - shown when user has no data (not loading)
+    const emptyStateColumns = useMemo(() => [{key: "__empty", name: "No columns yet"}], [])
+
     // Columns definition
     // Use TestcaseCell for entity-aware rendering (reads from entity atoms in global store)
     // Supports grouped columns (e.g., "group.column" renders under "group" header)
     const columns = useMemo<ColumnsType<TestcaseTableRow>>(() => {
         const isEditable = mode === "edit"
 
-        // Use skeleton columns if actual columns are empty (loading state)
-        const columnsToRender = table.columns.length > 0 ? table.columns : skeletonColumns
-        const isShowingSkeleton = table.columns.length === 0
+        // Differentiate between loading state and empty state
+        const hasNoColumns = table.columns.length === 0
+        const isActuallyLoading = table.isLoading
+
+        // Use skeleton columns only when loading, empty state columns when truly empty
+        const columnsToRender = hasNoColumns
+            ? isActuallyLoading
+                ? skeletonColumns
+                : emptyStateColumns
+            : table.columns
+
+        const isShowingSkeleton = hasNoColumns && isActuallyLoading
+        const isShowingEmpty = hasNoColumns && !isActuallyLoading
 
         // Create column definition for a single column
         // Wrap title with ColumnVisibilityHeader to enable viewport tracking
@@ -214,22 +235,19 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         ): ColumnType<TestcaseTableRow> => ({
             key: col.key,
             dataIndex: col.key,
-            title: (
-                <ColumnVisibilityHeader columnKey={col.key}>
-                    {isEditable && !isShowingSkeleton ? (
-                        <EditableColumnHeader
-                            columnKey={col.key}
-                            columnName={displayName}
-                            onRename={table.renameColumn}
-                            onDelete={table.deleteColumn}
-                        />
-                    ) : (
-                        <span className="truncate" title={col.key}>
-                            {displayName}
-                        </span>
-                    )}
-                </ColumnVisibilityHeader>
-            ),
+            title:
+                isEditable && !isShowingSkeleton && !isShowingEmpty ? (
+                    <EditableColumnHeader
+                        columnKey={col.key}
+                        columnName={displayName}
+                        onRename={table.renameColumn}
+                        onDelete={table.deleteColumn}
+                    />
+                ) : (
+                    <span className="truncate" title={col.key}>
+                        {displayName}
+                    </span>
+                ),
             width: 200,
             render: (value: unknown, record: TestcaseTableRow) => {
                 // Show skeleton for skeleton rows or when showing skeleton columns
@@ -245,12 +263,21 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                         />
                     )
                 }
+                // Show empty state message when no columns exist (not loading)
+                if (isShowingEmpty) {
+                    return (
+                        <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                            Add a column to get started
+                        </div>
+                    )
+                }
                 // For rows with id (both new and server rows), use entity-aware cell
                 // This ensures column renames are reflected correctly
                 const rowId = record.id || String(record.key)
                 if (rowId) {
                     return (
                         <TestcaseCell
+                            key={`${rowId}-${col.key}`}
                             testcaseId={rowId}
                             columnKey={col.key}
                             maxLines={maxLinesForRowHeight}
@@ -276,15 +303,13 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 key: groupPath,
                 dataIndex: groupPath,
                 title: (
-                    <ColumnVisibilityHeader columnKey={groupPath}>
-                        <div
-                            className="flex items-center gap-1 cursor-pointer"
-                            onClick={() => toggleGroupCollapse(groupPath)}
-                        >
-                            <CaretRight size={12} />
-                            <Typography.Text ellipsis>{displayName}</Typography.Text>
-                        </div>
-                    </ColumnVisibilityHeader>
+                    <div
+                        className="flex items-center gap-1 cursor-pointer"
+                        onClick={() => toggleGroupCollapse(groupPath)}
+                    >
+                        <CaretRight size={12} />
+                        <Typography.Text ellipsis>{displayName}</Typography.Text>
+                    </div>
                 ),
                 width: 200,
                 render: (_value: unknown, record: TestcaseTableRow) => {
@@ -299,11 +324,19 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                             />
                         )
                     }
+                    if (isShowingEmpty) {
+                        return (
+                            <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                                Add a column to get started
+                            </div>
+                        )
+                    }
                     const rowId = record.id || String(record.key)
                     if (rowId) {
                         // Show the parent column (full JSON object)
                         return (
                             <TestcaseCell
+                                key={`${rowId}-${groupPath}`}
                                 testcaseId={rowId}
                                 columnKey={groupPath}
                                 maxLines={maxLinesForRowHeight}
@@ -325,31 +358,29 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 : groupPath
 
             return (
-                <ColumnVisibilityHeader columnKey={groupPath}>
-                    <div
-                        className="flex items-center gap-1 cursor-pointer select-none max-w-full overflow-hidden"
-                        onClick={(e) => {
-                            e.stopPropagation()
+                <div
+                    className="flex items-center gap-1 cursor-pointer select-none max-w-full overflow-hidden"
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        e.preventDefault()
+                        toggleGroupCollapse(groupPath)
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault()
                             toggleGroupCollapse(groupPath)
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault()
-                                toggleGroupCollapse(groupPath)
-                            }
-                        }}
-                        title={groupPath}
-                    >
-                        <span className="flex-shrink-0">
-                            {isCollapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
-                        </span>
-                        <span className="truncate min-w-0">{displayName}</span>
-                        <span className="text-gray-400 text-xs flex-shrink-0">({childCount})</span>
-                    </div>
-                </ColumnVisibilityHeader>
+                        }
+                    }}
+                    title={groupPath}
+                >
+                    <span className="flex-shrink-0">
+                        {isCollapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
+                    </span>
+                    <span className="truncate min-w-0">{displayName}</span>
+                    <span className="text-gray-400 text-xs flex-shrink-0">({childCount})</span>
+                </div>
             )
         }
 
@@ -369,40 +400,96 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             return [...dataColumns]
         }
 
-        const actionsColumn = createStandardColumns<TestcaseTableRow>([
+        // Custom actions column with Add Column button in header
+        const actionsColumn: ColumnsType<TestcaseTableRow> = [
             {
-                type: "actions",
+                title: (
+                    <div className="flex items-center gap-1 justify-end">
+                        {onAddColumn && mode === "edit" && (
+                            <Tooltip title="Add column">
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<PlusOutlined />}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onAddColumn()
+                                    }}
+                                />
+                            </Tooltip>
+                        )}
+                        <ColumnVisibilityMenuTrigger variant="icon" />
+                    </div>
+                ),
+                key: "actions",
                 width: 56,
-                showCopyId: true,
-                items: [
-                    {
-                        key: "edit",
-                        label: "Edit",
-                        icon: <PencilSimple size={16} />,
-                        onClick: (record) => {
-                            if (record.id) onRowClick(record)
+                fixed: "right",
+                align: "center",
+                columnVisibilityLocked: true as any,
+                render: (_, record) => {
+                    if (record.__isSkeleton || isShowingSkeleton) return null
+
+                    const menuItems: any[] = [
+                        {
+                            key: "edit",
+                            label: "Edit",
+                            icon: <PencilSimple size={16} />,
+                            onClick: (e: any) => {
+                                e.domEvent.stopPropagation()
+                                if (record.id) onRowClick(record)
+                            },
                         },
-                    },
-                    {type: "divider"},
-                    {
-                        key: "delete",
-                        label: "Delete",
-                        icon: <Trash size={16} />,
-                        danger: true,
-                        onClick: (record) => {
-                            if (record.key) {
-                                table.deleteTestcases([String(record.key)])
-                                message.success("Deleted testcase. Save to apply changes.")
-                            }
+                        {type: "divider"},
+                        {
+                            key: "delete",
+                            label: "Delete",
+                            icon: <Trash size={16} />,
+                            danger: true,
+                            onClick: (e: any) => {
+                                e.domEvent.stopPropagation()
+                                if (record.key) {
+                                    table.deleteTestcases([String(record.key)])
+                                    message.success("Deleted testcase. Save to apply changes.")
+                                }
+                            },
                         },
-                    },
-                ],
+                    ]
+
+                    // Add copy ID
+                    const recordId = (record as any).id || (record as any).key
+                    if (recordId) {
+                        menuItems.push({type: "divider"})
+                        menuItems.push({
+                            key: "copy-id",
+                            label: "Copy ID",
+                            icon: <Copy size={16} />,
+                            onClick: (e: any) => {
+                                e.domEvent.stopPropagation()
+                                copyToClipboard(String(recordId))
+                            },
+                        })
+                    }
+
+                    return (
+                        <Dropdown trigger={["click"]} menu={{items: menuItems}}>
+                            <Tooltip title="Actions">
+                                <Button
+                                    onClick={(e) => e.stopPropagation()}
+                                    type="text"
+                                    icon={<MoreOutlined />}
+                                    size="small"
+                                />
+                            </Tooltip>
+                        </Dropdown>
+                    )
+                },
             },
-        ])
+        ]
 
         return [...dataColumns, ...actionsColumn]
     }, [
         table.columns,
+        table.isLoading,
         table.renameColumn,
         table.deleteColumn,
         table.deleteTestcases,
@@ -410,10 +497,12 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         maxLinesForRowHeight,
         rowHeight.heightPx,
         skeletonColumns,
+        emptyStateColumns,
         onRowClick,
         hideControls,
         collapsedGroupsSet,
         toggleGroupCollapse,
+        onAddColumn,
     ])
 
     // Export configuration
@@ -426,9 +515,9 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 const col = table.columns[context.columnIndex]
                 return col?.name || col?.key
             },
-            filename: `${table.testsetName || "testset"}.csv`,
+            filename: `${metadata?.testsetName || "testset"}.csv`,
         }),
-        [table.columns, table.testsetName],
+        [table.columns, metadata?.testsetName],
     )
 
     // Delete action

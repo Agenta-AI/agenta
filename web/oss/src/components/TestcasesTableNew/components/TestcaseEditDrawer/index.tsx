@@ -3,7 +3,10 @@ import {forwardRef, useCallback, useImperativeHandle, useMemo, useState} from "r
 import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {DrillInContent, type PathItem, type PropertyType} from "@/oss/components/DrillInView"
+import {
+    type PropertyType,
+    TestcaseDrillInView,
+} from "@/oss/components/DrillInView"
 import {JsonEditorWithLocalState} from "@/oss/components/DrillInView/JsonEditorWithLocalState"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
@@ -80,107 +83,6 @@ const TestcaseEditDrawerContent = forwardRef<
     // Track locked types for fields (to prevent UI switching when content changes)
     const [lockedFieldTypes, setLockedFieldTypes] = useState<Record<string, DataType>>({})
 
-    // Get value at path (for DrillInContent)
-    const getValue = useCallback(
-        (path: string[]): string => {
-            if (path.length === 0) return ""
-            const [columnKey, ...nestedPath] = path
-            let value: unknown = formValues[columnKey]
-            if (value === undefined) return ""
-
-            // Parse the column value
-            try {
-                value = JSON.parse(String(value))
-            } catch {
-                // Keep as string
-            }
-
-            // Navigate through nested path
-            for (const key of nestedPath) {
-                if (value === null || value === undefined) return ""
-                if (Array.isArray(value)) {
-                    const index = parseInt(key, 10)
-                    if (isNaN(index) || index < 0 || index >= value.length) return ""
-                    value = value[index]
-                } else if (typeof value === "object") {
-                    value = (value as Record<string, unknown>)[key]
-                } else {
-                    return ""
-                }
-            }
-
-            if (value === null || value === undefined) return ""
-            if (typeof value === "string") return value
-            return JSON.stringify(value, null, 2)
-        },
-        [formValues],
-    )
-
-    // Set value at path (for DrillInContent)
-    const setValue = useCallback(
-        (path: string[], newValue: unknown) => {
-            if (path.length === 0) return
-            const [columnKey, ...nestedPath] = path
-
-            if (nestedPath.length === 0) {
-                // Direct column update
-                updateTestcase({id: testcaseId, updates: {[columnKey]: newValue}})
-                return
-            }
-
-            // Parse the column value
-            let rootValue: unknown
-            try {
-                rootValue = JSON.parse(formValues[columnKey] || "{}")
-            } catch {
-                rootValue = {}
-            }
-
-            // Parse the new value if it's a string
-            let parsedNewValue: unknown = newValue
-            if (typeof newValue === "string") {
-                try {
-                    parsedNewValue = JSON.parse(newValue)
-                } catch {
-                    // Keep as string
-                }
-            }
-
-            // Navigate and update
-            const updateNested = (obj: unknown, keys: string[], value: unknown): unknown => {
-                if (keys.length === 0) return value
-                const [key, ...rest] = keys
-
-                if (Array.isArray(obj)) {
-                    const index = parseInt(key, 10)
-                    const newArr = [...obj]
-                    newArr[index] = updateNested(obj[index], rest, value)
-                    return newArr
-                } else if (typeof obj === "object" && obj !== null) {
-                    return {
-                        ...(obj as Record<string, unknown>),
-                        [key]: updateNested((obj as Record<string, unknown>)[key], rest, value),
-                    }
-                }
-                return value
-            }
-
-            const updatedValue = updateNested(rootValue, nestedPath, parsedNewValue)
-            updateTestcase({id: testcaseId, updates: {[columnKey]: JSON.stringify(updatedValue)}})
-        },
-        [formValues, updateTestcase, testcaseId],
-    )
-
-    // Get root items (columns)
-    const getRootItems = useCallback((): PathItem[] => {
-        return columns.map((col) => ({
-            key: col.key,
-            name: col.name,
-            value: formValues[col.key] || "",
-            isColumn: true,
-        }))
-    }, [columns, formValues])
-
     // Get default value for property type
     const getDefaultValueForType = useCallback((type: PropertyType): unknown => {
         switch (type) {
@@ -225,15 +127,13 @@ const TestcaseEditDrawerContent = forwardRef<
         <div className="flex flex-col h-full overflow-hidden w-full [&_.agenta-shared-editor]:w-[calc(100%-24px)]">
             <div className="flex-1 overflow-y-auto overflow-x-hidden">
                 {editMode === "fields" ? (
-                    <DrillInContent
-                        getValue={getValue}
-                        setValue={setValue}
-                        getRootItems={getRootItems}
+                    <TestcaseDrillInView
+                        testcaseId={testcaseId}
+                        columns={columns}
                         rootTitle="Root"
                         editable={true}
                         showAddControls={true}
                         showDeleteControls={true}
-                        valueMode="string"
                         getDefaultValueForType={getDefaultValueForType}
                         lockedFieldTypes={lockedFieldTypes}
                         onLockedFieldTypesChange={setLockedFieldTypes}

@@ -43,6 +43,23 @@ const TestcaseCellContent = memo(({value, maxLines = 10}: TestcaseCellContentPro
         return displayValue
     }, [value, isJson, jsonValue, displayValue])
 
+    // Memoize popover content to prevent re-creating elements on every render
+    // This prevents the "Maximum update depth exceeded" error during scroll
+    const fullContent = useMemo(() => {
+        if (isJson) {
+            return <JsonCellContent value={jsonValue} truncate={false} />
+        }
+        return <TextCellContent value={displayValue} truncate={false} />
+    }, [isJson, jsonValue, displayValue])
+
+    // Memoize preview content to prevent re-creating on every render
+    const previewContent = useMemo(() => {
+        if (isJson) {
+            return <JsonCellContent value={jsonValue} maxLines={maxLines} />
+        }
+        return <TextCellContent value={displayValue} maxLines={maxLines} />
+    }, [isJson, jsonValue, displayValue, maxLines])
+
     // Handle empty values (null, undefined, empty string) - render placeholder
     // The testcase-table-cell class ensures proper height from CSS variables
     if (value === undefined || value === null || value === "") {
@@ -55,29 +72,10 @@ const TestcaseCellContent = memo(({value, maxLines = 10}: TestcaseCellContentPro
         )
     }
 
-    // Render JSON objects/arrays
-    if (isJson) {
-        return (
-            <CellContentPopover
-                fullContent={<JsonCellContent value={jsonValue} truncate={false} />}
-                copyText={copyText}
-            >
-                <div className="testcase-table-cell cursor-pointer">
-                    <JsonCellContent value={jsonValue} maxLines={maxLines} />
-                </div>
-            </CellContentPopover>
-        )
-    }
-
-    // Plain text with truncation
+    // Render with popover
     return (
-        <CellContentPopover
-            fullContent={<TextCellContent value={displayValue} truncate={false} />}
-            copyText={copyText}
-        >
-            <div className="testcase-table-cell cursor-pointer">
-                <TextCellContent value={displayValue} maxLines={maxLines} />
-            </div>
+        <CellContentPopover fullContent={fullContent} copyText={copyText}>
+            <div className="testcase-table-cell cursor-pointer">{previewContent}</div>
         </CellContentPopover>
     )
 })

@@ -27,8 +27,6 @@ export interface UseTestcasesTableOptions {
     revisionId?: string | null
     /** Skip automatic initialization of empty revisions (default columns/row) */
     skipEmptyRevisionInit?: boolean
-    /** Initial testset name for new testsets (when revisionId is "new") */
-    initialTestsetName?: string
 }
 
 /**
@@ -39,6 +37,10 @@ export interface TestsetMetadata {
     testsetId: string
     /** Testset name */
     testsetName: string
+    /** Testset slug */
+    testsetSlug?: string
+    /** Revision slug */
+    revisionSlug?: string
     /** Current revision version */
     revisionVersion?: number
     /** Testset description */
@@ -55,6 +57,8 @@ export interface TestsetMetadata {
 
 /**
  * Return type for the useTestcasesTable hook
+ * This hook ONLY manages testcases (rows, columns, CRUD operations)
+ * Testset metadata (name, description, revisions) should be managed separately
  */
 export interface UseTestcasesTableResult {
     // Data - row refs (optimized: cells read from entity atoms via testcaseCellAtomFamily)
@@ -70,22 +74,6 @@ export interface UseTestcasesTableResult {
     isLoading: boolean
     /** Error state */
     error: Error | null
-
-    // Metadata
-    /** Testset metadata (name, testsetId, revisionVersion, description) */
-    metadata: TestsetMetadata | null
-    /** Testset name (editable) */
-    testsetName: string
-    /** Update testset name */
-    setTestsetName: (name: string) => void
-    /** Whether testset name has changed */
-    testsetNameChanged: boolean
-    /** Testset description (editable) */
-    description: string
-    /** Update testset description */
-    setDescription: (description: string) => void
-    /** Whether description has changed */
-    descriptionChanged: boolean
 
     // Stats
     /** Total count of rows */
@@ -108,8 +96,13 @@ export interface UseTestcasesTableResult {
     deleteColumn: (columnName: string) => void
 
     // Save (creates new revision)
-    /** Save all changes (creates new testset revision). Returns new revision ID on success, null on failure. */
-    saveTestset: (commitMessage?: string) => Promise<string | null>
+    /**
+     * Save all changes (creates new testset revision)
+     * For new testsets: pass {testsetName: string, commitMessage?: string}
+     * For existing testsets: pass {commitMessage?: string}
+     * Returns new revision ID on success, null on failure
+     */
+    saveTestset: (params?: {testsetName?: string; commitMessage?: string}) => Promise<string | null>
     /** Whether save is in progress */
     isSaving: boolean
     /** Whether there are unsaved changes */
@@ -124,12 +117,6 @@ export interface UseTestcasesTableResult {
     searchTerm: string
     /** Update search term */
     setSearchTerm: (term: string) => void
-
-    // Revisions
-    /** Available revisions for this testset */
-    availableRevisions: {id: string; version: number; created_at?: string | null}[]
-    /** Whether revisions are loading */
-    loadingRevisions: boolean
 }
 
 /**

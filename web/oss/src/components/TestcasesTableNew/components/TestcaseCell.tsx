@@ -1,8 +1,7 @@
-import {memo, useDeferredValue, useMemo} from "react"
+import {memo, useMemo} from "react"
 
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {useColumnVisibilityFlag} from "@/oss/components/InfiniteVirtualTable/context/ColumnVisibilityFlagContext"
 import {testcaseEntityAtomFamily} from "@/oss/state/entities/testcase/testcaseEntity"
 
 import TestcaseCellContent from "./TestcaseCellContent"
@@ -75,8 +74,11 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
  * This component:
  * - Reads testcase data from entity atom (cache)
  * - Supports dot notation for nested values (e.g., "event.type")
- * - Reports missing entities for batch fetching
  * - Uses TestcaseCellContent for rendering
+ * - Defers updates during scroll with LOW_PRIORITY scheduling
+ *
+ * Note: Does not check column visibility - InfiniteVirtualTable handles column virtualization.
+ * Per-cell visibility checks cause "Maximum update depth exceeded" errors during scroll.
  *
  * @example
  * ```tsx
@@ -93,17 +95,12 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
  * />
  * ```
  */
-/**
- * Inner cell component that does the heavy lifting
- * Only rendered when the column is visible in the viewport
- * This avoids atom subscriptions and value extraction for invisible columns
- */
-const TestcaseCellInner = memo(function TestcaseCellInner({
+export const TestcaseCell = memo(function TestcaseCell({
     testcaseId,
     columnKey,
     maxLines,
     render,
-}: Omit<TestcaseCellProps, "onMissing">) {
+}: TestcaseCellProps) {
     // Subscribe to the entire entity once per row
     // The atomFamily ensures the same atom instance is reused for the same testcaseId
     // This is more efficient than per-cell subscriptions because:
@@ -140,38 +137,4 @@ const TestcaseCellInner = memo(function TestcaseCellInner({
 
     // Default: use TestcaseCellContent for smart rendering
     return <TestcaseCellContent value={value} maxLines={maxLines} />
-})
-
-/**
- * Lightweight wrapper that checks column visibility first
- * Only mounts TestcaseCellInner when the column is visible
- * This prevents atom subscriptions and heavy computation for invisible columns
- */
-export const TestcaseCell = memo(function TestcaseCell({
-    testcaseId,
-    columnKey,
-    maxLines,
-    render,
-}: TestcaseCellProps) {
-    // Check if this column is visible in the horizontal viewport
-    const isColumnVisible = useColumnVisibilityFlag(columnKey)
-
-    // Defer the visibility value to prevent rapid mount/unmount cycles
-    // This helps avoid "Maximum update depth exceeded" errors during fast scrolling
-    const deferredIsVisible = useDeferredValue(isColumnVisible)
-
-    // Skip mounting the inner component for columns outside the horizontal viewport
-    // This is critical for scroll performance - prevents atom subscriptions for hidden cells
-    if (!deferredIsVisible) {
-        return <div className="testcase-table-cell w-full min-h-[24px]" />
-    }
-
-    return (
-        <TestcaseCellInner
-            testcaseId={testcaseId}
-            columnKey={columnKey}
-            maxLines={maxLines}
-            render={render}
-        />
-    )
 })

@@ -1,15 +1,18 @@
 import {useCallback, useRef} from "react"
 
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
+import type {TestsetMetadata} from "@/oss/state/entities/testcase/queries"
+import {updateRevisionDraftAtom} from "@/oss/state/entities/testset/revisionEntity"
 
 import AlertPopup from "../../AlertPopup/AlertPopup"
 import {message} from "../../AppMessageContext"
 import type {TestcaseTableRow} from "../atoms/tableStore"
 
-import type {UseTestcasesTableResult} from "./types"
+import type {RevisionListItem, UseTestcasesTableResult} from "./types"
 
 /**
  * Configuration for useTestcaseActions hook
@@ -18,6 +21,8 @@ export interface UseTestcaseActionsConfig {
     table: UseTestcasesTableResult
     revisionIdParam: string | string[] | undefined
     mode: "edit" | "view"
+    metadata: TestsetMetadata | null
+    availableRevisions: RevisionListItem[]
     onOpenCommitModal: () => void
     onOpenRenameModal: () => void
     onOpenAddColumnModal: () => void
@@ -54,6 +59,7 @@ export interface UseTestcaseActionsResult {
         onClose: () => void,
     ) => void
     handleCopyId: () => Promise<void>
+    handleCopyRevisionSlug: () => Promise<void>
 
     // Revision actions
     handleDeleteRevision: () => Promise<void>
@@ -68,6 +74,8 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         table,
         revisionIdParam,
         mode,
+        metadata,
+        availableRevisions,
         onOpenCommitModal,
         onOpenRenameModal: _onOpenRenameModal,
         onSetEditingTestcaseId,
@@ -75,6 +83,9 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
 
     const router = useRouter()
     const {projectURL} = useURL()
+
+    // Atoms for updating metadata (name/description stored in revision draft)
+    const updateRevisionDraft = useSetAtom(updateRevisionDraftAtom)
 
     // Track programmatic navigation after save to skip blocker
     const skipBlockerRef = useRef(false)
@@ -204,7 +215,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
             if (mode === "view") return
 
             try {
-                const newRevisionId = await table.saveTestset(commitMessage)
+                const newRevisionId = await table.saveTestset({commitMessage})
                 if (newRevisionId) {
                     message.success("Changes saved successfully!")
                     skipBlockerRef.current = true // Skip nav blocker for programmatic navigation
@@ -242,12 +253,17 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
 
     const handleRenameConfirm = useCallback(
         (editModalName: string, editModalDescription: string, onClose: () => void) => {
-            if (mode === "view") return
-            table.setTestsetName(editModalName)
-            table.setDescription(editModalDescription)
+            if (mode === "view" || !revisionIdParam) return
+            updateRevisionDraft({
+                revisionId: revisionIdParam as string,
+                updates: {
+                    name: editModalName,
+                    description: editModalDescription,
+                },
+            })
             onClose()
         },
-        [table, mode],
+        [updateRevisionDraft, revisionIdParam, mode],
     )
 
     const handleCopyId = useCallback(async () => {
@@ -257,6 +273,14 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         }
     }, [revisionIdParam])
 
+    const handleCopyRevisionSlug = useCallback(async () => {
+        const revisionSlug = metadata?.revisionSlug
+        if (revisionSlug) {
+            await copyToClipboard(revisionSlug)
+            message.success("Revision slug copied to clipboard")
+        }
+    }, [metadata?.revisionSlug])
+
     // ========================================================================
     // REVISION ACTIONS
     // ========================================================================
@@ -265,7 +289,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         if (!revisionIdParam) return
 
         // Check if this is the only valid revision
-        const validRevisions = table.availableRevisions.filter((r) => r.version > 0)
+        const validRevisions = availableRevisions.filter((r: RevisionListItem) => r.version > 0)
         const isOnlyRevision = validRevisions.length <= 1
 
         if (isOnlyRevision) {
@@ -275,7 +299,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
 
         AlertPopup({
             title: "Delete Revision",
-            message: `Are you sure you want to delete revision v${table.metadata?.revisionVersion}? This action cannot be undone.`,
+            message: `Are you sure you want to delete revision v${metadata?.revisionVersion}? This action cannot be undone.`,
             okText: "Delete",
             okButtonProps: {danger: true},
             onOk: async () => {
@@ -285,9 +309,9 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
                     message.success("Revision deleted successfully")
 
                     // Navigate to the latest revision
-                    const latestRevision = table.availableRevisions
-                        .filter((r) => r.id !== revisionIdParam)
-                        .sort((a, b) => b.version - a.version)[0]
+                    const latestRevision = availableRevisions
+                        .filter((r: RevisionListItem) => r.id !== revisionIdParam)
+                        .sort((a: RevisionListItem, b: RevisionListItem) => b.version - a.version)[0]
 
                     if (latestRevision) {
                         router.push(`${projectURL}/testsets/${latestRevision.id}`, undefined, {
@@ -302,7 +326,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
                 }
             },
         })
-    }, [revisionIdParam, table, router, projectURL])
+    }, [revisionIdParam, metadata, availableRevisions, router, projectURL])
 
     return {
         skipBlockerRef,
@@ -318,6 +342,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         handleDiscardChanges,
         handleRenameConfirm,
         handleCopyId,
+        handleCopyRevisionSlug,
         handleDeleteRevision,
     }
 }

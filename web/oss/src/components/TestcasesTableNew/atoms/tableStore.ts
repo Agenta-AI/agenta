@@ -441,4 +441,12 @@ export const revisionChangeEffectAtom = atom(null, (get, set, newRevisionId: str
         }
         return updated
     })
+
+    // 5. For "new" or "draft" revisions (client-only), immediately mark fetch as completed
+    // These don't need real API fetches - the revisionQueryAtom returns mock data synchronously
+    // Without this, the second time entering "new" mode, the cached query doesn't trigger
+    // the fetching transition, so initialization never runs
+    if (newRevisionId === "new" || newRevisionId === "draft") {
+        set(markInitialFetchCompletedAtom, newRevisionId)
+    }
 })
