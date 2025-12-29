@@ -569,7 +569,7 @@ const ConfigureEvaluator = ({
                             {/* Evaluator Name & Actions */}
                             <div className="h-[48px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-white flex-shrink-0 sticky top-0 z-10">
                                 <Typography.Text className="font-semibold text-[14px]">
-                                    {formName || "New evaluator"}
+                                    {headerName || "New evaluator"}
                                 </Typography.Text>
                                 <Space>
                                     <Button type="text" onClick={() => form.resetFields()}>
