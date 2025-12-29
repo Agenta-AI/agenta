@@ -151,32 +151,37 @@ export function MappingSection({
                                     />
 
                                     {mapping.column === "create" && (
-                                        <AutoComplete
-                                            className="flex-1 min-w-0"
-                                            value={mapping.newColumn || undefined}
-                                            options={getAvailableColumnOptions(idx)}
-                                            onSelect={(value) =>
-                                                onMappingOptionChange({
-                                                    pathName: "newColumn",
-                                                    value,
-                                                    idx,
-                                                })
-                                            }
-                                            onChange={(value) =>
-                                                onMappingOptionChange({
-                                                    pathName: "newColumn",
-                                                    value,
-                                                    idx,
-                                                })
-                                            }
-                                            onBlur={onNewColumnBlur}
-                                            placeholder="Column name"
-                                            filterOption={(inputValue, option) =>
-                                                option!.value
-                                                    .toUpperCase()
-                                                    .indexOf(inputValue.toUpperCase()) !== -1
-                                            }
-                                        />
+                                        <Tooltip
+                                            title="Tip: Use dot notation (e.g., parent.child) to create nested columns"
+                                            placement="topRight"
+                                        >
+                                            <AutoComplete
+                                                className="flex-1 min-w-0"
+                                                value={mapping.newColumn || undefined}
+                                                options={getAvailableColumnOptions(idx)}
+                                                onSelect={(value) =>
+                                                    onMappingOptionChange({
+                                                        pathName: "newColumn",
+                                                        value,
+                                                        idx,
+                                                    })
+                                                }
+                                                onChange={(value) =>
+                                                    onMappingOptionChange({
+                                                        pathName: "newColumn",
+                                                        value,
+                                                        idx,
+                                                    })
+                                                }
+                                                onBlur={onNewColumnBlur}
+                                                placeholder="Column name (e.g., parent.child)"
+                                                filterOption={(inputValue, option) =>
+                                                    option!.value
+                                                        .toUpperCase()
+                                                        .indexOf(inputValue.toUpperCase()) !== -1
+                                                }
+                                            />
+                                        </Tooltip>
                                     )}
                                 </div>
 

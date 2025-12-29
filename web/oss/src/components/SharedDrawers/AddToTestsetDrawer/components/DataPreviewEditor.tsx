@@ -2,9 +2,14 @@ import {useCallback, useMemo, useRef, useState} from "react"
 
 import {ArrowCounterClockwise, Code, TreeStructure, Trash} from "@phosphor-icons/react"
 import {Button, Segmented, Select, Tooltip, Typography} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
+import {
+    discardTraceSpanDraftAtom,
+    traceSpanIsDirtyAtomFamily,
+} from "@/oss/state/entities/trace/drillInState"
 
 import {TestsetTraceData} from "../assets/types"
 
@@ -64,6 +69,10 @@ export function DataPreviewEditor({
     // View mode toggle: editor (JSON/YAML) or drill-in (tree navigation)
     const [viewMode, setViewMode] = useState<ViewMode>("drill-in")
 
+    // Check if current span has unsaved changes (for dirty state indicator)
+    const currentSpanIsDirty = useAtomValue(traceSpanIsDirtyAtomFamily(rowDataPreview))
+    const discardDraft = useSetAtom(discardTraceSpanDraftAtom)
+
     // Handle property click from JSON editor - switch to drill-in and navigate to path
     const handlePropertyClick = useCallback(
         (path: string) => {
@@ -102,39 +111,20 @@ export function DataPreviewEditor({
         [setUpdatedTraceData, onSaveEditedTrace],
     )
 
-    // Handle drill-in data changes
-    const handleDrillInDataChange = useCallback(
-        (updatedData: Record<string, unknown>) => {
-            // Wrap in {data: ...} format to match the expected structure
-            const wrappedData = {data: updatedData}
-            const jsonValue = JSON.stringify(wrappedData, null, 2)
-            setUpdatedTraceData(jsonValue)
-            lastSavedRef.current = jsonValue
-            onSaveEditedTrace(jsonValue)
-        },
-        [setUpdatedTraceData, onSaveEditedTrace],
-    )
-
     // Build span select options
+    // Note: We can't use atoms directly in map because we need the component to be within atom context
+    // So we'll use a simpler approach - just show index, and the "edited" badge will appear on the selected one
     const spanSelectOptions = useMemo(
         () =>
             traceData.map((trace, index) => ({
                 value: trace.key,
-                label: (
-                    <span className="flex items-center gap-1.5">
-                        <span>Span {index + 1}</span>
-                        {trace.isEdited && (
-                            <span className="text-[9px] bg-blue-100 text-blue-700 px-1 py-0.5 rounded">
-                                edited
-                            </span>
-                        )}
-                    </span>
-                ),
+                label: `Span ${index + 1}`,
             })),
         [traceData],
     )
 
-    // Span navigation prefix for breadcrumb - now a Select dropdown with bordered style to match testset selector
+    // Span navigation prefix for breadcrumb - stable to prevent re-renders
+    // Dirty indicator moved outside to avoid triggering re-renders on every edit
     const spanNavigationPrefix = useMemo(
         () => (
             <div className="flex items-center">
@@ -147,9 +137,6 @@ export function DataPreviewEditor({
                     }}
                     options={spanSelectOptions}
                     popupMatchSelectWidth={false}
-                    labelRender={({label}) => (
-                        <span className="font-medium text-gray-700">{label}</span>
-                    )}
                 />
                 {/* Use a slash separator instead of chevron to differentiate from breadcrumb navigation */}
                 <span className="text-gray-300 mx-2 text-sm">/</span>
@@ -162,7 +149,14 @@ export function DataPreviewEditor({
         <div className="flex flex-col gap-1">
             <div className="flex justify-between items-center">
                 <div className="flex flex-col gap-0.5">
-                    <Typography.Text className="font-medium">2. Map Data Fields</Typography.Text>
+                    <div className="flex items-center gap-2">
+                        <Typography.Text className="font-medium">2. Map Data Fields</Typography.Text>
+                        {currentSpanIsDirty && (
+                            <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                                edited
+                            </span>
+                        )}
+                    </div>
                     <Typography.Text type="secondary" className="text-xs">
                         Click on any field below to map it to a testset column
                     </Typography.Text>
@@ -183,13 +177,14 @@ export function DataPreviewEditor({
                             },
                         ]}
                     />
-                    {selectedTraceData?.isEdited && (
+                    {currentSpanIsDirty && (
                         <Tooltip title="Revert changes">
                             <Button
                                 size="small"
                                 type="text"
                                 icon={<ArrowCounterClockwise size={14} />}
                                 onClick={() => {
+                                    discardDraft(rowDataPreview)
                                     onRevertEditedTrace()
                                     setEditorVersion((v) => v + 1) // Force editor remount
                                 }}
@@ -210,12 +205,11 @@ export function DataPreviewEditor({
 
             {viewMode === "drill-in" ? (
                 <TraceDataDrillIn
-                    data={selectedTraceData?.data || {}}
+                    spanId={rowDataPreview}
                     title="data"
                     breadcrumbPrefix={spanNavigationPrefix}
                     showBackArrow={false}
                     editable
-                    onDataChange={handleDrillInDataChange}
                     columnOptions={columnOptions}
                     onMapToColumn={onMapToColumn}
                     onUnmap={onUnmap}
@@ -235,7 +229,7 @@ export function DataPreviewEditor({
                         initialValue={stableInitialValue}
                         handleChange={handleEditorChange}
                         editorType="border"
-                        className={selectedTraceData?.isEdited ? "border-blue-400" : ""}
+                        className={currentSpanIsDirty ? "border-blue-400" : ""}
                         disableDebounce
                         noProvider
                         onPropertyClick={handlePropertyClick}
