@@ -61,7 +61,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             alignItems: "center !important",
             height: 42,
         },
-        "& .ant-collapse-content": {
+        "& .ant-collapse-panel": {
             borderTop: `1px solid ${theme.colorBorder} !important`,
             padding: `0px`,
             lineHeight: theme.lineHeight,
@@ -70,7 +70,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             borderBottomRightRadius: theme.borderRadius,
             fontSize: theme.fontSize,
             flexGrow: 1,
-            "& .ant-collapse-content-box": {
+            "& .ant-collapse-body": {
                 height: "100%",
                 padding: "0px !important",
             },
