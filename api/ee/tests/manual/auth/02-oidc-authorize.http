@@ -5,12 +5,13 @@
 # Setup:
 # 1. Ensure AGENTA_LICENSE=ee
 # 2. Create organization with SSO provider:
-#    - Add organization_providers record with OIDC config
+#    - Add organization_providers record with OIDC settings
 #    - Configure issuer, client_id, client_secret
 # 3. Update variables below with actual UUIDs
 ###
 
-@baseUrl = http://localhost:8000
+@baseUrl = http://localhost
+@apiUrl = {{apiUrl}}
 @contentType = application/json
 
 # REPLACE THESE WITH ACTUAL VALUES FROM YOUR DATABASE
@@ -20,34 +21,34 @@
 ### Test 1: Initiate OIDC Authorization (Valid Provider)
 # Expected: 302 redirect to IdP authorization endpoint
 # Should include state parameter and redirect_uri
-GET {{baseUrl}}/auth/authorize/oidc?provider_id={{providerId}}&redirect=/
+GET {{apiUrl}}/auth/authorize/oidc?provider_id={{providerId}}&redirect=/
 Accept: application/json
 
 ### Test 2: OIDC Authorization with Custom Redirect
 # Expected: 302 redirect, redirect_uri includes custom path
-GET {{baseUrl}}/auth/authorize/oidc?provider_id={{providerId}}&redirect=/dashboard
+GET {{apiUrl}}/auth/authorize/oidc?provider_id={{providerId}}&redirect=/dashboard
 Accept: application/json
 
 ### Test 3: Invalid Provider ID (Not Found)
 # Expected: 404 Not Found
-GET {{baseUrl}}/auth/authorize/oidc?provider_id=99999999-9999-9999-9999-999999999999&redirect=/
+GET {{apiUrl}}/auth/authorize/oidc?provider_id=99999999-9999-9999-9999-999999999999&redirect=/
 Accept: application/json
 
 ### Test 4: Disabled Provider
 # Prerequisites: Provider exists but enabled=false
 # Expected: 403 Forbidden or 404
-GET {{baseUrl}}/auth/authorize/oidc?provider_id={{providerId}}&redirect=/
+GET {{apiUrl}}/auth/authorize/oidc?provider_id={{providerId}}&redirect=/
 Accept: application/json
 
 ### Test 5: Missing Provider ID
 # Expected: 422 Validation error
-GET {{baseUrl}}/auth/authorize/oidc?redirect=/
+GET {{apiUrl}}/auth/authorize/oidc?redirect=/
 Accept: application/json
 
 ### Test 6: OIDC in OSS Mode (Should Fail)
 # Prerequisites: AGENTA_LICENSE=oss
 # Expected: 404 Not Found with message "SSO/OIDC is only available in Enterprise Edition"
-GET {{baseUrl}}/auth/authorize/oidc?provider_id={{providerId}}&redirect=/
+GET {{apiUrl}}/auth/authorize/oidc?provider_id={{providerId}}&redirect=/
 Accept: application/json
 
 ###

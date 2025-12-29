@@ -8,12 +8,13 @@
 # - Slug CANNOT be changed once set (immutable)
 ###
 
-@baseUrl = http://localhost:8000
+@baseUrl = http://localhost
+@apiUrl = {{baseUrl}}/api
 @contentType = application/json
 
 # REPLACE WITH ACTUAL VALUES
 @organizationId = 00000000-0000-0000-0000-000000000000
-
+@apikey = your_api_key_here
 ###
 # Scenario 1: Set slug for organization without slug (Should Succeed)
 ###
@@ -25,27 +26,29 @@
 # Step 2: Set slug for the first time
 # This should SUCCEED
 # Note: Replace with your actual organization update endpoint
-PATCH {{baseUrl}}/api/organizations/{{organizationId}}
+PATCH {{apiUrl}}/organizations/{{organizationId}}
 Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
 
 {
-  "slug": "acme"
+  "slug": "some-slug"
 }
 
 # Expected Response: 200 OK
-# Slug should now be set to "acme"
+# Slug should now be set to "some-slug"
 
 
 ###
 # Scenario 2: Try to change existing slug (Should Fail)
 ###
 
-# Prerequisites: Organization already has slug="acme"
+# Prerequisites: Organization already has slug="some-slug"
 
 # Step 1: Try to change slug to different value
 # This should FAIL with ValueError
-PATCH {{baseUrl}}/api/organizations/{{organizationId}}
+PATCH {{apiUrl}}/organizations/{{organizationId}}
 Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
 
 {
   "slug": "different-slug"
@@ -53,7 +56,7 @@ Content-Type: {{contentType}}
 
 # Expected Response: 400 Bad Request or 422 Validation Error
 # {
-#   "detail": "Organization slug cannot be changed once set. Current slug: 'acme'"
+#   "detail": "Organization slug cannot be changed once set. Current slug: 'some-slug'"
 # }
 
 
@@ -61,31 +64,32 @@ Content-Type: {{contentType}}
 # Scenario 3: Update slug to same value (Should Succeed)
 ###
 
-# Prerequisites: Organization has slug="acme"
+# Prerequisites: Organization has slug="some-slug"
 
 # Step 1: Set slug to the same value
 # This should SUCCEED (idempotent operation)
-PATCH {{baseUrl}}/api/organizations/{{organizationId}}
+PATCH {{apiUrl}}/organizations/{{organizationId}}
 Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
 
 {
-  "slug": "acme"
+  "slug": "some-slug"
 }
 
 # Expected Response: 200 OK
-# Slug remains "acme"
-
+# Slug remains "some-slug"
 
 ###
 # Scenario 4: Update other fields without touching slug (Should Succeed)
 ###
 
-# Prerequisites: Organization has slug="acme"
+# Prerequisites: Organization has slug="some-slug"
 
 # Step 1: Update organization name without changing slug
 # This should SUCCEED
-PATCH {{baseUrl}}/api/organizations/{{organizationId}}
+PATCH {{apiUrl}}/organizations/{{organizationId}}
 Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
 
 {
   "name": "ACME Corporation Updated",
@@ -100,19 +104,20 @@ Content-Type: {{contentType}}
 # Scenario 5: Try to set slug to null/empty (Should Fail)
 ###
 
-# Prerequisites: Organization has slug="acme"
+# Prerequisites: Organization has slug="some-slug"
 
 # Step 1: Try to clear the slug
 # This should FAIL (changing from value to null)
-PATCH {{baseUrl}}/api/organizations/{{organizationId}}
+PATCH {{apiUrl}}/organizations/{{organizationId}}
 Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
 
 {
   "slug": null
 }
 
 # Expected Response: 400 Bad Request
-# Slug should remain "acme"
+# Slug should remain "some-slug"
 
 
 ###
@@ -135,75 +140,53 @@ Content-Type: {{contentType}}
 ###
 
 # Edge Case 1: Slug with special characters
-PATCH {{baseUrl}}/api/organizations/{{organizationId}}
+PATCH {{apiUrl}}/organizations/{{organizationId}}
 Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
 
 {
-  "slug": "my-org-2024"
+  "slug": "some-slug-2025!#$%"
 }
+
+###
 
 # Should succeed if slug validation allows hyphens and numbers
 
-
 # Edge Case 2: Very long slug
-PATCH {{baseUrl}}/api/organizations/{{organizationId}}
+PATCH {{apiUrl}}/organizations/{{organizationId}}
 Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
 
 {
-  "slug": "this-is-a-very-long-organization-slug-that-might-exceed-limits"
+  "slug": "this-looooooooooooooooooooooooooooooooooooooooooooooooooooooong-slug"
 }
+
+###
 
 # Should fail if slug has length constraint
 
-
 # Edge Case 3: Duplicate slug (different organization)
-# Prerequisites: Organization A has slug="acme"
-# Try to set Organization B's slug to "acme"
+# Prerequisites: Organization A has slug="some-slug"
+# Try to set Organization B's slug to "some-slug"
 # Expected: Database constraint violation (unique constraint)
 
+PATCH {{apiUrl}}/organizations/{{organizationId}}
+Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
+
+{
+  "slug": "some-slug"
+}
 
 ###
 # Test Summary
 ###
 
 # ✅ Setting slug first time (null → value): ALLOWED
-# ✅ Updating slug to same value: ALLOWED
 # ❌ Changing slug (value → different value): BLOCKED
+# ✅ Updating slug (value → same value): ALLOWED
 # ❌ Clearing slug (value → null): BLOCKED
 # ✅ Updating other fields with slug set: ALLOWED
+# ❌ Special characters in slug: DEPENDS ON VALIDATION
+# ❌ Very long slug: DEPENDS ON LENGTH CONSTRAINT
 # ❌ Duplicate slugs across orgs: BLOCKED (DB constraint)
-
-
-###
-# Implementation Details
-###
-
-# The validation is implemented in:
-# - File: vibes/api/oss/src/services/db_manager.py
-# - Function: update_organization()
-# - Lines: 1416-1423
-
-# Validation Logic:
-# if "slug" in values_to_update:
-#     new_slug = values_to_update["slug"]
-#     if organization.slug is not None and new_slug != organization.slug:
-#         raise ValueError(
-#             f"Organization slug cannot be changed once set. "
-#             f"Current slug: '{organization.slug}'"
-#         )
-
-# Database Constraint:
-# - UNIQUE constraint on organizations.slug
-# - Ensures no two organizations can have the same slug
-# - Nullable (allows multiple orgs with slug=NULL)
-
-
-###
-# Migration Reference
-###
-
-# Migration: 12d23a8f7dde_add_slug_to_organizations.py
-# - Adds slug column (nullable, unique)
-# - Creates unique constraint: uq_organizations_slug
-# - Creates index: ix_organizations_slug
-# - Allows backward compatibility (existing orgs have slug=NULL)

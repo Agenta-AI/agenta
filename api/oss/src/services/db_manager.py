@@ -1461,7 +1461,7 @@ async def create_or_update_default_project(values_to_update: Dict[str, Any]):
         project = result.scalar()
 
         if project is None:
-            project = ProjectDB(project_name="Default Project", is_default=True)
+            project = ProjectDB(project_name="Default", is_default=True)
 
             session.add(project)
 

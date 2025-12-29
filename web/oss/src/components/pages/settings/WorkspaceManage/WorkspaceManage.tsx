@@ -1,6 +1,6 @@
-import {useEffect, useMemo, useState, type FC} from "react"
+import {useMemo, useState, type FC} from "react"
 
-import {GearSix, PencilSimple, Plus} from "@phosphor-icons/react"
+import {GearSix, Plus} from "@phosphor-icons/react"
 import {Button, Input, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dynamic from "next/dynamic"
@@ -12,7 +12,7 @@ import {isEmailInvitationsEnabled, isEE} from "@/oss/lib/helpers/isEE"
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {useOrgData, isPersonalOrg} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
-import {useUpdateWorkspaceName, useWorkspaceMembers} from "@/oss/state/workspace"
+import {useWorkspaceMembers} from "@/oss/state/workspace"
 
 import AvatarWithLabel from "./assets/AvatarWithLabel"
 import {Actions, Roles} from "./cellRenderers"
@@ -23,7 +23,6 @@ const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr
 const WorkspaceManage: FC = () => {
     const {user: signedInUser} = useProfileData()
     const {selectedOrg, loading, refetch} = useOrgData()
-    const {updateWorkspaceName} = useUpdateWorkspaceName()
     const {filteredMembers, searchTerm, setSearchTerm} = useWorkspaceMembers()
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
     const [isInvitedUserLinkModalOpen, setIsInvitedUserLinkModalOpen] = useState(false)
@@ -35,14 +34,6 @@ const WorkspaceManage: FC = () => {
 
     const organizationId = selectedOrg?.id
     const workspaceId = selectedOrg?.default_workspace?.id
-    const workspace = selectedOrg?.default_workspace
-
-    const [isEditingName, setIsEditingName] = useState(false)
-    const [workspaceNameInput, setWorkspaceNameInput] = useState(workspace?.name || "")
-
-    useEffect(() => {
-        setWorkspaceNameInput(workspace?.name || "")
-    }, [workspace?.name])
 
     const columns = useMemo(
         () =>
@@ -151,20 +142,6 @@ const WorkspaceManage: FC = () => {
         [selectedOrg?.id],
     )
 
-    const handleSaveWorkspaceName = async () => {
-        if (!workspaceId || !organizationId) return
-
-        await updateWorkspaceName({
-            organizationId,
-            workspaceId,
-            name: workspaceNameInput,
-            onSuccess: () => {
-                // Only handle UI state - workspace data is updated by the mutation atom
-                setIsEditingName(false)
-            },
-        })
-    }
-
     // Check if organization is personal and show empty state in EE
     const showPersonalOrgMessage = isEE() && isPersonalOrg(selectedOrg)
 
@@ -203,52 +180,7 @@ const WorkspaceManage: FC = () => {
 
     return (
         <section className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 group">
-                {!isEditingName ? (
-                    <>
-                        <Typography.Text className="font-medium" data-cy="workspace-name">
-                            {workspace?.name}
-                        </Typography.Text>
-                        <Button
-                            type="text"
-                            size="small"
-                            className="opacity-0 group-hover:opacity-100"
-                            icon={<PencilSimple size={14} />}
-                            onClick={() => setIsEditingName(true)}
-                        />
-                    </>
-                ) : (
-                    <>
-                        <Input
-                            value={workspaceNameInput}
-                            onChange={(e) => setWorkspaceNameInput(e.target.value)}
-                            className="w-[250px]"
-                            autoFocus
-                        />
-                        <Button type="primary" size="small" onClick={handleSaveWorkspaceName}>
-                            Save
-                        </Button>
-                        <Button
-                            size="small"
-                            onClick={() => {
-                                setIsEditingName(false)
-                                setWorkspaceNameInput(workspace?.name || "")
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                    </>
-                )}
-            </div>
-            <div className="flex items-center justify-between gap-2">
-                <Input.Search
-                    placeholder="Search"
-                    className="w-[400px]"
-                    allowClear
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-
+            <div className="flex items-center gap-2">
                 <Button
                     type="primary"
                     icon={<Plus size={14} className="mt-0.2" />}
@@ -256,6 +188,14 @@ const WorkspaceManage: FC = () => {
                 >
                     Invite members
                 </Button>
+
+                <Input.Search
+                    placeholder="Search"
+                    className="w-[400px]"
+                    allowClear
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
             </div>
 
             <Spin spinning={loading}>

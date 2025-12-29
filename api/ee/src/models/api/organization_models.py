@@ -33,6 +33,7 @@ class CreateOrganization(BaseModel):
 
 
 class OrganizationUpdate(BaseModel):
+    slug: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
     updated_at: Optional[str] = None

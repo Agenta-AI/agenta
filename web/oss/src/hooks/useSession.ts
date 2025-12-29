@@ -1,6 +1,7 @@
 import {useEffect} from "react"
 
 import {useSetAtom} from "jotai"
+import {useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
@@ -19,6 +20,7 @@ export const useSession: () => {
     const setSessionExists = useSetAtom(sessionExistsAtom)
     const setSessionLoading = useSetAtom(sessionLoadingAtom)
     const router = useRouter()
+    const queryClient = useQueryClient()
 
     useEffect(() => {
         setSessionLoading(res.loading)
@@ -33,12 +35,22 @@ export const useSession: () => {
         logout: async () => {
             signOut()
                 .then(async () => {
+                    // Clear React Query cache to prevent unauthorized requests
+                    queryClient.clear()
+
+                    // Reset Jotai atoms
                     resetProfileData()
                     resetOrgData()
                     resetProjectData()
+
+                    // Reset analytics
                     const posthog = (await import("posthog-js")).default
                     posthog.reset()
+
+                    // Update session state
                     setSessionExists(false)
+
+                    // Redirect to auth page
                     router.push("/auth")
                 })
                 .catch(console.error)

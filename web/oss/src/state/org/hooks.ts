@@ -2,11 +2,14 @@ import {useCallback} from "react"
 
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useSetAtom, useAtomValue} from "jotai"
+import {useRouter} from "next/router"
 
 import {OrgDetails} from "@/oss/lib/Types"
 import {fetchSingleOrg} from "@/oss/services/organization/api"
+import {fetchAllProjects} from "@/oss/services/project"
 import type {ProjectsResponse} from "@/oss/services/project/types"
 import {requestNavigationAtom} from "@/oss/state/appState"
+import {settingsTabAtom} from "@/oss/state/settings"
 
 import {getLastUsedProjectId, projectsAtom} from "../project/selectors/project"
 
@@ -31,13 +34,32 @@ const projectMatchesWorkspace = (
     return false
 }
 
+const pickPreferredProjectForWorkspace = (
+    projects: ProjectsResponse[],
+    workspaceId: string,
+): ProjectsResponse | null => {
+    if (!projects.length) return null
+    const workspaceProjects = projects.filter((project) =>
+        projectMatchesWorkspace(project, workspaceId),
+    )
+    if (!workspaceProjects.length) return null
+
+    const workspaceDefault = workspaceProjects.find((project) => project.is_default_project)
+    if (workspaceDefault) return workspaceDefault
+
+    const nonDemo = workspaceProjects.find((project) => !project.is_demo)
+    return nonDemo ?? workspaceProjects[0]
+}
+
 export const useOrgData = () => {
     const queryClient = useQueryClient()
+    const router = useRouter()
     const [{data: orgs, isPending: loadingOrgs, refetch: refetchOrgs}] = useAtom(orgsQueryAtom)
     const [{data: selectedOrg, isPending: loadingDetails, refetch: refetchSelectedOrg}] =
         useAtom(selectedOrgQueryAtom)
     const navigate = useSetAtom(requestNavigationAtom)
     const selectedOrgId = useAtomValue(selectedOrgIdAtom)
+    const settingsTab = useAtomValue(settingsTabAtom)
 
     const projects = useAtomValue(projectsAtom)
 
@@ -45,14 +67,33 @@ export const useOrgData = () => {
         async (
             organizationId: string,
         ): Promise<{workspaceId: string | null; preferredProject: ProjectsResponse | null}> => {
-            const matchingProject = projects.find((project) =>
-                projectMatchesWorkspace(project, organizationId),
-            )
+            const matchingProject = pickPreferredProjectForWorkspace(projects, organizationId)
 
             if (matchingProject) {
                 return {
                     workspaceId: matchingProject.workspace_id || organizationId,
                     preferredProject: matchingProject,
+                }
+            }
+
+            const fetchedProjects = await queryClient
+                .fetchQuery({
+                    queryKey: ["projects", "switch-org", organizationId],
+                    queryFn: () => fetchAllProjects(),
+                    staleTime: 30_000,
+                })
+                .catch(() => null)
+
+            if (Array.isArray(fetchedProjects)) {
+                const fetchedMatch = pickPreferredProjectForWorkspace(
+                    fetchedProjects,
+                    organizationId,
+                )
+                if (fetchedMatch) {
+                    return {
+                        workspaceId: fetchedMatch.workspace_id || organizationId,
+                        preferredProject: fetchedMatch,
+                    }
                 }
             }
 
@@ -104,11 +145,28 @@ export const useOrgData = () => {
                 const lastUsedProjectId = getLastUsedProjectId(workspaceId)
                 if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
 
-                const href = lastUsedProjectId
-                    ? `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(lastUsedProjectId)}/apps`
-                    : preferredProject
-                      ? `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(preferredProject.project_id)}/apps`
-                      : `/w/${encodeURIComponent(workspaceId)}`
+                // Preserve current page route if on settings page
+                const isOnSettingsPage = router.pathname.includes('/settings')
+                const currentTab =
+                    (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ??
+                    (router.query.tab as string | undefined)
+
+                let href: string
+                if (isOnSettingsPage && lastUsedProjectId) {
+                    // Keep settings page and tab when switching org
+                    const tabParam = currentTab ? `?tab=${encodeURIComponent(currentTab)}` : ""
+                    href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(lastUsedProjectId)}/settings${tabParam}`
+                } else if (isOnSettingsPage && preferredProject) {
+                    const tabParam = currentTab ? `?tab=${encodeURIComponent(currentTab)}` : ""
+                    href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(preferredProject.project_id)}/settings${tabParam}`
+                } else {
+                    // Default behavior for non-settings pages
+                    href = lastUsedProjectId
+                        ? `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(lastUsedProjectId)}/apps`
+                        : preferredProject
+                          ? `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(preferredProject.project_id)}/apps`
+                          : `/w/${encodeURIComponent(workspaceId)}`
+                }
 
                 navigate({type: "href", href, method: "push", shallow: false})
                 onSuccess?.()
@@ -116,7 +174,15 @@ export const useOrgData = () => {
                 console.error("Failed to change workspace:", error)
             }
         },
-        [loadingOrgs, navigate, queryClient, resolveWorkspaceForOrg, selectedOrgId],
+        [
+            loadingOrgs,
+            navigate,
+            queryClient,
+            resolveWorkspaceForOrg,
+            router,
+            selectedOrgId,
+            settingsTab,
+        ],
     )
 
     const reset = useCallback(async () => {

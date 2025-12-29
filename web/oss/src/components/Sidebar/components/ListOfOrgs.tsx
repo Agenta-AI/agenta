@@ -1,6 +1,6 @@
 import {memo, useMemo, useState} from "react"
 
-import {ArrowsLeftRight, CaretDown, PencilSimple, Plus, SignOut, Trash} from "@phosphor-icons/react"
+import {ArrowsLeftRight, CaretDown, PencilSimple, Plus, SignOut, Trash, CopyIcon} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
     Button,
@@ -12,6 +12,7 @@ import {
     MenuProps,
     Modal,
     Select,
+    Tag,
     message,
 } from "antd"
 import clsx from "clsx"
@@ -148,6 +149,7 @@ const ListOfOrgs = ({
     const organizationMenuItems = useMemo<MenuProps["items"]>(() => {
         const items: MenuProps["items"] = organizations.map((organization) => {
             const isPersonal = isPersonalOrg(organization)
+            const isDemo = organization.flags?.is_demo ?? false
             const isOwner = organization.owner_id === user?.id
             const isSelectedOrganization = organization.id === effectiveSelectedId
 
@@ -160,10 +162,11 @@ const ListOfOrgs = ({
                             <Avatar size="small" name={organization.name} />
                             <span className="truncate">{organization.name}</span>
                             {isPersonal && (
-                            <span className="px-1.5 py-0.5 text-[11px] leading-none font-mono text-white bg-gray-400 rounded shrink-0">
-                                Personal
-                            </span>
-                        )}
+                                <Tag className="bg-[#0517290F] m-0">personal</Tag>
+                            )}
+                            {isDemo && (
+                                <Tag className="bg-[#0517290F] m-0">demo</Tag>
+                            )}
                         </div>
                     </div>
                 ),
@@ -180,6 +183,15 @@ const ListOfOrgs = ({
                                 <div className="flex items-center gap-2">
                                     <ArrowsLeftRight size={16} />
                                     Transfer ownership
+                                </div>
+                            ),
+                        },
+                        {
+                            key: `copy:${organization.id}`,
+                            label: (
+                                <div className="flex items-center gap-2">
+                                    <CopyIcon size={16} />
+                                    Copy ID
                                 </div>
                             ),
                         },
@@ -213,14 +225,13 @@ const ListOfOrgs = ({
             items.push({type: "divider", key: "organizations-divider"})
         }
 
-        // Only show "Create Organization" in EE
+        // Only show "New Organization" in EE
         if (isEE()) {
             items.push({
                 key: "create-organization",
                 label: (
-                    <div className="flex items-center gap-2">
-                        <Plus size={16} />
-                        Create Organization
+                    <div className="flex items-center gap-2 text-primary-500">
+                        <span className="font-medium">+ New organization</span>
                     </div>
                 ),
             })
@@ -438,6 +449,20 @@ const ListOfOrgs = ({
         if (keyString === "create-organization") {
             setOrganizationDropdownOpen(false)
             setCreateModalOpen(true)
+            return
+        }
+
+        // Handle copy ID action
+        if (keyString.startsWith("copy:")) {
+            const organizationId = keyString.split(":")[1]
+            if (typeof navigator !== "undefined" && navigator?.clipboard) {
+                navigator.clipboard.writeText(organizationId)
+                    .then(() => message.success("Organization ID copied"))
+                    .catch(() => message.error("Failed to copy organization ID"))
+            } else {
+                message.error("Clipboard not supported")
+            }
+            setOrganizationDropdownOpen(false)
             return
         }
 

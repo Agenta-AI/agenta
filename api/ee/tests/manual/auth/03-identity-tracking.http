@@ -10,7 +10,8 @@
 # 3. Backend started with SuperTokens configured
 ###
 
-@baseUrl = http://localhost:8000
+@baseUrl = http://localhost
+@apiUrl = {{baseUrl}}/api
 @contentType = application/json
 
 ###
@@ -53,7 +54,7 @@
 ###
 
 ### Step 1: Complete Google OAuth Flow
-# Navigate to: http://localhost:8000/auth
+# Navigate to: http://localhost/api/auth
 # Click "Continue with Google"
 # Complete Google auth
 # Check database:
@@ -170,7 +171,7 @@
 # 3. Backend should verify session and have access to identities array
 
 # Example protected endpoint (if you have one):
-# GET {{baseUrl}}/api/me
+# GET {{apiUrl}}/me
 # Cookie: sAccessToken=...; sRefreshToken=...
 
 # The endpoint handler can access session like:

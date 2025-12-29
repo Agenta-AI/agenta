@@ -66,11 +66,11 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
 
         # Fetch provider from database
         provider = await providers_dao.get_by_slug(org_id, provider_slug)
-        if not provider or not provider.enabled:
+        if not provider or not (provider.flags and provider.flags.get("is_active")):
             return None
 
         # Extract OIDC config
-        config = provider.config
+        config = provider.settings
         issuer = config.get("issuer")
         client_id = config.get("client_id")
         client_secret = config.get("client_secret")

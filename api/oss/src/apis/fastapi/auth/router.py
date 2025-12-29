@@ -66,7 +66,7 @@ async def oidc_authorize(provider_id: str, redirect: str = "/"):
         providers_dao = OrganizationProvidersDAO()
         provider = await providers_dao.get_by_id(UUID(provider_id))
 
-        if not provider or not provider.enabled:
+        if not provider or not (provider.flags and provider.flags.get("is_active")):
             raise HTTPException(
                 status_code=404, detail="Provider not found or disabled"
             )

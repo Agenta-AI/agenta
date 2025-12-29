@@ -8,7 +8,8 @@
 # 3. Users with various authentication methods
 ###
 
-@baseUrl = http://localhost:8000
+@baseUrl = http://localhost
+@apiUrl = {{baseUrl}}/api
 @contentType = application/json
 
 # REPLACE THESE WITH ACTUAL VALUES
@@ -24,7 +25,7 @@
 
 ### Step 2: Try to Access SSO-Required Organization
 # Expected: 403 Forbidden with AUTH_UPGRADE_REQUIRED
-GET {{baseUrl}}/api/projects?organization_id={{organizationId}}
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
 Accept: application/json
 # Cookie: sAccessToken=...; sRefreshToken=...
 
@@ -48,7 +49,7 @@ Accept: application/json
 
 ### Step 2: Retry Organization Access
 # Expected: 200 OK, access granted
-GET {{baseUrl}}/api/projects?organization_id={{organizationId}}
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
 Accept: application/json
 # Cookie: sAccessToken=...; sRefreshToken=...
 
@@ -64,7 +65,7 @@ Accept: application/json
 
 ### Test: Access with any valid method
 # User with identities=["email:otp"] should be allowed
-GET {{baseUrl}}/api/projects?organization_id={{organizationId}}
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
 Accept: application/json
 
 # Expected: 200 OK
@@ -76,7 +77,7 @@ Accept: application/json
 
 ### Test: Request without organization context
 # Middleware should skip policy check
-GET {{baseUrl}}/api/health
+GET {{apiUrl}}/health
 Accept: application/json
 
 # Expected: 200 OK (no policy enforcement)
@@ -90,7 +91,7 @@ Accept: application/json
 # User exists but not in organization_members for this org
 
 ### Test: Try to access organization
-GET {{baseUrl}}/api/projects?organization_id={{organizationId}}
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
 Accept: application/json
 
 # Expected: 403 Forbidden
@@ -108,7 +109,7 @@ Accept: application/json
 # No record in organization_policies for this organization
 
 ### Test: Access should work with any auth method
-GET {{baseUrl}}/api/projects?organization_id={{organizationId}}
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
 Accept: application/json
 
 # Expected: 200 OK (no restrictions)
@@ -185,15 +186,15 @@ Accept: application/json
 ###
 
 ### Auth routes (no policy check)
-GET {{baseUrl}}/auth/discover
+GET {{apiUrl}}/auth/discover
 Accept: application/json
 
 ### Health check (no policy check)
-GET {{baseUrl}}/health
+GET {{apiUrl}}/health
 Accept: application/json
 
 ### Public routes (no policy check)
-GET {{baseUrl}}/api/public/status
+GET {{apiUrl}}/public/status
 Accept: application/json
 
 

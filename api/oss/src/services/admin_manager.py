@@ -216,7 +216,7 @@ async def legacy_create_workspace(
     await session.refresh(workspace, attribute_names=["organization"])
 
     project_db = await legacy_create_project(
-        project_name="Default Project",
+        project_name="Default",
         organization_id=str(organization.id),
         workspace_id=str(workspace.id),
         session=session,

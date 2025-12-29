@@ -22,7 +22,7 @@ agenta = ">=0.72.1"
 
 # Core framework dependencies
 fastapi = ">=0.127"
-pydantic = "^2"
+pydantic = { version = "^2", extras = ["email"] }
 uvicorn = "^0.40"
 gunicorn = "^23"
 httpx = "^0.28"

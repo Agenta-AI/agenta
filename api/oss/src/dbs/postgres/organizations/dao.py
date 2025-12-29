@@ -176,12 +176,18 @@ class OrganizationProvidersDAO:
     async def list_by_organization(
         self, organization_id: UUID, enabled_only: bool = False
     ) -> List[OrganizationProvider]:
+        import sqlalchemy
         async with engine.core_session() as session:
             stmt = select(OrganizationProviderDBE).filter_by(
                 organization_id=organization_id
             )
             if enabled_only:
-                stmt = stmt.filter_by(enabled=True)
+                from sqlalchemy import and_
+                stmt = stmt.filter(
+                    and_(
+                        OrganizationProviderDBE.flags['is_active'].astext.cast(sqlalchemy.Boolean) == True
+                    )
+                )
 
             result = await session.execute(stmt)
             provider_dbes = result.scalars().all()
@@ -191,10 +197,34 @@ class OrganizationProvidersDAO:
     async def list_by_domain(
         self, domain_id: UUID, enabled_only: bool = False
     ) -> List[OrganizationProvider]:
+        """
+        List SSO providers that can handle a specific verified domain.
+
+        Note: domain_id FK was removed from organization_providers.
+        This method now finds providers by matching organization_id from the domain.
+        """
+        import sqlalchemy
+        from sqlalchemy import and_
+
         async with engine.core_session() as session:
-            stmt = select(OrganizationProviderDBE).filter_by(domain_id=domain_id)
+            # First get the domain to find its organization
+            domain_stmt = select(OrganizationDomainDBE).filter_by(id=domain_id)
+            domain_result = await session.execute(domain_stmt)
+            domain_dbe = domain_result.scalar()
+
+            if domain_dbe is None:
+                return []
+
+            # Then get all providers for that organization
+            stmt = select(OrganizationProviderDBE).filter_by(
+                organization_id=domain_dbe.organization_id
+            )
             if enabled_only:
-                stmt = stmt.filter_by(enabled=True)
+                stmt = stmt.filter(
+                    and_(
+                        OrganizationProviderDBE.flags['is_active'].astext.cast(sqlalchemy.Boolean) == True
+                    )
+                )
 
             result = await session.execute(stmt)
             provider_dbes = result.scalars().all()

@@ -15,6 +15,7 @@ import {
     message,
 } from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
@@ -23,6 +24,7 @@ import type {ProjectsResponse} from "@/oss/services/project/types"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
+import {settingsTabAtom} from "@/oss/state/settings"
 
 interface ListOfProjectsProps {
     collapsed: boolean
@@ -54,6 +56,7 @@ const ListOfProjects = ({
     const router = useRouter()
     const {orgs} = useOrgData()
     const {project, projects, refetch} = useProjectData()
+    const settingsTab = useAtomValue(settingsTabAtom)
 
     const totalProjects = useMemo(() => projects.filter(Boolean).length, [projects])
     const canDeleteProjects = totalProjects > 1
@@ -257,10 +260,26 @@ const ListOfProjects = ({
             if (!workspaceId || !projectId) return
             cacheLastUsedProjectId(workspaceId, projectId)
             if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
-            const href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
+
+            // Preserve current page route if on settings page
+            const isOnSettingsPage = router.pathname.includes('/settings')
+            const currentTab =
+                (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ??
+                (router.query.tab as string | undefined)
+
+            let href: string
+            if (isOnSettingsPage) {
+                // Keep settings page and tab when switching project
+                const tabParam = currentTab ? `?tab=${encodeURIComponent(currentTab)}` : ""
+                href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings${tabParam}`
+            } else {
+                // Default behavior for non-settings pages
+                href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
+            }
+
             void router.push(href)
         },
-        [router],
+        [router, settingsTab],
     )
 
     const findFallbackProject = useCallback(
@@ -358,7 +377,7 @@ const ListOfProjects = ({
                           label: (
                               <div className="flex items-center gap-2">
                                   <CopyIcon size={16} />
-                                  Copy project ID
+                                  Copy ID
                               </div>
                           ),
                       },
@@ -392,7 +411,7 @@ const ListOfProjects = ({
                     <div className="flex items-center gap-2 w-full max-w-[300px]">
                         <span className="truncate">{proj.project_name}</span>
                         {proj.is_default_project && (
-                            <Tag className="bg-[#0517290F] m-0">Default</Tag>
+                            <Tag className="bg-[#0517290F] m-0">default</Tag>
                         )}
                     </div>
                 ),

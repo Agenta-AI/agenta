@@ -22,8 +22,8 @@ async def update_an_organization(
 ) -> OrganizationDB:
     org = await db_manager_ee.get_organization(organization_id)
     if org is not None:
-        await db_manager_ee.update_organization(str(org.id), payload)
-        return org
+        updated_org = await db_manager_ee.update_organization(str(org.id), payload)
+        return updated_org
     raise NotFound("Organization not found")
 
 

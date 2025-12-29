@@ -8,7 +8,8 @@
 # - Test organizations created (collaborative + personal)
 ###
 
-@baseUrl = http://localhost:8000
+@baseUrl = http://localhost
+@apiUrl = {{baseUrl}}/api
 @testOrgId = <replace-with-collaborative-org-id>
 @testPersonalOrgId = <replace-with-personal-org-id>
 @secondOrgId = <replace-with-second-org-id>
@@ -21,7 +22,7 @@
 ###
 
 # This should succeed - collaborative orgs can verify domains
-POST {{baseUrl}}/organizations/{{testOrgId}}/domains/verify
+POST {{apiUrl}}/organizations/{{testOrgId}}/domains/verify
 Content-Type: application/json
 
 {
@@ -42,7 +43,7 @@ Content-Type: application/json
 ###
 
 # This should fail - personal orgs cannot verify domains
-POST {{baseUrl}}/organizations/{{testPersonalOrgId}}/domains/verify
+POST {{apiUrl}}/organizations/{{testPersonalOrgId}}/domains/verify
 Content-Type: application/json
 
 {
@@ -60,7 +61,7 @@ Content-Type: application/json
 ###
 
 # This should fail - domain already verified by another org
-POST {{baseUrl}}/organizations/{{secondOrgId}}/domains/verify
+POST {{apiUrl}}/organizations/{{secondOrgId}}/domains/verify
 Content-Type: application/json
 
 {
@@ -77,7 +78,7 @@ Content-Type: application/json
 # Test 4: Add Domain to Collaborative Organization (Should Succeed)
 ###
 
-POST {{baseUrl}}/organizations/{{testOrgId}}/domains
+POST {{apiUrl}}/organizations/{{testOrgId}}/domains
 Content-Type: application/json
 
 {
@@ -98,7 +99,7 @@ Content-Type: application/json
 # Test 5: List Domains for Collaborative Organization
 ###
 
-GET {{baseUrl}}/organizations/{{testOrgId}}/domains
+GET {{apiUrl}}/organizations/{{testOrgId}}/domains
 
 # Expected: 200 OK
 # [
@@ -119,7 +120,7 @@ GET {{baseUrl}}/organizations/{{testOrgId}}/domains
 # Test 6: List Domains for Personal Organization
 ###
 
-GET {{baseUrl}}/organizations/{{testPersonalOrgId}}/domains
+GET {{apiUrl}}/organizations/{{testPersonalOrgId}}/domains
 
 # Expected: 200 OK
 # [
@@ -137,7 +138,7 @@ GET {{baseUrl}}/organizations/{{testPersonalOrgId}}/domains
 ###
 
 # First, unverify the domain from the first org
-DELETE {{baseUrl}}/organizations/{{testOrgId}}/domains/<domain-id>/verification
+DELETE {{apiUrl}}/organizations/{{testOrgId}}/domains/<domain-id>/verification
 
 # Expected: 200 OK
 # {
@@ -146,7 +147,7 @@ DELETE {{baseUrl}}/organizations/{{testOrgId}}/domains/<domain-id>/verification
 # }
 
 # Now verify it with the second org (should succeed now)
-POST {{baseUrl}}/organizations/{{secondOrgId}}/domains/verify
+POST {{apiUrl}}/organizations/{{secondOrgId}}/domains/verify
 Content-Type: application/json
 
 {
@@ -163,7 +164,7 @@ Content-Type: application/json
 # Test 8: Check Organization Kind
 ###
 
-GET {{baseUrl}}/organizations/{{testOrgId}}
+GET {{apiUrl}}/organizations/{{testOrgId}}
 
 # Expected: 200 OK
 # {
@@ -173,7 +174,7 @@ GET {{baseUrl}}/organizations/{{testOrgId}}
 #   "kind": "collaborative"
 # }
 
-GET {{baseUrl}}/organizations/{{testPersonalOrgId}}
+GET {{apiUrl}}/organizations/{{testPersonalOrgId}}
 
 # Expected: 200 OK
 # {
@@ -189,7 +190,7 @@ GET {{baseUrl}}/organizations/{{testPersonalOrgId}}
 ###
 
 # Get organization policy
-GET {{baseUrl}}/organizations/{{testOrgId}}/policy
+GET {{apiUrl}}/organizations/{{testOrgId}}/policy
 
 # Expected: 200 OK
 # {
@@ -210,7 +211,7 @@ GET {{baseUrl}}/organizations/{{testOrgId}}/policy
 # Test 10: Update Auto-Join Policy
 ###
 
-PATCH {{baseUrl}}/organizations/{{testOrgId}}/policy
+PATCH {{apiUrl}}/organizations/{{testOrgId}}/policy
 Content-Type: application/json
 
 {

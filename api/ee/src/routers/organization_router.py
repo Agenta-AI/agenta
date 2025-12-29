@@ -137,14 +137,15 @@ async def fetch_organization_details(
 
 
 @router.put("/{organization_id}/", operation_id="update_organization")
+@router.patch("/{organization_id}/", operation_id="patch_organization")
 async def update_organization(
     organization_id: str,
     payload: OrganizationUpdate,
     request: Request,
 ):
-    if not payload.name and not payload.description:
+    if not payload.slug and not payload.name and not payload.description:
         return JSONResponse(
-            {"detail": "Please provide a name or description to update"},
+            {"detail": "Please provide a field to update"},
             status_code=400,
         )
 
@@ -165,7 +166,20 @@ async def update_organization(
 
         return organization
 
+    except ValueError as e:
+        # Slug validation errors (format, immutability, personal org, etc.)
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=400,
+        )
     except Exception as e:
+        # Check for unique constraint violation (duplicate slug)
+        from sqlalchemy.exc import IntegrityError
+        if isinstance(e, IntegrityError) and "uq_organizations_slug" in str(e):
+            return JSONResponse(
+                {"detail": "Organization slug already exists. Slugs must be unique."},
+                status_code=409,
+            )
         raise HTTPException(
             status_code=500,
             detail=str(e),

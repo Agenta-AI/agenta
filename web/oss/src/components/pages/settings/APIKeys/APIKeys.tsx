@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useState} from "react"
 
-import {CopyOutlined, DeleteOutlined, PlusOutlined} from "@ant-design/icons"
+import {CopyOutlined, DeleteOutlined} from "@ant-design/icons"
+import {Plus} from "@phosphor-icons/react"
 import {Alert, Button, Modal, Table, Tooltip, Typography, theme} from "antd"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
@@ -101,38 +102,15 @@ const APIKeys: React.FC = () => {
     }, [])
 
     return (
-        <div>
-            <Title level={3} className="mt-0">
-                API Keys
-            </Title>
-            <Alert
-                showIcon
-                message="Note"
-                description={
-                    <span>
-                        An API key can be used to access Agenta APIs securely. You can manage your
-                        API Keys from here.
-                        <br />
-                        <br />
-                        Your API key should be passed in as an{" "}
-                        <code className="text-[#FF1493]">Authorization</code> header in the
-                        requests. You can find examples of how to consume our APIs on the endpoints
-                        page of an app or visit our{" "}
-                        <a href="https://agenta.ai/docs/backend_api/">docs</a>.
-                    </span>
-                }
-                type="info"
-            />
-
+        <div className="flex flex-col gap-2">
             <div>
                 <Button
                     type="primary"
                     loading={loading[Loading.CREATE]}
-                    icon={<PlusOutlined />}
+                    icon={<Plus size={14} className="mt-0.2" />}
                     onClick={createKey}
-                    className="mt-[2rem] mb-[1rem]"
                 >
-                    Create New
+                    Generate API key
                 </Button>
             </div>
             <Table<APIKey>

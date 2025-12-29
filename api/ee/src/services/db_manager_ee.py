@@ -231,7 +231,7 @@ async def create_default_project(
     """
 
     project_db = await create_project(
-        "Default Project",
+        "Default",
         workspace_id=workspace_id,
         organization_id=organization_id,
         session=session,
@@ -1061,7 +1061,40 @@ async def update_organization(
         if not organization:
             raise NoResultFound(f"Organization with id {organization_id} not found")
 
-        for key, value in payload.model_dump(exclude_unset=True).items():
+        # Validate slug updates before applying
+        payload_dict = payload.model_dump(exclude_unset=True)
+        if "slug" in payload_dict:
+            new_slug = payload_dict["slug"]
+
+            # Slug format validation: only lowercase letters and hyphens, max 64 characters
+            if new_slug is not None:
+                import re
+
+                if len(new_slug) > 64:
+                    raise ValueError("Organization slug cannot exceed 64 characters.")
+                if not re.match(r"^[a-z-]+$", new_slug):
+                    raise ValueError(
+                        "Organization slug can only contain lowercase letters (a-z) and hyphens (-)."
+                    )
+
+            # Personal organizations cannot have slugs
+            is_personal = organization.flags and organization.flags.get(
+                "is_personal", False
+            )
+            if is_personal:
+                raise ValueError(
+                    "Personal organizations cannot have slugs. "
+                    "Slugs are only available for collaborative organizations."
+                )
+
+            # Slug immutability: once set, cannot be changed
+            if organization.slug is not None and new_slug != organization.slug:
+                raise ValueError(
+                    f"Organization slug cannot be changed once set. "
+                    f"Current slug: '{organization.slug}'"
+                )
+
+        for key, value in payload_dict.items():
             if hasattr(organization, key):
                 setattr(organization, key, value)
 

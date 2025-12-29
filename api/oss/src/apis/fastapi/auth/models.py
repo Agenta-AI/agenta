@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Dict
 
 
@@ -8,25 +8,17 @@ from typing import Optional, List, Dict
 
 
 class DiscoverRequest(BaseModel):
-    email: str
+    email: EmailStr
 
 
 class SSOProviderInfo(BaseModel):
     slug: str
     name: str
-    recommended: bool
-
-
-class SSOMethodInfo(BaseModel):
-    available: bool
-    required_by_some_orgs: bool
-    providers: List[SSOProviderInfo]
 
 
 class DiscoverResponse(BaseModel):
-    user_exists: bool
-    primary_method: Optional[str]
-    methods: Dict[str, bool | SSOMethodInfo]
+    exists: bool
+    methods: Dict[str, bool | List[SSOProviderInfo]]
 
 
 # ============================================================================

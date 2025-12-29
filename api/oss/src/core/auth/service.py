@@ -54,23 +54,22 @@ class AuthService:
         This is the pre-authentication discovery endpoint that helps the frontend
         determine which auth flows to present to the user.
 
-        Returns Format C:
+        Response format:
         {
-            "user_exists": bool,
-            "primary_method": str | null,
+            "exists": bool,  # Whether user account exists
             "methods": {
-                "email:otp": bool,
-                "social:google": bool,
-                "social:github": bool,
-                "sso": {
-                    "available": bool,
-                    "required_by_some_orgs": bool,
-                    "providers": [
-                        {"slug": "okta", "name": "ACME SSO", "recommended": bool}
-                    ]
-                }
+                "email:password": true,  # Only present if available
+                "email:otp": true,       # Only present if available
+                "social:google": true,   # Only present if available
+                "social:github": true,   # Only present if available
+                "sso": [                 # Only present if SSO available
+                    {"slug": "okta", "name": "ACME SSO"}
+                ]
             }
         }
+
+        Note: Only methods that are available (true) are included in the response.
+        Missing methods should be assumed false on the client side.
         """
         # Extract domain from email (if provided)
         domain = email.split("@")[1] if email and "@" in email else None
@@ -97,7 +96,6 @@ class AuthService:
 
         # Aggregate allowed methods across all organizations (EE only)
         all_allowed_methods: set[str] = set()
-        sso_required_by_some = False
 
         if is_ee() and org_ids:
             # Check policy flags for each organization
@@ -111,14 +109,6 @@ class AuthService:
                         all_allowed_methods.add("social:*")
                     if org_flags.get("allow_sso"):
                         all_allowed_methods.add("sso:*")
-
-                    # Check if SSO is required (only SSO allowed)
-                    if (
-                        org_flags.get("allow_sso")
-                        and not org_flags.get("allow_email")
-                        and not org_flags.get("allow_social")
-                    ):
-                        sso_required_by_some = True
 
         # If user has no organizations, show globally configured auth methods
         if not all_allowed_methods:
@@ -172,8 +162,8 @@ class AuthService:
         # Get SSO providers for the domain (EE only)
         sso_providers = []
         if is_ee() and domain and self.domains_dao and self.providers_dao:
-            domain_dto = await self.domains_dao.get_by_domain(domain)
-            if domain_dto and domain_dto.verified:
+            domain_dto = await self.domains_dao.get_by_slug(domain)
+            if domain_dto and domain_dto.flags and domain_dto.flags.get("is_verified"):
                 providers = await self.providers_dao.list_by_domain(
                     domain_dto.id, enabled_only=True
                 )
@@ -181,73 +171,54 @@ class AuthService:
                     {
                         "slug": p.slug,
                         "name": p.name,
-                        "recommended": True,  # All domain-matched providers are recommended
                     }
                     for p in providers
                 ]
 
-        # Build response
-        primary_method = None
+        # Build methods dict - only include methods that are true
+        methods = {}
+
+        # Email methods
+        if "email:password" in all_allowed_methods or "email:*" in all_allowed_methods:
+            methods["email:password"] = True
+        if "email:otp" in all_allowed_methods or "email:*" in all_allowed_methods:
+            methods["email:otp"] = True
+
+        # Social methods
+        if "social:google" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:google"] = True
+        if "social:google-workspaces" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:google-workspaces"] = True
+        if "social:github" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:github"] = True
+        if "social:facebook" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:facebook"] = True
+        if "social:apple" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:apple"] = True
+        if "social:discord" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:discord"] = True
+        if "social:twitter" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:twitter"] = True
+        if "social:gitlab" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:gitlab"] = True
+        if "social:bitbucket" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:bitbucket"] = True
+        if "social:linkedin" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:linkedin"] = True
+        if "social:okta" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:okta"] = True
+        if "social:azure-ad" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:azure-ad"] = True
+        if "social:boxy-saml" in all_allowed_methods or "social:*" in all_allowed_methods:
+            methods["social:boxy-saml"] = True
+
+        # SSO - only include if providers are available
         if sso_providers:
-            primary_method = "sso"
-        elif "email:password" in all_allowed_methods:
-            primary_method = "email:password"
-        elif "email:otp" in all_allowed_methods:
-            primary_method = "email:otp"
-        elif any(m.startswith("social:") for m in all_allowed_methods):
-            primary_method = "social"
-
-        # Build SSO response - nested object if available, otherwise false
-        sso_available = bool(sso_providers) or any(
-            m.startswith("sso:") for m in all_allowed_methods
-        )
-
-        if sso_available and sso_providers:
-            sso_response = {
-                "available": True,
-                "required_by_some_orgs": sso_required_by_some,
-                "providers": sso_providers,
-            }
-        else:
-            sso_response = False
+            methods["sso"] = sso_providers
 
         response = {
-            "user_exists": user_exists,
-            "primary_method": primary_method,
-            "methods": {
-                "email:password": "email:password" in all_allowed_methods
-                or "email:*" in all_allowed_methods,
-                "email:otp": "email:otp" in all_allowed_methods
-                or "email:*" in all_allowed_methods,
-                "social:google": "social:google" in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "social:google-workspaces": "social:google-workspaces"
-                in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "social:github": "social:github" in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "social:facebook": "social:facebook" in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "social:apple": "social:apple" in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "social:discord": "social:discord" in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "social:twitter": "social:twitter" in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "social:gitlab": "social:gitlab" in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "social:bitbucket": "social:bitbucket" in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "social:linkedin": "social:linkedin" in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "social:okta": "social:okta" in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "social:azure-ad": "social:azure-ad" in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "social:boxy-saml": "social:boxy-saml" in all_allowed_methods
-                or "social:*" in all_allowed_methods,
-                "sso": sso_response,
-            },
+            "exists": user_exists,
+            "methods": methods,
         }
 
         return response
@@ -295,22 +266,11 @@ class AuthService:
 
         provider = await self.providers_dao.get_by_id(provider_id)
 
-        if not provider or not provider.enabled:
+        if not provider or not (provider.flags and provider.flags.get("is_active")):
             return False
 
-        # If provider has domain restriction, validate email domain
-        if provider.domain_id and email and self.domains_dao:
-            domain = email.split("@")[1] if "@" in email else None
-            if not domain:
-                return False
-
-            # Get domain and check if it matches
-            domain_dto = await self.domains_dao.get_by_id(provider.domain_id)
-            if not domain_dto or not domain_dto.verified:
-                return False
-
-            if domain_dto.domain != domain:
-                return False
+        # Note: domain_id FK removed - SSO providers can handle multiple domains
+        # Domain validation is now handled at discovery time, not provider validation time
 
         return True
 
