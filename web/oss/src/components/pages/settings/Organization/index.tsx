@@ -1,6 +1,6 @@
 import {type FC, useState} from "react"
 
-import {Card, Descriptions, Input, Space, Tag, Typography} from "antd"
+import {Card, Descriptions, Input, Radio, Space, Tag, Typography} from "antd"
 
 import {useOrgData} from "@/oss/state/org"
 
@@ -90,55 +90,49 @@ const Organization: FC = () => {
             </Card>
 
             <Card>
-                <Title level={4}>Authentication & Access Control</Title>
+                <Title level={4}>Access Control</Title>
                 <Descriptions column={1} bordered>
-                    {selectedOrg.flags?.allow_email !== undefined && (
-                        <Descriptions.Item label="Allow email authentication">
-                            <Tag color={selectedOrg.flags.allow_email ? "green" : "default"}>
-                                {String(selectedOrg.flags.allow_email)}
-                            </Tag>
-                        </Descriptions.Item>
-                    )}
-                    {selectedOrg.flags?.allow_social !== undefined && (
-                        <Descriptions.Item label="Allow social authentication">
-                            <Tag color={selectedOrg.flags.allow_social ? "green" : "default"}>
-                                {String(selectedOrg.flags.allow_social)}
-                            </Tag>
-                        </Descriptions.Item>
-                    )}
-                    {selectedOrg.flags?.allow_sso !== undefined && (
-                        <Descriptions.Item label="Allow SSO (OIDC) authentication">
-                            <Tag color={selectedOrg.flags.allow_sso ? "green" : "default"}>
-                                {String(selectedOrg.flags.allow_sso)}
-                            </Tag>
-                        </Descriptions.Item>
-                    )}
-                    {selectedOrg.flags?.invitations_only !== undefined && (
-                        <Descriptions.Item label="Allow auto-join for verified domains">
-                            <Tag color={selectedOrg.flags.invitations_only ? "default" : "green"}>
-                                {String(!selectedOrg.flags.invitations_only)}
-                            </Tag>
-                        </Descriptions.Item>
-                    )}
-                    {selectedOrg.flags?.domains_only !== undefined && (
-                        <Descriptions.Item label="Allow access to verified domains only">
-                            <Tag color={selectedOrg.flags.domains_only ? "green" : "default"}>
-                                {String(selectedOrg.flags.domains_only)}
-                            </Tag>
-                        </Descriptions.Item>
-                    )}
-                    {selectedOrg.flags?.allow_root !== undefined && (
-                        <Descriptions.Item label="Allow organization owner to bypass controls">
-                            <Tag color={selectedOrg.flags.allow_root ? "green" : "default"}>
-                                {String(selectedOrg.flags.allow_root)}
-                            </Tag>
-                        </Descriptions.Item>
-                    )}
+                    <Descriptions.Item label="Allow email authentication">
+                        <Radio.Group value={selectedOrg.flags?.allow_email ? "yes" : "no"} size="small">
+                            <Radio.Button value="yes">Yes</Radio.Button>
+                            <Radio.Button value="no">No</Radio.Button>
+                        </Radio.Group>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Allow social authentication">
+                        <Radio.Group value={selectedOrg.flags?.allow_social ? "yes" : "no"} size="small">
+                            <Radio.Button value="yes">Yes</Radio.Button>
+                            <Radio.Button value="no">No</Radio.Button>
+                        </Radio.Group>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Allow SSO (OIDC) authentication">
+                        <Radio.Group value={selectedOrg.flags?.allow_sso ? "yes" : "no"} size="small">
+                            <Radio.Button value="yes">Yes</Radio.Button>
+                            <Radio.Button value="no">No</Radio.Button>
+                        </Radio.Group>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Allow auto-join for verified domains">
+                        <Radio.Group value={!(selectedOrg.flags?.invitations_only ?? true) ? "yes" : "no"} size="small">
+                            <Radio.Button value="yes">Yes</Radio.Button>
+                            <Radio.Button value="no">No</Radio.Button>
+                        </Radio.Group>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Allow access to verified domains only">
+                        <Radio.Group value={selectedOrg.flags?.domains_only ? "yes" : "no"} size="small">
+                            <Radio.Button value="yes">Yes</Radio.Button>
+                            <Radio.Button value="no">No</Radio.Button>
+                        </Radio.Group>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Allow organization owner to bypass controls">
+                        <Radio.Group value={selectedOrg.flags?.allow_root ? "yes" : "no"} size="small">
+                            <Radio.Button value="yes">Yes</Radio.Button>
+                            <Radio.Button value="no">No</Radio.Button>
+                        </Radio.Group>
+                    </Descriptions.Item>
                 </Descriptions>
             </Card>
 
             <Card>
-                <Title level={4}>Verified Domains</Title>
+                <Title level={4}>Domain Verification</Title>
                 <Text type="secondary">
                     Configure verified email domains for auto-join and access control
                 </Text>
@@ -146,7 +140,7 @@ const Organization: FC = () => {
             </Card>
 
             <Card>
-                <Title level={4}>SSO / OIDC Configuration</Title>
+                <Title level={4}>SSO Configuration</Title>
                 <Text type="secondary">
                     Configure Single Sign-On (SSO) using OpenID Connect (OIDC)
                 </Text>
