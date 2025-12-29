@@ -2,6 +2,7 @@ from os import getenv
 from json import loads
 from typing import List
 from traceback import format_exc
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -134,10 +135,12 @@ async def create_accounts(payload: dict):
 
         # Prepare payload to create organization
         create_org_payload = CreateOrganization(
-            name=user_dict["username"],
-            description="Default Organization",
-            owner=str(user.id),
-            type="default",
+            name="Personal",
+            #
+            is_demo=False,
+            is_personal=True,
+            #
+            owner_id=UUID(str(user.id)),
         )
 
         # Create the user's default organization and workspace

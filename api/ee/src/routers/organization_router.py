@@ -23,10 +23,12 @@ from ee.src.utils.permissions import (
 from ee.src.models.api.organization_models import (
     OrganizationUpdate,
     OrganizationOutput,
+    TransferOwnershipRequest,
 )
 from ee.src.services.organization_service import (
     update_an_organization,
     get_organization_details,
+    transfer_organization_ownership as transfer_ownership_service,
 )
 
 
@@ -230,6 +232,60 @@ async def update_workspace(
         return workspace
 
     except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e),
+        )
+
+
+@router.post(
+    "/{organization_id}/transfer", operation_id="transfer_organization_ownership"
+)
+async def transfer_organization_ownership(
+    organization_id: str,
+    payload: TransferOwnershipRequest,
+    request: Request,
+):
+    """Transfer organization ownership to another member."""
+    try:
+        user_id = request.state.user_id
+
+        # Check if current user is the owner of the organization
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(user_id)
+        has_permission = await check_user_org_access(
+            user_org_workspace_data, organization_id, check_owner=True
+        )
+        if not has_permission:
+            return JSONResponse(
+                {"detail": "Only the organization owner can transfer ownership"},
+                status_code=403,
+            )
+
+        # Transfer ownership via service layer
+        organization = await transfer_ownership_service(
+            organization_id=organization_id,
+            new_owner_id=str(payload.owner_id),
+            current_user_id=str(user_id),
+        )
+
+        return JSONResponse(
+            {
+                "organization_id": str(organization.id),
+                "owner_id": str(organization.owner_id),
+            },
+            status_code=200,
+        )
+
+    except ValueError as e:
+        # New owner not a member or organization not found
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=400,
+        )
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail=str(e),

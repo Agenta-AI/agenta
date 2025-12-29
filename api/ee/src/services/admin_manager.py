@@ -62,11 +62,14 @@ Tier = str
 class OrganizationRequest(BaseModel):
     name: str
     description: str
+    #
+    is_personal: bool
 
 
 class WorkspaceRequest(BaseModel):
     name: str
     description: str
+    #
     is_default: bool
     #
     organization_ref: Reference
@@ -186,13 +189,13 @@ async def create_organization(
 ) -> Reference:
     async with engine.core_session() as session:
         organization_db = OrganizationDB(
-            # id=uuid7()  # use default
-            #
             name=request.name,
             description=request.description,
-            #
-            owner="",  # move 'owner' from here to membership 'role'
-            # type=...  # remove 'type'
+            flags={
+                "is_demo": False,
+                "is_personal": request.is_personal,
+            },
+            owner="",  # TODO: deprecate and remove
         )
 
         session.add(organization_db)
@@ -303,7 +306,7 @@ async def create_organization_membership(
 
             organization_db = result.scalars().first()
 
-            organization_db.owner = str(request.user_ref.id)
+            organization_db.owner_id = request.user_ref.id
 
             await session.commit()
 

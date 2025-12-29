@@ -152,7 +152,7 @@ class OrganizationDomainsDAO:
             if org is None:
                 raise ValueError("Organization not found")
 
-            if org.kind == "personal":
+            if org.flags.get("is_personal", True):
                 raise ValueError(
                     "Personal organizations cannot verify domains. "
                     "Domain verification is only available for collaborative organizations."

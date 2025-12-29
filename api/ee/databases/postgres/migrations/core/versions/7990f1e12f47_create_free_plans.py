@@ -22,10 +22,10 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.models.db_models import UserDB
 from oss.src.models.db_models import AppDB
-from oss.src.models.db_models import OrganizationDB
 from ee.src.models.db_models import OrganizationMemberDB
 from oss.src.models.db_models import ProjectDB
 from ee.src.models.db_models import ProjectMemberDB
+from ee.src.models.extended.deprecated_models import DeprecatedOrganizationDB
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
 from ee.src.dbs.postgres.meters.dbes import MeterDBE
 from ee.src.core.subscriptions.types import FREE_PLAN
@@ -49,7 +49,7 @@ def upgrade() -> None:
         now = datetime.now(timezone.utc)
 
         # --> GET ORGANIZATION COUNT
-        query = select(func.count()).select_from(OrganizationDB)
+        query = select(func.count()).select_from(DeprecatedOrganizationDB)
 
         nof_organizations = session.execute(query).scalar()
         # <-- GET ORGANIZATION COUNT
@@ -61,8 +61,8 @@ def upgrade() -> None:
         while True:
             # --> GET ORGANIZATION BATCH
             query = (
-                select(OrganizationDB)
-                .options(load_only(OrganizationDB.id, OrganizationDB.owner))
+                select(DeprecatedOrganizationDB)
+                .options(load_only(DeprecatedOrganizationDB.id, DeprecatedOrganizationDB.owner))
                 .limit(organization_batch_size)
                 .offset(organization_batch_index * organization_batch_size)
             )

@@ -177,12 +177,8 @@ export const selectedOrgNavigationAtom = atom(null, (get, set, next: string | nu
 
 const isDemoOrg = (org?: Partial<Org>): boolean => {
     if (!org) return false
-    if (org.is_demo === true) return true
-    const type = org.type?.toLowerCase?.() ?? ""
-    if (type === "view-only" || type === "demo") return true
-    const name = org.name?.toLowerCase?.() ?? ""
-    const description = org.description?.toLowerCase?.() ?? ""
-    return name.includes("demo") || description.includes("demo")
+    if (org?.flags?.["is_demo"] === true) return true
+    return false
 }
 
 const pickFirstNonDemoOrg = (orgs?: Org[]) => {
@@ -193,7 +189,7 @@ const pickFirstNonDemoOrg = (orgs?: Org[]) => {
 
 export const pickOwnedOrg = (userId: string | null, orgs?: Org[], nonDemoOnly = false) => {
     if (!userId || !Array.isArray(orgs)) return null
-    const owned = orgs.filter((org) => org.owner === userId)
+    const owned = orgs.filter((org) => org.owner_id === userId)
     if (!owned.length) return null
     if (!nonDemoOnly) return owned[0]
     const firstNonDemoOwned = owned.find((org) => !isDemoOrg(org))

@@ -1302,7 +1302,7 @@ async def _assign_user_to_organization_oss(
         await get_organization_owner(organization_id=organization_id)
     except (NoResultFound, ValueError):
         await update_organization(
-            organization_id=organization_id, values_to_update={"owner": str(user_db.id)}
+            organization_id=organization_id, values_to_update={"owner_id": user_db.id}
         )
 
     # Get project belonging to organization
@@ -1339,18 +1339,37 @@ async def get_default_workspace_id_oss() -> str:
     return str(workspaces[0].id)
 
 
-async def create_organization(name: str):
+async def create_organization(
+    name: str,
+    owner_id: Optional[uuid.UUID] = None,
+    created_by_id: Optional[uuid.UUID] = None,
+    is_personal: Optional[bool] = None,
+):
     """Create a new organization in the database.
 
     Args:
         name (str): The name of the organization
+        owner_id (Optional[uuid.UUID]): The UUID of the organization owner
+        created_by_id (Optional[uuid.UUID]): The UUID of the user who created the organization
 
     Returns:
         OrganizationDB: instance of organization
     """
 
     async with engine.core_session() as session:
-        organization_db = OrganizationDB(name=name)
+        # For bootstrap scenario, use a placeholder UUID if not provided
+        _owner_id = owner_id or uuid.uuid4()
+        _created_by_id = created_by_id or _owner_id
+
+        organization_db = OrganizationDB(
+            name=name,
+            flags={
+                "is_demo": False,
+                "is_personal": is_personal or False,
+            },
+            owner_id=_owner_id,
+            created_by_id=_created_by_id,
+        )
 
         session.add(organization_db)
 
@@ -1506,7 +1525,7 @@ async def get_organization_owner(organization_id: str):
         if organization is None:
             raise NoResultFound(f"Organization with ID {organization_id} not found")
 
-        return await get_user_with_id(user_id=str(organization.owner))
+        return await get_user_with_id(user_id=str(organization.owner_id))
 
 
 async def get_user_organizations(user_id: str) -> List[OrganizationDB]:

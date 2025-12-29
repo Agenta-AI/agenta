@@ -127,3 +127,30 @@ async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> b
 async def get_organization_details(organization_id: str) -> dict:
     organization = await db_manager_ee.get_organization(organization_id)
     return await db_manager_ee.get_org_details(organization)
+
+
+async def transfer_organization_ownership(
+    organization_id: str,
+    new_owner_id: str,
+    current_user_id: str,
+) -> OrganizationDB:
+    """Transfer organization ownership to another member.
+
+    Args:
+        organization_id: The ID of the organization
+        new_owner_id: The UUID of the new owner
+        current_user_id: The UUID of the current user (initiating the transfer)
+
+    Returns:
+        OrganizationDB: The updated organization
+
+    Raises:
+        NotFound: If organization or new owner member not found
+        ValueError: If new owner is not a member of the organization
+    """
+    # Delegate to db_manager_ee
+    return await db_manager_ee.transfer_organization_ownership(
+        organization_id=organization_id,
+        new_owner_id=new_owner_id,
+        current_user_id=current_user_id,
+    )

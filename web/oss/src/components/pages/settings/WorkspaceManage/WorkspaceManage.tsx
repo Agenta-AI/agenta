@@ -127,7 +127,7 @@ const WorkspaceManage: FC = () => {
                                     member={member}
                                     hidden={
                                         member.user.email === signedInUser?.email ||
-                                        member.user.id === selectedOrg?.owner
+                                        member.user.id === selectedOrg?.owner_id
                                     }
                                     organizationId={organizationId!}
                                     workspaceId={workspaceId!}

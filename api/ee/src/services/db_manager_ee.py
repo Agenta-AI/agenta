@@ -969,8 +969,15 @@ async def create_organization(
 
     async with engine.core_session() as session:
         create_org_data = payload.model_dump(exclude_unset=True)
-        if "owner" not in create_org_data:
-            create_org_data["owner"] = str(user.id)
+
+        create_org_data["flags"] = {
+            "is_demo": payload.is_demo,
+            "is_personal": payload.is_personal,
+        }
+
+        # Set required audit fields
+        create_org_data["owner_id"] = user.id
+        create_org_data["created_by_id"] = user.id
 
         # create organization
         organization_db = OrganizationDB(**create_org_data)
@@ -1173,8 +1180,8 @@ async def get_org_details(organization: Organization) -> dict:
         "id": str(organization.id),
         "name": organization.name,
         "description": organization.description,
-        "type": organization.type,
-        "owner": organization.owner,
+        "flags": organization.flags,
+        "owner_id": str(organization.owner_id),
         "workspaces": [str(workspace.id) for workspace in workspaces],
         "default_workspace": default_workspace,
     }
@@ -1464,3 +1471,62 @@ async def add_user_to_project(
         )
 
         await session.commit()
+
+
+async def transfer_organization_ownership(
+    organization_id: str,
+    new_owner_id: str,
+    current_user_id: str,
+) -> OrganizationDB:
+    """Transfer organization ownership to another member.
+
+    Args:
+        organization_id: The ID of the organization
+        new_owner_id: The UUID of the new owner
+        current_user_id: The UUID of the current user (initiating the transfer)
+
+    Returns:
+        OrganizationDB: The updated organization
+
+    Raises:
+        ValueError: If new owner is not a member of the organization
+    """
+    from datetime import datetime, timezone
+    from ee.src.models.db_models import OrganizationMemberDB
+
+    async with engine.core_session() as session:
+        # Verify organization exists
+        org_result = await session.execute(
+            select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
+        )
+        organization = org_result.scalars().first()
+        if not organization:
+            raise ValueError(f"Organization {organization_id} not found")
+
+        # Check if new owner is a member
+        member_result = await session.execute(
+            select(OrganizationMemberDB).filter_by(
+                user_id=uuid.UUID(new_owner_id),
+                organization_id=uuid.UUID(organization_id)
+            )
+        )
+        member = member_result.scalars().first()
+        if not member:
+            raise ValueError("The new owner must be a member of the organization")
+
+        # Transfer ownership
+        organization.owner_id = uuid.UUID(new_owner_id)
+        organization.updated_at = datetime.now(timezone.utc)
+        organization.updated_by_id = uuid.UUID(current_user_id)
+
+        await session.commit()
+        await session.refresh(organization)
+
+        log.info(
+            "[organization] ownership transferred",
+            organization_id=organization_id,
+            old_owner_id=current_user_id,
+            new_owner_id=new_owner_id,
+        )
+
+        return organization

@@ -29,10 +29,13 @@ log = get_module_logger(__name__)
 
 
 class CreateOrganization(BaseModel):
-    name: str
-    owner: str
+    name: Optional[str] = None
     description: Optional[str] = None
-    type: Optional[str] = None
+    #
+    is_demo: bool = False
+    is_personal: bool = False
+    #
+    owner_id: UUID
 
 
 class CreateWorkspace(BaseModel):
@@ -75,11 +78,14 @@ Tier = str
 class OrganizationRequest(BaseModel):
     name: str
     description: str
+    #
+    is_personal: bool
 
 
 class WorkspaceRequest(BaseModel):
     name: str
     description: str
+    #
     is_default: bool
     #
     organization_ref: Reference
@@ -159,8 +165,15 @@ async def legacy_create_organization(
 ) -> Union[OrganizationDB, WorkspaceDB]:
     async with engine.core_session() as session:
         create_org_data = payload.model_dump(exclude_unset=True)
-        if "owner" not in create_org_data:
-            create_org_data["owner"] = str(user.id)
+
+        create_org_data["flags"] = {
+            "is_demo": payload.is_demo,
+            "is_personal": payload.is_personal,
+        }
+
+        # Set required audit fields
+        create_org_data["owner_id"] = user.id
+        create_org_data["created_by_id"] = user.id
 
         # create organization
         organization_db = OrganizationDB(**create_org_data)
@@ -289,16 +302,15 @@ async def create_user(
 
 async def create_organization(
     request: OrganizationRequest,
+    created_by_id: uuid.UUID,
 ) -> Reference:
     async with engine.core_session() as session:
         organization_db = OrganizationDB(
-            # id=uuid7()  # use default
-            #
             name=request.name,
             description=request.description,
-            #
-            owner="",  # move 'owner' from here to membership 'role'
-            # type=...  # remove 'type'
+            flags={"is_demo": False, "is_personal": request.is_personal},
+            owner_id=created_by_id,
+            created_by_id=created_by_id,
         )
 
         session.add(organization_db)

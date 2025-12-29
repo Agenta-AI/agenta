@@ -93,7 +93,7 @@ async def check_user_org_access(
         if not organization:
             log.error("Organization not found")
             raise Exception("Organization not found")
-        return organization.owner == str(user.id)  # type: ignore
+        return organization.owner_id == user.id  # type: ignore
     else:
         user_organizations: List = kwargs["organization_ids"]
         user_exists_in_organizations = organization_id in user_organizations

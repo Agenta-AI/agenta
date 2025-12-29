@@ -446,7 +446,7 @@ class SubscriptionsRouter:
                 )
 
             user = await get_user_with_id(
-                user_id=organization.owner,
+                user_id=str(organization.owner_id),
             )
 
             if not user:

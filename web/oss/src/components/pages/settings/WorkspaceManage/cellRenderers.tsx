@@ -126,7 +126,7 @@ export const Roles: React.FC<{
     }
 
     const {user} = member
-    const isOwner = user.id === selectedOrg?.owner
+    const isOwner = user.id === selectedOrg?.owner_id
     const readOnly = user.id === signedInUser?.id || user.status !== "member" || isOwner
     const role = member.roles[0]
 

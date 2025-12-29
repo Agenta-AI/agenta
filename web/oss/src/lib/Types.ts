@@ -642,14 +642,18 @@ export interface Workspace {
 
 export interface Org {
     id: string
-    name: string
-    description: string
-    owner: string
-    is_paying: boolean
+    slug?: string
+    name?: string
+    description?: string
+    flags?: Record<string, boolean>
+    owner_id: string
 }
 
 export type OrgDetails = Org & {
-    type: "default"
+    flags: {
+        is_demo: boolean
+        is_personal: boolean
+    }
     default_workspace: Workspace
     workspaces: string[]
 }
