@@ -83,8 +83,6 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
 
     // Remember last selected copy action
     const [lastCopyAction, setLastCopyAction] = useState<CopyAction>("copy-id")
-    const [dropdownOpen, setDropdownOpen] = useState(false)
-    const closeTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
     // Track whether revisions have been requested (to distinguish "not loaded" from "loaded but empty")
     const [revisionsRequested, setRevisionsRequested] = useState(false)
@@ -104,30 +102,6 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
             setLastCopyAction(saved)
         }
     }, [])
-
-    // Hover handlers with delay
-    const handleDropdownMouseEnter = () => {
-        if (closeTimeoutRef.current) {
-            clearTimeout(closeTimeoutRef.current)
-        }
-        setDropdownOpen(true)
-    }
-
-    const handleDropdownMouseLeave = () => {
-        closeTimeoutRef.current = setTimeout(() => {
-            setDropdownOpen(false)
-        }, 200)
-    }
-
-    const handleDropdownKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
-        if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault()
-            if (closeTimeoutRef.current) {
-                clearTimeout(closeTimeoutRef.current)
-            }
-            setDropdownOpen((prev) => !prev)
-        }
-    }
 
     // Revision dropdown menu items
     const revisionMenuItems = useMemo(() => {
@@ -207,13 +181,11 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                 onCopyId()
                 setLastCopyAction("copy-id")
                 localStorage.setItem(COPY_ACTION_STORAGE_KEY, "copy-id")
-                setDropdownOpen(false)
             },
             "copy-revision-slug": () => {
                 onCopyRevisionSlug()
                 setLastCopyAction("copy-revision-slug")
                 localStorage.setItem(COPY_ACTION_STORAGE_KEY, "copy-revision-slug")
-                setDropdownOpen(false)
             },
         }),
         [onCopyId, onCopyRevisionSlug],
@@ -282,26 +254,14 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                     </Button>
                     <Dropdown
                         menu={{items: copyMenuItems}}
-                        trigger={[]}
-                        open={dropdownOpen}
-                        popupRender={(menu) => (
-                            <div
-                                onMouseEnter={handleDropdownMouseEnter}
-                                onMouseLeave={handleDropdownMouseLeave}
-                            >
-                                {menu}
-                            </div>
-                        )}
+                        trigger={["hover"]}
+                        popupRender={(menu) => <div>{menu}</div>}
                     >
                         <span
                             role="button"
                             tabIndex={0}
                             aria-haspopup="menu"
-                            aria-expanded={dropdownOpen}
                             className="ant-btn ant-btn-default ant-btn-sm ant-space-compact-item flex items-center justify-center !rounded-l-none"
-                            onMouseEnter={handleDropdownMouseEnter}
-                            onMouseLeave={handleDropdownMouseLeave}
-                            onKeyDown={handleDropdownKeyDown}
                             style={dropdownTriggerStyle}
                         >
                             <DownOutlined style={{fontSize: 10}} />
