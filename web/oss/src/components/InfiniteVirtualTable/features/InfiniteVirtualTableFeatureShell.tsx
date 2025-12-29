@@ -274,7 +274,9 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     }, [onRowsChange, pagination.rows])
 
     const handleLoadMore = useCallback(() => {
-        if (!enableInfiniteScroll) return
+        if (!enableInfiniteScroll) {
+            return
+        }
         pagination.loadNextPage()
     }, [enableInfiniteScroll, pagination.loadNextPage])
 
@@ -538,6 +540,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         )
     }, [tabs, headerExtra])
 
+    const effectiveDataSource = dataSource ?? pagination.rows
+
     return (
         <div
             className={clsx("flex flex-col", autoHeight ? "h-full min-h-0" : "min-h-0", className)}
@@ -557,7 +561,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                     useIsolatedStore={!store}
                     store={store}
                     columns={columns}
-                    dataSource={dataSource ?? pagination.rows}
+                    dataSource={effectiveDataSource}
                     loadMore={handleLoadMore}
                     rowKey={rowKey}
                     rowSelection={rowSelection}
