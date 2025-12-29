@@ -20,7 +20,8 @@ if is_ee():
         OrganizationDomainsDAO,
         OrganizationProvidersDAO,
     )
-    from oss.src.models.db_models import OrganizationDB, OrganizationMemberDB
+    from oss.src.models.db_models import OrganizationDB
+    from ee.src.models.db_models import OrganizationMemberDB
 
 
 class AuthService:
