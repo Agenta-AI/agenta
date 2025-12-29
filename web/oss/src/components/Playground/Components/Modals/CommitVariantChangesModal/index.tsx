@@ -237,6 +237,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         commitType,
         handleDeployAfterCommit,
         onClose,
+        setWaitForRevisionId,
     ])
 
     const isOkDisabled =
