@@ -201,6 +201,36 @@ class SSOProviderService:
             return "***"
         return f"{secret[:4]}...{secret[-4:]}"
 
+    @staticmethod
+    async def test_oidc_connection(
+        issuer_url: str,
+        client_id: str,
+        client_secret: str,
+    ) -> bool:
+        """Test OIDC provider connection by fetching discovery document."""
+        import httpx
+
+        try:
+            # Try to fetch OIDC discovery document
+            discovery_url = f"{issuer_url.rstrip('/')}/.well-known/openid-configuration"
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(discovery_url)
+
+                if response.status_code != 200:
+                    return False
+
+                config = response.json()
+
+                # Verify required OIDC endpoints exist
+                required_fields = ["authorization_endpoint", "token_endpoint", "userinfo_endpoint"]
+                if not all(field in config for field in required_fields):
+                    return False
+
+                return True
+        except Exception:
+            return False
+
     async def create_provider(
         self,
         organization_id: str,
@@ -208,6 +238,13 @@ class SSOProviderService:
         user_id: str,
     ) -> OrganizationProviderResponse:
         """Create a new SSO provider."""
+        # Validate provider type (only OIDC supported for now)
+        if payload.provider_type != "oidc":
+            raise HTTPException(
+                status_code=400,
+                detail="Only 'oidc' provider type is supported. SAML support coming soon.",
+            )
+
         async with engine.core_session() as session:
             dao = OrganizationProvidersDAO(session)
 
@@ -235,13 +272,14 @@ class SSOProviderService:
                 "scopes": payload.scopes or ["openid", "profile", "email"],
             }
 
-            # Create provider
+            # Create provider with is_valid=False and is_active=False initially
+            # User must test the connection before activating
             provider = await dao.create(
                 organization_id=organization_id,
                 slug=slug,
                 settings=settings,
                 created_by_id=user_id,
-                flags={"active": True},
+                flags={"valid": False, "active": False},
             )
 
             await session.commit()
@@ -265,26 +303,48 @@ class SSOProviderService:
 
             # Update settings
             settings = provider.settings.copy()
+            settings_changed = False
+
             if payload.name is not None:
                 settings["name"] = payload.name
+                settings_changed = True
             if payload.client_id is not None:
                 settings["client_id"] = payload.client_id
+                settings_changed = True
             if payload.client_secret is not None:
                 settings["client_secret"] = payload.client_secret
+                settings_changed = True
             if payload.issuer_url is not None:
                 settings["issuer_url"] = payload.issuer_url
+                settings_changed = True
             if payload.authorization_endpoint is not None:
                 settings["authorization_endpoint"] = payload.authorization_endpoint
+                settings_changed = True
             if payload.token_endpoint is not None:
                 settings["token_endpoint"] = payload.token_endpoint
+                settings_changed = True
             if payload.userinfo_endpoint is not None:
                 settings["userinfo_endpoint"] = payload.userinfo_endpoint
+                settings_changed = True
             if payload.scopes is not None:
                 settings["scopes"] = payload.scopes
+                settings_changed = True
 
             # Update flags
             flags = provider.flags.copy() if provider.flags else {}
+
+            # If settings changed, invalidate the provider (needs re-testing)
+            if settings_changed:
+                flags["valid"] = False
+                flags["active"] = False
+
+            # Validate is_active constraint: cannot be true if is_valid is false
             if payload.is_active is not None:
+                if payload.is_active and not flags.get("valid", False):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Cannot activate provider. Please test the connection first.",
+                    )
                 flags["active"] = payload.is_active
 
             provider = await dao.update(
@@ -307,6 +367,44 @@ class SSOProviderService:
             providers = await dao.list_by_organization(organization_id)
 
             return [self._to_response(p) for p in providers]
+
+    async def test_provider(
+        self, organization_id: str, provider_id: str, user_id: str
+    ) -> OrganizationProviderResponse:
+        """Test SSO provider connection and mark as valid if successful."""
+        async with engine.core_session() as session:
+            dao = OrganizationProvidersDAO(session)
+
+            provider = await dao.get_by_id(provider_id, organization_id)
+            if not provider:
+                raise HTTPException(status_code=404, detail="Provider not found")
+
+            settings = provider.settings
+
+            # Test OIDC connection
+            is_valid = await self.test_oidc_connection(
+                issuer_url=settings.get("issuer_url", ""),
+                client_id=settings.get("client_id", ""),
+                client_secret=settings.get("client_secret", ""),
+            )
+
+            # Update flags based on test result
+            flags = provider.flags.copy() if provider.flags else {}
+            flags["valid"] = is_valid
+
+            # If validation failed, deactivate the provider
+            if not is_valid:
+                flags["active"] = False
+
+            provider = await dao.update(
+                provider_id=provider_id,
+                flags=flags,
+                updated_by_id=user_id,
+            )
+
+            await session.commit()
+
+            return self._to_response(provider)
 
     async def delete_provider(
         self, organization_id: str, provider_id: str, user_id: str
@@ -339,7 +437,8 @@ class SSOProviderService:
             token_endpoint=settings.get("token_endpoint"),
             userinfo_endpoint=settings.get("userinfo_endpoint"),
             scopes=settings.get("scopes", ["openid", "profile", "email"]),
-            is_active=provider.flags.get("active", True) if provider.flags else True,
+            is_valid=provider.flags.get("valid", False) if provider.flags else False,
+            is_active=provider.flags.get("active", False) if provider.flags else False,
             created_at=provider.created_at,
             updated_at=provider.updated_at,
         )

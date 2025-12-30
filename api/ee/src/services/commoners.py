@@ -36,6 +36,7 @@ from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.core.meters.service import MetersService
+from oss.src.utils.caching import set_cache, get_cache
 
 subscription_service = SubscriptionsService(
     subscriptions_dao=SubscriptionsDAO(),
@@ -137,56 +138,88 @@ async def create_accounts(
         "username": payload["email"].split("@")[0],
     }
 
-    user = await db_manager.get_user_with_email(email=user_dict["email"])
-    if user is None:
-        # Check if user exists before attempting creation
-        user_existed_before = await check_user_exists(user_dict["email"])
+    email = user_dict["email"]
 
+    # Check if account creation is already in progress for this email using distributed cache
+    in_progress = await get_cache(
+        namespace="account-creation",
+        key=email,
+    )
+
+    if in_progress:
+        log.info("[scopes] Account creation already in progress for [%s], skipping duplicate request", email)
+        # Get the user that's being created
+        user = await db_manager.get_user_with_email(email=email)
+        if user:
+            log.info("[scopes] User [%s] authenticated (deduplicated)", user.id)
+            return user
+        # If user doesn't exist yet, wait a bit and retry (the other request should create it)
+        import asyncio
+        await asyncio.sleep(0.5)
+        user = await db_manager.get_user_with_email(email=email)
+        if user:
+            log.info("[scopes] User [%s] authenticated (deduplicated after wait)", user.id)
+            return user
+
+    # Mark account creation as in progress with 5 second TTL
+    await set_cache(
+        namespace="account-creation",
+        key=email,
+        value=True,
+        ttl=5,
+    )
+
+    # Get or create user
+    user = await db_manager.get_user_with_email(email=user_dict["email"])
+    user_is_new = user is None
+
+    if user is None:
         # Create user (idempotent - returns existing if found)
         user = await create_new_user(user_dict)
+        log.info("[scopes] User [%s] created", user.id)
 
-        # Check if user exists after creation
-        user_existed_after = await check_user_exists(user_dict["email"])
+    # Check if user already has organizations (to detect if setup already ran)
+    user_organizations = await db_manager.get_user_organizations(str(user.id))
+    user_has_organization = len(user_organizations) > 0
 
-        # If user didn't exist before but exists after, we created it
-        if not user_existed_before and user_existed_after:
-            # We successfully created the user, proceed with setup
-            # If setup fails, delete the user to avoid orphaned records
+    # Only run setup if user is new AND doesn't have organizations
+    if user_is_new and not user_has_organization:
+        # We successfully created the user and they have no orgs, proceed with setup
+        # If setup fails, delete the user to avoid orphaned records
+        try:
+            # Add the user to demos
+            await add_user_to_demos(str(user.id))
+
+            # Create organization with workspace and subscription
+            await create_organization_with_subscription(
+                user_id=UUID(str(user.id)),
+                organization_email=user_dict["email"],
+                organization_name=organization_name,
+                organization_description=None,
+                is_personal=is_personal,
+                use_reverse_trial=use_reverse_trial,
+            )
+        except Exception as e:
+            # Setup failed - delete the user to avoid orphaned state
+            log.error(
+                "[scopes] Setup failed for user [%s], deleting user: %s",
+                user.id,
+                str(e),
+            )
             try:
-                log.info("[scopes] User [%s] created", user.id)
-
-                # Add the user to demos
-                await add_user_to_demos(str(user.id))
-
-                # Create organization with workspace and subscription
-                await create_organization_with_subscription(
-                    user_id=UUID(str(user.id)),
-                    organization_email=user_dict["email"],
-                    organization_name=organization_name,
-                    organization_description=None,
-                    is_personal=is_personal,
-                    use_reverse_trial=use_reverse_trial,
-                )
-            except Exception as e:
-                # Setup failed - delete the user to avoid orphaned state
+                await delete_user(str(user.id))
+            except Exception as delete_error:
                 log.error(
-                    "[scopes] Setup failed for user [%s], deleting user: %s",
+                    "[scopes] Failed to delete user [%s]: %s",
                     user.id,
-                    str(e),
+                    str(delete_error),
                 )
-                try:
-                    await delete_user(str(user.id))
-                except Exception as delete_error:
-                    log.error(
-                        "[scopes] Failed to delete user [%s]: %s",
-                        user.id,
-                        str(delete_error),
-                    )
-                # Re-raise the original error
-                raise
-        else:
-            # User already existed (race condition) - skip all setup
-            log.info("[scopes] User [%s] already exists, skipping setup", user.id)
+            # Re-raise the original error
+            raise
+    else:
+        # User already has organization(s) - skip setup
+        if user_has_organization:
+            log.info("[scopes] User [%s] already has organization, skipping setup", user.id)
 
     log.info("[scopes] User [%s] authenticated", user.id)
 

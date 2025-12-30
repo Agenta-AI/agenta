@@ -61,7 +61,7 @@ async def oidc_authorize(provider_id: str, redirect: str = "/"):
     try:
         # Get provider to build third_party_id
         from uuid import UUID
-        from oss.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
+        from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
 
         providers_dao = OrganizationProvidersDAO()
         provider = await providers_dao.get_by_id(UUID(provider_id))

@@ -39,7 +39,7 @@ identities_dao = IdentitiesDAO()
 
 # Organization providers DAO (EE only)
 if is_ee():
-    from oss.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
+    from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
 
     providers_dao = OrganizationProvidersDAO()
 else:

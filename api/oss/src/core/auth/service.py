@@ -16,7 +16,7 @@ from sqlalchemy import select
 
 # Organization DAOs and models (EE only)
 if is_ee():
-    from oss.src.dbs.postgres.organizations.dao import (
+    from ee.src.dbs.postgres.organizations.dao import (
         OrganizationDomainsDAO,
         OrganizationProvidersDAO,
     )

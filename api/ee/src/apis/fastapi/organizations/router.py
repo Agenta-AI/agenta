@@ -1,10 +1,9 @@
 """FastAPI router for organization security features."""
 
 from typing import List
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 
-from oss.src.services.auth_service import authorization_check
 from ee.src.apis.fastapi.organizations.models import (
     OrganizationDomainCreate,
     OrganizationDomainVerify,
@@ -17,6 +16,7 @@ from ee.src.services.organization_security_service import (
     DomainVerificationService,
     SSOProviderService,
 )
+from ee.src.utils.permissions import check_user_org_access
 
 
 router = APIRouter()
@@ -30,7 +30,6 @@ provider_service = SSOProviderService()
 async def create_domain(
     payload: OrganizationDomainCreate,
     request: Request,
-    _=Depends(authorization_check),
 ):
     """
     Create a new domain for verification.
@@ -44,6 +43,8 @@ async def create_domain(
     """
     organization_id = request.state.organization_id
     user_id = request.state.user_id
+
+    await check_user_org_access(user_id, organization_id)
 
     domain = await domain_service.create_domain(organization_id, payload, user_id)
 
@@ -65,7 +66,6 @@ async def create_domain(
 async def verify_domain(
     payload: OrganizationDomainVerify,
     request: Request,
-    _=Depends(authorization_check),
 ):
     """
     Verify domain ownership via DNS TXT record.
@@ -76,6 +76,8 @@ async def verify_domain(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
+    await check_user_org_access(user_id, organization_id)
+
     return await domain_service.verify_domain(
         organization_id, payload.domain_id, user_id
     )
@@ -84,10 +86,13 @@ async def verify_domain(
 @router.get("/domains", response_model=List[OrganizationDomainResponse])
 async def list_domains(
     request: Request,
-    _=Depends(authorization_check),
 ):
     """List all domains for the organization."""
     organization_id = request.state.organization_id
+    user_id = request.state.user_id
+
+    await check_user_org_access(user_id, organization_id)
+
     return await domain_service.list_domains(organization_id)
 
 
@@ -95,11 +100,12 @@ async def list_domains(
 async def delete_domain(
     domain_id: str,
     request: Request,
-    _=Depends(authorization_check),
 ):
     """Delete a domain."""
     organization_id = request.state.organization_id
     user_id = request.state.user_id
+
+    await check_user_org_access(user_id, organization_id)
 
     await domain_service.delete_domain(organization_id, domain_id, user_id)
     return JSONResponse(status_code=204, content=None)
@@ -111,7 +117,6 @@ async def delete_domain(
 async def create_provider(
     payload: OrganizationProviderCreate,
     request: Request,
-    _=Depends(authorization_check),
 ):
     """
     Create a new SSO provider configuration.
@@ -123,6 +128,8 @@ async def create_provider(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
+    await check_user_org_access(user_id, organization_id)
+
     return await provider_service.create_provider(organization_id, payload, user_id)
 
 
@@ -131,11 +138,12 @@ async def update_provider(
     provider_id: str,
     payload: OrganizationProviderUpdate,
     request: Request,
-    _=Depends(authorization_check),
 ):
     """Update an SSO provider configuration."""
     organization_id = request.state.organization_id
     user_id = request.state.user_id
+
+    await check_user_org_access(user_id, organization_id)
 
     return await provider_service.update_provider(
         organization_id, provider_id, payload, user_id
@@ -145,22 +153,47 @@ async def update_provider(
 @router.get("/providers", response_model=List[OrganizationProviderResponse])
 async def list_providers(
     request: Request,
-    _=Depends(authorization_check),
 ):
     """List all SSO providers for the organization."""
     organization_id = request.state.organization_id
+    user_id = request.state.user_id
+
+    await check_user_org_access(user_id, organization_id)
+
     return await provider_service.list_providers(organization_id)
+
+
+@router.post("/providers/{provider_id}/test", response_model=OrganizationProviderResponse)
+async def test_provider(
+    provider_id: str,
+    request: Request,
+):
+    """
+    Test SSO provider connection.
+
+    This endpoint tests the OIDC provider configuration by fetching the
+    discovery document and validating required endpoints exist.
+    If successful, marks the provider as valid (is_valid=true).
+    If failed, marks as invalid and deactivates (is_valid=false, is_active=false).
+    """
+    organization_id = request.state.organization_id
+    user_id = request.state.user_id
+
+    await check_user_org_access(user_id, organization_id)
+
+    return await provider_service.test_provider(organization_id, provider_id, user_id)
 
 
 @router.delete("/providers/{provider_id}", status_code=204)
 async def delete_provider(
     provider_id: str,
     request: Request,
-    _=Depends(authorization_check),
 ):
     """Delete an SSO provider configuration."""
     organization_id = request.state.organization_id
     user_id = request.state.user_id
+
+    await check_user_org_access(user_id, organization_id)
 
     await provider_service.delete_provider(organization_id, provider_id, user_id)
     return JSONResponse(status_code=204, content=None)

@@ -30,7 +30,7 @@ from ee.src.services.organization_service import (
     get_organization_details,
     transfer_organization_ownership as transfer_ownership_service,
 )
-from oss.src.dbs.postgres.organizations.dao import (
+from ee.src.dbs.postgres.organizations.dao import (
     OrganizationDomainsDAO,
     OrganizationProvidersDAO,
 )

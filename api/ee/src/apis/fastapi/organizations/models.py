@@ -41,11 +41,14 @@ class OrganizationDomainResponse(BaseModel):
 class OrganizationProviderCreate(BaseModel):
     """Request model for creating an SSO provider."""
 
-    provider_type: str = Field(..., description="Type of SSO provider (e.g., 'oidc', 'saml')")
+    provider_type: str = Field(
+        default="oidc",
+        description="Type of SSO provider (only 'oidc' supported, 'saml' coming soon)"
+    )
     name: str = Field(..., description="Friendly name for the provider")
     client_id: str = Field(..., description="OAuth/OIDC client ID")
     client_secret: str = Field(..., description="OAuth/OIDC client secret")
-    issuer_url: str = Field(..., description="OIDC issuer URL or SAML IdP URL")
+    issuer_url: str = Field(..., description="OIDC issuer URL")
     authorization_endpoint: Optional[str] = Field(None, description="Authorization endpoint URL")
     token_endpoint: Optional[str] = Field(None, description="Token endpoint URL")
     userinfo_endpoint: Optional[str] = Field(None, description="Userinfo endpoint URL")
@@ -81,7 +84,8 @@ class OrganizationProviderResponse(BaseModel):
     token_endpoint: Optional[str]
     userinfo_endpoint: Optional[str]
     scopes: list[str]
-    is_active: bool
+    is_valid: bool  # Whether configuration has been tested successfully
+    is_active: bool  # Whether provider is enabled (can only be true if is_valid is true)
     created_at: datetime
     updated_at: Optional[datetime]
 
