@@ -537,6 +537,155 @@ def field_match_test_v0(
     return {"success": success}
 
 
+def _get_nested_value(obj: Any, path: str) -> Any:
+    """
+    Get value from nested dict using dot notation path.
+
+    Args:
+        obj: The object to traverse (dict or list)
+        path: Dot-separated path like "user.address.city" or "items.0.name"
+
+    Returns:
+        The value at the path, or None if path doesn't exist
+    """
+    if obj is None:
+        return None
+
+    keys = path.split(".")
+    value = obj
+
+    for key in keys:
+        if isinstance(value, dict):
+            value = value.get(key)
+        elif isinstance(value, list) and key.isdigit():
+            idx = int(key)
+            value = value[idx] if 0 <= idx < len(value) else None
+        else:
+            return None
+
+        if value is None:
+            return None
+
+    return value
+
+
+@instrument(annotate=True)
+def json_multi_field_match_v0(
+    parameters: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+) -> Any:
+    """
+    Multi-field JSON match evaluator for comparing multiple fields between expected and actual JSON.
+
+    Each configured field becomes a separate score (0 or 1), and an overall score shows
+    the ratio of matching fields. Useful for entity extraction validation.
+
+    Args:
+        inputs: Testcase data with ground truth JSON
+        outputs: Output from the workflow execution (expected to be JSON string or dict)
+        parameters: Configuration with:
+            - fields: List of field paths to compare (e.g., ["name", "user.address.city"])
+            - correct_answer_key: Key in inputs containing the expected JSON
+
+    Returns:
+        Dict with per-field scores and overall score, e.g.:
+        {"name": 1.0, "email": 0.0, "score": 0.5}
+    """
+    if parameters is None or not isinstance(parameters, dict):
+        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+
+    if "fields" not in parameters:
+        raise MissingConfigurationParameterV0Error(path="fields")
+
+    fields = parameters["fields"]
+
+    if not isinstance(fields, list) or len(fields) == 0:
+        raise InvalidConfigurationParameterV0Error(
+            path="fields",
+            expected="non-empty list",
+            got=fields,
+        )
+
+    if "correct_answer_key" not in parameters:
+        raise MissingConfigurationParameterV0Error(path="correct_answer_key")
+
+    correct_answer_key = str(parameters["correct_answer_key"])
+
+    if inputs is None or not isinstance(inputs, dict):
+        raise InvalidInputsV0Error(expected="dict", got=inputs)
+
+    if correct_answer_key not in inputs:
+        raise MissingInputV0Error(path=correct_answer_key)
+
+    correct_answer = inputs[correct_answer_key]
+
+    # Parse ground truth JSON
+    if isinstance(correct_answer, str):
+        try:
+            expected = json.loads(correct_answer)
+        except json.JSONDecodeError as e:
+            raise InvalidInputV0Error(
+                path=correct_answer_key,
+                expected="valid JSON string",
+                got=correct_answer,
+            )
+    elif isinstance(correct_answer, dict):
+        expected = correct_answer
+    else:
+        raise InvalidInputV0Error(
+            path=correct_answer_key,
+            expected=["dict", "str"],
+            got=correct_answer,
+        )
+
+    # Parse output JSON
+    if not isinstance(outputs, str) and not isinstance(outputs, dict):
+        # Return all zeros if output is invalid
+        results: Dict[str, Any] = {field: 0.0 for field in fields}
+        results["score"] = 0.0
+        return results
+
+    if isinstance(outputs, str):
+        try:
+            actual = json.loads(outputs)
+        except json.JSONDecodeError:
+            # Return all zeros if output is not valid JSON
+            results = {field: 0.0 for field in fields}
+            results["score"] = 0.0
+            return results
+    else:
+        actual = outputs
+
+    if not isinstance(actual, dict):
+        # Return all zeros if parsed output is not a dict
+        results = {field: 0.0 for field in fields}
+        results["score"] = 0.0
+        return results
+
+    # --------------------------------------------------------------------------
+    # Compare each configured field
+    results = {}
+    matches = 0
+
+    for field_path in fields:
+        expected_val = _get_nested_value(expected, field_path)
+        actual_val = _get_nested_value(actual, field_path)
+
+        # Exact match comparison
+        match = expected_val == actual_val
+
+        results[field_path] = 1.0 if match else 0.0
+        if match:
+            matches += 1
+
+    # Overall score is ratio of matching fields
+    results["score"] = matches / len(fields) if fields else 0.0
+    # --------------------------------------------------------------------------
+
+    return results
+
+
 @instrument(annotate=True)
 async def auto_webhook_test_v0(
     parameters: Optional[Data] = None,
