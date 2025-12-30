@@ -102,7 +102,6 @@ export const variantDetailQueryAtom = atom((get) => {
     return get(variantStatefulAtomFamily(variantId))
 })
 
-
 /**
  * Revision list item type (re-export for backward compatibility)
  */
@@ -208,16 +207,18 @@ export const testsetMetadataAtom = atom((get): TestsetMetadata | null => {
     const currentRevisionId = get(currentRevisionIdAtom)
 
     const revisionFromQuery = revisionQuery.data
-    if (!revisionFromQuery?.testset_id) return null
+    // For new testsets, testset_id is empty but we still want to show metadata
+    const isNewTestset = currentRevisionId === "new" || currentRevisionId === "draft"
+    if (!revisionFromQuery?.testset_id && !isNewTestset) return null
 
     // Get draft if any (for name/description edits)
     const draft =
-        currentRevisionId && currentRevisionId === revisionFromQuery.id
+        currentRevisionId && currentRevisionId === revisionFromQuery?.id
             ? get(revisionDraftAtomFamily(currentRevisionId))
             : null
 
-    // Merge draft with server data
-    const revision = draft ? {...revisionFromQuery, ...draft} : revisionFromQuery
+    // Merge draft with server data (for new testsets, revisionFromQuery may have empty fields)
+    const revision = draft ? {...(revisionFromQuery ?? {}), ...draft} : revisionFromQuery
 
     const variant = variantQuery.data
 
@@ -228,11 +229,11 @@ export const testsetMetadataAtom = atom((get): TestsetMetadata | null => {
     const effectiveDescription = revision?.description || variant?.description || undefined
 
     return {
-        testsetId: revisionFromQuery.testset_id,
+        testsetId: revisionFromQuery?.testset_id ?? "",
         testsetName: effectiveName,
         testsetSlug: undefined, // slug is not in current schema
         revisionSlug: revision?.slug ?? undefined,
-        revisionVersion: revision?.version ?? revisionFromQuery.version,
+        revisionVersion: revision?.version ?? revisionFromQuery?.version,
         description: effectiveDescription,
         commitMessage: revision?.message ?? undefined,
         author: revision?.author ?? undefined,

@@ -1,6 +1,7 @@
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
+import {get} from "lodash"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
@@ -491,13 +492,16 @@ export const testcaseEntityAtomFamily = atomFamily((testcaseId: string) =>
     atom((get): FlattenedTestcase | null => {
         // Check for local draft first
         const draft = get(testcaseDraftAtomFamily(testcaseId))
+        console.log(`[testcaseEntityAtomFamily] id=${testcaseId}, draft=`, draft)
         if (draft) {
+            console.log(`[testcaseEntityAtomFamily] returning draft for id=${testcaseId}`)
             return draft
         }
 
         // Fall back to server data from query
         const query = get(testcaseQueryAtomFamily(testcaseId))
         const data = query.data ?? null
+        console.log(`[testcaseEntityAtomFamily] id=${testcaseId}, query.data=`, data, `isPending=${query.isPending}`)
 
         // Apply pending column changes to server data
         if (data) {
@@ -505,10 +509,13 @@ export const testcaseEntityAtomFamily = atomFamily((testcaseId: string) =>
             const pendingDeleted = get(pendingDeletedColumnsAtom)
             const pendingAdded = get(pendingAddedColumnsAtom)
             if (pendingRenames.size > 0 || pendingDeleted.size > 0 || pendingAdded.size > 0) {
-                return applyPendingColumnChanges(data, pendingRenames, pendingDeleted, pendingAdded)
+                const result = applyPendingColumnChanges(data, pendingRenames, pendingDeleted, pendingAdded)
+                console.log(`[testcaseEntityAtomFamily] applied column changes for id=${testcaseId}, result=`, result)
+                return result
             }
         }
 
+        console.log(`[testcaseEntityAtomFamily] returning server data for id=${testcaseId}:`, data)
         return data
     }),
 )
@@ -869,8 +876,49 @@ export const testcaseCellAtomFamily = atomFamily(
         return selectAtom(
             testcaseEntityAtomFamily(id),
             (entity) => {
-                if (!entity) return undefined
-                return (entity as Record<string, unknown>)[column]
+                console.log(`[testcaseCellAtomFamily] id=${id}, column=${column}, entity=`, entity)
+                if (!entity) {
+                    console.log(`[testcaseCellAtomFamily] entity is null/undefined for id=${id}`)
+                    return undefined
+                }
+
+                // Handle nested paths (e.g., "VMs_previous_RFP.event")
+                // We need to parse JSON strings for nested access
+                const parts = column.split(".")
+
+                if (parts.length === 1) {
+                    // Simple top-level access
+                    const value = get(entity, column)
+                    console.log(`[testcaseCellAtomFamily] simple access ${column}:`, value)
+                    return value
+                }
+
+                // Nested path - need to parse JSON strings along the way
+                let current: any = entity
+                for (let i = 0; i < parts.length; i++) {
+                    const part = parts[i]
+                    current = current?.[part]
+
+                    // If we got a JSON string and there are more parts to traverse, parse it
+                    if (i < parts.length - 1 && typeof current === "string") {
+                        const trimmed = current.trim()
+                        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+                            try {
+                                current = JSON.parse(trimmed)
+                                console.log(`[testcaseCellAtomFamily] parsed JSON at ${parts.slice(0, i + 1).join(".")}:`, current)
+                            } catch (e) {
+                                console.log(`[testcaseCellAtomFamily] failed to parse JSON at ${parts.slice(0, i + 1).join(".")}:`, e)
+                                return undefined
+                            }
+                        } else {
+                            // String but not JSON - can't traverse further
+                            return undefined
+                        }
+                    }
+                }
+
+                console.log(`[testcaseCellAtomFamily] nested access ${column}:`, current)
+                return current
             },
             cellValueEquals,
         )
