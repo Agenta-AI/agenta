@@ -43,9 +43,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({setTestsetData, ...p
         if (modalProps.open) {
             resetModalState()
         }
-        // resetModalState is a stable Jotai setter, doesn't need to be in deps
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [modalProps.open])
+    }, [modalProps.open, resetModalState])
 
     const onClose = useCallback(() => {
         onCancel?.({} as any)
@@ -73,6 +71,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({setTestsetData, ...p
                     selectedRowKeys={selectedRowKeys}
                     testsetCsvData={selectedTestcasesData}
                     setTestsetData={setTestsetData}
+                    selectedRevisionId={selectedRevisionId}
                     isCreatingNew={isCreatingNew}
                     newTestsetName={newTestsetName}
                 />
