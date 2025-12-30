@@ -14,7 +14,7 @@ import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
 import {isValidCSVFile, isValidJSONFile} from "@/oss/lib/helpers/fileManipulations"
 import {GenericObject, JSSTheme} from "@/oss/lib/Types"
 import {uploadTestsetPreview} from "@/oss/services/testsets/api"
-import {useTestsetsData} from "@/oss/state/testset"
+import {invalidateTestsetsListCache} from "@/oss/state/entities/testset"
 
 import {FilePreviewTable} from "./components/FilePreviewTable"
 
@@ -117,7 +117,6 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
     const [fileProgress, setFileProgress] = useState<UploadFile | null>(null)
     const [validationError, setValidationError] = useState<string | null>(null)
     const [previewData, setPreviewData] = useState<GenericObject[]>([])
-    const {mutate} = useTestsetsData()
     const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
 
     const parseFileForPreview = async (
@@ -183,7 +182,7 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
             setUploadType(undefined)
 
             // Revalidate testsets data
-            mutate()
+            invalidateTestsetsListCache()
             setRefreshTrigger((prev) => prev + 1)
 
             message.success("Testset uploaded successfully")
