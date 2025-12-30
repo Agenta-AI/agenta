@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {ArrowsOut, CaretDoubleRight, CaretDown, CaretUp, Copy} from "@phosphor-icons/react"
-import {Button, Dropdown, Segmented, Space, Tooltip} from "antd"
+import {Alert, Button, Dropdown, Segmented, Skeleton, Space, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
@@ -9,10 +9,10 @@ import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
 import {
-    testcaseDraftAtomFamily,
-    testcaseEntityAtomFamily,
     testcaseIsDirtyAtomFamily,
-} from "@/oss/state/entities/testcase/testcaseEntity"
+    testcaseStatefulAtomFamily,
+    updateTestcaseAtom,
+} from "@/oss/state/entities/testcase"
 
 import TestcaseEditDrawerContent, {
     type TestcaseEditDrawerContentRef,
@@ -59,27 +59,38 @@ const TestcaseEditDrawer = ({
     onOpenCommitModal,
     isSavingTestset = false,
 }: TestcaseEditDrawerProps) => {
-    // Read testcase from entity atom (server state + local draft)
-    const testcaseAtom = useMemo(() => testcaseEntityAtomFamily(testcaseId || ""), [testcaseId])
-    const testcase = useAtomValue(testcaseAtom)
+    // Read testcase using stateful atom (provides loading/error states)
+    // This gives us better UX with loading skeleton and error messages
+    const testcaseStatefulAtom = useMemo(
+        () => testcaseStatefulAtomFamily(testcaseId || ""),
+        [testcaseId],
+    )
+    const testcaseState = useAtomValue(testcaseStatefulAtom)
 
     // Check if entity has actual data changes (compares draft vs server state)
     const isDirtyAtom = useMemo(() => testcaseIsDirtyAtomFamily(testcaseId || ""), [testcaseId])
     const isDirty = useAtomValue(isDirtyAtom)
 
-    // Draft setter for restoring session state
-    const setDraft = useSetAtom(testcaseDraftAtomFamily(testcaseId || ""))
+    // Mutation for restoring session state
+    const updateTestcase = useSetAtom(updateTestcaseAtom)
 
     // Capture draft state when drawer opens (for session-based cancel)
     const [sessionStartDraft, setSessionStartDraft] = useState<FlattenedTestcase | null>(null)
+    const hasCapturedSessionDraft = useRef(false)
 
-    // Capture the current draft when drawer opens
+    // Capture the current draft when drawer opens (ONLY ONCE when opening)
     useEffect(() => {
-        if (open && testcaseId) {
+        if (open && testcaseId && testcaseState.data && !hasCapturedSessionDraft.current) {
             // Capture the current entity state (server + draft merged) as the session start point
-            setSessionStartDraft(testcase ? {...testcase} : null)
+            // Only capture once when data is first available, not on subsequent edits
+            setSessionStartDraft({...testcaseState.data})
+            hasCapturedSessionDraft.current = true
+        } else if (!open) {
+            // Clear session draft when drawer closes and reset capture flag
+            setSessionStartDraft(null)
+            hasCapturedSessionDraft.current = false
         }
-    }, [open, testcaseId])
+    }, [open, testcaseId, testcaseState.data])
 
     const [editMode, setEditMode] = useState<EditMode>("fields")
     const [isIdCopied, setIsIdCopied] = useState(false)
@@ -99,12 +110,12 @@ const TestcaseEditDrawer = ({
 
     // Discard session changes and close (restore to state when drawer opened)
     const handleCancel = useCallback(() => {
-        if (testcaseId) {
+        if (testcaseId && sessionStartDraft) {
             // Restore to the state when drawer opened (not discard entirely)
-            setDraft(sessionStartDraft)
+            updateTestcase({id: testcaseId, updates: sessionStartDraft})
         }
         onClose()
-    }, [testcaseId, sessionStartDraft, setDraft, onClose])
+    }, [testcaseId, sessionStartDraft, updateTestcase, onClose])
 
     const handleCopyId = useCallback(async () => {
         if (!testcaseId) return
@@ -245,16 +256,40 @@ const TestcaseEditDrawer = ({
                 </div>
             }
         >
-            {open && testcaseId && testcase && (
-                <TestcaseEditDrawerContent
-                    ref={contentRef}
-                    testcaseId={testcaseId}
-                    columns={columns}
-                    isNewRow={isNewRow}
-                    onClose={onClose}
-                    editMode={editMode}
-                    onEditModeChange={setEditMode}
-                />
+            {open && testcaseId && (
+                <>
+                    {/* Loading state */}
+                    {testcaseState.isPending && (
+                        <div className="p-6 space-y-4">
+                            <Skeleton active paragraph={{rows: 8}} />
+                        </div>
+                    )}
+
+                    {/* Error state */}
+                    {testcaseState.isError && (
+                        <div className="p-6">
+                            <Alert
+                                type="error"
+                                message="Failed to load testcase"
+                                description={testcaseState.error?.message || "Unknown error"}
+                                showIcon
+                            />
+                        </div>
+                    )}
+
+                    {/* Loaded state */}
+                    {testcaseState.data && (
+                        <TestcaseEditDrawerContent
+                            ref={contentRef}
+                            testcaseId={testcaseId}
+                            columns={columns}
+                            isNewRow={isNewRow}
+                            onClose={onClose}
+                            editMode={editMode}
+                            onEditModeChange={setEditMode}
+                        />
+                    )}
+                </>
             )}
         </EnhancedDrawer>
     )

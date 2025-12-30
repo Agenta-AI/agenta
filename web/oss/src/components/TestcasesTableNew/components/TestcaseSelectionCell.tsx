@@ -2,7 +2,7 @@ import {memo} from "react"
 
 import {useAtomValue} from "jotai"
 
-import {testcaseIsDirtyAtom} from "@/oss/state/entities/testcase/dirtyState"
+import {testcaseIsDirtyAtomFamily} from "@/oss/state/entities/testcase/testcaseEntity"
 
 interface TestcaseSelectionCellProps {
     testcaseId: string | undefined
@@ -14,6 +14,12 @@ interface TestcaseSelectionCellProps {
 /**
  * Custom selection cell that shows row index on hover via title attribute
  * Also shows dirty indicator for rows with unsaved changes via background color
+ *
+ * Uses testcaseIsDirtyAtomFamily for reactive dirty state detection:
+ * - Checks draft state vs server state
+ * - Accounts for pending column changes (renames/deletes/adds)
+ * - New rows are always considered dirty
+ *
  * Uses native title instead of Tooltip for better scroll performance
  */
 const TestcaseSelectionCell = memo(function TestcaseSelectionCell({
@@ -22,8 +28,9 @@ const TestcaseSelectionCell = memo(function TestcaseSelectionCell({
     originNode,
     mode = "edit",
 }: TestcaseSelectionCellProps) {
-    // Check if testcase has unsaved changes (only in edit mode)
-    const isDirty = mode === "edit" ? useAtomValue(testcaseIsDirtyAtom(testcaseId || "")) : false
+    // Check if testcase has unsaved changes using entity atom (only in edit mode)
+    // This includes both draft edits AND pending column changes
+    const isDirty = mode === "edit" ? useAtomValue(testcaseIsDirtyAtomFamily(testcaseId || "")) : false
 
     // New rows (not yet saved) are always dirty
     const isNewRow = testcaseId?.startsWith("new-") || testcaseId?.startsWith("local-") || false

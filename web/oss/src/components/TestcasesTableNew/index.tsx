@@ -12,6 +12,7 @@ import {
     revisionsListQueryAtom,
     testsetMetadataAtom,
 } from "@/oss/state/entities/testcase/queries"
+import {revisionDraftAtomFamily} from "@/oss/state/entities/testset"
 
 import {testcasesSearchTermAtom} from "./atoms/tableStore"
 import {TestcaseActions} from "./components/TestcaseActions"
@@ -88,6 +89,19 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
             setCurrentRevisionId(revisionId)
         }
     }, [revisionIdParam, setCurrentRevisionId])
+
+    // Initialize draft with name from URL query parameter for new testsets
+    const setNewTestsetDraft = useSetAtom(revisionDraftAtomFamily("new"))
+    useEffect(() => {
+        if (isNewTestset && router.query.name) {
+            const nameFromUrl = Array.isArray(router.query.name)
+                ? router.query.name[0]
+                : router.query.name
+            if (nameFromUrl) {
+                setNewTestsetDraft({name: decodeURIComponent(nameFromUrl)})
+            }
+        }
+    }, [isNewTestset, router.query.name, setNewTestsetDraft])
 
     // Main table hook - only manages testcases data
     const table = useTestcasesTable({

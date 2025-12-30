@@ -218,8 +218,15 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         async (commitMessage: string) => {
             if (mode === "view") return
 
+            // Check if this is a new testset
+            const isNewTestset = revisionIdParam === "new"
+
             try {
-                const newRevisionId = await table.saveTestset({commitMessage})
+                const newRevisionId = await table.saveTestset({
+                    commitMessage,
+                    // For new testsets, pass the name from metadata (set from URL query param)
+                    testsetName: isNewTestset ? metadata?.testsetName : undefined,
+                })
                 if (newRevisionId) {
                     message.success("Changes saved successfully!")
                     skipBlockerRef.current = true // Skip nav blocker for programmatic navigation
@@ -233,7 +240,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
                 message.error("Failed to save changes")
             }
         },
-        [table, router, projectURL, mode],
+        [table, router, projectURL, mode, revisionIdParam, metadata?.testsetName],
     )
 
     const handleDiscardChanges = useCallback(() => {
@@ -328,7 +335,9 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
                     // Navigate to the latest revision
                     const latestRevision = availableRevisions
                         .filter((r: RevisionListItem) => r.id !== revisionIdParam)
-                        .sort((a: RevisionListItem, b: RevisionListItem) => b.version - a.version)[0]
+                        .sort(
+                            (a: RevisionListItem, b: RevisionListItem) => b.version - a.version,
+                        )[0]
 
                     if (latestRevision) {
                         router.push(`${projectURL}/testsets/${latestRevision.id}`, undefined, {
