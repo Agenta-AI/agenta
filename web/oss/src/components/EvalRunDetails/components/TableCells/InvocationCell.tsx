@@ -215,8 +215,9 @@ const PreviewEvaluationInvocationCell = ({
             </div>
         )
 
+        const errorCopyContent = `${stepError?.message}${stepError?.stacktrace ? `\n${stepError?.stacktrace}` : ""}`
         return (
-            <CellContentPopover content={errorPopoverContent}>
+            <CellContentPopover content={errorPopoverContent} copyContent={errorCopyContent}>
                 <div
                     ref={ref}
                     className={clsx(CONTAINER_CLASS, "!justify-between")}
@@ -264,7 +265,7 @@ const PreviewEvaluationInvocationCell = ({
 
     if (chatNodes && chatNodes.length) {
         return (
-            <CellContentPopover content={popoverContent}>
+            <CellContentPopover content={popoverContent} copyContent={safeJsonStringify(value)}>
                 <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
                     <div className="scenario-invocation-content flex-1 min-h-0 overflow-hidden">
                         <div className="flex w-full flex-col gap-2">{chatNodes}</div>
@@ -284,7 +285,7 @@ const PreviewEvaluationInvocationCell = ({
     // Render JSON objects/arrays using the JSON editor
     if (isJson) {
         return (
-            <CellContentPopover content={popoverContent}>
+            <CellContentPopover content={popoverContent} copyContent={safeJsonStringify(jsonValue)}>
                 <div
                     ref={ref}
                     className={clsx(CONTAINER_CLASS, "!justify-between")}
@@ -306,7 +307,7 @@ const PreviewEvaluationInvocationCell = ({
     }
 
     return (
-        <CellContentPopover content={popoverContent}>
+        <CellContentPopover content={popoverContent} copyContent={displayValue}>
             <div ref={ref} className={clsx(CONTAINER_CLASS, "!justify-between")} style={widthStyle}>
                 <div className="scenario-invocation-content flex-1 min-h-0 overflow-hidden">
                     <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
