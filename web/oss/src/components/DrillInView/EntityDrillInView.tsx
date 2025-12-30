@@ -12,7 +12,7 @@ import type {DrillInContentProps, PathItem} from "./DrillInContent"
 export interface EntityDrillInViewProps<TEntity>
     extends Omit<
         DrillInContentProps,
-        "getValue" | "setValue" | "getRootItems" | "valueMode"
+        "getValue" | "setValue" | "getRootItems" | "valueMode" | "initialPath"
     > {
     /**
      * The entity ID to read/write
@@ -57,6 +57,11 @@ export interface EntityDrillInViewProps<TEntity>
      * Optional columns (required for entities like testcase that use column-based structure)
      */
     columns?: any
+
+    /**
+     * Initial path to start navigation at (e.g., "inputs.prompt" or ["inputs", "prompt"])
+     */
+    initialPath?: string | string[]
 }
 
 // ============================================================================
@@ -78,6 +83,7 @@ export function EntityDrillInView<TEntity>({
     getRootItems,
     valueMode,
     columns,
+    initialPath,
     ...drillInProps
 }: EntityDrillInViewProps<TEntity>) {
     // Read entity from atom (includes draft if applicable)
@@ -122,6 +128,7 @@ export function EntityDrillInView<TEntity>({
             setValue={setValue}
             getRootItems={getRootItemsCallback}
             valueMode={valueMode}
+            initialPath={initialPath}
             {...drillInProps}
         />
     )

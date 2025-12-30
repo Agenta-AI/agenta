@@ -43,6 +43,8 @@ export interface TraceSpanDrillInViewProps
     onFocusPathHandled?: () => void
     /** Callback when a JSON property key is Cmd/Meta+clicked in nested JSON editors */
     onPropertyClick?: (path: string) => void
+    /** Initial path to start navigation at (e.g., "inputs.prompt" or ["inputs", "prompt"]) */
+    initialPath?: string | string[]
 }
 
 // ============================================================================
@@ -73,6 +75,7 @@ export const TraceSpanDrillInView = memo(
         focusPath,
         onFocusPathHandled,
         onPropertyClick,
+        initialPath,
     }: TraceSpanDrillInViewProps) => {
         return (
             <EntityDrillInView
@@ -95,6 +98,7 @@ export const TraceSpanDrillInView = memo(
                 focusPath={focusPath}
                 onFocusPathHandled={onFocusPathHandled}
                 onPropertyClick={onPropertyClick}
+                initialPath={initialPath}
             />
         )
     },

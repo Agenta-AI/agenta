@@ -73,6 +73,8 @@ export interface DrillInContentProps {
     lockedFieldTypes?: Record<string, DataType>
     /** Callback to update locked field types */
     onLockedFieldTypesChange?: (types: Record<string, DataType>) => void
+    /** Initial path to start navigation at (e.g., "inputs.prompt" or ["inputs", "prompt"]) */
+    initialPath?: string | string[]
 }
 
 /**
@@ -101,8 +103,18 @@ export function DrillInContent({
     getDefaultValueForType,
     lockedFieldTypes = {},
     onLockedFieldTypesChange,
+    initialPath,
 }: DrillInContentProps) {
-    const [currentPath, setCurrentPath] = useState<string[]>([])
+    // Parse initialPath to array format, removing rootTitle prefix if present
+    const parsedInitialPath = (() => {
+        if (!initialPath) return []
+        const pathArray = typeof initialPath === "string" ? initialPath.split(".") : initialPath
+        // Remove the rootTitle prefix if present
+        const startIndex = pathArray[0] === rootTitle ? 1 : 0
+        return pathArray.slice(startIndex)
+    })()
+
+    const [currentPath, setCurrentPath] = useState<string[]>(parsedInitialPath)
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
     const [rawModeFields, setRawModeFields] = useState<Record<string, boolean>>({})
 
