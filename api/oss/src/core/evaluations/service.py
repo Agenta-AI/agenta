@@ -1338,6 +1338,12 @@ class SimpleEvaluationsService:
             log.info("[EVAL] [failure] missing simple evaluation data")
             return None
 
+        if evaluation.flags.is_live and not evaluation.data.query_steps:
+            log.info(
+                "[EVAL] [failure] missing query for live evaluation (query_steps required)"
+            )
+            return None
+
         # ----------------------------------------------------------------------
         log.info("[EVAL] [create]")
         log.info("[EVAL] [scope]       ", project_id=project_id, user_id=user_id)
