@@ -14,8 +14,7 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "@/oss/services/tracing/lib/helpers"
-import {SpanLink, TracesResponse, TraceSpanNode} from "@/oss/services/tracing/types"
-import {hydrateSpanCacheAtom} from "@/oss/state/entities/trace"
+import {SpanLink, TracesResponse} from "@/oss/services/tracing/types"
 import {getOrgValues} from "@/oss/state/org"
 
 export type TraceDrawerSpanLink = SpanLink & {key?: string}
@@ -243,17 +242,6 @@ export const senitizedTracesAtom = atom<TracesWithAnnotations[]>((get) => {
 export const traceDrawerFlatAnnotatedTracesAtom = atom<TracesWithAnnotations[]>((get) =>
     flattenTraces(get(senitizedTracesAtom)),
 )
-
-/**
- * Effect atom: Hydrate the entity cache when traces are loaded
- * This ensures spans are available in traceSpanAtomFamily for entity-based lookups
- */
-export const hydrateSpanCacheEffectAtom = atom(null, (get, set) => {
-    const traces = get(senitizedTracesAtom)
-    if (traces.length > 0) {
-        set(hydrateSpanCacheAtom, traces as unknown as TraceSpanNode[])
-    }
-})
 
 // Annotation links that reference the current span/trace.
 export const annotationLinkTargetsAtom = atom<AnnotationLinkTarget[]>((get) => {
