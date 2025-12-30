@@ -289,7 +289,10 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             const queryResponse = await createSimpleQuery({query: queryPayload})
             const queryId = queryResponse.query?.id
             if (!queryId) {
-                throw new Error("Unable to create query for online evaluation.")
+                message.error(
+                    "Unable to create the query required for live evaluation. Please add at least one query filter and try again.",
+                )
+                return
             }
 
             const revisionResponse = await retrieveQueryRevision({
@@ -297,7 +300,10 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             })
             const queryRevisionId = revisionResponse.query_revision?.id
             if (!queryRevisionId) {
-                throw new Error("Unable to resolve query revision for online evaluation.")
+                message.error(
+                    "Unable to resolve the query revision required for live evaluation. Please try again.",
+                )
+                return
             }
 
             // Prefer preview evaluator artifact id; fall back to selected config id if preview not available
