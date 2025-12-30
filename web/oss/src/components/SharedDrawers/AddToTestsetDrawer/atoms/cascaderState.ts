@@ -1,9 +1,7 @@
 import {atom} from "jotai"
 
-import {
-    fetchTestsetRevisions,
-    type TestsetRevision,
-} from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
+import {revisionsListQueryAtomFamily, type RevisionListItem} from "@/oss/state/entities/testset"
+import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {
     availableRevisionsAtom as sharedAvailableRevisionsAtom,
     isNewTestsetAtom as sharedIsNewTestsetAtom,
@@ -105,7 +103,7 @@ export const cascaderOptionsWithChildrenAtom = atom(
 )
 
 /** Build revision option for cascader with rich label */
-const buildRevisionOption = (revision: TestsetRevision) => ({
+const buildRevisionOption = (revision: RevisionListItem) => ({
     value: revision.id,
     label: buildRevisionLabel(revision),
     isLeaf: true,
@@ -113,81 +111,63 @@ const buildRevisionOption = (revision: TestsetRevision) => ({
 })
 
 /** Load revisions for a testset (cascader loadData) */
-export const loadRevisionsAtom = atom(
-    null,
-    async (get, set, testsetId: string): Promise<TestsetRevision[]> => {
-        if (!testsetId || testsetId === "create") {
-            return []
-        }
+export const loadRevisionsAtom = atom(null, (get, set, testsetId: string): RevisionListItem[] => {
+    if (!testsetId || testsetId === "create") {
+        return []
+    }
 
-        set(loadingRevisionsAtom, true)
+    // Use centralized entity store query instead of manual fetch
+    const revisionsQuery = get(revisionsListQueryAtomFamily(testsetId))
 
-        // Set loading state for this testset
-        const currentLoading = get(loadingTestsetAtom)
-        const newLoadingMap = new Map(currentLoading)
-        newLoadingMap.set(testsetId, true)
-        set(loadingTestsetAtom, newLoadingMap)
+    // Update loading state for this testset
+    const currentLoading = get(loadingTestsetAtom)
+    const newLoadingMap = new Map(currentLoading)
+    newLoadingMap.set(testsetId, revisionsQuery.isPending)
+    set(loadingTestsetAtom, newLoadingMap)
+    set(loadingRevisionsAtom, revisionsQuery.isPending)
 
-        try {
-            const revisions = await fetchTestsetRevisions({testsetId})
-            const revisionChildren = revisions.map((rev) => buildRevisionOption(rev))
+    if (revisionsQuery.isError) {
+        // Set error children
+        set(cascaderOptionsWithChildrenAtom, {
+            testsetId,
+            children: [
+                {
+                    value: "error",
+                    label: "Failed to load revisions",
+                    disabled: true,
+                    isLeaf: true,
+                },
+            ],
+        })
+        return []
+    }
 
-            const children =
-                revisionChildren.length > 0
-                    ? revisionChildren
-                    : [
-                          {
-                              value: "no-revisions",
-                              label: "No revisions available",
-                              disabled: true,
-                              isLeaf: true,
-                          },
-                      ]
+    const revisions = revisionsQuery.data || []
+    const revisionChildren = revisions.map((rev) => buildRevisionOption(rev))
 
-            // Update loaded children via the derived atom's write function
-            set(cascaderOptionsWithChildrenAtom, {testsetId, children})
+    const children =
+        revisionChildren.length > 0
+            ? revisionChildren
+            : [
+                  {
+                      value: "no-revisions",
+                      label: "No revisions available",
+                      disabled: true,
+                      isLeaf: true,
+                  },
+              ]
 
-            // Clear loading state for this testset
-            const updatedLoading = get(loadingTestsetAtom)
-            const clearedLoadingMap = new Map(updatedLoading)
-            clearedLoadingMap.set(testsetId, false)
-            set(loadingTestsetAtom, clearedLoadingMap)
+    // Update loaded children via the derived atom's write function
+    set(cascaderOptionsWithChildrenAtom, {testsetId, children})
 
-            // Update shared revisions cache for cross-component access
-            const currentCache = get(loadedRevisionsMapAtom)
-            const newCache = new Map(currentCache)
-            newCache.set(testsetId, revisions)
-            set(loadedRevisionsMapAtom, newCache)
+    // Update shared revisions cache for cross-component access
+    const currentCache = get(loadedRevisionsMapAtom)
+    const newCache = new Map(currentCache)
+    newCache.set(testsetId, revisions)
+    set(loadedRevisionsMapAtom, newCache)
 
-            return revisions
-        } catch (error) {
-            console.error("[loadRevisionsAtom] Error:", error)
-
-            // Set error children
-            set(cascaderOptionsWithChildrenAtom, {
-                testsetId,
-                children: [
-                    {
-                        value: "error",
-                        label: "Failed to load revisions",
-                        disabled: true,
-                        isLeaf: true,
-                    },
-                ],
-            })
-
-            // Clear loading state
-            const updatedLoading = get(loadingTestsetAtom)
-            const clearedLoadingMap = new Map(updatedLoading)
-            clearedLoadingMap.set(testsetId, false)
-            set(loadingTestsetAtom, clearedLoadingMap)
-
-            return []
-        } finally {
-            set(loadingRevisionsAtom, false)
-        }
-    },
-)
+    return revisions
+})
 
 /** Reset cascader state */
 export const resetCascaderStateAtom = atom(null, (_get, set) => {

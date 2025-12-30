@@ -3,10 +3,10 @@ import {useCallback} from "react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
-import {fetchTestsetRevisions} from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
 import {createNewTestset} from "@/oss/services/testsets/api"
 import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {appendTestcasesAtom, saveTestsetAtom} from "@/oss/state/entities/testcase/mutations"
+import {fetchRevisionsList} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project"
 import {setRevisionsForTestsetAtom} from "@/oss/state/testsetSelection"
 
@@ -164,8 +164,14 @@ export function useSaveTestset() {
 
                         // Reload revisions and update cache
                         try {
-                            const revisions = await fetchTestsetRevisions({testsetId: testset.id})
-                            setRevisionsForTestset({testsetId: testset.id, revisions})
+                            const response = await fetchRevisionsList({
+                                projectId,
+                                testsetId: testset.id,
+                            })
+                            setRevisionsForTestset({
+                                testsetId: testset.id,
+                                revisions: response.testset_revisions,
+                            })
 
                             setSelectedRevisionId(result.newRevisionId)
                             revisionSelect.setCurrentRevisionId(result.newRevisionId)

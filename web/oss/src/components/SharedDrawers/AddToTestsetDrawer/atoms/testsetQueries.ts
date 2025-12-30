@@ -2,11 +2,8 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {
-    fetchTestsetRevisions,
-    TestsetRevision,
-} from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
 import {fetchTestsetsWindow} from "@/oss/components/TestsetsTable/atoms/fetchTestsets"
+import {revisionsListQueryAtomFamily, type RevisionListItem} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project"
 import {
     selectedTestsetIdAtom as sharedSelectedTestsetIdAtom,
@@ -61,37 +58,19 @@ export const testsetsListQueryAtom = atomWithQuery<TestsetListItem[]>((get) => {
 })
 
 // ============================================================================
-// REVISIONS QUERY (ATOM FAMILY)
+// REVISIONS QUERY (RE-EXPORT FROM ENTITY STORE)
 // ============================================================================
 
 /**
- * Atom family for fetching revisions by testset ID
+ * Re-export centralized revision list query from entity store
+ * This eliminates duplicate fetch logic and uses the shared entity cache
  *
  * Usage:
  * const revisionsQuery = useAtomValue(testsetRevisionsQueryFamily(testsetId))
  * const revisions = revisionsQuery.data
  * const isLoading = revisionsQuery.isPending
  */
-export const testsetRevisionsQueryFamily = atomFamily((testsetId: string | null) =>
-    atomWithQuery<TestsetRevision[]>((get) => {
-        // We need projectId for the API call (it's used inside fetchTestsetRevisions)
-        const projectId = get(projectIdAtom)
-
-        return {
-            queryKey: ["drawer-testset-revisions", testsetId, projectId],
-            queryFn: async () => {
-                if (!testsetId || testsetId === "create") return []
-
-                const revisions = await fetchTestsetRevisions({testsetId})
-                // Filter out v0 revisions (handled in fetchTestsetRevisions, but double-check)
-                return revisions.filter((rev) => rev.version !== "0" && String(rev.version) !== "0")
-            },
-            staleTime: 30_000, // 30 seconds
-            refetchOnWindowFocus: false,
-            enabled: !!testsetId && testsetId !== "create" && !!projectId,
-        }
-    }),
-)
+export const testsetRevisionsQueryFamily = revisionsListQueryAtomFamily
 
 // ============================================================================
 // SELECTED TESTSET STATE (RE-EXPORT FROM SHARED MODULE)

@@ -1,7 +1,7 @@
 import {Typography} from "antd"
 
 import {UserReference} from "@/oss/components/References/UserReference"
-import type {TestsetRevision} from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
+import type {Revision as TestsetRevision} from "@/oss/state/entities/testset"
 
 /**
  * Build a rich revision label for cascader dropdown
