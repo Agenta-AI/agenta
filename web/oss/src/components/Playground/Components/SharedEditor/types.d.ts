@@ -35,4 +35,6 @@ export interface SharedEditorProps extends BaseContainerProps {
     syncWithInitialValueChanges?: boolean
     /** Disable debouncing for immediate updates (useful for undo/redo with history tracking) */
     disableDebounce?: boolean
+    /** Callback when a JSON property key is Cmd/Meta+clicked (for drill-in navigation) */
+    onPropertyClick?: (path: string) => void
 }

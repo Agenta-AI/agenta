@@ -199,6 +199,10 @@ export const revisionQueryAtomFamily = atomFamily(
 
 /**
  * Get revision entity (server data merged with draft)
+ *
+ * Note: This uses the batch fetcher which efficiently combines concurrent requests.
+ * The batch fetcher is shared across all revisionQueryAtomFamily instances,
+ * so multiple concurrent calls will be automatically batched into a single API request.
  */
 export const revisionEntityAtomFamily = atomFamily(
     (revisionId: string) =>
@@ -226,12 +230,29 @@ export const revisionEntityAtomFamily = atomFamily(
 // ============================================================================
 
 /**
+ * Track which testsets have had their revisions list requested (for lazy loading)
+ */
+const revisionsListRequestedAtom = atom<Set<string>>(new Set<string>())
+
+/**
+ * Enable revisions list query for a testset (triggers fetch on first call)
+ */
+export const enableRevisionsListQueryAtom = atom(null, (get, set, testsetId: string) => {
+    const requested = new Set(get(revisionsListRequestedAtom))
+    requested.add(testsetId)
+    set(revisionsListRequestedAtom, requested)
+})
+
+/**
  * Query atom for fetching revisions list for a testset
+ * Lazy-loaded: only fetches when enableRevisionsListQueryAtom is called
  */
 export const revisionsListQueryAtomFamily = atomFamily(
     (testsetId: string) =>
         atomWithQuery<RevisionListItem[]>((get) => {
             const projectId = get(projectIdAtom)
+            const requested = get(revisionsListRequestedAtom)
+            const isEnabled = requested.has(testsetId)
 
             return {
                 queryKey: ["revisions-list", projectId, testsetId],
@@ -248,25 +269,30 @@ export const revisionsListQueryAtomFamily = atomFamily(
                     )
 
                     const revisions = response.data?.testset_revisions ?? []
-                    return revisions.map((raw: any) => ({
-                        id: raw.id,
-                        version:
-                            typeof raw.version === "string"
-                                ? parseInt(raw.version, 10)
-                                : raw.version !== null && raw.version !== undefined
-                                  ? raw.version
-                                  : 0,
-                        created_at: raw.created_at ?? raw.date ?? raw.commit?.date,
-                        message: raw.message ?? raw.commit_message ?? raw.commit?.message,
-                        author:
-                            raw.author ??
-                            raw.created_by_id ??
-                            raw.commit?.author_id ??
-                            raw.commit?.author?.id ??
-                            null,
-                    }))
+                    // Strip out data.testcases to reduce payload size until backend is updated
+                    return revisions.map((raw: any) => {
+                        // Remove the data field which contains testcases array
+                        const {data: _data, ...rest} = raw
+                        return {
+                            id: rest.id,
+                            version:
+                                typeof rest.version === "string"
+                                    ? parseInt(rest.version, 10)
+                                    : rest.version !== null && rest.version !== undefined
+                                      ? rest.version
+                                      : 0,
+                            created_at: rest.created_at ?? rest.date ?? rest.commit?.date,
+                            message: rest.message ?? rest.commit_message ?? rest.commit?.message,
+                            author:
+                                rest.author ??
+                                rest.created_by_id ??
+                                rest.commit?.author_id ??
+                                rest.commit?.author?.id ??
+                                null,
+                        }
+                    })
                 },
-                enabled: Boolean(projectId && testsetId),
+                enabled: Boolean(projectId && testsetId && isEnabled),
                 // Revisions list can change when new revisions are created
                 staleTime: 30_000,
             }

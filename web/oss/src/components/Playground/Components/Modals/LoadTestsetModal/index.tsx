@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect} from "react"
 
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -7,6 +7,12 @@ import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {resetSelectionAtom, selectedRevisionIdAtom} from "@/oss/state/testsetSelection"
 
 import {LoadTestsetModalProps} from "./assets/types"
+import {
+    isCreatingNewTestsetAtom,
+    newTestsetNameAtom,
+    resetModalStateAtom,
+    selectedTestcaseRowKeysAtom,
+} from "./atoms/modalState"
 import {useSelectedTestcasesData} from "./hooks/useSelectedTestcasesData"
 
 const LoadTestsetModalFooter = dynamic(() => import("./assets/LoadTestsetModalFooter"), {
@@ -19,30 +25,32 @@ const LoadTestsetModalContent = dynamic(() => import("./assets/LoadTestsetModalC
 const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({setTestsetData, ...props}) => {
     const {onCancel, afterClose, ...modalProps} = props
 
-    // Use shared atoms for testset/revision selection
+    // Use atoms for all modal state
     const selectedRevisionId = useAtomValue(selectedRevisionIdAtom)
+    const selectedRowKeys = useAtomValue(selectedTestcaseRowKeysAtom)
+    const isCreatingNew = useAtomValue(isCreatingNewTestsetAtom)
+    const newTestsetName = useAtomValue(newTestsetNameAtom)
     const resetSelection = useSetAtom(resetSelectionAtom)
-
-    // Row selection is modal-specific (not shared)
-    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const resetModalState = useSetAtom(resetModalStateAtom)
 
     // Extract selected testcases from entity atoms in playground format
     const selectedTestcasesData = useSelectedTestcasesData(selectedRevisionId, selectedRowKeys)
 
     const isLoadingTestset = false
 
-    // Reset selection state when modal opens
+    // Reset state when modal opens
     useEffect(() => {
         if (modalProps.open) {
-            // Reset row selection when modal opens
-            setSelectedRowKeys([])
+            resetModalState()
         }
+        // resetModalState is a stable Jotai setter, doesn't need to be in deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [modalProps.open])
 
     const onClose = useCallback(() => {
         onCancel?.({} as any)
-        setSelectedRowKeys([])
-    }, [onCancel])
+        resetModalState()
+    }, [onCancel, resetModalState])
 
     return (
         <EnhancedModal
@@ -53,11 +61,11 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({setTestsetData, ...p
                 },
             }}
             afterClose={() => {
-                setSelectedRowKeys([])
+                resetModalState()
                 resetSelection()
                 afterClose?.()
             }}
-            title="Load testset"
+            title={isCreatingNew ? "Create testset" : "Load testset"}
             footer={
                 <LoadTestsetModalFooter
                     onClose={onClose}
@@ -65,6 +73,8 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({setTestsetData, ...p
                     selectedRowKeys={selectedRowKeys}
                     testsetCsvData={selectedTestcasesData}
                     setTestsetData={setTestsetData}
+                    isCreatingNew={isCreatingNew}
+                    newTestsetName={newTestsetName}
                 />
             }
             onCancel={onClose}
@@ -73,13 +83,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({setTestsetData, ...p
             }}
             {...modalProps}
         >
-            <LoadTestsetModalContent
-                modalProps={modalProps}
-                testsetCsvData={selectedTestcasesData}
-                selectedRowKeys={selectedRowKeys}
-                setSelectedRowKeys={setSelectedRowKeys}
-                isLoadingTestset={isLoadingTestset}
-            />
+            <LoadTestsetModalContent modalProps={modalProps} />
         </EnhancedModal>
     )
 }

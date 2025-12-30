@@ -326,3 +326,14 @@ body {
     width: 48px !important;
     max-width: 48px !important;
 }
+
+/* Force left alignment for all table headers */
+.agenta-testcase-table .ant-table-thead th {
+    text-align: left !important;
+}
+
+/* Show column header action buttons on hover */
+.agenta-testcase-table .ant-table-thead th:hover .group .opacity-0 {
+    opacity: 1;
+}
+

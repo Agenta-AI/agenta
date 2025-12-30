@@ -1,3 +1,5 @@
+import {useMemo} from "react"
+
 import {PencilSimple} from "@phosphor-icons/react"
 import {Cascader, Input, Typography} from "antd"
 
@@ -15,6 +17,19 @@ interface TestsetSelectorProps {
     elementWidth: number
 }
 
+// Add ellipsis rendering to cascader options recursively
+function addOptionRender(options: any[]): any[] {
+    return options.map((opt) => ({
+        ...opt,
+        label: (
+            <Typography.Text ellipsis style={{width: 170, display: "block"}}>
+                {opt.label}
+            </Typography.Text>
+        ),
+        children: opt.children ? addOptionRender(opt.children) : undefined,
+    }))
+}
+
 export function TestsetSelector({
     cascaderValue,
     cascaderOptions,
@@ -28,6 +43,9 @@ export function TestsetSelector({
     setNewTestsetName,
     elementWidth,
 }: TestsetSelectorProps) {
+    // Transform options to use Typography.Text with ellipsis
+    const optionsWithEllipsis = useMemo(() => addOptionRender(cascaderOptions), [cascaderOptions])
+
     return (
         <div className="flex flex-col gap-1">
             <Typography.Text className="font-medium">1. Select Testset</Typography.Text>
@@ -40,13 +58,14 @@ export function TestsetSelector({
                     style={{width: elementWidth}}
                     placeholder="Select testset (auto-selects latest revision)"
                     value={cascaderValue}
-                    options={cascaderOptions}
+                    options={optionsWithEllipsis}
                     onChange={onCascaderChange}
                     loadData={loadRevisions}
                     loading={isTestsetsLoading || loadingRevisions}
                     changeOnSelect
                     expandTrigger="hover"
                     displayRender={renderSelectedRevisionLabel}
+                    popupMenuColumnStyle={{maxWidth: 200}}
                 />
                 {isNewTestset && (
                     <div className="relative">

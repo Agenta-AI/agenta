@@ -9,10 +9,13 @@ const JsonEditorWithLocalState = ({
     initialValue,
     onValidChange,
     editorKey,
+    onPropertyClick,
 }: {
     initialValue: string
     onValidChange: (value: string) => void
     editorKey: string
+    /** Callback when a JSON property key is clicked */
+    onPropertyClick?: (path: string) => void
 }) => {
     const [localValue, setLocalValue] = useState(initialValue)
 
@@ -35,19 +38,22 @@ const JsonEditorWithLocalState = ({
     )
 
     return (
-        <SharedEditor
-            key={editorKey}
-            initialValue={localValue}
-            handleChange={handleChange}
-            editorType="border"
-            className="min-h-[120px] overflow-hidden"
-            disableDebounce
-            editorProps={{
-                codeOnly: true,
-                language: "json",
-                showLineNumbers: true,
-            }}
-        />
+        <EditorProvider key={editorKey} codeOnly language="json" showToolbar={false}>
+            <SharedEditor
+                initialValue={localValue}
+                handleChange={handleChange}
+                editorType="border"
+                className="min-h-[120px] overflow-hidden"
+                disableDebounce
+                noProvider
+                onPropertyClick={onPropertyClick}
+                editorProps={{
+                    codeOnly: true,
+                    language: "json",
+                    showLineNumbers: true,
+                }}
+            />
+        </EditorProvider>
     )
 }
 
@@ -77,6 +83,8 @@ interface TestcaseFieldRendererProps {
     onFieldChange: (value: string) => void
     onNestedFieldChange: (nestedKey: string, value: string) => void
     onArrayItemChange: (index: number, value: string) => void
+    /** Callback when a JSON property key is clicked in the editor */
+    onPropertyClick?: (path: string) => void
 }
 
 /**
@@ -152,6 +160,7 @@ const TestcaseFieldRenderer = memo(
         onFieldChange,
         onNestedFieldChange,
         onArrayItemChange,
+        onPropertyClick,
     }: TestcaseFieldRendererProps) => {
         const dataType = detectDataType(value)
 
@@ -192,6 +201,7 @@ const TestcaseFieldRenderer = memo(
                     editorKey={`${columnKey}-raw`}
                     initialValue={value}
                     onValidChange={onFieldChange}
+                    onPropertyClick={onPropertyClick}
                 />
             )
         }
@@ -251,6 +261,7 @@ const TestcaseFieldRenderer = memo(
                     editorKey={`${columnKey}-expanded-fallback`}
                     initialValue={value}
                     onValidChange={onFieldChange}
+                    onPropertyClick={onPropertyClick}
                 />
             )
         }

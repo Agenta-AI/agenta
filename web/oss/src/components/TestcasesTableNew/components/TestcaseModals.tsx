@@ -155,6 +155,12 @@ export function TestcaseModals(props: TestcaseModalsProps) {
                         onPressEnter={handleAddColumn}
                         autoFocus
                     />
+                    <Typography.Text type="secondary" className="text-xs mt-2 block">
+                        Tip: Use dot notation to create nested columns. For example,{" "}
+                        <code className="bg-gray-100 px-1 rounded">parent.child</code> creates a{" "}
+                        <code className="bg-gray-100 px-1 rounded">child</code> column under the{" "}
+                        <code className="bg-gray-100 px-1 rounded">parent</code> group.
+                    </Typography.Text>
                 </div>
             </Modal>
         </>

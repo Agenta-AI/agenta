@@ -8,7 +8,7 @@ import GenericDrawer from "@/oss/components/GenericDrawer"
 import useResizeObserver from "@/oss/hooks/useResizeObserver"
 
 import {TestsetTraceData} from "./assets/types"
-import {isDrawerOpenAtom, traceDataAtom} from "./atoms/drawerState"
+import {initializeTraceDataAtom, isDrawerOpenAtom} from "./atoms/drawerState"
 import {
     ConfirmSaveModal,
     DataPreviewEditor,
@@ -27,13 +27,13 @@ interface TestsetDrawerProps {
 
 const TestsetDrawer = ({open, data, onClose}: TestsetDrawerProps) => {
     const setIsDrawerOpen = useSetAtom(isDrawerOpenAtom)
-    const setTraceData = useSetAtom(traceDataAtom)
+    const initializeTraceData = useSetAtom(initializeTraceDataAtom)
     const drawer = useTestsetDrawer()
 
     // State for focusing drill-in view on a specific path
     const [focusPath, setFocusPath] = useState<string | undefined>(undefined)
 
-    // Handler to focus drill-in on a path from mapping section
+    // Handler to focus drill-in on a path from mapping section or property click
     const handleFocusPath = useCallback((path: string) => {
         setFocusPath(path)
     }, [])
@@ -50,9 +50,9 @@ const TestsetDrawer = ({open, data, onClose}: TestsetDrawerProps) => {
 
     useEffect(() => {
         if (data && data.length > 0) {
-            setTraceData(data)
+            initializeTraceData(data)
         }
-    }, [data, setTraceData])
+    }, [data, initializeTraceData])
 
     const elemRef = useResizeObserver<HTMLDivElement>((rect) => {
         drawer.setIsDrawerExtended(rect.width > 640)
@@ -143,6 +143,7 @@ const TestsetDrawer = ({open, data, onClose}: TestsetDrawerProps) => {
                             mappedPaths={drawer.mappedPaths}
                             focusPath={focusPath}
                             onFocusPathHandled={handleFocusPathHandled}
+                            onPropertyClick={handleFocusPath}
                         />
 
                         <MappingSection
@@ -166,6 +167,7 @@ const TestsetDrawer = ({open, data, onClose}: TestsetDrawerProps) => {
                             selectedRevisionId={drawer.selectedRevisionId}
                             isMapColumnExist={drawer.isMapColumnExist}
                             isNewTestset={drawer.isNewTestset}
+                            testcaseCount={drawer.traceData.length}
                         />
 
                         <ConfirmSaveModal

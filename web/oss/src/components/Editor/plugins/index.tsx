@@ -75,6 +75,8 @@ const EditorPlugins = ({
     tokens,
     templateFormat,
     additionalCodePlugins = [],
+    onPropertyClick,
+    disableLongText,
 }: EditorPluginsProps) => {
     const markdown = useAtomValue(markdownViewAtom(id))
 
@@ -127,9 +129,11 @@ const EditorPlugins = ({
                         editorId={id}
                         validationSchema={validationSchema}
                         initialValue={value !== undefined ? value : initialValue}
-                        language={language}
+                        language={language === "code" ? "json" : language}
                         debug={debug}
                         additionalCodePlugins={additionalCodePlugins}
+                        onPropertyClick={onPropertyClick}
+                        disableLongText={disableLongText}
                     />
                     <TabIndentationPlugin />
                 </>

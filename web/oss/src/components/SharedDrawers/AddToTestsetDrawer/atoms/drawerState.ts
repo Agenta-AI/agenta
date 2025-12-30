@@ -31,6 +31,41 @@ import {
  * Integrates with the trace span entity system for cross-component access.
  */
 
+/**
+ * Deeply normalize data for comparison.
+ * Parses stringified JSON values and re-stringifies them consistently.
+ * This ensures that formatting differences don't affect equality checks.
+ */
+function deepNormalizeForComparison(data: unknown): unknown {
+    if (data === null || data === undefined) return data
+
+    if (typeof data === "string") {
+        // Try to parse as JSON and normalize
+        try {
+            const parsed = JSON.parse(data)
+            // Re-stringify with consistent formatting
+            return JSON.stringify(deepNormalizeForComparison(parsed))
+        } catch {
+            // Not JSON, return as-is
+            return data
+        }
+    }
+
+    if (Array.isArray(data)) {
+        return data.map(deepNormalizeForComparison)
+    }
+
+    if (typeof data === "object") {
+        const normalized: Record<string, unknown> = {}
+        for (const key of Object.keys(data).sort()) {
+            normalized[key] = deepNormalizeForComparison((data as Record<string, unknown>)[key])
+        }
+        return normalized
+    }
+
+    return data
+}
+
 // ============================================================================
 // PRIMITIVE STATE ATOMS
 // ============================================================================
@@ -252,20 +287,18 @@ export const openDrawerWithSpanIdsAtom = atom(null, (get, set, spanIds: string[]
         }
     })
 
-    if (traceData.length === 0) {
-        return
+    // If we found spans in cache, initialize trace data
+    if (traceData.length > 0) {
+        set(traceDataAtom, traceData)
+        set(rowDataPreviewAtom, traceData[0]?.key || "")
+        set(previewKeyAtom, traceData[0]?.key || "all")
+        set(
+            traceSpanIdsAtom,
+            spanIds.filter((id) => traceData.some((t) => t.key === id)),
+        )
     }
 
-    // Initialize trace data
-    set(traceDataAtom, traceData)
-    set(rowDataPreviewAtom, traceData[0]?.key || "")
-    set(previewKeyAtom, traceData[0]?.key || "all")
-    set(
-        traceSpanIdsAtom,
-        spanIds.filter((id) => traceData.some((t) => t.key === id)),
-    )
-
-    // Open the drawer
+    // Always open the drawer - data may be passed via props as fallback
     set(isDrawerOpenAtom, true)
 })
 
@@ -345,11 +378,11 @@ export const updateEditedTraceAtom = atom(
             updatedData: string
             format: "JSON" | "YAML"
             parseYaml: (str: string) => unknown
-            formatData: (format: "JSON" | "YAML", data: unknown) => string
+            formatData?: (format: "JSON" | "YAML", data: unknown) => string
             getValueAtPath?: (obj: unknown, path: string) => unknown
         },
     ) => {
-        const {updatedData, format, parseYaml, formatData, getValueAtPath} = params
+        const {updatedData, format, parseYaml, formatData: _formatData, getValueAtPath} = params
         const traceData = get(traceDataAtom)
         const rowDataPreview = get(rowDataPreviewAtom)
         const selectedTrace = get(selectedTraceDataAtom)
@@ -380,12 +413,18 @@ export const updateEditedTraceAtom = atom(
                 parsedUpdatedData,
             })
 
-            // Compare using normalized (re-formatted) strings to avoid whitespace/formatting issues
-            const updatedDataString = formatData(format, parsedUpdatedData)
-            const currentDataString = formatData(format, {data: selectedTrace.data})
-            const originalDataString = formatData(format, {
+            // Deep normalize data to handle stringified JSON values consistently
+            // This ensures formatting differences in nested JSON strings don't affect comparison
+            const normalizedUpdated = deepNormalizeForComparison(parsedUpdatedData)
+            const normalizedCurrent = deepNormalizeForComparison({data: selectedTrace.data})
+            const normalizedOriginal = deepNormalizeForComparison({
                 data: selectedTrace.originalData || selectedTrace.data,
             })
+
+            // Compare using normalized JSON strings
+            const updatedDataString = JSON.stringify(normalizedUpdated)
+            const currentDataString = JSON.stringify(normalizedCurrent)
+            const originalDataString = JSON.stringify(normalizedOriginal)
 
             console.log("[updateEditedTraceAtom] Comparing data", {
                 updatedDataPreview: updatedDataString.slice(0, 100),

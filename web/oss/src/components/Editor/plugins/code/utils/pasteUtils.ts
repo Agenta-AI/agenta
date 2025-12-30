@@ -4,6 +4,7 @@ import {$createBase64Node, isBase64String, parseBase64String} from "../nodes/Bas
 import {$createCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {$createCodeTabNode} from "../nodes/CodeTabNode"
+import {$createLongTextNode, isLongTextString, parseLongTextString} from "../nodes/LongTextNode"
 import type {CodeLanguage} from "../types"
 
 import {normalizePastedLinesIndentation} from "./indentationUtils"
@@ -282,6 +283,11 @@ export function $createNodeForLineWithTabs(line: string, language: CodeLanguage)
             const parsed = parseBase64String(token.content)
             const base64Node = $createBase64Node(parsed.fullValue, parsed.mimeType, token.type)
             codeLine.append(base64Node)
+        } else if (token.type === "string" && isLongTextString(token.content)) {
+            // Check if this is a long text string token - create LongTextNode for truncated display
+            const parsed = parseLongTextString(token.content)
+            const longTextNode = $createLongTextNode(parsed.fullValue, token.type)
+            codeLine.append(longTextNode)
         } else {
             codeLine.append($createCodeHighlightNode(token.content, token.type, false, null))
         }

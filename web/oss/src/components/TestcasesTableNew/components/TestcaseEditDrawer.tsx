@@ -38,8 +38,8 @@ interface TestcaseEditDrawerProps {
     hasNext?: boolean
     /** 1-based index of the testcase for display */
     testcaseNumber?: number
-    /** Callback to save the entire testset (commit revision). Returns new revision ID on success. */
-    onSaveTestset?: () => Promise<string | null>
+    /** Callback to open the commit modal (for "Apply and Commit Changes") */
+    onOpenCommitModal?: () => void
     /** Whether testset save is in progress */
     isSavingTestset?: boolean
 }
@@ -56,7 +56,7 @@ const TestcaseEditDrawer = ({
     hasPrevious = false,
     hasNext = false,
     testcaseNumber,
-    onSaveTestset,
+    onOpenCommitModal,
     isSavingTestset = false,
 }: TestcaseEditDrawerProps) => {
     // Read testcase from entity atom (server state + local draft)
@@ -90,12 +90,12 @@ const TestcaseEditDrawer = ({
         onClose()
     }, [onClose])
 
-    // Apply changes and save entire testset (commit revision)
-    const handleSaveTestset = useCallback(async () => {
-        if (onSaveTestset) {
-            await onSaveTestset()
+    // Apply changes and open commit modal
+    const handleOpenCommitModal = useCallback(() => {
+        if (onOpenCommitModal) {
+            onOpenCommitModal()
         }
-    }, [onSaveTestset])
+    }, [onOpenCommitModal])
 
     // Discard session changes and close (restore to state when drawer opened)
     const handleCancel = useCallback(() => {
@@ -229,7 +229,7 @@ const TestcaseEditDrawer = ({
                                     {
                                         key: "commit",
                                         label: "Apply and Commit Changes",
-                                        onClick: handleSaveTestset,
+                                        onClick: handleOpenCommitModal,
                                         disabled: !isDirty,
                                     },
                                 ],

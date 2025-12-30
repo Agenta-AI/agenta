@@ -1,17 +1,15 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import {
-    ArrowCounterClockwise,
-    CaretLeft,
-    CaretRight,
-    Code,
-    TreeStructure,
-    Trash,
-} from "@phosphor-icons/react"
-import {Button, Segmented, Tooltip, Typography} from "antd"
+import {ArrowCounterClockwise, Code, TreeStructure, Trash} from "@phosphor-icons/react"
+import {Button, Segmented, Select, Tooltip, Typography} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
+import {
+    discardTraceSpanDraftAtom,
+    traceSpanIsDirtyAtomFamily,
+} from "@/oss/state/entities/trace/drillInState"
 
 import {TestsetTraceData} from "../assets/types"
 
@@ -40,6 +38,8 @@ interface DataPreviewEditorProps {
     focusPath?: string
     /** Callback when focusPath has been handled */
     onFocusPathHandled?: () => void
+    /** Callback when a JSON property key is Cmd/Meta+clicked in editor view (for drill-in navigation) */
+    onPropertyClick?: (path: string) => void
 }
 
 type ViewMode = "editor" | "drill-in"
@@ -61,12 +61,26 @@ export function DataPreviewEditor({
     mappedPaths,
     focusPath,
     onFocusPathHandled,
+    onPropertyClick,
 }: DataPreviewEditorProps) {
     const lastSavedRef = useRef(formatDataPreview)
     // Counter to force editor remount only on explicit revert (not on every edit)
     const [editorVersion, setEditorVersion] = useState(0)
     // View mode toggle: editor (JSON/YAML) or drill-in (tree navigation)
     const [viewMode, setViewMode] = useState<ViewMode>("drill-in")
+
+    // Check if current span has unsaved changes (for dirty state indicator)
+    const currentSpanIsDirty = useAtomValue(traceSpanIsDirtyAtomFamily(rowDataPreview))
+    const discardDraft = useSetAtom(discardTraceSpanDraftAtom)
+
+    // Handle property click from JSON editor - switch to drill-in and navigate to path
+    const handlePropertyClick = useCallback(
+        (path: string) => {
+            setViewMode("drill-in")
+            onPropertyClick?.(path)
+        },
+        [onPropertyClick],
+    )
 
     // Stable initial value - only updates when key changes (trace switch or revert)
     // This prevents cursor position reset during typing
@@ -76,28 +90,6 @@ export function DataPreviewEditor({
         stableInitialValueRef.current = {key: editorKey, value: formatDataPreview}
     }
     const stableInitialValue = stableInitialValueRef.current.value
-
-    // Navigation state
-    const currentIndex = useMemo(() => {
-        return traceData.findIndex((t) => t.key === rowDataPreview)
-    }, [traceData, rowDataPreview])
-
-    const canGoPrev = currentIndex > 0
-    const canGoNext = currentIndex < traceData.length - 1
-
-    const goToPrev = useCallback(() => {
-        if (canGoPrev) {
-            setRowDataPreview(traceData[currentIndex - 1].key)
-            setUpdatedTraceData("")
-        }
-    }, [canGoPrev, currentIndex, traceData, setRowDataPreview, setUpdatedTraceData])
-
-    const goToNext = useCallback(() => {
-        if (canGoNext) {
-            setRowDataPreview(traceData[currentIndex + 1].key)
-            setUpdatedTraceData("")
-        }
-    }, [canGoNext, currentIndex, traceData, setRowDataPreview, setUpdatedTraceData])
 
     // Handle editor changes - update local state and trigger save
     const handleEditorChange = useCallback(
@@ -119,65 +111,52 @@ export function DataPreviewEditor({
         [setUpdatedTraceData, onSaveEditedTrace],
     )
 
-    // Handle drill-in data changes
-    const handleDrillInDataChange = useCallback(
-        (updatedData: Record<string, unknown>) => {
-            // Wrap in {data: ...} format to match the expected structure
-            const wrappedData = {data: updatedData}
-            const jsonValue = JSON.stringify(wrappedData, null, 2)
-            setUpdatedTraceData(jsonValue)
-            lastSavedRef.current = jsonValue
-            onSaveEditedTrace(jsonValue)
-        },
-        [setUpdatedTraceData, onSaveEditedTrace],
+    // Build span select options
+    // Note: We can't use atoms directly in map because we need the component to be within atom context
+    // So we'll use a simpler approach - just show index, and the "edited" badge will appear on the selected one
+    const spanSelectOptions = useMemo(
+        () =>
+            traceData.map((trace, index) => ({
+                value: trace.key,
+                label: `Span ${index + 1}`,
+            })),
+        [traceData],
     )
 
-    // Span navigation prefix for breadcrumb
+    // Span navigation prefix for breadcrumb - stable to prevent re-renders
+    // Dirty indicator moved outside to avoid triggering re-renders on every edit
     const spanNavigationPrefix = useMemo(
         () => (
-            <div className="flex items-center gap-1 mr-2 pr-2 border-r border-gray-200">
-                <Button
-                    type="text"
+            <div className="flex items-center">
+                <Select
                     size="small"
-                    icon={<CaretLeft size={14} />}
-                    disabled={!canGoPrev}
-                    onClick={goToPrev}
-                    className="!px-1"
+                    value={rowDataPreview}
+                    onChange={(value) => {
+                        setRowDataPreview(value)
+                        setUpdatedTraceData("")
+                    }}
+                    options={spanSelectOptions}
+                    popupMatchSelectWidth={false}
                 />
-                <Typography.Text className="whitespace-nowrap">
-                    Span {currentIndex + 1} of {traceData.length}
-                    {selectedTraceData?.isEdited && (
-                        <span className="ml-2 text-[10px] bg-blue-50 text-blue-600 px-1 py-0.5 rounded-sm">
-                            (edited)
-                        </span>
-                    )}
-                </Typography.Text>
-                <Button
-                    type="text"
-                    size="small"
-                    icon={<CaretRight size={14} />}
-                    disabled={!canGoNext}
-                    onClick={goToNext}
-                    className="!px-1"
-                />
+                {/* Use a slash separator instead of chevron to differentiate from breadcrumb navigation */}
+                <span className="text-gray-300 mx-2 text-sm">/</span>
             </div>
         ),
-        [
-            canGoPrev,
-            canGoNext,
-            goToPrev,
-            goToNext,
-            currentIndex,
-            traceData.length,
-            selectedTraceData?.isEdited,
-        ],
+        [rowDataPreview, setRowDataPreview, setUpdatedTraceData, spanSelectOptions],
     )
 
     return (
         <div className="flex flex-col gap-1">
             <div className="flex justify-between items-center">
                 <div className="flex flex-col gap-0.5">
-                    <Typography.Text className="font-medium">2. Map Data Fields</Typography.Text>
+                    <div className="flex items-center gap-2">
+                        <Typography.Text className="font-medium">2. Map Data Fields</Typography.Text>
+                        {currentSpanIsDirty && (
+                            <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                                edited
+                            </span>
+                        )}
+                    </div>
                     <Typography.Text type="secondary" className="text-xs">
                         Click on any field below to map it to a testset column
                     </Typography.Text>
@@ -198,13 +177,14 @@ export function DataPreviewEditor({
                             },
                         ]}
                     />
-                    {selectedTraceData?.isEdited && (
+                    {currentSpanIsDirty && (
                         <Tooltip title="Revert changes">
                             <Button
                                 size="small"
                                 type="text"
                                 icon={<ArrowCounterClockwise size={14} />}
                                 onClick={() => {
+                                    discardDraft(rowDataPreview)
                                     onRevertEditedTrace()
                                     setEditorVersion((v) => v + 1) // Force editor remount
                                 }}
@@ -225,18 +205,18 @@ export function DataPreviewEditor({
 
             {viewMode === "drill-in" ? (
                 <TraceDataDrillIn
-                    data={selectedTraceData?.data || {}}
+                    spanId={rowDataPreview}
                     title="data"
                     breadcrumbPrefix={spanNavigationPrefix}
                     showBackArrow={false}
                     editable
-                    onDataChange={handleDrillInDataChange}
                     columnOptions={columnOptions}
                     onMapToColumn={onMapToColumn}
                     onUnmap={onUnmap}
                     mappedPaths={mappedPaths}
                     focusPath={focusPath}
                     onFocusPathHandled={onFocusPathHandled}
+                    onPropertyClick={onPropertyClick}
                 />
             ) : (
                 <EditorProvider
@@ -249,9 +229,10 @@ export function DataPreviewEditor({
                         initialValue={stableInitialValue}
                         handleChange={handleEditorChange}
                         editorType="border"
-                        className={selectedTraceData?.isEdited ? "border-blue-400" : ""}
+                        className={currentSpanIsDirty ? "border-blue-400" : ""}
                         disableDebounce
                         noProvider
+                        onPropertyClick={handlePropertyClick}
                         editorProps={{
                             codeOnly: true,
                             language: editorFormat.toLowerCase() as "json" | "yaml",

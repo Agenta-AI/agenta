@@ -15,6 +15,7 @@ import clsx from "clsx"
 import {useSetAtom} from "jotai"
 
 import {
+    deleteColumnViewportVisibilityAtom,
     setColumnUserVisibilityAtom,
     setColumnViewportVisibilityAtom,
 } from "../atoms/columnVisibility"
@@ -148,6 +149,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         [resizableProcessedColumns],
     )
     const internalViewportVisibilityHandler = useSetAtom(setColumnViewportVisibilityAtom)
+    const internalViewportVisibilityDeleteHandler = useSetAtom(deleteColumnViewportVisibilityAtom)
     const internalUserVisibilityHandler = useSetAtom(setColumnUserVisibilityAtom)
     const viewportVisibilityHandler =
         handleViewportVisibilityChange ?? internalViewportVisibilityHandler
@@ -216,6 +218,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         scopeId: resolvedScopeId,
         containerRef: visibilityRootRef,
         onVisibilityChange: viewportVisibilityHandler,
+        onColumnUnregister: internalViewportVisibilityDeleteHandler,
         enabled: visibilityTrackingEnabled,
         suspendUpdates: isResizing,
         viewportMargin: columnVisibility?.viewportMargin,
@@ -341,18 +344,30 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             setTableHeaderHeight(null)
             return
         }
+        let frameId: number | null = null
         const updateHeight = () => {
-            const nextHeight = headerEl.getBoundingClientRect().height
-            setTableHeaderHeight((prev) => {
-                if (prev === nextHeight) return prev
-                return Number.isFinite(nextHeight) ? nextHeight : prev
+            if (frameId !== null) {
+                cancelAnimationFrame(frameId)
+            }
+            frameId = requestAnimationFrame(() => {
+                frameId = null
+                const nextHeight = headerEl.getBoundingClientRect().height
+                setTableHeaderHeight((prev) => {
+                    if (prev === nextHeight) return prev
+                    return Number.isFinite(nextHeight) ? nextHeight : prev
+                })
             })
         }
         const observer = new ResizeObserver(() => updateHeight())
         observer.observe(headerEl)
         updateHeight()
-        return () => observer.disconnect()
-    }, [columns, dataSource, resolvedTableProps.components])
+        return () => {
+            if (frameId !== null) {
+                cancelAnimationFrame(frameId)
+            }
+            observer.disconnect()
+        }
+    }, [])
 
     const scrollConfig = useMemo(() => {
         if (typeof bodyHeight === "number" && Number.isFinite(bodyHeight)) {
@@ -428,11 +443,18 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         tableHeaderHeight,
     ])
 
-    const {scrollContainer, visibilityRoot} = useScrollContainer(containerRef, {
-        scrollX: scrollConfig.x,
-        scrollY: scrollConfig.y,
-        className: resolvedTableProps.className,
-    })
+    // Memoize dependencies object to prevent unnecessary useEffect runs in useScrollContainer
+    // Without memoization, a new object is created every render, causing infinite loops during scroll
+    const scrollContainerDeps = useMemo(
+        () => ({
+            scrollX: scrollConfig.x,
+            scrollY: scrollConfig.y,
+            className: resolvedTableProps.className,
+        }),
+        [scrollConfig.x, scrollConfig.y, resolvedTableProps.className],
+    )
+
+    const {scrollContainer, visibilityRoot} = useScrollContainer(containerRef, scrollContainerDeps)
 
     // Sync visibilityRootRef with visibilityRoot from hook
     useEffect(() => {
@@ -572,7 +594,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                                 x: scrollConfig.x,
                                 y: scrollConfig.y,
                             }}
-                            virtual={true}
+                            virtual
                         />
                     </div>
                 </ColumnVisibilityFlagProvider>

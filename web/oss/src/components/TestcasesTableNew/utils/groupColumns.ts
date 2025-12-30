@@ -115,7 +115,8 @@ function groupColumnsRecursive<T>(
             }
         } else {
             // Leaf column - no more dots in relative key
-            const displayName = getLeafColumnName(col.key)
+            // Use relativeKey as display name (it's already the name relative to parent group)
+            const displayName = relativeKey
             result.push({
                 ...createColumnDef(col, displayName),
                 __order: orderCounter++,

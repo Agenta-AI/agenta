@@ -84,16 +84,16 @@ export const testsetIdAtom = atom((get) => {
 })
 
 /**
- * Query atom for fetching testset name
+ * Query atom for fetching testset name and slug
  */
-export const testsetNameQueryAtom = atomWithQuery<string>((get) => {
+export const testsetNameQueryAtom = atomWithQuery<{name: string; slug?: string}>((get) => {
     const projectId = get(projectIdAtom)
     const testsetId = get(testsetIdAtom)
 
     return {
         queryKey: ["testset-name", projectId, testsetId],
         queryFn: async () => {
-            if (!projectId || !testsetId) return ""
+            if (!projectId || !testsetId) return {name: ""}
             const response = await axios.post(
                 `${getAgentaApiUrl()}/preview/testsets/query`,
                 {
@@ -103,7 +103,11 @@ export const testsetNameQueryAtom = atomWithQuery<string>((get) => {
                 {params: {project_id: projectId}},
             )
             const testsets = response.data?.testsets ?? []
-            return testsets[0]?.name ?? ""
+            const testset = testsets[0]
+            return {
+                name: testset?.name ?? "",
+                slug: testset?.slug,
+            }
         },
         enabled: Boolean(projectId && testsetId),
         // Testset name is immutable for a given testset
@@ -190,6 +194,8 @@ export async function fetchTestcasesPage(
 export interface TestsetMetadata {
     testsetId: string
     testsetName: string
+    testsetSlug?: string
+    revisionSlug?: string
     revisionVersion?: number
     description?: string
     commitMessage?: string
@@ -209,9 +215,13 @@ export const testsetMetadataAtom = atom((get): TestsetMetadata | null => {
     const revision = revisionQuery.data
     if (!revision?.testset_id) return null
 
+    const testsetData = nameQuery.data ?? {name: ""}
+
     return {
         testsetId: revision.testset_id,
-        testsetName: nameQuery.data ?? "",
+        testsetName: testsetData.name,
+        testsetSlug: testsetData.slug,
+        revisionSlug: revision.slug ?? undefined,
         revisionVersion: revision.version,
         // Note: description is stored at testset level, not revision level
         description: undefined,

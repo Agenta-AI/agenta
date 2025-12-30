@@ -75,7 +75,7 @@ export const saveTestsetAtom = atom(
         const currentRevId = get(currentRevisionIdAtom)
         const draft = currentRevId ? get(revisionDraftAtomFamily(currentRevId)) : null
         const nameQuery = get(testsetNameQueryAtom)
-        const testsetName = draft?.name ?? nameQuery.data ?? ""
+        const testsetName = draft?.name ?? nameQuery.data?.name ?? ""
 
         if (!testsetName.trim()) {
             return {success: false, error: new Error("Testset name is required")}
@@ -255,6 +255,7 @@ export interface SaveNewTestsetResult {
     success: boolean
     revisionId?: string
     testsetId?: string
+    testcases?: Record<string, unknown>[]
     error?: Error
 }
 
@@ -311,6 +312,7 @@ export const saveNewTestsetAtom = atom(
                     success: true,
                     revisionId: response.data.revisionId,
                     testsetId: response.data.testset?.id,
+                    testcases: testcaseData,
                 }
             }
 

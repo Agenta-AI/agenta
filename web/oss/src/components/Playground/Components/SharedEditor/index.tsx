@@ -35,6 +35,7 @@ const SharedEditor = ({
     syncWithInitialValueChanges = false,
     disableDebounce = false,
     antdInputProps,
+    onPropertyClick,
     ...props
 }: SharedEditorProps) => {
     const normalizedInitialValue = initialValue ?? ""
@@ -163,6 +164,7 @@ const SharedEditor = ({
                     id={editorId}
                     noProvider={noProvider}
                     {...editorProps}
+                    onPropertyClick={onPropertyClick}
                 />
             )}
 

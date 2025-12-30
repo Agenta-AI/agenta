@@ -9,7 +9,7 @@ import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components
 import EvaluatorMetricBar from "@/oss/components/Evaluations/EvaluatorMetricBar"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
-import {invocationTraceSummaryAtomFamily} from "../../atoms/invocationTraceSummary"
+import {scenarioHasInvocationAtomFamily} from "../../atoms/invocationTraceSummary"
 import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {previewEvalTypeAtom} from "../../state/evalType"
@@ -75,10 +75,12 @@ const PreviewEvaluationMetricCell = ({
     const {value, displayValue, stepError} = selection
 
     // Check if invocation has been run for this scenario (for annotation/evaluator metrics)
-    const invocationSummary = useAtomValue(
-        useMemo(() => invocationTraceSummaryAtomFamily({scenarioId, runId}), [scenarioId, runId]),
+    // Use lightweight atom that only checks for invocation existence, not full trace summary
+    const hasInvocationAtom = useMemo(
+        () => scenarioHasInvocationAtomFamily({scenarioId, runId}),
+        [scenarioId, runId],
     )
-    const hasInvocation = invocationSummary.state === "ready" && Boolean(invocationSummary.traceId)
+    const hasInvocation = useAtomValue(hasInvocationAtom)
     const isAnnotationColumn = column.stepType === "annotation"
     // For online evaluations, we don't need an invocation check since data comes from live traces
     // Also skip invalid state if we already have a valid value
