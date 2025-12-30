@@ -3,10 +3,16 @@ import {atom} from "jotai"
 import {addColumnAtom, currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {
     collectKeyPaths,
+    discardTraceSpanDraftAtom,
+    extractAgData,
     filterDataPaths,
     matchColumnsWithSuggestions,
     spanToTraceData,
     traceSpanAtomFamily,
+    traceSpanEntityAtomFamily,
+    traceSpanIsDirtyAtomFamily,
+    traceSpanServerStateAtomFamily,
+    updateTraceSpanAtom,
     type TraceSpan,
 } from "@/oss/state/entities/trace"
 import {
@@ -95,6 +101,64 @@ export const hasDuplicateColumnsAtom = atom<boolean>(false)
 export const previewEntityIdsAtom = atom<string[]>([])
 
 // ============================================================================
+// ENTITY-DERIVED TRACE DATA ATOM
+// ============================================================================
+
+/**
+ * Derived: Trace data derived from entity atoms
+ *
+ * This is the reactive source of truth for trace data. It reads from:
+ * - traceSpanIdsAtom: list of span IDs to render
+ * - traceSpanEntityAtomFamily: entity state (server data + draft merged)
+ * - traceSpanIsDirtyAtomFamily: whether span has been edited
+ * - traceSpanServerStateAtomFamily: original server data (for originalData field)
+ *
+ * When entities update (e.g., from fetch completing or drafts being set),
+ * this atom automatically re-computes, and all dependent components re-render.
+ *
+ * This replaces the primitive traceDataAtom for most use cases.
+ */
+export const traceDataFromEntitiesAtom = atom((get): TestsetTraceData[] => {
+    const spanIds = get(traceSpanIdsAtom)
+
+    return spanIds.map((spanId, index) => {
+        const entity = get(traceSpanEntityAtomFamily(spanId))
+        const isDirty = get(traceSpanIsDirtyAtomFamily(spanId))
+
+        if (!entity) {
+            // Entity not yet loaded - return placeholder
+            return {
+                key: spanId,
+                data: {},
+                id: index + 1,
+                isEdited: false,
+                originalData: null,
+            }
+        }
+
+        // Extract ag.data from entity attributes
+        const agData = extractAgData(entity)
+
+        // Get original data for comparison/revert if dirty
+        let originalData: Record<string, any> | null = null
+        if (isDirty) {
+            const serverState = get(traceSpanServerStateAtomFamily(spanId))
+            if (serverState) {
+                originalData = extractAgData(serverState)
+            }
+        }
+
+        return {
+            key: spanId,
+            data: agData,
+            id: index + 1,
+            isEdited: isDirty,
+            originalData,
+        }
+    })
+})
+
+// ============================================================================
 // DERIVED ATOMS (READ-ONLY)
 // ============================================================================
 
@@ -112,9 +176,10 @@ export const hasValidMappingsAtom = atom((get) => {
 
 /**
  * Derived: Filtered trace data based on preview selection
+ * Uses entity-derived trace data for reactive updates
  */
 export const filteredTraceDataAtom = atom((get) => {
-    const traceData = get(traceDataAtom)
+    const traceData = get(traceDataFromEntitiesAtom)
     const previewKey = get(previewKeyAtom)
 
     if (previewKey === "all") {
@@ -127,9 +192,10 @@ export const filteredTraceDataAtom = atom((get) => {
 /**
  * Derived: Selected trace data for editor preview
  * Returns the trace matching rowDataPreviewAtom key
+ * Uses entity-derived trace data for reactive updates
  */
 export const selectedTraceDataAtom = atom((get) => {
-    const traceData = get(traceDataAtom)
+    const traceData = get(traceDataFromEntitiesAtom)
     const rowDataPreview = get(rowDataPreviewAtom)
 
     if (!rowDataPreview) {
@@ -141,9 +207,10 @@ export const selectedTraceDataAtom = atom((get) => {
 
 /**
  * Derived: Index of current preview in trace data array
+ * Uses entity-derived trace data for reactive updates
  */
 export const selectedTraceIndexAtom = atom((get) => {
-    const traceData = get(traceDataAtom)
+    const traceData = get(traceDataFromEntitiesAtom)
     const rowDataPreview = get(rowDataPreviewAtom)
 
     if (!rowDataPreview || traceData.length === 0) {
@@ -171,45 +238,73 @@ export const mappingColumnNamesAtom = atom((get) => {
 /**
  * Write atom: Remove a trace from trace data and update preview selection
  * Automatically selects the next available trace for preview
+ *
+ * Works with entity system by updating traceSpanIdsAtom.
+ * The traceDataFromEntitiesAtom will automatically reflect the change.
  */
 export const removeTraceDataAtom = atom(null, (get, set, traceKey: string) => {
-    const traceData = get(traceDataAtom)
+    const spanIds = get(traceSpanIdsAtom)
     const previewKey = get(previewKeyAtom)
 
-    // Filter out the trace to remove
-    const remainingTraces = traceData.filter((trace) => trace.key !== traceKey)
-    set(traceDataAtom, remainingTraces)
+    // Find current index before removal
+    const currentIndex = spanIds.findIndex((id) => id === traceKey)
 
-    // Update span IDs
-    const spanIds = remainingTraces.map((trace) => trace.key).filter(Boolean)
-    set(traceSpanIdsAtom, spanIds)
+    // Filter out the span to remove
+    const remainingSpanIds = spanIds.filter((id) => id !== traceKey)
+    set(traceSpanIdsAtom, remainingSpanIds)
 
-    if (remainingTraces.length > 0) {
-        // Find the next trace to preview
-        const currentIndex = traceData.findIndex((trace) => trace.key === traceKey)
-        const nextTrace =
-            remainingTraces[currentIndex] || remainingTraces[currentIndex - 1] || remainingTraces[0]
+    // Discard any draft for the removed span
+    set(discardTraceSpanDraftAtom, traceKey)
 
-        set(rowDataPreviewAtom, nextTrace.key)
+    if (remainingSpanIds.length > 0) {
+        // Find the next span to preview
+        const nextSpanId =
+            remainingSpanIds[currentIndex] ||
+            remainingSpanIds[currentIndex - 1] ||
+            remainingSpanIds[0]
+
+        set(rowDataPreviewAtom, nextSpanId)
 
         // Also update previewKey if it was the removed trace
         if (traceKey === previewKey) {
-            set(previewKeyAtom, nextTrace.key)
+            set(previewKeyAtom, nextSpanId)
         }
     } else {
         set(rowDataPreviewAtom, "")
     }
 
-    return remainingTraces
+    return remainingSpanIds
 })
 
 /**
- * Write atom: Initialize trace data from input data
- * Sets up traceDataAtom, rowDataPreviewAtom, previewKeyAtom, and traceSpanIdsAtom
+ * Write atom: Initialize drawer with span IDs
+ * Entity atoms will fetch the actual span data from the backend.
+ * This is the preferred way to initialize the drawer.
  *
- * @deprecated Use openDrawerAtom instead - this is kept for backward compatibility
+ * Flow:
+ * 1. Store span IDs in traceSpanIdsAtom
+ * 2. Components read from traceSpanEntityAtomFamily(spanId) which triggers fetch
+ * 3. traceDataFromEntitiesAtom derives data from entity atoms (reactive)
+ *
+ * Note: traceDataAtom is deprecated - use traceDataFromEntitiesAtom instead
  */
-export const initializeTraceDataAtom = atom(null, (get, set, data: TestsetTraceData[]) => {
+export const initializeWithSpanIdsAtom = atom(null, (_get, set, spanIds: string[]) => {
+    if (spanIds.length === 0) {
+        return
+    }
+
+    // Store span IDs - entity atoms will handle fetching
+    // traceDataFromEntitiesAtom will automatically derive the data
+    set(traceSpanIdsAtom, spanIds)
+    set(rowDataPreviewAtom, spanIds[0] || "")
+    set(previewKeyAtom, spanIds[0] || "all")
+})
+
+/**
+ * Write atom: Initialize trace data from input data (legacy)
+ * @deprecated Use initializeWithSpanIdsAtom instead - pass span IDs and let entity atoms fetch data
+ */
+export const initializeTraceDataAtom = atom(null, (_get, set, data: TestsetTraceData[]) => {
     if (data.length === 0) {
         return
     }
@@ -230,29 +325,25 @@ export const isDrawerOpenAtom = atom<boolean>(false)
 /**
  * Write atom: Open the testset drawer with trace data
  *
- * This is the main entry point for opening the drawer. Call this from the parent
- * component instead of passing data as props and syncing via useEffect.
+ * @deprecated Use initializeWithSpanIdsAtom instead - pass span IDs and let entity atoms fetch data
+ *
+ * This is the legacy entry point that accepts pre-built trace data.
+ * Prefer using initializeWithSpanIdsAtom with span IDs for the entity-based approach.
  *
  * Usage (in parent):
  *   const openDrawer = useSetAtom(openDrawerAtom)
  *   openDrawer(selectedSpans)
- *
- * Usage (in drawer):
- *   const isOpen = useAtomValue(isDrawerOpenAtom)
- *   const traceData = useAtomValue(traceDataAtom)
  */
-export const openDrawerAtom = atom(null, (get, set, data: TestsetTraceData[]) => {
+export const openDrawerAtom = atom(null, (_get, set, data: TestsetTraceData[]) => {
     if (data.length === 0) {
         return
     }
 
-    // Initialize trace data
-    set(traceDataAtom, data)
-    set(rowDataPreviewAtom, data[0]?.key || "")
-    set(previewKeyAtom, data[0]?.key || "all")
-
+    // Extract span IDs and use the entity-based initialization
     const spanIds = data.map((trace) => trace.key).filter(Boolean)
     set(traceSpanIdsAtom, spanIds)
+    set(rowDataPreviewAtom, data[0]?.key || "")
+    set(previewKeyAtom, data[0]?.key || "all")
 
     // Open the drawer
     set(isDrawerOpenAtom, true)
@@ -261,44 +352,25 @@ export const openDrawerAtom = atom(null, (get, set, data: TestsetTraceData[]) =>
 /**
  * Write atom: Open the testset drawer with span IDs
  *
- * Accepts an array of span IDs and builds trace data from the entity cache.
- * This is the preferred way to open the drawer when you have span IDs
- * (e.g., from Playground generation results or observability selection).
- *
- * Falls back gracefully if spans are not in the cache - skips missing spans.
+ * Accepts an array of span IDs and sets them for entity-based fetching.
+ * The traceDataFromEntitiesAtom will automatically derive the data.
  *
  * Usage:
  *   const openDrawerWithSpanIds = useSetAtom(openDrawerWithSpanIdsAtom)
  *   openDrawerWithSpanIds(['span-id-1', 'span-id-2'])
  */
-export const openDrawerWithSpanIdsAtom = atom(null, (get, set, spanIds: string[]) => {
+export const openDrawerWithSpanIdsAtom = atom(null, (_get, set, spanIds: string[]) => {
     if (spanIds.length === 0) {
         return
     }
 
-    // Build trace data from entity cache
-    const traceData: TestsetTraceData[] = []
+    // Store span IDs - entity atoms will handle fetching
+    // traceDataFromEntitiesAtom will automatically derive the data
+    set(traceSpanIdsAtom, spanIds)
+    set(rowDataPreviewAtom, spanIds[0] || "")
+    set(previewKeyAtom, spanIds[0] || "all")
 
-    spanIds.forEach((spanId, index) => {
-        const span = get(traceSpanAtomFamily(spanId))
-        if (span) {
-            const converted = spanToTraceData(span, index)
-            traceData.push(converted)
-        }
-    })
-
-    // If we found spans in cache, initialize trace data
-    if (traceData.length > 0) {
-        set(traceDataAtom, traceData)
-        set(rowDataPreviewAtom, traceData[0]?.key || "")
-        set(previewKeyAtom, traceData[0]?.key || "all")
-        set(
-            traceSpanIdsAtom,
-            spanIds.filter((id) => traceData.some((t) => t.key === id)),
-        )
-    }
-
-    // Always open the drawer - data may be passed via props as fallback
+    // Open the drawer
     set(isDrawerOpenAtom, true)
 })
 
@@ -311,14 +383,13 @@ export const openDrawerWithSpanIdsAtom = atom(null, (get, set, spanIds: string[]
  * NOTE: Save state and local entities are reset via their own atoms
  * which should be called from the hook to avoid circular imports.
  */
-export const closeDrawerAtom = atom(null, (get, set) => {
+export const closeDrawerAtom = atom(null, (_get, set) => {
     set(isDrawerOpenAtom, false)
 
-    // Reset trace data
-    set(traceDataAtom, [])
+    // Reset span IDs (traceDataFromEntitiesAtom will automatically return [])
+    set(traceSpanIdsAtom, [])
     set(rowDataPreviewAtom, "")
     set(previewKeyAtom, "all")
-    set(traceSpanIdsAtom, [])
 
     // Reset mapping data
     set(mappingDataAtom, [])
@@ -345,7 +416,7 @@ export const closeDrawerAtom = atom(null, (get, set) => {
  * Called as part of onCascaderChangeAtom flow.
  */
 export const resetForCascaderChangeAtom = atom(null, (get, set) => {
-    const traceData = get(traceDataAtom)
+    const spanIds = get(traceSpanIdsAtom)
 
     // Reset mapping data (preserve structure, clear values)
     set(
@@ -353,8 +424,8 @@ export const resetForCascaderChangeAtom = atom(null, (get, set) => {
         get(mappingDataAtom).map((item) => ({...item, column: "", newColumn: ""})),
     )
 
-    // Reset preview to first trace
-    set(previewKeyAtom, traceData[0]?.key || "all")
+    // Reset preview to first span
+    set(previewKeyAtom, spanIds[0] || "all")
 
     // Reset local columns
     set(localColumnsAtom, [])
@@ -365,9 +436,12 @@ export const resetForCascaderChangeAtom = atom(null, (get, set) => {
 
 /**
  * Write atom: Update trace data from editor
- * Parses the updated data (JSON/YAML) and updates the trace in traceDataAtom
- * Tracks original data for edit detection
- * Also updates local entities to reflect the edited data in the preview table
+ *
+ * Uses the entity draft system to update span data.
+ * The edit is stored as a draft on the entity's attributes (ag.data).
+ * The traceDataFromEntitiesAtom will automatically reflect the change via isDirty.
+ *
+ * Also updates local entities to reflect the edited data in the preview table.
  */
 export const updateEditedTraceAtom = atom(
     null,
@@ -382,26 +456,25 @@ export const updateEditedTraceAtom = atom(
             getValueAtPath?: (obj: unknown, path: string) => unknown
         },
     ) => {
-        const {updatedData, format, parseYaml, formatData: _formatData, getValueAtPath} = params
-        const traceData = get(traceDataAtom)
-        const rowDataPreview = get(rowDataPreviewAtom)
-        const selectedTrace = get(selectedTraceDataAtom)
+        const {updatedData, format, parseYaml, getValueAtPath} = params
+        const spanId = get(rowDataPreviewAtom)
+        const currentEntity = get(traceSpanEntityAtomFamily(spanId))
+        const serverState = get(traceSpanServerStateAtomFamily(spanId))
 
         console.log("[updateEditedTraceAtom] Called", {
             hasUpdatedData: !!updatedData,
-            hasSelectedTrace: !!selectedTrace,
-            rowDataPreview,
-            traceDataLength: traceData.length,
+            spanId,
+            hasEntity: !!currentEntity,
             hasGetValueAtPath: !!getValueAtPath,
         })
 
-        if (!updatedData || !selectedTrace) {
-            console.log("[updateEditedTraceAtom] Early return - no data or trace")
+        if (!updatedData || !spanId || !currentEntity) {
+            console.log("[updateEditedTraceAtom] Early return - no data or entity")
             return {success: false, error: "No data to update"}
         }
 
         try {
-            // Parse the updated data first to normalize it
+            // Parse the updated data
             const parsedUpdatedData =
                 typeof updatedData === "string"
                     ? format === "YAML"
@@ -409,100 +482,71 @@ export const updateEditedTraceAtom = atom(
                         : JSON.parse(updatedData)
                     : updatedData
 
+            // Extract the data property (editor wraps in {data: ...})
+            const newAgData = (parsedUpdatedData as {data: Record<string, any>}).data
+
             console.log("[updateEditedTraceAtom] Parsed data", {
-                parsedUpdatedData,
+                newAgData,
             })
 
-            // Deep normalize data to handle stringified JSON values consistently
-            // This ensures formatting differences in nested JSON strings don't affect comparison
-            const normalizedUpdated = deepNormalizeForComparison(parsedUpdatedData)
-            const normalizedCurrent = deepNormalizeForComparison({data: selectedTrace.data})
-            const normalizedOriginal = deepNormalizeForComparison({
-                data: selectedTrace.originalData || selectedTrace.data,
-            })
+            // Get current and original ag.data for comparison
+            const currentAgData = extractAgData(currentEntity)
+            const originalAgData = serverState ? extractAgData(serverState) : currentAgData
 
-            // Compare using normalized JSON strings
-            const updatedDataString = JSON.stringify(normalizedUpdated)
-            const currentDataString = JSON.stringify(normalizedCurrent)
-            const originalDataString = JSON.stringify(normalizedOriginal)
+            // Deep normalize for comparison
+            const normalizedUpdated = deepNormalizeForComparison(newAgData)
+            const normalizedCurrent = deepNormalizeForComparison(currentAgData)
+            const normalizedOriginal = deepNormalizeForComparison(originalAgData)
+
+            const updatedString = JSON.stringify(normalizedUpdated)
+            const currentString = JSON.stringify(normalizedCurrent)
+            const originalString = JSON.stringify(normalizedOriginal)
 
             console.log("[updateEditedTraceAtom] Comparing data", {
-                updatedDataPreview: updatedDataString.slice(0, 100),
-                currentDataPreview: currentDataString.slice(0, 100),
-                isEqual: updatedDataString === currentDataString,
-                updatedLength: updatedDataString.length,
-                currentLength: currentDataString.length,
+                updatedPreview: updatedString.slice(0, 100),
+                currentPreview: currentString.slice(0, 100),
+                isEqual: updatedString === currentString,
             })
 
-            // Check if data actually changed (using normalized comparison)
-            if (updatedDataString === currentDataString) {
+            // No change
+            if (updatedString === currentString) {
                 console.log("[updateEditedTraceAtom] No changes detected")
                 return {success: false, error: "No changes detected"}
             }
 
-            const isMatchingOriginalData = updatedDataString === originalDataString
-            const isMatchingData = updatedDataString !== currentDataString
-
-            // Update the trace in the array
-            const newTraceData = traceData.map((trace) => {
-                if (trace.key === rowDataPreview) {
-                    console.log("[updateEditedTraceAtom] Updating trace", trace.key)
-                    // Extract the data property from parsedUpdatedData (which is {data: {...}})
-                    const newData = (parsedUpdatedData as {data: TestsetTraceData["data"]}).data
-                    if (isMatchingOriginalData) {
-                        return {
-                            ...trace,
-                            data: newData,
-                            isEdited: false,
-                            originalData: null,
-                        }
-                    } else {
-                        return {
-                            ...trace,
-                            data: newData,
-                            ...(isMatchingData && !trace.originalData
-                                ? {originalData: trace.data}
-                                : {}),
-                            isEdited: true,
-                        }
-                    }
+            // If reverting to original, discard draft instead
+            if (updatedString === originalString) {
+                console.log("[updateEditedTraceAtom] Reverting to original - discarding draft")
+                set(discardTraceSpanDraftAtom, spanId)
+            } else {
+                // Update entity draft with new ag.data
+                // The draft system expects attributes, so we build the new attributes
+                const newAttributes = {
+                    ...currentEntity.attributes,
+                    "ag.data": newAgData,
                 }
-                return trace
-            })
 
-            // Only update if actually different
-            const isDifferent = JSON.stringify(traceData) !== JSON.stringify(newTraceData)
-            console.log("[updateEditedTraceAtom] Trace data comparison", {
-                isDifferent,
-                oldTraceData: traceData[0],
-                newTraceData: newTraceData[0],
-            })
+                console.log("[updateEditedTraceAtom] Setting entity draft", {spanId})
+                set(updateTraceSpanAtom, {entityId: spanId, updates: newAttributes})
+            }
 
-            if (isDifferent) {
-                set(traceDataAtom, newTraceData)
-                console.log("[updateEditedTraceAtom] Updated traceDataAtom")
+            // Update local entities to reflect the edited data in preview table
+            if (getValueAtPath) {
+                const mappings = get(mappingDataAtom)
+                const traceData = get(traceDataFromEntitiesAtom)
 
-                // Update local entities to reflect the edited data in preview table
-                if (getValueAtPath) {
-                    const mappings = get(mappingDataAtom)
-                    console.log("[updateEditedTraceAtom] Updating local entities", {
-                        mappingsCount: mappings.length,
-                        mappings,
-                    })
-                    // Import dynamically to avoid circular dependency
-                    // eslint-disable-next-line @typescript-eslint/no-require-imports
-                    const {updateAllLocalEntitiesAtom} = require("./localEntities")
-                    set(updateAllLocalEntitiesAtom, {
-                        traceData: newTraceData,
-                        mappings,
-                        getValueAtPath,
-                    })
-                    console.log("[updateEditedTraceAtom] Local entities updated")
-                } else {
-                    console.log(
-                        "[updateEditedTraceAtom] No getValueAtPath - skipping entity update",
-                    )
-                }
+                console.log("[updateEditedTraceAtom] Updating local entities", {
+                    mappingsCount: mappings.length,
+                })
+
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const {updateAllLocalEntitiesAtom} = require("./localEntities")
+                set(updateAllLocalEntitiesAtom, {
+                    traceData,
+                    mappings,
+                    getValueAtPath,
+                })
+                console.log("[updateEditedTraceAtom] Local entities updated")
             }
 
             return {success: true}
@@ -518,7 +562,11 @@ export const updateEditedTraceAtom = atom(
 
 /**
  * Write atom: Revert trace data to original (before edits)
- * Restores the trace data to its original state and updates local entities
+ *
+ * Uses the entity draft system to discard changes.
+ * The traceDataFromEntitiesAtom will automatically reflect the revert via isDirty.
+ *
+ * Also updates local entities to reflect the reverted data in the preview table.
  */
 export const revertEditedTraceAtom = atom(
     null,
@@ -530,36 +578,27 @@ export const revertEditedTraceAtom = atom(
         },
     ) => {
         const {getValueAtPath} = params
-        const traceData = get(traceDataAtom)
-        const rowDataPreview = get(rowDataPreviewAtom)
-        const selectedTrace = get(selectedTraceDataAtom)
+        const spanId = get(rowDataPreviewAtom)
+        const isDirty = get(traceSpanIsDirtyAtomFamily(spanId))
 
-        if (!selectedTrace || !selectedTrace.isEdited || !selectedTrace.originalData) {
+        if (!spanId || !isDirty) {
             return {success: false, error: "No changes to revert"}
         }
 
-        // Revert the trace to original data
-        const newTraceData = traceData.map((trace) => {
-            if (trace.key === rowDataPreview && trace.originalData) {
-                return {
-                    ...trace,
-                    data: trace.originalData,
-                    isEdited: false,
-                    originalData: null,
-                }
-            }
-            return trace
-        })
+        // Discard the entity draft to revert to server state
+        set(discardTraceSpanDraftAtom, spanId)
 
-        set(traceDataAtom, newTraceData)
+        console.log("[revertEditedTraceAtom] Discarded draft for span", spanId)
 
         // Update local entities to reflect the reverted data
         if (getValueAtPath) {
             const mappings = get(mappingDataAtom)
+            const traceData = get(traceDataFromEntitiesAtom)
+
             // eslint-disable-next-line @typescript-eslint/no-require-imports
             const {updateAllLocalEntitiesAtom} = require("./localEntities")
             set(updateAllLocalEntitiesAtom, {
-                traceData: newTraceData,
+                traceData,
                 mappings,
                 getValueAtPath,
             })
@@ -605,9 +644,10 @@ export const spanByIdAtomFamily = traceSpanAtomFamily
  * Derived: All unique paths from trace data (unfiltered)
  * Used for autocomplete options in mapping UI
  * Includes object paths for manual selection
+ * Uses entity-derived trace data for reactive updates
  */
 export const allTracePathsAtom = atom((get) => {
-    const traceData = get(traceDataAtom)
+    const traceData = get(traceDataFromEntitiesAtom)
 
     const uniquePaths = new Set<string>()
     traceData.forEach((traceItem) => {
@@ -631,9 +671,10 @@ export const allTracePathsSelectOptionsAtom = atom((get) => {
 /**
  * Derived: Leaf-only paths from trace data (no intermediate object paths)
  * Used for auto-mapping logic to avoid duplicate column mappings
+ * Uses entity-derived trace data for reactive updates
  */
 export const leafTracePathsAtom = atom((get) => {
-    const traceData = get(traceDataAtom)
+    const traceData = get(traceDataFromEntitiesAtom)
 
     const uniquePaths = new Set<string>()
     traceData.forEach((traceItem) => {
@@ -895,9 +936,10 @@ export const executeAutoMappingAtom = atom(null, (get, set) => {
 
 /**
  * Derived: Check if trace data has structural differences
+ * Uses entity-derived trace data for reactive updates
  */
 export const hasDifferentStructureAtom = atom((get) => {
-    const traceData = get(traceDataAtom)
+    const traceData = get(traceDataFromEntitiesAtom)
     if (traceData.length <= 1) return false
 
     const referencePaths = collectKeyPaths(traceData[0].data).sort().join(",")
@@ -924,7 +966,7 @@ export const hasDifferentStructureAtom = atom((get) => {
 export const onTestsetSelectAtom = atom(null, (get, set) => {
     const testsetInfo = get(selectedTestsetInfoAtom)
     const isNewTestset = get(isNewTestsetAtom)
-    const traceData = get(traceDataAtom)
+    const traceData = get(traceDataFromEntitiesAtom)
 
     // Skip if no testset or no trace data
     if (!testsetInfo.id || traceData.length === 0) {
@@ -959,7 +1001,7 @@ export const onRevisionSelectAtom = atom(
     null,
     (get, set, getValueAtPath: (obj: unknown, path: string) => unknown) => {
         const revisionId = get(selectedRevisionIdAtom)
-        const traceData = get(traceDataAtom)
+        const traceData = get(traceDataFromEntitiesAtom)
         const mappingData = get(mappingDataAtom)
         const isNewTestset = get(isNewTestsetAtom)
 
@@ -999,7 +1041,7 @@ export const onRevisionSelectAtom = atom(
  * Write atom: Reset auto-mapping state
  * Called when drawer closes or testset/revision changes
  */
-export const resetAutoMappingStateAtom = atom(null, (get, set) => {
+export const resetAutoMappingStateAtom = atom(null, (_get, set) => {
     set(autoMappedTestsetIdAtom, null)
 })
 
@@ -1050,7 +1092,7 @@ export const onMappingChangeAtom = atom(
         const isNewTestset = get(isNewTestsetAtom)
 
         if (revisionId && (revisionId !== "draft" || isNewTestset)) {
-            const traceData = get(traceDataAtom)
+            const traceData = get(traceDataFromEntitiesAtom)
 
             // Import dynamically to avoid circular dependency
             // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -1086,7 +1128,7 @@ export const onNewColumnBlurAtom = atom(
             return {success: false, reason: "no_revision"}
         }
 
-        const traceData = get(traceDataAtom)
+        const traceData = get(traceDataFromEntitiesAtom)
         const mappings = get(mappingDataAtom)
 
         // Import dynamically to avoid circular dependency

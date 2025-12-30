@@ -1,13 +1,13 @@
 import {Typography} from "antd"
 
 import {UserReference} from "@/oss/components/References/UserReference"
-import type {Revision as TestsetRevision} from "@/oss/state/entities/testset"
+import type {RevisionListItem} from "@/oss/state/entities/testset"
 
 /**
  * Build a rich revision label for cascader dropdown
  * Shows version, date, commit message, and author
  */
-export function buildRevisionLabel(revision: TestsetRevision): React.ReactNode {
+export function buildRevisionLabel(revision: RevisionListItem): React.ReactNode {
     return (
         <div className="flex flex-col gap-0.5 py-1 max-w-[240px]">
             <div className="flex items-center gap-2">

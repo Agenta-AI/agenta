@@ -70,12 +70,8 @@ function _convertTraceDataWithMappings(
             }
 
             const value = getValueAtPath(item, mapping.data)
-            formattedItem[targetKey] =
-                value === undefined || value === null
-                    ? ""
-                    : typeof value === "string"
-                      ? value
-                      : JSON.stringify(value)
+            // Preserve objects/arrays as-is, only convert null/undefined to empty string
+            formattedItem[targetKey] = value === undefined || value === null ? "" : value
         }
 
         // Ensure all columns exist (fill with empty strings)

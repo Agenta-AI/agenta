@@ -168,12 +168,8 @@ export const createLocalEntitiesAtom = atom(
                 if (!targetColumn) continue
 
                 const value = getValueAtPath(trace, mapping.data)
-                mappedData[targetColumn] =
-                    value === undefined || value === null
-                        ? ""
-                        : typeof value === "string"
-                          ? value
-                          : JSON.stringify(value)
+                // Preserve objects/arrays as-is, only convert null/undefined to empty string
+                mappedData[targetColumn] = value === undefined || value === null ? "" : value
             }
 
             // Initialize with mapped data only (no extra columns)
@@ -373,12 +369,8 @@ export const updateAllLocalEntitiesAtom = atom(
                 if (!targetColumn) continue
 
                 const value = getValueAtPath(trace, mapping.data)
-                updates[targetColumn] =
-                    value === undefined || value === null
-                        ? ""
-                        : typeof value === "string"
-                          ? value
-                          : JSON.stringify(value)
+                // Preserve objects/arrays as-is, only convert null/undefined to empty string
+                updates[targetColumn] = value === undefined || value === null ? "" : value
             }
 
             if (Object.keys(updates).length > 0) {
@@ -561,12 +553,8 @@ export const selectRevisionAtom = atom(
                 if (!targetColumn) continue
 
                 const value = getValueAtPath(trace, mapping.data)
-                mappedData[targetColumn] =
-                    value === undefined || value === null
-                        ? ""
-                        : typeof value === "string"
-                          ? value
-                          : JSON.stringify(value)
+                // Preserve objects/arrays as-is, only convert null/undefined to empty string
+                mappedData[targetColumn] = value === undefined || value === null ? "" : value
             }
 
             // Create entity with mapped data
