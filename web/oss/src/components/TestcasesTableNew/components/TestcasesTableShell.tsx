@@ -145,26 +145,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                       columnTitle: showRowIndex ? (
                           <span className="text-xs text-gray-500">#</span>
                       ) : undefined,
-                      onCell: (record: TestcaseTableRow) => {
-                          // Only show dirty indicator in edit mode
-                          if (mode !== "edit") return {}
-
-                          // Check if testcase has unsaved changes (for dirty indicator)
-                          const recordKey = String(record.key || record.id)
-                          const isNewRow =
-                              recordKey.startsWith("new-") || recordKey.startsWith("local-")
-                          if (record.id) {
-                              const isDirty =
-                                  isNewRow || globalStore.get(testcaseIsDirtyAtom(record.id))
-                              if (isDirty) {
-                                  return {
-                                      // Use inline style to override hover styles
-                                      style: {backgroundColor: "rgb(255 251 235)"}, // amber-50
-                                  }
-                              }
-                          }
-                          return {}
-                      },
+                      // Dirty indicator background is now handled reactively in TestcaseSelectionCell
                       renderCell: (
                           _value: boolean,
                           record: TestcaseTableRow,
@@ -175,6 +156,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                               <TestcaseSelectionCell
                                   testcaseId={record.id}
                                   rowIndex={index}
+                                  mode={mode}
                                   originNode={
                                       <span className="text-xs text-gray-500">{index + 1}</span>
                                   }
@@ -183,12 +165,13 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                               <TestcaseSelectionCell
                                   testcaseId={record.id}
                                   rowIndex={index}
+                                  mode={mode}
                                   originNode={originNode}
                               />
                           ),
                   }
                 : undefined,
-        [enableSelection, selectedRowKeys, onSelectedRowKeysChange, globalStore, showRowIndex],
+        [enableSelection, selectedRowKeys, onSelectedRowKeysChange, globalStore, showRowIndex, mode],
     )
 
     // Max lines from row height config (already computed by useRowHeight)

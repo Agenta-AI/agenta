@@ -6,7 +6,10 @@ import {useRouter} from "next/router"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import type {TestsetMetadata} from "@/oss/state/entities/testcase/queries"
-import {updateRevisionDraftAtom} from "@/oss/state/entities/testset/revisionEntity"
+import {
+    updateRevisionDraftAtom,
+    clearRevisionDraftAtom,
+} from "@/oss/state/entities/testset/revisionEntity"
 
 import AlertPopup from "../../AlertPopup/AlertPopup"
 import {message} from "../../AppMessageContext"
@@ -86,6 +89,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
 
     // Atoms for updating metadata (name/description stored in revision draft)
     const updateRevisionDraft = useSetAtom(updateRevisionDraftAtom)
+    const clearRevisionDraft = useSetAtom(clearRevisionDraftAtom)
 
     // Track programmatic navigation after save to skip blocker
     const skipBlockerRef = useRef(false)
@@ -241,11 +245,23 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
             okText: "Discard",
             okButtonProps: {danger: true},
             onOk: () => {
+                // Clear testcase changes
                 table.clearChanges()
+
+                // Clear revision draft (name/description changes)
+                if (revisionIdParam) {
+                    const revisionId = Array.isArray(revisionIdParam)
+                        ? revisionIdParam[0]
+                        : revisionIdParam
+                    if (revisionId) {
+                        clearRevisionDraft(revisionId)
+                    }
+                }
+
                 message.success("Changes discarded")
             },
         })
-    }, [table, mode])
+    }, [table, mode, revisionIdParam, clearRevisionDraft])
 
     // ========================================================================
     // METADATA ACTIONS
@@ -254,8 +270,9 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
     const handleRenameConfirm = useCallback(
         (editModalName: string, editModalDescription: string, onClose: () => void) => {
             if (mode === "view" || !revisionIdParam) return
+            const revisionId = Array.isArray(revisionIdParam) ? revisionIdParam[0] : revisionIdParam
             updateRevisionDraft({
-                revisionId: revisionIdParam as string,
+                revisionId: revisionId as string,
                 updates: {
                     name: editModalName,
                     description: editModalDescription,
