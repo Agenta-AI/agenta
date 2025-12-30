@@ -253,7 +253,7 @@ async def auto_exact_match(
                 message=str(e),
             ),
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -487,8 +487,8 @@ async def json_multi_field_match(
         if match:
             matches += 1
 
-    # Overall score is average of field scores
-    results["score"] = matches / len(fields) if fields else 0.0
+    # Aggregate score is the percentage of matching fields
+    results["aggregate_score"] = matches / len(fields) if fields else 0.0
 
     return {"outputs": results}
 
@@ -576,7 +576,7 @@ async def auto_custom_code_run(
             )
         )
         return Result(type="number", value=response["outputs"]["score"])
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -645,7 +645,7 @@ async def auto_ai_critique(
             )
         )
         return Result(type="number", value=response["outputs"]["score"])
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -656,9 +656,7 @@ async def auto_ai_critique(
         )
 
 
-import json
-import re
-from typing import Any, Dict, Iterable, Tuple, Optional
+from typing import Any, Dict, Iterable, Tuple
 
 try:
     import jsonpath  # ✅ use module API
@@ -1295,7 +1293,7 @@ async def auto_starts_with(
             )
         )
         return Result(type="bool", value=response["outputs"]["success"])
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1337,7 +1335,7 @@ async def auto_ends_with(
         )
         result = Result(type="bool", value=response["outputs"]["success"])
         return result
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1379,7 +1377,7 @@ async def auto_contains(
         )
         result = Result(type="bool", value=response["outputs"]["success"])
         return result
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1421,7 +1419,7 @@ async def auto_contains_any(
         )
         result = Result(type="bool", value=response["outputs"]["success"])
         return result
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1464,7 +1462,7 @@ async def auto_contains_all(
         )
         result = Result(type="bool", value=response["outputs"]["success"])
         return result
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1512,7 +1510,7 @@ async def auto_contains_json(
             input=EvaluatorInputInterface(**{"inputs": {"prediction": output}})
         )
         return Result(type="bool", value=response["outputs"]["success"])
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1530,7 +1528,7 @@ async def contains_json(input: EvaluatorInputInterface) -> EvaluatorOutputInterf
         potential_json = str(input.inputs["prediction"])[start_index:end_index]
         json.loads(potential_json)
         contains_json = True
-    except (ValueError, json.JSONDecodeError) as e:
+    except (ValueError, json.JSONDecodeError):
         contains_json = False
 
     return {"outputs": {"success": contains_json}}
@@ -1992,7 +1990,7 @@ async def auto_levenshtein_distance(
                 message=str(e),
             ),
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -2032,7 +2030,7 @@ async def auto_similarity_match(
                 message=str(e),
             ),
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
