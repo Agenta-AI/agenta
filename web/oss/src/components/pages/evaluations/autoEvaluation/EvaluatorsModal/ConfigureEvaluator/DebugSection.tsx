@@ -17,7 +17,7 @@
  * - Variants: fetched internally via useAppVariantRevisions()
  * - Apps: fetched internally via useAppsData()
  */
-import {SetStateAction, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     CheckCircleOutlined,
@@ -34,6 +34,7 @@ import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
 import {message} from "@/oss/components/AppMessageContext"
+import type {LoadTestsetSelectionPayload} from "@/oss/components/Playground/Components/Modals/LoadTestsetModal/assets/types"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {transformTraceKeysInSettings, mapTestcaseAndEvalValues} from "@/oss/lib/evaluations/legacy"
@@ -65,13 +66,13 @@ import {
 } from "@/oss/services/evaluations/api_ee"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
 import {useAppsData} from "@/oss/state/app/hooks"
+import {revisionEntityAtomFamily} from "@/oss/state/entities/testset"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
     stablePromptVariablesAtomFamily,
     transformedPromptsAtomFamily,
 } from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
-import {useTestsetsData} from "@/oss/state/testset"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
@@ -81,7 +82,7 @@ import {
     playgroundLastAppIdAtom,
     playgroundLastVariantIdAtom,
     playgroundSelectedTestcaseAtom,
-    playgroundSelectedTestsetIdAtom,
+    playgroundSelectedRevisionIdAtom,
     playgroundSelectedVariantAtom,
     playgroundTraceTreeAtom,
 } from "./state/atoms"
@@ -148,10 +149,6 @@ const DebugSection = () => {
     const appSchema = useAtomValue(appSchemaAtom)
     const {apps: availableApps = []} = useAppsData()
 
-    // Fetch testsets internally
-    const {testsets: fetchedTestsets} = useTestsetsData()
-    const testsets = fetchedTestsets ?? []
-
     // ================================================================
     // ATOMS - Read/write state from playground atoms
     // ================================================================
@@ -159,8 +156,8 @@ const DebugSection = () => {
     const setSelectedTestcase = useSetAtom(playgroundSelectedTestcaseAtom)
     const _selectedVariant = useAtomValue(playgroundSelectedVariantAtom)
     const setSelectedVariant = useSetAtom(playgroundSelectedVariantAtom)
-    const selectedTestset = useAtomValue(playgroundSelectedTestsetIdAtom)
-    const setSelectedTestset = useSetAtom(playgroundSelectedTestsetIdAtom)
+    const selectedRevisionId = useAtomValue(playgroundSelectedRevisionIdAtom)
+    const setSelectedRevisionId = useSetAtom(playgroundSelectedRevisionIdAtom)
     const traceTree = useAtomValue(playgroundTraceTreeAtom)
     const setTraceTree = useSetAtom(playgroundTraceTreeAtom)
     const selectedEvaluator = useAtomValue(playgroundEvaluatorAtom)
@@ -189,21 +186,28 @@ const DebugSection = () => {
     })
 
     const handleEvaluatorTestsetData = useCallback(
-        (payload: SetStateAction<Record<string, any>[] | null>) => {
-            const resolved = typeof payload === "function" ? payload(null) : payload
-
-            if (Array.isArray(resolved) && resolved.length > 0) {
-                const testcase = resolved[0]
-                const sanitized =
-                    testcase && typeof testcase === "object"
-                        ? Object.fromEntries(
-                              Object.entries(testcase).filter(([key]) => !key.startsWith("__")),
-                          )
-                        : testcase
-                setSelectedTestcase({testcase: sanitized || null})
+        (payload: LoadTestsetSelectionPayload | null) => {
+            const testcase = payload?.testcases?.[0]
+            if (!testcase) {
+                setSelectedRevisionId("")
+                setSelectedTestcase({testcase: null})
+                return
             }
+
+            if (payload?.revisionId) {
+                setSelectedRevisionId(payload.revisionId)
+            }
+
+            const sanitized =
+                typeof testcase === "object"
+                    ? Object.fromEntries(
+                          Object.entries(testcase).filter(([key]) => !key.startsWith("__")),
+                      )
+                    : testcase
+
+            setSelectedTestcase({testcase: sanitized || null})
         },
-        [setSelectedTestcase],
+        [setSelectedRevisionId, setSelectedTestcase],
     )
 
     const defaultAppId = useMemo(() => {
@@ -288,14 +292,6 @@ const DebugSection = () => {
         if (v.variantId) setLastVariantId(v.variantId)
     }, [_selectedVariant, setLastAppId, setLastVariantId])
 
-    // Initialize testset selection when testsets are available
-    useEffect(() => {
-        if (selectedTestset) return // Already have a selection
-        if (testsets?.length) {
-            setSelectedTestset(testsets[0]._id)
-        }
-    }, [testsets, selectedTestset, setSelectedTestset])
-
     // Variant flags (custom/chat) from global atoms for the selected revision
     const flags = useAtomValue(
         useMemo(
@@ -343,9 +339,27 @@ const DebugSection = () => {
         ),
     ) as any
 
-    const activeTestset = useMemo(() => {
-        return testsets?.find((item: any) => item.id === selectedTestset)
-    }, [selectedTestset, testsets])
+    const activeRevision = useAtomValue(
+        useMemo(
+            () =>
+                (selectedRevisionId
+                    ? (revisionEntityAtomFamily(selectedRevisionId) as any)
+                    : (atom(null) as any)) as any,
+            [selectedRevisionId],
+        ),
+    ) as any
+
+    const activeTestsetLabel = useMemo(() => {
+        if (!activeRevision) return null
+        const version =
+            typeof activeRevision.version === "number"
+                ? activeRevision.version
+                : parseInt(activeRevision.version || "0", 10)
+        return {
+            name: activeRevision.name || activeRevision.testset_id || null,
+            version: Number.isFinite(version) ? version : null,
+        }
+    }, [activeRevision])
 
     const isPlainObject = (value: unknown): value is Record<string, any> =>
         Boolean(value) && typeof value === "object" && !Array.isArray(value)
@@ -778,8 +792,8 @@ const DebugSection = () => {
     }
 
     const testcaseEditorKey = useMemo(
-        () => `testcase-${selectedTestset}-${JSON.stringify(selectedTestcase.testcase ?? {})}`,
-        [selectedTestset, selectedTestcase.testcase],
+        () => `testcase-${selectedRevisionId}-${JSON.stringify(selectedTestcase.testcase ?? {})}`,
+        [selectedRevisionId, selectedTestcase.testcase],
     )
 
     const _variantOutputEditorKey = useMemo(
@@ -824,11 +838,18 @@ const DebugSection = () => {
                             Testcase
                         </Typography.Text>
 
-                        {activeTestset && selectedTestcase.testcase && (
+                        {activeTestsetLabel && selectedTestcase.testcase && (
                             <>
                                 <CheckCircleOutlined style={{color: "green"}} />
                                 <Typography.Text type="secondary">
-                                    loaded from {activeTestset.name}
+                                    <span className="inline-flex items-center gap-2">
+                                        <span>{activeTestsetLabel.name}</span>
+                                        {typeof activeTestsetLabel.version === "number" && (
+                                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md leading-none">
+                                                v{activeTestsetLabel.version}
+                                            </span>
+                                        )}
+                                    </span>
                                 </Typography.Text>
                             </>
                         )}
@@ -873,7 +894,6 @@ const DebugSection = () => {
                     />
                 </div>
             </div>
-
             <div className="flex flex-col">
                 <div className="flex items-center justify-between">
                     <Space size={5}>
@@ -1025,7 +1045,6 @@ const DebugSection = () => {
                     ]}
                 />
             </div>
-
             <div className="flex flex-col gap-1">
                 <Flex justify="space-between">
                     <Space size={5}>
@@ -1101,7 +1120,7 @@ const DebugSection = () => {
                     ]}
                 />
             </div>
-
+            shit
             <EvaluatorVariantModal
                 variants={derivedVariants}
                 open={openVariantModal}
@@ -1113,9 +1132,8 @@ const DebugSection = () => {
                     if ((v as any)?.variantId) setLastVariantId((v as any).variantId)
                 }}
                 selectedVariant={selectedVariant}
-                selectedTestsetId={selectedTestset}
+                selectedRevisionId={selectedRevisionId}
             />
-
             <LoadTestsetModal
                 open={openTestcaseModal}
                 onCancel={() => setOpenTestcaseModal(false)}
