@@ -4,7 +4,7 @@ import {Typography} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
 
-import EnvironmentCardRow from "@/oss/components/DeploymentCard/EnvironmentCardRow"
+import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
 import useURL from "@/oss/hooks/useURL"
 import type {Environment} from "@/oss/lib/Types"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
@@ -19,8 +19,9 @@ const DeploymentOverview = () => {
     const handleCardClick = useCallback(
         (env: Environment) => {
             router.push({
-                pathname: `${appURL}/deployments`,
+                pathname: `${appURL}/variants`,
                 query: {
+                    tab: "deployments",
                     selectedEnvName: env.name,
                 },
             })
@@ -30,7 +31,9 @@ const DeploymentOverview = () => {
 
     return (
         <div className={clsx(["flex flex-col gap-2", "[&_>_div_h1.ant-typography]:text-xs"])}>
-            <Title>Deployment</Title>
+            <Title level={3} className="!m-0">
+                Deployment
+            </Title>
 
             <EnvironmentCardRow
                 className="flex gap-4"

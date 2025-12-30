@@ -22,6 +22,7 @@ interface VariantDetailsProps {
     variant?: Pick<Variant, "isLatestRevision" | "deployedIn">
     showRevisionAsTag?: boolean
     hasChanges?: boolean
+    showLatestTag?: boolean
 }
 
 const VariantDetails = ({
@@ -30,6 +31,7 @@ const VariantDetails = ({
     variant,
     showRevisionAsTag = true,
     hasChanges = false,
+    showLatestTag = true,
 }: VariantDetailsProps) => {
     const latestAppRevisionId = useAtomValue(latestAppRevisionIdAtom)
     const currentRevisionId = (variant as any)?.id as string | undefined
@@ -96,16 +98,16 @@ const VariantDetails = ({
                     placement="bottomLeft"
                 >
                     <Tag
-                        color="#586673"
-                        bordered={false}
-                        className="flex items-center gap-1 font-normal cursor-pointer"
+                        variant="filled"
+                        className="flex items-center gap-1 font-normal cursor-pointer bg-[#586673] text-white"
                     >
                         <PencilSimpleLine size={14} /> Draft
                     </Tag>
                 </Dropdown>
             ) : (
-                isAppLatest && (
-                    <Tag className={`bg-[#E6F4FF] text-[#1677FF]`} bordered={false}>
+                isAppLatest &&
+                showLatestTag && (
+                    <Tag className={`bg-[#E6F4FF] text-[#1677FF]`} variant="filled">
                         Last modified
                     </Tag>
                 )

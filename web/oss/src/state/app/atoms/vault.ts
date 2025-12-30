@@ -38,7 +38,7 @@ export const vaultSecretsQueryAtom = atomWithQuery((get) => {
     const projectId = get(projectIdAtom)
 
     return {
-        queryKey: ["vault", "secrets", user?.id],
+        queryKey: ["vault", "secrets", user?.id, projectId],
         queryFn: fetchVaultSecret,
         staleTime: 1000 * 60 * 5, // 5 minutes
         refetchOnWindowFocus: false,

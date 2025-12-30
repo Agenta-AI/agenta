@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.69.7"
+version = "0.72.3"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = [
@@ -33,6 +33,7 @@ httpx = "^0.28"
 pyyaml = "^6"
 toml = "^0.10"
 litellm = "^1"
+orjson = "^3"
 jinja2 = "^3"
 python-jsonpath = "^2"
 opentelemetry-api = "^1"

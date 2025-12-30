@@ -7,7 +7,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         "&.ant-popover": {
             maxWidth: "100vw",
         },
-        "& .ant-popover-inner": {
+        "& .ant-popover-container": {
             width: "clamp(320px, 60vw, 700px)",
             maxWidth: "calc(100vw - 24px)",
             maxHeight: "min(70vh, 640px)",

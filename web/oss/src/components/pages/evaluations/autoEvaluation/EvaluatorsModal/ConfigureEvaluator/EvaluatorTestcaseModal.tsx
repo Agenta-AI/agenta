@@ -78,6 +78,7 @@ const EvaluatorTestcaseModal = ({
         onChange: (keys: React.Key[]) => {
             setSelectedRowKeys(keys)
         },
+        columnWidth: 48,
     }
 
     const loadTestcase = () => {

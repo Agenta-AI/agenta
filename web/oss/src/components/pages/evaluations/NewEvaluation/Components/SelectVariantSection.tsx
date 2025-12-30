@@ -14,9 +14,12 @@ import type {SelectVariantSectionProps} from "../types"
 const VariantsTable = dynamic(() => import("@/oss/components/VariantsComponents/Table"), {
     ssr: false,
 })
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const SelectVariantSection = ({
     selectedVariantRevisionIds,

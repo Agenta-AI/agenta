@@ -22,7 +22,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         flexDirection: "column",
     },
     popover: {
-        "& .ant-popover-inner": {
+        "& .ant-popover-container": {
             transition: "width 0.3s ease",
             padding: 4,
         },

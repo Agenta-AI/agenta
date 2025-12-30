@@ -4,7 +4,7 @@ import {Button, Dropdown, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 
-import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
+import NoResultsFound from "@/oss/components/Placeholders/NoResultsFound/NoResultsFound"
 import useURL from "@/oss/hooks/useURL"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {ListAppsItem} from "@/oss/lib/Types"
@@ -56,7 +56,7 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
         {
             title: <GearSix size={16} />,
             key: "key",
-            width: 56,
+            width: 61,
             fixed: "right",
             align: "center",
             render: (_, record) => {

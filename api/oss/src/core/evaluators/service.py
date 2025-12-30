@@ -1464,8 +1464,8 @@ class SimpleEvaluatorsService:
                     "auto_webhook_test",
                     "auto_custom_code_run",
                     "auto_ai_critique",
-                    "rag_faithfulness",
-                    "rag_context_relevancy",
+                    # "rag_faithfulness",
+                    # "rag_context_relevancy",
                 )
                 else {"success": {"type": "boolean"}}
             )
@@ -1480,8 +1480,8 @@ class SimpleEvaluatorsService:
                     "auto_webhook_test",
                     "auto_custom_code_run",
                     "auto_ai_critique",
-                    "rag_faithfulness",
-                    "rag_context_relevancy",
+                    # "rag_faithfulness",
+                    # "rag_context_relevancy",
                 )
                 else []
             )

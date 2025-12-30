@@ -2,7 +2,7 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
+import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
@@ -14,7 +14,7 @@ import {
     EvaluatorsResponseDto,
 } from "@/oss/lib/hooks/useEvaluators/types"
 import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
-import {fetchAllEvaluators, fetchAllEvaluatorConfigs} from "@/oss/services/evaluators"
+import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/oss/services/evaluators"
 import {selectedAppIdAtom} from "@/oss/state/app"
 import {selectedOrgAtom} from "@/oss/state/org"
 import {userAtom} from "@/oss/state/profile"

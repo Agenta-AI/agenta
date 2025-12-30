@@ -9,7 +9,7 @@ import numpy as np
 from openai import AsyncOpenAI
 from fastapi import HTTPException
 from numpy._core._multiarray_umath import array
-from autoevals.ragas import Faithfulness, ContextRelevancy
+# from autoevals.ragas import Faithfulness, ContextRelevancy  # Commented out due to autoevals removal
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.services.security import sandbox
@@ -1705,230 +1705,234 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     return {"outputs": {"score": score}}
 
 
-async def measure_rag_consistency(
-    input: EvaluatorInputInterface,
-) -> EvaluatorOutputInterface:
-    openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
-    if not openai_api_key:
-        raise Exception(
-            "No OpenAI key was found. RAG evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
-        )
-
-    # Initialize RAG evaluator to calculate faithfulness score
-    faithfulness = Faithfulness(api_key=openai_api_key)
-    eval_score = await faithfulness._run_eval_async(
-        output=input.inputs["answer_key"],
-        input=input.inputs["question_key"],
-        context=input.inputs["contexts_key"],
-    )
-    return {"outputs": {"score": eval_score.score}}
-
-
-async def rag_faithfulness(
-    inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: Union[str, Dict[str, Any]],
-    data_point: Dict[str, Any],  # pylint: disable=unused-argument
-    app_params: Dict[str, Any],  # pylint: disable=unused-argument
-    settings_values: Dict[str, Any],  # pylint: disable=unused-argument
-    lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
-) -> Result:
-    try:
-        if isinstance(output, str):
-            log.error("'output' is most likely not BaseResponse.")
-            raise NotImplementedError(
-                "Please update the SDK to the latest version, which supports RAG evaluators."
-            )
-
-        # Get required keys for rag evaluator
-        mapping_keys = remove_trace_prefix(settings_values=settings_values)
-        question_key: Union[str, None] = mapping_keys.get("question_key", None)
-        answer_key: Union[str, None] = mapping_keys.get("answer_key", None)
-        contexts_key: Union[str, None] = mapping_keys.get("contexts_key", None)
-
-        if None in [question_key, answer_key, contexts_key]:
-            log.error(
-                f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
-            )
-            raise ValueError(
-                "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your evaluator settings and try again."
-            )
-
-        # Turn distributed trace into trace tree
-        trace = {}
-        version = output.get("version")
-        if version == "3.0":
-            trace = output.get("tree", {})
-        elif version == "2.0":
-            trace = output.get("trace", {})
-
-        trace = process_distributed_trace_into_trace_tree(trace, version)
-
-        # Get value of required keys for rag evaluator
-        question_val: Any = get_field_value_from_trace_tree(
-            trace, question_key, version
-        )
-        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key, version)
-        contexts_val: Any = get_field_value_from_trace_tree(
-            trace, contexts_key, version
-        )
-
-        if None in [question_val, answer_val, contexts_val]:
-            log.warn(
-                f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
-            )
-
-            message = ""
-            if question_val is None:
-                message += (
-                    f"'question_key' is set to {question_key} which can't be found. "
-                )
-            if answer_val is None:
-                message += f"'answer_key' is set to {answer_key} which can't be found. "
-            if contexts_val is None:
-                message += (
-                    f"'contexts_key' is set to {contexts_key} which can't be found. "
-                )
-            message += "Please check your evaluator settings and try again."
-
-            raise ValueError(message)
-
-        measurement = await measure_rag_consistency(
-            input=EvaluatorInputInterface(
-                **{
-                    "inputs": {
-                        "question_key": question_val,
-                        "contexts_key": contexts_val,
-                        "answer_key": answer_val,
-                    },
-                    "settings": settings_values,
-                    "credentials": lm_providers_keys,
-                }
-            )
-        )
-        return Result(type="number", value=measurement["outputs"]["score"])
-
-    except Exception:
-        return Result(
-            type="error",
-            value=None,
-            error=Error(
-                message="Error during RAG Faithfulness evaluation",
-                stacktrace=str(traceback.format_exc()),
-            ),
-        )
+# COMMENTED OUT: RAG evaluation functions removed due to autoevals dependency removal
+# async def measure_rag_consistency(
+#     input: EvaluatorInputInterface,
+# ) -> EvaluatorOutputInterface:
+#     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
+#     if not openai_api_key:
+#         raise Exception(
+#             "No OpenAI key was found. RAG evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
+#         )
+#
+#     # Initialize RAG evaluator to calculate faithfulness score
+#     faithfulness = Faithfulness(api_key=openai_api_key)
+#     eval_score = await faithfulness._run_eval_async(
+#         output=input.inputs["answer_key"],
+#         input=input.inputs["question_key"],
+#         context=input.inputs["contexts_key"],
+#     )
+#     return {"outputs": {"score": eval_score.score}}
 
 
-async def measure_context_coherence(
-    input: EvaluatorInputInterface,
-) -> EvaluatorOutputInterface:
-    openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
-    if not openai_api_key:
-        raise Exception(
-            "No OpenAI key was found. RAG evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
-        )
+# COMMENTED OUT: RAG faithfulness function removed due to autoevals dependency removal
+# async def rag_faithfulness(
+#     inputs: Dict[str, Any],  # pylint: disable=unused-argument
+#     output: Union[str, Dict[str, Any]],
+#     data_point: Dict[str, Any],  # pylint: disable=unused-argument
+#     app_params: Dict[str, Any],  # pylint: disable=unused-argument
+#     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
+#     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
+# ) -> Result:
+#     try:
+#         if isinstance(output, str):
+#             log.error("'output' is most likely not BaseResponse.")
+#             raise NotImplementedError(
+#                 "Please update the SDK to the latest version, which supports RAG evaluators."
+#             )
+#
+#         # Get required keys for rag evaluator
+#         mapping_keys = remove_trace_prefix(settings_values=settings_values)
+#         question_key: Union[str, None] = mapping_keys.get("question_key", None)
+#         answer_key: Union[str, None] = mapping_keys.get("answer_key", None)
+#         contexts_key: Union[str, None] = mapping_keys.get("contexts_key", None)
+#
+#         if None in [question_key, answer_key, contexts_key]:
+#             log.error(
+#                 f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
+#             )
+#             raise ValueError(
+#                 "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your evaluator settings and try again."
+#             )
+#
+#         # Turn distributed trace into trace tree
+#         trace = {}
+#         version = output.get("version")
+#         if version == "3.0":
+#             trace = output.get("tree", {})
+#         elif version == "2.0":
+#             trace = output.get("trace", {})
+#
+#         trace = process_distributed_trace_into_trace_tree(trace, version)
+#
+#         # Get value of required keys for rag evaluator
+#         question_val: Any = get_field_value_from_trace_tree(
+#             trace, question_key, version
+#         )
+#         answer_val: Any = get_field_value_from_trace_tree(trace, answer_key, version)
+#         contexts_val: Any = get_field_value_from_trace_tree(
+#             trace, contexts_key, version
+#         )
+#
+#         if None in [question_val, answer_val, contexts_val]:
+#             log.warn(
+#                 f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
+#             )
+#
+#             message = ""
+#             if question_val is None:
+#                 message += (
+#                     f"'question_key' is set to {question_key} which can't be found. "
+#                 )
+#             if answer_val is None:
+#                 message += f"'answer_key' is set to {answer_key} which can't be found. "
+#             if contexts_val is None:
+#                 message += (
+#                     f"'contexts_key' is set to {contexts_key} which can't be found. "
+#                 )
+#             message += "Please check your evaluator settings and try again."
+#
+#             raise ValueError(message)
+#
+#         measurement = await measure_rag_consistency(
+#             input=EvaluatorInputInterface(
+#                 **{
+#                     "inputs": {
+#                         "question_key": question_val,
+#                         "contexts_key": contexts_val,
+#                         "answer_key": answer_val,
+#                     },
+#                     "settings": settings_values,
+#                     "credentials": lm_providers_keys,
+#                 }
+#             )
+#         )
+#         return Result(type="number", value=measurement["outputs"]["score"])
+#
+#     except Exception:
+#         return Result(
+#             type="error",
+#             value=None,
+#             error=Error(
+#                 message="Error during RAG Faithfulness evaluation",
+#                 stacktrace=str(traceback.format_exc()),
+#             ),
+#         )
 
-    # Initialize RAG evaluator to calculate context relevancy score
-    context_rel = ContextRelevancy(api_key=openai_api_key)
-    eval_score = await context_rel._run_eval_async(
-        output=input.inputs["answer_key"],
-        input=input.inputs["question_key"],
-        context=input.inputs["contexts_key"],
-    )
-    return {"outputs": {"score": eval_score.score}}
+
+# COMMENTED OUT: RAG evaluation functions removed due to autoevals dependency removal
+# async def measure_context_coherence(
+#     input: EvaluatorInputInterface,
+# ) -> EvaluatorOutputInterface:
+#     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
+#     if not openai_api_key:
+#         raise Exception(
+#             "No OpenAI key was found. RAG evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
+#         )
+#
+#     # Initialize RAG evaluator to calculate context relevancy score
+#     context_rel = ContextRelevancy(api_key=openai_api_key)
+#     eval_score = await context_rel._run_eval_async(
+#         output=input.inputs["answer_key"],
+#         input=input.inputs["question_key"],
+#         context=input.inputs["contexts_key"],
+#     )
+#     return {"outputs": {"score": eval_score.score}}
 
 
-async def rag_context_relevancy(
-    inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: Union[str, Dict[str, Any]],
-    data_point: Dict[str, Any],  # pylint: disable=unused-argument
-    app_params: Dict[str, Any],  # pylint: disable=unused-argument
-    settings_values: Dict[str, Any],  # pylint: disable=unused-argument
-    lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
-) -> Result:
-    try:
-        if isinstance(output, str):
-            log.error("'output' is most likely not BaseResponse.")
-            raise NotImplementedError(
-                "Please update the SDK to the latest version, which supports RAG evaluators."
-            )
-
-        # Get required keys for rag evaluator
-        mapping_keys = remove_trace_prefix(settings_values=settings_values)
-        question_key: Union[str, None] = mapping_keys.get("question_key", None)
-        answer_key: Union[str, None] = mapping_keys.get("answer_key", None)
-        contexts_key: Union[str, None] = mapping_keys.get("contexts_key", None)
-
-        if None in [question_key, answer_key, contexts_key]:
-            log.error(
-                f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
-            )
-            raise ValueError(
-                "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your evaluator settings and try again."
-            )
-
-        # Turn distributed trace into trace tree
-        trace = {}
-        version = output.get("version")
-        if version == "3.0":
-            trace = output.get("tree", {})
-        elif version == "2.0":
-            trace = output.get("trace", {})
-
-        trace = process_distributed_trace_into_trace_tree(trace, version)
-
-        # Get value of required keys for rag evaluator
-        question_val: Any = get_field_value_from_trace_tree(
-            trace, question_key, version
-        )
-        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key, version)
-        contexts_val: Any = get_field_value_from_trace_tree(
-            trace, contexts_key, version
-        )
-
-        if None in [question_val, answer_val, contexts_val]:
-            log.warn(
-                f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
-            )
-
-            message = ""
-            if question_val is None:
-                message += (
-                    f"'question_key' is set to {question_key} which can't be found. "
-                )
-            if answer_val is None:
-                message += f"'answer_key' is set to {answer_key} which can't be found. "
-            if contexts_val is None:
-                message += (
-                    f"'contexts_key' is set to {contexts_key} which can't be found. "
-                )
-            message += "Please check your evaluator settings and try again."
-
-            raise ValueError(message)
-
-        measurement = await measure_context_coherence(
-            input=EvaluatorInputInterface(
-                **{
-                    "inputs": {
-                        "question_key": question_val,
-                        "contexts_key": contexts_val,
-                        "answer_key": answer_val,
-                    },
-                    "settings": settings_values,
-                    "credentials": lm_providers_keys,
-                }
-            )
-        )
-        return Result(type="number", value=measurement["outputs"]["score"])
-
-    except Exception:
-        return Result(
-            type="error",
-            value=None,
-            error=Error(
-                message="Error during RAG Context Relevancy evaluation",
-                stacktrace=str(traceback.format_exc()),
-            ),
-        )
+# COMMENTED OUT: RAG context relevancy function removed due to autoevals dependency removal
+# async def rag_context_relevancy(
+#     inputs: Dict[str, Any],  # pylint: disable=unused-argument
+#     output: Union[str, Dict[str, Any]],
+#     data_point: Dict[str, Any],  # pylint: disable=unused-argument
+#     app_params: Dict[str, Any],  # pylint: disable=unused-argument
+#     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
+#     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
+# ) -> Result:
+#     try:
+#         if isinstance(output, str):
+#             log.error("'output' is most likely not BaseResponse.")
+#             raise NotImplementedError(
+#                 "Please update the SDK to the latest version, which supports RAG evaluators."
+#             )
+#
+#         # Get required keys for rag evaluator
+#         mapping_keys = remove_trace_prefix(settings_values=settings_values)
+#         question_key: Union[str, None] = mapping_keys.get("question_key", None)
+#         answer_key: Union[str, None] = mapping_keys.get("answer_key", None)
+#         contexts_key: Union[str, None] = mapping_keys.get("contexts_key", None)
+#
+#         if None in [question_key, answer_key, contexts_key]:
+#             log.error(
+#                 f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
+#             )
+#             raise ValueError(
+#                 "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your evaluator settings and try again."
+#             )
+#
+#         # Turn distributed trace into trace tree
+#         trace = {}
+#         version = output.get("version")
+#         if version == "3.0":
+#             trace = output.get("tree", {})
+#         elif version == "2.0":
+#             trace = output.get("trace", {})
+#
+#         trace = process_distributed_trace_into_trace_tree(trace, version)
+#
+#         # Get value of required keys for rag evaluator
+#         question_val: Any = get_field_value_from_trace_tree(
+#             trace, question_key, version
+#         )
+#         answer_val: Any = get_field_value_from_trace_tree(trace, answer_key, version)
+#         contexts_val: Any = get_field_value_from_trace_tree(
+#             trace, contexts_key, version
+#         )
+#
+#         if None in [question_val, answer_val, contexts_val]:
+#             log.warn(
+#                 f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
+#             )
+#
+#             message = ""
+#             if question_val is None:
+#                 message += (
+#                     f"'question_key' is set to {question_key} which can't be found. "
+#                 )
+#             if answer_val is None:
+#                 message += f"'answer_key' is set to {answer_key} which can't be found. "
+#             if contexts_val is None:
+#                 message += (
+#                     f"'contexts_key' is set to {contexts_key} which can't be found. "
+#                 )
+#             message += "Please check your evaluator settings and try again."
+#
+#             raise ValueError(message)
+#
+#         measurement = await measure_context_coherence(
+#             input=EvaluatorInputInterface(
+#                 **{
+#                     "inputs": {
+#                         "question_key": question_val,
+#                         "contexts_key": contexts_val,
+#                         "answer_key": answer_val,
+#                     },
+#                     "settings": settings_values,
+#                     "credentials": lm_providers_keys,
+#                 }
+#             )
+#         )
+#         return Result(type="number", value=measurement["outputs"]["score"])
+#
+#     except Exception:
+#         return Result(
+#             type="error",
+#             value=None,
+#             error=Error(
+#                 message="Error during RAG Context Relevancy evaluation",
+#                 stacktrace=str(traceback.format_exc()),
+#             ),
+#         )
 
 
 async def levenshtein_distance(
@@ -2140,8 +2144,8 @@ EVALUATOR_FUNCTIONS = {
     "auto_semantic_similarity": auto_semantic_similarity,
     "auto_levenshtein_distance": auto_levenshtein_distance,
     "auto_similarity_match": auto_similarity_match,
-    "rag_faithfulness": rag_faithfulness,
-    "rag_context_relevancy": rag_context_relevancy,
+    # "rag_faithfulness": rag_faithfulness,
+    # "rag_context_relevancy": rag_context_relevancy,
 }
 
 RUN_EVALUATOR_FUNCTIONS = {
@@ -2162,8 +2166,8 @@ RUN_EVALUATOR_FUNCTIONS = {
     "auto_levenshtein_distance": levenshtein_distance,
     "auto_similarity_match": similarity_match,
     "auto_semantic_similarity": semantic_similarity,
-    "rag_faithfulness": measure_rag_consistency,
-    "rag_context_relevancy": measure_context_coherence,
+    # "rag_faithfulness": measure_rag_consistency,
+    # "rag_context_relevancy": measure_context_coherence,
 }
 
 

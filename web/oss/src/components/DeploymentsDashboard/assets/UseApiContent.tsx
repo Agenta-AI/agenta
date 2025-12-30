@@ -126,18 +126,15 @@ const UseApiContent = ({
         }
 
         return (
-            <div className="flex flex-col gap-6">
-                <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
-                <Spin spinning={isLoading}>
-                    <LanguageCodeBlock
-                        fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                        invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                        selectedLang={selectedLang}
-                        handleOpenSelectDeployVariantModal={handleOpenSelectDeployVariantModal}
-                        invokeLlmUrl={invokeLlmUrl}
-                    />
-                </Spin>
-            </div>
+            <Spin spinning={isLoading}>
+                <LanguageCodeBlock
+                    fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                    invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                    selectedLang={selectedLang}
+                    handleOpenSelectDeployVariantModal={handleOpenSelectDeployVariantModal}
+                    invokeLlmUrl={invokeLlmUrl}
+                />
+            </Spin>
         )
     }, [
         apiKeyValue,
@@ -175,12 +172,17 @@ const UseApiContent = ({
     )
 
     return (
-        <Tabs
-            destroyOnHidden
-            defaultActiveKey={selectedLang}
-            items={tabItems}
-            onChange={setSelectedLang}
-        />
+        <div>
+            <div className="p-4">
+                <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+            </div>
+            <Tabs
+                destroyOnHidden
+                defaultActiveKey={selectedLang}
+                items={tabItems}
+                onChange={setSelectedLang}
+            />
+        </div>
     )
 }
 
