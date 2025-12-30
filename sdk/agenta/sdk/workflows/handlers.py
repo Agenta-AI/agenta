@@ -1,4 +1,4 @@
-from typing import List, Any, Optional, Any, Dict, Union
+from typing import List, Optional, Any, Dict, Union
 from json import dumps, loads
 import traceback
 import json
@@ -22,7 +22,6 @@ from agenta.sdk.managers.secrets import SecretsManager
 from agenta.sdk.decorators.tracing import instrument
 
 from agenta.sdk.models.shared import Data
-from agenta.sdk.models.tracing import Trace
 from agenta.sdk.workflows.sandbox import execute_code_safely
 from agenta.sdk.workflows.errors import (
     InvalidConfigurationParametersV0Error,
@@ -32,7 +31,6 @@ from agenta.sdk.workflows.errors import (
     MissingInputV0Error,
     InvalidInputV0Error,
     InvalidOutputsV0Error,
-    MissingOutputV0Error,
     InvalidSecretsV0Error,
     JSONDiffV0Error,
     LevenshteinDistanceV0Error,
@@ -46,7 +44,6 @@ from agenta.sdk.workflows.errors import (
     PromptCompletionV0Error,
 )
 
-from agenta.sdk.litellm import mockllm
 from agenta.sdk.litellm.litellm import litellm_handler
 
 litellm.logging = False
@@ -76,9 +73,7 @@ def _compute_similarity(embedding_1: List[float], embedding_2: List[float]) -> f
     return dot / (norm1 * norm2)
 
 
-import json
-import re
-from typing import Any, Dict, Iterable, Tuple, Optional
+from typing import Any, Iterable, Tuple
 
 try:
     import jsonpath  # ✅ use module API
@@ -389,7 +384,7 @@ def auto_exact_match_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "correct_answer_key" in parameters:
+    if "correct_answer_key" not in parameters:
         raise MissingConfigurationParameterV0Error(path="correct_answer_key")
 
     correct_answer_key = str(parameters["correct_answer_key"])
@@ -397,7 +392,7 @@ def auto_exact_match_v0(
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
 
-    if not correct_answer_key in inputs:
+    if correct_answer_key not in inputs:
         raise MissingInputV0Error(path=correct_answer_key)
 
     correct_answer = inputs[correct_answer_key]
@@ -434,7 +429,7 @@ def auto_regex_test_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "regex_pattern" in parameters:
+    if "regex_pattern" not in parameters:
         raise MissingConfigurationParameterV0Error(path="regex_pattern")
 
     regex_pattern = parameters["regex_pattern"]
@@ -492,12 +487,12 @@ def field_match_test_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "json_field" in parameters:
+    if "json_field" not in parameters:
         raise MissingConfigurationParameterV0Error(path="json_field")
 
     json_field = str(parameters["json_field"])
 
-    if not "correct_answer_key" in parameters:
+    if "correct_answer_key" not in parameters:
         raise MissingConfigurationParameterV0Error(path="correct_answer_key")
 
     correct_answer_key = str(parameters["correct_answer_key"])
@@ -505,7 +500,7 @@ def field_match_test_v0(
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
 
-    if not correct_answer_key in inputs:
+    if correct_answer_key not in inputs:
         raise MissingInputV0Error(path=correct_answer_key)
 
     correct_answer = inputs[correct_answer_key]
@@ -518,7 +513,7 @@ def field_match_test_v0(
     if isinstance(outputs, str):
         try:
             outputs_dict = loads(outputs)
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             # raise InvalidOutputsV0Error(expected="dict", got=outputs) from e
             return {"success": False}
 
@@ -526,7 +521,7 @@ def field_match_test_v0(
         # raise InvalidOutputsV0Error(expected=["dict", "str"], got=outputs)
         return {"success": False}
 
-    if not json_field in outputs_dict:
+    if json_field not in outputs_dict:
         # raise MissingOutputV0Error(path=json_field)
         return {"success": False}
 
@@ -624,7 +619,7 @@ def json_multi_field_match_v0(
     if isinstance(correct_answer, str):
         try:
             expected = json.loads(correct_answer)
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             raise InvalidInputV0Error(
                 path=correct_answer_key,
                 expected="valid JSON string",
@@ -706,12 +701,12 @@ async def auto_webhook_test_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "webhook_url" in parameters:
+    if "webhook_url" not in parameters:
         raise MissingConfigurationParameterV0Error(path="webhook_url")
 
     webhook_url = str(parameters["webhook_url"])
 
-    if not "correct_answer_key" in parameters:
+    if "correct_answer_key" not in parameters:
         raise MissingConfigurationParameterV0Error(path="correct_answer_key")
 
     correct_answer_key = str(parameters["correct_answer_key"])
@@ -719,7 +714,7 @@ async def auto_webhook_test_v0(
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
 
-    if not correct_answer_key in inputs:
+    if correct_answer_key not in inputs:
         raise MissingInputV0Error(path=correct_answer_key)
 
     correct_answer = inputs[correct_answer_key]
@@ -811,12 +806,12 @@ async def auto_custom_code_run_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "code" in parameters:
+    if "code" not in parameters:
         raise MissingConfigurationParameterV0Error(path="code")
 
     code = str(parameters["code"])
 
-    if not "correct_answer_key" in parameters:
+    if "correct_answer_key" not in parameters:
         raise MissingConfigurationParameterV0Error(path="correct_answer_key")
 
     correct_answer_key = str(parameters["correct_answer_key"])
@@ -824,7 +819,7 @@ async def auto_custom_code_run_v0(
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
 
-    if not correct_answer_key in inputs:
+    if correct_answer_key not in inputs:
         raise MissingInputV0Error(path=correct_answer_key)
 
     correct_answer = inputs[correct_answer_key]
@@ -902,7 +897,7 @@ async def auto_ai_critique_v0(
 
     correct_answer_key = parameters.get("correct_answer_key")
 
-    if not "prompt_template" in parameters:
+    if "prompt_template" not in parameters:
         raise MissingConfigurationParameterV0Error(path="prompt_template")
 
     prompt_template = parameters.get("prompt_template")
@@ -933,7 +928,7 @@ async def auto_ai_critique_v0(
         "json_schema" if template_version == "4" else "text"
     )
 
-    if not response_type in ["text", "json_object", "json_schema"]:
+    if response_type not in ["text", "json_object", "json_schema"]:
         raise InvalidConfigurationParameterV0Error(
             path="response_type",
             expected=["text", "json_object", "json_schema"],
@@ -1135,7 +1130,7 @@ def auto_starts_with_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "prefix" in parameters:
+    if "prefix" not in parameters:
         raise MissingConfigurationParameterV0Error(path="prefix")
 
     prefix = parameters["prefix"]
@@ -1184,7 +1179,7 @@ def auto_ends_with_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "suffix" in parameters:
+    if "suffix" not in parameters:
         raise MissingConfigurationParameterV0Error(path="suffix")
 
     suffix = parameters["suffix"]
@@ -1233,7 +1228,7 @@ def auto_contains_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "substring" in parameters:
+    if "substring" not in parameters:
         raise MissingConfigurationParameterV0Error(path="substring")
 
     substring = parameters["substring"]
@@ -1282,7 +1277,7 @@ def auto_contains_any_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "substrings" in parameters:
+    if "substrings" not in parameters:
         raise MissingConfigurationParameterV0Error(path="substrings")
 
     substrings = parameters["substrings"]
@@ -1340,7 +1335,7 @@ def auto_contains_all_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "substrings" in parameters:
+    if "substrings" not in parameters:
         raise MissingConfigurationParameterV0Error(path="substrings")
 
     substrings = parameters["substrings"]
@@ -1440,7 +1435,7 @@ def auto_json_diff_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "correct_answer_key" in parameters:
+    if "correct_answer_key" not in parameters:
         raise MissingConfigurationParameterV0Error(path="correct_answer_key")
 
     correct_answer_key = str(parameters["correct_answer_key"])
@@ -1448,7 +1443,7 @@ def auto_json_diff_v0(
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
 
-    if not correct_answer_key in inputs:
+    if correct_answer_key not in inputs:
         raise MissingInputV0Error(path=correct_answer_key)
 
     correct_answer = inputs[correct_answer_key]
@@ -1532,7 +1527,7 @@ def auto_levenshtein_distance_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "correct_answer_key" in parameters:
+    if "correct_answer_key" not in parameters:
         raise MissingConfigurationParameterV0Error(path="correct_answer_key")
 
     correct_answer_key = str(parameters["correct_answer_key"])
@@ -1542,7 +1537,7 @@ def auto_levenshtein_distance_v0(
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
 
-    if not correct_answer_key in inputs:
+    if correct_answer_key not in inputs:
         raise MissingInputV0Error(path=correct_answer_key)
 
     correct_answer = inputs[correct_answer_key]
@@ -1637,7 +1632,7 @@ def auto_similarity_match_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "correct_answer_key" in parameters:
+    if "correct_answer_key" not in parameters:
         raise MissingConfigurationParameterV0Error(path="correct_answer_key")
 
     correct_answer_key = str(parameters["correct_answer_key"])
@@ -1647,7 +1642,7 @@ def auto_similarity_match_v0(
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
 
-    if not correct_answer_key in inputs:
+    if correct_answer_key not in inputs:
         raise MissingInputV0Error(path=correct_answer_key)
 
     correct_answer = inputs[correct_answer_key]
@@ -1730,7 +1725,7 @@ async def auto_semantic_similarity_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "correct_answer_key" in parameters:
+    if "correct_answer_key" not in parameters:
         raise MissingConfigurationParameterV0Error(path="correct_answer_key")
 
     correct_answer_key = str(parameters["correct_answer_key"])
@@ -1743,7 +1738,7 @@ async def auto_semantic_similarity_v0(
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
 
-    if not correct_answer_key in inputs:
+    if correct_answer_key not in inputs:
         raise MissingInputV0Error(path=correct_answer_key)
 
     correct_answer = inputs[correct_answer_key]
@@ -1845,7 +1840,7 @@ async def completion_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if not "prompt" in parameters:
+    if "prompt" not in parameters:
         raise MissingConfigurationParameterV0Error(path="prompt")
 
     params: Dict[str, Any] = {**(parameters or {})}

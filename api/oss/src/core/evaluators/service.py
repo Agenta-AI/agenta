@@ -1,13 +1,9 @@
 from typing import Optional, List
 from uuid import UUID, uuid4
-from json import loads
 
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.services.db_manager import fetch_evaluator_config
 from oss.src.core.workflows.dtos import (
-    WorkflowFlags,
-    WorkflowQueryFlags,
-    #
     WorkflowCreate,
     WorkflowEdit,
     WorkflowQuery,
@@ -16,8 +12,6 @@ from oss.src.core.workflows.dtos import (
     WorkflowVariantCreate,
     WorkflowVariantEdit,
     WorkflowVariantQuery,
-    #
-    WorkflowRevisionData,
     #
     WorkflowRevisionCreate,
     WorkflowRevisionEdit,
@@ -35,11 +29,7 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorEdit,
     SimpleEvaluatorQuery,
     SimpleEvaluatorFlags,
-    SimpleEvaluatorQueryFlags,
-    #
     EvaluatorFlags,
-    EvaluatorQueryFlags,
-    #
     Evaluator,
     EvaluatorQuery,
     EvaluatorRevisionsLog,
