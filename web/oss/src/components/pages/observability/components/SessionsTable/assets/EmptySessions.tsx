@@ -50,7 +50,10 @@ const EmptySessions = () => {
                     size: "middle",
                     text: "Getting started with sessions",
                     onClick: () =>
-                        window.open("https://agenta.ai/docs/observability/sessions", "_blank"),
+                        window.open(
+                            "https://agenta.ai/docs/observability/trace-with-python-sdk/track-chat-sessions",
+                            "_blank",
+                        ),
                 }}
             />
         </div>
