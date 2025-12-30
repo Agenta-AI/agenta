@@ -20,7 +20,7 @@ from ee.src.services.selectors import (
     user_exists,
 )
 from ee.src.models.api.organization_models import CreateOrganization
-from oss.src.services.user_service import create_new_user
+from oss.src.services.user_service import create_new_user, check_user_exists, delete_user
 from oss.src.models.db_models import UserDB, OrganizationDB
 from ee.src.services.email_helper import (
     add_contact_to_loops,
@@ -137,38 +137,54 @@ async def create_accounts(
     if user is None:
         log.info("[scopes] Yey! A new user is signing up!")
 
-        # Create user first
-        # Note: create_new_user is idempotent, but we wrap in try-except for defense in depth
-        try:
-            user = await create_new_user(user_dict)
+        # Check if user exists before attempting creation
+        user_existed_before = await check_user_exists(user_dict["email"])
 
-            log.info("[scopes] User [%s] created", user.id)
+        # Create user (idempotent - returns existing if found)
+        user = await create_new_user(user_dict)
 
-            # Add the user to demos
-            await add_user_to_demos(str(user.id))
+        # Check if user exists after creation
+        user_existed_after = await check_user_exists(user_dict["email"])
 
-            # Create organization with workspace and subscription
-            await create_organization_with_subscription(
-                user_id=UUID(str(user.id)),
-                organization_email=user_dict["email"],
-                organization_name=organization_name,
-                organization_description=None,
-                is_personal=is_personal,
-                use_reverse_trial=use_reverse_trial,
-            )
-        except Exception as e:
-            # If user creation fails due to race condition, fetch existing user
-            # create_new_user already handles IntegrityError, but this catches any other edge cases
-            from sqlalchemy.exc import IntegrityError
+        # If user didn't exist before but exists after, we created it
+        if not user_existed_before and user_existed_after:
+            # We successfully created the user, proceed with setup
+            # If setup fails, delete the user to avoid orphaned records
+            try:
+                log.info("[scopes] User [%s] created", user.id)
 
-            if isinstance(e, IntegrityError):
-                user = await db_manager.get_user_with_email(email=user_dict["email"])
-                if user is None:
-                    # Should never happen, but re-raise if we still can't find the user
-                    raise
-            else:
-                # Re-raise non-race-condition errors
+                # Add the user to demos
+                await add_user_to_demos(str(user.id))
+
+                # Create organization with workspace and subscription
+                await create_organization_with_subscription(
+                    user_id=UUID(str(user.id)),
+                    organization_email=user_dict["email"],
+                    organization_name=organization_name,
+                    organization_description=None,
+                    is_personal=is_personal,
+                    use_reverse_trial=use_reverse_trial,
+                )
+            except Exception as e:
+                # Setup failed - delete the user to avoid orphaned state
+                log.error(
+                    "[scopes] Setup failed for user [%s], deleting user: %s",
+                    user.id,
+                    str(e),
+                )
+                try:
+                    await delete_user(str(user.id))
+                except Exception as delete_error:
+                    log.error(
+                        "[scopes] Failed to delete user [%s]: %s",
+                        user.id,
+                        str(delete_error),
+                    )
+                # Re-raise the original error
                 raise
+        else:
+            # User already existed (race condition) - skip all setup
+            log.info("[scopes] User [%s] already exists, skipping setup", user.id)
 
     log.info("[scopes] User [%s] authenticated", user.id)
 

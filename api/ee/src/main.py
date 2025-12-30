@@ -72,6 +72,7 @@ def extend_main(app: FastAPI):
         auth_router,
         prefix="/auth",
         tags=["Auth"],
+        include_in_schema=False,
     )
 
     # --------------------------------------------------------------------------

@@ -398,11 +398,14 @@ app.include_router(
     tags=["Auth"],
 )
 
+## DEPRECATED
 app.include_router(
     router=tracing.router,
     prefix="/preview/tracing",
     tags=["Deprecated"],
+    include_in_schema=False,
 )
+## DEPRECATED
 
 app.include_router(
     router=tracing.router,

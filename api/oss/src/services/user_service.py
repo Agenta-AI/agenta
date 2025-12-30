@@ -12,6 +12,41 @@ from oss.src.services import db_manager, email_service
 log = get_module_logger(__name__)
 
 
+async def check_user_exists(email: str) -> bool:
+    """
+    Check if a user with the given email already exists.
+
+    Args:
+        email (str): The email to check.
+
+    Returns:
+        bool: True if user exists, False otherwise.
+    """
+    user = await db_manager.get_user_with_email(email)
+    return user is not None
+
+
+async def delete_user(user_id: str) -> None:
+    """
+    Delete a user by their ID.
+
+    Args:
+        user_id (str): The ID of the user to delete.
+
+    Raises:
+        NoResultFound: If user with the given ID is not found.
+    """
+    async with engine.core_session() as session:
+        result = await session.execute(select(UserDB).filter_by(id=user_id))
+        user = result.scalars().first()
+
+        if not user:
+            raise NoResultFound(f"User with id {user_id} not found.")
+
+        await session.delete(user)
+        await session.commit()
+
+
 async def create_new_user(payload: dict) -> UserDB:
     """
     Create a new user or return existing user if already exists (idempotent).
