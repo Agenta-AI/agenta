@@ -67,7 +67,7 @@ def upgrade() -> None:
         sa.Column(
             "created_by_id",
             sa.UUID(),
-            nullable=False,
+            nullable=True,
         ),
         sa.Column(
             "updated_by_id",

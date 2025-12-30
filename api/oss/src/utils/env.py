@@ -484,6 +484,9 @@ class RedisConfig(BaseModel):
         or "redis://redis-durable:6381/0"
     )
 
+    # Cache control flag - defaults to true
+    cache_enabled: bool = os.getenv("AGENTA_CACHE_ENABLED", "true").lower() in ("true", "1")
+
     model_config = ConfigDict(extra="ignore")
 
     @property

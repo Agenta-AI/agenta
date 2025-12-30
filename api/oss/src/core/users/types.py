@@ -15,7 +15,7 @@ class UserIdentity(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None
-    created_by_id: UUID
+    created_by_id: Optional[UUID] = None
     updated_by_id: Optional[UUID] = None
     deleted_by_id: Optional[UUID] = None
 
@@ -28,4 +28,4 @@ class UserIdentityCreate(BaseModel):
     method: MethodKind
     subject: str
     domain: Optional[str] = None
-    created_by_id: UUID
+    created_by_id: Optional[UUID] = None

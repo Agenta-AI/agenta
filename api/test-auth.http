@@ -102,8 +102,8 @@ POST {{apiBaseUrl}}/signinup/code/consume
 Content-Type: application/json
 
 {
-  "preAuthSessionId": "zpIr-uEZ0uaD0EAdzoAB-qZy0IC3qBYUH7ZYghtPfEk",
-  "deviceId": "tVzJYqpnPHDcsSXaOEf5nQG1SfTjkJ0X+41deOAvpwE=",
+  "preAuthSessionId": "your-pre-session-id",
+  "deviceId": "your-device-id",
   "userInputCode": "599869"
 }
 

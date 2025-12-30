@@ -640,20 +640,27 @@ export interface Workspace {
     members: WorkspaceMember[]
 }
 
+export interface OrganizationFlags {
+    is_demo: boolean
+    is_personal: boolean
+    allow_email: boolean
+    allow_social: boolean
+    allow_sso: boolean
+    allow_root: boolean
+    domains_only: boolean
+    auto_join: boolean
+}
+
 export interface Org {
     id: string
     slug?: string
     name?: string
     description?: string
-    flags?: Record<string, boolean>
+    flags: OrganizationFlags
     owner_id: string
 }
 
 export type OrgDetails = Org & {
-    flags: {
-        is_demo: boolean
-        is_personal: boolean
-    }
     default_workspace: Workspace
     workspaces: string[]
 }

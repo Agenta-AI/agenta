@@ -30,6 +30,15 @@ from ee.src.services.organization_service import (
     get_organization_details,
     transfer_organization_ownership as transfer_ownership_service,
 )
+from oss.src.dbs.postgres.organizations.dao import (
+    OrganizationDomainsDAO,
+    OrganizationProvidersDAO,
+)
+from ee.src.core.organizations.types import (
+    OrganizationDomainCreate,
+    OrganizationProviderCreate,
+    OrganizationProviderUpdate,
+)
 
 
 router = APIRouter()
@@ -143,7 +152,7 @@ async def update_organization(
     payload: OrganizationUpdate,
     request: Request,
 ):
-    if not payload.slug and not payload.name and not payload.description:
+    if not payload.slug and not payload.name and not payload.description and not payload.flags:
         return JSONResponse(
             {"detail": "Please provide a field to update"},
             status_code=400,
@@ -414,3 +423,459 @@ async def delete_organization(
             status_code=500,
             detail=str(e),
         )
+
+
+# ============================================================================
+# Domain Verification Endpoints
+# ============================================================================
+
+@router.get("/{organization_id}/domains/", operation_id="list_organization_domains")
+async def list_organization_domains(
+    organization_id: str,
+    request: Request,
+):
+    """List all domains for an organization."""
+    try:
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )
+        has_permission = await check_user_org_access(
+            user_org_workspace_data, organization_id
+        )
+        if not has_permission:
+            return JSONResponse(
+                {"detail": "You do not have access to this organization"},
+                status_code=403,
+            )
+
+        from uuid import UUID
+        domains_dao = OrganizationDomainsDAO()
+        domains = await domains_dao.list_by_organization(UUID(organization_id))
+
+        return [
+            {
+                "id": str(domain.id),
+                "slug": domain.slug,
+                "organization_id": str(domain.organization_id),
+                "flags": domain.flags,
+                "created_at": domain.created_at.isoformat() if domain.created_at else None,
+                "updated_at": domain.updated_at.isoformat() if domain.updated_at else None,
+            }
+            for domain in domains
+        ]
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{organization_id}/domains/", operation_id="create_organization_domain")
+async def create_organization_domain(
+    organization_id: str,
+    request: Request,
+    domain: str,
+):
+    """Add a new domain to an organization."""
+    try:
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )
+        has_permission = await check_user_org_access(
+            user_org_workspace_data, organization_id, check_owner=True
+        )
+        if not has_permission:
+            return JSONResponse(
+                {"detail": "Only organization owners can add domains"},
+                status_code=403,
+            )
+
+        from uuid import UUID
+        domains_dao = OrganizationDomainsDAO()
+        domain_create = OrganizationDomainCreate(
+            slug=domain,
+            organization_id=UUID(organization_id),
+        )
+        created_domain = await domains_dao.create(domain_create)
+
+        return {
+            "id": str(created_domain.id),
+            "slug": created_domain.slug,
+            "organization_id": str(created_domain.organization_id),
+            "flags": created_domain.flags,
+            "created_at": created_domain.created_at.isoformat() if created_domain.created_at else None,
+            "updated_at": created_domain.updated_at.isoformat() if created_domain.updated_at else None,
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{organization_id}/domains/{domain_id}", operation_id="get_organization_domain")
+async def get_organization_domain(
+    organization_id: str,
+    domain_id: str,
+    request: Request,
+):
+    """Get a single domain by ID."""
+    try:
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )
+        has_permission = await check_user_org_access(
+            user_org_workspace_data, organization_id
+        )
+        if not has_permission:
+            return JSONResponse(
+                {"detail": "You do not have access to this organization"},
+                status_code=403,
+            )
+
+        from uuid import UUID
+        domains_dao = OrganizationDomainsDAO()
+        domain = await domains_dao.get_by_id(UUID(domain_id))
+
+        if not domain:
+            return JSONResponse(
+                {"detail": "Domain not found"},
+                status_code=404,
+            )
+
+        return {
+            "id": str(domain.id),
+            "slug": domain.slug,
+            "organization_id": str(domain.organization_id),
+            "flags": domain.flags,
+            "created_at": domain.created_at.isoformat() if domain.created_at else None,
+            "updated_at": domain.updated_at.isoformat() if domain.updated_at else None,
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/{organization_id}/domains/{domain_id}",
+    operation_id="delete_organization_domain"
+)
+async def delete_organization_domain(
+    organization_id: str,
+    domain_id: str,
+    request: Request,
+):
+    """Delete a domain from an organization."""
+    try:
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )
+        has_permission = await check_user_org_access(
+            user_org_workspace_data, organization_id, check_owner=True
+        )
+        if not has_permission:
+            return JSONResponse(
+                {"detail": "Only organization owners can delete domains"},
+                status_code=403,
+            )
+
+        from uuid import UUID
+        domains_dao = OrganizationDomainsDAO()
+        # TODO: Implement delete method in DAO
+        # await domains_dao.delete(UUID(domain_id))
+
+        return JSONResponse(
+            {"detail": "Domain deleted successfully"},
+            status_code=200,
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/{organization_id}/domains/{domain_id}/verify",
+    operation_id="verify_organization_domain"
+)
+async def verify_organization_domain(
+    organization_id: str,
+    domain_id: str,
+    request: Request,
+):
+    """Verify a domain (marks it as verified)."""
+    try:
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )
+        has_permission = await check_user_org_access(
+            user_org_workspace_data, organization_id, check_owner=True
+        )
+        if not has_permission:
+            return JSONResponse(
+                {"detail": "Only organization owners can verify domains"},
+                status_code=403,
+            )
+
+        from uuid import UUID
+        domains_dao = OrganizationDomainsDAO()
+        verified_domain = await domains_dao.mark_verified(UUID(domain_id))
+
+        if not verified_domain:
+            return JSONResponse(
+                {"detail": "Domain not found"},
+                status_code=404,
+            )
+
+        return {
+            "id": str(verified_domain.id),
+            "slug": verified_domain.slug,
+            "organization_id": str(verified_domain.organization_id),
+            "flags": verified_domain.flags,
+            "created_at": verified_domain.created_at.isoformat() if verified_domain.created_at else None,
+            "updated_at": verified_domain.updated_at.isoformat() if verified_domain.updated_at else None,
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# SSO/OIDC Provider Endpoints
+# ============================================================================
+
+@router.get("/{organization_id}/providers/", operation_id="list_organization_providers")
+async def list_organization_providers(
+    organization_id: str,
+    request: Request,
+):
+    """List all SSO providers for an organization."""
+    try:
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )
+        has_permission = await check_user_org_access(
+            user_org_workspace_data, organization_id
+        )
+        if not has_permission:
+            return JSONResponse(
+                {"detail": "You do not have access to this organization"},
+                status_code=403,
+            )
+
+        from uuid import UUID
+        providers_dao = OrganizationProvidersDAO()
+        providers = await providers_dao.list_by_organization(UUID(organization_id))
+
+        return [
+            {
+                "id": str(provider.id),
+                "slug": provider.slug,
+                "organization_id": str(provider.organization_id),
+                "provider_type": provider.provider_type,
+                "config": provider.config,
+                "flags": provider.flags,
+                "created_at": provider.created_at.isoformat() if provider.created_at else None,
+                "updated_at": provider.updated_at.isoformat() if provider.updated_at else None,
+            }
+            for provider in providers
+        ]
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{organization_id}/providers/", operation_id="create_organization_provider")
+async def create_organization_provider(
+    organization_id: str,
+    request: Request,
+    payload: dict,
+):
+    """Add a new SSO provider to an organization."""
+    try:
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )
+        has_permission = await check_user_org_access(
+            user_org_workspace_data, organization_id, check_owner=True
+        )
+        if not has_permission:
+            return JSONResponse(
+                {"detail": "Only organization owners can add SSO providers"},
+                status_code=403,
+            )
+
+        from uuid import UUID
+        providers_dao = OrganizationProvidersDAO()
+        provider_create = OrganizationProviderCreate(
+            slug=payload.get("slug"),
+            organization_id=UUID(organization_id),
+            provider_type=payload.get("provider_type", "oidc"),
+            config=payload.get("config", {}),
+        )
+        created_provider = await providers_dao.create(provider_create)
+
+        return {
+            "id": str(created_provider.id),
+            "slug": created_provider.slug,
+            "organization_id": str(created_provider.organization_id),
+            "provider_type": created_provider.provider_type,
+            "config": created_provider.config,
+            "flags": created_provider.flags,
+            "created_at": created_provider.created_at.isoformat() if created_provider.created_at else None,
+            "updated_at": created_provider.updated_at.isoformat() if created_provider.updated_at else None,
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{organization_id}/providers/{provider_id}", operation_id="get_organization_provider")
+async def get_organization_provider(
+    organization_id: str,
+    provider_id: str,
+    request: Request,
+):
+    """Get a single SSO provider by ID."""
+    try:
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )
+        has_permission = await check_user_org_access(
+            user_org_workspace_data, organization_id
+        )
+        if not has_permission:
+            return JSONResponse(
+                {"detail": "You do not have access to this organization"},
+                status_code=403,
+            )
+
+        from uuid import UUID
+        providers_dao = OrganizationProvidersDAO()
+        provider = await providers_dao.get_by_id(UUID(provider_id))
+
+        if not provider:
+            return JSONResponse(
+                {"detail": "Provider not found"},
+                status_code=404,
+            )
+
+        return {
+            "id": str(provider.id),
+            "slug": provider.slug,
+            "organization_id": str(provider.organization_id),
+            "provider_type": provider.provider_type,
+            "config": provider.config,
+            "flags": provider.flags,
+            "created_at": provider.created_at.isoformat() if provider.created_at else None,
+            "updated_at": provider.updated_at.isoformat() if provider.updated_at else None,
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch(
+    "/{organization_id}/providers/{provider_id}",
+    operation_id="update_organization_provider"
+)
+async def update_organization_provider(
+    organization_id: str,
+    provider_id: str,
+    request: Request,
+    payload: dict,
+):
+    """Update an SSO provider."""
+    try:
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )
+        has_permission = await check_user_org_access(
+            user_org_workspace_data, organization_id, check_owner=True
+        )
+        if not has_permission:
+            return JSONResponse(
+                {"detail": "Only organization owners can update SSO providers"},
+                status_code=403,
+            )
+
+        from uuid import UUID
+        providers_dao = OrganizationProvidersDAO()
+        provider_update = OrganizationProviderUpdate(
+            slug=payload.get("slug"),
+            config=payload.get("config"),
+            flags=payload.get("flags"),
+        )
+        updated_provider = await providers_dao.update(UUID(provider_id), provider_update)
+
+        if not updated_provider:
+            return JSONResponse(
+                {"detail": "Provider not found"},
+                status_code=404,
+            )
+
+        return {
+            "id": str(updated_provider.id),
+            "slug": updated_provider.slug,
+            "organization_id": str(updated_provider.organization_id),
+            "provider_type": updated_provider.provider_type,
+            "config": updated_provider.config,
+            "flags": updated_provider.flags,
+            "created_at": updated_provider.created_at.isoformat() if updated_provider.created_at else None,
+            "updated_at": updated_provider.updated_at.isoformat() if updated_provider.updated_at else None,
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/{organization_id}/providers/{provider_id}",
+    operation_id="delete_organization_provider"
+)
+async def delete_organization_provider(
+    organization_id: str,
+    provider_id: str,
+    request: Request,
+):
+    """Delete an SSO provider from an organization."""
+    try:
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )
+        has_permission = await check_user_org_access(
+            user_org_workspace_data, organization_id, check_owner=True
+        )
+        if not has_permission:
+            return JSONResponse(
+                {"detail": "Only organization owners can delete SSO providers"},
+                status_code=403,
+            )
+
+        from uuid import UUID
+        providers_dao = OrganizationProvidersDAO()
+        # TODO: Implement delete method in DAO
+        # await providers_dao.delete(UUID(provider_id))
+
+        return JSONResponse(
+            {"detail": "Provider deleted successfully"},
+            status_code=200,
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

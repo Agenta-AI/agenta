@@ -316,6 +316,24 @@ def upgrade() -> None:
     """)
     )
 
+    # Step 13b: Ensure all organizations have complete flag defaults
+    # This ensures all auth and access control flags are set with defaults
+    conn.execute(
+        text("""
+        UPDATE organizations
+        SET flags = flags ||
+            jsonb_build_object(
+                'allow_email', COALESCE((flags->>'allow_email')::boolean, true),
+                'allow_social', COALESCE((flags->>'allow_social')::boolean, true),
+                'allow_sso', COALESCE((flags->>'allow_sso')::boolean, true),
+                'allow_root', COALESCE((flags->>'allow_root')::boolean, true),
+                'domains_only', COALESCE((flags->>'domains_only')::boolean, false),
+                'auto_join', COALESCE((flags->>'auto_join')::boolean, false)
+            )
+        WHERE flags IS NOT NULL
+    """)
+    )
+
     # Clean up temp table
     conn.execute(text("DROP TABLE IF EXISTS org_member_counts"))
 

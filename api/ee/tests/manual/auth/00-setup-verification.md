@@ -146,7 +146,7 @@ VALUES (
 Update organization flags to set authentication policies:
 
 ```sql
--- Allow only SSO, enforce verified domains, not invitation-only
+-- Allow only SSO, enforce verified domains, allow auto-join
 UPDATE organizations
 SET flags = jsonb_set(
   jsonb_set(
@@ -160,7 +160,7 @@ SET flags = jsonb_set(
       ),
       '{allow_sso}', 'true'
     ),
-    '{invitations_only}', 'false'
+    '{auto_join}', 'true'
   ),
   '{domains_only}', 'true'
 )
@@ -170,8 +170,8 @@ WHERE id = '<testOrgId>';
 **Policy flags in `organizations.flags`:**
 - `allow_email` (boolean, default: true) - Allow email authentication (OTP/password)
 - `allow_social` (boolean, default: true) - Allow social authentication (Google, GitHub, etc.)
-- `allow_sso` (boolean, default: false) - Allow SSO/OIDC authentication
-- `invitations_only` (boolean, default: true) - Require invitations to join
+- `allow_sso` (boolean, default: true) - Allow SSO/OIDC authentication
+- `auto_join` (boolean, default: false) - Allow users with verified domains to automatically join
 - `domains_only` (boolean, default: false) - Only allow users with verified domain emails
 - `allow_root` (boolean, default: true) - Allow organization owner to bypass auth restrictions
 
@@ -432,7 +432,7 @@ SELECT
   flags->'allow_email' as allow_email,
   flags->'allow_social' as allow_social,
   flags->'allow_sso' as allow_sso,
-  flags->'invitations_only' as invitations_only,
+  flags->'auto_join' as auto_join,
   flags->'domains_only' as domains_only,
   flags->'allow_root' as allow_root
 FROM organizations
@@ -553,7 +553,7 @@ WHERE flags->>'is_personal' = 'true';
 ### Organizations Table
 - **Removed:** `type`, `owner` (string), `kind`
 - **Added:** `owner_id` (UUID FK), `created_by_id`, `updated_by_id`, `deleted_by_id`, `deleted_at`, `flags`, `tags`, `meta`
-- **Flags structure:** `{"is_personal": bool, "is_demo": bool, "allow_email": bool, "allow_social": bool, "allow_sso": bool, "invitations_only": bool, "domains_only": bool, "allow_root": bool}`
+- **Flags structure:** `{"is_personal": bool, "is_demo": bool, "allow_email": bool, "allow_social": bool, "allow_sso": bool, "auto_join": bool, "domains_only": bool, "allow_root": bool}`
 
 ### Organization Domains Table
 - **Renamed:** `domain` → `slug`, `verification_token` → `token`

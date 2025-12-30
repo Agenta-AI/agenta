@@ -1,5 +1,5 @@
 from sqlalchemy.future import select
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import NoResultFound, IntegrityError
 from supertokens_python.recipe.emailpassword.asyncio import create_reset_password_link
 
 from oss.src.utils.env import env
@@ -14,30 +14,58 @@ log = get_module_logger(__name__)
 
 async def create_new_user(payload: dict) -> UserDB:
     """
-    This function creates a new user.
+    Create a new user or return existing user if already exists (idempotent).
+
+    This function is safe to call multiple times in parallel with the same email.
+    It implements check-before-create with error fallback to handle race conditions.
 
     Args:
-        payload (dict): The payload data to create the user.
+        payload (dict): The payload data to create the user (must include 'email').
 
     Returns:
-        UserDB: The created user object.
+        UserDB: The created or existing user object.
     """
 
-    async with engine.core_session() as session:
-        user = UserDB(**payload)
-
-        session.add(user)
-
+    # Check if user already exists (happy path optimization)
+    existing_user = await db_manager.get_user_with_email(payload["email"])
+    if existing_user:
         log.info(
-            "[scopes] user created",
-            user_id=user.id,
+            "[scopes] user already exists, returning existing user",
+            user_id=existing_user.id,
+            email=payload["email"],
         )
+        return existing_user
 
-        await session.commit()
+    # Attempt to create new user
+    try:
+        async with engine.core_session() as session:
+            user = UserDB(**payload)
 
-        await session.refresh(user)
+            session.add(user)
 
-        return user
+            log.info(
+                "[scopes] user created",
+                user_id=user.id,
+            )
+
+            await session.commit()
+
+            await session.refresh(user)
+
+            return user
+    except IntegrityError:
+        # Race condition: another request created user between check and create
+        # Fetch and return the existing user
+        log.info(
+            "[scopes] race condition detected during user creation, fetching existing user",
+            email=payload["email"],
+        )
+        existing_user = await db_manager.get_user_with_email(payload["email"])
+        if existing_user:
+            return existing_user
+        else:
+            # Should never happen, but re-raise if user still doesn't exist
+            raise
 
 
 async def update_user(user_uid: str, payload: UserUpdate) -> UserDB:

@@ -76,14 +76,33 @@ export const fetchSingleOrg = async ({
     }
 }
 
+// Partial flags interface for PATCH updates
+export interface OrganizationFlagsUpdate {
+    is_personal?: boolean
+    is_demo?: boolean
+    allow_email?: boolean
+    allow_social?: boolean
+    allow_sso?: boolean
+    auto_join?: boolean
+    domains_only?: boolean
+    allow_root?: boolean
+}
+
+export interface OrganizationUpdatePayload {
+    slug?: string
+    name?: string
+    description?: string
+    flags?: OrganizationFlagsUpdate
+}
+
 export const updateOrganization = async (
     organizationId: string,
-    name: string,
+    payload: OrganizationUpdatePayload | {name: string},
     ignoreAxiosError = false,
 ) => {
-    const response = await axios.put(
+    const response = await axios.patch(
         `${getAgentaApiUrl()}/organizations/${organizationId}/`,
-        {name},
+        payload,
         {
             _ignoreError: ignoreAxiosError,
         } as any,
@@ -109,4 +128,165 @@ export const transferOrganizationOwnership = async (
         `${getAgentaApiUrl()}/organizations/${organizationId}/transfer/${newOwnerId}`,
     )
     return response.data
+}
+
+// ============================================================================
+// Domain Verification API
+// ============================================================================
+
+export interface OrganizationDomain {
+    id: string
+    slug: string
+    organization_id: string
+    flags: {
+        is_verified?: boolean
+    }
+    created_at: string
+    updated_at: string
+}
+
+/**
+ * Fetch all domains for an organization
+ */
+export const fetchOrganizationDomains = async (
+    organizationId: string,
+): Promise<OrganizationDomain[]> => {
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/organizations/${organizationId}/domains/`,
+    )
+    return response.data
+}
+
+/**
+ * Create a new domain for an organization
+ */
+export const createOrganizationDomain = async (
+    organizationId: string,
+    domain: string,
+): Promise<OrganizationDomain> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/organizations/${organizationId}/domains/`,
+        {domain},
+    )
+    return response.data
+}
+
+/**
+ * Delete a domain from an organization
+ */
+export const deleteOrganizationDomain = async (
+    organizationId: string,
+    domainId: string,
+): Promise<void> => {
+    await axios.delete(
+        `${getAgentaApiUrl()}/organizations/${organizationId}/domains/${domainId}/`,
+    )
+}
+
+/**
+ * Verify a domain (typically done via DNS TXT record or email)
+ */
+export const verifyOrganizationDomain = async (
+    organizationId: string,
+    domainId: string,
+): Promise<OrganizationDomain> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/organizations/${organizationId}/domains/${domainId}/verify/`,
+    )
+    return response.data
+}
+
+// ============================================================================
+// SSO/OIDC Provider API
+// ============================================================================
+
+export interface OrganizationProvider {
+    id: string
+    slug: string
+    organization_id: string
+    provider_type: "oidc"
+    config: {
+        issuer_url?: string
+        client_id?: string
+        client_secret?: string
+        scopes?: string[]
+    }
+    flags: {
+        is_enabled?: boolean
+    }
+    created_at: string
+    updated_at: string
+}
+
+/**
+ * Fetch all SSO providers for an organization
+ */
+export const fetchOrganizationProviders = async (
+    organizationId: string,
+): Promise<OrganizationProvider[]> => {
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/organizations/${organizationId}/providers/`,
+    )
+    return response.data
+}
+
+/**
+ * Create a new SSO/OIDC provider for an organization
+ */
+export const createOrganizationProvider = async (
+    organizationId: string,
+    payload: {
+        slug: string
+        provider_type: "oidc"
+        config: {
+            issuer_url: string
+            client_id: string
+            client_secret: string
+            scopes?: string[]
+        }
+    },
+): Promise<OrganizationProvider> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/organizations/${organizationId}/providers/`,
+        payload,
+    )
+    return response.data
+}
+
+/**
+ * Update an SSO/OIDC provider
+ */
+export const updateOrganizationProvider = async (
+    organizationId: string,
+    providerId: string,
+    payload: {
+        slug?: string
+        config?: {
+            issuer_url?: string
+            client_id?: string
+            client_secret?: string
+            scopes?: string[]
+        }
+        flags?: {
+            is_enabled?: boolean
+        }
+    },
+): Promise<OrganizationProvider> => {
+    const response = await axios.patch(
+        `${getAgentaApiUrl()}/organizations/${organizationId}/providers/${providerId}/`,
+        payload,
+    )
+    return response.data
+}
+
+/**
+ * Delete an SSO/OIDC provider
+ */
+export const deleteOrganizationProvider = async (
+    organizationId: string,
+    providerId: string,
+): Promise<void> => {
+    await axios.delete(
+        `${getAgentaApiUrl()}/organizations/${organizationId}/providers/${providerId}/`,
+    )
 }

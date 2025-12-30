@@ -1366,6 +1366,12 @@ async def create_organization(
             flags={
                 "is_demo": False,
                 "is_personal": is_personal or False,
+                "allow_email": True,
+                "allow_social": True,
+                "allow_sso": True,
+                "allow_root": True,
+                "domains_only": False,
+                "auto_join": False,
             },
             owner_id=_owner_id,
             created_by_id=_created_by_id,

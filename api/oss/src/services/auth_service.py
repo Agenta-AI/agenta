@@ -93,7 +93,9 @@ async def authentication_middleware(request: Request, call_next):
     """
 
     try:
-        await _authenticate(request)
+        await _check_authentication_token(request)
+
+        await _check_organization_policy(request)
 
         response = await call_next(request)
 
@@ -134,7 +136,7 @@ async def authentication_middleware(request: Request, call_next):
         )
 
 
-async def _authenticate(request: Request):
+async def _check_authentication_token(request: Request):
     try:
         if request.url.path.startswith(_PUBLIC_ENDPOINTS):
             return
@@ -753,3 +755,99 @@ async def sign_secret_token(
 
     except Exception as exc:  # pylint: disable=bare-except
         raise InternalServerErrorException() from exc
+
+
+async def _check_organization_policy(request: Request):
+    """
+    Check organization authentication policy for EE mode.
+
+    This is called after authentication to ensure the user's authentication method
+    is allowed by the organization's policy flags.
+
+    Skips policy checks for invitation-related routes to allow users to accept
+    invitations regardless of current organization auth policies.
+    """
+    if not is_ee():
+        return
+
+    # Skip policy check for invitation routes
+    # Users must be able to accept invitations regardless of org auth policies
+    invitation_paths = [
+        "/invite/accept",
+        "/invite/resend",
+        "/invite",
+    ]
+
+    if any(path in request.url.path for path in invitation_paths):
+        return
+
+    organization_id = (
+        request.state.organization_id
+        if hasattr(request.state, "organization_id")
+        else None
+    )
+    user_id = request.state.user_id if hasattr(request.state, "user_id") else None
+
+    log.info(
+        "[auth-policy-middleware] EXTRACTED",
+        path=request.url.path,
+        organization_id=organization_id,
+        user_id=user_id,
+    )
+
+    if not organization_id or not user_id:
+        log.info("[auth-policy-middleware] SKIP: Missing org_id or user_id")
+        return
+
+    from uuid import UUID
+    from oss.src.core.auth.service import AuthService
+
+    # Get identities from session
+    try:
+        session = await get_session(request)  # type: ignore
+        payload = session.get_access_token_payload() if session else {}  # type: ignore
+        identities = payload.get("identities", [])
+        log.info(
+            "[auth-policy-middleware] SESSION",
+            has_session=session is not None,
+            identities=identities,
+        )
+
+        # If identities empty, log warning but continue with policy check
+        # Empty identities may indicate legacy sessions or identity tracking failure
+        # Policy enforcement will still work - restrictive policies will fail for empty identities
+        if not identities:
+            log.warn(
+                "[auth-policy-middleware] WARNING: Empty identities array in session",
+                user_id=user_id,
+                organization_id=organization_id,
+            )
+            # Continue to policy check - empty identities will be evaluated against org policies
+
+    except Exception as e:
+        log.warn("[auth-policy-middleware] SESSION ERROR", error=str(e))
+        identities = []
+        return  # Skip policy check on session errors
+
+    auth_service = AuthService()
+    policy_error = await auth_service.check_organization_access(
+        UUID(user_id), UUID(organization_id), identities
+    )
+
+    if policy_error:
+        # Only enforce auth policy errors (AUTH_UPGRADE_REQUIRED)
+        # Skip membership errors - those should be handled by route handlers
+        error_code = policy_error.get("error")
+        log.info(
+            "[auth-policy-middleware] POLICY ERROR",
+            error_code=error_code,
+            error=policy_error,
+        )
+        if error_code == "AUTH_UPGRADE_REQUIRED":
+            raise HTTPException(
+                status_code=403,
+                detail=policy_error.get(
+                    "message", "Authentication method not allowed for this organization"
+                ),
+            )
+        # If NOT_A_MEMBER, skip - let route handlers deal with it

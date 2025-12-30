@@ -36,6 +36,7 @@ class OrganizationUpdate(BaseModel):
     slug: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
+    flags: Optional[Dict[str, Any]] = None
     updated_at: Optional[str] = None
 
 

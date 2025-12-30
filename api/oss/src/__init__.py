@@ -250,6 +250,8 @@ def override_passwordless_apis(
         session: Optional[SessionContainer] = None,
         should_try_linking_with_session_user: Optional[bool] = None,
     ):
+        print("[API-OVERRIDE] consume_code_post called (passwordless)")
+
         # First we call the original implementation of consume_code_post.
         response = await original_consume_code_post(
             pre_auth_session_id,
@@ -266,6 +268,8 @@ def override_passwordless_apis(
         if isinstance(response, ConsumeCodeOkResult):
             email = response.user.emails[0].lower()
             await _create_account(email, response.user.id)
+            # Note: Identity tracking is now handled by the recipe-level override (override_passwordless_functions)
+            # which runs before session creation and properly injects identities into the JWT payload
 
         return response
 
@@ -286,6 +290,8 @@ def override_thirdparty_apis(original_implementation: ThirdPartyAPIInterface):
         session: Optional[SessionContainer] = None,
         should_try_linking_with_session_user: Optional[bool] = None,
     ):
+        print(f"[API-OVERRIDE] thirdparty_sign_in_up_post called: provider_id={provider.id}")
+
         # Call the original implementation if needed
         response = await original_sign_in_up(
             provider,
@@ -301,6 +307,8 @@ def override_thirdparty_apis(original_implementation: ThirdPartyAPIInterface):
         if isinstance(response, SignInUpPostOkResult):
             email = response.user.emails[0].lower()
             await _create_account(email, response.user.id)
+            # Note: Identity tracking is now handled by the recipe-level override (override_thirdparty_functions)
+            # which runs before session creation and properly injects identities into the JWT payload
 
         return response
 
@@ -446,6 +454,7 @@ def _init_supertokens():
 
     # Email Password Authentication
     if env.auth.email_method == "password":
+        from oss.src.core.auth.supertokens_overrides import override_emailpassword_functions
         logger.info("✓ Email/Password authentication enabled")
         recipe_list.append(
             emailpassword.init(
@@ -463,25 +472,29 @@ def _init_supertokens():
                 ),
                 override=InputOverrideConfig(
                     apis=override_password_apis,
+                    functions=override_emailpassword_functions,
                 ),
             )
         )
 
     # Email OTP Authentication
     if env.auth.email_method == "otp":
+        from oss.src.core.auth.supertokens_overrides import override_passwordless_functions
         logger.info("✓ Email/OTP authentication enabled")
         recipe_list.append(
             passwordless.init(
                 flow_type="USER_INPUT_CODE",
                 contact_config=ContactEmailOnlyConfig(),
                 override=passwordless.InputOverrideConfig(
-                    functions=override_passwordless_apis
+                    apis=override_passwordless_apis,
+                    functions=override_passwordless_functions,
                 ),
             )
         )
 
     # Third-Party OIDC Authentication
     from oss.src.core.auth.supertokens_config import get_thirdparty_providers
+    from oss.src.core.auth.supertokens_overrides import override_thirdparty_functions
 
     oidc_providers = get_thirdparty_providers()
     if oidc_providers:
@@ -492,13 +505,22 @@ def _init_supertokens():
         recipe_list.append(
             thirdparty.init(
                 sign_in_and_up_feature=SignInAndUpFeature(providers=oidc_providers),
-                override=thirdparty.InputOverrideConfig(apis=override_thirdparty_apis),
+                override=thirdparty.InputOverrideConfig(
+                    apis=override_thirdparty_apis,
+                    functions=override_thirdparty_functions,
+                ),
             )
         )
 
     # Sessions always required if auth is enabled
+    from oss.src.core.auth.supertokens_overrides import override_session_functions
     recipe_list.append(
-        session.init(expose_access_token_to_frontend_in_cookie_based_auth=True)
+        session.init(
+            expose_access_token_to_frontend_in_cookie_based_auth=True,
+            override=session.InputOverrideConfig(
+                functions=override_session_functions,
+            ),
+        )
     )
 
     # Dashboard for admin management

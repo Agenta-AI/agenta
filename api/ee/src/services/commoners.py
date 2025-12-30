@@ -138,22 +138,41 @@ async def create_accounts(
         log.info("[scopes] Yey! A new user is signing up!")
 
         # Create user first
-        user = await create_new_user(user_dict)
+        # Note: create_new_user is idempotent, but we wrap in try-except for defense in depth
+        try:
+            user = await create_new_user(user_dict)
 
-        log.info("[scopes] User [%s] created", user.id)
+            log.info("[scopes] User [%s] created", user.id)
 
-        # Add the user to demos
-        await add_user_to_demos(str(user.id))
+            # Add the user to demos
+            await add_user_to_demos(str(user.id))
 
-        # Create organization with workspace and subscription
-        await create_organization_with_subscription(
-            user_id=UUID(str(user.id)),
-            organization_email=user_dict["email"],
-            organization_name=organization_name,
-            organization_description=None,
-            is_personal=is_personal,
-            use_reverse_trial=use_reverse_trial,
-        )
+            # Create organization with workspace and subscription
+            await create_organization_with_subscription(
+                user_id=UUID(str(user.id)),
+                organization_email=user_dict["email"],
+                organization_name=organization_name,
+                organization_description=None,
+                is_personal=is_personal,
+                use_reverse_trial=use_reverse_trial,
+            )
+        except Exception as e:
+            # If user creation fails due to race condition, fetch existing user
+            # create_new_user already handles IntegrityError, but this catches any other edge cases
+            from sqlalchemy.exc import IntegrityError
+
+            if isinstance(e, IntegrityError):
+                log.info(
+                    "[scopes] race condition in create_accounts, fetching existing user",
+                    email=user_dict["email"],
+                )
+                user = await db_manager.get_user_with_email(email=user_dict["email"])
+                if user is None:
+                    # Should never happen, but re-raise if we still can't find the user
+                    raise
+            else:
+                # Re-raise non-race-condition errors
+                raise
 
     log.info("[scopes] User [%s] authenticated", user.id)
 

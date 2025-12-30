@@ -976,6 +976,12 @@ async def create_organization(
         create_org_data["flags"] = {
             "is_demo": is_demo,
             "is_personal": is_personal,
+            "allow_email": True,
+            "allow_social": True,
+            "allow_sso": True,
+            "allow_root": True,
+            "domains_only": False,
+            "auto_join": False,
         }
 
         # Set required audit fields
@@ -1094,6 +1100,51 @@ async def update_organization(
                     f"Current slug: '{organization.slug}'"
                 )
 
+        # Special handling for flags: merge instead of replace
+        if "flags" in payload_dict:
+            new_flags = payload_dict["flags"]
+            if new_flags is not None:
+                # Get existing flags or initialize with defaults
+                existing_flags = organization.flags or {}
+
+                # Start with complete defaults
+                default_flags = {
+                    "is_demo": False,
+                    "is_personal": False,
+                    "allow_email": True,
+                    "allow_social": True,
+                    "allow_sso": True,
+                    "allow_root": True,
+                    "domains_only": False,
+                    "auto_join": False,
+                }
+
+                # Merge: defaults <- existing <- new
+                merged_flags = {**default_flags, **existing_flags, **new_flags}
+
+                # VALIDATION: Ensure at least one auth method is enabled OR allow_root is true
+                # This prevents organizations from being locked out
+                allow_email = merged_flags.get("allow_email", False)
+                allow_social = merged_flags.get("allow_social", False)
+                allow_sso = merged_flags.get("allow_sso", False)
+                allow_root = merged_flags.get("allow_root", False)
+
+                # Check if all auth methods are disabled
+                all_auth_disabled = not (allow_email or allow_social or allow_sso)
+
+                if all_auth_disabled and not allow_root:
+                    # Auto-enable allow_root to prevent lockout
+                    merged_flags["allow_root"] = True
+                    log.warning(
+                        f"All authentication methods disabled for organization {organization_id}. "
+                        f"Auto-enabling allow_root to prevent lockout."
+                    )
+
+                organization.flags = merged_flags
+            # Remove flags from payload_dict to avoid setting it again below
+            del payload_dict["flags"]
+
+        # Set all other attributes
         for key, value in payload_dict.items():
             if hasattr(organization, key):
                 setattr(organization, key, value)

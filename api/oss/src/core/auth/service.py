@@ -103,11 +103,12 @@ class AuthService:
                 org_flags = await self._get_organization_flags(org_id)
                 if org_flags:
                     # Convert boolean flags to method strings
-                    if org_flags.get("allow_email"):
+                    # Default to True if not explicitly set
+                    if org_flags.get("allow_email", True):
                         all_allowed_methods.add("email:*")
-                    if org_flags.get("allow_social"):
+                    if org_flags.get("allow_social", True):
                         all_allowed_methods.add("social:*")
-                    if org_flags.get("allow_sso"):
+                    if org_flags.get("allow_sso", True):
                         all_allowed_methods.add("sso:*")
 
         # If user has no organizations, show globally configured auth methods
@@ -299,41 +300,57 @@ class AuthService:
         - NOT_A_MEMBER: User is not a member of the organization
         - AUTH_UPGRADE_REQUIRED: User must authenticate with additional method
         """
+        from oss.src.utils.logging import get_module_logger
+        log = get_module_logger(__name__)
+
+        log.info(
+            "[auth-policy] CHECK START",
+            user_id=str(user_id),
+            organization_id=str(organization_id),
+            identities=identities,
+        )
+
         # If EE not enabled, allow access (no policy enforcement in OSS)
         if not is_ee():
+            log.info("[auth-policy] ALLOW: EE not enabled")
             return None
 
-        # Check if user is a member of organization
-        is_member = await self._is_organization_member(user_id, organization_id)
-        if not is_member:
-            return {
-                "error": "NOT_A_MEMBER",
-                "message": "You are not a member of this organization",
-            }
+        # Note: We don't check membership here - that's the responsibility of route handlers
+        # This function only validates authentication method policies
 
         # Get organization flags
         org_flags = await self._get_organization_flags(organization_id)
+        log.info("[auth-policy] org_flags", flags=org_flags)
+
         if not org_flags:
             # No flags means no restrictions (default allow all)
+            log.info("[auth-policy] ALLOW: No flags")
             return None
 
         # Check for root bypass: if user is owner and allow_root is True, bypass policy
         is_owner = await self._is_organization_owner(user_id, organization_id)
+        log.info("[auth-policy] is_owner", is_owner=is_owner)
+
         if is_owner and org_flags.get("allow_root", True):
             # Owner with root access bypasses policy
+            log.info("[auth-policy] ALLOW: Owner with root bypass")
             return None
 
         # Build allowed methods from flags
+        # Default to True if not explicitly set
         allowed_methods = []
-        if org_flags.get("allow_email"):
+        if org_flags.get("allow_email", True):
             allowed_methods.append("email:*")
-        if org_flags.get("allow_social"):
+        if org_flags.get("allow_social", True):
             allowed_methods.append("social:*")
-        if org_flags.get("allow_sso"):
+        if org_flags.get("allow_sso", True):
             allowed_methods.append("sso:*")
+
+        log.info("[auth-policy] allowed_methods", methods=allowed_methods)
 
         # If no methods are allowed, deny access
         if not allowed_methods:
+            log.warn("[auth-policy] DENY: No methods allowed")
             return {
                 "error": "AUTH_UPGRADE_REQUIRED",
                 "message": "No authentication methods are allowed for this organization",
@@ -342,7 +359,15 @@ class AuthService:
             }
 
         # Check if identities satisfy allowed_methods
-        if not self._matches_policy(identities, allowed_methods):
+        matches = self._matches_policy(identities, allowed_methods)
+        log.info("[auth-policy] matches_policy", matches=matches)
+
+        if not matches:
+            log.warn(
+                "[auth-policy] DENY: Identity mismatch",
+                identities=identities,
+                allowed_methods=allowed_methods,
+            )
             return {
                 "error": "AUTH_UPGRADE_REQUIRED",
                 "message": "Additional authentication required",
@@ -350,6 +375,7 @@ class AuthService:
                 "current_identities": identities,
             }
 
+        log.info("[auth-policy] ALLOW: Policy satisfied")
         return None
 
     def _matches_policy(

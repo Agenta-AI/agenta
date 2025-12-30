@@ -315,6 +315,10 @@ async def set_cache(
     value: Optional[Any] = None,
     ttl: Optional[int] = AGENTA_CACHE_TTL,
 ) -> Optional[bool]:
+    # Noop if caching is disabled
+    if not env.redis.cache_enabled:
+        return None
+
     try:
         cache_name = _pack(
             namespace=namespace,
@@ -386,6 +390,10 @@ async def get_cache(
     jitter: Optional[float] = AGENTA_CACHE_JITTER_SPREAD,
     leakage: Optional[float] = AGENTA_CACHE_LEAKAGE_PROBABILITY,
 ) -> Optional[Any]:
+    # Noop if caching is disabled - always return cache miss
+    if not env.redis.cache_enabled:
+        return None
+
     try:
         cache_name = _pack(
             namespace=namespace,
@@ -441,6 +449,10 @@ async def invalidate_cache(
     project_id: Optional[str] = None,
     user_id: Optional[str] = None,
 ) -> Optional[bool]:
+    # Noop if caching is disabled
+    if not env.redis.cache_enabled:
+        return None
+
     try:
         cache_name = None
 
