@@ -302,95 +302,7 @@ def upgrade() -> None:
         ),
     )
 
-    # 4. organization_invitations table
-    op.create_table(
-        "organization_invitations",
-        sa.Column(
-            "id",
-            sa.UUID(),
-            nullable=False,
-        ),
-        sa.Column(
-            "organization_id",
-            sa.UUID(),
-            nullable=False,
-        ),
-        sa.Column(
-            "email",
-            sa.String(),
-            nullable=False,
-        ),
-        sa.Column(
-            "role",
-            sa.String(),
-            nullable=False,
-        ),
-        sa.Column(
-            "token",
-            sa.String(),
-            nullable=False,
-        ),
-        sa.Column(
-            "status",
-            sa.String(),
-            nullable=False,
-            server_default="pending",
-        ),
-        sa.Column(
-            "expires_at",
-            sa.TIMESTAMP(timezone=True),
-            nullable=True,
-        ),
-        sa.Column(
-            "created_at",
-            sa.TIMESTAMP(timezone=True),
-            server_default=sa.text("CURRENT_TIMESTAMP"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.TIMESTAMP(timezone=True),
-            nullable=True,
-        ),
-        sa.Column(
-            "deleted_at",
-            sa.TIMESTAMP(timezone=True),
-            nullable=True,
-        ),
-        sa.Column(
-            "created_by_id",
-            sa.UUID(),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_by_id",
-            sa.UUID(),
-            nullable=True,
-        ),
-        sa.Column(
-            "deleted_by_id",
-            sa.UUID(),
-            nullable=True,
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.ForeignKeyConstraint(
-            ["organization_id"],
-            ["organizations.id"],
-            ondelete="CASCADE",
-        ),
-        sa.UniqueConstraint(
-            "token",
-            name="uq_organization_invitations_token",
-        ),
-        sa.Index(
-            "ix_organization_invitations_org_email_status",
-            "organization_id",
-            "email",
-            "status",
-        ),
-    )
-
-    # 5. Add is_active to users table
+    # 4. Add is_active to users table
     op.add_column(
         "users",
         sa.Column(
@@ -405,12 +317,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Drop in reverse order
     op.drop_column("users", "is_active")
-
-    op.drop_index(
-        "ix_organization_invitations_org_email_status",
-        table_name="organization_invitations",
-    )
-    op.drop_table("organization_invitations")
 
     op.drop_index(
         "ix_organization_providers_flags",

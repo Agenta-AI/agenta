@@ -198,7 +198,7 @@ class SubscriptionsService:
         **kwargs,
     ) -> SubscriptionDTO:
         log.info(
-            "Billing event: %s | %s | %s",
+            "[billing] [internal] %s | %s | %s",
             organization_id,
             event,
             plan,

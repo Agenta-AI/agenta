@@ -8,7 +8,6 @@ from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.organizations.dbas import (
     OrganizationDomainDBA,
     OrganizationProviderDBA,
-    OrganizationInvitationDBA,
 )
 
 
@@ -59,27 +58,5 @@ class OrganizationProviderDBE(Base, OrganizationProviderDBA):
             "ix_organization_providers_flags",
             "flags",
             postgresql_using="gin",
-        ),
-    )
-
-
-class OrganizationInvitationDBE(Base, OrganizationInvitationDBA):
-    __tablename__ = "organization_invitations"
-
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["organization_id"],
-            ["organizations.id"],
-            ondelete="CASCADE",
-        ),
-        UniqueConstraint(
-            "token",
-            name="uq_organization_invitations_token",
-        ),
-        Index(
-            "ix_organization_invitations_org_email_status",
-            "organization_id",
-            "email",
-            "status",
         ),
     )

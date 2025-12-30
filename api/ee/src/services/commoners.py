@@ -20,7 +20,11 @@ from ee.src.services.selectors import (
     user_exists,
 )
 from ee.src.models.api.organization_models import CreateOrganization
-from oss.src.services.user_service import create_new_user, check_user_exists, delete_user
+from oss.src.services.user_service import (
+    create_new_user,
+    check_user_exists,
+    delete_user,
+)
 from oss.src.models.db_models import UserDB, OrganizationDB
 from ee.src.services.email_helper import (
     add_contact_to_loops,
@@ -135,8 +139,6 @@ async def create_accounts(
 
     user = await db_manager.get_user_with_email(email=user_dict["email"])
     if user is None:
-        log.info("[scopes] Yey! A new user is signing up!")
-
         # Check if user exists before attempting creation
         user_existed_before = await check_user_exists(user_dict["email"])
 

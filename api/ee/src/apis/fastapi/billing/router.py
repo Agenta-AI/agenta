@@ -263,7 +263,7 @@ class SubscriptionsRouter:
         organization_id = metadata.get("organization_id")
 
         log.info(
-            "Stripe event:  %s | %s | %s",
+            "[billing] [stripe]   %s | %s | %s",
             organization_id,
             stripe_event.type,
             target,

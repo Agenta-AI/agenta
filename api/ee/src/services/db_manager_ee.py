@@ -1323,22 +1323,6 @@ async def get_workspace_details(workspace: WorkspaceDB) -> WorkspaceResponse:
         raise e
 
 
-async def get_organization_invitations(organization_id: str):
-    """
-    Gets the organization invitations.
-
-    Args:
-        organization_id (str): The ID of the organization
-    """
-
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(InvitationDB).filter_by(organization_id=organization_id)
-        )
-        invitations = result.scalars().all()
-        return invitations
-
-
 async def get_project_invitations(project_id: str, **kwargs):
     """
     Gets the project invitations.
