@@ -1,14 +1,14 @@
 import {toCamelCase} from "@/oss/lib/shared/variant/stringUtils"
 
 import type {
-    SelectOptions,
     BaseOption,
-    OptionGroup,
-    SchemaProperty,
-    PrimitiveSchema,
     ConfigMetadata,
-    SchemaType,
     ObjectMetadata,
+    OptionGroup,
+    PrimitiveSchema,
+    SchemaProperty,
+    SchemaType,
+    SelectOptions,
 } from "../types"
 
 import {processAnyOfSchema} from "./anyOf"
@@ -80,9 +80,37 @@ function isStringRecord(value: unknown): value is Record<string, string[]> {
 }
 
 /**
+ * Find metadata for a specific model by searching through all providers
+ */
+function findModelMetadata(
+    modelValue: string,
+    metadata?: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+    if (!metadata) return undefined
+
+    // Check if we can find the model directly (backward compatibility)
+    if (metadata[modelValue]) {
+        return metadata[modelValue] as Record<string, unknown>
+    }
+
+    // Search through providers
+    for (const providerKey of Object.keys(metadata)) {
+        const providerData = metadata[providerKey] as Record<string, Record<string, unknown>>
+        if (providerData && typeof providerData === "object" && providerData[modelValue]) {
+            return providerData[modelValue]
+        }
+    }
+
+    return undefined
+}
+
+/**
  * Transform options from various formats into a standardized array of label-value pairs
  */
-function normalizeOptions(rawOptions: unknown): SelectOptions | undefined {
+function normalizeOptions(
+    rawOptions: unknown,
+    modelMetadata?: Record<string, unknown>,
+): SelectOptions | undefined {
     if (!rawOptions) return undefined
 
     if (isStringArray(rawOptions)) {
@@ -90,6 +118,7 @@ function normalizeOptions(rawOptions: unknown): SelectOptions | undefined {
             (opt): BaseOption => ({
                 label: opt,
                 value: opt,
+                metadata: findModelMetadata(opt, modelMetadata),
             }),
         )
     }
@@ -103,6 +132,7 @@ function normalizeOptions(rawOptions: unknown): SelectOptions | undefined {
                         label: value,
                         value,
                         group,
+                        metadata: findModelMetadata(value, modelMetadata),
                     }),
                 ),
             }),
@@ -125,12 +155,13 @@ export function createBaseMetadata(schema: SchemaProperty) {
     const {schema: extractedSchema, parentTitle, parentDescription} = extractSchema(schema)
 
     const rawOptions = getOptionsFromSchema(extractedSchema)
+    const modelMetadata = extractedSchema["x-model-metadata"] as Record<string, unknown> | undefined
 
     return {
         type: getSchemaType(extractedSchema),
         title: parentTitle ?? extractedSchema.title,
         description: parentDescription ?? extractedSchema.description,
-        options: normalizeOptions(rawOptions),
+        options: normalizeOptions(rawOptions, modelMetadata),
         ...("minimum" in extractedSchema && {min: extractedSchema.minimum}),
         ...("maximum" in extractedSchema && {max: extractedSchema.maximum}),
         ...("format" in extractedSchema && {format: extractedSchema.format}),

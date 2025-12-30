@@ -1,19 +1,19 @@
 supported_llm_models = {
     "anthropic": [
-        "anthropic/claude-sonnet-4-5",
-        "anthropic/claude-haiku-4-5",
-        "anthropic/claude-opus-4-1",
-        "anthropic/claude-sonnet-4-20250514",
-        "anthropic/claude-opus-4-20250514",
-        "anthropic/claude-3-7-sonnet-20250219",
-        "anthropic/claude-3-5-sonnet-20241022",
-        "anthropic/claude-3-5-sonnet-20240620",
-        "anthropic/claude-3-5-haiku-20241022",
-        "anthropic/claude-3-opus-20240229",
-        "anthropic/claude-3-sonnet-20240229",
-        "anthropic/claude-3-haiku-20240307",
-        "anthropic/claude-2.1",
-        "anthropic/claude-2",
+        "claude-sonnet-4-5",
+        "claude-haiku-4-5",
+        "claude-opus-4-1",
+        "claude-sonnet-4-20250514",
+        "claude-opus-4-20250514",
+        "claude-3-7-sonnet-20250219",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-5-sonnet-20240620",
+        "claude-3-5-haiku-20241022",
+        "claude-3-opus-20240229",
+        "claude-3-sonnet-20240229",
+        "claude-3-haiku-20240307",
+        "claude-2.1",
+        "claude-2",
     ],
     "cohere": [
         "cohere/command-light",
@@ -205,6 +205,43 @@ supported_llm_models = {
 }
 
 providers_list = list(supported_llm_models.keys())
+
+
+from typing import TypedDict, Dict
+import litellm
+
+
+class ModelMetadata(TypedDict):
+    input: float
+    output: float
+
+
+model_metadata: Dict[str, Dict[str, ModelMetadata]] = {}
+
+for provider, models in supported_llm_models.items():
+    model_metadata[provider] = {}
+    for model in models:
+        cost_info = None
+
+        # 1. Check for exact match
+        if model in litellm.model_cost:
+            cost_info = litellm.model_cost[model]
+
+        # 2. Check for match without provider prefix
+        if not cost_info and "/" in model:
+            short_name = model.split("/", 1)[1]
+            if short_name in litellm.model_cost:
+                cost_info = litellm.model_cost[short_name]
+
+        if cost_info:
+            input_cost = cost_info.get("input_cost_per_token", 0) * 1_000_000
+            output_cost = cost_info.get("output_cost_per_token", 0) * 1_000_000
+
+            if input_cost > 0 or output_cost > 0:
+                model_metadata[provider][model] = {
+                    "input": input_cost,
+                    "output": output_cost,
+                }
 
 model_to_provider_mapping = {
     model: provider
