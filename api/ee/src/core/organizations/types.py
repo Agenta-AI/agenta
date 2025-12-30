@@ -77,31 +77,3 @@ class OrganizationProviderUpdate(BaseModel):
     flags: Optional[Dict[str, Any]] = None
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
-
-
-# ============================================================================
-# ORGANIZATION INVITATIONS
-# ============================================================================
-
-
-class OrganizationInvitation(BaseModel):
-    id: UUID
-    organization_id: UUID
-    email: str
-    role: str
-    token: str
-    status: str
-    expires_at: Optional[datetime]
-    created_at: datetime
-    updated_at: Optional[datetime]
-
-    class Config:
-        from_attributes = True
-
-
-class OrganizationInvitationCreate(BaseModel):
-    organization_id: UUID
-    email: str
-    role: str
-    token: str
-    expires_at: Optional[datetime] = None

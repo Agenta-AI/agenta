@@ -4,13 +4,10 @@ from ee.src.core.organizations.types import (
     OrganizationProvider,
     OrganizationProviderCreate,
     OrganizationProviderUpdate,
-    OrganizationInvitation,
-    OrganizationInvitationCreate,
 )
 from oss.src.dbs.postgres.organizations.dbes import (
     OrganizationDomainDBE,
     OrganizationProviderDBE,
-    OrganizationInvitationDBE,
 )
 
 
@@ -93,33 +90,3 @@ def map_update_provider_dto_to_dbe(
         dbe.tags = dto.tags
     if dto.meta is not None:
         dbe.meta = dto.meta
-
-
-# Invitation mappings
-def map_invitation_dbe_to_dto(
-    dbe: OrganizationInvitationDBE,
-) -> OrganizationInvitation:
-    return OrganizationInvitation(
-        id=dbe.id,
-        organization_id=dbe.organization_id,
-        email=dbe.email,
-        role=dbe.role,
-        token=dbe.token,
-        status=dbe.status,
-        expires_at=dbe.expires_at,
-        created_at=dbe.created_at,
-        updated_at=dbe.updated_at,
-    )
-
-
-def map_create_invitation_dto_to_dbe(
-    dto: OrganizationInvitationCreate,
-) -> OrganizationInvitationDBE:
-    return OrganizationInvitationDBE(
-        organization_id=dto.organization_id,
-        email=dto.email,
-        role=dto.role,
-        token=dto.token,
-        expires_at=dto.expires_at,
-        status="pending",
-    )

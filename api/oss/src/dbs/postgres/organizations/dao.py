@@ -6,7 +6,6 @@ from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.organizations.dbes import (
     OrganizationDomainDBE,
     OrganizationProviderDBE,
-    OrganizationInvitationDBE,
 )
 from oss.src.dbs.postgres.organizations.mappings import (
     map_domain_dbe_to_dto,
@@ -14,8 +13,6 @@ from oss.src.dbs.postgres.organizations.mappings import (
     map_provider_dbe_to_dto,
     map_create_provider_dto_to_dbe,
     map_update_provider_dto_to_dbe,
-    map_invitation_dbe_to_dto,
-    map_create_invitation_dto_to_dbe,
 )
 from ee.src.core.organizations.types import (
     OrganizationDomain,
@@ -23,8 +20,6 @@ from ee.src.core.organizations.types import (
     OrganizationProvider,
     OrganizationProviderCreate,
     OrganizationProviderUpdate,
-    OrganizationInvitation,
-    OrganizationInvitationCreate,
 )
 
 
@@ -70,9 +65,13 @@ class OrganizationDomainsDAO:
             )
             if verified_only:
                 from sqlalchemy import and_
+
                 stmt = stmt.filter(
                     and_(
-                        OrganizationDomainDBE.flags['is_verified'].astext.cast(sqlalchemy.Boolean) == True
+                        OrganizationDomainDBE.flags["is_verified"].astext.cast(
+                            sqlalchemy.Boolean
+                        )
+                        == True
                     )
                 )
 
@@ -111,10 +110,14 @@ class OrganizationDomainsDAO:
 
             # Check if any OTHER organization has already verified this domain
             from sqlalchemy import and_
+
             existing_verified = select(OrganizationDomainDBE).filter(
                 and_(
                     OrganizationDomainDBE.slug == domain_dbe.slug,
-                    OrganizationDomainDBE.flags['is_verified'].astext.cast(sqlalchemy.Boolean) == True,
+                    OrganizationDomainDBE.flags["is_verified"].astext.cast(
+                        sqlalchemy.Boolean
+                    )
+                    == True,
                     OrganizationDomainDBE.organization_id != domain_dbe.organization_id,
                 )
             )
@@ -129,7 +132,7 @@ class OrganizationDomainsDAO:
 
             # Set is_verified flag
             domain_dbe.flags = domain_dbe.flags or {}
-            domain_dbe.flags['is_verified'] = True
+            domain_dbe.flags["is_verified"] = True
             await session.commit()
             await session.refresh(domain_dbe)
 
@@ -177,15 +180,20 @@ class OrganizationProvidersDAO:
         self, organization_id: UUID, enabled_only: bool = False
     ) -> List[OrganizationProvider]:
         import sqlalchemy
+
         async with engine.core_session() as session:
             stmt = select(OrganizationProviderDBE).filter_by(
                 organization_id=organization_id
             )
             if enabled_only:
                 from sqlalchemy import and_
+
                 stmt = stmt.filter(
                     and_(
-                        OrganizationProviderDBE.flags['is_active'].astext.cast(sqlalchemy.Boolean) == True
+                        OrganizationProviderDBE.flags["is_active"].astext.cast(
+                            sqlalchemy.Boolean
+                        )
+                        == True
                     )
                 )
 
@@ -222,7 +230,10 @@ class OrganizationProvidersDAO:
             if enabled_only:
                 stmt = stmt.filter(
                     and_(
-                        OrganizationProviderDBE.flags['is_active'].astext.cast(sqlalchemy.Boolean) == True
+                        OrganizationProviderDBE.flags["is_active"].astext.cast(
+                            sqlalchemy.Boolean
+                        )
+                        == True
                     )
                 )
 
@@ -249,41 +260,3 @@ class OrganizationProvidersDAO:
             await session.refresh(provider_dbe)
 
             return map_provider_dbe_to_dto(provider_dbe)
-
-
-class OrganizationInvitationsDAO:
-    async def create(self, dto: OrganizationInvitationCreate) -> OrganizationInvitation:
-        invitation_dbe = map_create_invitation_dto_to_dbe(dto)
-
-        async with engine.core_session() as session:
-            session.add(invitation_dbe)
-            await session.commit()
-            await session.refresh(invitation_dbe)
-
-        return map_invitation_dbe_to_dto(invitation_dbe)
-
-    async def get_by_token(self, token: str) -> Optional[OrganizationInvitation]:
-        async with engine.core_session() as session:
-            stmt = select(OrganizationInvitationDBE).filter_by(token=token)
-            result = await session.execute(stmt)
-            invitation_dbe = result.scalar()
-
-            if invitation_dbe is None:
-                return None
-
-            return map_invitation_dbe_to_dto(invitation_dbe)
-
-    async def list_by_organization(
-        self, organization_id: UUID, status: Optional[str] = None
-    ) -> List[OrganizationInvitation]:
-        async with engine.core_session() as session:
-            stmt = select(OrganizationInvitationDBE).filter_by(
-                organization_id=organization_id
-            )
-            if status:
-                stmt = stmt.filter_by(status=status)
-
-            result = await session.execute(stmt)
-            invitation_dbes = result.scalars().all()
-
-            return [map_invitation_dbe_to_dto(dbe) for dbe in invitation_dbes]

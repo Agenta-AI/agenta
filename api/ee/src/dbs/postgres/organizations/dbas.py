@@ -79,36 +79,3 @@ class OrganizationProviderDBA(OrganizationScopeDBA, HeaderDBA, LegacyLifecycleDB
         JSONB(none_as_null=True),
         nullable=True,
     )
-
-
-class OrganizationInvitationDBA(OrganizationScopeDBA, LegacyLifecycleDBA):
-    __abstract__ = True
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    email = Column(
-        String,
-        nullable=False,
-    )
-    role = Column(
-        String,
-        nullable=False,
-    )
-    token = Column(
-        String,
-        nullable=False,
-    )
-    status = Column(
-        String,
-        nullable=False,
-        server_default="pending",
-    )
-    expires_at = Column(
-        UUID(as_uuid=True),
-        nullable=True,
-    )
