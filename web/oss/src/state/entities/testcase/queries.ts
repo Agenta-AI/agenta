@@ -8,7 +8,9 @@ import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {
     fetchRevision,
+    revisionDraftAtomFamily,
     revisionsListQueryAtomFamily,
+    variantStatefulAtomFamily,
     type Revision,
     type RevisionListItem,
 } from "../testset"
@@ -84,37 +86,22 @@ export const testsetIdAtom = atom((get) => {
 })
 
 /**
- * Query atom for fetching testset name and slug
+ * Query atom for variant detail
+ * Uses stateful atom family which automatically fetches if not in cache
+ * Variants contain the name and description
  */
-export const testsetNameQueryAtom = atomWithQuery<{name: string; slug?: string}>((get) => {
-    const projectId = get(projectIdAtom)
-    const testsetId = get(testsetIdAtom)
+export const variantDetailQueryAtom = atom((get) => {
+    const revisionQuery = get(revisionQueryAtom)
+    const variantId = revisionQuery.data?.testset_variant_id
 
-    return {
-        queryKey: ["testset-name", projectId, testsetId],
-        queryFn: async () => {
-            if (!projectId || !testsetId) return {name: ""}
-            const response = await axios.post(
-                `${getAgentaApiUrl()}/preview/testsets/query`,
-                {
-                    testset_refs: [{id: testsetId}],
-                    windowing: {limit: 1},
-                },
-                {params: {project_id: projectId}},
-            )
-            const testsets = response.data?.testsets ?? []
-            const testset = testsets[0]
-            return {
-                name: testset?.name ?? "",
-                slug: testset?.slug,
-            }
-        },
-        enabled: Boolean(projectId && testsetId),
-        // Testset name is immutable for a given testset
-        staleTime: Infinity,
-        gcTime: Infinity,
+    if (!variantId) {
+        return {data: null, isPending: false, isError: false, error: null}
     }
+
+    // Stateful atom handles fetching automatically if entity not in cache
+    return get(variantStatefulAtomFamily(variantId))
 })
+
 
 /**
  * Revision list item type (re-export for backward compatibility)
@@ -207,28 +194,50 @@ export interface TestsetMetadata {
 /**
  * Derived atom: full metadata object from query atoms
  * Automatically updates when any query data changes
+ * Triggers testset fetch to ensure entity is loaded
+ *
+ * NOTE: Uses revisionStatefulAtomFamily which includes:
+ * - Batch-fetched server data
+ * - Draft changes merged
+ * - Loading/error states
+ * This ensures that local edits to name/description are immediately visible in UI
  */
 export const testsetMetadataAtom = atom((get): TestsetMetadata | null => {
     const revisionQuery = get(revisionQueryAtom)
-    const nameQuery = get(testsetNameQueryAtom)
+    const variantQuery = get(variantDetailQueryAtom)
+    const currentRevisionId = get(currentRevisionIdAtom)
 
-    const revision = revisionQuery.data
-    if (!revision?.testset_id) return null
+    const revisionFromQuery = revisionQuery.data
+    if (!revisionFromQuery?.testset_id) return null
 
-    const testsetData = nameQuery.data ?? {name: ""}
+    // Get draft if any (for name/description edits)
+    const draft =
+        currentRevisionId && currentRevisionId === revisionFromQuery.id
+            ? get(revisionDraftAtomFamily(currentRevisionId))
+            : null
+
+    // Merge draft with server data
+    const revision = draft ? {...revisionFromQuery, ...draft} : revisionFromQuery
+
+    const variant = variantQuery.data
+
+    // Priority order for name/description:
+    // 1. Draft (local edits)
+    // 2. Variant (server data - variants contain name/description, not revisions)
+    const effectiveName = revision?.name || variant?.name || ""
+    const effectiveDescription = revision?.description || variant?.description || undefined
 
     return {
-        testsetId: revision.testset_id,
-        testsetName: testsetData.name,
-        testsetSlug: testsetData.slug,
-        revisionSlug: revision.slug ?? undefined,
-        revisionVersion: revision.version,
-        // Note: description is stored at testset level, not revision level
-        description: undefined,
-        commitMessage: revision.message ?? undefined,
-        author: revision.author ?? undefined,
-        createdAt: revision.created_at ?? undefined,
-        updatedAt: revision.updated_at ?? undefined,
+        testsetId: revisionFromQuery.testset_id,
+        testsetName: effectiveName,
+        testsetSlug: undefined, // slug is not in current schema
+        revisionSlug: revision?.slug ?? undefined,
+        revisionVersion: revision?.version ?? revisionFromQuery.version,
+        description: effectiveDescription,
+        commitMessage: revision?.message ?? undefined,
+        author: revision?.author ?? undefined,
+        createdAt: revision?.created_at ?? undefined,
+        updatedAt: revision?.updated_at ?? undefined,
     }
 })
 
@@ -237,8 +246,8 @@ export const testsetMetadataAtom = atom((get): TestsetMetadata | null => {
  */
 export const metadataLoadingAtom = atom((get) => {
     const revisionQuery = get(revisionQueryAtom)
-    const nameQuery = get(testsetNameQueryAtom)
-    return revisionQuery.isPending || nameQuery.isPending
+    const variantQuery = get(variantDetailQueryAtom)
+    return revisionQuery.isPending || variantQuery.isPending
 })
 
 /**
@@ -246,6 +255,6 @@ export const metadataLoadingAtom = atom((get) => {
  */
 export const metadataErrorAtom = atom((get) => {
     const revisionQuery = get(revisionQueryAtom)
-    const nameQuery = get(testsetNameQueryAtom)
-    return (revisionQuery.error || nameQuery.error) as Error | null
+    const variantQuery = get(variantDetailQueryAtom)
+    return (revisionQuery.error || variantQuery.error) as Error | null
 })

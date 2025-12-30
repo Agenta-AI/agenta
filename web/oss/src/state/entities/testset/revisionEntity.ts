@@ -60,6 +60,7 @@ const revisionBatchFetcher = createBatchFetcher<RevisionRequest, Revision | null
     batchFn: async (requests: RevisionRequest[], serializedKeys: string[]) => {
         const results = new Map<string, Revision | null>()
 
+        console.log("revisionBatchFetcher")
         // Group by projectId (should all be same in practice)
         const byProject = new Map<string, string[]>()
         requests.forEach((req, index) => {
@@ -79,13 +80,14 @@ const revisionBatchFetcher = createBatchFetcher<RevisionRequest, Revision | null
             if (revisionIds.length === 0) continue
 
             try {
+                const requestBody = {
+                    testset_revision_refs: revisionIds.map((id) => ({id})),
+                    windowing: {limit: revisionIds.length},
+                }
                 const response = await axios.post(
                     `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
-                    {
-                        revision_ids: revisionIds,
-                        windowing: {limit: revisionIds.length},
-                    },
-                    {params: {project_id: projectId}},
+                    requestBody,
+                    {params: {project_id: projectId, include_testcases: false}},
                 )
 
                 const revisions = response.data?.testset_revisions ?? []
@@ -95,15 +97,20 @@ const revisionBatchFetcher = createBatchFetcher<RevisionRequest, Revision | null
                     try {
                         const revision = normalizeRevision(raw)
                         byId.set(revision.id, revision)
-                    } catch (_e) {
-                        // Skip invalid revisions
+                    } catch (e) {
+                        console.error(
+                            "[revisionBatchFetcher] Failed to normalize revision:",
+                            e,
+                            raw,
+                        )
                     }
                 })
 
                 // Map results back to request keys
                 revisionIds.forEach((id) => {
                     const key = `${projectId}:${id}`
-                    results.set(key, byId.get(id) ?? null)
+                    const result = byId.get(id) ?? null
+                    results.set(key, result)
                 })
             } catch (_error) {
                 // Set null for all failed requests
@@ -181,7 +188,8 @@ export const revisionQueryAtomFamily = atomFamily(
                     if (!projectId || !revisionId || !isValidUUID(revisionId)) {
                         return null
                     }
-                    return revisionBatchFetcher({projectId, revisionId})
+                    const result = await revisionBatchFetcher({projectId, revisionId})
+                    return result
                 },
                 enabled: Boolean(projectId && revisionId && isValidUUID(revisionId)),
                 // Revisions are immutable - never stale, never gc
@@ -211,7 +219,9 @@ export const revisionEntityAtomFamily = atomFamily(
             const query = get(queryAtom)
             const serverData = query.data
 
-            if (!serverData) return null
+            if (!serverData) {
+                return null
+            }
 
             // Check for local draft
             const draft = get(revisionDraftAtomFamily(revisionId))
@@ -264,17 +274,20 @@ export const revisionsListQueryAtomFamily = atomFamily(
                         {
                             testset_refs: [{id: testsetId}],
                             windowing: {limit: 100, order: "descending"},
+                            include_testcases: false,
                         },
                         {params: {project_id: projectId}},
                     )
 
                     const revisions = response.data?.testset_revisions ?? []
+                    console.log("revisions list", revisions)
                     // Strip out data.testcases to reduce payload size until backend is updated
                     return revisions.map((raw: any) => {
                         // Remove the data field which contains testcases array
                         const {data: _data, ...rest} = raw
                         return {
                             id: rest.id,
+                            data: _data,
                             version:
                                 typeof rest.version === "string"
                                     ? parseInt(rest.version, 10)
@@ -341,7 +354,7 @@ const latestRevisionCacheAtom = atom<Map<string, LatestRevisionInfo>>(new Map())
 /**
  * Pending batch of testset IDs to fetch latest revisions for
  */
-const pendingLatestRevisionBatchAtom = atom<Set<string>>(new Set())
+const pendingLatestRevisionBatchAtom = atom<Set<string>>(new Set<string>())
 
 /**
  * Flag to track if batch fetch is in progress

@@ -6,10 +6,12 @@ import {createEntityStore} from "../core/createEntityStore"
 import {
     revisionSchema,
     testsetSchema,
+    variantSchema,
     type Revision,
     type RevisionsResponse,
     type Testset,
     type TestsetsResponse,
+    type Variant,
 } from "./revisionSchema"
 
 /**
@@ -44,6 +46,14 @@ export interface TestsetDetailParams {
     projectId: string
 }
 
+/**
+ * Detail params for fetching a single variant
+ */
+export interface VariantDetailParams {
+    id: string
+    projectId: string
+}
+
 // ============================================================================
 // API FUNCTIONS (exported for use in other modules)
 // ============================================================================
@@ -53,7 +63,7 @@ export interface TestsetDetailParams {
  */
 export async function fetchRevision({id, projectId}: RevisionDetailParams): Promise<Revision> {
     const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/revisions/${id}`, {
-        params: {project_id: projectId},
+        params: {project_id: projectId, include_testcases: false},
     })
     return revisionSchema.parse(response.data?.testset_revision ?? response.data)
 }
@@ -70,6 +80,7 @@ export async function fetchRevisionsList({
         {
             testset_refs: [{id: testsetId}],
             windowing: {limit: 100, order: "descending"},
+            include_testcases: false,
         },
         {params: {project_id: projectId}},
     )
@@ -118,6 +129,16 @@ export async function fetchTestsetDetail({id, projectId}: TestsetDetailParams): 
         params: {project_id: projectId},
     })
     return testsetSchema.parse(response.data?.testset ?? response.data)
+}
+
+/**
+ * Fetch a single variant by ID (contains name and description)
+ */
+export async function fetchVariantDetail({id, projectId}: VariantDetailParams): Promise<Variant> {
+    const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/variants/${id}`, {
+        params: {project_id: projectId},
+    })
+    return variantSchema.parse(response.data?.testset_variant ?? response.data)
 }
 
 /**
@@ -239,5 +260,33 @@ export const testsetStore = createEntityStore<
             params: {project_id: projectId},
         })
         return testsetSchema.parse(response.data?.testset ?? response.data)
+    },
+})
+
+/**
+ * Variant entity store (contains name and description)
+ */
+export const variantStore = createEntityStore<
+    Variant,
+    never, // No list endpoint for now
+    never,
+    VariantDetailParams
+>({
+    name: "variant",
+    schema: variantSchema,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+
+    extractEntities: () => [],
+
+    fetchList: async () => {
+        throw new Error("Variant list not implemented")
+    },
+
+    fetchDetail: async ({id, projectId}) => {
+        const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/variants/${id}`, {
+            params: {project_id: projectId},
+        })
+        return variantSchema.parse(response.data?.testset_variant ?? response.data)
     },
 })

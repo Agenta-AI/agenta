@@ -15,6 +15,7 @@ export {
     revisionsResponseSchema,
     testsetSchema,
     testsetsResponseSchema,
+    variantSchema,
     normalizeRevision,
     isV0Revision,
     getVersionDisplay,
@@ -23,20 +24,24 @@ export {
     type RevisionsResponse,
     type Testset,
     type TestsetsResponse,
+    type Variant,
 } from "./revisionSchema"
 
 // Store export (use with useEntity/useEntityList hooks)
 export {
     revisionStore,
     testsetStore,
+    variantStore,
     fetchRevision,
     fetchRevisionsList,
     fetchTestsetsList,
     fetchTestsetDetail,
+    fetchVariantDetail,
     type RevisionListParams,
     type RevisionDetailParams,
     type TestsetListParams,
     type TestsetDetailParams,
+    type VariantDetailParams,
 } from "./store"
 
 // Revision entity atoms (use these directly instead of wrapper atoms)
@@ -79,3 +84,10 @@ export {
     type SaveTestsetParams,
     type SaveTestsetResult,
 } from "./mutations"
+
+// Stateful atoms (combines entity cache + query in single atom)
+export {
+    testsetStatefulAtomFamily,
+    revisionStatefulAtomFamily, // Includes batch fetching + draft merging
+    variantStatefulAtomFamily, // Variant contains name and description
+} from "./statefulAtoms"

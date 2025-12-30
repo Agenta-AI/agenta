@@ -2,10 +2,11 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {
-    fetchTestsetRevisions,
-    type TestsetRevision,
-} from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
-import {latestRevisionForTestsetAtomFamily} from "@/oss/state/entities/testset"
+    fetchRevisionsList,
+    latestRevisionForTestsetAtomFamily,
+    type Revision as TestsetRevision,
+} from "@/oss/state/entities/testset"
+import {projectIdAtom} from "@/oss/state/project"
 
 /**
  * Testset/Revision Selection State
@@ -110,7 +111,12 @@ export const loadRevisionsForTestsetAtom = atom(
         set(loadingTestsetMapAtom, newLoadingMap)
 
         try {
-            const revisions = await fetchTestsetRevisions({testsetId})
+            const projectId = get(projectIdAtom)
+            if (!projectId) {
+                return []
+            }
+            const response = await fetchRevisionsList({projectId, testsetId})
+            const revisions = response.testset_revisions
 
             // Update cache
             const currentCache = get(loadedRevisionsMapAtom)

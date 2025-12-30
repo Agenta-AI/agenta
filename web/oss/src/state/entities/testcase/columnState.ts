@@ -456,13 +456,21 @@ function collectObjectSubKeysRecursive(
             return
         }
 
+        // Try to parse as object to check if it's empty
+        const nestedObj = tryParseAsObject(subValue)
+
+        // Skip empty objects (e.g., "{}" from deleted nested properties)
+        // Empty objects should not create columns
+        if (nestedObj && Object.keys(nestedObj).length === 0) {
+            return
+        }
+
         // Add this subKey to the parent's set
         const parentSubKeys = objectSubKeys.get(prefix) || new Set<string>()
         parentSubKeys.add(subKey)
         objectSubKeys.set(prefix, parentSubKeys)
 
         // If this value is also an object (not array), recurse
-        const nestedObj = tryParseAsObject(subValue)
         if (nestedObj && Object.keys(nestedObj).length > 0) {
             collectObjectSubKeysRecursive(nestedObj, fullPath, objectSubKeys, currentDepth + 1, deletedCols)
         }
