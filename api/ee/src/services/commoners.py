@@ -162,10 +162,6 @@ async def create_accounts(
             from sqlalchemy.exc import IntegrityError
 
             if isinstance(e, IntegrityError):
-                log.info(
-                    "[scopes] race condition in create_accounts, fetching existing user",
-                    email=user_dict["email"],
-                )
                 user = await db_manager.get_user_with_email(email=user_dict["email"])
                 if user is None:
                     # Should never happen, but re-raise if we still can't find the user

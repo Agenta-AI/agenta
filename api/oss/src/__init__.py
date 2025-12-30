@@ -250,8 +250,6 @@ def override_passwordless_apis(
         session: Optional[SessionContainer] = None,
         should_try_linking_with_session_user: Optional[bool] = None,
     ):
-        print("[API-OVERRIDE] consume_code_post called (passwordless)")
-
         # First we call the original implementation of consume_code_post.
         response = await original_consume_code_post(
             pre_auth_session_id,
@@ -290,8 +288,6 @@ def override_thirdparty_apis(original_implementation: ThirdPartyAPIInterface):
         session: Optional[SessionContainer] = None,
         should_try_linking_with_session_user: Optional[bool] = None,
     ):
-        print(f"[API-OVERRIDE] thirdparty_sign_in_up_post called: provider_id={provider.id}")
-
         # Call the original implementation if needed
         response = await original_sign_in_up(
             provider,

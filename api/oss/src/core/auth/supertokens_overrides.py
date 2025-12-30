@@ -133,8 +133,6 @@ def override_thirdparty_functions(
         1. Create user_identity record after successful authentication
         2. Populate session with identities array
         """
-        print(f"[SUPERTOKENS-OVERRIDE] sign_in_up called: third_party_id={third_party_id}, email={email}")
-
         # Call original implementation
         result = await original_sign_in_up(
             third_party_id=third_party_id,
@@ -148,8 +146,6 @@ def override_thirdparty_functions(
             tenant_id=tenant_id,
             user_context=user_context,
         )
-
-        print(f"[SUPERTOKENS-OVERRIDE] sign_in_up result: user_id={result.user.id}")
 
         # Determine method string based on third_party_id
         if third_party_id.startswith("oidc:"):
@@ -183,11 +179,9 @@ def override_thirdparty_functions(
             # Get internal user ID from database (not SuperTokens ID)
             internal_user = await get_user_with_email(email)
             if not internal_user:
-                print(f"[SUPERTOKENS-OVERRIDE] ERROR: Could not find user in database for email={email}")
                 raise Exception(f"User not found for email {email}")
 
             internal_user_id = internal_user.id
-            print(f"[SUPERTOKENS-OVERRIDE] Found internal user_id: {internal_user_id}")
 
             # Check if identity already exists
             existing = await identities_dao.get_by_method_subject(
@@ -197,23 +191,17 @@ def override_thirdparty_functions(
 
             if not existing:
                 # Create new identity
-                print(f"[SUPERTOKENS-OVERRIDE] Creating new identity: method={method}, subject={third_party_user_id}")
                 await identities_dao.create(
                     UserIdentityCreate(
                         user_id=internal_user_id,
                         method=method,
                         subject=third_party_user_id,
                         domain=domain,
-                        # created_by_id is optional, leaving it as None
                     )
                 )
-            else:
-                print(f"[SUPERTOKENS-OVERRIDE] Identity already exists: {existing.id}")
-        except Exception as e:
+        except Exception:
             # Log error but don't block authentication
-            print(f"[SUPERTOKENS-OVERRIDE] Error creating user_identity: {e}")
-            import traceback
-            traceback.print_exc()
+            pass
 
         # Fetch all user identities for session payload
         try:
@@ -223,17 +211,13 @@ def override_thirdparty_functions(
             if internal_user:
                 all_identities = await identities_dao.list_by_user(internal_user.id)
                 identities_array = [identity.method for identity in all_identities]
-                print(f"[SUPERTOKENS-OVERRIDE] Fetched {len(all_identities)} identities: {identities_array}")
             else:
-                print(f"[SUPERTOKENS-OVERRIDE] Could not find user for email={email}, using fallback")
                 identities_array = [method]
-        except Exception as e:
-            print(f"[SUPERTOKENS-OVERRIDE] Error fetching user identities: {e}")
+        except Exception:
             identities_array = [method]  # Fallback to current method only
 
         # Store identities in user_context for session creation
         user_context["identities"] = identities_array
-        print(f"[SUPERTOKENS-OVERRIDE] Set user_context['identities'] = {identities_array}")
 
         return result
 
@@ -268,19 +252,14 @@ def override_session_functions(
         """
         Override create_new_session to inject identities array into access token payload.
         """
-        print(f"[SUPERTOKENS-OVERRIDE] create_new_session called: user_id={user_id}")
-        print(f"[SUPERTOKENS-OVERRIDE] user_context keys: {list(user_context.keys())}")
-
         # Get identities from user_context (populated by sign_in_up override)
         identities = user_context.get("identities", [])
-        print(f"[SUPERTOKENS-OVERRIDE] identities from user_context: {identities}")
 
         # Merge with existing payload
         if access_token_payload is None:
             access_token_payload = {}
 
         access_token_payload["identities"] = identities
-        print(f"[SUPERTOKENS-OVERRIDE] Set access_token_payload['identities'] = {identities}")
 
         # Call original implementation
         result = await original_create_new_session(
@@ -293,7 +272,6 @@ def override_session_functions(
             user_context=user_context,
         )
 
-        print(f"[SUPERTOKENS-OVERRIDE] create_new_session completed")
         return result
 
     original_implementation.create_new_session = create_new_session
@@ -358,11 +336,9 @@ def override_passwordless_functions(
             # Get internal user ID from database (not SuperTokens ID)
             internal_user = await get_user_with_email(email)
             if not internal_user:
-                print(f"[SUPERTOKENS-OVERRIDE] ERROR: Could not find user in database for email={email}")
                 raise Exception(f"User not found for email {email}")
 
             internal_user_id = internal_user.id
-            print(f"[SUPERTOKENS-OVERRIDE] Found internal user_id for passwordless: {internal_user_id}")
 
             # Check if identity already exists
             existing = await identities_dao.get_by_method_subject(
@@ -372,7 +348,6 @@ def override_passwordless_functions(
 
             if not existing:
                 # Create new identity
-                print(f"[SUPERTOKENS-OVERRIDE] Creating new identity: method={method}, subject={email}")
                 await identities_dao.create(
                     UserIdentityCreate(
                         user_id=internal_user_id,
@@ -382,13 +357,9 @@ def override_passwordless_functions(
                         # created_by_id is optional, leaving it as None
                     )
                 )
-            else:
-                print(f"[SUPERTOKENS-OVERRIDE] Identity already exists: {existing.id}")
-        except Exception as e:
+        except Exception:
             # Log error but don't block authentication
-            print(f"[SUPERTOKENS-OVERRIDE] Error creating user_identity for passwordless: {e}")
-            import traceback
-            traceback.print_exc()
+            pass
 
         # Fetch all user identities for session payload
         try:
@@ -398,17 +369,13 @@ def override_passwordless_functions(
             if internal_user:
                 all_identities = await identities_dao.list_by_user(internal_user.id)
                 identities_array = [identity.method for identity in all_identities]
-                print(f"[SUPERTOKENS-OVERRIDE] Fetched {len(all_identities)} identities for passwordless: {identities_array}")
             else:
-                print(f"[SUPERTOKENS-OVERRIDE] Could not find user for email={email}, using fallback")
                 identities_array = [method]
-        except Exception as e:
-            print(f"[SUPERTOKENS-OVERRIDE] Error fetching user identities: {e}")
+        except Exception:
             identities_array = [method]  # Fallback to current method only
 
         # Store identities in user_context for session creation
         user_context["identities"] = identities_array
-        print(f"[SUPERTOKENS-OVERRIDE] Set user_context['identities'] = {identities_array}")
 
         return result
 
@@ -437,7 +404,6 @@ def override_emailpassword_functions(
         1. Create user_identity record for email:password after successful login
         2. Populate session with identities array
         """
-        print(f"[SUPERTOKENS-OVERRIDE] sign_in (email/password) called: email={email}")
 
         # Call original implementation
         result = await original_sign_in(
@@ -453,7 +419,6 @@ def override_emailpassword_functions(
         if not isinstance(result, EmailPasswordSignInOkResult):
             return result
 
-        print(f"[SUPERTOKENS-OVERRIDE] sign_in result: user_id={result.user.id}")
 
         # Method for email/password
         method = "email:password"
@@ -468,11 +433,9 @@ def override_emailpassword_functions(
             # Get internal user ID from database (not SuperTokens ID)
             internal_user = await get_user_with_email(email)
             if not internal_user:
-                print(f"[SUPERTOKENS-OVERRIDE] ERROR: Could not find user in database for email={email}")
                 raise Exception(f"User not found for email {email}")
 
             internal_user_id = internal_user.id
-            print(f"[SUPERTOKENS-OVERRIDE] Found internal user_id for email/password: {internal_user_id}")
 
             # Check if identity already exists
             existing = await identities_dao.get_by_method_subject(
@@ -482,7 +445,6 @@ def override_emailpassword_functions(
 
             if not existing:
                 # Create new identity
-                print(f"[SUPERTOKENS-OVERRIDE] Creating new identity: method={method}, subject={email}")
                 await identities_dao.create(
                     UserIdentityCreate(
                         user_id=internal_user_id,
@@ -492,13 +454,9 @@ def override_emailpassword_functions(
                         # created_by_id is optional, leaving it as None
                     )
                 )
-            else:
-                print(f"[SUPERTOKENS-OVERRIDE] Identity already exists: {existing.id}")
-        except Exception as e:
+        except Exception:
             # Log error but don't block authentication
-            print(f"[SUPERTOKENS-OVERRIDE] Error creating user_identity for email/password: {e}")
-            import traceback
-            traceback.print_exc()
+            pass
 
         # Fetch all user identities for session payload
         try:
@@ -508,17 +466,13 @@ def override_emailpassword_functions(
             if internal_user:
                 all_identities = await identities_dao.list_by_user(internal_user.id)
                 identities_array = [identity.method for identity in all_identities]
-                print(f"[SUPERTOKENS-OVERRIDE] Fetched {len(all_identities)} identities for email/password: {identities_array}")
             else:
-                print(f"[SUPERTOKENS-OVERRIDE] Could not find user for email={email}, using fallback")
                 identities_array = [method]
-        except Exception as e:
-            print(f"[SUPERTOKENS-OVERRIDE] Error fetching user identities: {e}")
+        except Exception:
             identities_array = [method]  # Fallback to current method only
 
         # Store identities in user_context for session creation
         user_context["identities"] = identities_array
-        print(f"[SUPERTOKENS-OVERRIDE] Set user_context['identities'] = {identities_array}")
 
         return result
 
@@ -535,7 +489,6 @@ def override_emailpassword_functions(
         1. Create user_identity record for email:password after successful signup
         2. Populate session with identities array
         """
-        print(f"[SUPERTOKENS-OVERRIDE] sign_up (email/password) called: email={email}")
 
         # Call original implementation
         result = await original_sign_up(
@@ -551,7 +504,6 @@ def override_emailpassword_functions(
         if not isinstance(result, EmailPasswordSignUpOkResult):
             return result
 
-        print(f"[SUPERTOKENS-OVERRIDE] sign_up result: user_id={result.user.id}")
 
         # Method for email/password
         method = "email:password"
@@ -566,11 +518,9 @@ def override_emailpassword_functions(
             # Get internal user ID from database (not SuperTokens ID)
             internal_user = await get_user_with_email(email)
             if not internal_user:
-                print(f"[SUPERTOKENS-OVERRIDE] ERROR: Could not find user in database for email={email}")
                 raise Exception(f"User not found for email {email}")
 
             internal_user_id = internal_user.id
-            print(f"[SUPERTOKENS-OVERRIDE] Found internal user_id for email/password signup: {internal_user_id}")
 
             # Check if identity already exists
             existing = await identities_dao.get_by_method_subject(
@@ -580,7 +530,6 @@ def override_emailpassword_functions(
 
             if not existing:
                 # Create new identity
-                print(f"[SUPERTOKENS-OVERRIDE] Creating new identity: method={method}, subject={email}")
                 await identities_dao.create(
                     UserIdentityCreate(
                         user_id=internal_user_id,
@@ -590,13 +539,9 @@ def override_emailpassword_functions(
                         # created_by_id is optional, leaving it as None
                     )
                 )
-            else:
-                print(f"[SUPERTOKENS-OVERRIDE] Identity already exists: {existing.id}")
-        except Exception as e:
+        except Exception:
             # Log error but don't block authentication
-            print(f"[SUPERTOKENS-OVERRIDE] Error creating user_identity for email/password signup: {e}")
-            import traceback
-            traceback.print_exc()
+            pass
 
         # Fetch all user identities for session payload
         try:
@@ -606,17 +551,13 @@ def override_emailpassword_functions(
             if internal_user:
                 all_identities = await identities_dao.list_by_user(internal_user.id)
                 identities_array = [identity.method for identity in all_identities]
-                print(f"[SUPERTOKENS-OVERRIDE] Fetched {len(all_identities)} identities for email/password signup: {identities_array}")
             else:
-                print(f"[SUPERTOKENS-OVERRIDE] Could not find user for email={email}, using fallback")
                 identities_array = [method]
-        except Exception as e:
-            print(f"[SUPERTOKENS-OVERRIDE] Error fetching user identities: {e}")
+        except Exception:
             identities_array = [method]  # Fallback to current method only
 
         # Store identities in user_context for session creation
         user_context["identities"] = identities_array
-        print(f"[SUPERTOKENS-OVERRIDE] Set user_context['identities'] = {identities_array}")
 
         return result
 

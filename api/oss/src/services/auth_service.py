@@ -788,15 +788,7 @@ async def _check_organization_policy(request: Request):
     )
     user_id = request.state.user_id if hasattr(request.state, "user_id") else None
 
-    log.info(
-        "[auth-policy-middleware] EXTRACTED",
-        path=request.url.path,
-        organization_id=organization_id,
-        user_id=user_id,
-    )
-
     if not organization_id or not user_id:
-        log.info("[auth-policy-middleware] SKIP: Missing org_id or user_id")
         return
 
     from uuid import UUID
@@ -807,25 +799,8 @@ async def _check_organization_policy(request: Request):
         session = await get_session(request)  # type: ignore
         payload = session.get_access_token_payload() if session else {}  # type: ignore
         identities = payload.get("identities", [])
-        log.info(
-            "[auth-policy-middleware] SESSION",
-            has_session=session is not None,
-            identities=identities,
-        )
-
-        # If identities empty, log warning but continue with policy check
-        # Empty identities may indicate legacy sessions or identity tracking failure
-        # Policy enforcement will still work - restrictive policies will fail for empty identities
-        if not identities:
-            log.warn(
-                "[auth-policy-middleware] WARNING: Empty identities array in session",
-                user_id=user_id,
-                organization_id=organization_id,
-            )
-            # Continue to policy check - empty identities will be evaluated against org policies
-
-    except Exception as e:
-        log.warn("[auth-policy-middleware] SESSION ERROR", error=str(e))
+    except Exception:
+        log.warn("[auth] identities=[]", exc_info=True)
         identities = []
         return  # Skip policy check on session errors
 
@@ -838,11 +813,6 @@ async def _check_organization_policy(request: Request):
         # Only enforce auth policy errors (AUTH_UPGRADE_REQUIRED)
         # Skip membership errors - those should be handled by route handlers
         error_code = policy_error.get("error")
-        log.info(
-            "[auth-policy-middleware] POLICY ERROR",
-            error_code=error_code,
-            error=policy_error,
-        )
         if error_code == "AUTH_UPGRADE_REQUIRED":
             raise HTTPException(
                 status_code=403,

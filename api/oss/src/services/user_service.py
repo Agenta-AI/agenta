@@ -29,11 +29,6 @@ async def create_new_user(payload: dict) -> UserDB:
     # Check if user already exists (happy path optimization)
     existing_user = await db_manager.get_user_with_email(payload["email"])
     if existing_user:
-        log.info(
-            "[scopes] user already exists, returning existing user",
-            user_id=existing_user.id,
-            email=payload["email"],
-        )
         return existing_user
 
     # Attempt to create new user
@@ -56,10 +51,6 @@ async def create_new_user(payload: dict) -> UserDB:
     except IntegrityError:
         # Race condition: another request created user between check and create
         # Fetch and return the existing user
-        log.info(
-            "[scopes] race condition detected during user creation, fetching existing user",
-            email=payload["email"],
-        )
         existing_user = await db_manager.get_user_with_email(payload["email"])
         if existing_user:
             return existing_user
