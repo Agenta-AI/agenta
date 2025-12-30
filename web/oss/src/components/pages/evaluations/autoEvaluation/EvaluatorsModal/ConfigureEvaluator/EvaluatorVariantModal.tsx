@@ -208,7 +208,6 @@ const EvaluatorVariantModal = ({
         [derivedTestsetColumns],
     )
 
-    console.log("normalizedTestsetColumns", normalizedTestsetColumns)
     const {variants: appVariantRevisions, isLoading: variantsLoading} = useAppVariantRevisions(
         selectedAppId || null,
     )
@@ -466,7 +465,6 @@ const EvaluatorVariantModal = ({
             [columnsKnown, expectedVariables, normalizedTestsetColumns],
         )
 
-        console.log("normalizedTestsetColumns", normalizedTestsetColumns)
         const hasWarning =
             columnsKnown && expectedVariables.length > 0 && missingVariables.length > 0
 
