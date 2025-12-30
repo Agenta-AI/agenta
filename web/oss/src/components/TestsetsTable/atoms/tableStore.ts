@@ -6,6 +6,7 @@ import {
     type BaseTableMeta,
     type InfiniteTableRowBase,
 } from "@/oss/components/InfiniteVirtualTable"
+import type {ExportFileType} from "@/oss/services/testsets/api"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {fetchTestsetsWindow} from "./fetchTestsets"
@@ -14,6 +15,15 @@ import {
     testsetsDateModifiedFilterAtom,
     type TestsetDateRange,
 } from "./filters"
+
+/**
+ * Persisted atom for export format preference (CSV or JSON)
+ * Uses localStorage so the user's preference is remembered across sessions
+ */
+export const testsetsExportFormatAtom = atomWithStorage<ExportFileType>(
+    "testsets-export-format",
+    "csv",
+)
 
 /**
  * API response row from /preview/simple/testsets/query
