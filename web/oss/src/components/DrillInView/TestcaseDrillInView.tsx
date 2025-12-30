@@ -39,7 +39,7 @@ export interface TestcaseDrillInViewProps
  * - Reading testcase from entity atoms (includes draft if exists)
  * - Writing updates via testcase atoms
  * - Column-based field structure
- * - String value serialization
+ * - Native value preservation (objects/arrays stored as-is)
  */
 export const TestcaseDrillInView = memo(
     ({testcaseId, columns, ...drillInProps}: TestcaseDrillInViewProps) => {
@@ -50,7 +50,7 @@ export const TestcaseDrillInView = memo(
                 getValueAtPath={getTestcaseValueAtPath}
                 setValueAtPathAtom={testcaseSetValueAtPathAtom}
                 getRootItems={getTestcaseRootItems}
-                valueMode="string"
+                valueMode="native"
                 columns={columns}
                 {...drillInProps}
             />
