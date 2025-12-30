@@ -29,7 +29,6 @@ import {
     testcaseIdsAtom,
 } from "../testcase/testcaseEntity"
 
-import {revisionIsDirtyAtom, testsetNameChangedAtom} from "./dirtyState"
 import {clearRevisionDraftAtom, revisionDraftAtomFamily} from "./revisionEntity"
 import {variantStore, fetchRevision, fetchVariantDetail} from "./store"
 
@@ -114,9 +113,9 @@ export const saveTestsetAtom = atom(
             const serverIds = get(testcaseIdsAtom)
             const newIds = get(newEntityIdsAtom)
             const deletedIds = get(deletedEntityIdsAtom)
-            const testsetNameChanged = get(testsetNameChangedAtom)
-            const descriptionChanged = get(revisionIsDirtyAtom)
-            const description = revisionData?.description ?? ""
+
+            // Note: Name and description are now updated directly on testset entity,
+            // not via the commit flow. See updateTestsetMetadata API.
 
             // Build patch operations from local changes
             const operations: TestsetRevisionPatchOperations = {}
@@ -214,23 +213,17 @@ export const saveTestsetAtom = atom(
                 (operations.create?.length ?? 0) > 0 ||
                 (operations.delete?.length ?? 0) > 0
 
-            if (
-                !hasColumnOperations &&
-                !hasTestcaseOperations &&
-                !testsetNameChanged &&
-                !descriptionChanged
-            ) {
+            if (!hasColumnOperations && !hasTestcaseOperations) {
                 return {success: true, newRevisionId: revisionId || undefined}
             }
 
             // Patch revision with delta changes
+            // Note: Name/description are no longer passed here - they're updated directly on testset
             const response = await patchTestsetRevision(
                 testsetId,
                 operations,
                 commitMessage || undefined,
                 effectiveRevisionId ?? undefined, // Pass the base revision ID we're editing from
-                descriptionChanged ? description : undefined,
-                testsetNameChanged ? testsetName : undefined, // Only pass name if it changed
             )
 
             if (response?.testset_revision) {

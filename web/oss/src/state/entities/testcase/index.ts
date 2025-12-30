@@ -25,7 +25,7 @@ export {
     currentRevisionIdAtom,
     revisionQueryAtom,
     testsetIdAtom,
-    variantDetailQueryAtom,
+    testsetDetailQueryAtom,
     revisionsListQueryAtom,
     fetchTestcasesPage,
     testsetMetadataAtom,

@@ -1,11 +1,11 @@
 /**
  * Testset Entity Module
  *
- * Manages testset and revision entities with:
+ * Manages testset, revision, and variant entities with:
  * - Zod schema validation
- * - Entity store with normalized caching
- * - Batch fetching for latest revisions
- * - Compatible with useEntity/useEntityList hooks
+ * - Query atoms with cache redirect (no explicit hydration)
+ * - Batch fetching for revisions
+ * - Stateful atoms for simplified entity access
  */
 
 // Schema exports
@@ -27,25 +27,53 @@ export {
     type Variant,
 } from "./revisionSchema"
 
-// Store export (use with useEntity/useEntityList hooks)
+// Testset entity atoms
 export {
-    revisionStore,
-    testsetStore,
-    variantStore,
+    // Query atoms
+    testsetQueryAtomFamily,
+    testsetsListQueryAtomFamily,
+    // Server state
+    testsetServerStateAtomFamily,
+    // Entity atoms
+    testsetEntityAtomFamily,
+    // Variant query atoms
+    variantQueryAtomFamily,
+    variantServerStateAtomFamily,
+    variantEntityAtomFamily,
+    // API functions
     fetchRevision,
     fetchRevisionsList,
     fetchTestsetsList,
     fetchTestsetDetail,
     fetchVariantDetail,
+    // Cache invalidation
+    invalidateTestsetsListCache,
+    invalidateTestsetCache,
+    invalidateRevisionsListCache,
+    // Param types
     type RevisionListParams,
     type RevisionDetailParams,
     type TestsetListParams,
     type TestsetDetailParams,
     type VariantDetailParams,
+    // Legacy stores (deprecated - kept for backward compatibility)
+    revisionStore,
+    testsetStore,
+    variantStore,
 } from "./store"
 
-// Revision entity atoms (use these directly instead of wrapper atoms)
+// Revision entity atoms
 export {
+    // Query atoms
+    revisionQueryAtomFamily,
+    // Server state
+    revisionServerStateAtomFamily,
+    // Entity atoms (includes draft merging)
+    revisionEntityAtomFamily,
+    // Draft atoms
+    revisionDraftAtomFamily,
+    revisionHasDraftAtomFamily,
+    clearRevisionDraftAtom,
     // Revisions list query (for dropdown)
     revisionsListQueryAtomFamily,
     enableRevisionsListQueryAtom,
@@ -54,12 +82,8 @@ export {
     // Latest revision (legacy - batch fetches latest revision per testset)
     requestLatestRevisionAtom,
     latestRevisionAtomFamily,
+    latestRevisionStatefulAtomFamily,
     clearLatestRevisionCacheAtom,
-    // Entity pattern atoms - use these directly
-    revisionEntityAtomFamily,
-    revisionDraftAtomFamily,
-    revisionHasDraftAtomFamily,
-    clearRevisionDraftAtom,
     type LatestRevisionInfo,
 } from "./revisionEntity"
 
@@ -85,9 +109,9 @@ export {
     type SaveTestsetResult,
 } from "./mutations"
 
-// Stateful atoms (combines entity cache + query in single atom)
+// Stateful atoms (combines entity + query state in single atom)
 export {
     testsetStatefulAtomFamily,
-    revisionStatefulAtomFamily, // Includes batch fetching + draft merging
-    variantStatefulAtomFamily, // Variant contains name and description
+    revisionStatefulAtomFamily,
+    variantStatefulAtomFamily,
 } from "./statefulAtoms"

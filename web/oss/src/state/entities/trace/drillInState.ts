@@ -1,13 +1,32 @@
 import type {PathItem} from "@/oss/components/DrillInView"
 
-import {
-    createEntityDraftState,
-    normalizeValueForComparison,
-} from "../shared/createEntityDraftState"
 import {createDrillInState} from "../shared/createDrillInState"
 
-import {traceSpanAtomFamily} from "./store"
 import type {TraceSpan} from "./schema"
+import {
+    traceSpanEntityAtomFamily,
+    updateTraceSpanAtom,
+} from "./store"
+
+// ============================================================================
+// RE-EXPORTS FROM STORE (for backward compatibility)
+// Draft state is now defined in store.ts for consistency with other entities
+// ============================================================================
+
+export {
+    // Draft atoms
+    traceSpanDraftAtomFamily,
+    traceSpanHasDraftAtomFamily,
+    traceSpanIsDirtyAtomFamily,
+    discardTraceSpanDraftAtom,
+    updateTraceSpanAtom,
+    // Entity atom (combined server + draft)
+    traceSpanEntityAtomFamily,
+} from "./store"
+
+// Backward compatibility alias
+// traceSpanWithDraftAtomFamily was the old name for the combined entity atom
+export {traceSpanEntityAtomFamily as traceSpanWithDraftAtomFamily} from "./store"
 
 // ============================================================================
 // TYPES
@@ -17,49 +36,6 @@ import type {TraceSpan} from "./schema"
  * Type for trace span attributes (the draftable portion)
  */
 type TraceSpanAttributes = TraceSpan["attributes"]
-
-// ============================================================================
-// DRAFT STATE (For editing trace spans in AddToTestset drawer)
-// Uses shared factory with trace-specific configuration
-// ============================================================================
-
-/**
- * Create draft state management for trace spans
- * Uses shared factory with trace-specific configuration
- */
-const traceSpanDraftState = createEntityDraftState<TraceSpan, TraceSpanAttributes>({
-    // Read from trace span entity atoms
-    entityAtomFamily: traceSpanAtomFamily,
-
-    // Only attributes are draftable (rest of span metadata is read-only)
-    getDraftableData: (span) => span.attributes || {},
-
-    // Merge draft attributes back into span
-    mergeDraft: (span, draftAttrs) => ({
-        ...span,
-        attributes: {...span.attributes, ...draftAttrs},
-    }),
-
-    // Custom dirty detection: compare normalized attributes
-    isDirty: (currentAttrs, originalAttrs) => {
-        const normalizedCurrent = normalizeValueForComparison(currentAttrs)
-        const normalizedOriginal = normalizeValueForComparison(originalAttrs)
-        return normalizedCurrent !== normalizedOriginal
-    },
-})
-
-// Export atoms with original names for backward compatibility
-export const traceSpanDraftAtomFamily = traceSpanDraftState.draftAtomFamily
-export const traceSpanWithDraftAtomFamily = traceSpanDraftState.withDraftAtomFamily
-export const traceSpanHasDraftAtomFamily = traceSpanDraftState.hasDraftAtomFamily
-export const traceSpanIsDirtyAtomFamily = traceSpanDraftState.isDirtyAtomFamily
-export const discardTraceSpanDraftAtom = traceSpanDraftState.discardDraftAtom
-
-/**
- * Update a trace span (creates draft)
- * Note: This updates the entire span (backward compat), but factory only drafts attributes
- */
-export const updateTraceSpanAtom = traceSpanDraftState.updateAtom
 
 // ============================================================================
 // DRILL-IN STATE (Path-based navigation and editing)
@@ -108,7 +84,7 @@ const traceSpanDrillIn = createDrillInState<TraceSpan, TraceSpanAttributes>({
     valueMode: "native",
 
     // Entity atom family (includes draft state)
-    entityAtomFamily: traceSpanWithDraftAtomFamily,
+    entityAtomFamily: traceSpanEntityAtomFamily,
 })
 
 // Export read helpers with original names

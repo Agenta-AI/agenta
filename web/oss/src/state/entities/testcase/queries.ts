@@ -8,9 +8,8 @@ import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {
     fetchRevision,
-    revisionDraftAtomFamily,
     revisionsListQueryAtomFamily,
-    variantStatefulAtomFamily,
+    testsetEntityAtomFamily,
     type Revision,
     type RevisionListItem,
 } from "../testset"
@@ -86,20 +85,20 @@ export const testsetIdAtom = atom((get) => {
 })
 
 /**
- * Query atom for variant detail
- * Uses stateful atom family which automatically fetches if not in cache
- * Variants contain the name and description
+ * Query atom for testset detail
+ * Uses testset entity atom family which automatically fetches if not in cache
+ * Testsets contain the name and description (updated directly via API)
  */
-export const variantDetailQueryAtom = atom((get) => {
+export const testsetDetailQueryAtom = atom((get) => {
     const revisionQuery = get(revisionQueryAtom)
-    const variantId = revisionQuery.data?.testset_variant_id
+    const testsetId = revisionQuery.data?.testset_id
 
-    if (!variantId) {
-        return {data: null, isPending: false, isError: false, error: null}
+    if (!testsetId) {
+        return null
     }
 
-    // Stateful atom handles fetching automatically if entity not in cache
-    return get(variantStatefulAtomFamily(variantId))
+    // Testset entity handles fetching automatically if not in cache
+    return get(testsetEntityAtomFamily(testsetId))
 })
 
 /**
@@ -195,15 +194,13 @@ export interface TestsetMetadata {
  * Automatically updates when any query data changes
  * Triggers testset fetch to ensure entity is loaded
  *
- * NOTE: Uses revisionStatefulAtomFamily which includes:
- * - Batch-fetched server data
- * - Draft changes merged
- * - Loading/error states
- * This ensures that local edits to name/description are immediately visible in UI
+ * NOTE: Name and description are read directly from the testset entity,
+ * which is updated via the updateTestsetMetadata API (not through commits).
+ * This ensures metadata changes are reflected immediately without creating new revisions.
  */
 export const testsetMetadataAtom = atom((get): TestsetMetadata | null => {
     const revisionQuery = get(revisionQueryAtom)
-    const variantQuery = get(variantDetailQueryAtom)
+    const testset = get(testsetDetailQueryAtom)
     const currentRevisionId = get(currentRevisionIdAtom)
 
     const revisionFromQuery = revisionQuery.data
@@ -211,34 +208,21 @@ export const testsetMetadataAtom = atom((get): TestsetMetadata | null => {
     const isNewTestset = currentRevisionId === "new" || currentRevisionId === "draft"
     if (!revisionFromQuery?.testset_id && !isNewTestset) return null
 
-    // Get draft if any (for name/description edits)
-    const draft =
-        currentRevisionId && currentRevisionId === revisionFromQuery?.id
-            ? get(revisionDraftAtomFamily(currentRevisionId))
-            : null
-
-    // Merge draft with server data (for new testsets, revisionFromQuery may have empty fields)
-    const revision = draft ? {...(revisionFromQuery ?? {}), ...draft} : revisionFromQuery
-
-    const variant = variantQuery.data
-
-    // Priority order for name/description:
-    // 1. Draft (local edits)
-    // 2. Variant (server data - variants contain name/description, not revisions)
-    const effectiveName = revision?.name || variant?.name || ""
-    const effectiveDescription = revision?.description || variant?.description || undefined
+    // Name and description come directly from testset entity (updated via API, not commits)
+    const effectiveName = testset?.name || ""
+    const effectiveDescription = testset?.description || undefined
 
     return {
         testsetId: revisionFromQuery?.testset_id ?? "",
         testsetName: effectiveName,
         testsetSlug: undefined, // slug is not in current schema
-        revisionSlug: revision?.slug ?? undefined,
-        revisionVersion: revision?.version ?? revisionFromQuery?.version,
+        revisionSlug: revisionFromQuery?.slug ?? undefined,
+        revisionVersion: revisionFromQuery?.version,
         description: effectiveDescription,
-        commitMessage: revision?.message ?? undefined,
-        author: revision?.author ?? undefined,
-        createdAt: revision?.created_at ?? undefined,
-        updatedAt: revision?.updated_at ?? undefined,
+        commitMessage: revisionFromQuery?.message ?? undefined,
+        author: revisionFromQuery?.author ?? undefined,
+        createdAt: revisionFromQuery?.created_at ?? undefined,
+        updatedAt: revisionFromQuery?.updated_at ?? undefined,
     }
 })
 
@@ -247,8 +231,8 @@ export const testsetMetadataAtom = atom((get): TestsetMetadata | null => {
  */
 export const metadataLoadingAtom = atom((get) => {
     const revisionQuery = get(revisionQueryAtom)
-    const variantQuery = get(variantDetailQueryAtom)
-    return revisionQuery.isPending || variantQuery.isPending
+    // Testset entity doesn't have isPending - it's synchronously read from cache or null
+    return revisionQuery.isPending
 })
 
 /**
@@ -256,6 +240,6 @@ export const metadataLoadingAtom = atom((get) => {
  */
 export const metadataErrorAtom = atom((get) => {
     const revisionQuery = get(revisionQueryAtom)
-    const variantQuery = get(variantDetailQueryAtom)
-    return (revisionQuery.error || variantQuery.error) as Error | null
+    // Testset entity doesn't expose error state directly
+    return revisionQuery.error as Error | null
 })

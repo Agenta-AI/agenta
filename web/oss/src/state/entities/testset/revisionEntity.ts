@@ -201,6 +201,24 @@ export const revisionQueryAtomFamily = atomFamily(
 )
 
 // ============================================================================
+// SERVER STATE ATOM FAMILY
+// Returns raw server data without draft merging
+// ============================================================================
+
+/**
+ * Server state atom - returns raw data from query cache
+ * Use this for comparison or when you need original server data
+ */
+export const revisionServerStateAtomFamily = atomFamily(
+    (revisionId: string) =>
+        atom((get) => {
+            const query = get(revisionQueryAtomFamily(revisionId))
+            return query.data ?? null
+        }),
+    (a, b) => a === b,
+)
+
+// ============================================================================
 // REVISION ENTITY ATOM FAMILY
 // Combines server data with local draft (draft takes precedence)
 // ============================================================================
@@ -211,13 +229,15 @@ export const revisionQueryAtomFamily = atomFamily(
  * Note: This uses the batch fetcher which efficiently combines concurrent requests.
  * The batch fetcher is shared across all revisionQueryAtomFamily instances,
  * so multiple concurrent calls will be automatically batched into a single API request.
+ *
+ * For revisions, draft state is simple (Partial<Revision>) because:
+ * - Revisions are immutable - edits create new revisions
+ * - Draft just holds temporary metadata (commit message) before save
  */
 export const revisionEntityAtomFamily = atomFamily(
     (revisionId: string) =>
         atom((get) => {
-            const queryAtom = revisionQueryAtomFamily(revisionId)
-            const query = get(queryAtom)
-            const serverData = query.data
+            const serverData = get(revisionServerStateAtomFamily(revisionId))
 
             if (!serverData) {
                 return null
@@ -495,6 +515,30 @@ export const latestRevisionAtomFamily = atomFamily(
         atom((get) => {
             const cache = get(latestRevisionCacheAtom)
             return cache.get(testsetId) ?? null
+        }),
+    (a, b) => a === b,
+)
+
+/**
+ * Stateful atom family for latest revision with loading state.
+ * Use this when you need to show loading indicators in cells.
+ *
+ * @returns {data, isPending} where isPending is true while fetching
+ */
+export const latestRevisionStatefulAtomFamily = atomFamily(
+    (testsetId: string) =>
+        atom((get) => {
+            const cache = get(latestRevisionCacheAtom)
+            const data = cache.get(testsetId) ?? null
+
+            // Check if this testset is pending fetch or if a fetch is in progress
+            const pending = get(pendingLatestRevisionBatchAtom)
+            const isFetching = get(isFetchingLatestRevisionsAtom)
+
+            // isPending if: in pending batch, or fetching is in progress and not yet cached
+            const isPending = pending.has(testsetId) || (isFetching && !data)
+
+            return {data, isPending}
         }),
     (a, b) => a === b,
 )

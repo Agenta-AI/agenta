@@ -1,3 +1,14 @@
+/**
+ * Trace Entity Module
+ *
+ * Manages trace span entities with:
+ * - Batch fetching for concurrent requests
+ * - Cache redirect from various query caches
+ * - Draft state for local edits
+ * - Stateful atoms for simplified entity access
+ * - Drill-in navigation for nested data
+ */
+
 // Schema and types
 export {
     TraceTypeEnum,
@@ -31,26 +42,45 @@ export {
 
 // Store and atoms
 export {
+    // Params types
     type TraceListParams,
     type TraceDetailParams,
-    traceSpanCacheAtom,
+    // Query atom family
+    spanQueryAtomFamily,
+    // Server state (raw data without draft)
+    traceSpanServerStateAtomFamily,
+    // Draft state atoms
+    traceSpanDraftAtomFamily,
+    traceSpanHasDraftAtomFamily,
+    traceSpanIsDirtyAtomFamily,
+    discardTraceSpanDraftAtom,
+    updateTraceSpanAtom,
+    // Combined entity atom (server + draft)
+    traceSpanEntityAtomFamily,
+    // Backward compatibility alias
     traceSpanAtomFamily,
-    spansByTraceIdAtomFamily,
-    upsertSpanAtom,
-    upsertManySpansAtom,
-    removeSpanAtom,
-    clearSpanCacheAtom,
-    fetchTracesList,
-    fetchSpanDetail,
-    flattenTraceTree,
-    hydrateSpanCacheAtom,
     // Derived atom families for data extraction
     spanInputsAtomFamily,
     spanOutputsAtomFamily,
     spanAgDataAtomFamily,
-    // Trace entity atom family
+    // Trace entity atom family (for trace tree data)
     traceEntityAtomFamily,
+    // Cache invalidation
+    invalidateTraceEntityCache,
 } from "./store"
+
+// Stateful atoms (combined entity + query state)
+export {traceSpanStatefulAtomFamily} from "./statefulAtoms"
+
+// Drill-in state (path-based navigation and editing)
+export {
+    // Backward compatibility alias
+    traceSpanWithDraftAtomFamily,
+    // Drill-in helpers
+    getTraceSpanValueAtPath,
+    getTraceSpanRootItems,
+    traceSpanSetValueAtPathAtom,
+} from "./drillInState"
 
 // Selectors and helpers
 export {

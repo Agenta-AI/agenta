@@ -18,18 +18,21 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import type {QueryResult} from "../shared/createStatefulEntityAtomFamily"
-import {createStatefulEntityAtomFamily} from "../shared/createStatefulEntityAtomFamily"
-import {projectIdAtom} from "../../project/selectors/project"
 
 import {revisionEntityAtomFamily, revisionQueryAtomFamily} from "./revisionEntity"
-import type {Revision} from "./revisionSchema"
-import {testsetStore, revisionStore, variantStore} from "./store"
+import type {Revision, Testset, Variant} from "./revisionSchema"
+import {
+    testsetQueryAtomFamily,
+    testsetEntityAtomFamily,
+    variantQueryAtomFamily,
+    variantEntityAtomFamily,
+} from "./store"
 
 /**
  * Stateful testset atom family
  *
  * Automatically fetches testset if not in cache, provides loading/error states.
- * Requires projectId to be set in context.
+ * Uses cache redirect to check list cache before fetching.
  *
  * @example
  * ```typescript
@@ -44,14 +47,24 @@ import {testsetStore, revisionStore, variantStore} from "./store"
  * }
  * ```
  */
-export const testsetStatefulAtomFamily = createStatefulEntityAtomFamily({
-    entityAtomFamily: testsetStore.entityAtomFamily,
-    detailQueryAtom: testsetStore.detailQueryAtom,
-    getQueryParams: (get, id) => {
-        const projectId = get(projectIdAtom)
-        return projectId ? {id, projectId} : null
-    },
-})
+export const testsetStatefulAtomFamily = atomFamily(
+    (testsetId: string) =>
+        atom((get): QueryResult<Testset> => {
+            // Get query state (for loading/error)
+            const queryState = get(testsetQueryAtomFamily(testsetId))
+
+            // Get entity data
+            const entityData = get(testsetEntityAtomFamily(testsetId))
+
+            return {
+                data: entityData,
+                isPending: queryState.isPending,
+                isError: queryState.isError,
+                error: queryState.error,
+            }
+        }),
+    (a, b) => a === b,
+)
 
 /**
  * Stateful revision atom family
@@ -100,12 +113,35 @@ export const revisionStatefulAtomFamily = atomFamily(
  *
  * Automatically fetches variant if not in cache, provides loading/error states.
  * Variants contain the name and description.
+ *
+ * @example
+ * ```typescript
+ * function VariantViewer({variantId}: {variantId: string}) {
+ *   const variantState = useAtomValue(variantStatefulAtomFamily(variantId))
+ *
+ *   if (variantState.isPending) return <Loading />
+ *   if (variantState.isError) return <Error error={variantState.error} />
+ *   if (!variantState.data) return <NotFound />
+ *
+ *   return <div>{variantState.data.name}</div>
+ * }
+ * ```
  */
-export const variantStatefulAtomFamily = createStatefulEntityAtomFamily({
-    entityAtomFamily: variantStore.entityAtomFamily,
-    detailQueryAtom: variantStore.detailQueryAtom,
-    getQueryParams: (get, id) => {
-        const projectId = get(projectIdAtom)
-        return projectId ? {id, projectId} : null
-    },
-})
+export const variantStatefulAtomFamily = atomFamily(
+    (variantId: string) =>
+        atom((get): QueryResult<Variant> => {
+            // Get query state (for loading/error)
+            const queryState = get(variantQueryAtomFamily(variantId))
+
+            // Get entity data
+            const entityData = get(variantEntityAtomFamily(variantId))
+
+            return {
+                data: entityData,
+                isPending: queryState.isPending,
+                isError: queryState.isError,
+                error: queryState.error,
+            }
+        }),
+    (a, b) => a === b,
+)

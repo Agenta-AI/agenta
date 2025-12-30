@@ -3,7 +3,7 @@ import {atom} from "jotai"
 import {revisionDraftAtomFamily} from "../testset"
 
 import {addColumnAtom, currentColumnsAtom} from "./columnState"
-import {currentRevisionIdAtom, revisionQueryAtom, variantDetailQueryAtom} from "./queries"
+import {currentRevisionIdAtom, revisionQueryAtom, testsetDetailQueryAtom} from "./queries"
 import {newEntityIdsAtom, testcaseIdsAtom} from "./testcaseEntity"
 import {addTestcaseAtom} from "./testcaseMutations"
 
@@ -84,11 +84,11 @@ export const initializeEmptyRevisionAtom = atom(null, (get, set) => {
 
     console.log("[initializeEmptyRevisionAtom] Initializing empty revision:", currentRevId)
 
-    // Set revision name from variant name for empty revisions
+    // Set revision name from testset name for empty revisions
     const revisionId = get(currentRevisionIdAtom)
-    const variantQuery = get(variantDetailQueryAtom)
-    if (revisionId && variantQuery.data?.name) {
-        set(revisionDraftAtomFamily(revisionId), {name: variantQuery.data.name})
+    const testset = get(testsetDetailQueryAtom)
+    if (revisionId && testset?.name) {
+        set(revisionDraftAtomFamily(revisionId), {name: testset.name})
     }
 
     // Add default columns for empty revision

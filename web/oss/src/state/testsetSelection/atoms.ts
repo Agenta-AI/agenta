@@ -4,7 +4,7 @@ import {atomFamily} from "jotai/utils"
 import {
     fetchRevisionsList,
     latestRevisionForTestsetAtomFamily,
-    type Revision as TestsetRevision,
+    type RevisionListItem,
 } from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -51,7 +51,7 @@ export const loadingRevisionsAtom = atom<boolean>(false)
 export const loadingTestsetMapAtom = atom<Map<string, boolean>>(new Map())
 
 /** Loaded revisions cache - maps testsetId to revisions array */
-export const loadedRevisionsMapAtom = atom<Map<string, TestsetRevision[]>>(new Map())
+export const loadedRevisionsMapAtom = atom<Map<string, RevisionListItem[]>>(new Map())
 
 /** Available revisions for the selected testset (derived from cache) */
 export const availableRevisionsAtom = atom<{id: string; version: number | null}[]>((get) => {
@@ -73,7 +73,7 @@ export const availableRevisionsAtom = atom<{id: string; version: number | null}[
  */
 export const setRevisionsForTestsetAtom = atom(
     null,
-    (get, set, {testsetId, revisions}: {testsetId: string; revisions: TestsetRevision[]}) => {
+    (get, set, {testsetId, revisions}: {testsetId: string; revisions: RevisionListItem[]}) => {
         const currentCache = get(loadedRevisionsMapAtom)
         const newCache = new Map(currentCache)
         newCache.set(testsetId, revisions)
@@ -91,7 +91,7 @@ export const setRevisionsForTestsetAtom = atom(
  */
 export const loadRevisionsForTestsetAtom = atom(
     null,
-    async (get, set, testsetId: string): Promise<TestsetRevision[]> => {
+    async (get, set, testsetId: string): Promise<RevisionListItem[]> => {
         if (!testsetId || testsetId === "create") {
             return []
         }

@@ -25,7 +25,7 @@ export interface TestcaseColumn {
 
 /**
  * Create drill-in state management for testcases
- * Uses shared factory with column-based structure and string serialization
+ * Uses shared factory with column-based structure and native value preservation
  */
 const testcaseDrillIn = createDrillInState<FlattenedTestcase, FlattenedTestcase>({
     // Entire testcase entity is the root data (column-based structure)
@@ -49,8 +49,8 @@ const testcaseDrillIn = createDrillInState<FlattenedTestcase, FlattenedTestcase>
         } as Partial<FlattenedTestcase>
     },
 
-    // String mode - values are JSON strings
-    valueMode: "string",
+    // Native mode - preserve objects/arrays as-is (not stringified)
+    valueMode: "native",
 
     // Entity atom family (includes draft state)
     entityAtomFamily: testcaseEntityAtomFamily,
