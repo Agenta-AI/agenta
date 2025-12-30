@@ -16,70 +16,16 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {CloseOutlined, PlusOutlined, SearchOutlined} from "@ant-design/icons"
-import {Button, Input, Space, Tag, theme, Tooltip, Typography} from "antd"
+import {PlusOutlined, SearchOutlined} from "@ant-design/icons"
+import {Button, Input, Tag, Tooltip, Typography} from "antd"
 import type {FormInstance} from "antd/es/form"
 import {useAtomValue} from "jotai"
-import {createUseStyles} from "react-jss"
 
 import {extractJsonPaths, safeParseJson} from "@/oss/lib/helpers/extractJsonPaths"
-import type {JSSTheme} from "@/oss/lib/Types"
 
 import {playgroundSelectedTestcaseAtom} from "./state/atoms"
 
 const {Text} = Typography
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    container: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 12,
-    },
-    tagsContainer: {
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 8,
-        padding: 12,
-        borderRadius: 6,
-        border: `1px solid ${theme.colorBorder}`,
-        backgroundColor: theme.colorBgContainer,
-        minHeight: 48,
-    },
-    fieldTag: {
-        display: "flex",
-        alignItems: "center",
-        fontFamily: "monospace",
-        fontSize: 13,
-        margin: 0,
-    },
-    matchRatioTag: {
-        fontFamily: "monospace",
-        fontSize: 13,
-        margin: 0,
-        fontWeight: 500,
-    },
-    addFieldRow: {
-        display: "flex",
-        gap: 8,
-    },
-    addInput: {
-        flex: 1,
-        fontFamily: "monospace",
-    },
-    actionsRow: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-    },
-    helperText: {
-        fontSize: 12,
-        color: theme.colorTextSecondary,
-    },
-    emptyMessage: {
-        color: theme.colorTextSecondary,
-        fontSize: 13,
-    },
-}))
 
 interface FieldsTagsEditorProps {
     value?: string[]
@@ -99,8 +45,6 @@ export const FieldsTagsEditor: React.FC<FieldsTagsEditorProps> = ({
     form,
     correctAnswerKey = "correct_answer",
 }) => {
-    const classes = useStyles()
-    const {token} = theme.useToken()
     const [inputValue, setInputValue] = useState("")
     // Track if we've already auto-detected to avoid re-triggering
     const hasAutoDetectedRef = useRef(false)
@@ -203,12 +147,12 @@ export const FieldsTagsEditor: React.FC<FieldsTagsEditorProps> = ({
     }, [testcase, canDetectFields, effectiveKey, detectableFields.length])
 
     return (
-        <div className={classes.container}>
+        <div className="flex flex-col gap-3">
             {/* Field Tags Display */}
-            <div className={classes.tagsContainer}>
+            <div className="flex flex-wrap gap-2 p-3 rounded-md border border-solid border-[var(--ant-color-border)] bg-[var(--ant-color-bg-container)] min-h-[48px]">
                 {/* Non-removable aggregate_score tag */}
                 <Tooltip title="Aggregate score across all fields (auto-generated)">
-                    <Tag color="success" className={classes.matchRatioTag}>
+                    <Tag color="success" className="font-mono text-[13px] !m-0 font-medium">
                         aggregate_score
                     </Tag>
                 </Tooltip>
@@ -219,7 +163,7 @@ export const FieldsTagsEditor: React.FC<FieldsTagsEditorProps> = ({
                         key={field}
                         closable
                         onClose={() => handleRemoveField(field)}
-                        className={classes.fieldTag}
+                        className="flex items-center font-mono text-[13px] !m-0"
                     >
                         {field}
                     </Tag>
@@ -227,23 +171,23 @@ export const FieldsTagsEditor: React.FC<FieldsTagsEditorProps> = ({
 
                 {/* Empty state message */}
                 {value.length === 0 && (
-                    <Text className={classes.emptyMessage}>
+                    <Text className="text-[var(--ant-color-text-secondary)] text-[13px]">
                         Add fields to compare or detect them from a testcase
                     </Text>
                 )}
             </div>
 
             {/* Add Field Input */}
-            <div className={classes.addFieldRow}>
+            <div className="flex gap-2">
                 <Input
-                    className={classes.addInput}
+                    className="flex-1 font-mono"
                     placeholder="Add field (e.g., name or user.address.city)"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleInputKeyDown}
                     suffix={
                         <Tooltip title="Use dot notation for nested fields (e.g., user.name)">
-                            <Text type="secondary" style={{fontSize: 11}}>
+                            <Text type="secondary" className="text-[11px]">
                                 ?
                             </Text>
                         </Tooltip>
@@ -259,8 +203,8 @@ export const FieldsTagsEditor: React.FC<FieldsTagsEditorProps> = ({
             </div>
 
             {/* Actions Row */}
-            <div className={classes.actionsRow}>
-                <Text className={classes.helperText}>
+            <div className="flex items-center justify-between">
+                <Text className="text-xs text-[var(--ant-color-text-secondary)]">
                     Each field creates a column with value 0 (no match) or 1 (match)
                 </Text>
 
