@@ -39,7 +39,7 @@ class OrganizationDomainsDAO:
                 name=name,
                 description=description,
                 token=token,
-                flags={"verified": False},
+                flags={"is_verified": False},
                 created_by_id=created_by_id,
             )
             self.session.add(domain)
@@ -54,7 +54,7 @@ class OrganizationDomainsDAO:
                     name=name,
                     description=description,
                     token=token,
-                    flags={"verified": False},
+                    flags={"is_verified": False},
                     created_by_id=created_by_id,
                 )
                 session.add(domain)
@@ -72,7 +72,6 @@ class OrganizationDomainsDAO:
                     and_(
                         OrganizationDomainDBE.id == domain_id,
                         OrganizationDomainDBE.organization_id == organization_id,
-                        OrganizationDomainDBE.deleted_at.is_(None),
                     )
                 )
             )
@@ -84,7 +83,6 @@ class OrganizationDomainsDAO:
                         and_(
                             OrganizationDomainDBE.id == domain_id,
                             OrganizationDomainDBE.organization_id == organization_id,
-                            OrganizationDomainDBE.deleted_at.is_(None),
                         )
                     )
                 )
@@ -100,7 +98,6 @@ class OrganizationDomainsDAO:
                     and_(
                         OrganizationDomainDBE.slug == slug,
                         OrganizationDomainDBE.organization_id == organization_id,
-                        OrganizationDomainDBE.deleted_at.is_(None),
                     )
                 )
             )
@@ -112,7 +109,33 @@ class OrganizationDomainsDAO:
                         and_(
                             OrganizationDomainDBE.slug == slug,
                             OrganizationDomainDBE.organization_id == organization_id,
-                            OrganizationDomainDBE.deleted_at.is_(None),
+                        )
+                    )
+                )
+                return result.scalars().first()
+
+    async def get_verified_by_slug(
+        self, slug: str
+    ) -> Optional[OrganizationDomainDBE]:
+        """Get a verified domain by slug (domain name), across organizations."""
+        is_verified = OrganizationDomainDBE.flags["is_verified"].astext == "true"
+        if self.session:
+            result = await self.session.execute(
+                select(OrganizationDomainDBE).where(
+                    and_(
+                        OrganizationDomainDBE.slug == slug,
+                        is_verified,
+                    )
+                )
+            )
+            return result.scalars().first()
+        else:
+            async with engine.core_session() as session:
+                result = await session.execute(
+                    select(OrganizationDomainDBE).where(
+                        and_(
+                            OrganizationDomainDBE.slug == slug,
+                            is_verified,
                         )
                     )
                 )
@@ -125,10 +148,7 @@ class OrganizationDomainsDAO:
         if self.session:
             result = await self.session.execute(
                 select(OrganizationDomainDBE).where(
-                    and_(
-                        OrganizationDomainDBE.organization_id == organization_id,
-                        OrganizationDomainDBE.deleted_at.is_(None),
-                    )
+                    OrganizationDomainDBE.organization_id == organization_id
                 )
             )
             return list(result.scalars().all())
@@ -136,10 +156,7 @@ class OrganizationDomainsDAO:
             async with engine.core_session() as session:
                 result = await session.execute(
                     select(OrganizationDomainDBE).where(
-                        and_(
-                            OrganizationDomainDBE.organization_id == organization_id,
-                            OrganizationDomainDBE.deleted_at.is_(None),
-                        )
+                        OrganizationDomainDBE.organization_id == organization_id
                     )
                 )
                 return list(result.scalars().all())
@@ -169,25 +186,19 @@ class OrganizationDomainsDAO:
                 return domain
 
     async def delete(self, domain_id: str, deleted_by_id: str) -> bool:
-        """Soft delete a domain."""
+        """Hard delete a domain."""
         if self.session:
             domain = await self.session.get(OrganizationDomainDBE, domain_id)
-            if domain and not domain.deleted_at:
-                from datetime import datetime, timezone
-
-                domain.deleted_at = datetime.now(timezone.utc)
-                domain.deleted_by_id = deleted_by_id
+            if domain:
+                await self.session.delete(domain)
                 await self.session.flush()
                 return True
             return False
         else:
             async with engine.core_session() as session:
                 domain = await session.get(OrganizationDomainDBE, domain_id)
-                if domain and not domain.deleted_at:
-                    from datetime import datetime, timezone
-
-                    domain.deleted_at = datetime.now(timezone.utc)
-                    domain.deleted_by_id = deleted_by_id
+                if domain:
+                    await session.delete(domain)
                     await session.commit()
                     return True
                 return False
@@ -218,7 +229,7 @@ class OrganizationProvidersDAO:
                 organization_id=organization_id,
                 slug=slug,
                 settings=settings,
-                flags=flags or {"active": True},
+                flags=flags or {"is_active": True, "is_valid": False},
                 created_by_id=created_by_id,
             )
             self.session.add(provider)
@@ -231,7 +242,7 @@ class OrganizationProvidersDAO:
                     organization_id=organization_id,
                     slug=slug,
                     settings=settings,
-                    flags=flags or {"active": True},
+                    flags=flags or {"is_active": True, "is_valid": False},
                     created_by_id=created_by_id,
                 )
                 session.add(provider)
@@ -249,7 +260,6 @@ class OrganizationProvidersDAO:
                     and_(
                         OrganizationProviderDBE.id == provider_id,
                         OrganizationProviderDBE.organization_id == organization_id,
-                        OrganizationProviderDBE.deleted_at.is_(None),
                     )
                 )
             )
@@ -261,7 +271,6 @@ class OrganizationProvidersDAO:
                         and_(
                             OrganizationProviderDBE.id == provider_id,
                             OrganizationProviderDBE.organization_id == organization_id,
-                            OrganizationProviderDBE.deleted_at.is_(None),
                         )
                     )
                 )
@@ -277,7 +286,6 @@ class OrganizationProvidersDAO:
                     and_(
                         OrganizationProviderDBE.slug == slug,
                         OrganizationProviderDBE.organization_id == organization_id,
-                        OrganizationProviderDBE.deleted_at.is_(None),
                     )
                 )
             )
@@ -289,7 +297,6 @@ class OrganizationProvidersDAO:
                         and_(
                             OrganizationProviderDBE.slug == slug,
                             OrganizationProviderDBE.organization_id == organization_id,
-                            OrganizationProviderDBE.deleted_at.is_(None),
                         )
                     )
                 )
@@ -302,10 +309,7 @@ class OrganizationProvidersDAO:
         if self.session:
             result = await self.session.execute(
                 select(OrganizationProviderDBE).where(
-                    and_(
-                        OrganizationProviderDBE.organization_id == organization_id,
-                        OrganizationProviderDBE.deleted_at.is_(None),
-                    )
+                    OrganizationProviderDBE.organization_id == organization_id
                 )
             )
             return list(result.scalars().all())
@@ -313,10 +317,7 @@ class OrganizationProvidersDAO:
             async with engine.core_session() as session:
                 result = await session.execute(
                     select(OrganizationProviderDBE).where(
-                        and_(
-                            OrganizationProviderDBE.organization_id == organization_id,
-                            OrganizationProviderDBE.deleted_at.is_(None),
-                        )
+                        OrganizationProviderDBE.organization_id == organization_id
                     )
                 )
                 return list(result.scalars().all())
@@ -331,7 +332,7 @@ class OrganizationProvidersDAO:
         """Update a provider's settings or flags."""
         if self.session:
             provider = await self.session.get(OrganizationProviderDBE, provider_id)
-            if provider and not provider.deleted_at:
+            if provider:
                 if settings is not None:
                     provider.settings = settings
                 if flags is not None:
@@ -344,7 +345,7 @@ class OrganizationProvidersDAO:
         else:
             async with engine.core_session() as session:
                 provider = await session.get(OrganizationProviderDBE, provider_id)
-                if provider and not provider.deleted_at:
+                if provider:
                     if settings is not None:
                         provider.settings = settings
                     if flags is not None:
@@ -356,25 +357,19 @@ class OrganizationProvidersDAO:
                 return provider
 
     async def delete(self, provider_id: str, deleted_by_id: str) -> bool:
-        """Soft delete a provider."""
+        """Hard delete a provider."""
         if self.session:
             provider = await self.session.get(OrganizationProviderDBE, provider_id)
-            if provider and not provider.deleted_at:
-                from datetime import datetime, timezone
-
-                provider.deleted_at = datetime.now(timezone.utc)
-                provider.deleted_by_id = deleted_by_id
+            if provider:
+                await self.session.delete(provider)
                 await self.session.flush()
                 return True
             return False
         else:
             async with engine.core_session() as session:
                 provider = await session.get(OrganizationProviderDBE, provider_id)
-                if provider and not provider.deleted_at:
-                    from datetime import datetime, timezone
-
-                    provider.deleted_at = datetime.now(timezone.utc)
-                    provider.deleted_by_id = deleted_by_id
+                if provider:
+                    await session.delete(provider)
                     await session.commit()
                     return True
                 return False

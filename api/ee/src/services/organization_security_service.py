@@ -2,6 +2,7 @@
 
 import secrets
 import hashlib
+import logging
 from typing import List, Optional
 from uuid import UUID
 from fastapi import HTTPException
@@ -19,16 +20,22 @@ from ee.src.apis.fastapi.organizations.models import (
     OrganizationProviderResponse,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class DomainVerificationService:
     """Service for managing domain verification."""
 
+    TOKEN_EXPIRY_HOURS = 48
+
     @staticmethod
-    def generate_verification_token(domain: str) -> str:
-        """Generate a unique verification token for a domain."""
-        random_token = secrets.token_urlsafe(32)
-        combined = f"{domain}:{random_token}"
-        return hashlib.sha256(combined.encode()).hexdigest()[:32]
+    def generate_verification_token() -> str:
+        """Generate a unique verification token."""
+        # Generate cryptographically secure random token (32 bytes = 64 hex chars)
+        random_part = secrets.token_hex(32)
+
+        # Add prefix to make it identifiable as an Agenta verification token
+        return f"ag_{random_part}"
 
     @staticmethod
     def get_verification_instructions(domain: str, token: str) -> dict:
@@ -54,16 +61,49 @@ class DomainVerificationService:
 
         try:
             txt_record_name = f"_agenta-verification.{domain}"
+            logger.info(f"Attempting DNS verification for {txt_record_name}")
+
             answers = dns.resolver.resolve(txt_record_name, "TXT")
+            logger.info(f"Found {len(answers)} TXT records for {txt_record_name}")
 
             for rdata in answers:
                 txt_value = rdata.to_text().strip('"')
-                if txt_value == f"agenta-verification={expected_token}":
-                    return True
+                logger.info(f"TXT record value: {txt_value}")
+
+                # Extract the token value from "agenta-verification=TOKEN" format
+                if txt_value.startswith("agenta-verification="):
+                    token = txt_value.split("=", 1)[1]
+                    logger.info(f"Extracted token from DNS: {token}")
+                    logger.info(f"Expected token from DB: {expected_token}")
+                    logger.info(f"Tokens match: {token == expected_token}")
+                    if token == expected_token:
+                        logger.info(f"Domain verification successful for {domain}")
+                        return True
+                    else:
+                        logger.warning(
+                            f"Token mismatch for {domain}. Expected length: {len(expected_token)}, Got length: {len(token)}"
+                        )
+                        logger.warning(f"Expected: {expected_token}")
+                        logger.warning(f"Got: {token}")
+
+            logger.warning(
+                f"No matching verification token found in DNS records for {domain}"
+            )
             return False
-        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.Timeout):
+        except dns.resolver.NXDOMAIN:
+            logger.warning(f"DNS record not found (NXDOMAIN) for {txt_record_name}")
             return False
-        except Exception:
+        except dns.resolver.NoAnswer:
+            logger.warning(f"No TXT records found (NoAnswer) for {txt_record_name}")
+            return False
+        except dns.resolver.Timeout:
+            logger.error(f"DNS lookup timeout for {txt_record_name}")
+            return False
+        except Exception as e:
+            logger.error(
+                f"Unexpected error during DNS verification for {domain}: {e}",
+                exc_info=True,
+            )
             return False
 
     async def create_domain(
@@ -72,32 +112,50 @@ class DomainVerificationService:
         payload: OrganizationDomainCreate,
         user_id: str,
     ) -> OrganizationDomainResponse:
-        """Create a new domain for verification."""
+        """Create a new domain for verification.
+
+        Token expires after 48 hours and can be refreshed.
+        """
         async with engine.core_session() as session:
             dao = OrganizationDomainsDAO(session)
 
-            # Check if domain already exists
-            existing = await dao.get_by_slug(payload.domain, organization_id)
-            if existing:
+            # Block if a verified domain already exists anywhere
+            existing_verified = await dao.get_verified_by_slug(payload.domain)
+            if existing_verified:
                 raise HTTPException(
-                    status_code=400,
-                    detail=f"Domain {payload.domain} already exists for this organization",
+                    status_code=409,
+                    detail=f"Domain {payload.domain} is already verified",
                 )
 
-            # Generate verification token
-            token = self.generate_verification_token(payload.domain)
+            # Reuse existing unverified domain for this organization, if any
+            existing = await dao.get_by_slug(payload.domain, organization_id)
+            if existing and not (existing.flags or {}).get("is_verified"):
+                from datetime import datetime, timezone
 
-            # Create domain
-            domain = await dao.create(
-                organization_id=organization_id,
-                slug=payload.domain,
-                name=payload.name,
-                description=payload.description,
-                token=token,
-                created_by_id=user_id,
-            )
+                token = self.generate_verification_token()
+                existing.token = token
+                existing.created_at = datetime.now(timezone.utc)
+                existing.flags = {"is_verified": False}
+                existing.updated_by_id = user_id
+                await session.commit()
+                await session.refresh(existing)
+                domain = existing
+            else:
+                # Generate verification token
+                token = self.generate_verification_token()
 
-            await session.commit()
+                # Create domain with token
+                domain = await dao.create(
+                    organization_id=organization_id,
+                    slug=payload.domain,
+                    name=payload.name,
+                    description=payload.description,
+                    token=token,
+                    created_by_id=user_id,
+                )
+
+                await session.commit()
+                await session.refresh(domain)
 
             return OrganizationDomainResponse(
                 id=str(domain.id),
@@ -105,8 +163,8 @@ class DomainVerificationService:
                 slug=domain.slug,
                 name=domain.name,
                 description=domain.description,
-                token=domain.token,
-                is_verified=domain.flags.get("verified", False) if domain.flags else False,
+                token=token,
+                flags=domain.flags or {},
                 created_at=domain.created_at,
                 updated_at=domain.updated_at,
             )
@@ -115,6 +173,8 @@ class DomainVerificationService:
         self, organization_id: str, domain_id: str, user_id: str
     ) -> OrganizationDomainResponse:
         """Verify a domain via DNS check."""
+        from datetime import datetime, timezone, timedelta
+
         async with engine.core_session() as session:
             dao = OrganizationDomainsDAO(session)
 
@@ -123,8 +183,16 @@ class DomainVerificationService:
                 raise HTTPException(status_code=404, detail="Domain not found")
 
             # Check if already verified
-            if domain.flags and domain.flags.get("verified"):
+            if domain.flags and domain.flags.get("is_verified"):
                 raise HTTPException(status_code=400, detail="Domain already verified")
+
+            # Check if token has expired (48 hours from creation)
+            token_age = datetime.now(timezone.utc) - domain.created_at
+            if token_age > timedelta(hours=self.TOKEN_EXPIRY_HOURS):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Verification token expired after {self.TOKEN_EXPIRY_HOURS} hours. Please refresh the token.",
+                )
 
             # Perform DNS verification
             is_valid = await self.verify_domain_dns(domain.slug, domain.token)
@@ -135,10 +203,12 @@ class DomainVerificationService:
                     detail="Domain verification failed. Please ensure the DNS TXT record is correctly configured.",
                 )
 
-            # Mark as verified
-            domain.flags = {"verified": True}
+            # Mark as verified and clear the token (one-time use)
+            domain.flags = {"is_verified": True}
+            domain.token = None
             domain.updated_by_id = user_id
             await session.commit()
+            await session.refresh(domain)
 
             return OrganizationDomainResponse(
                 id=str(domain.id),
@@ -146,8 +216,8 @@ class DomainVerificationService:
                 slug=domain.slug,
                 name=domain.name,
                 description=domain.description,
-                token=domain.token,
-                is_verified=True,
+                token=None,
+                flags=domain.flags or {},
                 created_at=domain.created_at,
                 updated_at=domain.updated_at,
             )
@@ -155,7 +225,11 @@ class DomainVerificationService:
     async def list_domains(
         self, organization_id: str
     ) -> List[OrganizationDomainResponse]:
-        """List all domains for an organization."""
+        """List all domains for an organization.
+
+        Tokens are returned for unverified domains (within expiry period).
+        Verified domains have token=None (cleared after verification).
+        """
         async with engine.core_session() as session:
             dao = OrganizationDomainsDAO(session)
             domains = await dao.list_by_organization(organization_id)
@@ -167,13 +241,93 @@ class DomainVerificationService:
                     slug=d.slug,
                     name=d.name,
                     description=d.description,
-                    token=d.token,
-                    is_verified=d.flags.get("verified", False) if d.flags else False,
+                    token=d.token,  # Token available for unverified domains, None for verified
+                    flags=d.flags or {},
                     created_at=d.created_at,
                     updated_at=d.updated_at,
                 )
                 for d in domains
             ]
+
+    async def refresh_token(
+        self, organization_id: str, domain_id: str, user_id: str
+    ) -> OrganizationDomainResponse:
+        """Refresh the verification token for a domain.
+
+        Generates a new token and resets the 48-hour expiry window.
+        For verified domains, this marks them as unverified for re-verification.
+        """
+        async with engine.core_session() as session:
+            dao = OrganizationDomainsDAO(session)
+
+            domain = await dao.get_by_id(domain_id, organization_id)
+            if not domain:
+                raise HTTPException(status_code=404, detail="Domain not found")
+
+            # Generate new token
+            new_token = self.generate_verification_token()
+
+            # Update domain with new token and reset created_at to restart the 48-hour expiry window
+            # If domain was verified, mark as unverified for re-verification
+            from datetime import datetime, timezone
+
+            domain.token = new_token
+            domain.created_at = datetime.now(timezone.utc)
+            domain.flags = {"is_verified": False}
+            domain.updated_by_id = user_id
+            await session.commit()
+            await session.refresh(domain)
+
+            return OrganizationDomainResponse(
+                id=str(domain.id),
+                organization_id=str(domain.organization_id),
+                slug=domain.slug,
+                name=domain.name,
+                description=domain.description,
+                token=new_token,
+                flags=domain.flags or {},
+                created_at=domain.created_at,
+                updated_at=domain.updated_at,
+            )
+
+    async def reset_domain(
+        self, organization_id: str, domain_id: str, user_id: str
+    ) -> OrganizationDomainResponse:
+        """Reset a verified domain to unverified state for re-verification.
+
+        Generates a new token and marks the domain as unverified.
+        """
+        async with engine.core_session() as session:
+            dao = OrganizationDomainsDAO(session)
+
+            domain = await dao.get_by_id(domain_id, organization_id)
+            if not domain:
+                raise HTTPException(status_code=404, detail="Domain not found")
+
+            # Generate new token
+            new_token = self.generate_verification_token()
+
+            # Reset domain to unverified state with new token
+            from datetime import datetime, timezone
+
+            domain.token = new_token
+            domain.created_at = datetime.now(timezone.utc)
+            domain.flags = {"is_verified": False}
+            domain.updated_by_id = user_id
+            await session.commit()
+            await session.refresh(domain)
+
+            return OrganizationDomainResponse(
+                id=str(domain.id),
+                organization_id=str(domain.organization_id),
+                slug=domain.slug,
+                name=domain.name,
+                description=domain.description,
+                token=new_token,
+                flags=domain.flags or {},
+                created_at=domain.created_at,
+                updated_at=domain.updated_at,
+            )
 
     async def delete_domain(
         self, organization_id: str, domain_id: str, user_id: str
@@ -223,7 +377,11 @@ class SSOProviderService:
                 config = response.json()
 
                 # Verify required OIDC endpoints exist
-                required_fields = ["authorization_endpoint", "token_endpoint", "userinfo_endpoint"]
+                required_fields = [
+                    "authorization_endpoint",
+                    "token_endpoint",
+                    "userinfo_endpoint",
+                ]
                 if not all(field in config for field in required_fields):
                     return False
 
@@ -279,10 +437,11 @@ class SSOProviderService:
                 slug=slug,
                 settings=settings,
                 created_by_id=user_id,
-                flags={"valid": False, "active": False},
+                flags={"is_valid": False, "is_active": False},
             )
 
             await session.commit()
+            await session.refresh(provider)
 
             return self._to_response(provider)
 
@@ -335,17 +494,17 @@ class SSOProviderService:
 
             # If settings changed, invalidate the provider (needs re-testing)
             if settings_changed:
-                flags["valid"] = False
-                flags["active"] = False
+                flags["is_valid"] = False
+                flags["is_active"] = False
 
             # Validate is_active constraint: cannot be true if is_valid is false
             if payload.is_active is not None:
-                if payload.is_active and not flags.get("valid", False):
+                if payload.is_active and not flags.get("is_valid", False):
                     raise HTTPException(
                         status_code=400,
                         detail="Cannot activate provider. Please test the connection first.",
                     )
-                flags["active"] = payload.is_active
+                flags["is_active"] = payload.is_active
 
             provider = await dao.update(
                 provider_id=provider_id,
@@ -355,6 +514,7 @@ class SSOProviderService:
             )
 
             await session.commit()
+            await session.refresh(provider)
 
             return self._to_response(provider)
 
@@ -390,11 +550,11 @@ class SSOProviderService:
 
             # Update flags based on test result
             flags = provider.flags.copy() if provider.flags else {}
-            flags["valid"] = is_valid
+            flags["is_valid"] = is_valid
 
             # If validation failed, deactivate the provider
             if not is_valid:
-                flags["active"] = False
+                flags["is_active"] = False
 
             provider = await dao.update(
                 provider_id=provider_id,
@@ -403,6 +563,7 @@ class SSOProviderService:
             )
 
             await session.commit()
+            await session.refresh(provider)
 
             return self._to_response(provider)
 
@@ -437,8 +598,7 @@ class SSOProviderService:
             token_endpoint=settings.get("token_endpoint"),
             userinfo_endpoint=settings.get("userinfo_endpoint"),
             scopes=settings.get("scopes", ["openid", "profile", "email"]),
-            is_valid=provider.flags.get("valid", False) if provider.flags else False,
-            is_active=provider.flags.get("active", False) if provider.flags else False,
+            flags=provider.flags or {},
             created_at=provider.created_at,
             updated_at=provider.updated_at,
         )

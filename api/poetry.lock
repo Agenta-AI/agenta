@@ -2,14 +2,14 @@
 
 [[package]]
 name = "agenta"
-version = "0.72.2"
+version = "0.72.3"
 description = "The SDK for agenta is an open-source LLMOps platform."
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["main"]
 files = [
-    {file = "agenta-0.72.2-py3-none-any.whl", hash = "sha256:c2010674d6ae0e7a5a288cb85958119b8ad7dc54deb33b9dc8265f15747959fe"},
-    {file = "agenta-0.72.2.tar.gz", hash = "sha256:0d445c2a5a68d58fc0e6107698f6ab8accf185725f8ca692b1b55eb65b955848"},
+    {file = "agenta-0.72.3-py3-none-any.whl", hash = "sha256:984d135d702ba856b3b1a3b2857c145570c64d68d4fc18bf90b0b96e906850df"},
+    {file = "agenta-0.72.3.tar.gz", hash = "sha256:be9b319f5bd139ad33c7be7b80e08a11701d9382713287ad64c785f7175a07cc"},
 ]
 
 [package.dependencies]
@@ -4877,4 +4877,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "b6abbbe3eac75054d8a6927e7bd1650e368ac93ec5ae1a390a9650346a12780f"
+content-hash = "2051e0fd0ae8cf904386310f3e86c3c99b1035481eb20e139de2512a7a0aff68"

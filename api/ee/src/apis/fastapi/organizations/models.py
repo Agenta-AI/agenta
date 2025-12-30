@@ -29,7 +29,7 @@ class OrganizationDomainResponse(BaseModel):
     name: str
     description: Optional[str]
     token: Optional[str]  # Verification token
-    is_verified: bool
+    flags: dict  # Contains is_verified flag
     created_at: datetime
     updated_at: Optional[datetime]
 
@@ -84,8 +84,7 @@ class OrganizationProviderResponse(BaseModel):
     token_endpoint: Optional[str]
     userinfo_endpoint: Optional[str]
     scopes: list[str]
-    is_valid: bool  # Whether configuration has been tested successfully
-    is_active: bool  # Whether provider is enabled (can only be true if is_valid is true)
+    flags: dict  # Contains is_valid, is_active flags
     created_at: datetime
     updated_at: Optional[datetime]
 

@@ -186,10 +186,6 @@ def upgrade() -> None:
             ["organizations.id"],
             ondelete="CASCADE",
         ),
-        sa.UniqueConstraint(
-            "slug",
-            name="uq_organization_domains_slug",
-        ),
         sa.Index(
             "ix_organization_domains_org",
             "organization_id",
@@ -199,6 +195,13 @@ def upgrade() -> None:
             "flags",
             postgresql_using="gin",
         ),
+    )
+    op.create_index(
+        "uq_organization_domains_slug_verified",
+        "organization_domains",
+        ["slug"],
+        unique=True,
+        postgresql_where=sa.text("(flags->>'is_verified') = 'true'"),
     )
 
     # 3. organization_providers table
@@ -328,6 +331,10 @@ def downgrade() -> None:
     )
     op.drop_table("organization_providers")
 
+    op.drop_index(
+        "uq_organization_domains_slug_verified",
+        table_name="organization_domains",
+    )
     op.drop_index(
         "ix_organization_domains_flags",
         table_name="organization_domains",

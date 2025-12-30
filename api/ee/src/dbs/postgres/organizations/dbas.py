@@ -3,13 +3,13 @@ from sqlalchemy import Column, String, UUID
 from sqlalchemy.dialects.postgresql import JSONB
 
 from oss.src.dbs.postgres.shared.dbas import (
-    LegacyLifecycleDBA,
+    LifecycleDBA,
     HeaderDBA,
     OrganizationScopeDBA,
 )
 
 
-class OrganizationDomainDBA(OrganizationScopeDBA, LegacyLifecycleDBA):
+class OrganizationDomainDBA(OrganizationScopeDBA, LifecycleDBA):
     __abstract__ = True
 
     id = Column(
@@ -49,7 +49,7 @@ class OrganizationDomainDBA(OrganizationScopeDBA, LegacyLifecycleDBA):
     )
 
 
-class OrganizationProviderDBA(OrganizationScopeDBA, HeaderDBA, LegacyLifecycleDBA):
+class OrganizationProviderDBA(OrganizationScopeDBA, HeaderDBA, LifecycleDBA):
     __abstract__ = True
 
     id = Column(

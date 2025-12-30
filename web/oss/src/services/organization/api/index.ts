@@ -120,10 +120,7 @@ export const deleteOrganization = async (organizationId: string) => {
     return response.data
 }
 
-export const transferOrganizationOwnership = async (
-    organizationId: string,
-    newOwnerId: string,
-) => {
+export const transferOrganizationOwnership = async (organizationId: string, newOwnerId: string) => {
     const response = await axios.post(
         `${getAgentaApiUrl()}/organizations/${organizationId}/transfer/${newOwnerId}`,
     )
@@ -136,64 +133,61 @@ export const transferOrganizationOwnership = async (
 
 export interface OrganizationDomain {
     id: string
-    slug: string
+    slug: string // The actual domain name (e.g., "company.com")
+    name: string | null // Friendly name
+    description: string | null
     organization_id: string
+    token: string | null // Verification token (available for unverified domains, null for verified)
     flags: {
         is_verified?: boolean
     }
     created_at: string
-    updated_at: string
+    updated_at: string | null
 }
 
 /**
  * Fetch all domains for an organization
  */
-export const fetchOrganizationDomains = async (
-    organizationId: string,
-): Promise<OrganizationDomain[]> => {
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/domains/`,
-    )
+export const fetchOrganizationDomains = async (): Promise<OrganizationDomain[]> => {
+    const response = await axios.get(`${getAgentaApiUrl()}/organizations/domains`)
     return response.data
 }
 
 /**
- * Create a new domain for an organization
+ * Create a new domain for verification
  */
-export const createOrganizationDomain = async (
-    organizationId: string,
-    domain: string,
-): Promise<OrganizationDomain> => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/domains/`,
-        {domain},
-    )
+export const createOrganizationDomain = async (payload: {
+    domain: string
+    name: string
+    description?: string
+}): Promise<OrganizationDomain> => {
+    const response = await axios.post(`${getAgentaApiUrl()}/organizations/domains`, payload)
+    return response.data
+}
+
+/**
+ * Verify a domain via DNS TXT record
+ */
+export const verifyOrganizationDomain = async (domainId: string): Promise<OrganizationDomain> => {
+    const response = await axios.post(`${getAgentaApiUrl()}/organizations/domains/verify`, {
+        domain_id: domainId,
+    })
+    return response.data
+}
+
+/**
+ * Refresh the verification token for an unverified domain
+ */
+export const refreshOrganizationDomainToken = async (domainId: string): Promise<OrganizationDomain> => {
+    const response = await axios.post(`${getAgentaApiUrl()}/organizations/domains/${domainId}/refresh`)
     return response.data
 }
 
 /**
  * Delete a domain from an organization
  */
-export const deleteOrganizationDomain = async (
-    organizationId: string,
-    domainId: string,
-): Promise<void> => {
-    await axios.delete(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/domains/${domainId}/`,
-    )
-}
-
-/**
- * Verify a domain (typically done via DNS TXT record or email)
- */
-export const verifyOrganizationDomain = async (
-    organizationId: string,
-    domainId: string,
-): Promise<OrganizationDomain> => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/domains/${domainId}/verify/`,
-    )
-    return response.data
+export const deleteOrganizationDomain = async (domainId: string): Promise<void> => {
+    await axios.delete(`${getAgentaApiUrl()}/organizations/domains/${domainId}`)
 }
 
 // ============================================================================
@@ -205,51 +199,44 @@ export interface OrganizationProvider {
     slug: string
     organization_id: string
     provider_type: "oidc"
-    config: {
-        issuer_url?: string
-        client_id?: string
-        client_secret?: string
-        scopes?: string[]
-    }
+    name: string
+    client_id: string
+    client_secret: string
+    issuer_url: string
+    authorization_endpoint?: string
+    token_endpoint?: string
+    userinfo_endpoint?: string
+    scopes: string[]
     flags: {
-        is_enabled?: boolean
+        is_valid?: boolean
+        is_active?: boolean
     }
     created_at: string
-    updated_at: string
+    updated_at: string | null
 }
 
 /**
  * Fetch all SSO providers for an organization
  */
-export const fetchOrganizationProviders = async (
-    organizationId: string,
-): Promise<OrganizationProvider[]> => {
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/providers/`,
-    )
+export const fetchOrganizationProviders = async (): Promise<OrganizationProvider[]> => {
+    const response = await axios.get(`${getAgentaApiUrl()}/organizations/providers`)
     return response.data
 }
 
 /**
  * Create a new SSO/OIDC provider for an organization
  */
-export const createOrganizationProvider = async (
-    organizationId: string,
-    payload: {
-        slug: string
-        provider_type: "oidc"
-        config: {
-            issuer_url: string
-            client_id: string
-            client_secret: string
-            scopes?: string[]
-        }
-    },
-): Promise<OrganizationProvider> => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/providers/`,
-        payload,
-    )
+export const createOrganizationProvider = async (payload: {
+    slug: string
+    provider_type: "oidc"
+    config: {
+        issuer_url: string
+        client_id: string
+        client_secret: string
+        scopes?: string[]
+    }
+}): Promise<OrganizationProvider> => {
+    const response = await axios.post(`${getAgentaApiUrl()}/organizations/providers`, payload)
     return response.data
 }
 
@@ -257,7 +244,6 @@ export const createOrganizationProvider = async (
  * Update an SSO/OIDC provider
  */
 export const updateOrganizationProvider = async (
-    organizationId: string,
     providerId: string,
     payload: {
         slug?: string
@@ -273,8 +259,20 @@ export const updateOrganizationProvider = async (
     },
 ): Promise<OrganizationProvider> => {
     const response = await axios.patch(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/providers/${providerId}/`,
+        `${getAgentaApiUrl()}/organizations/providers/${providerId}`,
         payload,
+    )
+    return response.data
+}
+
+/**
+ * Test an SSO/OIDC provider connection
+ */
+export const testOrganizationProvider = async (
+    providerId: string,
+): Promise<OrganizationProvider> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/organizations/providers/${providerId}/test`,
     )
     return response.data
 }
@@ -282,11 +280,6 @@ export const updateOrganizationProvider = async (
 /**
  * Delete an SSO/OIDC provider
  */
-export const deleteOrganizationProvider = async (
-    organizationId: string,
-    providerId: string,
-): Promise<void> => {
-    await axios.delete(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/providers/${providerId}/`,
-    )
+export const deleteOrganizationProvider = async (providerId: string): Promise<void> => {
+    await axios.delete(`${getAgentaApiUrl()}/organizations/providers/${providerId}`)
 }

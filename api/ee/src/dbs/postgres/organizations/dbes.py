@@ -2,6 +2,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     UniqueConstraint,
     Index,
+    text,
 )
 
 from oss.src.dbs.postgres.shared.base import Base
@@ -20,9 +21,11 @@ class OrganizationDomainDBE(Base, OrganizationDomainDBA):
             ["organizations.id"],
             ondelete="CASCADE",
         ),
-        UniqueConstraint(
+        Index(
+            "uq_organization_domains_slug_verified",
             "slug",
-            name="uq_organization_domains_slug",
+            unique=True,
+            postgresql_where=text("(flags->>'is_verified') = 'true'"),
         ),
         Index(
             "ix_organization_domains_org",

@@ -2,7 +2,7 @@
 
 from typing import List
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from ee.src.apis.fastapi.organizations.models import (
     OrganizationDomainCreate,
@@ -17,11 +17,23 @@ from ee.src.services.organization_security_service import (
     SSOProviderService,
 )
 from ee.src.utils.permissions import check_user_org_access
+from ee.src.services.selectors import get_user_org_and_workspace_id
 
 
 router = APIRouter()
 domain_service = DomainVerificationService()
 provider_service = SSOProviderService()
+
+
+async def verify_user_org_access(user_id: str, organization_id: str) -> None:
+    """Helper to verify user has access to organization."""
+    user_org_data = await get_user_org_and_workspace_id(user_id)
+    has_access = await check_user_org_access(user_org_data, organization_id)
+    if not has_access:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have access to this organization"
+        )
 
 
 # Domain Verification Endpoints
@@ -44,21 +56,13 @@ async def create_domain(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await check_user_org_access(user_id, organization_id)
+    await verify_user_org_access(user_id, organization_id)
 
     domain = await domain_service.create_domain(organization_id, payload, user_id)
 
-    # Include verification instructions in response
-    instructions = domain_service.get_verification_instructions(
-        domain.slug, domain.token
-    )
-
     return JSONResponse(
         status_code=201,
-        content={
-            **domain.model_dump(mode="json"),
-            "verification_instructions": instructions,
-        },
+        content=domain.model_dump(mode="json"),
     )
 
 
@@ -76,7 +80,7 @@ async def verify_domain(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await check_user_org_access(user_id, organization_id)
+    await verify_user_org_access(user_id, organization_id)
 
     return await domain_service.verify_domain(
         organization_id, payload.domain_id, user_id
@@ -91,9 +95,47 @@ async def list_domains(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await check_user_org_access(user_id, organization_id)
+    await verify_user_org_access(user_id, organization_id)
 
     return await domain_service.list_domains(organization_id)
+
+
+@router.post("/domains/{domain_id}/refresh", response_model=OrganizationDomainResponse)
+async def refresh_domain_token(
+    domain_id: str,
+    request: Request,
+):
+    """
+    Refresh the verification token for an unverified domain.
+
+    Generates a new token and resets the 48-hour expiry window.
+    This is useful when the original token has expired.
+    """
+    organization_id = request.state.organization_id
+    user_id = request.state.user_id
+
+    await verify_user_org_access(user_id, organization_id)
+
+    return await domain_service.refresh_token(organization_id, domain_id, user_id)
+
+
+@router.post("/domains/{domain_id}/reset", response_model=OrganizationDomainResponse)
+async def reset_domain(
+    domain_id: str,
+    request: Request,
+):
+    """
+    Reset a verified domain to unverified state for re-verification.
+
+    Generates a new token and marks the domain as unverified.
+    This allows re-verification of already verified domains.
+    """
+    organization_id = request.state.organization_id
+    user_id = request.state.user_id
+
+    await verify_user_org_access(user_id, organization_id)
+
+    return await domain_service.reset_domain(organization_id, domain_id, user_id)
 
 
 @router.delete("/domains/{domain_id}", status_code=204)
@@ -105,10 +147,10 @@ async def delete_domain(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await check_user_org_access(user_id, organization_id)
+    await verify_user_org_access(user_id, organization_id)
 
     await domain_service.delete_domain(organization_id, domain_id, user_id)
-    return JSONResponse(status_code=204, content=None)
+    return Response(status_code=204)
 
 
 # SSO Provider Endpoints
@@ -128,7 +170,7 @@ async def create_provider(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await check_user_org_access(user_id, organization_id)
+    await verify_user_org_access(user_id, organization_id)
 
     return await provider_service.create_provider(organization_id, payload, user_id)
 
@@ -143,7 +185,7 @@ async def update_provider(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await check_user_org_access(user_id, organization_id)
+    await verify_user_org_access(user_id, organization_id)
 
     return await provider_service.update_provider(
         organization_id, provider_id, payload, user_id
@@ -158,7 +200,7 @@ async def list_providers(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await check_user_org_access(user_id, organization_id)
+    await verify_user_org_access(user_id, organization_id)
 
     return await provider_service.list_providers(organization_id)
 
@@ -179,7 +221,7 @@ async def test_provider(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await check_user_org_access(user_id, organization_id)
+    await verify_user_org_access(user_id, organization_id)
 
     return await provider_service.test_provider(organization_id, provider_id, user_id)
 
@@ -193,7 +235,7 @@ async def delete_provider(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await check_user_org_access(user_id, organization_id)
+    await verify_user_org_access(user_id, organization_id)
 
     await provider_service.delete_provider(organization_id, provider_id, user_id)
-    return JSONResponse(status_code=204, content=None)
+    return Response(status_code=204)

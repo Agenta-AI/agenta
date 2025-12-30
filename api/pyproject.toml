@@ -62,6 +62,7 @@ sendgrid = "^6"
 stripe = "^14"
 posthog = "^7"
 newrelic = "^11"
+dnspython = "^2"
 
 # Observability (limited - see comment below)
 opentelemetry-proto = "^1"
