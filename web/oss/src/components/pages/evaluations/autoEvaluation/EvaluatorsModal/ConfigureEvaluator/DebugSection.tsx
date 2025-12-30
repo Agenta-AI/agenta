@@ -8,12 +8,10 @@
  * - playgroundFormRefAtom: Form instance for reading settings
  *
  * Data fetching:
- * - Testsets: fetched internally via useTestsetsData()
  * - Variants: fetched internally via useAppVariantRevisions()
  * - Apps: fetched internally via useAppsData()
  *
  * Data fetching:
- * - Testsets: fetched internally via useTestsetsData()
  * - Variants: fetched internally via useAppVariantRevisions()
  * - Apps: fetched internally via useAppsData()
  */
