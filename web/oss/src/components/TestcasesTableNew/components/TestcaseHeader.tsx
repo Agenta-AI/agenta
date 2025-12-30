@@ -1,13 +1,14 @@
 import {useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent} from "react"
 
 import {DownOutlined, MoreOutlined} from "@ant-design/icons"
-import {Link, PencilSimple, Trash} from "@phosphor-icons/react"
+import {Export, Link, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Popover, Space, Typography} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {TableDescription} from "@/oss/components/InfiniteVirtualTable"
 import {UserReference} from "@/oss/components/References/UserReference"
+import type {ExportFileType} from "@/oss/services/testsets/api"
 import {enableRevisionsListQueryAtom} from "@/oss/state/entities/testset"
 
 import type {RevisionListItem, TestsetMetadata} from "../hooks/types"
@@ -30,6 +31,7 @@ export interface TestcaseHeaderProps {
     onCopyRevisionSlug: () => void
     onOpenRenameModal: () => void
     onDeleteRevision: () => void
+    onExport: (fileType: ExportFileType) => void
     projectURL: string
 }
 
@@ -75,6 +77,7 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
         onCopyRevisionSlug,
         onOpenRenameModal,
         onDeleteRevision,
+        onExport,
         projectURL,
     } = props
 
@@ -89,6 +92,14 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
 
     // Enable revisions list query when dropdown is opened
     const handleRevisionDropdownOpenChange = (open: boolean) => {
+        if (open && metadata?.testsetId && !revisionsRequested) {
+            enableRevisionsListQuery(metadata.testsetId)
+            setRevisionsRequested(true)
+        }
+    }
+
+    // Enable revisions list query when actions dropdown is opened (needed for delete/redirect)
+    const handleActionsDropdownOpenChange = (open: boolean) => {
         if (open && metadata?.testsetId && !revisionsRequested) {
             enableRevisionsListQuery(metadata.testsetId)
             setRevisionsRequested(true)
@@ -151,7 +162,9 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
     // Check if this is the only revision (disable delete if so)
     // v0 is not a valid revision, so we filter it out when counting
     const validRevisions = availableRevisions.filter((r) => r.version > 0)
-    const isOnlyRevision = validRevisions.length <= 1
+    // Disable delete if: revisions not loaded yet, still loading, or only one revision
+    const isDeleteDisabled =
+        !revisionsRequested || loadingRevisions || validRevisions.length <= 1
 
     // Header actions dropdown menu items
     const headerActionsMenuItems = useMemo(
@@ -163,15 +176,33 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                 onClick: onOpenRenameModal,
             },
             {
+                type: "divider" as const,
+            },
+            {
+                key: "export-csv",
+                label: "Export as CSV",
+                icon: <Export size={16} />,
+                onClick: () => onExport("csv"),
+            },
+            {
+                key: "export-json",
+                label: "Export as JSON",
+                icon: <Export size={16} />,
+                onClick: () => onExport("json"),
+            },
+            {
+                type: "divider" as const,
+            },
+            {
                 key: "delete-revision",
-                label: "Delete revision",
+                label: loadingRevisions ? "Delete revision..." : "Delete revision",
                 icon: <Trash size={16} />,
                 danger: true,
-                disabled: isOnlyRevision,
+                disabled: isDeleteDisabled,
                 onClick: onDeleteRevision,
             },
         ],
-        [onOpenRenameModal, onDeleteRevision, isOnlyRevision],
+        [onOpenRenameModal, onDeleteRevision, isDeleteDisabled, onExport, loadingRevisions],
     )
 
     // Handler to execute copy action and remember it
@@ -269,7 +300,11 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                     </Dropdown>
                 </Space.Compact>
 
-                <Dropdown menu={{items: headerActionsMenuItems}} trigger={["click"]}>
+                <Dropdown
+                    menu={{items: headerActionsMenuItems}}
+                    trigger={["click"]}
+                    onOpenChange={handleActionsDropdownOpenChange}
+                >
                     <Button type="text" size="small" icon={<MoreOutlined />} />
                 </Dropdown>
             </div>

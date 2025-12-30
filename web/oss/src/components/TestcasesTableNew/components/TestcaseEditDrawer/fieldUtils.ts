@@ -272,37 +272,39 @@ export function textModeToStorageValue(textValue: string, originalValue: string)
 }
 
 /**
- * Format form values for JSON display (parse nested JSON)
+ * Format values for JSON display
+ * Handles both native values and stringified JSON values
  */
-export function formatForJsonDisplay(values: Record<string, string>): string {
-    const parsed: Record<string, unknown> = {}
+export function formatForJsonDisplay(values: Record<string, unknown>): string {
+    const result: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(values)) {
-        try {
-            // Try to parse as JSON to avoid double-escaping
-            parsed[key] = JSON.parse(value)
-        } catch {
-            // If not valid JSON, use as-is
-            parsed[key] = value
+        if (typeof value === "string") {
+            // Try to parse string as JSON to avoid double-escaping
+            try {
+                result[key] = JSON.parse(value)
+            } catch {
+                // Not valid JSON - use as plain string
+                result[key] = value
+            }
+        } else {
+            // Native value (object, array, number, boolean, null) - use as-is
+            result[key] = value
         }
     }
-    return JSON.stringify(parsed, null, 2)
+    return JSON.stringify(result, null, 2)
 }
 
 /**
- * Parse JSON display back to form values (re-stringify nested objects)
+ * Parse JSON display back to native values (preserves objects/arrays)
  */
-export function parseFromJsonDisplay(jsonStr: string): Record<string, string> | null {
+export function parseFromJsonDisplay(jsonStr: string): Record<string, unknown> | null {
     try {
         const parsed = JSON.parse(jsonStr)
-        const result: Record<string, string> = {}
-        for (const [key, value] of Object.entries(parsed)) {
-            if (typeof value === "string") {
-                result[key] = value
-            } else {
-                result[key] = JSON.stringify(value)
-            }
+        if (typeof parsed !== "object" || parsed === null) {
+            return null
         }
-        return result
+        // Return native values as-is (objects, arrays, strings, numbers, booleans)
+        return parsed as Record<string, unknown>
     } catch {
         return null
     }

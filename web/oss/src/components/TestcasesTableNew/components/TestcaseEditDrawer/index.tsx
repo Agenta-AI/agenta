@@ -47,35 +47,14 @@ const TestcaseEditDrawerContent = forwardRef<
     const updateTestcase = useSetAtom(updateTestcaseAtom)
 
     // Derive form values from testcase (single source of truth for editing)
-    // Values are stored as strings for the editors - objects/arrays are JSON stringified
+    // Values are preserved as native types (objects, arrays, strings, etc.)
     const formValues = useMemo(() => {
         if (!testcase) return {}
-        const values: Record<string, string> = {}
+        const values: Record<string, unknown> = {}
         columns.forEach((col) => {
             const value = testcase[col.key]
-            if (value == null) {
-                values[col.key] = ""
-            } else if (typeof value === "object") {
-                // Objects and arrays need to be JSON stringified
-                values[col.key] = JSON.stringify(value, null, 2)
-            } else if (typeof value === "string") {
-                // Check if string is a stringified JSON - if so, parse and re-stringify for formatting
-                try {
-                    const parsed = JSON.parse(value)
-                    if (typeof parsed === "object" && parsed !== null) {
-                        // It's a stringified JSON object/array - format it nicely
-                        values[col.key] = JSON.stringify(parsed, null, 2)
-                    } else {
-                        // It's a JSON primitive (string, number, boolean) - keep as-is
-                        values[col.key] = value
-                    }
-                } catch {
-                    // Not valid JSON - keep as plain string
-                    values[col.key] = value
-                }
-            } else {
-                values[col.key] = String(value)
-            }
+            // Preserve native values - null/undefined become empty string
+            values[col.key] = value ?? ""
         })
         return values
     }, [testcase, columns])

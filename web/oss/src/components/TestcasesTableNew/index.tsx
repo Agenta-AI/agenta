@@ -210,6 +210,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         }}
                         onOpenRenameModal={() => setIsRenameModalOpen(true)}
                         onDeleteRevision={actions.handleDeleteRevision}
+                        onExport={actions.handleExport}
                         projectURL={projectURL}
                     />
                 }

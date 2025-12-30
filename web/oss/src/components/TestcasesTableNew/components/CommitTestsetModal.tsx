@@ -15,10 +15,6 @@ export interface TestsetChangesSummary {
     addedCount: number
     /** Number of deleted testcases */
     deletedCount: number
-    /** Whether name changed */
-    nameChanged: boolean
-    /** Whether description changed */
-    descriptionChanged: boolean
     /** Original data for diff (JSON string) */
     originalData?: string
     /** Modified data for diff (JSON string) */
@@ -88,12 +84,6 @@ const CommitTestsetModal = ({
     }
     if (displaySummary?.deletedCount) {
         changesDescription.push(`${displaySummary.deletedCount} deleted`)
-    }
-    if (displaySummary?.nameChanged) {
-        changesDescription.push("name updated")
-    }
-    if (displaySummary?.descriptionChanged) {
-        changesDescription.push("description updated")
     }
 
     const hasDiffData = displaySummary?.originalData && displaySummary?.modifiedData
