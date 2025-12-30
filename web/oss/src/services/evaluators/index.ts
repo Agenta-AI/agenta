@@ -67,6 +67,7 @@ const evaluatorIconsMap = {
     auto_similarity_match: similarityImg,
     auto_regex_test: regexImg,
     field_match_test: exactMatchImg,
+    json_multi_field_match: bracketCurlyImg,
     auto_webhook_test: webhookImg,
     auto_ai_critique: aiImg,
     auto_custom_code_run: codeImg,
