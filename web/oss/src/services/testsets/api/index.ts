@@ -36,7 +36,7 @@ export async function createNewTestset(testsetName: string, testsetData?: any) {
 
     // Use /preview/simple/testsets endpoint - creates testset, variant, and revision in one call
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/testsets?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/preview/simple/testsets/?project_id=${projectId}`,
         {
             testset: {
                 slug: baseSlug,
@@ -95,8 +95,32 @@ export async function fetchSimpleTestset(testsetId: string) {
 }
 
 /**
+ * Update testset metadata (name and/or description) directly on the testset entity
+ * This does NOT create a new revision - it updates the testset itself
+ */
+export async function updateTestsetMetadata(
+    testsetId: string,
+    updates: {name?: string; description?: string},
+) {
+    const {projectId} = getProjectValues()
+
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/preview/testsets/${testsetId}?project_id=${projectId}`,
+        {
+            testset: {
+                id: testsetId,
+                ...updates,
+            },
+        },
+    )
+
+    return response.data?.testset
+}
+
+/**
  * Rename a testset using the preview API
  * Only updates the name, preserves all other data
+ * @deprecated Use updateTestsetMetadata instead
  */
 export async function renameTestset(testsetId: string, newName: string) {
     const {projectId} = getProjectValues()
@@ -401,8 +425,107 @@ export async function archiveTestsetRevision(revisionId: string) {
     const {projectId} = getProjectValues()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/testsets/revisions/${revisionId}/archive?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/preview/testsets/revisions/${revisionId}/archive?project_id=${projectId}`,
     )
 
     return response.data
+}
+
+/**
+ * Helper to trigger a file download from a blob response
+ */
+function triggerBlobDownload(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.setAttribute("download", filename)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    setTimeout(() => URL.revokeObjectURL(url), 500)
+}
+
+export type ExportFileType = "csv" | "json"
+
+const MIME_TYPES: Record<ExportFileType, string> = {
+    csv: "text/csv;charset=utf-8;",
+    json: "application/json;charset=utf-8;",
+}
+
+/**
+ * Download a testset file (latest revision)
+ * Uses the backend endpoint to generate and download the file
+ * @param testsetId - The ID of the testset to download
+ * @param fileType - The file type to download (csv or json)
+ * @param filename - Optional filename for the downloaded file (defaults to testset name)
+ */
+export async function downloadTestset(
+    testsetId: string,
+    fileType: ExportFileType = "csv",
+    filename?: string,
+) {
+    const {projectId} = getProjectValues()
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/simple/testsets/${testsetId}/download`,
+        {},
+        {
+            params: {project_id: projectId, file_type: fileType},
+            responseType: "blob",
+        },
+    )
+
+    const blob =
+        response.data instanceof Blob
+            ? response.data
+            : new Blob([response.data], {type: MIME_TYPES[fileType]})
+
+    triggerBlobDownload(blob, filename || `testset-${testsetId}.${fileType}`)
+
+    return response
+}
+
+/**
+ * Download a testset as CSV file (latest revision)
+ * @deprecated Use downloadTestset(testsetId, "csv", filename) instead
+ */
+export async function downloadTestsetCsv(testsetId: string, filename?: string) {
+    return downloadTestset(testsetId, "csv", filename)
+}
+
+/**
+ * Download a specific testset revision file
+ * Uses the backend endpoint to generate and download the file for a specific revision
+ * @param revisionId - The ID of the revision to download
+ * @param fileType - The file type to download (csv or json)
+ * @param filename - Optional filename for the downloaded file
+ */
+export async function downloadRevision(
+    revisionId: string,
+    fileType: ExportFileType = "csv",
+    filename?: string,
+) {
+    const {projectId} = getProjectValues()
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/testsets/revisions/${revisionId}/download`,
+        {},
+        {
+            params: {project_id: projectId, file_type: fileType, _t: Date.now()},
+            responseType: "blob",
+        },
+    )
+
+    const blob = new Blob([response.data], {type: MIME_TYPES[fileType]})
+    triggerBlobDownload(blob, filename || `revision-${revisionId}.${fileType}`)
+
+    return response
+}
+
+/**
+ * Download a specific testset revision as CSV file
+ * @deprecated Use downloadRevision(revisionId, "csv", filename) instead
+ */
+export async function downloadRevisionCsv(revisionId: string, filename?: string) {
+    return downloadRevision(revisionId, "csv", filename)
 }
