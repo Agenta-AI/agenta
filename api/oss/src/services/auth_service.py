@@ -452,8 +452,6 @@ async def verify_bearer_token(
             organization_id = project.organization_id
 
         elif not query_project_id and query_workspace_id:
-            log.warning("[AUTH] Missing project_id in query params!")
-
             workspace = await db_manager.get_workspace(
                 workspace_id=query_workspace_id,
             )
@@ -476,8 +474,6 @@ async def verify_bearer_token(
             organization_id = workspace.organization_id
 
         else:
-            log.warning("[AUTH] Missing project_id in query params!")
-
             if is_ee():
                 workspace_id = await db_manager_ee.get_default_workspace_id(
                     user_id=user_id,
@@ -800,7 +796,6 @@ async def _check_organization_policy(request: Request):
         payload = session.get_access_token_payload() if session else {}  # type: ignore
         identities = payload.get("identities", [])
     except Exception:
-        log.warn("[auth] identities=[]", exc_info=True)
         identities = []
         return  # Skip policy check on session errors
 
