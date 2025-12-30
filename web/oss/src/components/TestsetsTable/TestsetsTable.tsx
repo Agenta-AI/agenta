@@ -9,7 +9,7 @@ import {
 import {Copy, Eye, Note, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Modal, Tag, Typography} from "antd"
 import clsx from "clsx"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {
@@ -19,7 +19,6 @@ import {
     createStandardColumns,
     TableDescription,
 } from "@/oss/components/InfiniteVirtualTable"
-import {fetchTestsetRevisions} from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
 import {
     testsetsDatasetStore,
     testsetsRefreshTriggerAtom,
@@ -29,6 +28,8 @@ import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/Tes
 import useURL from "@/oss/hooks/useURL"
 import type {TestsetCreationMode} from "@/oss/lib/Types"
 import {archiveTestsetRevision} from "@/oss/services/testsets/api"
+import {fetchRevisionsList} from "@/oss/state/entities/testset"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {message} from "../AppMessageContext"
 
@@ -78,6 +79,7 @@ const TestsetsTable = ({
     selectedRevisionId,
 }: TestsetsTableProps) => {
     const {projectURL} = useURL()
+    const projectId = useAtomValue(projectIdAtom)
 
     // Refresh trigger for the table
     const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
@@ -154,7 +156,12 @@ const TestsetsTable = ({
 
                 // Fallback: fetch revisions to find latest
                 try {
-                    const revisions = await fetchTestsetRevisions({testsetId: record.id})
+                    if (!projectId) return
+                    const response = await fetchRevisionsList({
+                        projectId,
+                        testsetId: record.id,
+                    })
+                    const revisions = response.testset_revisions
                     if (revisions.length > 0) {
                         const latestRevision = revisions[0]
                         const numericVersion =
@@ -189,7 +196,9 @@ const TestsetsTable = ({
 
             // Otherwise, fetch revisions to get the latest one
             try {
-                const revisions = await fetchTestsetRevisions({testsetId: record.id})
+                if (!projectId) return
+                const response = await fetchRevisionsList({projectId, testsetId: record.id})
+                const revisions = response.testset_revisions
                 if (revisions.length > 0) {
                     // Navigate to the first revision (latest)
                     window.location.href = `${projectURL}/testsets/${revisions[0].id}`
@@ -326,7 +335,9 @@ const TestsetsTable = ({
                 setLoadingRows((prev) => new Set(prev).add(rowKey))
                 try {
                     // Fetch revisions directly for this testset (skip variants)
-                    const revisions = await fetchTestsetRevisions({testsetId: record.id})
+                    if (!projectId) return
+                    const response = await fetchRevisionsList({projectId, testsetId: record.id})
+                    const revisions = response.testset_revisions
                     const childRows: TestsetTableRow[] = revisions.map((revision: any) => ({
                         key: `${record.id}-${revision.id}`,
                         id: revision.id,
