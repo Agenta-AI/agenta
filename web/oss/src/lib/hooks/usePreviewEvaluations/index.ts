@@ -17,7 +17,6 @@ import {createEvaluationRunConfig} from "@/oss/services/evaluationRuns/api"
 import {CreateEvaluationRunInput} from "@/oss/services/evaluationRuns/api/types"
 import {getProjectValues} from "@/oss/state/project"
 import {setProjectVariantReferencesAtom} from "@/oss/state/projectVariantConfig"
-import {usePreviewTestsetsData, useTestsetsData} from "@/oss/state/testset"
 import {fetchRevision} from "@/oss/state/entities/testset"
 import {
     testcasesResponseSchema,
@@ -279,11 +278,6 @@ const usePreviewEvaluations = ({
         // prefetchProjectVariantConfigs(references)
     }, [appId, projectId, rawRuns, setProjectVariantReferences])
 
-    /**
-     * Hook to fetch testsets data.
-     */
-    const {testsets} = useTestsetsData()
-    const {testsets: _previewTestsets} = usePreviewTestsetsData()
 
     /**
      * Helper to create scenarios for a given run and testset.
@@ -316,7 +310,7 @@ const usePreviewEvaluations = ({
             // Extract and return new scenario IDs
             return response.data.scenarios.map((s: any) => s.id)
         },
-        [testsets, debug],
+        [],
     )
 
     /**
