@@ -23,9 +23,11 @@ interface TestsetDrawerProps {
     data?: TestsetTraceData[]
     showSelectedSpanText?: boolean
     onClose: () => void
+    /** Initial path to start navigation at in drill-in view (e.g., "inputs.prompt" or ["inputs", "prompt"]) */
+    initialPath?: string | string[]
 }
 
-const TestsetDrawer = ({open, data, onClose}: TestsetDrawerProps) => {
+const TestsetDrawer = ({open, data, onClose, initialPath = "ag.data"}: TestsetDrawerProps) => {
     const setIsDrawerOpen = useSetAtom(isDrawerOpenAtom)
     const initializeTraceData = useSetAtom(initializeTraceDataAtom)
     const drawer = useTestsetDrawer()
@@ -144,6 +146,7 @@ const TestsetDrawer = ({open, data, onClose}: TestsetDrawerProps) => {
                             focusPath={focusPath}
                             onFocusPathHandled={handleFocusPathHandled}
                             onPropertyClick={handleFocusPath}
+                            initialPath={initialPath}
                         />
 
                         <MappingSection

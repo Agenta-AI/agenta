@@ -27,6 +27,8 @@ interface TraceDataDrillInProps {
     onFocusPathHandled?: () => void
     /** Callback when a JSON property key is Cmd/Meta+clicked in nested JSON editors */
     onPropertyClick?: (path: string) => void
+    /** Initial path to start navigation at (e.g., "inputs.prompt" or ["inputs", "prompt"]) */
+    initialPath?: string | string[]
 }
 
 /**

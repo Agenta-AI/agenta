@@ -40,6 +40,8 @@ interface DataPreviewEditorProps {
     onFocusPathHandled?: () => void
     /** Callback when a JSON property key is Cmd/Meta+clicked in editor view (for drill-in navigation) */
     onPropertyClick?: (path: string) => void
+    /** Initial path to start navigation at in drill-in view (e.g., "inputs.prompt" or ["inputs", "prompt"]) */
+    initialPath?: string | string[]
 }
 
 type ViewMode = "editor" | "drill-in"
@@ -62,6 +64,7 @@ export function DataPreviewEditor({
     focusPath,
     onFocusPathHandled,
     onPropertyClick,
+    initialPath,
 }: DataPreviewEditorProps) {
     const lastSavedRef = useRef(formatDataPreview)
     // Counter to force editor remount only on explicit revert (not on every edit)
@@ -217,6 +220,7 @@ export function DataPreviewEditor({
                     focusPath={focusPath}
                     onFocusPathHandled={onFocusPathHandled}
                     onPropertyClick={onPropertyClick}
+                    initialPath={initialPath}
                 />
             ) : (
                 <EditorProvider
