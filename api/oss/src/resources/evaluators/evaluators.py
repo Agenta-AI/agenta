@@ -363,9 +363,9 @@ evaluators = [
         "settings_template": {
             "fields": {
                 "label": "Fields to Compare",
-                "type": "fields_checkbox_list",  # Custom type - checkbox list with auto-detection from testcase
+                "type": "fields_tags_editor",  # Custom type - tag-based add/remove editor
                 "required": True,
-                "description": "Select which JSON fields to compare (auto-detected from testcase)",
+                "description": "Add fields to compare using dot notation for nested paths (e.g., user.name)",
             },
             "correct_answer_key": {
                 "label": "Expected Answer Column",
@@ -377,7 +377,7 @@ evaluators = [
                 "advanced": True,  # Hidden in advanced section
             },
         },
-        "description": "Compares configured fields in expected JSON against LLM output. Each field becomes a separate score column (0 or 1), with an overall score showing the match ratio. Useful for entity extraction validation.",
+        "description": "Compares configured fields in expected JSON against LLM output. Each field becomes a separate metric (0 or 1), with an aggregate_score showing the percentage of matching fields. Useful for entity extraction validation.",
         "requires_testcase": "always",
         "requires_trace": "always",
         "oss": True,

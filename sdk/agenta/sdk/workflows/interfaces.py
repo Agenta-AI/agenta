@@ -202,21 +202,16 @@ json_multi_field_match_v0_interface = WorkflowServiceInterface(
         outputs={
             "type": "object",
             "title": "JSON Multi-Field Match Outputs",
-            "description": "Per-field match scores and overall match ratio. Each field produces a score_<field> output (0 or 1).",
+            "description": "Per-field match scores and aggregate score. Each field produces a 0 or 1 output.",
             "properties": {
-                "score": {
+                "aggregate_score": {
                     "type": "number",
-                    "title": "Overall Score",
-                    "description": "Ratio of matched fields (0-1).",
-                },
-                "success": {
-                    "type": "boolean",
-                    "title": "Success",
-                    "description": "True if all selected fields matched.",
+                    "title": "Aggregate Score",
+                    "description": "Percentage of matched fields (0-1).",
                 },
             },
-            "required": ["score", "success"],
-            "additionalProperties": True,  # Allows dynamic score_<field> outputs
+            "required": ["aggregate_score"],
+            "additionalProperties": True,  # Allows dynamic field outputs
         },
     ),
 )

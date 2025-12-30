@@ -578,8 +578,8 @@ def json_multi_field_match_v0(
     """
     Multi-field JSON match evaluator for comparing multiple fields between expected and actual JSON.
 
-    Each configured field becomes a separate score (0 or 1), and an overall score shows
-    the ratio of matching fields. Useful for entity extraction validation.
+    Each configured field becomes a separate score (0 or 1), and an aggregate_score shows
+    the percentage of matching fields. Useful for entity extraction validation.
 
     Args:
         inputs: Testcase data with ground truth JSON
@@ -589,8 +589,8 @@ def json_multi_field_match_v0(
             - correct_answer_key: Key in inputs containing the expected JSON
 
     Returns:
-        Dict with per-field scores and overall score, e.g.:
-        {"name": 1.0, "email": 0.0, "score": 0.5}
+        Dict with per-field scores and aggregate_score, e.g.:
+        {"name": 1.0, "email": 0.0, "aggregate_score": 0.5}
     """
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
@@ -643,7 +643,7 @@ def json_multi_field_match_v0(
     if not isinstance(outputs, str) and not isinstance(outputs, dict):
         # Return all zeros if output is invalid
         results: Dict[str, Any] = {field: 0.0 for field in fields}
-        results["score"] = 0.0
+        results["aggregate_score"] = 0.0
         return results
 
     if isinstance(outputs, str):
@@ -652,7 +652,7 @@ def json_multi_field_match_v0(
         except json.JSONDecodeError:
             # Return all zeros if output is not valid JSON
             results = {field: 0.0 for field in fields}
-            results["score"] = 0.0
+            results["aggregate_score"] = 0.0
             return results
     else:
         actual = outputs
@@ -660,7 +660,7 @@ def json_multi_field_match_v0(
     if not isinstance(actual, dict):
         # Return all zeros if parsed output is not a dict
         results = {field: 0.0 for field in fields}
-        results["score"] = 0.0
+        results["aggregate_score"] = 0.0
         return results
 
     # --------------------------------------------------------------------------
@@ -679,8 +679,8 @@ def json_multi_field_match_v0(
         if match:
             matches += 1
 
-    # Overall score is ratio of matching fields
-    results["score"] = matches / len(fields) if fields else 0.0
+    # Aggregate score is the percentage of matching fields
+    results["aggregate_score"] = matches / len(fields) if fields else 0.0
     # --------------------------------------------------------------------------
 
     return results

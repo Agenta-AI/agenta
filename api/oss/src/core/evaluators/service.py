@@ -1451,7 +1451,7 @@ class SimpleEvaluatorsService:
         if str(old_evaluator.evaluator_key) == "json_multi_field_match":
             # Build dynamic properties based on configured fields
             fields = old_evaluator.settings_values.get("fields", [])
-            properties = {"score": {"type": "number"}}
+            properties = {"aggregate_score": {"type": "number"}}
             for field in fields:
                 # Each field becomes a numeric score (0 or 1)
                 properties[field] = {"type": "number"}
@@ -1459,7 +1459,7 @@ class SimpleEvaluatorsService:
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": properties,
-                "required": ["score"],
+                "required": ["aggregate_score"],
                 "additionalProperties": False,
             }
         if not outputs_schema:
