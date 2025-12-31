@@ -1,7 +1,7 @@
 import {useMemo, useRef, useState} from "react"
 
 import {CaretRight, Plus, X} from "@phosphor-icons/react"
-import {Button, Divider, Input, InputRef, Popover, Select, Typography} from "antd"
+import {Button, Divider, Input, InputRef, Popover, Select, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
@@ -210,24 +210,30 @@ const SelectLLMProvider = ({
         setTimeout(() => setOpen(false), 0)
     }
 
+    const formatCost = (cost: number) => {
+        const value = Number(cost)
+        if (isNaN(value)) return "N/A"
+        return value < 0.01 ? value.toFixed(4) : value.toFixed(2)
+    }
+
     const renderTooltipContent = (metadata: Record<string, any>) => (
         <div className="flex flex-col gap-0.5">
             {(metadata.input !== undefined || metadata.output !== undefined) && (
                 <>
                     <div className="flex justify-between gap-4">
-                        <Typography.Text type="secondary" className="text-[10px] text-nowrap">
+                        <Typography.Text className="text-[10px] text-nowrap !text-white">
                             Input:
                         </Typography.Text>
-                        <Typography.Text className="text-[10px] text-nowrap">
-                            ${metadata.input} / 1M
+                        <Typography.Text className="text-[10px] text-nowrap !text-white">
+                            ${formatCost(metadata.input)} / 1M
                         </Typography.Text>
                     </div>
                     <div className="flex justify-between gap-4">
-                        <Typography.Text type="secondary" className="text-[10px] text-nowrap">
+                        <Typography.Text className="text-[10px] text-nowrap !text-white">
                             Output:{" "}
                         </Typography.Text>
-                        <Typography.Text className="text-[10px] text-nowrap">
-                            ${metadata.output} / 1M
+                        <Typography.Text className="text-[10px] text-nowrap !text-white">
+                            ${formatCost(metadata.output)} / 1M
                         </Typography.Text>
                     </div>
                 </>
@@ -252,17 +258,13 @@ const SelectLLMProvider = ({
 
         if (option.metadata) {
             return (
-                <div className="w-full h-full" onClick={(e) => e.stopPropagation()}>
-                    <Popover
-                        content={renderTooltipContent(option.metadata)}
-                        placement="right"
-                        classNames={{
-                            container: "w-42 max-w-[600px]",
-                        }}
-                    >
-                        {content}
-                    </Popover>
-                </div>
+                <Tooltip
+                    title={renderTooltipContent(option.metadata)}
+                    placement="right"
+                    mouseEnterDelay={0.3}
+                >
+                    {content}
+                </Tooltip>
             )
         }
 
