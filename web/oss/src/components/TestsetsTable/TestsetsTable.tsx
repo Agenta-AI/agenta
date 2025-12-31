@@ -21,12 +21,6 @@ import {
     createStandardColumns,
     TableDescription,
 } from "@/oss/components/InfiniteVirtualTable"
-import {
-    testsetsDatasetStore,
-    testsetsExportFormatAtom,
-    testsetsRefreshTriggerAtom,
-    type TestsetTableRow,
-} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/TestsetsHeaderFilters"
 import useURL from "@/oss/hooks/useURL"
 import type {TestsetCreationMode} from "@/oss/lib/Types"
@@ -36,7 +30,7 @@ import {
     downloadRevision,
     type ExportFileType,
 } from "@/oss/services/testsets/api"
-import {fetchRevisionsList} from "@/oss/state/entities/testset"
+import {fetchRevisionsList, testset, type TestsetTableRow} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {message} from "../AppMessageContext"
@@ -90,7 +84,7 @@ const TestsetsTable = ({
     const projectId = useAtomValue(projectIdAtom)
 
     // Refresh trigger for the table
-    const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
+    const setRefreshTrigger = useSetAtom(testset.paginated.refreshAtom)
 
     // Modal state
     const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
@@ -102,7 +96,7 @@ const TestsetsTable = ({
 
     // Refresh table data
     const mutate = useCallback(() => {
-        setRefreshTrigger((prev) => prev + 1)
+        setRefreshTrigger()
     }, [setRefreshTrigger])
 
     // Track expanded rows and their loaded children
@@ -294,7 +288,7 @@ const TestsetsTable = ({
     const [exportingRowKey, setExportingRowKey] = useState<string | null>(null)
 
     // Export format preference (persisted in localStorage)
-    const [exportFormat, setExportFormat] = useAtom(testsetsExportFormatAtom)
+    const [exportFormat, setExportFormat] = useAtom(testset.filters.exportFormat)
 
     // Handler to export a testset or revision using the backend endpoint
     const handleExportTestset = useCallback(
@@ -330,7 +324,7 @@ const TestsetsTable = ({
 
     // Table manager - consolidates pagination, selection, row handlers, export, delete buttons
     const table = useTableManager<TestsetTableRow>({
-        datasetStore: testsetsDatasetStore,
+        datasetStore: testset.paginated.store,
         scopeId,
         pageSize: 50,
         rowHeight: 48,
