@@ -1,10 +1,11 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
-import {Pause, Play} from "@phosphor-icons/react"
+import {PushpinFilled} from "@ant-design/icons"
+import {PauseIcon, PlayIcon, XCircleIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Space, Tabs, Tag, Tooltip} from "antd"
+import {Button, Tabs, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
@@ -12,6 +13,13 @@ import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/a
 import {startSimpleEvaluation, stopSimpleEvaluation} from "@/oss/services/onlineEvaluations/api"
 
 import {
+    compareRunIdsAtom,
+    compareRunIdsWriteAtom,
+    getComparisonColor,
+    getComparisonSolidColor,
+} from "../atoms/compare"
+import {
+    runDisplayNameAtomFamily,
     runInvocationRefsAtomFamily,
     runTestsetIdsAtomFamily,
     runFlagsAtomFamily,
@@ -20,15 +28,6 @@ import {evaluationRunQueryAtomFamily} from "../atoms/table"
 import {previewEvalTypeAtom} from "../state/evalType"
 
 import CompareRunsMenu from "./CompareRunsMenu"
-
-const statusColor = (status?: string | null) => {
-    if (!status) return "default"
-    const normalized = status.toLowerCase()
-    if (normalized.includes("success") || normalized.includes("completed")) return "green"
-    if (normalized.includes("fail") || normalized.includes("error")) return "red"
-    if (normalized.includes("running") || normalized.includes("queued")) return "blue"
-    return "default"
-}
 
 type ActiveView = "overview" | "focus" | "scenarios" | "configuration"
 
@@ -156,6 +155,30 @@ const PreviewEvalRunMeta = ({
     const _testsetIds = useAtomValue(useMemo(() => runTestsetIdsAtomFamily(runId), [runId]))
     const {canStopOnline, handleOnlineAction, onlineAction, showOnlineAction} =
         useOnlineEvaluationActions(runId, projectId)
+    const compareRunIds = useAtomValue(compareRunIdsAtom)
+    const setCompareRunIds = useSetAtom(compareRunIdsWriteAtom)
+
+    const orderedRunIds = useMemo(() => {
+        const ids = [runId, ...compareRunIds].filter((id): id is string => Boolean(id))
+        const seen = new Set<string>()
+        return ids.filter((id) => {
+            if (seen.has(id)) return false
+            seen.add(id)
+            return true
+        })
+    }, [compareRunIds, runId])
+
+    const runDescriptorsAtom = useMemo(
+        () =>
+            atom((get) =>
+                orderedRunIds.map((id) => ({
+                    id,
+                    name: get(runDisplayNameAtomFamily(id)),
+                })),
+            ),
+        [orderedRunIds],
+    )
+    const runDescriptors = useAtomValue(runDescriptorsAtom)
 
     const runData = runQuery.data?.camelRun ?? runQuery.data?.rawRun ?? null
     const runStatus = runData?.status ?? null
@@ -169,30 +192,62 @@ const PreviewEvalRunMeta = ({
     const lastUpdated = updatedMoment?.isValid() ? updatedMoment.fromNow() : undefined
 
     return (
-        <div className={clsx("flex items-center justify-end gap-3 px-2", className)}>
-            <Space size={12} wrap className="text-[#475467]">
-                {runStatus ? (
-                    <>
-                        <Tag color={statusColor(runStatus)} className="m-0">
-                            {runStatus}
-                        </Tag>
-                    </>
-                ) : null}
-                {lastUpdated ? (
-                    <Tooltip title={updatedMoment?.format("DD MMM YYYY HH:mm") ?? ""}>
-                        <span className="text-xs text-[#98A2B3] whitespace-nowrap">
-                            Updated {lastUpdated}
-                        </span>
-                    </Tooltip>
-                ) : null}
-            </Space>
+        <div className={clsx("flex items-center justify-between gap-4 px-4", className)}>
+            <div className="flex min-w-0 items-center gap-2">
+                <Typography.Text className="whitespace-nowrap">Evaluations:</Typography.Text>
+                <div className="flex flex-nowrap gap-2 min-w-0 overflow-x-auto">
+                    {runDescriptors.map((run, index) => {
+                        const isBaseRun = index === 0
+                        const tagColor = getComparisonSolidColor(index)
+                        const tagBg = getComparisonColor(index)
+                        return (
+                            <Tag
+                                key={run.id}
+                                className="m-0 inline-flex shrink-0 min-w-0 items-center gap-1 max-w-[200px] px-2 overflow-hidden"
+                                style={{
+                                    backgroundColor: tagBg,
+                                    borderColor: "transparent",
+                                    color: tagColor,
+                                }}
+                                icon={
+                                    isBaseRun ? (
+                                        <PushpinFilled
+                                            style={{fontSize: 16, flexShrink: 0}}
+                                            className="text-inherit"
+                                        />
+                                    ) : undefined
+                                }
+                                closable={!isBaseRun}
+                                closeIcon={
+                                    !isBaseRun ? (
+                                        <XCircleIcon size={14} style={{color: tagColor}} />
+                                    ) : undefined
+                                }
+                                onClose={
+                                    !isBaseRun
+                                        ? (event) => {
+                                              event.preventDefault()
+                                              setCompareRunIds((prev) =>
+                                                  prev.filter((id) => id !== run.id),
+                                              )
+                                          }
+                                        : undefined
+                                }
+                            >
+                                <span className="min-w-0 flex-1 truncate">{run.name}</span>
+                            </Tag>
+                        )
+                    })}
+                </div>
+            </div>
+
             <div className="flex items-center gap-2">
                 {showOnlineAction ? (
                     <Tooltip title={canStopOnline ? "Pause evaluation" : "Resume evaluation"}>
                         <Button
                             type={canStopOnline ? "default" : "primary"}
                             size="small"
-                            icon={canStopOnline ? <Pause size={16} /> : <Play size={16} />}
+                            icon={canStopOnline ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
                             loading={onlineAction !== null}
                             onClick={handleOnlineAction}
                         >
