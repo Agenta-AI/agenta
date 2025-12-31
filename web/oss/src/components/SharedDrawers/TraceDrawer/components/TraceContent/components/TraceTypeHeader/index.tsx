@@ -1,10 +1,10 @@
-import {useMemo, useState} from "react"
+import {useMemo} from "react"
 
 import {DeleteOutlined} from "@ant-design/icons"
 import {SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
@@ -13,6 +13,7 @@ import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/
 import {KeyValuePair} from "@/oss/lib/Types"
 import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
 
+import {deleteTraceModalAtom} from "../../../DeleteTraceModal/store/atom"
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
 
 import {TraceTypeHeaderProps} from "./types"
@@ -29,7 +30,7 @@ const TraceTypeHeader = ({
     setIsAnnotationsSectionOpen,
     isAnnotationsSectionOpen,
 }: TraceTypeHeaderProps) => {
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+    const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
     const activeTraceData = useAtomValue(spanAgDataAtomFamily(activeTrace))
     const testsetData = useMemo(() => {
         if (!activeTrace?.key) return [] as {data: KeyValuePair; key: string; id: number}[]
@@ -89,7 +90,15 @@ const TraceTypeHeader = ({
 
                 <Button
                     icon={<DeleteOutlined />}
-                    onClick={() => setIsDeleteModalOpen(true)}
+                    onClick={() =>
+                        setDeleteModalState({
+                            isOpen: true,
+                            traceIds: [getTraceIdFromNode(displayTrace) || ""],
+                            onClose: () => {
+                                if (setSelectedTraceId) setSelectedTraceId("")
+                            },
+                        })
+                    }
                     disabled={!displayTrace}
                     size="small"
                 />
@@ -104,12 +113,7 @@ const TraceTypeHeader = ({
                 )}
             </div>
 
-            <DeleteTraceModal
-                open={isDeleteModalOpen}
-                onCancel={() => setIsDeleteModalOpen(false)}
-                activeTraceId={getTraceIdFromNode(displayTrace) || ""}
-                setSelectedTraceId={setSelectedTraceId}
-            />
+            <DeleteTraceModal />
         </div>
     )
 }
