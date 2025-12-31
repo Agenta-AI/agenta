@@ -221,18 +221,18 @@ const SelectLLMProvider = ({
             {(metadata.input !== undefined || metadata.output !== undefined) && (
                 <>
                     <div className="flex justify-between gap-4">
-                        <Typography.Text className="text-[10px] text-nowrap !text-white">
+                        <Typography.Text className="text-[10px] text-nowrap">
                             Input:
                         </Typography.Text>
-                        <Typography.Text className="text-[10px] text-nowrap !text-white">
+                        <Typography.Text className="text-[10px] text-nowrap">
                             ${formatCost(metadata.input)} / 1M
                         </Typography.Text>
                     </div>
                     <div className="flex justify-between gap-4">
-                        <Typography.Text className="text-[10px] text-nowrap !text-white">
+                        <Typography.Text className="text-[10px] text-nowrap">
                             Output:{" "}
                         </Typography.Text>
-                        <Typography.Text className="text-[10px] text-nowrap !text-white">
+                        <Typography.Text className="text-[10px] text-nowrap">
                             ${formatCost(metadata.output)} / 1M
                         </Typography.Text>
                     </div>
@@ -262,6 +262,7 @@ const SelectLLMProvider = ({
                     title={renderTooltipContent(option.metadata)}
                     placement="right"
                     mouseEnterDelay={0.3}
+                    color="white"
                 >
                     {content}
                 </Tooltip>
