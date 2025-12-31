@@ -470,7 +470,7 @@ const Organization: FC = () => {
                         onClick={() => testProviderMutation.mutate(record.id)}
                         loading={testProviderMutation.isPending}
                     >
-                        Verify
+                        Enable
                     </Button>
                     <Button
                         size="small"
@@ -841,7 +841,7 @@ const Organization: FC = () => {
                                                     2. Ensure your SSO provider's OIDC discovery endpoint is accessible.
                                                 </Text>
                                                 <Text style={{fontSize: "14px"}}>
-                                                    3. Click the "Verify" button.
+                                                    3. Click the "Enable" button.
                                                 </Text>
                                             </Space>
                                         }
