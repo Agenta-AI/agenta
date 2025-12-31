@@ -64,7 +64,12 @@ class SecretDTO(BaseModel):
     @model_validator(mode="before")
     def validate_secret_data_based_on_kind(cls, values: Dict[str, Any]):
         kind = values.get("kind")
+        if isinstance(kind, SecretKind):
+            kind = kind.value
         data = values.get("data", {})
+        if isinstance(data, BaseModel):
+            data = data.model_dump()
+            values["data"] = data
 
         if kind == SecretKind.PROVIDER_KEY.value:
             if not isinstance(data, dict):
