@@ -535,6 +535,8 @@ class SSOProviderService:
             # Update flags based on test result
             flags = provider.flags.copy() if provider.flags else {}
             flags["is_valid"] = is_valid
+            if is_valid:
+                flags["is_active"] = True
 
             # If validation failed, deactivate the provider
             if not is_valid:
