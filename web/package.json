@@ -75,9 +75,6 @@
         "overrides": {
             "prismjs@<1.30.0": ">=1.30.0",
             "@babel/runtime@<7.26.10": ">=7.26.10"
-        },
-        "patchedDependencies": {
-            "nextstepjs@2.1.2": "patches/nextstepjs@2.1.2.patch"
         }
     }
 }

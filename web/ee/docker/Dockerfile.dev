@@ -20,9 +20,6 @@ COPY ./pnpm-workspace.yaml ./turbo.json ./
 
 COPY ./entrypoint.sh /app/entrypoint.sh
 
-# Copy patches directory before running pnpm i
-COPY ./patches /app/patches/
-
 RUN pnpm i
 
 COPY ee/src ./ee/src

@@ -1,4 +1,4 @@
-import {Tour} from "nextstepjs"
+import {Tour} from "@agentaai/nextstepjs"
 
 import {URLLocationState} from "@/oss/state/url"
 

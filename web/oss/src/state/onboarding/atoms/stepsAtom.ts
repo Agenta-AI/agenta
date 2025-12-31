@@ -1,7 +1,7 @@
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
-import {Tour} from "nextstepjs"
+import {Tour} from "@agentaai/nextstepjs"
 
 import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 

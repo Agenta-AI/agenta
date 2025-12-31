@@ -5,7 +5,7 @@ import {useAtomValue} from "jotai"
 import type {AppProps} from "next/app"
 import dynamic from "next/dynamic"
 import {Inter} from "next/font/google"
-import {NextStepProvider} from "nextstepjs"
+import {NextStepProvider} from "@agentaai/nextstepjs"
 
 import ThemeContextProvider from "@/oss/components/Layout/ThemeContextProvider"
 import GlobalScripts from "@/oss/components/Scripts/GlobalScripts"

@@ -1,7 +1,7 @@
 import {useEffect, useRef} from "react"
 
 import {useAtomValue, useSetAtom} from "jotai"
-import {NextStep, useNextStep} from "nextstepjs"
+import {NextStep, useNextStep} from "@agentaai/nextstepjs"
 
 import {
     isNewUserAtom,

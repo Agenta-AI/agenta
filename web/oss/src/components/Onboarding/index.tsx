@@ -5,7 +5,7 @@ import {ArrowLeft, ArrowRight} from "@phosphor-icons/react"
 import {Button, Card, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
-import type {CardComponentProps} from "nextstepjs"
+import type {CardComponentProps} from "@agentaai/nextstepjs"
 
 import type {OnboardingControlLabels, UserOnboardingStatus} from "@/oss/state/onboarding"
 import {

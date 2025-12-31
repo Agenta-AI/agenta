@@ -1,4 +1,4 @@
-import {Tour} from "nextstepjs"
+import {Tour} from "@agentaai/nextstepjs"
 
 export type OnboardingState = "idle" | "started" | "done" | "error" | "skipped"
 
