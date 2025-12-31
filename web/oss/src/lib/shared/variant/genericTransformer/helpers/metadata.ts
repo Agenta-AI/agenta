@@ -1,14 +1,14 @@
 import {toCamelCase} from "@/oss/lib/shared/variant/stringUtils"
 
 import type {
-    SelectOptions,
     BaseOption,
-    OptionGroup,
-    SchemaProperty,
-    PrimitiveSchema,
     ConfigMetadata,
-    SchemaType,
     ObjectMetadata,
+    OptionGroup,
+    PrimitiveSchema,
+    SchemaProperty,
+    SchemaType,
+    SelectOptions,
 } from "../types"
 
 import {processAnyOfSchema} from "./anyOf"
@@ -28,10 +28,14 @@ export function processProperties(
 ): Record<string, ConfigMetadata> {
     return Object.entries(properties).reduce(
         (acc, [key, prop]) => {
-            const {schema, isNullable} = extractSchema(prop, key)
-            acc[toCamelCase(key)] = {
-                ...createMetadata(schema),
-                nullable: isNullable,
+            try {
+                const {schema, isNullable} = extractSchema(prop, key)
+                acc[toCamelCase(key)] = {
+                    ...createMetadata(schema),
+                    nullable: isNullable,
+                }
+            } catch (error) {
+                console.warn(`Error processing property ${key}:`, error)
             }
             return acc
         },
@@ -80,36 +84,81 @@ function isStringRecord(value: unknown): value is Record<string, string[]> {
 }
 
 /**
+ * Build a flat lookup map once instead of nested search each time
+ */
+function buildModelMetadataLookup(
+    metadata?: Record<string, unknown>,
+): Map<string, Record<string, unknown>> {
+    const lookup = new Map<string, Record<string, unknown>>()
+    if (!metadata) return lookup
+
+    for (const providerData of Object.values(metadata)) {
+        if (providerData && typeof providerData === "object") {
+            for (const [model, modelData] of Object.entries(providerData)) {
+                lookup.set(model, modelData as Record<string, unknown>)
+            }
+        }
+    }
+    return lookup
+}
+
+/**
  * Transform options from various formats into a standardized array of label-value pairs
  */
-function normalizeOptions(rawOptions: unknown): SelectOptions | undefined {
-    if (!rawOptions) return undefined
+function normalizeOptions(
+    rawOptions: unknown,
+    modelMetadata?: Record<string, unknown>,
+): SelectOptions | undefined {
+    try {
+        if (!rawOptions) return undefined
 
-    if (isStringArray(rawOptions)) {
-        return rawOptions.map(
-            (opt): BaseOption => ({
-                label: opt,
-                value: opt,
-            }),
-        )
+        const metadataLookup = buildModelMetadataLookup(modelMetadata)
+
+        // Helper to get metadata from the lookup map or fallback to backward compatibility check
+        const getMetadata = (value: string) => {
+            if (!modelMetadata) return undefined
+            // Check lookup map first
+            if (metadataLookup.has(value)) {
+                return metadataLookup.get(value)
+            }
+            // Fallback: Check if we can find the model directly in the root metadata (backward compatibility)
+            if (modelMetadata[value]) {
+                return modelMetadata[value] as Record<string, unknown>
+            }
+            return undefined
+        }
+
+        if (isStringArray(rawOptions)) {
+            return rawOptions.map(
+                (opt): BaseOption => ({
+                    label: opt,
+                    value: opt,
+                    metadata: getMetadata(opt),
+                }),
+            )
+        }
+
+        if (isStringRecord(rawOptions)) {
+            return Object.entries(rawOptions).map(
+                ([group, values]): OptionGroup => ({
+                    label: group,
+                    options: values.map(
+                        (value): BaseOption => ({
+                            label: value,
+                            value,
+                            group,
+                            metadata: getMetadata(value),
+                        }),
+                    ),
+                }),
+            )
+        }
+
+        return undefined
+    } catch (error) {
+        console.warn("Error normalizing options:", error)
+        return undefined
     }
-
-    if (isStringRecord(rawOptions)) {
-        return Object.entries(rawOptions).map(
-            ([group, values]): OptionGroup => ({
-                label: group,
-                options: values.map(
-                    (value): BaseOption => ({
-                        label: value,
-                        value,
-                        group,
-                    }),
-                ),
-            }),
-        )
-    }
-
-    return undefined
 }
 
 function getOptionsFromSchema(schema: SchemaProperty) {
@@ -125,12 +174,13 @@ export function createBaseMetadata(schema: SchemaProperty) {
     const {schema: extractedSchema, parentTitle, parentDescription} = extractSchema(schema)
 
     const rawOptions = getOptionsFromSchema(extractedSchema)
+    const modelMetadata = extractedSchema["x-model-metadata"] as Record<string, unknown> | undefined
 
     return {
         type: getSchemaType(extractedSchema),
         title: parentTitle ?? extractedSchema.title,
         description: parentDescription ?? extractedSchema.description,
-        options: normalizeOptions(rawOptions),
+        options: normalizeOptions(rawOptions, modelMetadata),
         ...("minimum" in extractedSchema && {min: extractedSchema.minimum}),
         ...("maximum" in extractedSchema && {max: extractedSchema.maximum}),
         ...("format" in extractedSchema && {format: extractedSchema.format}),
