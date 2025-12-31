@@ -45,9 +45,20 @@ export function buildSelectedRevisionLabel(
     version: number | string,
 ): React.ReactNode {
     return (
-        <span className="flex items-center gap-2">
-            <span>{testsetName}</span>
-            <span className="px-1.5 py-0.5 bg-[#f0f0f0] rounded text-xs font-medium">
+        <span style={{display: "flex", alignItems: "center", gap: 8, width: "100%"}}>
+            <Typography.Text ellipsis style={{flex: "1 1 0", minWidth: 0}}>
+                {testsetName}
+            </Typography.Text>
+            <span
+                style={{
+                    padding: "2px 6px",
+                    backgroundColor: "#f0f0f0",
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    flexShrink: 0,
+                }}
+            >
                 v{version}
             </span>
         </span>

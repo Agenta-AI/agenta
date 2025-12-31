@@ -3,16 +3,11 @@ import {atom} from "jotai"
 import {addColumnAtom, currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {
     collectKeyPaths,
-    discardTraceSpanDraftAtom,
     extractAgData,
     filterDataPaths,
     matchColumnsWithSuggestions,
     spanToTraceData,
-    traceSpanAtomFamily,
-    traceSpanEntityAtomFamily,
-    traceSpanIsDirtyAtomFamily,
-    traceSpanServerStateAtomFamily,
-    updateTraceSpanAtom,
+    traceSpan,
     type TraceSpan,
 } from "@/oss/state/entities/trace"
 import {
@@ -105,13 +100,13 @@ export const previewEntityIdsAtom = atom<string[]>([])
 // ============================================================================
 
 /**
- * Derived: Trace data derived from entity atoms
+ * Derived: Trace data derived from entity controller
  *
  * This is the reactive source of truth for trace data. It reads from:
  * - traceSpanIdsAtom: list of span IDs to render
- * - traceSpanEntityAtomFamily: entity state (server data + draft merged)
- * - traceSpanIsDirtyAtomFamily: whether span has been edited
- * - traceSpanServerStateAtomFamily: original server data (for originalData field)
+ * - traceSpan.selectors.data: entity state (server data + draft merged)
+ * - traceSpan.selectors.isDirty: whether span has been edited
+ * - traceSpan.selectors.query: query state with server data (for originalData field)
  *
  * When entities update (e.g., from fetch completing or drafts being set),
  * this atom automatically re-computes, and all dependent components re-render.
@@ -122,8 +117,8 @@ export const traceDataFromEntitiesAtom = atom((get): TestsetTraceData[] => {
     const spanIds = get(traceSpanIdsAtom)
 
     return spanIds.map((spanId, index) => {
-        const entity = get(traceSpanEntityAtomFamily(spanId))
-        const isDirty = get(traceSpanIsDirtyAtomFamily(spanId))
+        const entity = get(traceSpan.selectors.data(spanId))
+        const isDirty = get(traceSpan.selectors.isDirty(spanId))
 
         if (!entity) {
             // Entity not yet loaded - return placeholder
@@ -142,9 +137,10 @@ export const traceDataFromEntitiesAtom = atom((get): TestsetTraceData[] => {
         // Get original data for comparison/revert if dirty
         let originalData: Record<string, any> | null = null
         if (isDirty) {
-            const serverState = get(traceSpanServerStateAtomFamily(spanId))
-            if (serverState) {
-                originalData = extractAgData(serverState)
+            const queryState = get(traceSpan.selectors.query(spanId))
+            const serverData = queryState.data
+            if (serverData) {
+                originalData = extractAgData(serverData)
             }
         }
 
@@ -254,7 +250,7 @@ export const removeTraceDataAtom = atom(null, (get, set, traceKey: string) => {
     set(traceSpanIdsAtom, remainingSpanIds)
 
     // Discard any draft for the removed span
-    set(discardTraceSpanDraftAtom, traceKey)
+    set(traceSpan.actions.discard, traceKey)
 
     if (remainingSpanIds.length > 0) {
         // Find the next span to preview
@@ -283,8 +279,8 @@ export const removeTraceDataAtom = atom(null, (get, set, traceKey: string) => {
  *
  * Flow:
  * 1. Store span IDs in traceSpanIdsAtom
- * 2. Components read from traceSpanEntityAtomFamily(spanId) which triggers fetch
- * 3. traceDataFromEntitiesAtom derives data from entity atoms (reactive)
+ * 2. Components read from traceSpan.selectors.data(spanId) which triggers fetch
+ * 3. traceDataFromEntitiesAtom derives data from entity controller (reactive)
  *
  * Note: traceDataAtom is deprecated - use traceDataFromEntitiesAtom instead
  */
@@ -458,8 +454,9 @@ export const updateEditedTraceAtom = atom(
     ) => {
         const {updatedData, format, parseYaml, getValueAtPath} = params
         const spanId = get(rowDataPreviewAtom)
-        const currentEntity = get(traceSpanEntityAtomFamily(spanId))
-        const serverState = get(traceSpanServerStateAtomFamily(spanId))
+        const currentEntity = get(traceSpan.selectors.data(spanId))
+        const queryState = get(traceSpan.selectors.query(spanId))
+        const serverState = queryState.data
 
         console.log("[updateEditedTraceAtom] Called", {
             hasUpdatedData: !!updatedData,
@@ -517,7 +514,7 @@ export const updateEditedTraceAtom = atom(
             // If reverting to original, discard draft instead
             if (updatedString === originalString) {
                 console.log("[updateEditedTraceAtom] Reverting to original - discarding draft")
-                set(discardTraceSpanDraftAtom, spanId)
+                set(traceSpan.actions.discard, spanId)
             } else {
                 // Update entity draft with new ag.data
                 // The draft system expects attributes, so we build the new attributes
@@ -527,7 +524,7 @@ export const updateEditedTraceAtom = atom(
                 }
 
                 console.log("[updateEditedTraceAtom] Setting entity draft", {spanId})
-                set(updateTraceSpanAtom, {entityId: spanId, updates: newAttributes})
+                set(traceSpan.actions.update, spanId, newAttributes)
             }
 
             // Update local entities to reflect the edited data in preview table
@@ -579,14 +576,14 @@ export const revertEditedTraceAtom = atom(
     ) => {
         const {getValueAtPath} = params
         const spanId = get(rowDataPreviewAtom)
-        const isDirty = get(traceSpanIsDirtyAtomFamily(spanId))
+        const isDirty = get(traceSpan.selectors.isDirty(spanId))
 
         if (!spanId || !isDirty) {
             return {success: false, error: "No changes to revert"}
         }
 
         // Discard the entity draft to revert to server state
-        set(discardTraceSpanDraftAtom, spanId)
+        set(traceSpan.actions.discard, spanId)
 
         console.log("[revertEditedTraceAtom] Discarded draft for span", spanId)
 
@@ -621,7 +618,7 @@ export const cachedSpansAtom = atom((get) => {
     const spans = new Map<string, TraceSpan>()
 
     for (const spanId of spanIds) {
-        const span = get(traceSpanAtomFamily(spanId))
+        const span = get(traceSpan.selectors.data(spanId))
         if (span) {
             spans.set(spanId, span)
         }
@@ -634,7 +631,7 @@ export const cachedSpansAtom = atom((get) => {
  * Derived: Get a specific span from the entity cache
  * Usage: const span = useAtomValue(spanByIdAtomFamily(spanId))
  */
-export const spanByIdAtomFamily = traceSpanAtomFamily
+export const spanByIdAtomFamily = traceSpan.selectors.data
 
 // ============================================================================
 // AUTO-MAPPING DERIVED ATOMS

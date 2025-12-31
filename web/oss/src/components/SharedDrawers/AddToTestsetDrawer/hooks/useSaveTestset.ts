@@ -4,8 +4,7 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
 import {createNewTestset} from "@/oss/services/testsets/api"
-import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
-import {saveTestsetAtom} from "@/oss/state/entities/testcase/mutations"
+import {currentColumnsAtom, saveTestsetAtom} from "@/oss/state/entities/testcase"
 import {fetchRevisionsList} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project"
 import {setRevisionsForTestsetAtom} from "@/oss/state/testsetSelection"
@@ -152,8 +151,7 @@ export function useSaveTestset() {
                         projectId,
                         testsetId: testset.id,
                         revisionId: selectedRevisionId,
-                        commitMessage:
-                            commitMessage || `Added ${traceData.length} span(s) to testset`,
+                        commitMessage: commitMessage || undefined,
                     })
 
                     if (result.success && result.newRevisionId) {

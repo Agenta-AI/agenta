@@ -9,15 +9,8 @@ import {
     currentColumnsAtom,
     localColumnsAtomFamily,
 } from "@/oss/state/entities/testcase/columnState"
-import {deleteTestcasesAtom} from "@/oss/state/entities/testcase/mutations"
-import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
-import {
-    addNewEntityIdAtom,
-    newEntityIdsAtom,
-    testcaseDraftAtomFamily,
-    testcaseEntityAtomFamily,
-    updateTestcaseAtom,
-} from "@/oss/state/entities/testcase/testcaseEntity"
+import {newEntityIdsAtom} from "@/oss/state/entities/testcase/testcaseEntity"
+import {testcase} from "@/oss/state/entities/testcase"
 import {currentRevisionIdAtom} from "@/oss/state/entities/testset"
 
 import type {TestsetTraceData} from "../assets/types"
@@ -110,7 +103,7 @@ export const createLocalEntitiesAtom = atom(
         // Clear any existing local entities first
         const existingMap = get(localEntityMapAtom)
         if (existingMap.size > 0) {
-            set(deleteTestcasesAtom, Array.from(existingMap.values()))
+            set(testcase.actions.delete, Array.from(existingMap.values()))
             set(localEntityMapAtom, new Map())
         }
 
@@ -118,7 +111,7 @@ export const createLocalEntitiesAtom = atom(
         // This handles stale local entities AND entities created by initializeEmptyRevisionAtom
         const newEntityIds = get(newEntityIdsAtom)
         if (newEntityIds.length > 0) {
-            set(deleteTestcasesAtom, newEntityIds)
+            set(testcase.actions.delete, newEntityIds)
         }
 
         // Clear pending column changes first
@@ -151,14 +144,9 @@ export const createLocalEntitiesAtom = atom(
             }
         }
 
-        // Create one entity per trace item WITH mapped data
-        const newMap = new Map<string, string>()
-
-        traceData.forEach((trace, index) => {
-            const entityId = `local-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`
-
-            // Build data from mappings
-            const mappedData: Record<string, string> = {}
+        // Build rows array from trace data and mappings
+        const rows: Record<string, unknown>[] = traceData.map((trace) => {
+            const mappedData: Record<string, unknown> = {}
             for (const mapping of mappings) {
                 const targetColumn =
                     mapping.column === "create" || !mapping.column
@@ -171,21 +159,24 @@ export const createLocalEntitiesAtom = atom(
                 // Preserve objects/arrays as-is, only convert null/undefined to empty string
                 mappedData[targetColumn] = value === undefined || value === null ? "" : value
             }
+            return mappedData
+        })
 
-            // Initialize with mapped data only (no extra columns)
-            const flattenedRow: FlattenedTestcase = {
-                id: entityId,
-                testset_id: testsetId,
-                ...mappedData,
+        // Create entities via controller action
+        const result = set(testcase.actions.create, {
+            rows,
+            prefix: "local-",
+            skipDeduplication: true,
+            skipColumnSync: true, // We handle column sync separately via pending columns
+            testsetId,
+        })
+
+        // Map trace keys to created entity IDs (in same order as input)
+        const newMap = new Map<string, string>()
+        traceData.forEach((trace, index) => {
+            if (index < result.ids.length) {
+                newMap.set(trace.key, result.ids[index])
             }
-
-            // Register as new entity
-            set(addNewEntityIdAtom, entityId)
-            // Create draft with initial data INCLUDING mapped values
-            set(testcaseDraftAtomFamily(entityId), flattenedRow)
-
-            // Track mapping: trace.key -> entityId
-            newMap.set(trace.key, entityId)
         })
 
         set(localEntityMapAtom, newMap)
@@ -217,10 +208,7 @@ export const updateLocalEntityColumnAtom = atom(
             return
         }
 
-        set(updateTestcaseAtom, {
-            id: entityId,
-            updates: {[column]: value},
-        })
+        set(testcase.actions.update, entityId, {[column]: value})
     },
 )
 
@@ -326,7 +314,7 @@ export const updateAllLocalEntitiesAtom = atom(
             }
 
             // Get current entity to find columns to remove
-            const currentEntity = get(testcaseEntityAtomFamily(entityId))
+            const currentEntity = get(testcase.selectors.data(entityId))
 
             // Build updates from mappings - ONLY include mapped columns
             // This replaces the entire entity data (except system fields)
@@ -379,7 +367,7 @@ export const updateAllLocalEntitiesAtom = atom(
                     traceKey: trace.key,
                     updates,
                 })
-                set(updateTestcaseAtom, {id: entityId, updates})
+                set(testcase.actions.update, entityId, updates)
             }
         })
     },
@@ -398,7 +386,7 @@ export const clearLocalEntitiesAtom = atom(null, (get, set) => {
     const entityMap = get(localEntityMapAtom)
 
     if (entityMap.size > 0) {
-        set(deleteTestcasesAtom, Array.from(entityMap.values()))
+        set(testcase.actions.delete, Array.from(entityMap.values()))
         set(localEntityMapAtom, new Map())
     }
 
@@ -472,14 +460,14 @@ export const selectRevisionAtom = atom(
         // === STEP 2: Clear existing state ===
         const existingMap = get(localEntityMapAtom)
         if (existingMap.size > 0) {
-            set(deleteTestcasesAtom, Array.from(existingMap.values()))
+            set(testcase.actions.delete, Array.from(existingMap.values()))
             set(localEntityMapAtom, new Map())
         }
 
         // Clear ALL new entities
         const newEntityIds = get(newEntityIdsAtom)
         if (newEntityIds.length > 0) {
-            set(deleteTestcasesAtom, newEntityIds)
+            set(testcase.actions.delete, newEntityIds)
         }
 
         // Clear pending column changes
@@ -536,14 +524,10 @@ export const selectRevisionAtom = atom(
             set(localColumnsAtom, syncedLocalColumns)
         }
 
-        // === STEP 5: Create local entities ===
-        const newMap = new Map<string, string>()
-
-        traceData.forEach((trace, index) => {
-            const entityId = `local-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`
-
-            // Build data from mappings
-            const mappedData: Record<string, string> = {}
+        // === STEP 5: Create local entities via controller ===
+        // Build rows array from trace data and mappings
+        const rows: Record<string, unknown>[] = traceData.map((trace) => {
+            const mappedData: Record<string, unknown> = {}
             for (const mapping of mappings) {
                 const targetColumn =
                     mapping.column === "create" || !mapping.column
@@ -556,24 +540,28 @@ export const selectRevisionAtom = atom(
                 // Preserve objects/arrays as-is, only convert null/undefined to empty string
                 mappedData[targetColumn] = value === undefined || value === null ? "" : value
             }
+            return mappedData
+        })
 
-            // Create entity with mapped data
-            const flattenedRow: FlattenedTestcase = {
-                id: entityId,
-                testset_id: testsetId,
-                ...mappedData,
+        // Create entities via controller action
+        const result = set(testcase.actions.create, {
+            rows,
+            prefix: "local-",
+            skipDeduplication: true,
+            skipColumnSync: true, // We handle column sync separately via pending columns
+            testsetId,
+        })
+
+        // Map trace keys to created entity IDs (in same order as input)
+        const newMap = new Map<string, string>()
+        traceData.forEach((trace, index) => {
+            if (index < result.ids.length) {
+                newMap.set(trace.key, result.ids[index])
             }
-
-            // Register as new entity
-            set(addNewEntityIdAtom, entityId)
-            set(testcaseDraftAtomFamily(entityId), flattenedRow)
-
-            // Track mapping
-            newMap.set(trace.key, entityId)
         })
 
         set(localEntityMapAtom, newMap)
 
-        return {success: true, action: "created", entityCount: newMap.size}
+        return {success: true, action: "created", entityCount: result.count}
     },
 )

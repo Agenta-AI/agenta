@@ -80,7 +80,7 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                         {/* Commit message input - only for existing testsets */}
                         {!drawer.isNewTestset && drawer.testset.id && (
                             <div className="flex flex-col gap-1">
-                                <Typography.Text className="text-xs text-gray-500">
+                                <Typography.Text className="text-gray-500">
                                     Commit message (optional)
                                 </Typography.Text>
                                 <Input.TextArea
@@ -89,7 +89,6 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                                     onChange={(e) => drawer.setCommitMessage(e.target.value)}
                                     rows={2}
                                     maxLength={500}
-                                    className="text-sm"
                                 />
                             </div>
                         )}

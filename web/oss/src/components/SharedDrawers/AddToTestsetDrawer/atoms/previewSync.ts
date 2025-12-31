@@ -1,8 +1,7 @@
 import {atom} from "jotai"
 
 import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
-import {appendTestcasesAtom, deleteTestcasesAtom} from "@/oss/state/entities/testcase/mutations"
-import {newEntityIdsAtom} from "@/oss/state/entities/testcase/testcaseEntity"
+import {testcase} from "@/oss/state/entities/testcase"
 import {currentRevisionIdAtom} from "@/oss/state/entities/testset"
 
 import type {TestsetTraceData} from "../assets/types"
@@ -132,22 +131,16 @@ export const syncPreviewToEntitiesAtom = atom(
         // 2. Clean up old preview entities
         const oldPreviewIds = get(previewEntityIdsAtom)
         if (oldPreviewIds.length > 0) {
-            set(deleteTestcasesAtom, oldPreviewIds)
+            set(testcase.actions.delete, oldPreviewIds)
         }
 
-        // 3. Get baseline entity IDs (before append)
-        const baselineNewIds = new Set(get(newEntityIdsAtom))
-
-        // 4. Append new preview data to entities
+        // 3. Create new preview entities via testcase.actions.create
+        // Use create instead of append to get IDs directly (cleaner than tracking before/after)
         if (previewData.length > 0) {
-            set(appendTestcasesAtom, previewData)
+            const result = set(testcase.actions.create, {rows: previewData})
+            set(previewEntityIdsAtom, result.ids)
 
-            // 5. Track new entity IDs as preview IDs
-            const updatedIds = get(newEntityIdsAtom)
-            const appendedIds = updatedIds.filter((id) => !baselineNewIds.has(id))
-            set(previewEntityIdsAtom, appendedIds)
-
-            console.log("✅ [Sync] Updated preview entities:", appendedIds.length, "rows")
+            console.log("✅ [Sync] Updated preview entities:", result.count, "rows")
         } else {
             set(previewEntityIdsAtom, [])
         }
@@ -162,7 +155,7 @@ export const syncPreviewToEntitiesAtom = atom(
 export const clearPreviewEntitiesAtom = atom(null, (get, set) => {
     const previewIds = get(previewEntityIdsAtom)
     if (previewIds.length > 0) {
-        set(deleteTestcasesAtom, previewIds)
+        set(testcase.actions.delete, previewIds)
         set(previewEntityIdsAtom, [])
     }
 })

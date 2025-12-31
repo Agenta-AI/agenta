@@ -6,10 +6,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
-import {
-    discardTraceSpanDraftAtom,
-    traceSpanIsDirtyAtomFamily,
-} from "@/oss/state/entities/trace/drillInState"
+import {traceSpan} from "@/oss/state/entities/trace"
 
 import {TestsetTraceData} from "../assets/types"
 
@@ -73,8 +70,12 @@ export function DataPreviewEditor({
     const [viewMode, setViewMode] = useState<ViewMode>("drill-in")
 
     // Check if current span has unsaved changes (for dirty state indicator)
-    const currentSpanIsDirty = useAtomValue(traceSpanIsDirtyAtomFamily(rowDataPreview))
-    const discardDraft = useSetAtom(discardTraceSpanDraftAtom)
+    const isDirtyAtom = useMemo(
+        () => traceSpan.selectors.isDirty(rowDataPreview),
+        [rowDataPreview],
+    )
+    const currentSpanIsDirty = useAtomValue(isDirtyAtom)
+    const discardDraft = useSetAtom(traceSpan.actions.discard)
 
     // Handle property click from JSON editor - switch to drill-in and navigate to path
     const handlePropertyClick = useCallback(
