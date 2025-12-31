@@ -1,9 +1,9 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon} from "@phosphor-icons/react"
+import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import dynamic from "next/dynamic"
 
@@ -34,6 +34,15 @@ import {AUTO_REFRESH_INTERVAL} from "../../constants"
 const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
+
+const DeleteTraceModal = dynamic(
+    () => import("@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal"),
+    {
+        ssr: false,
+    },
+)
+
+import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 
 const AutoRefreshControl: React.FC<{
     checked: boolean
@@ -102,6 +111,7 @@ const ObservabilityHeader = ({
 }: ObservabilityHeaderProps) => {
     const [isScrolled, setIsScrolled] = useState(false)
     const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0)
+    const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
 
     const {
         traces,
@@ -114,6 +124,7 @@ const ObservabilityHeader = ({
         setFilters,
         setSort,
         selectedRowKeys,
+        setSelectedRowKeys,
         setTestsetDrawerData,
         setEditColumns,
         fetchAnnotations,
@@ -319,6 +330,23 @@ const ObservabilityHeader = ({
     // Use external refresh trigger if provided (from parent auto-refresh), otherwise use internal
     const refreshTrigger = propsRefreshTrigger ?? internalRefreshTrigger
 
+    const onDelete = useCallback(() => {
+        setDeleteModalState({
+            isOpen: true,
+            traceIds: Array.from(
+                new Set(
+                    traces
+                        .filter((trace) => selectedRowKeys.includes(trace.span_id))
+                        .map((trace) => trace.trace_id),
+                ),
+            ),
+            onClose: () => {
+                setSelectedRowKeys([])
+                handleRefresh()
+            },
+        })
+    }, [traces, selectedRowKeys, setDeleteModalState, setSelectedRowKeys, handleRefresh])
+
     return (
         <>
             <section
@@ -431,7 +459,7 @@ const ObservabilityHeader = ({
                                 icon={<ExportIcon size={14} className="mt-0.5" />}
                                 disabled={traces.length === 0}
                             >
-                                Export as CSV
+                                Export
                             </Button>
 
                             <EditColumns
@@ -441,7 +469,14 @@ const ObservabilityHeader = ({
                                     setEditColumns(keys)
                                 }}
                             />
-
+                            <Button
+                                onClick={onDelete}
+                                icon={<TrashIcon size={14} />}
+                                disabled={selectedRowKeys.length === 0}
+                                danger
+                            >
+                                Delete
+                            </Button>
                             <Button
                                 onClick={() => getTestsetTraceData()}
                                 icon={<DatabaseIcon size={14} />}
@@ -467,7 +502,8 @@ const ObservabilityHeader = ({
                 ) : null}
             </section>
             {/* This element is to reduce the pixel shift of the table */}
-            {isScrolled && <div className="w-full h-[10px]"></div>}{" "}
+            {isScrolled && <div className="w-full h-[10px]"></div>}
+            <DeleteTraceModal />
         </>
     )
 }
