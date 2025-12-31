@@ -1,8 +1,8 @@
-import {memo} from "react"
+import {memo, useMemo} from "react"
 
 import {useAtomValue} from "jotai"
 
-import {testcaseIsDirtyAtomFamily} from "@/oss/state/entities/testcase/testcaseEntity"
+import {testcase} from "@/oss/state/entities/testcase"
 
 interface TestcaseSelectionCellProps {
     testcaseId: string | undefined
@@ -28,9 +28,10 @@ const TestcaseSelectionCell = memo(function TestcaseSelectionCell({
     originNode,
     mode = "edit",
 }: TestcaseSelectionCellProps) {
-    // Check if testcase has unsaved changes using entity atom (only in edit mode)
+    // Check if testcase has unsaved changes using controller selector (only in edit mode)
     // This includes both draft edits AND pending column changes
-    const isDirty = mode === "edit" ? useAtomValue(testcaseIsDirtyAtomFamily(testcaseId || "")) : false
+    const isDirtyAtom = useMemo(() => testcase.selectors.isDirty(testcaseId || ""), [testcaseId])
+    const isDirty = mode === "edit" ? useAtomValue(isDirtyAtom) : false
 
     // New rows (not yet saved) are always dirty
     const isNewRow = testcaseId?.startsWith("new-") || testcaseId?.startsWith("local-") || false

@@ -8,8 +8,8 @@ import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {downloadRevision, updateTestsetMetadata} from "@/oss/services/testsets/api"
 import type {ExportFileType} from "@/oss/services/testsets/api"
 import type {TestsetMetadata} from "@/oss/state/entities/testcase/queries"
-import {clearRevisionDraftAtom} from "@/oss/state/entities/testset/revisionEntity"
 import {
+    revision,
     invalidateTestsetCache,
     invalidateTestsetsListCache,
     invalidateRevisionsListCache,
@@ -94,8 +94,8 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
     const router = useRouter()
     const {projectURL} = useURL()
 
-    // Atom for clearing revision draft on discard
-    const clearRevisionDraft = useSetAtom(clearRevisionDraftAtom)
+    // Action for clearing revision draft on discard
+    const discardRevisionDraft = useSetAtom(revision.actions.discardDraft)
 
     // Track programmatic navigation after save to skip blocker
     const skipBlockerRef = useRef(false)
@@ -267,14 +267,14 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
                         ? revisionIdParam[0]
                         : revisionIdParam
                     if (revisionId) {
-                        clearRevisionDraft(revisionId)
+                        discardRevisionDraft(revisionId)
                     }
                 }
 
                 message.success("Changes discarded")
             },
         })
-    }, [table, mode, revisionIdParam, clearRevisionDraft])
+    }, [table, mode, revisionIdParam, discardRevisionDraft])
 
     // ========================================================================
     // METADATA ACTIONS

@@ -12,7 +12,7 @@ import {
     revisionsListQueryAtom,
     testsetMetadataAtom,
 } from "@/oss/state/entities/testcase/queries"
-import {revisionDraftAtomFamily} from "@/oss/state/entities/testset"
+import {NEW_TESTSET_ID, testset} from "@/oss/state/entities/testset"
 
 import {testcasesSearchTermAtom} from "./atoms/tableStore"
 import {TestcaseActions} from "./components/TestcaseActions"
@@ -90,18 +90,20 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
         }
     }, [revisionIdParam, setCurrentRevisionId])
 
-    // Initialize draft with name from URL query parameter for new testsets
-    const setNewTestsetDraft = useSetAtom(revisionDraftAtomFamily("new"))
+    // Initialize testset draft with name from URL query parameter for new testsets
+    const updateTestsetMetadata = useSetAtom(testset.actions.updateMetadata)
     useEffect(() => {
         if (isNewTestset && router.query.name) {
             const nameFromUrl = Array.isArray(router.query.name)
                 ? router.query.name[0]
                 : router.query.name
             if (nameFromUrl) {
-                setNewTestsetDraft({name: decodeURIComponent(nameFromUrl)})
+                // Update the testset entity draft (not revision draft)
+                // This correctly stores metadata on the testset, not the revision
+                updateTestsetMetadata(NEW_TESTSET_ID, {name: decodeURIComponent(nameFromUrl)})
             }
         }
-    }, [isNewTestset, router.query.name, setNewTestsetDraft])
+    }, [isNewTestset, router.query.name, updateTestsetMetadata])
 
     // Main table hook - only manages testcases data
     const table = useTestcasesTable({
@@ -198,6 +200,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         isIdCopied={isIdCopied}
                         isRevisionSlugCopied={isRevisionSlugCopied}
                         revisionIdParam={revisionIdParam as string}
+                        isNewTestset={isNewTestset}
                         onCopyId={async () => {
                             await actions.handleCopyId()
                             setIsIdCopied(true)

@@ -2,7 +2,7 @@ import {memo, useMemo} from "react"
 
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {testcaseCellAtomFamily} from "@/oss/state/entities/testcase/testcaseEntity"
+import {testcase} from "@/oss/state/entities/testcase"
 
 import TestcaseCellContent from "./TestcaseCellContent"
 
@@ -60,19 +60,17 @@ export const TestcaseCell = memo(function TestcaseCell({
     maxLines,
     render,
 }: TestcaseCellProps) {
-    // Subscribe to specific cell value using fine-grained cell atom
-    // This atom uses selectAtom internally to only re-render when THIS cell's value changes
+    // Subscribe to specific cell value using fine-grained cell selector
+    // This uses selectAtom internally to only re-render when THIS cell's value changes
     // The composite key {id, column} ensures proper atom deduplication
     const cellAtom = useMemo(
-        () => testcaseCellAtomFamily({id: testcaseId, column: columnKey}),
+        () => testcase.selectors.cell({id: testcaseId, column: columnKey}),
         [testcaseId, columnKey],
     )
 
     // Use LOW_PRIORITY scheduling to defer updates during rapid scrolling
     // This prevents jank when scrolling through large tables
     const value = useAtomValueWithSchedule(cellAtom, {priority: LOW_PRIORITY})
-
-    console.log(`[TestcaseCell] testcaseId=${testcaseId}, columnKey=${columnKey}, value=`, value)
 
     // Use custom render if provided
     if (render) {

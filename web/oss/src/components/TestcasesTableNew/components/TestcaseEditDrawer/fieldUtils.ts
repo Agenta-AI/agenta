@@ -273,25 +273,14 @@ export function textModeToStorageValue(textValue: string, originalValue: string)
 
 /**
  * Format values for JSON display
- * Handles both native values and stringified JSON values
+ * Preserves original data types - strings stay as strings, objects stay as objects.
+ * This ensures the JSON editor shows the actual data format without modification.
  */
 export function formatForJsonDisplay(values: Record<string, unknown>): string {
-    const result: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(values)) {
-        if (typeof value === "string") {
-            // Try to parse string as JSON to avoid double-escaping
-            try {
-                result[key] = JSON.parse(value)
-            } catch {
-                // Not valid JSON - use as plain string
-                result[key] = value
-            }
-        } else {
-            // Native value (object, array, number, boolean, null) - use as-is
-            result[key] = value
-        }
-    }
-    return JSON.stringify(result, null, 2)
+    // Use values as-is to preserve original data types
+    // A string containing JSON (e.g., '{"key": "value"}') should remain a string,
+    // not be parsed into an object - this preserves data integrity
+    return JSON.stringify(values, null, 2)
 }
 
 /**

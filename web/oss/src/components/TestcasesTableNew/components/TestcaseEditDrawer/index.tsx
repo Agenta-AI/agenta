@@ -8,12 +8,8 @@ import {
     TestcaseDrillInView,
 } from "@/oss/components/DrillInView"
 import {JsonEditorWithLocalState} from "@/oss/components/DrillInView/JsonEditorWithLocalState"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
-import {
-    testcaseEntityAtomFamily,
-    updateTestcaseAtom,
-} from "@/oss/state/entities/testcase/testcaseEntity"
+import {testcase} from "@/oss/state/entities/testcase"
 
 import {formatForJsonDisplay, parseFromJsonDisplay, type DataType} from "./fieldUtils"
 
@@ -39,25 +35,24 @@ const TestcaseEditDrawerContent = forwardRef<
     TestcaseEditDrawerContentRef,
     TestcaseEditDrawerContentProps
 >(({testcaseId, columns, isNewRow, editMode}, ref) => {
-    // Read testcase from entity atom (same source as cells)
-    const testcaseAtom = useMemo(() => testcaseEntityAtomFamily(testcaseId), [testcaseId])
-    const testcase = useAtomValue(testcaseAtom)
+    // Read testcase from controller's data selector (efficient: only subscribes to data)
+    const testcaseData = useAtomValue(testcase.selectors.data(testcaseId))
 
-    // Update testcase (creates draft if needed)
-    const updateTestcase = useSetAtom(updateTestcaseAtom)
+    // Get dispatch function without subscribing to controller state
+    const dispatch = useSetAtom(testcase.controller(testcaseId))
 
     // Derive form values from testcase (single source of truth for editing)
     // Values are preserved as native types (objects, arrays, strings, etc.)
     const formValues = useMemo(() => {
-        if (!testcase) return {}
+        if (!testcaseData) return {}
         const values: Record<string, unknown> = {}
         columns.forEach((col) => {
-            const value = testcase[col.key]
+            const value = testcaseData[col.key]
             // Preserve native values - null/undefined become empty string
             values[col.key] = value ?? ""
         })
         return values
-    }, [testcase, columns])
+    }, [testcaseData, columns])
 
     // Track locked types for fields (to prevent UI switching when content changes)
     const [lockedFieldTypes, setLockedFieldTypes] = useState<Record<string, DataType>>({})
@@ -88,10 +83,10 @@ const TestcaseEditDrawerContent = forwardRef<
         (value: string) => {
             const parsed = parseFromJsonDisplay(value)
             if (parsed) {
-                updateTestcase({id: testcaseId, updates: parsed})
+                dispatch({type: "update", changes: parsed})
             }
         },
-        [updateTestcase, testcaseId],
+        [dispatch],
     )
 
     // Handle save - no-op since edits are already in entity atom

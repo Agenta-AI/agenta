@@ -27,6 +27,8 @@ export interface TestcaseHeaderProps {
     isIdCopied: boolean
     isRevisionSlugCopied: boolean
     revisionIdParam: string | undefined
+    /** Whether this is a new testset (not yet saved) - disables server-dependent features */
+    isNewTestset?: boolean
     onCopyId: () => void
     onCopyRevisionSlug: () => void
     onOpenRenameModal: () => void
@@ -73,6 +75,7 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
         loadingRevisions,
         isIdCopied,
         isRevisionSlugCopied,
+        isNewTestset = false,
         onCopyId,
         onCopyRevisionSlug,
         onOpenRenameModal,
@@ -308,73 +311,81 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                     <Button type="text" size="small" icon={<MoreOutlined />} />
                 </Dropdown>
             </div>
-            <Popover
-                trigger="hover"
-                placement="bottomLeft"
-                content={
-                    <div className="flex flex-col gap-2 max-w-xs">
-                        {metadata?.testsetSlug && (
-                            <div>
-                                <Typography.Text type="secondary" className="block">
-                                    Testset Slug
-                                </Typography.Text>
-                                <Typography.Text>{metadata.testsetSlug}</Typography.Text>
-                            </div>
-                        )}
-                        {metadata?.revisionSlug && (
-                            <div>
-                                <Typography.Text type="secondary" className="block">
-                                    Revision Slug
-                                </Typography.Text>
-                                <Typography.Text>{metadata.revisionSlug}</Typography.Text>
-                            </div>
-                        )}
-                        {metadata?.commitMessage && (
-                            <div>
-                                <Typography.Text type="secondary" className="block">
-                                    Commit Message
-                                </Typography.Text>
-                                <Typography.Text>{metadata.commitMessage}</Typography.Text>
-                            </div>
-                        )}
-                        {metadata?.author && (
-                            <div>
-                                <Typography.Text type="secondary" className="block">
-                                    Author
-                                </Typography.Text>
-                                <UserReference userId={metadata.author} />
-                            </div>
-                        )}
-                        {metadata?.createdAt && (
-                            <div>
-                                <Typography.Text type="secondary" className="block">
-                                    Created
-                                </Typography.Text>
-                                <Typography.Text>
-                                    {new Date(metadata.createdAt).toLocaleString()}
-                                </Typography.Text>
-                            </div>
-                        )}
-                        {metadata?.updatedAt && (
-                            <div>
-                                <Typography.Text type="secondary" className="block">
-                                    Updated
-                                </Typography.Text>
-                                <Typography.Text>
-                                    {new Date(metadata.updatedAt).toLocaleString()}
-                                </Typography.Text>
-                            </div>
-                        )}
-                    </div>
-                }
-            >
-                <span className="cursor-help">
-                    <TableDescription>
-                        {description ||
-                            "Specify column names similar to the Input parameters. A column with 'correct_answer' name will be treated as a ground truth column."}
-                    </TableDescription>
-                </span>
-            </Popover>
+            {/* Metadata popover - disabled for new testsets since server data doesn't exist yet */}
+            {isNewTestset ? (
+                <TableDescription>
+                    {description ||
+                        "Specify column names similar to the Input parameters. A column with 'correct_answer' name will be treated as a ground truth column."}
+                </TableDescription>
+            ) : (
+                <Popover
+                    trigger="hover"
+                    placement="bottomLeft"
+                    content={
+                        <div className="flex flex-col gap-2 max-w-xs">
+                            {metadata?.testsetSlug && (
+                                <div>
+                                    <Typography.Text type="secondary" className="block">
+                                        Testset Slug
+                                    </Typography.Text>
+                                    <Typography.Text>{metadata.testsetSlug}</Typography.Text>
+                                </div>
+                            )}
+                            {metadata?.revisionSlug && (
+                                <div>
+                                    <Typography.Text type="secondary" className="block">
+                                        Revision Slug
+                                    </Typography.Text>
+                                    <Typography.Text>{metadata.revisionSlug}</Typography.Text>
+                                </div>
+                            )}
+                            {metadata?.commitMessage && (
+                                <div>
+                                    <Typography.Text type="secondary" className="block">
+                                        Commit Message
+                                    </Typography.Text>
+                                    <Typography.Text>{metadata.commitMessage}</Typography.Text>
+                                </div>
+                            )}
+                            {metadata?.author && (
+                                <div>
+                                    <Typography.Text type="secondary" className="block">
+                                        Author
+                                    </Typography.Text>
+                                    <UserReference userId={metadata.author} />
+                                </div>
+                            )}
+                            {metadata?.createdAt && (
+                                <div>
+                                    <Typography.Text type="secondary" className="block">
+                                        Created
+                                    </Typography.Text>
+                                    <Typography.Text>
+                                        {new Date(metadata.createdAt).toLocaleString()}
+                                    </Typography.Text>
+                                </div>
+                            )}
+                            {metadata?.updatedAt && (
+                                <div>
+                                    <Typography.Text type="secondary" className="block">
+                                        Updated
+                                    </Typography.Text>
+                                    <Typography.Text>
+                                        {new Date(metadata.updatedAt).toLocaleString()}
+                                    </Typography.Text>
+                                </div>
+                            )}
+                        </div>
+                    }
+                >
+                    <span className="cursor-help">
+                        <TableDescription>
+                            {description ||
+                                "Specify column names similar to the Input parameters. A column with 'correct_answer' name will be treated as a ground truth column."}
+                        </TableDescription>
+                    </span>
+                </Popover>
+            )}
         </div>
     )
 }
