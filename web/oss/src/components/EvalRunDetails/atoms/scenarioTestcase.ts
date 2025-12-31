@@ -12,10 +12,8 @@ import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
 import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
-import {
-    testcaseEntityAtomFamily,
-    testcaseQueryAtomFamily,
-} from "@/oss/state/entities/testcase/testcaseEntity"
+import {testcase} from "@/oss/state/entities/testcase"
+import {testcaseQueryAtomFamily} from "@/oss/state/entities/testcase/testcaseEntity"
 
 import {activePreviewRunIdAtom} from "./run"
 import {scenarioStepsQueryFamily} from "./scenarioSteps"
@@ -75,7 +73,7 @@ export const scenarioTestcaseEntityAtomFamily = atomFamily(
             if (!testcaseId) return null
 
             // Use the global testcase entity atom for caching and consistency
-            return get(testcaseEntityAtomFamily(testcaseId))
+            return get(testcase.selectors.data(testcaseId))
         }),
 )
 
