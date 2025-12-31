@@ -823,7 +823,7 @@ const Organization: FC = () => {
                                         description={
                                             <Space direction="vertical" size="middle" style={{ width: "100%" }}>
                                                 <Text style={{fontSize: "14px"}}>
-                                                    1. Configure your SSO provider with the following details:
+                                                    1. Edit your IdP with the following details:
                                                 </Text>
                                                 <Descriptions bordered size="small" column={1} className="org-instructions">
                                                     <Descriptions.Item label={<span style={{fontFamily: "monospace", fontSize: "12px"}}>Callback URL</span>}>
