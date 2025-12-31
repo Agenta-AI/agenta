@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, model_validator, AliasChoices
 from starlette.responses import StreamingResponse
 
 
-from agenta.sdk.assets import supported_llm_models
+from agenta.sdk.assets import supported_llm_models, model_metadata
 from agenta.client.backend.types import AgentaNodesResponse, AgentaNodeDto
 
 
@@ -23,7 +23,11 @@ def MCField(  # pylint: disable=invalid-name
 ) -> Field:
     # Pydantic 2.12+ no longer allows post-creation mutation of field properties
     if isinstance(choices, dict):
-        json_extra = {"choices": choices, "x-parameter": "grouped_choice"}
+        json_extra = {
+            "choices": choices,
+            "x-parameter": "grouped_choice",
+            "x-model-metadata": model_metadata,
+        }
     elif isinstance(choices, list):
         json_extra = {"choices": choices, "x-parameter": "choice"}
     else:

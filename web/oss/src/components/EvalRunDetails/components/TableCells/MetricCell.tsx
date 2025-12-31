@@ -279,8 +279,9 @@ const PreviewEvaluationMetricCell = ({
             </div>
         )
 
+        const errorCopyContent = `${stepError.message}${stepError.stacktrace ? `\n${stepError.stacktrace}` : ""}`
         return (
-            <CellContentPopover content={errorPopoverContent}>
+            <CellContentPopover content={errorPopoverContent} copyContent={errorCopyContent}>
                 <div
                     ref={ref}
                     className={CONTAINER_CLASS}

@@ -190,8 +190,9 @@ const PreviewEvaluationInvocationCell = ({
             </div>
         )
 
+        const errorCopyContent = `${stepError?.message}${stepError?.stacktrace ? `\n${stepError?.stacktrace}` : ""}`
         return (
-            <CellContentPopover content={errorPopoverContent}>
+            <CellContentPopover content={errorPopoverContent} copyContent={errorCopyContent}>
                 <div
                     ref={ref}
                     className={clsx(CONTAINER_CLASS, "!justify-between")}
