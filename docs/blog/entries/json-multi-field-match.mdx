@@ -1,0 +1,124 @@
+---
+title: "JSON Multi-Field Match Evaluator"
+slug: json-multi-field-match
+date: 2025-12-31
+tags: [v0.73.0]
+description: "Compare multiple fields between JSON objects with the new JSON Multi-Field Match evaluator. Ideal for entity extraction validation with per-field scoring and support for nested paths."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+The JSON Multi-Field Match evaluator lets you validate multiple fields in JSON outputs simultaneously. This makes it ideal for entity extraction tasks where you need to check if your model correctly extracted name, email, address, and other structured fields.
+
+## What is JSON Multi-Field Match?
+
+This evaluator compares specific fields between your model's JSON output and the expected JSON values from your test set. Unlike the old JSON Field Match evaluator (which only checked one field), this evaluator handles any number of fields at once.
+
+For each field you configure, the evaluator produces a separate score (either 1 for a match or 0 for no match). It also calculates an aggregate score showing the percentage of fields that matched correctly.
+
+## Key Features
+
+### Multiple Field Comparison
+
+Configure as many fields as you need to validate. The evaluator checks each field independently and reports results for all of them.
+
+If you're extracting user information, you might configure fields like `name`, `email`, `phone`, and `address.city`. Each field gets its own score, so you can see exactly which extractions succeeded and which failed.
+
+### Three Path Format Options
+
+The evaluator supports three different ways to specify field paths:
+
+**Dot notation** (recommended for most cases):
+- Simple fields: `name`, `email`
+- Nested fields: `user.address.city`
+- Array indices: `items.0.name`
+
+**JSON Path** (standard JSON Path syntax):
+- Simple fields: `$.name`, `$.email`
+- Nested fields: `$.user.address.city`
+- Array indices: `$.items[0].name`
+
+**JSON Pointer** (RFC 6901):
+- Simple fields: `/name`, `/email`
+- Nested fields: `/user/address/city`
+- Array indices: `/items/0/name`
+
+All three formats work the same way. Use whichever matches your existing tooling or personal preference.
+
+### Nested Field and Array Support
+
+Access deeply nested fields and array elements without restrictions. The evaluator handles any level of nesting.
+
+### Per-Field Scoring
+
+See individual scores for each configured field in the evaluation results. This granular view helps you identify which specific extractions are working well and which need improvement.
+
+### Aggregate Score
+
+The aggregate score shows the percentage of matching fields. If you configure five fields and three match, the aggregate score is 0.6 (or 60%).
+
+## Example
+
+Suppose you're building an entity extraction model that pulls contact information from text. Your ground truth looks like this:
+
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "555-1234",
+  "address": {
+    "city": "New York",
+    "zip": "10001"
+  }
+}
+```
+
+Your model produces this output:
+
+```json
+{
+  "name": "John Doe",
+  "email": "jane@example.com",
+  "phone": "555-1234",
+  "address": {
+    "city": "New York",
+    "zip": "10002"
+  }
+}
+```
+
+You configure these fields: `["name", "email", "phone", "address.city", "address.zip"]`
+
+The evaluator returns:
+
+| Field | Score |
+| ----- | ----- |
+| `name` | 1.0 |
+| `email` | 0.0 |
+| `phone` | 1.0 |
+| `address.city` | 1.0 |
+| `address.zip` | 0.0 |
+| `aggregate_score` | 0.6 |
+
+You can see immediately that the model got the email and zip code wrong but correctly extracted the name, phone, and city.
+
+## Auto-Detection in the UI
+
+When you configure the evaluator in the web interface, Agenta automatically detects available fields from your test set data. Click to add or remove fields using a tag-based interface. This makes setup fast and reduces configuration errors.
+
+## Migration from JSON Field Match
+
+The old JSON Field Match evaluator only supported checking a single field. If you're using it, consider migrating to JSON Multi-Field Match to gain:
+
+- Support for multiple fields in one evaluator
+- Per-field scoring for detailed analysis
+- Aggregate scoring for overall performance tracking
+- Nested field and array support
+
+Existing JSON Field Match configurations continue to work. We recommend migrating to JSON Multi-Field Match for new evaluations.
+
+## Next Steps
+
+Learn more about configuring and using the JSON Multi-Field Match evaluator in the [Classification and Entity Extraction Evaluators](/evaluation/configure-evaluators/classification-entity-extraction#json-multi-field-match) documentation.

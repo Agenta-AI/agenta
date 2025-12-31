@@ -26,20 +26,84 @@ The Contains JSON evaluator checks if the model's output contains a valid JSON s
 
 This evaluator attempts to parse the output as JSON. It returns `true` if a valid JSON structure is found within the output, and `false` otherwise.
 
-## JSON Field Match
+## JSON Field Match (Deprecated) {#json-field-match}
 
-The JSON Field Match evaluator compares specific fields within JSON data.
+:::warning Deprecated
+The JSON Field Match evaluator has been replaced by [JSON Multi-Field Match](#json-multi-field-match). The new evaluator supports multiple fields, nested paths, and provides per-field scoring. Existing configurations will continue to work, but we recommend migrating to the new evaluator.
+:::
+
+## JSON Multi-Field Match
+
+The JSON Multi-Field Match evaluator compares multiple fields between two JSON objects and reports a score for each field. This evaluator is ideal for entity extraction tasks where you need to validate that specific fields (like name, email, or address) match the expected values.
 
 ### How It Works
 
-This evaluator attempts to parse the output as JSON and extract a specified field. It then compares this field value to the correct answer. The evaluator returns `true` if the field value matches the correct answer, and `false` otherwise. Note that the value in the `correct_answer` column should be a string, not JSON.
+The evaluator parses both the model output and the ground truth as JSON. It then compares each configured field path and produces:
+
+1. A score for each field (1 if matched, 0 if not matched)
+2. An aggregate score showing the percentage of fields that matched
+
+For example, if you configure fields `["name", "email", "phone"]` and the model gets name and email correct but phone wrong, you will see:
+- `name`: 1.0
+- `email`: 1.0
+- `phone`: 0.0
+- `aggregate_score`: 0.67
+
+### Path Formats
+
+You can specify field paths in three formats:
+
+| Format | Example | Description |
+| ------ | ------- | ----------- |
+| Dot notation | `user.address.city` | Simple nested access. Use numeric indices for arrays: `items.0.name` |
+| JSON Path | `$.user.address.city` | Standard JSON Path syntax. Supports array indexing: `$.items[0].name` |
+| JSON Pointer | `/user/address/city` | RFC 6901 standard. Use numeric segments for arrays: `/items/0/name` |
+
+Dot notation is recommended for most cases. JSON Path and JSON Pointer are useful when you need compatibility with other tools.
 
 ### Configuration
 
-| Parameter            | Type   | Description                                                   |
-| -------------------- | ------ | ------------------------------------------------------------- |
-| `json_field`         | String | The name of the field in the JSON output to evaluate          |
-| `correct_answer_key` | String | The column name in the test set containing the correct answer |
+| Parameter            | Type     | Description                                                        |
+| -------------------- | -------- | ------------------------------------------------------------------ |
+| `fields`             | String[] | List of field paths to compare (e.g., `["name", "user.email"]`)    |
+| `correct_answer_key` | String   | The column name in the test set containing the expected JSON       |
+
+### Example
+
+**Ground truth** (in the `correct_answer` column):
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "address": {
+    "city": "New York",
+    "zip": "10001"
+  }
+}
+```
+
+**Model output**:
+```json
+{
+  "name": "John Doe",
+  "email": "jane@example.com",
+  "address": {
+    "city": "New York",
+    "zip": "10002"
+  }
+}
+```
+
+**Configured fields**: `["name", "email", "address.city", "address.zip"]`
+
+**Results**:
+| Field | Score |
+| ----- | ----- |
+| `name` | 1.0 |
+| `email` | 0.0 |
+| `address.city` | 1.0 |
+| `address.zip` | 0.0 |
+| `aggregate_score` | 0.5 |
 
 ## JSON Diff Match
 
