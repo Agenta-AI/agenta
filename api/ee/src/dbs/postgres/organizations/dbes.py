@@ -48,6 +48,11 @@ class OrganizationProviderDBE(Base, OrganizationProviderDBA):
             ["organizations.id"],
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(
+            ["secret_id"],
+            ["secrets.id"],
+            ondelete="CASCADE",
+        ),
         UniqueConstraint(
             "organization_id",
             "slug",

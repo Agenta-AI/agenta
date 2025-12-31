@@ -217,7 +217,7 @@ class OrganizationProvidersDAO:
         self,
         organization_id: str,
         slug: str,
-        settings: dict,
+        secret_id: str,
         created_by_id: str,
         name: Optional[str],
         description: Optional[str] = None,
@@ -230,7 +230,7 @@ class OrganizationProvidersDAO:
                 slug=slug,
                 name=name,
                 description=description,
-                settings=settings,
+                secret_id=secret_id,
                 flags=flags or {"is_active": True, "is_valid": False},
                 created_by_id=created_by_id,
             )
@@ -245,7 +245,7 @@ class OrganizationProvidersDAO:
                     slug=slug,
                     name=name,
                     description=description,
-                    settings=settings,
+                    secret_id=secret_id,
                     flags=flags or {"is_active": True, "is_valid": False},
                     created_by_id=created_by_id,
                 )
@@ -329,16 +329,16 @@ class OrganizationProvidersDAO:
     async def update(
         self,
         provider_id: str,
-        settings: Optional[dict] = None,
+        secret_id: Optional[str] = None,
         flags: Optional[dict] = None,
         updated_by_id: Optional[str] = None,
     ) -> Optional[OrganizationProviderDBE]:
-        """Update a provider's settings or flags."""
+        """Update a provider's secret reference or flags."""
         if self.session:
             provider = await self.session.get(OrganizationProviderDBE, provider_id)
             if provider:
-                if settings is not None:
-                    provider.settings = settings
+                if secret_id is not None:
+                    provider.secret_id = secret_id
                 if flags is not None:
                     provider.flags = flags
                 if updated_by_id:
@@ -350,8 +350,8 @@ class OrganizationProvidersDAO:
             async with engine.core_session() as session:
                 provider = await session.get(OrganizationProviderDBE, provider_id)
                 if provider:
-                    if settings is not None:
-                        provider.settings = settings
+                    if secret_id is not None:
+                        provider.secret_id = secret_id
                     if flags is not None:
                         provider.flags = flags
                     if updated_by_id:

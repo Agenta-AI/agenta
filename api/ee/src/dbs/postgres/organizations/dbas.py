@@ -63,8 +63,8 @@ class OrganizationProviderDBA(OrganizationScopeDBA, HeaderDBA, LifecycleDBA):
         String,
         nullable=False,
     )
-    settings = Column(
-        JSONB(none_as_null=True),
+    secret_id = Column(
+        UUID(as_uuid=True),
         nullable=False,
     )
     flags = Column(

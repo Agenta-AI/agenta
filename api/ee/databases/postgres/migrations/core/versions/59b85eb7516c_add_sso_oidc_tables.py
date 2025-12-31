@@ -233,8 +233,8 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.Column(
-            "settings",
-            postgresql.JSONB(none_as_null=True, astext_type=sa.Text()),
+            "secret_id",
+            sa.UUID(),
             nullable=False,
         ),
         sa.Column(
@@ -284,6 +284,11 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(
+            ["secret_id"],
+            ["secrets.id"],
+            ondelete="CASCADE",
+        ),
         sa.ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],

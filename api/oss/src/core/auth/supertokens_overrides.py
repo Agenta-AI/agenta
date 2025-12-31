@@ -40,7 +40,8 @@ identities_dao = IdentitiesDAO()
 # Organization providers DAO (EE only)
 if is_ee():
     from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
-
+    from oss.src.core.secrets.services import VaultService
+    from oss.src.dbs.postgres.secrets.dao import SecretsDAO
     providers_dao = OrganizationProvidersDAO()
 else:
     providers_dao = None
@@ -80,10 +81,30 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
             return None
 
         # Extract OIDC config
-        issuer_url = provider.settings.get("issuer_url")
-        client_id = provider.settings.get("client_id")
-        client_secret = provider.settings.get("client_secret")
-        scopes = provider.settings.get("scopes", ["openid", "profile", "email"])
+        vault_service = VaultService(SecretsDAO())
+        secret = await vault_service.get_secret(
+            secret_id=provider.secret_id,
+            organization_id=organization.id,
+        )
+        if not secret:
+            print(f"Secret not found for provider id={provider.id}")
+            return None
+
+        data = secret.data
+        provider_settings = None
+        if hasattr(data, "provider"):
+            provider_settings = data.provider.model_dump()
+        elif isinstance(data, dict):
+            provider_settings = data.get("provider")
+
+        if not isinstance(provider_settings, dict):
+            print(f"Invalid provider secret format for provider id={provider.id}")
+            return None
+
+        issuer_url = provider_settings.get("issuer_url")
+        client_id = provider_settings.get("client_id")
+        client_secret = provider_settings.get("client_secret")
+        scopes = provider_settings.get("scopes", ["openid", "profile", "email"])
 
         if not issuer_url or not client_id or not client_secret:
             return None

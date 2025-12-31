@@ -21,13 +21,26 @@ class SecretsDAO(SecretsDAOInterface):
     def __init__(self):
         pass
 
+    @staticmethod
+    def _validate_scope(project_id: UUID | None, organization_id: UUID | None) -> None:
+        if bool(project_id) == bool(organization_id):
+            raise ValueError("Exactly one of project_id or organization_id must be provided.")
+
+    @staticmethod
+    def _scope_filter(project_id: UUID | None, organization_id: UUID | None) -> dict:
+        SecretsDAO._validate_scope(project_id, organization_id)
+        return {"project_id": project_id} if project_id else {"organization_id": organization_id}
+
     async def create(
         self,
-        project_id: UUID,
+        project_id: UUID | None,
+        organization_id: UUID | None,
         create_secret_dto: CreateSecretDTO,
     ):
+        self._validate_scope(project_id, organization_id)
         secrets_dbe = map_secrets_dto_to_dbe(
             project_id=project_id,
+            organization_id=organization_id,
             secret_dto=create_secret_dto,
         )
         async with engine.core_session() as session:
@@ -39,13 +52,15 @@ class SecretsDAO(SecretsDAOInterface):
 
     async def get(
         self,
-        project_id: UUID,
         secret_id: UUID,
+        project_id: UUID | None,
+        organization_id: UUID | None,
     ):
         async with engine.core_session() as session:
+            scope_filter = self._scope_filter(project_id, organization_id)
             stmt = select(SecretsDBE).filter_by(
                 id=secret_id,
-                project_id=project_id,
+                **scope_filter,
             )
             result = await session.execute(stmt)  # type: ignore
             secrets_dbe = result.scalar()
@@ -56,9 +71,10 @@ class SecretsDAO(SecretsDAOInterface):
             secrets_dto = map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
             return secrets_dto
 
-    async def list(self, project_id: UUID):
+    async def list(self, project_id: UUID | None, organization_id: UUID | None):
         async with engine.core_session() as session:
-            stmt = select(SecretsDBE).filter_by(project_id=project_id)
+            scope_filter = self._scope_filter(project_id, organization_id)
+            stmt = select(SecretsDBE).filter_by(**scope_filter)
 
             results = await session.execute(stmt)  # type: ignore
             secrets_dbes = results.scalars().all()
@@ -70,14 +86,16 @@ class SecretsDAO(SecretsDAOInterface):
 
     async def update(
         self,
-        project_id: UUID,
         secret_id: UUID,
         update_secret_dto: UpdateSecretDTO,
+        project_id: UUID | None,
+        organization_id: UUID | None,
     ):
         async with engine.core_session() as session:
+            scope_filter = self._scope_filter(project_id, organization_id)
             stmt = select(SecretsDBE).filter_by(
                 id=secret_id,
-                project_id=project_id,
+                **scope_filter,
             )
             result = await session.execute(stmt)
             secrets_dbe = result.scalar()
@@ -97,13 +115,15 @@ class SecretsDAO(SecretsDAOInterface):
 
     async def delete(
         self,
-        project_id: UUID,
         secret_id: UUID,
+        project_id: UUID | None,
+        organization_id: UUID | None,
     ):
         async with engine.core_session() as session:
+            scope_filter = self._scope_filter(project_id, organization_id)
             stmt = select(SecretsDBE).filter_by(
                 id=secret_id,
-                project_id=project_id,
+                **scope_filter,
             )
             result = await session.execute(stmt)  # type: ignore
             vault_secret_dbe = result.scalar()

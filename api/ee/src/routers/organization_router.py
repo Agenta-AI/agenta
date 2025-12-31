@@ -30,9 +30,9 @@ from ee.src.services.organization_service import (
     get_organization_details,
     transfer_organization_ownership as transfer_ownership_service,
 )
+from ee.src.services.organization_security_service import SSOProviderService
 from ee.src.dbs.postgres.organizations.dao import (
     OrganizationDomainsDAO,
-    OrganizationProvidersDAO,
 )
 from ee.src.core.organizations.types import (
     OrganizationDomainCreate,
@@ -703,26 +703,8 @@ async def list_organization_providers(
 
         from uuid import UUID
 
-        providers_dao = OrganizationProvidersDAO()
-        providers = await providers_dao.list_by_organization(UUID(organization_id))
-
-        return [
-            {
-                "id": str(provider.id),
-                "slug": provider.slug,
-                "organization_id": str(provider.organization_id),
-                "provider_type": provider.provider_type,
-                "config": provider.config,
-                "flags": provider.flags,
-                "created_at": provider.created_at.isoformat()
-                if provider.created_at
-                else None,
-                "updated_at": provider.updated_at.isoformat()
-                if provider.updated_at
-                else None,
-            }
-            for provider in providers
-        ]
+        provider_service = SSOProviderService()
+        return await provider_service.list_providers(organization_id)
 
     except Exception as e:
         import traceback
@@ -755,29 +737,24 @@ async def create_organization_provider(
 
         from uuid import UUID
 
-        providers_dao = OrganizationProvidersDAO()
+        provider_service = SSOProviderService()
         provider_create = OrganizationProviderCreate(
             slug=payload.get("slug"),
             organization_id=UUID(organization_id),
-            provider_type=payload.get("provider_type", "oidc"),
-            config=payload.get("config", {}),
+            name=payload.get("name"),
+            description=payload.get("description"),
+            settings=payload.get("settings"),
+            flags=payload.get("flags"),
+            tags=payload.get("tags"),
+            meta=payload.get("meta"),
         )
-        created_provider = await providers_dao.create(provider_create)
+        created_provider = await provider_service.create_provider(
+            organization_id=organization_id,
+            payload=provider_create,
+            user_id=str(request.state.user_id),
+        )
 
-        return {
-            "id": str(created_provider.id),
-            "slug": created_provider.slug,
-            "organization_id": str(created_provider.organization_id),
-            "provider_type": created_provider.provider_type,
-            "config": created_provider.config,
-            "flags": created_provider.flags,
-            "created_at": created_provider.created_at.isoformat()
-            if created_provider.created_at
-            else None,
-            "updated_at": created_provider.updated_at.isoformat()
-            if created_provider.updated_at
-            else None,
-        }
+        return created_provider
 
     except Exception as e:
         import traceback
@@ -811,29 +788,11 @@ async def get_organization_provider(
 
         from uuid import UUID
 
-        providers_dao = OrganizationProvidersDAO()
-        provider = await providers_dao.get_by_id(UUID(provider_id))
-
-        if not provider:
-            return JSONResponse(
-                {"detail": "Provider not found"},
-                status_code=404,
-            )
-
-        return {
-            "id": str(provider.id),
-            "slug": provider.slug,
-            "organization_id": str(provider.organization_id),
-            "provider_type": provider.provider_type,
-            "config": provider.config,
-            "flags": provider.flags,
-            "created_at": provider.created_at.isoformat()
-            if provider.created_at
-            else None,
-            "updated_at": provider.updated_at.isoformat()
-            if provider.updated_at
-            else None,
-        }
+        provider_service = SSOProviderService()
+        return await provider_service.get_provider(
+            organization_id=organization_id,
+            provider_id=provider_id,
+        )
 
     except Exception as e:
         import traceback
@@ -868,36 +827,23 @@ async def update_organization_provider(
 
         from uuid import UUID
 
-        providers_dao = OrganizationProvidersDAO()
+        provider_service = SSOProviderService()
         provider_update = OrganizationProviderUpdate(
-            slug=payload.get("slug"),
-            config=payload.get("config"),
+            name=payload.get("name"),
+            description=payload.get("description"),
+            settings=payload.get("settings"),
             flags=payload.get("flags"),
+            tags=payload.get("tags"),
+            meta=payload.get("meta"),
         )
-        updated_provider = await providers_dao.update(
-            UUID(provider_id), provider_update
+        updated_provider = await provider_service.update_provider(
+            organization_id=organization_id,
+            provider_id=provider_id,
+            payload=provider_update,
+            user_id=str(request.state.user_id),
         )
 
-        if not updated_provider:
-            return JSONResponse(
-                {"detail": "Provider not found"},
-                status_code=404,
-            )
-
-        return {
-            "id": str(updated_provider.id),
-            "slug": updated_provider.slug,
-            "organization_id": str(updated_provider.organization_id),
-            "provider_type": updated_provider.provider_type,
-            "config": updated_provider.config,
-            "flags": updated_provider.flags,
-            "created_at": updated_provider.created_at.isoformat()
-            if updated_provider.created_at
-            else None,
-            "updated_at": updated_provider.updated_at.isoformat()
-            if updated_provider.updated_at
-            else None,
-        }
+        return updated_provider
 
     except Exception as e:
         import traceback
@@ -931,9 +877,12 @@ async def delete_organization_provider(
 
         from uuid import UUID
 
-        providers_dao = OrganizationProvidersDAO()
-        # TODO: Implement delete method in DAO
-        # await providers_dao.delete(UUID(provider_id))
+        provider_service = SSOProviderService()
+        await provider_service.delete_provider(
+            organization_id=organization_id,
+            provider_id=provider_id,
+            user_id=str(request.state.user_id),
+        )
 
         return JSONResponse(
             {"detail": "Provider deleted successfully"},

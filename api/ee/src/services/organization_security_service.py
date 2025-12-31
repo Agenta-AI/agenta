@@ -8,6 +8,17 @@ from uuid import UUID
 from fastapi import HTTPException
 
 from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.core.secrets.dtos import (
+    CreateSecretDTO,
+    UpdateSecretDTO,
+    SecretDTO,
+    SecretKind,
+    SSOProviderDTO,
+    SSOProviderSettingsDTO,
+)
+from oss.src.core.secrets.services import VaultService
+from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.src.core.shared.dtos import Header
 from ee.src.dbs.postgres.organizations.dao import (
     OrganizationDomainsDAO,
     OrganizationProvidersDAO,
@@ -343,6 +354,10 @@ class SSOProviderService:
     """Service for managing SSO providers."""
 
     @staticmethod
+    def _vault_service() -> VaultService:
+        return VaultService(SecretsDAO())
+
+    @staticmethod
     def mask_secret(secret: str) -> str:
         """Mask a secret for display."""
         if len(secret) <= 8:
@@ -413,6 +428,27 @@ class SSOProviderService:
             if "scopes" not in settings or not settings["scopes"]:
                 settings["scopes"] = ["openid", "profile", "email"]
 
+            secret_payload = CreateSecretDTO(
+                header=Header(name=slug, description=payload.description),
+                secret=SecretDTO(
+                    kind=SecretKind.SSO_PROVIDER,
+                    data=SSOProviderDTO(
+                        provider=SSOProviderSettingsDTO(
+                            client_id=settings.get("client_id", ""),
+                            client_secret=settings.get("client_secret", ""),
+                            issuer_url=settings.get("issuer_url", ""),
+                            scopes=settings.get("scopes", []),
+                            extra=settings.get("extra", {}) or {},
+                        )
+                    ),
+                ),
+            )
+
+            secret_dto = await self._vault_service().create_secret(
+                organization_id=UUID(organization_id),
+                create_secret_dto=secret_payload,
+            )
+
             # Merge provided flags with defaults
             flags = payload.flags or {}
             if "is_valid" not in flags:
@@ -426,7 +462,7 @@ class SSOProviderService:
                 slug=slug,
                 name=payload.name,
                 description=payload.description,
-                settings=settings,
+                secret_id=str(secret_dto.id),
                 created_by_id=user_id,
                 flags=flags,
             )
@@ -434,7 +470,7 @@ class SSOProviderService:
             await session.commit()
             await session.refresh(provider)
 
-            return self._to_response(provider)
+            return await self._to_response(provider, organization_id)
 
     async def update_provider(
         self,
@@ -452,7 +488,9 @@ class SSOProviderService:
                 raise HTTPException(status_code=404, detail="Provider not found")
 
             # Update settings if provided
-            settings = provider.settings.copy() if provider.settings else {}
+            settings = await self._get_provider_settings(
+                organization_id, str(provider.secret_id)
+            )
             settings_changed = False
 
             if payload.settings is not None:
@@ -490,9 +528,30 @@ class SSOProviderService:
             if payload.description is not None:
                 provider.description = payload.description
 
+            if settings_changed:
+                updated_secret = UpdateSecretDTO(
+                    header=Header(name=provider.slug, description=provider.description),
+                    secret=SecretDTO(
+                        kind=SecretKind.SSO_PROVIDER,
+                        data=SSOProviderDTO(
+                            provider=SSOProviderSettingsDTO(
+                                client_id=settings.get("client_id", ""),
+                                client_secret=settings.get("client_secret", ""),
+                                issuer_url=settings.get("issuer_url", ""),
+                                scopes=settings.get("scopes", []),
+                                extra=settings.get("extra", {}) or {},
+                            )
+                        ),
+                    ),
+                )
+                await self._vault_service().update_secret(
+                    secret_id=UUID(provider.secret_id),
+                    organization_id=UUID(organization_id),
+                    update_secret_dto=updated_secret,
+                )
+
             provider = await dao.update(
                 provider_id=provider_id,
-                settings=settings,
                 flags=flags,
                 updated_by_id=user_id,
             )
@@ -500,7 +559,7 @@ class SSOProviderService:
             await session.commit()
             await session.refresh(provider)
 
-            return self._to_response(provider)
+            return await self._to_response(provider, organization_id)
 
     async def list_providers(
         self, organization_id: str
@@ -510,7 +569,21 @@ class SSOProviderService:
             dao = OrganizationProvidersDAO(session)
             providers = await dao.list_by_organization(organization_id)
 
-            return [self._to_response(p) for p in providers]
+            responses: List[OrganizationProviderResponse] = []
+            for provider in providers:
+                responses.append(await self._to_response(provider, organization_id))
+            return responses
+
+    async def get_provider(
+        self, organization_id: str, provider_id: str
+    ) -> OrganizationProviderResponse:
+        """Get a single SSO provider by ID."""
+        async with engine.core_session() as session:
+            dao = OrganizationProvidersDAO(session)
+            provider = await dao.get_by_id(provider_id, organization_id)
+            if not provider:
+                raise HTTPException(status_code=404, detail="Provider not found")
+            return await self._to_response(provider, organization_id)
 
     async def test_provider(
         self, organization_id: str, provider_id: str, user_id: str
@@ -523,7 +596,9 @@ class SSOProviderService:
             if not provider:
                 raise HTTPException(status_code=404, detail="Provider not found")
 
-            settings = provider.settings
+            settings = await self._get_provider_settings(
+                organization_id, str(provider.secret_id)
+            )
 
             # Test OIDC connection
             is_valid = await self.test_oidc_connection(
@@ -551,7 +626,7 @@ class SSOProviderService:
             await session.commit()
             await session.refresh(provider)
 
-            return self._to_response(provider)
+            return await self._to_response(provider, organization_id)
 
     async def delete_provider(
         self, organization_id: str, provider_id: str, user_id: str
@@ -564,17 +639,40 @@ class SSOProviderService:
             if not provider:
                 raise HTTPException(status_code=404, detail="Provider not found")
 
+            await self._vault_service().delete_secret(
+                secret_id=UUID(provider.secret_id),
+                organization_id=UUID(organization_id),
+            )
             deleted = await dao.delete(provider_id, user_id)
             await session.commit()
             return deleted
 
-    def _to_response(self, provider) -> OrganizationProviderResponse:
-        """Convert DBE to response model."""
-        settings = provider.settings.copy() if provider.settings else {}
+    async def _get_provider_settings(
+        self, organization_id: str, secret_id: str
+    ) -> dict:
+        secret = await self._vault_service().get_secret(
+            secret_id=UUID(secret_id),
+            organization_id=UUID(organization_id),
+        )
+        if not secret:
+            raise HTTPException(status_code=404, detail="Provider secret not found")
 
-        # Mask the client_secret in settings before returning
-        if "client_secret" in settings:
-            settings["client_secret"] = self.mask_secret(settings["client_secret"])
+        data = secret.data
+        if hasattr(data, "provider"):
+            return data.provider.model_dump()
+        if isinstance(data, dict):
+            provider = data.get("provider") or {}
+            if isinstance(provider, dict):
+                return provider
+        raise HTTPException(status_code=500, detail="Invalid provider secret format")
+
+    async def _to_response(
+        self, provider, organization_id: str
+    ) -> OrganizationProviderResponse:
+        """Convert DBE to response model."""
+        settings = await self._get_provider_settings(
+            organization_id, str(provider.secret_id)
+        )
 
         return OrganizationProviderResponse(
             id=str(provider.id),

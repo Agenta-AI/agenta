@@ -9,6 +9,8 @@ import {useRouter} from "next/router"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {useOrgData} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
 import {settingsTabAtom} from "@/oss/state/settings"
 
 import ListOfOrgs from "./components/ListOfOrgs"
@@ -25,6 +27,9 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     const [tab, setTab] = useQueryParam("tab", undefined, "replace")
     const [settingsTab, setSettingsTab] = useAtom(settingsTabAtom)
     const activeTab = tab ?? settingsTab ?? "workspace"
+    const {selectedOrg} = useOrgData()
+    const {user} = useProfileData()
+    const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
 
     useEffect(() => {
         if (tab && tab !== settingsTab) {
@@ -50,13 +55,17 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 icon: <Sparkle size={16} className="mt-0.5" />,
                 divider: true,
             },
-            {
-                key: "organization",
-                title: "Organization",
-                icon: <Buildings size={16} className="mt-0.5" />,
-            },
+            ...(isOwner
+                ? [
+                      {
+                          key: "organization",
+                          title: "Organization",
+                          icon: <Buildings size={16} className="mt-0.5" />,
+                      },
+                  ]
+                : []),
         ]
-        if (isDemo()) {
+        if (isDemo() && isOwner) {
             list.push({
                 key: "billing",
                 title: "Usage & Billing",
@@ -64,7 +73,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             })
         }
         return list
-    }, [])
+    }, [isOwner])
 
     return (
         <section
