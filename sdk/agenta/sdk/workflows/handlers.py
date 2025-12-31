@@ -1,50 +1,43 @@
-from typing import List, Optional, Any, Dict, Union
-from json import dumps, loads
-import traceback
 import json
-import re
 import math
+import re
+import traceback
+from difflib import SequenceMatcher
+from json import dumps, loads
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
-
 import litellm
-
-from pydantic import BaseModel, Field
-from openai import AsyncOpenAI, OpenAIError
-from difflib import SequenceMatcher
-
-from agenta.sdk.utils.logging import get_module_logger
-
-from agenta.sdk.litellm import mockllm
-from agenta.sdk.types import PromptTemplate, Message
-from agenta.sdk.managers.secrets import SecretsManager
-
 from agenta.sdk.decorators.tracing import instrument
-
+from agenta.sdk.litellm import mockllm
+from agenta.sdk.litellm.litellm import litellm_handler
+from agenta.sdk.managers.secrets import SecretsManager
 from agenta.sdk.models.shared import Data
-from agenta.sdk.workflows.sandbox import execute_code_safely
+from agenta.sdk.types import Message, PromptTemplate
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.workflows.errors import (
+    CustomCodeServerV0Error,
     InvalidConfigurationParametersV0Error,
-    MissingConfigurationParameterV0Error,
     InvalidConfigurationParameterV0Error,
     InvalidInputsV0Error,
-    MissingInputV0Error,
     InvalidInputV0Error,
     InvalidOutputsV0Error,
     InvalidSecretsV0Error,
     JSONDiffV0Error,
     LevenshteinDistanceV0Error,
-    SyntacticSimilarityV0Error,
-    SemanticSimilarityV0Error,
-    WebhookServerV0Error,
-    WebhookClientV0Error,
-    CustomCodeServerV0Error,
-    RegexPatternV0Error,
-    PromptFormattingV0Error,
+    MissingConfigurationParameterV0Error,
+    MissingInputV0Error,
     PromptCompletionV0Error,
+    PromptFormattingV0Error,
+    RegexPatternV0Error,
+    SemanticSimilarityV0Error,
+    SyntacticSimilarityV0Error,
+    WebhookClientV0Error,
+    WebhookServerV0Error,
 )
-
-from agenta.sdk.litellm.litellm import litellm_handler
+from agenta.sdk.workflows.sandbox import execute_code_safely
+from openai import AsyncOpenAI, OpenAIError
+from pydantic import BaseModel, Field
 
 litellm.logging = False
 litellm.set_verbose = False
@@ -534,34 +527,27 @@ def field_match_test_v0(
 
 def _get_nested_value(obj: Any, path: str) -> Any:
     """
-    Get value from nested dict using dot notation path.
+    Get value from nested object using resolve_any() with graceful None on failure.
+
+    Supports multiple path formats:
+        - Dot notation: "user.address.city", "items.0.name"
+        - JSON Path: "$.user.address.city", "$.items[0].name"
+        - JSON Pointer: "/user/address/city", "/items/0/name"
 
     Args:
         obj: The object to traverse (dict or list)
-        path: Dot-separated path like "user.address.city" or "items.0.name"
+        path: Path expression in any supported format
 
     Returns:
-        The value at the path, or None if path doesn't exist
+        The value at the path, or None if path doesn't exist or resolution fails
     """
     if obj is None:
         return None
 
-    keys = path.split(".")
-    value = obj
-
-    for key in keys:
-        if isinstance(value, dict):
-            value = value.get(key)
-        elif isinstance(value, list) and key.isdigit():
-            idx = int(key)
-            value = value[idx] if 0 <= idx < len(value) else None
-        else:
-            return None
-
-        if value is None:
-            return None
-
-    return value
+    try:
+        return resolve_any(path, obj)
+    except (KeyError, IndexError, ValueError, TypeError, ImportError):
+        return None
 
 
 @instrument(annotate=True)

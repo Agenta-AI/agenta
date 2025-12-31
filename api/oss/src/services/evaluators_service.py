@@ -1,33 +1,30 @@
-import re
 import json
+import re
 import traceback
-from typing import Any, Dict, Union, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-import litellm
 import httpx
+import litellm
 import numpy as np
-from openai import AsyncOpenAI
+from agenta.sdk.managers.secrets import SecretsManager
 from fastapi import HTTPException
 from numpy._core._multiarray_umath import array
-# from autoevals.ragas import Faithfulness, ContextRelevancy  # Commented out due to autoevals removal
-
-from oss.src.utils.logging import get_module_logger
-from oss.src.services.security import sandbox
-from oss.src.models.shared_models import Error, Result
+from openai import AsyncOpenAI
 from oss.src.models.api.evaluation_model import (
     EvaluatorInputInterface,
-    EvaluatorOutputInterface,
     EvaluatorMappingInputInterface,
     EvaluatorMappingOutputInterface,
+    EvaluatorOutputInterface,
 )
+from oss.src.models.shared_models import Error, Result
+from oss.src.services.security import sandbox
+
+# from autoevals.ragas import Faithfulness, ContextRelevancy  # Commented out due to autoevals removal
+from oss.src.utils.logging import get_module_logger
 from oss.src.utils.traces import (
-    remove_trace_prefix,
-    process_distributed_trace_into_trace_tree,
     get_field_value_from_trace_tree,
+    process_distributed_trace_into_trace_tree,
 )
-
-from agenta.sdk.managers.secrets import SecretsManager
-
 
 log = get_module_logger(__name__)
 
@@ -354,35 +351,27 @@ async def field_match_test(input: EvaluatorInputInterface) -> EvaluatorOutputInt
 
 def get_nested_value(obj: Any, path: str) -> Any:
     """
-    Get value from nested dict/object using dot notation (e.g., 'user.address.city').
+    Get value from nested object using resolve_any() with graceful None on failure.
+
+    Supports multiple path formats:
+        - Dot notation: "user.address.city", "items.0.name"
+        - JSON Path: "$.user.address.city", "$.items[0].name"
+        - JSON Pointer: "/user/address/city", "/items/0/name"
 
     Args:
         obj: The object to traverse (dict or nested structure)
-        path: Dot-notation path to the value (e.g., 'user.address.city')
+        path: Path expression in any supported format
 
     Returns:
-        The value at the specified path, or None if path doesn't exist
+        The value at the specified path, or None if path doesn't exist or resolution fails
     """
     if obj is None:
         return None
 
-    keys = path.split(".")
-    value = obj
-
-    for key in keys:
-        if isinstance(value, dict):
-            value = value.get(key)
-        elif isinstance(value, list) and key.isdigit():
-            # Support array indexing with numeric keys
-            idx = int(key)
-            value = value[idx] if 0 <= idx < len(value) else None
-        else:
-            return None
-
-        if value is None:
-            return None
-
-    return value
+    try:
+        return resolve_any(path, obj)
+    except (KeyError, IndexError, ValueError, TypeError, ImportError):
+        return None
 
 
 async def auto_json_multi_field_match(
