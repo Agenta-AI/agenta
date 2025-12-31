@@ -466,7 +466,7 @@ async def setup_evaluation(
                 references={
                     "testset": testset_references["artifact"],
                     # "testset_variant":
-                    # "testset_revision":
+                    "testset_revision": testset_references["revision"],
                 },
             )
             if testset and testset.id
