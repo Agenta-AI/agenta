@@ -1,3 +1,5 @@
+import {useMemo} from "react"
+
 import {Tag} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -9,7 +11,7 @@ import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePO
 import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import {getSlotByRoleOrdinal} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
-import {revisionEntityAtomFamily} from "@/oss/state/entities/testset"
+import {revision} from "@/oss/state/entities/testset"
 
 import usePreviewTestsetReference from "../hooks/usePreviewTestsetReference"
 
@@ -57,7 +59,8 @@ const PreviewTestsetCellContent = ({
 
     // Fetch revision entity if we have a revisionId
     const revisionId = reference?.revisionId ?? null
-    const revisionEntity = useAtomValue(revisionEntityAtomFamily(revisionId ?? ""))
+    const revisionDataAtom = useMemo(() => revision.selectors.data(revisionId ?? ""), [revisionId])
+    const revisionEntity = useAtomValue(revisionDataAtom)
     const revisionVersion = revisionId ? revisionEntity?.version : null
 
     const primaryName = normalize(reference?.name)
