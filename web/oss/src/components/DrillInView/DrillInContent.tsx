@@ -803,43 +803,58 @@ function renderFieldContent({
     }
 
     if (dataType === "json-array") {
-        // Array selector for drilling in
-        const arrayItems = JSON.parse(stringValue)
+        const arrayItems = JSON.parse(stringValue) as unknown[]
+        const originalWasString = typeof item.value === "string"
+
+        const getPreview = (arrItem: unknown) =>
+            typeof arrItem === "string"
+                ? arrItem.length > 60
+                    ? arrItem.substring(0, 60) + "..."
+                    : arrItem
+                : typeof arrItem === "object" && arrItem !== null
+                  ? JSON.stringify(arrItem).substring(0, 60) + "..."
+                  : String(arrItem)
+
         return (
             <div className="flex flex-col gap-2">
-                <Select
-                    mode="multiple"
-                    allowClear
-                    placeholder="Select items to view/edit"
-                    className="w-full"
-                    size="middle"
-                    value={[]}
-                    options={arrayItems.map((arrItem: unknown, idx: number) => ({
-                        value: idx,
-                        label: `Item ${idx + 1}: ${
-                            typeof arrItem === "string"
-                                ? arrItem.substring(0, 50) + (arrItem.length > 50 ? "..." : "")
-                                : typeof arrItem === "object"
-                                  ? JSON.stringify(arrItem).substring(0, 50) + "..."
-                                  : String(arrItem)
-                        }`,
-                    }))}
-                    onSelect={(idx: number) => {
-                        setCurrentPath([...fullPath, String(idx)])
+                {/* Navigation select for drilling into items */}
+                {arrayItems.length > 0 && (
+                    <Select
+                        placeholder="Jump to item"
+                        className="w-full"
+                        size="small"
+                        value={null}
+                        options={arrayItems.map((arrItem: unknown, idx: number) => ({
+                            value: idx,
+                            label: `${idx + 1}. ${getPreview(arrItem)}`,
+                        }))}
+                        onSelect={(idx: number) => {
+                            setCurrentPath([...fullPath, String(idx)])
+                        }}
+                    />
+                )}
+
+                {/* Editable JSON editor for array content */}
+                <JsonEditorWithLocalState
+                    editorKey={`${fullPath.join("-")}-editor`}
+                    initialValue={stringValue}
+                    onValidChange={(value) => {
+                        const shouldStringify = valueMode === "string" || originalWasString
+                        if (shouldStringify) {
+                            setValue(fullPath, value)
+                        } else {
+                            setValue(fullPath, JSON.parse(value))
+                        }
                     }}
-                    popupRender={(menu) => (
-                        <div>
-                            <div className="px-2 py-1 text-xs text-gray-500 border-b">
-                                Click an item to drill in
-                            </div>
-                            {menu}
-                        </div>
-                    )}
+                    onPropertyClick={(clickedPath) => {
+                        const pathParts = clickedPath.split(".")
+                        setCurrentPath([...fullPath, ...pathParts])
+                    }}
                 />
-                <div className="text-xs text-gray-500">
-                    {arrayItems.length} items • Use &quot;Drill In&quot; or select an item above to
-                    edit
-                </div>
+
+                {arrayItems.length === 0 && (
+                    <div className="text-sm text-gray-400">Empty array</div>
+                )}
             </div>
         )
     }
