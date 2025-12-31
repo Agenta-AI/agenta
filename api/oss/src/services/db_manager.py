@@ -19,6 +19,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.models import converters
 from oss.src.services import user_service
 from oss.src.utils.common import is_ee
+from oss.src.utils.env import env
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services.json_importer_helper import get_json
 from oss.src.utils.helpers import get_slug_from_name_and_id
@@ -1366,10 +1367,10 @@ async def create_organization(
             flags={
                 "is_demo": False,
                 "is_personal": is_personal or False,
-                "allow_email": True,
-                "allow_social": True,
-                "allow_sso": True,
-                "allow_root": True,
+                "allow_email": env.auth.email_enabled,
+                "allow_social": env.auth.oidc_enabled,
+                "allow_sso": False,
+                "allow_root": False,
                 "domains_only": False,
                 "auto_join": False,
             },

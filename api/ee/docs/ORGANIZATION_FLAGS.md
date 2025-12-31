@@ -9,12 +9,12 @@ This document defines the canonical default values for all organization flags in
 - **`is_personal`**: `false` - Marks the organization as a personal organization (single-user)
 
 ### Authentication Method Flags
-- **`allow_email`**: `true` - Allow email/password or email/OTP authentication
-- **`allow_social`**: `true` - Allow social authentication (Google, GitHub, etc.)
-- **`allow_sso`**: `true` - Allow SSO/OIDC authentication
+- **`allow_email`**: defaults to `env.auth.email_enabled` - Allow email/password or email/OTP authentication
+- **`allow_social`**: defaults to `env.auth.oidc_enabled` - Allow social authentication (Google, GitHub, etc.)
+- **`allow_sso`**: `false` - Allow SSO/OIDC authentication
 
 ### Access Control Flags
-- **`allow_root`**: `true` - Allow organization owner to bypass authentication restrictions
+- **`allow_root`**: `false` - Allow organization owner to bypass authentication restrictions
 - **`domains_only`**: `false` - Restrict access to verified email domains only
 - **`auto_join`**: `false` - Allow users with verified email domains to automatically join the organization (when `true`)
 
@@ -41,10 +41,10 @@ All flags default to their specified default values above.
 This would result in:
 - `is_demo`: `true` (explicit)
 - `is_personal`: `false` (explicit)
-- `allow_email`: `true` (default)
-- `allow_social`: `true` (default)
-- `allow_sso`: `true` (default)
-- `allow_root`: `true` (default)
+- `allow_email`: defaults to `env.auth.email_enabled`
+- `allow_social`: defaults to `env.auth.oidc_enabled`
+- `allow_sso`: `false` (default)
+- `allow_root`: `false` (default)
 - `domains_only`: `false` (default)
 - `auto_join`: `false` (default)
 

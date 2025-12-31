@@ -12,6 +12,7 @@ from uuid import UUID
 from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.services import db_manager
+from oss.src.utils.env import env
 from sqlalchemy import select
 
 # Organization DAOs and models (EE only)
@@ -104,11 +105,11 @@ class AuthService:
                 if org_flags:
                     # Convert boolean flags to method strings
                     # Default to True if not explicitly set
-                    if org_flags.get("allow_email", True):
+                    if org_flags.get("allow_email", env.auth.email_enabled):
                         all_allowed_methods.add("email:*")
-                    if org_flags.get("allow_social", True):
+                    if org_flags.get("allow_social", env.auth.oidc_enabled):
                         all_allowed_methods.add("social:*")
-                    if org_flags.get("allow_sso", True):
+                    if org_flags.get("allow_sso", False):
                         all_allowed_methods.add("sso:*")
 
         # If user has no organizations, show globally configured auth methods
@@ -335,18 +336,18 @@ class AuthService:
         # Check for root bypass: if user is owner and allow_root is True, bypass policy
         is_owner = await self._is_organization_owner(user_id, organization_id)
 
-        if is_owner and org_flags.get("allow_root", True):
+        if is_owner and org_flags.get("allow_root", False):
             # Owner with root access bypasses policy
             return None
 
         # Build allowed methods from flags
         # Default to True if not explicitly set
         allowed_methods = []
-        if org_flags.get("allow_email", True):
+        if org_flags.get("allow_email", env.auth.email_enabled):
             allowed_methods.append("email:*")
-        if org_flags.get("allow_social", True):
+        if org_flags.get("allow_social", env.auth.oidc_enabled):
             allowed_methods.append("social:*")
-        if org_flags.get("allow_sso", True):
+        if org_flags.get("allow_sso", False):
             allowed_methods.append("sso:*")
 
         # If no methods are allowed, deny access

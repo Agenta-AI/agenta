@@ -10,6 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
+from oss.src.utils.env import env
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -318,15 +319,20 @@ def upgrade() -> None:
 
     # Step 13b: Ensure all organizations have complete flag defaults
     # This ensures all auth and access control flags are set with defaults
+    allow_email_default = "true" if env.auth.email_enabled else "false"
+    allow_social_default = "true" if env.auth.oidc_enabled else "false"
+    allow_sso_default = "false"
+    allow_root_default = "false"
+
     conn.execute(
-        text("""
+        text(f"""
         UPDATE organizations
         SET flags = flags ||
             jsonb_build_object(
-                'allow_email', COALESCE((flags->>'allow_email')::boolean, true),
-                'allow_social', COALESCE((flags->>'allow_social')::boolean, true),
-                'allow_sso', COALESCE((flags->>'allow_sso')::boolean, true),
-                'allow_root', COALESCE((flags->>'allow_root')::boolean, true),
+                'allow_email', COALESCE((flags->>'allow_email')::boolean, {allow_email_default}),
+                'allow_social', COALESCE((flags->>'allow_social')::boolean, {allow_social_default}),
+                'allow_sso', COALESCE((flags->>'allow_sso')::boolean, {allow_sso_default}),
+                'allow_root', COALESCE((flags->>'allow_root')::boolean, {allow_root_default}),
                 'domains_only', COALESCE((flags->>'domains_only')::boolean, false),
                 'auto_join', COALESCE((flags->>'auto_join')::boolean, false)
             )

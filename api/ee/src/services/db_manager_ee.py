@@ -976,10 +976,10 @@ async def create_organization(
         create_org_data["flags"] = {
             "is_demo": is_demo,
             "is_personal": is_personal,
-            "allow_email": True,
-            "allow_social": True,
-            "allow_sso": True,
-            "allow_root": True,
+            "allow_email": env.auth.email_enabled,
+            "allow_social": env.auth.oidc_enabled,
+            "allow_sso": False,
+            "allow_root": False,
             "domains_only": False,
             "auto_join": False,
         }
@@ -1111,10 +1111,10 @@ async def update_organization(
                 default_flags = {
                     "is_demo": False,
                     "is_personal": False,
-                    "allow_email": True,
-                    "allow_social": True,
-                    "allow_sso": True,
-                    "allow_root": True,
+                    "allow_email": env.auth.email_enabled,
+                    "allow_social": env.auth.oidc_enabled,
+                    "allow_sso": False,
+                    "allow_root": False,
                     "domains_only": False,
                     "auto_join": False,
                 }
