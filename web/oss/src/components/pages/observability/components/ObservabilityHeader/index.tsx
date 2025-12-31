@@ -9,6 +9,7 @@ import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {SortResult} from "@/oss/components/Filters/Sort"
+import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
@@ -41,8 +42,6 @@ const DeleteTraceModal = dynamic(
         ssr: false,
     },
 )
-
-import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 
 const AutoRefreshControl: React.FC<{
     checked: boolean

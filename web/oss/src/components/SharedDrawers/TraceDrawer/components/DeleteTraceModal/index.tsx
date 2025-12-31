@@ -1,15 +1,16 @@
-import Router from "next/router"
 import {useState} from "react"
 
 import {DeleteOutlined} from "@ant-design/icons"
 import {Modal} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import Router from "next/router"
 
 import {deletePreviewTrace} from "@/oss/services/tracing/api"
 import {useObservability} from "@/oss/state/newObservability"
 import {traceIdAtom} from "@/oss/state/url/trace"
 
 import {closeTraceDrawerAtom} from "../../store/traceDrawerStore"
+
 import {deleteTraceModalAtom} from "./store/atom"
 
 const DeleteTraceModal = () => {

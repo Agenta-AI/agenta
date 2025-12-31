@@ -13,6 +13,7 @@ import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/
 import {KeyValuePair} from "@/oss/lib/Types"
 import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
 
+import {deleteTraceModalAtom} from "../../../DeleteTraceModal/store/atom"
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
 
 import {TraceTypeHeaderProps} from "./types"
@@ -20,8 +21,6 @@ import {TraceTypeHeaderProps} from "./types"
 const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
     ssr: false,
 })
-
-import {deleteTraceModalAtom} from "../../../DeleteTraceModal/store/atom"
 
 const TraceTypeHeader = ({
     activeTrace,

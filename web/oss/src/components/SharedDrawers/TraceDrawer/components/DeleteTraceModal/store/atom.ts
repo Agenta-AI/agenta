@@ -1,6 +1,6 @@
 import {atom} from "jotai"
 
-type DeleteTraceModalState = {
+interface DeleteTraceModalState {
     isOpen: boolean
     traceIds: string[]
     onClose?: () => void
