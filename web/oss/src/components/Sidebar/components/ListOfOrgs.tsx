@@ -1,4 +1,4 @@
-import {memo, useMemo, useState} from "react"
+import {memo, useEffect, useMemo, useState} from "react"
 
 import {ArrowsLeftRight, CaretDown, PencilSimple, Plus, SignOut, Trash, CopyIcon} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
@@ -260,6 +260,17 @@ const ListOfOrgs = ({
     ])
 
     const [organizationDropdownOpen, setOrganizationDropdownOpen] = useState(false)
+
+    useEffect(() => {
+        const handleOpenCreateOrganization = () => {
+            setCreateModalOpen(true)
+        }
+
+        window.addEventListener("open-create-organization", handleOpenCreateOrganization)
+        return () => {
+            window.removeEventListener("open-create-organization", handleOpenCreateOrganization)
+        }
+    }, [])
 
     const organizationButtonLabel = organizationDisplayName
 
@@ -629,9 +640,6 @@ const ListOfOrgs = ({
                         rules={[{required: true, message: "Please enter an organization name"}]}
                     >
                         <Input placeholder="Organization name" autoFocus />
-                    </Form.Item>
-                    <Form.Item label="Description (optional)" name="description">
-                        <Input.TextArea placeholder="Organization description" rows={3} />
                     </Form.Item>
                 </Form>
             </Modal>

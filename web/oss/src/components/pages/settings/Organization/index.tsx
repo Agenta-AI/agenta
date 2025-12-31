@@ -510,6 +510,37 @@ const Organization: FC = () => {
     const isPersonal = selectedOrg.flags.is_personal
     const isDemo = selectedOrg.flags.is_demo
 
+    if (isPersonal) {
+        return (
+            <section className="flex flex-col items-center justify-center gap-6 py-20 min-h-[400px]">
+                <div className="flex flex-col items-center gap-4 text-center max-w-lg px-6 py-8 bg-gray-50 rounded-lg border border-gray-200">
+                    <Typography.Title level={4} className="!mb-0">
+                        This is your Personal Organization.
+                    </Typography.Title>
+                    <Typography.Text type="secondary" className="text-base leading-relaxed">
+                        To edit access controls, verified domains, and SSO,<br />
+                        please create or switch to a collaborative organization.
+                    </Typography.Text>
+                    <Typography.Text type="secondary" className="text-sm">
+                        Click on your organization in the sidebar<br />
+                        to create a new organization or switch to an existing one.
+                    </Typography.Text>
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        size="large"
+                        className="mt-2"
+                        onClick={() => {
+                            window.dispatchEvent(new Event("open-create-organization"))
+                        }}
+                    >
+                        New Organization
+                    </Button>
+                </div>
+            </section>
+        )
+    }
+
     return (
         <Space direction="vertical" size="middle" style={{width: "100%"}}>
             <Card>
@@ -714,27 +745,27 @@ const Organization: FC = () => {
                         <Button
                             type="primary"
                             icon={<PlusOutlined />}
-                            onClick={() => setProviderModalVisible(true)}
-                            disabled={!selectedOrg?.slug}
+                            onClick={() => {
+                                if (!selectedOrg?.slug) {
+                                    setSlugValue("")
+                                    setSlugModalVisible(true)
+                                    return
+                                }
+                                setProviderModalVisible(true)
+                            }}
                         >
-                            Add Provider
+                            {selectedOrg?.slug ? "Add Provider" : "Set Slug"}
                         </Button>
                     </div>
                     <Descriptions size="small" column={1} bordered className="org-kv-65-35 org-slug-row">
                         <Descriptions.Item label="Organization slug">
-                            {selectedOrg.slug ? (
-                                <Text>{selectedOrg.slug}</Text>
-                            ) : (
-                                <Button
-                                    size="small"
-                                    onClick={() => {
-                                        setSlugValue("")
-                                        setSlugModalVisible(true)
-                                    }}
-                                >
-                                    + Set Slug
-                                </Button>
-                            )}
+                            <div className="org-slug-content">
+                                {selectedOrg.slug ? (
+                                    <Text>{selectedOrg.slug}</Text>
+                                ) : (
+                                    <Text type="secondary">Please set slug to enable SSO</Text>
+                                )}
+                            </div>
                         </Descriptions.Item>
                     </Descriptions>
                     <Modal

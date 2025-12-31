@@ -390,7 +390,10 @@ body {
 
 .org-slug-row .ant-descriptions-item-label,
 .org-slug-row .ant-descriptions-item-content {
+    vertical-align: middle;
+}
+
+.org-slug-content {
     display: flex;
     align-items: center;
-    min-height: 32px;
 }
