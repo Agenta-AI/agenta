@@ -1,19 +1,23 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {PythonOutlined} from "@ant-design/icons"
-import {FileCodeIcon, FileTsIcon} from "@phosphor-icons/react"
-import {Tabs, Typography} from "antd"
+import {FileCode, FileTs} from "@phosphor-icons/react"
+import {Spin, Tabs, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import {buildCurlSnippet} from "@/oss/code_snippets/endpoints/fetch_variant/curl"
 import {buildPythonSnippet} from "@/oss/code_snippets/endpoints/fetch_variant/python"
 import {buildTypescriptSnippet} from "@/oss/code_snippets/endpoints/fetch_variant/typescript"
-import CopyButton from "@/oss/components/CopyButton/CopyButton"
-import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
+import invokeLlmAppcURLCode from "@/oss/code_snippets/endpoints/invoke_llm_app/curl"
+import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app/python"
+import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
+import LanguageCodeBlock from "@/oss/components/pages/overview/deployments/DeploymentDrawer/assets/LanguageCodeBlock"
 import SelectVariant from "@/oss/components/Playground/Components/Menus/SelectVariant"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {currentAppAtom} from "@/oss/state/app"
+import {useAppId} from "@/oss/hooks/useAppId"
+import {currentAppAtom, useURI} from "@/oss/state/app"
+import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {revisionsByVariantIdAtomFamily, variantsAtom} from "@/oss/state/variant/atoms/fetcher"
 import {
     latestRevisionInfoByVariantIdAtomFamily,
@@ -29,13 +33,8 @@ interface VariantUseApiContentProps {
     initialRevisionId?: string
 }
 
-interface CodeSnippets {
-    python: string
-    typescript: string
-    bash: string
-}
-
 const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) => {
+    const appId = useAppId()
     const variants = useAtomValue(variantsAtom)
     const revisionList = useAtomValue(revisionListAtom)
     const currentApp = useAtomValue(currentAppAtom)
@@ -44,6 +43,15 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     const [selectedRevisionId, setSelectedRevisionId] = useState<string | undefined>()
     const [selectedLang, setSelectedLang] = useState("python")
     const [apiKeyValue, setApiKeyValue] = useState("")
+
+    // Get URI for the selected variant
+    const {data: uri, isLoading: isUriQueryLoading} = useURI(appId, selectedVariantId)
+    const isLoading = Boolean(selectedVariantId) && isUriQueryLoading
+
+    // Get variable names for the selected revision
+    const variableNames = useAtomValue(
+        stablePromptVariablesAtomFamily(selectedRevisionId || ""),
+    ) as string[]
 
     const initialRevision = useMemo(
         () => revisionList.find((rev) => rev.id === initialRevisionId),
@@ -120,13 +128,52 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     const variantSlug =
         (selectedVariant as any)?.variantSlug ||
         selectedVariant?.variantName ||
-        selectedRevision?.variantName ||
+        (selectedRevision as any)?.variantName ||
         "my-variant-slug"
     const variantVersion = selectedRevision?.revision ?? latestRevision?.revision ?? 1
     const appSlug = (currentApp as any)?.app_slug || currentApp?.app_name || "my-app-slug"
     const apiKey = apiKeyValue || "YOUR_API_KEY"
 
-    const codeSnippets: CodeSnippets = useMemo(
+    const invokeLlmUrl = uri ?? ""
+
+    // Build params for invoke LLM (with variant refs instead of environment)
+    const params = useMemo(() => {
+        const synthesized = variableNames.map((name) => ({name, input: name === "messages"}))
+
+        const mainParams: Record<string, any> = {}
+        const secondaryParams: Record<string, any> = {}
+
+        synthesized.forEach((item) => {
+            if (item.input) {
+                mainParams[item.name] = "add_a_value"
+            } else {
+                secondaryParams[item.name] = "add_a_value"
+            }
+        })
+
+        const hasMessagesParam = synthesized.some((p) => p?.name === "messages")
+        const isChat = currentApp?.app_type === "chat" || hasMessagesParam
+        if (isChat) {
+            mainParams["messages"] = [
+                {
+                    role: "user",
+                    content: "",
+                },
+            ]
+            mainParams["inputs"] = secondaryParams
+        } else if (Object.keys(secondaryParams).length > 0) {
+            mainParams["inputs"] = secondaryParams
+        }
+
+        // Use variant refs instead of environment
+        mainParams["app"] = appSlug
+        mainParams["variant_slug"] = variantSlug
+        mainParams["variant_version"] = variantVersion
+
+        return JSON.stringify(mainParams, null, 2)
+    }, [variableNames, currentApp?.app_type, appSlug, variantSlug, variantVersion])
+
+    const fetchConfigCodeSnippet = useMemo(
         () => ({
             python: buildPythonSnippet(appSlug, variantSlug, variantVersion),
             typescript: buildTypescriptSnippet(appSlug, variantSlug, variantVersion, apiKey),
@@ -135,48 +182,48 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         [apiKey, appSlug, variantSlug, variantVersion],
     )
 
-    const renderTabChildren = useCallback(() => {
-        const activeSnippet = codeSnippets[selectedLang as keyof CodeSnippets]
+    const invokeLlmAppCodeSnippet = useMemo(
+        () => ({
+            python: invokeLlmApppythonCode(invokeLlmUrl, params, apiKeyValue || "x.xxxxxxxx"),
+            bash: invokeLlmAppcURLCode(invokeLlmUrl, params, apiKeyValue || "x.xxxxxxxx"),
+            typescript: invokeLlmApptsCode(invokeLlmUrl, params, apiKeyValue || "x.xxxxxxxx"),
+        }),
+        [apiKeyValue, invokeLlmUrl, params],
+    )
 
+    const renderTabChildren = useCallback(() => {
         return (
-            <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                    <Typography.Text className="font-medium">Use API</Typography.Text>
-                    <CopyButton text={activeSnippet} icon={true} buttonText={null} />
-                </div>
-                <CodeBlock language={selectedLang} value={activeSnippet} />
-            </div>
+            <Spin spinning={isLoading}>
+                <LanguageCodeBlock
+                    fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                    invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                    selectedLang={selectedLang}
+                    handleOpenSelectDeployVariantModal={() => {}}
+                    invokeLlmUrl={invokeLlmUrl}
+                />
+            </Spin>
         )
-    }, [
-        apiKeyValue,
-        codeSnippets,
-        revisionList,
-        selectedLang,
-        selectedRevision?.id,
-        selectedRevision?.isLatestRevision,
-        selectedRevision?.revision,
-        selectedRevisionId,
-    ])
+    }, [fetchConfigCodeSnippet, invokeLlmAppCodeSnippet, invokeLlmUrl, isLoading, selectedLang])
 
     const tabItems = useMemo(
         () => [
             {
                 key: "python",
                 label: "Python",
-                icon: <PythonOutlined />,
                 children: renderTabChildren(),
+                icon: <PythonOutlined />,
             },
             {
                 key: "typescript",
                 label: "TypeScript",
-                icon: <FileTsIcon size={14} />,
                 children: renderTabChildren(),
+                icon: <FileTs size={14} />,
             },
             {
                 key: "bash",
                 label: "cURL",
-                icon: <FileCodeIcon size={14} />,
                 children: renderTabChildren(),
+                icon: <FileCode size={14} />,
             },
         ],
         [renderTabChildren],
@@ -221,10 +268,10 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
                 <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
             </div>
             <Tabs
+                destroyOnHidden
+                defaultActiveKey={selectedLang}
                 items={tabItems}
                 onChange={setSelectedLang}
-                activeKey={selectedLang}
-                destroyInactiveTabPane
             />
         </div>
     )
