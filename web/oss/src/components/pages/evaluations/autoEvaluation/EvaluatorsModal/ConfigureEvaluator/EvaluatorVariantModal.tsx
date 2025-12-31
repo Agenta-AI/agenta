@@ -25,7 +25,7 @@ import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import type {JSSTheme, ListAppsItem, Variant} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app/hooks"
-import {revisionEntityAtomFamily} from "@/oss/state/entities/testset"
+import {revision} from "@/oss/state/entities/testset"
 import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 
 import TabLabel from "../../../NewEvaluation/assets/TabLabel"
@@ -166,47 +166,16 @@ const EvaluatorVariantModal = ({
         )
     }, [appOptions, appSearchTerm])
 
-    const revisionEntity = useAtomValue(
-        useMemo(
-            () =>
-                (selectedRevisionId
-                    ? (revisionEntityAtomFamily(selectedRevisionId) as any)
-                    : (atom(null) as any)) as any,
-            [selectedRevisionId],
-        ),
-    ) as any
-
-    const revisionTestcases = useMemo(() => {
-        if (!revisionEntity?.data?.testcases) return []
-        const maybe = revisionEntity.data.testcases
-        return Array.isArray(maybe) ? (maybe as Record<string, unknown>[]) : []
-    }, [revisionEntity?.data?.testcases])
-
-    const derivedTestsetColumns = useMemo(() => {
-        const merged = new Map<string, string>()
-        const addValue = (value?: string) => {
-            if (!value) return
-            const trimmed = value.trim()
-            if (!trimmed) return
-            if (!merged.has(trimmed.toLowerCase())) {
-                merged.set(trimmed.toLowerCase(), trimmed)
-            }
-        }
-        revisionTestcases.forEach((row) => {
-            if (!row || typeof row !== "object") return
-            Object.keys(row).forEach((key) => addValue(key))
-        })
-
-        return Array.from(merged.values())
-    }, [revisionTestcases])
-
-    const normalizedTestsetColumns = useMemo(
+    // Use revision controller to get normalized testcase columns
+    // This fetches the revision with testcases included and derives column names
+    const testcaseColumnsAtom = useMemo(
         () =>
-            derivedTestsetColumns
-                .map((col) => (typeof col === "string" ? col.trim().toLowerCase() : ""))
-                .filter(Boolean),
-        [derivedTestsetColumns],
+            selectedRevisionId
+                ? revision.selectors.testcaseColumnsNormalized(selectedRevisionId)
+                : atom<string[]>([]),
+        [selectedRevisionId],
     )
+    const normalizedTestsetColumns = useAtomValue(testcaseColumnsAtom)
 
     const {variants: appVariantRevisions, isLoading: variantsLoading} = useAppVariantRevisions(
         selectedAppId || null,

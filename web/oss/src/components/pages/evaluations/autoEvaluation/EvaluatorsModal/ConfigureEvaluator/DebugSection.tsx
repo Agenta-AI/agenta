@@ -64,7 +64,7 @@ import {
 } from "@/oss/services/evaluations/api_ee"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
 import {useAppsData} from "@/oss/state/app/hooks"
-import {revisionEntityAtomFamily} from "@/oss/state/entities/testset"
+import {revision} from "@/oss/state/entities/testset"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
     stablePromptVariablesAtomFamily,
@@ -341,7 +341,7 @@ const DebugSection = () => {
         useMemo(
             () =>
                 (selectedRevisionId
-                    ? (revisionEntityAtomFamily(selectedRevisionId) as any)
+                    ? (revision.selectors.data(selectedRevisionId) as any)
                     : (atom(null) as any)) as any,
             [selectedRevisionId],
         ),
