@@ -903,12 +903,11 @@ class TestsetsService:
             return None
 
         # Load all current testcases from the base revision
+        # Note: testcases are already populated by _populate_testcases in fetch_testset_revision
+        # (which sets testcase_ids to None after populating testcases)
         current_testcases: List[Testcase] = []
-        if base_revision.data and base_revision.data.testcase_ids:
-            current_testcases = await self.testcases_service.fetch_testcases(
-                project_id=project_id,
-                testcase_ids=base_revision.data.testcase_ids,
-            )
+        if base_revision.data and base_revision.data.testcases:
+            current_testcases = list(base_revision.data.testcases)
 
         operations = testset_revision_patch.operations
         if not operations:
