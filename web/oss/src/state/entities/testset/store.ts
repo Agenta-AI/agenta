@@ -6,7 +6,7 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
-import {createEntityStore} from "../core/createEntityStore"
+import {createEntityDraftState} from "../shared/createEntityDraftState"
 
 import {
     revisionSchema,
@@ -18,6 +18,22 @@ import {
     type TestsetsResponse,
     type Variant,
 } from "./revisionSchema"
+
+// ============================================================================
+// SPECIAL TESTSET ID FOR NEW TESTSETS
+// ============================================================================
+
+/**
+ * Special testset ID used for new testsets that haven't been saved yet
+ */
+export const NEW_TESTSET_ID = "new"
+
+/**
+ * Check if a testset ID represents a new (unsaved) testset
+ */
+export const isNewTestsetId = (id: string | null | undefined): boolean => {
+    return id === NEW_TESTSET_ID
+}
 
 /**
  * List params for fetching revisions
@@ -211,8 +227,21 @@ const findVariantInCache = (
 // ============================================================================
 
 /**
+ * Create a mock testset for new (unsaved) testsets
+ * This allows the entity to be immediately available for draft editing
+ */
+const createMockTestset = (): Testset => ({
+    id: NEW_TESTSET_ID,
+    name: "",
+    description: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+})
+
+/**
  * Query atom for fetching a single testset
  * Uses cache redirect to check list cache first
+ * For "new" testset, provides mock testset as initialData (synchronously available)
  */
 export const testsetQueryAtomFamily = atomFamily(
     (testsetId: string) =>
@@ -220,28 +249,43 @@ export const testsetQueryAtomFamily = atomFamily(
             const projectId = get(projectIdAtom)
             const queryClient = get(queryClientAtom)
 
-            // Try to find in list cache first
-            const cachedData = testsetId ? findTestsetInCache(queryClient, testsetId) : undefined
+            // For "new" testset (not yet saved), use mock testset as initialData
+            const isNew = isNewTestsetId(testsetId)
+
+            // Create mock testset for new testsets (synchronously available)
+            const mockTestset = isNew ? createMockTestset() : undefined
+
+            // Try to find in list cache first (only for real testsets)
+            const cachedData =
+                testsetId && !isNew ? findTestsetInCache(queryClient, testsetId) : undefined
 
             return {
                 queryKey: ["testset", projectId, testsetId],
                 queryFn: async () => {
                     if (!projectId || !testsetId) return null
+                    if (isNew) {
+                        // Return mock testset for new (unsaved) testsets
+                        return createMockTestset()
+                    }
                     return fetchTestsetDetail({id: testsetId, projectId})
                 },
-                initialData: cachedData ?? undefined,
-                enabled: Boolean(projectId && testsetId && !cachedData),
-                staleTime: 60_000,
-                gcTime: 5 * 60_000,
+                // For new testsets, mock is immediately available as initialData
+                initialData: cachedData ?? mockTestset ?? undefined,
+                // Disable query for new testsets (we have initialData) and for cached data
+                enabled: Boolean(projectId && testsetId && !cachedData && !isNew),
+                staleTime: isNew ? Infinity : 60_000,
+                gcTime: isNew ? Infinity : 5 * 60_000,
             }
         }),
     (a, b) => a === b,
 )
 
 /**
- * Server state atom - returns raw testset data from query
+ * Base testset entity atom - extracts data from query (server data only)
+ * Used as base for draft state
+ * Also exported as serverData selector for reading server state without draft
  */
-export const testsetServerStateAtomFamily = atomFamily(
+export const testsetServerDataAtomFamily = atomFamily(
     (testsetId: string) =>
         atom((get) => {
             const query = get(testsetQueryAtomFamily(testsetId))
@@ -250,11 +294,47 @@ export const testsetServerStateAtomFamily = atomFamily(
     (a, b) => a === b,
 )
 
+// ============================================================================
+// TESTSET DRAFT STATE
+// Allows editing testset metadata (name, description) locally
+// ============================================================================
+
 /**
- * Testset entity atom - for read-only metadata, same as server state
- * (Testsets don't have draft state - edits create new revisions)
+ * Testset draft state - manages local edits to testset metadata
+ * Uses the shared entity draft state pattern
  */
-export const testsetEntityAtomFamily = testsetServerStateAtomFamily
+export const testsetDraftState = createEntityDraftState<Testset, Testset>({
+    entityAtomFamily: testsetServerDataAtomFamily,
+    getDraftableData: (entity) => entity,
+    mergeDraft: (entity, draft) => ({...entity, ...draft}),
+    excludeFields: new Set(["id", "created_at", "updated_at"]),
+})
+
+/**
+ * Testset entity atom - server data merged with local draft
+ * External code should use testset.selectors.data instead.
+ */
+export const testsetEntityAtomFamily = testsetDraftState.withDraftAtomFamily
+
+/**
+ * Check if testset has local draft edits
+ */
+export const testsetHasDraftAtomFamily = testsetDraftState.hasDraftAtomFamily
+
+/**
+ * Check if testset is dirty (draft differs from server)
+ */
+export const testsetIsDirtyAtomFamily = testsetDraftState.isDirtyAtomFamily
+
+/**
+ * Update testset draft (name, description)
+ */
+export const updateTestsetDraftAtom = testsetDraftState.updateAtom
+
+/**
+ * Discard testset draft
+ */
+export const discardTestsetDraftAtom = testsetDraftState.discardDraftAtom
 
 // ============================================================================
 // TESTSETS LIST QUERY ATOM
@@ -358,9 +438,10 @@ export const variantQueryAtomFamily = atomFamily(
 )
 
 /**
- * Server state atom - returns raw variant data from query
+ * Variant entity atom - extracts data from query (single source of truth)
+ * (Variants don't have draft state)
  */
-export const variantServerStateAtomFamily = atomFamily(
+export const variantEntityAtomFamily = atomFamily(
     (variantId: string) =>
         atom((get) => {
             const query = get(variantQueryAtomFamily(variantId))
@@ -368,165 +449,3 @@ export const variantServerStateAtomFamily = atomFamily(
         }),
     (a, b) => a === b,
 )
-
-/**
- * Variant entity atom - for read-only data, same as server state
- */
-export const variantEntityAtomFamily = variantServerStateAtomFamily
-
-// ============================================================================
-// LEGACY STORES (deprecated - use query atoms above)
-// Kept for backward compatibility with useEntityList hook
-// ============================================================================
-
-/**
- * @deprecated Use testsetQueryAtomFamily and testsetEntityAtomFamily instead
- *
- * Revision entity store
- *
- * Usage with hooks:
- * ```ts
- * // List revisions for a testset
- * const revisions = useEntityList(revisionStore, { projectId, testsetId })
- *
- * // Get single revision
- * const revision = useEntity(revisionStore, { id: revisionId, projectId })
- *
- * // Get from cache (after list fetch)
- * const cached = useEntityCached(revisionStore, revisionId)
- * ```
- */
-export const revisionStore = createEntityStore<
-    Revision,
-    RevisionListParams,
-    RevisionsResponse,
-    RevisionDetailParams
->({
-    name: "revision",
-    schema: revisionSchema,
-    // Revisions are immutable - never stale, never gc
-    staleTime: Infinity,
-    gcTime: Infinity,
-
-    extractEntities: (response) => response.testset_revisions,
-
-    fetchList: async ({projectId, testsetId}) => {
-        const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
-            {
-                testset_refs: [{id: testsetId}],
-                windowing: {limit: 100, order: "descending"},
-            },
-            {params: {project_id: projectId}},
-        )
-        return {
-            testset_revisions: response.data?.testset_revisions ?? [],
-            count: response.data?.count,
-            windowing: response.data?.windowing,
-        }
-    },
-
-    fetchDetail: async ({id, projectId}) => {
-        const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/revisions/${id}`, {
-            params: {project_id: projectId},
-        })
-        return revisionSchema.parse(response.data?.testset_revision ?? response.data)
-    },
-
-    normalize: (revision) => {
-        // Ensure version is a number
-        return {
-            ...revision,
-            version:
-                typeof revision.version === "string"
-                    ? parseInt(revision.version, 10)
-                    : revision.version,
-        }
-    },
-})
-
-/**
- * Testset entity store
- *
- * Usage with hooks:
- * ```ts
- * // List testsets (metadata only)
- * const {data} = useEntityList(testsetStore, {projectId})
- *
- * // Get single testset
- * const testset = useEntity(testsetStore, {id: testsetId, projectId})
- *
- * // Get from cache (after list fetch)
- * const cached = useEntityCached(testsetStore, testsetId)
- * ```
- */
-export const testsetStore = createEntityStore<
-    Testset,
-    TestsetListParams,
-    TestsetsResponse,
-    TestsetDetailParams
->({
-    name: "testset",
-    schema: testsetSchema,
-    // Metadata can change; keep shortish cache window
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-
-    extractEntities: (response) => response.testsets,
-
-    fetchList: async ({projectId, searchQuery}) => {
-        const queryPayload: Record<string, unknown> = {
-            windowing: {limit: 100, order: "descending"},
-        }
-
-        if (searchQuery && searchQuery.trim()) {
-            queryPayload.testset = {name: searchQuery.trim()}
-        }
-
-        const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testsets/query`,
-            queryPayload,
-            {params: {project_id: projectId}},
-        )
-
-        return {
-            testsets: response.data?.testsets ?? [],
-            count: response.data?.count,
-        }
-    },
-
-    fetchDetail: async ({id, projectId}) => {
-        const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/${id}`, {
-            params: {project_id: projectId},
-        })
-        return testsetSchema.parse(response.data?.testset ?? response.data)
-    },
-})
-
-/**
- * Variant entity store (contains name and description)
- */
-export const variantStore = createEntityStore<
-    Variant,
-    never, // No list endpoint for now
-    never,
-    VariantDetailParams
->({
-    name: "variant",
-    schema: variantSchema,
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-
-    extractEntities: () => [],
-
-    fetchList: async () => {
-        throw new Error("Variant list not implemented")
-    },
-
-    fetchDetail: async ({id, projectId}) => {
-        const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/variants/${id}`, {
-            params: {project_id: projectId},
-        })
-        return variantSchema.parse(response.data?.testset_variant ?? response.data)
-    },
-})

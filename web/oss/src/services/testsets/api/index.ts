@@ -392,7 +392,7 @@ export async function patchTestsetRevision(
             testset_revision_patch: {
                 testset_id: testsetId,
                 base_revision_id: baseRevisionId,
-                message: message || "Patched testset revision",
+                message: message || null,
                 name,
                 description,
                 operations: {

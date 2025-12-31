@@ -5,7 +5,7 @@
  * - Zod schema validation
  * - Query atoms with cache redirect (no explicit hydration)
  * - Batch fetching for revisions
- * - Stateful atoms for simplified entity access
+ * - Entity controllers for unified API access
  */
 
 // Schema exports
@@ -29,16 +29,24 @@ export {
 
 // Testset entity atoms
 export {
-    // Query atoms
+    // Query atoms (single source of truth for server data)
     testsetQueryAtomFamily,
     testsetsListQueryAtomFamily,
-    // Server state
-    testsetServerStateAtomFamily,
-    // Entity atoms
+    // Entity atoms (with draft merged)
     testsetEntityAtomFamily,
+    // Server data (without draft)
+    testsetServerDataAtomFamily,
+    // Draft state atoms
+    testsetDraftState,
+    testsetHasDraftAtomFamily,
+    testsetIsDirtyAtomFamily,
+    updateTestsetDraftAtom,
+    discardTestsetDraftAtom,
+    // New testset helpers
+    NEW_TESTSET_ID,
+    isNewTestsetId,
     // Variant query atoms
     variantQueryAtomFamily,
-    variantServerStateAtomFamily,
     variantEntityAtomFamily,
     // API functions
     fetchRevision,
@@ -56,18 +64,12 @@ export {
     type TestsetListParams,
     type TestsetDetailParams,
     type VariantDetailParams,
-    // Legacy stores (deprecated - kept for backward compatibility)
-    revisionStore,
-    testsetStore,
-    variantStore,
 } from "./store"
 
 // Revision entity atoms
 export {
     // Query atoms
     revisionQueryAtomFamily,
-    // Server state
-    revisionServerStateAtomFamily,
     // Entity atoms (includes draft merging)
     revisionEntityAtomFamily,
     // Draft atoms
@@ -109,9 +111,36 @@ export {
     type SaveTestsetResult,
 } from "./mutations"
 
-// Stateful atoms (combines entity + query state in single atom)
+// Revision controller (unified API for revision entity + column operations)
+// Access all revision functionality through the `revision` API:
+//   - revision.controller(id) - Full state + dispatch
+//   - revision.selectors.* - Fine-grained subscriptions
+//   - revision.actions.* - For use in other atoms
+//   - revision.queries.* - List and detail queries
+//   - revision.invalidate.* - Cache invalidation
 export {
-    testsetStatefulAtomFamily,
-    revisionStatefulAtomFamily,
-    variantStatefulAtomFamily,
-} from "./statefulAtoms"
+    revision,
+    type RevisionControllerState,
+    type RevisionAction,
+    type Column,
+    type ExpandedColumn,
+} from "./controller"
+
+// Testset controller (unified API for testset queries)
+// Access testset functionality through the `testset` API:
+//   - testset.queries.list(searchQuery) - List query
+//   - testset.queries.detail(id) - Detail query
+//   - testset.selectors.* - Entity access
+//   - testset.invalidate.* - Cache invalidation
+//   - testset.paginated.* - Paginated store for InfiniteVirtualTable
+//   - testset.filters.* - Filter atoms for paginated queries
+export {
+    testset,
+    type TestsetApiRow,
+    type TestsetTableRow,
+    type TestsetDateRange,
+    type TestsetPaginatedMeta,
+} from "./testsetController"
+
+// Paginated store (for direct access if needed)
+export {testsetPaginatedStore} from "./paginatedStore"

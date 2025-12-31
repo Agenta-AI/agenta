@@ -8,6 +8,8 @@ import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {
     fetchRevision,
+    isNewTestsetId,
+    NEW_TESTSET_ID,
     revisionsListQueryAtomFamily,
     testsetEntityAtomFamily,
     type Revision,
@@ -88,17 +90,25 @@ export const testsetIdAtom = atom((get) => {
  * Query atom for testset detail
  * Uses testset entity atom family which automatically fetches if not in cache
  * Testsets contain the name and description (updated directly via API)
+ * For new testsets (revisionId="new"), uses the special "new" testset ID
  */
 export const testsetDetailQueryAtom = atom((get) => {
     const revisionQuery = get(revisionQueryAtom)
+    const currentRevisionId = get(currentRevisionIdAtom)
     const testsetId = revisionQuery.data?.testset_id
 
-    if (!testsetId) {
+    // For new testsets, use the special "new" testset ID
+    // This allows us to store/retrieve draft metadata for unsaved testsets
+    const isNewTestset = currentRevisionId === "new" || currentRevisionId === "draft"
+    const effectiveTestsetId = isNewTestset ? NEW_TESTSET_ID : testsetId
+
+    if (!effectiveTestsetId) {
         return null
     }
 
     // Testset entity handles fetching automatically if not in cache
-    return get(testsetEntityAtomFamily(testsetId))
+    // For "new" testsets, returns a mock entity that can be edited via draft
+    return get(testsetEntityAtomFamily(effectiveTestsetId))
 })
 
 /**

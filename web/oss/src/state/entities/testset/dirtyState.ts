@@ -6,6 +6,7 @@ import {
     pendingColumnRenamesAtom,
     pendingDeletedColumnsAtom,
 } from "../testcase/columnState"
+import {testcase} from "../testcase/controller"
 import {currentRevisionIdAtom} from "../testcase/queries"
 import {
     deletedEntityIdsAtom,
@@ -13,7 +14,6 @@ import {
     testcaseDraftAtomFamily,
     testcaseIdsAtom,
     testcaseIsDirtyAtomFamily,
-    testcaseServerStateAtomFamily,
 } from "../testcase/testcaseEntity"
 
 import {revisionHasDraftAtomFamily} from "./revisionEntity"
@@ -193,7 +193,8 @@ export const changesSummaryAtom = atom((get): ChangesSummary => {
     serverIds.forEach((id) => {
         const isDirty = get(testcaseIsDirtyAtomFamily(id))
         if (isDirty && !deletedIds.has(id)) {
-            const serverState = get(testcaseServerStateAtomFamily(id))
+            const queryState = get(testcase.selectors.query(id))
+            const serverState = queryState.data
             const draft = get(testcaseDraftAtomFamily(id))
             const originalFields = extractUserFields(
                 serverState as Record<string, unknown>,
@@ -219,7 +220,8 @@ export const changesSummaryAtom = atom((get): ChangesSummary => {
 
     // Deleted testcases
     deletedIds.forEach((id) => {
-        const serverState = get(testcaseServerStateAtomFamily(id))
+        const queryState = get(testcase.selectors.query(id))
+        const serverState = queryState.data
         const originalFields = extractUserFields(
             serverState as Record<string, unknown>,
             currentColumnKeys,

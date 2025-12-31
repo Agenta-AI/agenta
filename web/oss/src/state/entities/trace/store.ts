@@ -505,23 +505,6 @@ export const spanQueryAtomFamily = atomFamily((spanId: string) =>
 )
 
 // ============================================================================
-// SERVER STATE ATOM FAMILY
-// Returns raw server data without draft merging
-// ============================================================================
-
-/**
- * Server state atom family - returns raw data from query cache
- * Use this for dirty comparison, not for UI rendering
- * For UI, use traceSpanEntityAtomFamily which includes draft state
- */
-export const traceSpanServerStateAtomFamily = atomFamily((spanId: string) =>
-    atom((get) => {
-        const query = get(spanQueryAtomFamily(spanId))
-        return query.data ?? null
-    }),
-)
-
-// ============================================================================
 // DRAFT STATE MANAGEMENT
 // Uses shared factory for draft state with trace-specific configuration
 // ============================================================================
@@ -536,8 +519,11 @@ type TraceSpanAttributes = TraceSpan["attributes"]
  * Uses shared factory with trace-specific configuration
  */
 const traceSpanDraftState = createEntityDraftState<TraceSpan, TraceSpanAttributes>({
-    // Read from trace span server state atoms
-    entityAtomFamily: traceSpanServerStateAtomFamily,
+    // Extract server data from query atom (single source of truth)
+    entityAtomFamily: (spanId: string) => {
+        const queryAtom = spanQueryAtomFamily(spanId)
+        return atom((get) => get(queryAtom).data ?? null)
+    },
 
     // Only attributes are draftable (rest of span metadata is read-only)
     getDraftableData: (span) => span.attributes || {},
@@ -577,8 +563,9 @@ export const updateTraceSpanAtom = traceSpanDraftState.updateAtom
  */
 export const traceSpanEntityAtomFamily = atomFamily((spanId: string) =>
     atom((get): TraceSpan | null => {
-        // Check for local draft first (draft contains full span with merged attributes)
-        const serverState = get(traceSpanServerStateAtomFamily(spanId))
+        // Use query atom directly as single source of truth for server data
+        const queryState = get(spanQueryAtomFamily(spanId))
+        const serverState = queryState.data ?? null
         const draftAttrs = get(traceSpanDraftAtomFamily(spanId))
 
         if (draftAttrs && serverState) {
@@ -593,9 +580,6 @@ export const traceSpanEntityAtomFamily = atomFamily((spanId: string) =>
         return serverState
     }),
 )
-
-// Backward compatibility alias
-export const traceSpanAtomFamily = traceSpanEntityAtomFamily
 
 // ============================================================================
 // DERIVED ATOM FAMILIES FOR SPAN DATA EXTRACTION

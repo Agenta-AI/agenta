@@ -30,7 +30,7 @@ import {
 } from "../testcase/testcaseEntity"
 
 import {clearRevisionDraftAtom, revisionDraftAtomFamily} from "./revisionEntity"
-import {variantStore, fetchRevision, fetchVariantDetail} from "./store"
+import {fetchRevision, fetchVariantDetail} from "./store"
 
 // ============================================================================
 // SAVE TESTSET MUTATION

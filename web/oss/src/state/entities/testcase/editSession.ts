@@ -3,9 +3,9 @@ import {atom} from "jotai"
 import {revisionDraftAtomFamily} from "../testset"
 
 import {addColumnAtom, currentColumnsAtom} from "./columnState"
+import {testcase} from "./controller"
 import {currentRevisionIdAtom, revisionQueryAtom, testsetDetailQueryAtom} from "./queries"
 import {newEntityIdsAtom, testcaseIdsAtom} from "./testcaseEntity"
-import {addTestcaseAtom} from "./testcaseMutations"
 
 // Re-export for backward compatibility
 export {currentRevisionIdAtom} from "../testset"
@@ -95,14 +95,8 @@ export const initializeEmptyRevisionAtom = atom(null, (get, set) => {
     set(addColumnAtom, "input")
     set(addColumnAtom, "correct_answer")
 
-    // Add one empty row
-    set(addTestcaseAtom)
+    // Add one empty row via controller
+    set(testcase.actions.add)
 
     return true
 })
-
-// Export old name for backward compatibility (deprecated)
-/**
- * @deprecated Use initializeEmptyRevisionAtom instead
- */
-export const initializeV0DraftAtom = initializeEmptyRevisionAtom

@@ -1,4 +1,4 @@
-import {atom, type Atom, type Getter, type Setter} from "jotai"
+import {atom, type Atom, type Getter, type PrimitiveAtom, type Setter, type WritableAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 // ============================================================================
@@ -54,10 +54,11 @@ export interface EntityDraftStateConfig<TEntity, TDraftableData> {
  */
 export interface EntityDraftState<TEntity, TDraftableData> {
     /**
-     * Draft atom family - stores local edits
-     * null = no local edits
+     * Draft atom family - stores local edits as complete merged data
+     * null = no local edits, otherwise contains the full draftable data with edits merged
+     * Returns a writable PrimitiveAtom that can be set directly
      */
-    draftAtomFamily: (id: string) => Atom<Partial<TDraftableData> | null>
+    draftAtomFamily: (id: string) => PrimitiveAtom<TDraftableData | null>
 
     /**
      * Combined entity + draft atom family
@@ -78,16 +79,12 @@ export interface EntityDraftState<TEntity, TDraftableData> {
     /**
      * Update entity (creates/updates draft)
      */
-    updateAtom: Atom<
-        null,
-        [{id: string; updates: Partial<TDraftableData>}],
-        void
-    >
+    updateAtom: WritableAtom<null, [id: string, updates: Partial<TDraftableData>], void>
 
     /**
      * Discard local edits for an entity
      */
-    discardDraftAtom: Atom<null, [id: string], void>
+    discardDraftAtom: WritableAtom<null, [id: string], void>
 }
 
 // ============================================================================
@@ -228,12 +225,14 @@ export function createEntityDraftState<TEntity, TDraftableData = TEntity>(
 ): EntityDraftState<TEntity, TDraftableData> {
     const {entityAtomFamily, getDraftableData, mergeDraft, isDirty, excludeFields} = config
 
-    // Draft atom family - stores local edits
+    // Draft atom family - stores complete merged data (not partial)
+    // When we update, we merge updates into the current entity and store the full result
     const draftAtomFamily = atomFamily((id: string) =>
-        atom<Partial<TDraftableData> | null>(null),
+        atom<TDraftableData | null>(null),
     )
 
     // Combined entity + draft atom family
+    // Since draft contains complete merged data, we can use it directly
     const withDraftAtomFamily = atomFamily((id: string) =>
         atom((get): TEntity | null => {
             const draft = get(draftAtomFamily(id))
@@ -242,7 +241,8 @@ export function createEntityDraftState<TEntity, TDraftableData = TEntity>(
             if (!entity) return null
             if (!draft) return entity
 
-            return mergeDraft(entity, draft)
+            // Draft contains complete draftable data, merge it with entity structure
+            return mergeDraft(entity, draft as Partial<TDraftableData>)
         }),
     )
 
@@ -278,8 +278,8 @@ export function createEntityDraftState<TEntity, TDraftableData = TEntity>(
 
             // Get draftable data portions
             const originalData = getDraftableData(original)
-            // Merge draft over original data to get current state
-            const currentData = {...originalData, ...draft} as TDraftableData
+            // Draft already contains complete merged data
+            const currentData = draft
 
             // Use custom isDirty if provided
             if (isDirty) {
@@ -292,9 +292,11 @@ export function createEntityDraftState<TEntity, TDraftableData = TEntity>(
     )
 
     // Update atom - creates/updates draft
+    // Signature: (id: string, updates: Partial<TDraftableData>) => void
+    // This matches the standard entity controller pattern.
     const updateAtom = atom(
         null,
-        (get: Getter, set: Setter, {id, updates}: {id: string; updates: Partial<TDraftableData>}) => {
+        (get: Getter, set: Setter, id: string, updates: Partial<TDraftableData>) => {
             const current = get(withDraftAtomFamily(id))
             if (!current) return
 

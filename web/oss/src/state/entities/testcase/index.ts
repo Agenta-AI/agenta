@@ -6,7 +6,7 @@
  * - Cache redirect from paginated query cache
  * - Complex draft state with column change tracking
  * - Cell-level subscriptions for fine-grained reactivity
- * - Stateful atoms for simplified entity access
+ * - Entity controllers for unified API access
  */
 
 // Schema exports
@@ -51,12 +51,12 @@ export {
     markDeletedAtom,
     unmarkDeletedAtom,
     clearDeletedIdsAtom,
+    // Query atom family (single source of truth for server data)
     testcaseQueryAtomFamily,
     testcaseDraftAtomFamily,
     testcaseHasDraftAtomFamily,
     testcaseIsDirtyAtomFamily,
     testcaseEntityAtomFamily,
-    testcaseServerStateAtomFamily,
     testcaseCellAtomFamily,
     updateTestcaseAtom,
     discardDraftAtom,
@@ -81,7 +81,8 @@ export {
     clearPendingRenamesAtom,
     clearPendingAddedColumnsAtom,
     clearPendingDeletedColumnsAtom,
-    type ColumnDef,
+    type Column,
+    type ExpandedColumn,
 } from "./columnState"
 
 // Display rows
@@ -95,36 +96,50 @@ export {
     initializeEmptyRevisionAtom,
 } from "./editSession"
 
-// Drill-in state (for JSON viewer modals)
-export {
-    drillInStateAtom,
-    drillInPathAtom,
-    drillInValueAtom,
-    resetDrillInAtom,
-    setDrillInPathAtom,
-    getValueAtPath,
-    setValueAtPathAtom,
-    toggleFieldAtom,
-    toggleRawModeAtom,
-    type DrillInState,
-} from "./drillInState"
-
-// Mutations
+// Testcase mutations
 export {
     addTestcaseAtom,
     appendTestcasesAtom,
+    createTestcasesAtom,
     deleteTestcasesAtom,
-    saveTestsetAtom,
-    clearChangesAtom,
     type AddTestcaseResult,
-} from "./mutations"
+    type CreateTestcasesOptions,
+    type CreateTestcasesResult,
+} from "./testcaseMutations"
+
+// Revision-level mutations (save, clear changes)
+export {
+    saveTestsetAtom,
+    saveNewTestsetAtom,
+    clearChangesAtom,
+    type SaveTestsetParams,
+    type SaveTestsetResult,
+    type SaveNewTestsetParams,
+    type SaveNewTestsetResult,
+} from "../testset/mutations"
 
 // Atom cleanup (for revision changes)
 export {
     cleanupOnRevisionChangeAtom,
 } from "./atomCleanup"
 
-// Stateful atoms (combines entity cache + query in single atom)
+// Paginated store exports
 export {
-    testcaseStatefulAtomFamily,
-} from "./statefulAtoms"
+    testcasePaginatedStore,
+    testcasesRevisionIdAtom,
+    testcasesSearchTermAtom,
+    setDebouncedSearchTermAtom,
+    testcasesPaginatedMetaAtom,
+    testcasesFetchingAtom,
+    PAGE_SIZE as TESTCASES_PAGE_SIZE,
+    type TestcaseTableRow,
+    type TestcasePaginatedMeta,
+} from "./paginatedStore"
+
+// Entity API (unified API - recommended for most use cases)
+export {
+    testcase,
+    type TestcaseAction,
+    type TestcaseColumn,
+    type TestcaseControllerState,
+} from "./controller"

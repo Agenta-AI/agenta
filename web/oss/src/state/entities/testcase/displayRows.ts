@@ -30,15 +30,6 @@ export interface DisplayRowRef {
     [key: string]: unknown
 }
 
-/**
- * Legacy DisplayRow type for backward compatibility
- * @deprecated Use DisplayRowRef + cell selectors instead
- */
-export interface DisplayRow extends FlattenedTestcase {
-    key: string
-    __isSkeleton?: boolean
-    __isNew?: boolean
-}
 
 /**
  * Derived atom: get display row references for the table
@@ -150,31 +141,3 @@ export const isRowDirtyAtomFamily = atomFamily((id: string) =>
     }),
 )
 
-// ============================================================================
-// LEGACY SUPPORT
-// Keep displayRowsAtom for backward compatibility during migration
-// ============================================================================
-
-/**
- * @deprecated Use displayRowRefsAtom + testcaseCellAtomFamily instead
- * This constructs full row objects which causes unnecessary re-renders
- */
-export const displayRowsAtom = atom((get): DisplayRow[] => {
-    const refs = get(displayRowRefsAtom)
-
-    const rows: DisplayRow[] = []
-
-    refs.forEach((ref) => {
-        const entity = get(testcaseEntityAtomFamily(ref.id))
-        if (entity) {
-            rows.push({
-                ...entity,
-                key: ref.id,
-                __isSkeleton: false,
-                __isNew: ref.__isNew,
-            })
-        }
-    })
-
-    return rows
-})

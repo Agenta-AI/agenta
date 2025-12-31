@@ -60,7 +60,6 @@ const revisionBatchFetcher = createBatchFetcher<RevisionRequest, Revision | null
     batchFn: async (requests: RevisionRequest[], serializedKeys: string[]) => {
         const results = new Map<string, Revision | null>()
 
-        console.log("revisionBatchFetcher")
         // Group by projectId (should all be same in practice)
         const byProject = new Map<string, string[]>()
         requests.forEach((req, index) => {
@@ -201,24 +200,6 @@ export const revisionQueryAtomFamily = atomFamily(
 )
 
 // ============================================================================
-// SERVER STATE ATOM FAMILY
-// Returns raw server data without draft merging
-// ============================================================================
-
-/**
- * Server state atom - returns raw data from query cache
- * Use this for comparison or when you need original server data
- */
-export const revisionServerStateAtomFamily = atomFamily(
-    (revisionId: string) =>
-        atom((get) => {
-            const query = get(revisionQueryAtomFamily(revisionId))
-            return query.data ?? null
-        }),
-    (a, b) => a === b,
-)
-
-// ============================================================================
 // REVISION ENTITY ATOM FAMILY
 // Combines server data with local draft (draft takes precedence)
 // ============================================================================
@@ -237,7 +218,9 @@ export const revisionServerStateAtomFamily = atomFamily(
 export const revisionEntityAtomFamily = atomFamily(
     (revisionId: string) =>
         atom((get) => {
-            const serverData = get(revisionServerStateAtomFamily(revisionId))
+            // Query is single source of truth for server data
+            const query = get(revisionQueryAtomFamily(revisionId))
+            const serverData = query.data ?? null
 
             if (!serverData) {
                 return null
@@ -300,7 +283,6 @@ export const revisionsListQueryAtomFamily = atomFamily(
                     )
 
                     const revisions = response.data?.testset_revisions ?? []
-                    console.log("revisions list", revisions)
                     // Strip out data.testcases to reduce payload size until backend is updated
                     return revisions.map((raw: any) => {
                         // Remove the data field which contains testcases array
@@ -395,12 +377,17 @@ async function fetchLatestRevisionsBatch(
 
     if (!projectId || testsetIds.length === 0) return result
 
+    // Filter out invalid testset IDs (e.g., "new" for unsaved testsets)
+    const validTestsetIds = testsetIds.filter((id) => id && isValidUUID(id))
+    if (validTestsetIds.length === 0) return result
+
     try {
         const response = await axios.post(
             `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
             {
-                testset_refs: testsetIds.map((id) => ({id})),
-                windowing: {limit: testsetIds.length * 5, order: "descending"},
+                testset_refs: validTestsetIds.map((id) => ({id})),
+                windowing: {limit: validTestsetIds.length * 5, order: "descending"},
+                include_testcases: false,
             },
             {params: {project_id: projectId}},
         )
