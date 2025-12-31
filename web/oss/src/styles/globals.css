@@ -346,21 +346,21 @@ body {
 .org-domains-table .ant-table-tbody > tr > td:nth-child(1),
 .org-providers-table .ant-table-thead > tr > th:nth-child(1),
 .org-providers-table .ant-table-tbody > tr > td:nth-child(1) {
-    width: 5%;
+    width: 30%;
 }
 
 .org-domains-table .ant-table-thead > tr > th:nth-child(2),
 .org-domains-table .ant-table-tbody > tr > td:nth-child(2),
 .org-providers-table .ant-table-thead > tr > th:nth-child(2),
 .org-providers-table .ant-table-tbody > tr > td:nth-child(2) {
-    width: 22.5%;
+    width: 30%;
 }
 
 .org-domains-table .ant-table-thead > tr > th:nth-child(3),
 .org-domains-table .ant-table-tbody > tr > td:nth-child(3),
 .org-providers-table .ant-table-thead > tr > th:nth-child(3),
 .org-providers-table .ant-table-tbody > tr > td:nth-child(3) {
-    width: 22.5%;
+    width: 20%;
 }
 
 .org-domains-table .ant-table-thead > tr > th:nth-child(4),
@@ -386,4 +386,11 @@ body {
 
 .org-kv-65-35 .ant-descriptions-item-content {
     width: 50%;
+}
+
+.org-slug-row .ant-descriptions-item-label,
+.org-slug-row .ant-descriptions-item-content {
+    display: flex;
+    align-items: center;
+    min-height: 32px;
 }

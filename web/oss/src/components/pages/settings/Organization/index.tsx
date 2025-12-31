@@ -513,14 +513,14 @@ const Organization: FC = () => {
     return (
         <Space direction="vertical" size="middle" style={{width: "100%"}}>
             <Card>
-                <Title level={4} style={sectionTitleStyle}>
-                    Access Control
-                </Title>
-                <Text type="secondary" style={sectionSubtitleStyle}>
-                    Configure authentication methods and access controls.
-                </Text>
-                <Descriptions column={1} bordered className="org-kv-65-35">
-                    <Descriptions.Item label="Allow email authentication">
+                <Space direction="vertical" size="small" style={{width: "100%"}}>
+                    <div>
+                        <Title level={1} style={sectionTitleStyle}>
+                            Access Controls
+                        </Title>
+                    </div>
+                    <Descriptions column={1} bordered size="small" className="org-kv-65-35">
+                    <Descriptions.Item label="Email authentication">
                         <Radio.Group
                             value={selectedOrg.flags.allow_email ? "yes" : "no"}
                             size="small"
@@ -531,7 +531,7 @@ const Organization: FC = () => {
                             <Radio.Button value="no">Deny</Radio.Button>
                         </Radio.Group>
                     </Descriptions.Item>
-                    <Descriptions.Item label="Allow social authentication">
+                    <Descriptions.Item label="Social authentication">
                         <Radio.Group
                             value={selectedOrg.flags.allow_social ? "yes" : "no"}
                             size="small"
@@ -542,7 +542,7 @@ const Organization: FC = () => {
                             <Radio.Button value="no">Deny</Radio.Button>
                         </Radio.Group>
                     </Descriptions.Item>
-                    <Descriptions.Item label="Allow SSO authentication">
+                    <Descriptions.Item label="SSO authentication">
                         <Radio.Group
                             value={selectedOrg.flags.allow_sso ? "yes" : "no"}
                             size="small"
@@ -553,7 +553,18 @@ const Organization: FC = () => {
                             <Radio.Button value="no">Deny</Radio.Button>
                         </Radio.Group>
                     </Descriptions.Item>
-                    <Descriptions.Item label="Allow auto-join for verified domains">
+                    <Descriptions.Item label="Join from non-verified domains">
+                        <Radio.Group
+                            value={selectedOrg.flags.domains_only ? "no" : "yes"}
+                            size="small"
+                            onChange={(e) => handleFlagChange("domains_only", e.target.value === "no")}
+                            disabled={updating}
+                        >
+                            <Radio.Button value="yes">Allow</Radio.Button>
+                            <Radio.Button value="no">Deny</Radio.Button>
+                        </Radio.Group>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Auto-join from verified domains">
                         <Radio.Group
                             value={selectedOrg.flags.auto_join ? "yes" : "no"}
                             size="small"
@@ -566,18 +577,7 @@ const Organization: FC = () => {
                             <Radio.Button value="no">Deny</Radio.Button>
                         </Radio.Group>
                     </Descriptions.Item>
-                    <Descriptions.Item label="Allow access only to verified domains">
-                        <Radio.Group
-                            value={selectedOrg.flags.domains_only ? "yes" : "no"}
-                            size="small"
-                            onChange={(e) => handleFlagChange("domains_only", e.target.value === "yes")}
-                            disabled={updating}
-                        >
-                            <Radio.Button value="yes">Allow</Radio.Button>
-                            <Radio.Button value="no">Deny</Radio.Button>
-                        </Radio.Group>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Allow organization owner to bypass controls">
+                    <Descriptions.Item label="Owner can bypass controls">
                         <Radio.Group
                             value={selectedOrg.flags.allow_root ? "yes" : "no"}
                             size="small"
@@ -588,19 +588,17 @@ const Organization: FC = () => {
                             <Radio.Button value="no">Deny</Radio.Button>
                         </Radio.Group>
                     </Descriptions.Item>
-                </Descriptions>
+                    </Descriptions>
+                </Space>
             </Card>
 
             <Card>
-                <Space direction="vertical" size="middle" style={{width: "100%"}}>
+                <Space direction="vertical" size="small" style={{width: "100%"}}>
                     <div style={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
                         <div>
-                            <Title level={4} style={sectionTitleStyle}>
+                            <Title level={1} style={sectionTitleStyle}>
                                 Verified Domains
                             </Title>
-                            <Text type="secondary" style={sectionSubtitleStyle}>
-                                Configure verified domains (required for auto-join and SSO enforcement).
-                            </Text>
                         </div>
                         <Button
                             type="primary"
@@ -706,15 +704,12 @@ const Organization: FC = () => {
             </Card>
 
             <Card>
-                <Space direction="vertical" size="middle" style={{width: "100%"}}>
+                <Space direction="vertical" size="small" style={{width: "100%"}}>
                     <div style={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
                         <div>
-                            <Title level={4} style={sectionTitleStyle}>
+                            <Title level={1} style={sectionTitleStyle}>
                                 SSO Providers
                             </Title>
-                            <Text type="secondary" style={sectionSubtitleStyle}>
-                                Configure SSO providers via OpenID Connect (OIDC).
-                            </Text>
                         </div>
                         <Button
                             type="primary"
@@ -725,7 +720,7 @@ const Organization: FC = () => {
                             Add Provider
                         </Button>
                     </div>
-                    <Descriptions size="small" column={1} bordered className="org-kv-65-35">
+                    <Descriptions size="small" column={1} bordered className="org-kv-65-35 org-slug-row">
                         <Descriptions.Item label="Organization slug">
                             {selectedOrg.slug ? (
                                 <Text>{selectedOrg.slug}</Text>
