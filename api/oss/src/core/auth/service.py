@@ -188,11 +188,17 @@ class AuthService:
         # Social methods
         if "social:google" in all_allowed_methods or "social:*" in all_allowed_methods:
             methods["social:google"] = True
-        if "social:google-workspaces" in all_allowed_methods or "social:*" in all_allowed_methods:
+        if (
+            "social:google-workspaces" in all_allowed_methods
+            or "social:*" in all_allowed_methods
+        ):
             methods["social:google-workspaces"] = True
         if "social:github" in all_allowed_methods or "social:*" in all_allowed_methods:
             methods["social:github"] = True
-        if "social:facebook" in all_allowed_methods or "social:*" in all_allowed_methods:
+        if (
+            "social:facebook" in all_allowed_methods
+            or "social:*" in all_allowed_methods
+        ):
             methods["social:facebook"] = True
         if "social:apple" in all_allowed_methods or "social:*" in all_allowed_methods:
             methods["social:apple"] = True
@@ -202,15 +208,27 @@ class AuthService:
             methods["social:twitter"] = True
         if "social:gitlab" in all_allowed_methods or "social:*" in all_allowed_methods:
             methods["social:gitlab"] = True
-        if "social:bitbucket" in all_allowed_methods or "social:*" in all_allowed_methods:
+        if (
+            "social:bitbucket" in all_allowed_methods
+            or "social:*" in all_allowed_methods
+        ):
             methods["social:bitbucket"] = True
-        if "social:linkedin" in all_allowed_methods or "social:*" in all_allowed_methods:
+        if (
+            "social:linkedin" in all_allowed_methods
+            or "social:*" in all_allowed_methods
+        ):
             methods["social:linkedin"] = True
         if "social:okta" in all_allowed_methods or "social:*" in all_allowed_methods:
             methods["social:okta"] = True
-        if "social:azure-ad" in all_allowed_methods or "social:*" in all_allowed_methods:
+        if (
+            "social:azure-ad" in all_allowed_methods
+            or "social:*" in all_allowed_methods
+        ):
             methods["social:azure-ad"] = True
-        if "social:boxy-saml" in all_allowed_methods or "social:*" in all_allowed_methods:
+        if (
+            "social:boxy-saml" in all_allowed_methods
+            or "social:*" in all_allowed_methods
+        ):
             methods["social:boxy-saml"] = True
 
         # SSO - only include if providers are available
@@ -381,7 +399,9 @@ class AuthService:
 
         return False
 
-    async def _get_organization_flags(self, organization_id: UUID) -> Optional[Dict[str, Any]]:
+    async def _get_organization_flags(
+        self, organization_id: UUID
+    ) -> Optional[Dict[str, Any]]:
         """
         Get organization flags from organizations table (EE only).
 
@@ -391,7 +411,9 @@ class AuthService:
             return None
 
         async with db_manager.engine.core_session() as session:
-            stmt = select(OrganizationDB.flags).where(OrganizationDB.id == organization_id)
+            stmt = select(OrganizationDB.flags).where(
+                OrganizationDB.id == organization_id
+            )
             result = await session.execute(stmt)
             flags = result.scalar()
             return flags or {}

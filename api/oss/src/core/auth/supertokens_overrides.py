@@ -50,38 +50,42 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
     """
     Fetch dynamic OIDC provider configuration from database (EE only).
 
-    third_party_id format: "oidc:{organization_id}:{provider_slug}"
+    third_party_id format: "oidc:{organization_slug}:{provider_slug}"
     """
-    if not third_party_id.startswith("oidc:"):
-        return None
-
     # OIDC providers require EE
     if not is_ee() or providers_dao is None:
         print(f"OIDC provider {third_party_id} requested but EE not enabled")
         return None
 
     try:
-        # Parse third_party_id: "oidc:{org_id}:{provider_slug}"
-        parts = third_party_id.split(":")
+        # Parse third_party_id: "oidc:{organization_slug}:{provider_slug}"
+        if not third_party_id.startswith("oidc:"):
+            return None
+
+        parts = third_party_id.split(":", 2)
         if len(parts) != 3:
             return None
 
-        org_id_str, provider_slug = parts[1], parts[2]
-        org_id = UUID(org_id_str)
+        _, organization_slug, provider_slug = parts
 
-        # Fetch provider from database
-        provider = await providers_dao.get_by_slug(org_id, provider_slug)
+        from oss.src.services import db_manager
+
+        organization = await db_manager.get_organization_by_slug(organization_slug)
+        if not organization:
+            return None
+
+        # Fetch provider from database by organization_id and provider_slug
+        provider = await providers_dao.get_by_slug(provider_slug, str(organization.id))
         if not provider or not (provider.flags and provider.flags.get("is_active")):
             return None
 
         # Extract OIDC config
-        config = provider.settings
-        issuer = config.get("issuer")
-        client_id = config.get("client_id")
-        client_secret = config.get("client_secret")
-        scopes = config.get("scopes", ["openid", "profile", "email"])
+        issuer_url = provider.settings.get("issuer_url")
+        client_id = provider.settings.get("client_id")
+        client_secret = provider.settings.get("client_secret")
+        scopes = provider.settings.get("scopes", ["openid", "profile", "email"])
 
-        if not issuer or not client_id or not client_secret:
+        if not issuer_url or not client_id or not client_secret:
             return None
 
         # Build ProviderInput for SuperTokens
@@ -95,12 +99,7 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
                         scope=scopes,
                     )
                 ],
-                # OIDC discovery
-                oidc_discovery_endpoint=f"{issuer}/.well-known/openid-configuration",
-                # Explicit endpoints (optional, falls back to discovery)
-                authorization_endpoint=config.get("authorization_endpoint"),
-                token_endpoint=config.get("token_endpoint"),
-                user_info_endpoint=config.get("userinfo_endpoint"),
+                oidc_discovery_endpoint=f"{issuer_url}/.well-known/openid-configuration",
             )
         )
     except Exception as e:
@@ -149,19 +148,11 @@ def override_thirdparty_functions(
 
         # Determine method string based on third_party_id
         if third_party_id.startswith("oidc:"):
-            # Format: oidc:{org_id}:{provider_slug} -> sso:{org_slug}:{provider_slug}
+            # Format: oidc:{organization_slug}:{provider_slug} -> sso:{organization_slug}:{provider_slug}
             parts = third_party_id.split(":")
-            org_id_str, provider_slug = parts[1], parts[2]
+            org_slug, provider_slug = parts[1], parts[2]
 
-            # Fetch organization to get slug (if available)
-            try:
-                org = await db_manager.get_organization_by_id(org_id_str)
-                org_identifier = org.slug if org and org.slug else org_id_str
-            except Exception as e:
-                print(f"Error fetching organization for SSO method: {e}")
-                org_identifier = org_id_str  # Fallback to org_id
-
-            method = f"sso:{org_identifier}:{provider_slug}"
+            method = f"sso:{org_slug}:{provider_slug}"
         elif third_party_id == "google":
             method = "social:google"
         elif third_party_id == "github":
@@ -419,7 +410,6 @@ def override_emailpassword_functions(
         if not isinstance(result, EmailPasswordSignInOkResult):
             return result
 
-
         # Method for email/password
         method = "email:password"
 
@@ -503,7 +493,6 @@ def override_emailpassword_functions(
         # Only process if successful
         if not isinstance(result, EmailPasswordSignUpOkResult):
             return result
-
 
         # Method for email/password
         method = "email:password"

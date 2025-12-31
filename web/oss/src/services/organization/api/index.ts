@@ -169,9 +169,15 @@ export const createOrganizationDomain = async (payload: {
  * Verify a domain via DNS TXT record
  */
 export const verifyOrganizationDomain = async (domainId: string): Promise<OrganizationDomain> => {
-    const response = await axios.post(`${getAgentaApiUrl()}/organizations/domains/verify`, {
-        domain_id: domainId,
-    })
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/organizations/domains/verify`,
+        {
+            domain_id: domainId,
+        },
+        {
+            _ignoreError: true,
+        },
+    )
     return response.data
 }
 

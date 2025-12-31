@@ -62,7 +62,11 @@ def upgrade() -> None:
             # --> GET ORGANIZATION BATCH
             query = (
                 select(DeprecatedOrganizationDB)
-                .options(load_only(DeprecatedOrganizationDB.id, DeprecatedOrganizationDB.owner))
+                .options(
+                    load_only(
+                        DeprecatedOrganizationDB.id, DeprecatedOrganizationDB.owner
+                    )
+                )
                 .limit(organization_batch_size)
                 .offset(organization_batch_index * organization_batch_size)
             )

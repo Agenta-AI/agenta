@@ -31,12 +31,12 @@ async def verify_user_org_access(user_id: str, organization_id: str) -> None:
     has_access = await check_user_org_access(user_org_data, organization_id)
     if not has_access:
         raise HTTPException(
-            status_code=403,
-            detail="You do not have access to this organization"
+            status_code=403, detail="You do not have access to this organization"
         )
 
 
 # Domain Verification Endpoints
+
 
 @router.post("/domains", response_model=OrganizationDomainResponse, status_code=201)
 async def create_domain(
@@ -155,6 +155,7 @@ async def delete_domain(
 
 # SSO Provider Endpoints
 
+
 @router.post("/providers", response_model=OrganizationProviderResponse, status_code=201)
 async def create_provider(
     payload: OrganizationProviderCreate,
@@ -205,7 +206,9 @@ async def list_providers(
     return await provider_service.list_providers(organization_id)
 
 
-@router.post("/providers/{provider_id}/test", response_model=OrganizationProviderResponse)
+@router.post(
+    "/providers/{provider_id}/test", response_model=OrganizationProviderResponse
+)
 async def test_provider(
     provider_id: str,
     request: Request,

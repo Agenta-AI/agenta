@@ -31,28 +31,11 @@ class DomainVerificationService:
     @staticmethod
     def generate_verification_token() -> str:
         """Generate a unique verification token."""
-        # Generate cryptographically secure random token (32 bytes = 64 hex chars)
-        random_part = secrets.token_hex(32)
+        # Generate cryptographically secure random token (16 bytes = 64 hex chars)
+        random_part = secrets.token_hex(16)
 
         # Add prefix to make it identifiable as an Agenta verification token
-        return f"ag_{random_part}"
-
-    @staticmethod
-    def get_verification_instructions(domain: str, token: str) -> dict:
-        """Get DNS verification instructions."""
-        return {
-            "method": "DNS TXT Record",
-            "record_type": "TXT",
-            "host": f"_agenta-verification.{domain}",
-            "value": f"agenta-verification={token}",
-            "instructions": [
-                f"1. Log in to your DNS provider for {domain}",
-                f"2. Add a TXT record with host: _agenta-verification.{domain}",
-                f"3. Set the value to: agenta-verification={token}",
-                "4. Wait for DNS propagation (usually 5-30 minutes)",
-                "5. Click 'Verify Domain' to complete verification",
-            ],
-        }
+        return f"{random_part}"
 
     @staticmethod
     async def verify_domain_dns(domain: str, expected_token: str) -> bool:
@@ -70,8 +53,8 @@ class DomainVerificationService:
                 txt_value = rdata.to_text().strip('"')
                 logger.info(f"TXT record value: {txt_value}")
 
-                # Extract the token value from "agenta-verification=TOKEN" format
-                if txt_value.startswith("agenta-verification="):
+                # Extract the token value from "_agenta-verification=TOKEN" format
+                if txt_value.startswith("_agenta-verification="):
                     token = txt_value.split("=", 1)[1]
                     logger.info(f"Extracted token from DNS: {token}")
                     logger.info(f"Expected token from DB: {expected_token}")
@@ -182,9 +165,20 @@ class DomainVerificationService:
             if not domain:
                 raise HTTPException(status_code=404, detail="Domain not found")
 
-            # Check if already verified
+            # Check if already verified by this organization
             if domain.flags and domain.flags.get("is_verified"):
                 raise HTTPException(status_code=400, detail="Domain already verified")
+
+            # Check if domain is already verified by another organization
+            verified_by_other = await dao.get_verified_by_slug(domain.slug)
+            if (
+                verified_by_other
+                and str(verified_by_other.organization_id) != organization_id
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Domain {domain.slug} is already verified by another organization",
+                )
 
             # Check if token has expired (48 hours from creation)
             token_age = datetime.now(timezone.utc) - domain.created_at
@@ -396,48 +390,45 @@ class SSOProviderService:
         user_id: str,
     ) -> OrganizationProviderResponse:
         """Create a new SSO provider."""
-        # Validate provider type (only OIDC supported for now)
-        if payload.provider_type != "oidc":
-            raise HTTPException(
-                status_code=400,
-                detail="Only 'oidc' provider type is supported. SAML support coming soon.",
-            )
-
         async with engine.core_session() as session:
             dao = OrganizationProvidersDAO(session)
 
-            # Generate slug from provider type and name
-            slug = f"{payload.provider_type}:{payload.name.lower().replace(' ', '-')}"
+            # Use the slug from payload (already validated to be lowercase letters and hyphens)
+            slug = payload.slug
 
             # Check if provider with this slug already exists
             existing = await dao.get_by_slug(slug, organization_id)
             if existing:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Provider with name '{payload.name}' already exists",
+                    detail=f"Provider with slug '{payload.slug}' already exists",
                 )
 
-            # Build settings
+            # Merge provided settings with defaults
             settings = {
-                "type": payload.provider_type,
-                "name": payload.name,
-                "client_id": payload.client_id,
-                "client_secret": payload.client_secret,
-                "issuer_url": payload.issuer_url,
-                "authorization_endpoint": payload.authorization_endpoint,
-                "token_endpoint": payload.token_endpoint,
-                "userinfo_endpoint": payload.userinfo_endpoint,
-                "scopes": payload.scopes or ["openid", "profile", "email"],
+                **payload.settings,
             }
 
-            # Create provider with is_valid=False and is_active=False initially
-            # User must test the connection before activating
+            # Ensure scopes have default if not provided
+            if "scopes" not in settings or not settings["scopes"]:
+                settings["scopes"] = ["openid", "profile", "email"]
+
+            # Merge provided flags with defaults
+            flags = payload.flags or {}
+            if "is_valid" not in flags:
+                flags["is_valid"] = False
+            if "is_active" not in flags:
+                flags["is_active"] = False
+
+            # Create provider
             provider = await dao.create(
                 organization_id=organization_id,
                 slug=slug,
+                name=payload.name,
+                description=payload.description,
                 settings=settings,
                 created_by_id=user_id,
-                flags={"is_valid": False, "is_active": False},
+                flags=flags,
             )
 
             await session.commit()
@@ -460,51 +451,44 @@ class SSOProviderService:
             if not provider:
                 raise HTTPException(status_code=404, detail="Provider not found")
 
-            # Update settings
-            settings = provider.settings.copy()
+            # Update settings if provided
+            settings = provider.settings.copy() if provider.settings else {}
             settings_changed = False
 
-            if payload.name is not None:
-                settings["name"] = payload.name
-                settings_changed = True
-            if payload.client_id is not None:
-                settings["client_id"] = payload.client_id
-                settings_changed = True
-            if payload.client_secret is not None:
-                settings["client_secret"] = payload.client_secret
-                settings_changed = True
-            if payload.issuer_url is not None:
-                settings["issuer_url"] = payload.issuer_url
-                settings_changed = True
-            if payload.authorization_endpoint is not None:
-                settings["authorization_endpoint"] = payload.authorization_endpoint
-                settings_changed = True
-            if payload.token_endpoint is not None:
-                settings["token_endpoint"] = payload.token_endpoint
-                settings_changed = True
-            if payload.userinfo_endpoint is not None:
-                settings["userinfo_endpoint"] = payload.userinfo_endpoint
-                settings_changed = True
-            if payload.scopes is not None:
-                settings["scopes"] = payload.scopes
+            if payload.settings is not None:
+                settings.update(payload.settings)
                 settings_changed = True
 
-            # Update flags
+            # Update flags if provided
             flags = provider.flags.copy() if provider.flags else {}
+
+            if payload.flags is not None:
+                flags.update(payload.flags)
 
             # If settings changed, invalidate the provider (needs re-testing)
             if settings_changed:
                 flags["is_valid"] = False
                 flags["is_active"] = False
 
-            # Validate is_active constraint: cannot be true if is_valid is false
-            if payload.is_active is not None:
-                if payload.is_active and not flags.get("is_valid", False):
+            # Update slug if provided
+            if payload.slug is not None:
+                # Check if new slug already exists
+                existing = await dao.get_by_slug(payload.slug, organization_id)
+                if existing and existing.id != provider_id:
                     raise HTTPException(
                         status_code=400,
-                        detail="Cannot activate provider. Please test the connection first.",
+                        detail=f"Provider with slug '{payload.slug}' already exists",
                     )
-                flags["is_active"] = payload.is_active
+                # Update slug in the provider
+                provider.slug = payload.slug
+
+            # Update name if provided
+            if payload.name is not None:
+                provider.name = payload.name
+
+            # Update description if provided
+            if payload.description is not None:
+                provider.description = payload.description
 
             provider = await dao.update(
                 provider_id=provider_id,
@@ -584,20 +568,19 @@ class SSOProviderService:
 
     def _to_response(self, provider) -> OrganizationProviderResponse:
         """Convert DBE to response model."""
-        settings = provider.settings
+        settings = provider.settings.copy() if provider.settings else {}
+
+        # Mask the client_secret in settings before returning
+        if "client_secret" in settings:
+            settings["client_secret"] = self.mask_secret(settings["client_secret"])
+
         return OrganizationProviderResponse(
             id=str(provider.id),
             organization_id=str(provider.organization_id),
             slug=provider.slug,
-            provider_type=settings.get("type", "oidc"),
-            name=settings.get("name", ""),
-            client_id=settings.get("client_id", ""),
-            client_secret=self.mask_secret(settings.get("client_secret", "")),
-            issuer_url=settings.get("issuer_url", ""),
-            authorization_endpoint=settings.get("authorization_endpoint"),
-            token_endpoint=settings.get("token_endpoint"),
-            userinfo_endpoint=settings.get("userinfo_endpoint"),
-            scopes=settings.get("scopes", ["openid", "profile", "email"]),
+            name=provider.name,
+            description=provider.description,
+            settings=settings,
             flags=provider.flags or {},
             created_at=provider.created_at,
             updated_at=provider.updated_at,

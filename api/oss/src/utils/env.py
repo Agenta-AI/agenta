@@ -485,7 +485,10 @@ class RedisConfig(BaseModel):
     )
 
     # Cache control flag - defaults to true
-    cache_enabled: bool = os.getenv("AGENTA_CACHE_ENABLED", "true").lower() in ("true", "1")
+    cache_enabled: bool = os.getenv("AGENTA_CACHE_ENABLED", "true").lower() in (
+        "true",
+        "1",
+    )
 
     model_config = ConfigDict(extra="ignore")
 

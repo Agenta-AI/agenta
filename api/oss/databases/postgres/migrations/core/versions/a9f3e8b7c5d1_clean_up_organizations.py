@@ -265,10 +265,18 @@ def downgrade() -> None:
     conn = op.get_bind()
 
     # Drop foreign key constraints
-    op.drop_constraint("fk_organizations_deleted_by_id_users", "organizations", type_="foreignkey")
-    op.drop_constraint("fk_organizations_updated_by_id_users", "organizations", type_="foreignkey")
-    op.drop_constraint("fk_organizations_created_by_id_users", "organizations", type_="foreignkey")
-    op.drop_constraint("fk_organizations_owner_id_users", "organizations", type_="foreignkey")
+    op.drop_constraint(
+        "fk_organizations_deleted_by_id_users", "organizations", type_="foreignkey"
+    )
+    op.drop_constraint(
+        "fk_organizations_updated_by_id_users", "organizations", type_="foreignkey"
+    )
+    op.drop_constraint(
+        "fk_organizations_created_by_id_users", "organizations", type_="foreignkey"
+    )
+    op.drop_constraint(
+        "fk_organizations_owner_id_users", "organizations", type_="foreignkey"
+    )
 
     # Recreate type column
     op.add_column("organizations", sa.Column("type", sa.String(), nullable=True))

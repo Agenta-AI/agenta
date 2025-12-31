@@ -26,7 +26,7 @@ class OrganizationDomainsDAO:
         self,
         organization_id: str,
         slug: str,
-        name: str,
+        name: Optional[str],
         description: Optional[str],
         token: str,
         created_by_id: str,
@@ -114,9 +114,7 @@ class OrganizationDomainsDAO:
                 )
                 return result.scalars().first()
 
-    async def get_verified_by_slug(
-        self, slug: str
-    ) -> Optional[OrganizationDomainDBE]:
+    async def get_verified_by_slug(self, slug: str) -> Optional[OrganizationDomainDBE]:
         """Get a verified domain by slug (domain name), across organizations."""
         is_verified = OrganizationDomainDBE.flags["is_verified"].astext == "true"
         if self.session:
@@ -165,7 +163,7 @@ class OrganizationDomainsDAO:
         self, domain_id: str, flags: dict, updated_by_id: str
     ) -> Optional[OrganizationDomainDBE]:
         """Update domain flags (e.g., mark as verified)."""
-        domain = await self.get_by_id(domain_id, organization_id="")  # Will be filtered by ID
+        domain = await self.get_by_id(domain_id, organization_id="")
         if self.session:
             if domain:
                 domain.flags = flags
@@ -221,6 +219,8 @@ class OrganizationProvidersDAO:
         slug: str,
         settings: dict,
         created_by_id: str,
+        name: Optional[str],
+        description: Optional[str] = None,
         flags: Optional[dict] = None,
     ) -> OrganizationProviderDBE:
         """Create a new SSO provider for an organization."""
@@ -228,6 +228,8 @@ class OrganizationProvidersDAO:
             provider = OrganizationProviderDBE(
                 organization_id=organization_id,
                 slug=slug,
+                name=name,
+                description=description,
                 settings=settings,
                 flags=flags or {"is_active": True, "is_valid": False},
                 created_by_id=created_by_id,
@@ -241,6 +243,8 @@ class OrganizationProvidersDAO:
                 provider = OrganizationProviderDBE(
                     organization_id=organization_id,
                     slug=slug,
+                    name=name,
+                    description=description,
                     settings=settings,
                     flags=flags or {"is_active": True, "is_valid": False},
                     created_by_id=created_by_id,

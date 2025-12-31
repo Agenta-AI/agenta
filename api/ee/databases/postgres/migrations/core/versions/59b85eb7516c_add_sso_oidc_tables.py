@@ -122,7 +122,7 @@ def upgrade() -> None:
         sa.Column(
             "name",
             sa.String(),
-            nullable=False,
+            nullable=True,
         ),
         sa.Column(
             "description",
@@ -225,7 +225,7 @@ def upgrade() -> None:
         sa.Column(
             "name",
             sa.String(),
-            nullable=False,
+            nullable=True,
         ),
         sa.Column(
             "description",

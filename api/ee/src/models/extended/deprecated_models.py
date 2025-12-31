@@ -83,6 +83,7 @@ class DeprecatedOrganizationDB(DeprecatedBase):
     Deprecated OrganizationDB model with 'owner' field.
     Used by migrations that ran before the schema was changed to use 'owner_id'.
     """
+
     __tablename__ = "organizations"
     __table_args__ = {"extend_existing": True}
 

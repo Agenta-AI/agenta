@@ -152,7 +152,12 @@ async def update_organization(
     payload: OrganizationUpdate,
     request: Request,
 ):
-    if not payload.slug and not payload.name and not payload.description and not payload.flags:
+    if (
+        not payload.slug
+        and not payload.name
+        and not payload.description
+        and not payload.flags
+    ):
         return JSONResponse(
             {"detail": "Please provide a field to update"},
             status_code=400,
@@ -184,9 +189,12 @@ async def update_organization(
     except Exception as e:
         # Check for unique constraint violation (duplicate slug)
         from sqlalchemy.exc import IntegrityError
+
         if isinstance(e, IntegrityError) and "uq_organizations_slug" in str(e):
             return JSONResponse(
-                {"detail": "Organization slug already exists. Slugs must be unique."},
+                {
+                    "detail": "Slug already in use. Please select another slug or contact your administrator."
+                },
                 status_code=409,
             )
         raise HTTPException(
@@ -429,6 +437,7 @@ async def delete_organization(
 # Domain Verification Endpoints
 # ============================================================================
 
+
 @router.get("/{organization_id}/domains/", operation_id="list_organization_domains")
 async def list_organization_domains(
     organization_id: str,
@@ -449,6 +458,7 @@ async def list_organization_domains(
             )
 
         from uuid import UUID
+
         domains_dao = OrganizationDomainsDAO()
         domains = await domains_dao.list_by_organization(UUID(organization_id))
 
@@ -458,14 +468,19 @@ async def list_organization_domains(
                 "slug": domain.slug,
                 "organization_id": str(domain.organization_id),
                 "flags": domain.flags,
-                "created_at": domain.created_at.isoformat() if domain.created_at else None,
-                "updated_at": domain.updated_at.isoformat() if domain.updated_at else None,
+                "created_at": domain.created_at.isoformat()
+                if domain.created_at
+                else None,
+                "updated_at": domain.updated_at.isoformat()
+                if domain.updated_at
+                else None,
             }
             for domain in domains
         ]
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -491,6 +506,7 @@ async def create_organization_domain(
             )
 
         from uuid import UUID
+
         domains_dao = OrganizationDomainsDAO()
         domain_create = OrganizationDomainCreate(
             slug=domain,
@@ -503,17 +519,24 @@ async def create_organization_domain(
             "slug": created_domain.slug,
             "organization_id": str(created_domain.organization_id),
             "flags": created_domain.flags,
-            "created_at": created_domain.created_at.isoformat() if created_domain.created_at else None,
-            "updated_at": created_domain.updated_at.isoformat() if created_domain.updated_at else None,
+            "created_at": created_domain.created_at.isoformat()
+            if created_domain.created_at
+            else None,
+            "updated_at": created_domain.updated_at.isoformat()
+            if created_domain.updated_at
+            else None,
         }
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{organization_id}/domains/{domain_id}", operation_id="get_organization_domain")
+@router.get(
+    "/{organization_id}/domains/{domain_id}", operation_id="get_organization_domain"
+)
 async def get_organization_domain(
     organization_id: str,
     domain_id: str,
@@ -534,6 +557,7 @@ async def get_organization_domain(
             )
 
         from uuid import UUID
+
         domains_dao = OrganizationDomainsDAO()
         domain = await domains_dao.get_by_id(UUID(domain_id))
 
@@ -554,13 +578,13 @@ async def get_organization_domain(
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete(
-    "/{organization_id}/domains/{domain_id}",
-    operation_id="delete_organization_domain"
+    "/{organization_id}/domains/{domain_id}", operation_id="delete_organization_domain"
 )
 async def delete_organization_domain(
     organization_id: str,
@@ -582,6 +606,7 @@ async def delete_organization_domain(
             )
 
         from uuid import UUID
+
         domains_dao = OrganizationDomainsDAO()
         # TODO: Implement delete method in DAO
         # await domains_dao.delete(UUID(domain_id))
@@ -593,13 +618,14 @@ async def delete_organization_domain(
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post(
     "/{organization_id}/domains/{domain_id}/verify",
-    operation_id="verify_organization_domain"
+    operation_id="verify_organization_domain",
 )
 async def verify_organization_domain(
     organization_id: str,
@@ -621,6 +647,7 @@ async def verify_organization_domain(
             )
 
         from uuid import UUID
+
         domains_dao = OrganizationDomainsDAO()
         verified_domain = await domains_dao.mark_verified(UUID(domain_id))
 
@@ -635,12 +662,17 @@ async def verify_organization_domain(
             "slug": verified_domain.slug,
             "organization_id": str(verified_domain.organization_id),
             "flags": verified_domain.flags,
-            "created_at": verified_domain.created_at.isoformat() if verified_domain.created_at else None,
-            "updated_at": verified_domain.updated_at.isoformat() if verified_domain.updated_at else None,
+            "created_at": verified_domain.created_at.isoformat()
+            if verified_domain.created_at
+            else None,
+            "updated_at": verified_domain.updated_at.isoformat()
+            if verified_domain.updated_at
+            else None,
         }
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -648,6 +680,7 @@ async def verify_organization_domain(
 # ============================================================================
 # SSO/OIDC Provider Endpoints
 # ============================================================================
+
 
 @router.get("/{organization_id}/providers/", operation_id="list_organization_providers")
 async def list_organization_providers(
@@ -669,6 +702,7 @@ async def list_organization_providers(
             )
 
         from uuid import UUID
+
         providers_dao = OrganizationProvidersDAO()
         providers = await providers_dao.list_by_organization(UUID(organization_id))
 
@@ -680,19 +714,26 @@ async def list_organization_providers(
                 "provider_type": provider.provider_type,
                 "config": provider.config,
                 "flags": provider.flags,
-                "created_at": provider.created_at.isoformat() if provider.created_at else None,
-                "updated_at": provider.updated_at.isoformat() if provider.updated_at else None,
+                "created_at": provider.created_at.isoformat()
+                if provider.created_at
+                else None,
+                "updated_at": provider.updated_at.isoformat()
+                if provider.updated_at
+                else None,
             }
             for provider in providers
         ]
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{organization_id}/providers/", operation_id="create_organization_provider")
+@router.post(
+    "/{organization_id}/providers/", operation_id="create_organization_provider"
+)
 async def create_organization_provider(
     organization_id: str,
     request: Request,
@@ -713,6 +754,7 @@ async def create_organization_provider(
             )
 
         from uuid import UUID
+
         providers_dao = OrganizationProvidersDAO()
         provider_create = OrganizationProviderCreate(
             slug=payload.get("slug"),
@@ -729,17 +771,25 @@ async def create_organization_provider(
             "provider_type": created_provider.provider_type,
             "config": created_provider.config,
             "flags": created_provider.flags,
-            "created_at": created_provider.created_at.isoformat() if created_provider.created_at else None,
-            "updated_at": created_provider.updated_at.isoformat() if created_provider.updated_at else None,
+            "created_at": created_provider.created_at.isoformat()
+            if created_provider.created_at
+            else None,
+            "updated_at": created_provider.updated_at.isoformat()
+            if created_provider.updated_at
+            else None,
         }
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{organization_id}/providers/{provider_id}", operation_id="get_organization_provider")
+@router.get(
+    "/{organization_id}/providers/{provider_id}",
+    operation_id="get_organization_provider",
+)
 async def get_organization_provider(
     organization_id: str,
     provider_id: str,
@@ -760,6 +810,7 @@ async def get_organization_provider(
             )
 
         from uuid import UUID
+
         providers_dao = OrganizationProvidersDAO()
         provider = await providers_dao.get_by_id(UUID(provider_id))
 
@@ -776,19 +827,24 @@ async def get_organization_provider(
             "provider_type": provider.provider_type,
             "config": provider.config,
             "flags": provider.flags,
-            "created_at": provider.created_at.isoformat() if provider.created_at else None,
-            "updated_at": provider.updated_at.isoformat() if provider.updated_at else None,
+            "created_at": provider.created_at.isoformat()
+            if provider.created_at
+            else None,
+            "updated_at": provider.updated_at.isoformat()
+            if provider.updated_at
+            else None,
         }
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.patch(
     "/{organization_id}/providers/{provider_id}",
-    operation_id="update_organization_provider"
+    operation_id="update_organization_provider",
 )
 async def update_organization_provider(
     organization_id: str,
@@ -811,13 +867,16 @@ async def update_organization_provider(
             )
 
         from uuid import UUID
+
         providers_dao = OrganizationProvidersDAO()
         provider_update = OrganizationProviderUpdate(
             slug=payload.get("slug"),
             config=payload.get("config"),
             flags=payload.get("flags"),
         )
-        updated_provider = await providers_dao.update(UUID(provider_id), provider_update)
+        updated_provider = await providers_dao.update(
+            UUID(provider_id), provider_update
+        )
 
         if not updated_provider:
             return JSONResponse(
@@ -832,19 +891,24 @@ async def update_organization_provider(
             "provider_type": updated_provider.provider_type,
             "config": updated_provider.config,
             "flags": updated_provider.flags,
-            "created_at": updated_provider.created_at.isoformat() if updated_provider.created_at else None,
-            "updated_at": updated_provider.updated_at.isoformat() if updated_provider.updated_at else None,
+            "created_at": updated_provider.created_at.isoformat()
+            if updated_provider.created_at
+            else None,
+            "updated_at": updated_provider.updated_at.isoformat()
+            if updated_provider.updated_at
+            else None,
         }
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete(
     "/{organization_id}/providers/{provider_id}",
-    operation_id="delete_organization_provider"
+    operation_id="delete_organization_provider",
 )
 async def delete_organization_provider(
     organization_id: str,
@@ -866,6 +930,7 @@ async def delete_organization_provider(
             )
 
         from uuid import UUID
+
         providers_dao = OrganizationProvidersDAO()
         # TODO: Implement delete method in DAO
         # await providers_dao.delete(UUID(provider_id))
@@ -877,5 +942,6 @@ async def delete_organization_provider(
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

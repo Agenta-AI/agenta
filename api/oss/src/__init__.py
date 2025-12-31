@@ -450,7 +450,10 @@ def _init_supertokens():
 
     # Email Password Authentication
     if env.auth.email_method == "password":
-        from oss.src.core.auth.supertokens_overrides import override_emailpassword_functions
+        from oss.src.core.auth.supertokens_overrides import (
+            override_emailpassword_functions,
+        )
+
         logger.info("✓ Email/Password authentication enabled")
         recipe_list.append(
             emailpassword.init(
@@ -475,7 +478,10 @@ def _init_supertokens():
 
     # Email OTP Authentication
     if env.auth.email_method == "otp":
-        from oss.src.core.auth.supertokens_overrides import override_passwordless_functions
+        from oss.src.core.auth.supertokens_overrides import (
+            override_passwordless_functions,
+        )
+
         logger.info("✓ Email/OTP authentication enabled")
         recipe_list.append(
             passwordless.init(
@@ -510,6 +516,7 @@ def _init_supertokens():
 
     # Sessions always required if auth is enabled
     from oss.src.core.auth.supertokens_overrides import override_session_functions
+
     recipe_list.append(
         session.init(
             expose_access_token_to_frontend_in_cookie_based_auth=True,

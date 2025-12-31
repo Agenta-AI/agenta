@@ -17,7 +17,7 @@ import {
     Alert,
 } from "antd"
 import {useQueryClient, useQuery, useMutation} from "@tanstack/react-query"
-import {PlusOutlined, CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, InfoCircleOutlined, ReloadOutlined} from "@ant-design/icons"
+import {PlusOutlined, CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, InfoCircleOutlined, ReloadOutlined} from "@ant-design/icons"
 
 import {useOrgData} from "@/oss/state/org"
 import {
@@ -35,6 +35,7 @@ import {
     deleteOrganizationProvider,
     type OrganizationProvider,
 } from "@/oss/services/organization/api"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 
 const {Title, Text} = Typography
@@ -42,8 +43,8 @@ const {Title, Text} = Typography
 const Organization: FC = () => {
     const {selectedOrg, loading, refetch} = useOrgData()
     const queryClient = useQueryClient()
-    const [editingSlug, setEditingSlug] = useState(false)
     const [slugValue, setSlugValue] = useState("")
+    const [slugModalVisible, setSlugModalVisible] = useState(false)
     const [updating, setUpdating] = useState(false)
     const [domainModalVisible, setDomainModalVisible] = useState(false)
     const [domainForm] = Form.useForm()
@@ -52,12 +53,26 @@ const Organization: FC = () => {
     const [editingProvider, setEditingProvider] = useState<string | null>(null)
 
     const handleUpdateOrganization = useCallback(
-        async (payload: {slug?: string; name?: string; description?: string; flags?: any}) => {
+        async (
+            payload: {slug?: string; name?: string; description?: string; flags?: any},
+            options?: {ignoreAxiosError?: boolean},
+        ) => {
             if (!selectedOrg?.id) return
 
             setUpdating(true)
             try {
-                await updateOrganization(selectedOrg.id, payload)
+                const updated = await updateOrganization(
+                    selectedOrg.id,
+                    payload,
+                    options?.ignoreAxiosError ?? false,
+                )
+                if (updated) {
+                    queryClient.setQueryData(["selectedOrg", selectedOrg.id], updated)
+                    queryClient.setQueriesData(["orgs"], (old: any) => {
+                        if (!Array.isArray(old)) return old
+                        return old.map((org) => (org.id === updated.id ? {...org, ...updated} : org))
+                    })
+                }
                 message.success("Organization updated successfully")
                 // Invalidate and refetch organization data
                 await queryClient.invalidateQueries({queryKey: ["organizations"]})
@@ -127,10 +142,12 @@ const Organization: FC = () => {
     )
 
     const handleSlugSave = useCallback(() => {
-        if (slugValue.trim()) {
-            handleUpdateOrganization({slug: slugValue.trim()})
-        }
-        setEditingSlug(false)
+        if (!slugValue.trim()) return
+        handleUpdateOrganization(
+            {slug: slugValue.trim()},
+            {ignoreAxiosError: true},
+        )
+        setSlugModalVisible(false)
     }, [slugValue, handleUpdateOrganization])
 
     // Domain Verification queries and mutations
@@ -151,8 +168,6 @@ const Organization: FC = () => {
         onError: (error: any) => {
             message.error(error?.response?.data?.detail || "Failed to add domain")
         },
-        useErrorBoundary: false,
-        throwOnError: false,
     })
 
     const verifyDomainMutation = useMutation({
@@ -162,12 +177,9 @@ const Organization: FC = () => {
             refetchDomains()
         },
         onError: (error: any) => {
-            const errorMessage = error?.response?.data?.detail || "Failed to verify domain"
+            const errorMessage = error?.response?.data?.detail || error?.message || "Failed to verify domain"
             message.error(errorMessage)
-            console.error("Domain verification error:", error)
         },
-        useErrorBoundary: false,
-        throwOnError: false,
     })
 
     const refreshDomainTokenMutation = useMutation({
@@ -179,8 +191,6 @@ const Organization: FC = () => {
         onError: (error: any) => {
             message.error(error?.response?.data?.detail || "Failed to refresh token")
         },
-        useErrorBoundary: false,
-        throwOnError: false,
     })
 
     const deleteDomainMutation = useMutation({
@@ -192,16 +202,12 @@ const Organization: FC = () => {
         onError: (error: any) => {
             message.error(error?.response?.data?.detail || "Failed to delete domain")
         },
-        useErrorBoundary: false,
-        throwOnError: false,
     })
 
     const handleAddDomain = useCallback(() => {
         domainForm.validateFields().then((values) => {
             createDomainMutation.mutate({
                 domain: values.domain,
-                name: values.name,
-                description: values.description,
             })
         })
     }, [domainForm, createDomainMutation])
@@ -211,51 +217,7 @@ const Organization: FC = () => {
             title: "Domain",
             dataIndex: "slug",
             key: "slug",
-        },
-        {
-            title: "Name",
-            dataIndex: "name",
-            key: "name",
-        },
-        {
-            title: "Status",
-            dataIndex: ["flags", "is_verified"],
-            key: "is_verified",
-            render: (_: any, record: OrganizationDomain) => {
-                const isVerified = record.flags?.is_verified || false
-                return isVerified ? (
-                    <Tag icon={<CheckCircleOutlined />} color="success">
-                        Verified
-                    </Tag>
-                ) : (
-                    <Tag icon={<ClockCircleOutlined />} color="warning">
-                        Pending
-                    </Tag>
-                )
-            },
-        },
-        {
-            title: "Token",
-            dataIndex: "token",
-            key: "token",
-            render: (token: string | null, record: OrganizationDomain) => {
-                if (record.flags?.is_verified) {
-                    return <Text type="secondary">-</Text>
-                }
-                if (!token) {
-                    return <Text type="secondary" italic>Hidden</Text>
-                }
-                return (
-                    <TooltipWithCopyAction
-                        copyText={token}
-                        title="Copy verification token"
-                    >
-                        <Tag className="font-mono bg-[#0517290F] text-xs" bordered={false}>
-                            {token}
-                        </Tag>
-                    </TooltipWithCopyAction>
-                )
-            },
+            ellipsis: true,
         },
         {
             title: "Expiration",
@@ -279,6 +241,23 @@ const Organization: FC = () => {
             },
         },
         {
+            title: "Status",
+            dataIndex: ["flags", "is_verified"],
+            key: "is_verified",
+            render: (_: any, record: OrganizationDomain) => {
+                const isVerified = record.flags?.is_verified || false
+                return isVerified ? (
+                    <Tag icon={<CheckCircleOutlined />} color="success">
+                        Verified
+                    </Tag>
+                ) : (
+                    <Tag icon={<ClockCircleOutlined />} color="warning">
+                        Pending
+                    </Tag>
+                )
+            },
+        },
+        {
             title: "Actions",
             key: "actions",
             render: (_: any, record: OrganizationDomain) => (
@@ -287,14 +266,7 @@ const Organization: FC = () => {
                         <Button
                             type="primary"
                             size="small"
-                            onClick={() => {
-                                verifyDomainMutation.mutate(record.id, {
-                                    onError: (error: any) => {
-                                        // Error already handled in mutation config
-                                        console.error("Verification failed:", error)
-                                    }
-                                })
-                            }}
+                            onClick={() => verifyDomainMutation.mutate(record.id)}
                             loading={verifyDomainMutation.isPending}
                         >
                             Verify
@@ -326,6 +298,13 @@ const Organization: FC = () => {
             ),
         },
     ]
+
+    const sectionTitleStyle = {margin: 0, fontSize: 20, fontWeight: 600}
+    const sectionSubtitleStyle = {display: "block", fontSize: 13}
+
+    const pendingDomainRowKeys = domains
+        .filter((domain) => !domain.flags?.is_verified && !!domain.token)
+        .map((domain) => domain.id)
 
     // SSO Provider queries and mutations
     const {data: providers = [], refetch: refetchProviders} = useQuery({
@@ -394,11 +373,14 @@ const Organization: FC = () => {
     })
 
     const handleAddOrUpdateProvider = useCallback(() => {
+        if (!selectedOrg?.slug) {
+            message.error("Set an organization slug before configuring SSO providers.")
+            return
+        }
         providerForm.validateFields().then((values) => {
             const payload = {
                 slug: values.slug,
-                provider_type: "oidc" as const,
-                config: {
+                settings: {
                     issuer_url: values.issuer_url,
                     client_id: values.client_id,
                     client_secret: values.client_secret,
@@ -415,38 +397,37 @@ const Organization: FC = () => {
                 createProviderMutation.mutate(payload)
             }
         })
-    }, [providerForm, editingProvider, createProviderMutation, updateProviderMutation])
+    }, [providerForm, editingProvider, createProviderMutation, updateProviderMutation, selectedOrg?.slug])
 
     const handleEditProvider = useCallback(
         (provider: OrganizationProvider) => {
             setEditingProvider(provider.id)
             providerForm.setFieldsValue({
                 slug: provider.slug,
-                issuer_url: provider.config.issuer_url,
-                client_id: provider.config.client_id,
-                client_secret: provider.config.client_secret,
-                scopes: provider.config.scopes?.join(", "),
+                issuer_url: provider.settings.issuer_url,
+                client_id: provider.settings.client_id,
+                client_secret: provider.settings.client_secret,
+                scopes: provider.settings.scopes?.join(", "),
             })
             setProviderModalVisible(true)
         },
         [providerForm],
     )
 
+    const pendingProviderRowKeys = providers
+        .filter((provider) => provider.flags?.is_valid === false)
+        .map((provider) => provider.id)
+
     const providerColumns = [
         {
-            title: "Name",
+            title: "Provider",
             dataIndex: "slug",
             key: "slug",
-        },
-        {
-            title: "Type",
-            dataIndex: "provider_type",
-            key: "provider_type",
-            render: (type: string) => <Tag color="blue">{type.toUpperCase()}</Tag>,
+            ellipsis: true,
         },
         {
             title: "Issuer URL",
-            dataIndex: ["config", "issuer_url"],
+            dataIndex: ["settings", "issuer_url"],
             key: "issuer_url",
             render: (url: string) => (
                 <Text ellipsis style={{maxWidth: 300}}>
@@ -473,7 +454,7 @@ const Organization: FC = () => {
                 }
                 return (
                     <Tag icon={<ClockCircleOutlined />} color="warning">
-                        Not Tested
+                        Pending
                     </Tag>
                 )
             },
@@ -484,14 +465,19 @@ const Organization: FC = () => {
             render: (_: any, record: OrganizationProvider) => (
                 <Space>
                     <Button
+                        type="primary"
                         size="small"
                         onClick={() => testProviderMutation.mutate(record.id)}
                         loading={testProviderMutation.isPending}
                     >
-                        Test
+                        Verify
                     </Button>
-                    <Button size="small" onClick={() => handleEditProvider(record)}>
-                        Edit
+                    <Button
+                        size="small"
+                        icon={<EditOutlined />}
+                        aria-label="Edit provider"
+                        onClick={() => handleEditProvider(record)}
+                    >
                     </Button>
                     <Popconfirm
                         title="Delete SSO provider"
@@ -525,64 +511,15 @@ const Organization: FC = () => {
     const isDemo = selectedOrg.flags.is_demo
 
     return (
-        <Space direction="vertical" size="large" style={{width: "100%"}}>
+        <Space direction="vertical" size="middle" style={{width: "100%"}}>
             <Card>
-                <Title level={4}>Details</Title>
-                <Descriptions column={1} bordered>
-                    <Descriptions.Item label="Slug">
-                        {selectedOrg.slug ? (
-                            <Text>{selectedOrg.slug}</Text>
-                        ) : editingSlug ? (
-                            <Input
-                                value={slugValue}
-                                onChange={(e) => setSlugValue(e.target.value)}
-                                onBlur={handleSlugSave}
-                                onPressEnter={handleSlugSave}
-                                disabled={updating}
-                                autoFocus
-                            />
-                        ) : (
-                            <Text
-                                editable={{
-                                    onStart: () => {
-                                        setSlugValue("")
-                                        setEditingSlug(true)
-                                    },
-                                }}
-                                type="secondary"
-                            >
-                                Not set
-                            </Text>
-                        )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Name">
-                        <Text
-                            editable={{
-                                onChange: (value) => {
-                                    handleUpdateOrganization({name: value})
-                                },
-                            }}
-                        >
-                            {selectedOrg.name}
-                        </Text>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Description">
-                        <Text
-                            editable={{
-                                onChange: (value) => {
-                                    handleUpdateOrganization({description: value})
-                                },
-                            }}
-                        >
-                            {selectedOrg.description || "No description"}
-                        </Text>
-                    </Descriptions.Item>
-                </Descriptions>
-            </Card>
-
-            <Card>
-                <Title level={4}>Access Control</Title>
-                <Descriptions column={1} bordered>
+                <Title level={4} style={sectionTitleStyle}>
+                    Access Control
+                </Title>
+                <Text type="secondary" style={sectionSubtitleStyle}>
+                    Configure authentication methods and access controls.
+                </Text>
+                <Descriptions column={1} bordered className="org-kv-65-35">
                     <Descriptions.Item label="Allow email authentication">
                         <Radio.Group
                             value={selectedOrg.flags.allow_email ? "yes" : "no"}
@@ -590,8 +527,8 @@ const Organization: FC = () => {
                             onChange={(e) => handleFlagChange("allow_email", e.target.value === "yes")}
                             disabled={updating}
                         >
-                            <Radio.Button value="yes">Yes</Radio.Button>
-                            <Radio.Button value="no">No</Radio.Button>
+                            <Radio.Button value="yes">Allow</Radio.Button>
+                            <Radio.Button value="no">Deny</Radio.Button>
                         </Radio.Group>
                     </Descriptions.Item>
                     <Descriptions.Item label="Allow social authentication">
@@ -601,19 +538,19 @@ const Organization: FC = () => {
                             onChange={(e) => handleFlagChange("allow_social", e.target.value === "yes")}
                             disabled={updating}
                         >
-                            <Radio.Button value="yes">Yes</Radio.Button>
-                            <Radio.Button value="no">No</Radio.Button>
+                            <Radio.Button value="yes">Allow</Radio.Button>
+                            <Radio.Button value="no">Deny</Radio.Button>
                         </Radio.Group>
                     </Descriptions.Item>
-                    <Descriptions.Item label="Allow SSO (OIDC) authentication">
+                    <Descriptions.Item label="Allow SSO authentication">
                         <Radio.Group
                             value={selectedOrg.flags.allow_sso ? "yes" : "no"}
                             size="small"
                             onChange={(e) => handleFlagChange("allow_sso", e.target.value === "yes")}
                             disabled={updating}
                         >
-                            <Radio.Button value="yes">Yes</Radio.Button>
-                            <Radio.Button value="no">No</Radio.Button>
+                            <Radio.Button value="yes">Allow</Radio.Button>
+                            <Radio.Button value="no">Deny</Radio.Button>
                         </Radio.Group>
                     </Descriptions.Item>
                     <Descriptions.Item label="Allow auto-join for verified domains">
@@ -625,19 +562,19 @@ const Organization: FC = () => {
                             }
                             disabled={updating}
                         >
-                            <Radio.Button value="yes">Yes</Radio.Button>
-                            <Radio.Button value="no">No</Radio.Button>
+                            <Radio.Button value="yes">Allow</Radio.Button>
+                            <Radio.Button value="no">Deny</Radio.Button>
                         </Radio.Group>
                     </Descriptions.Item>
-                    <Descriptions.Item label="Allow access to verified domains only">
+                    <Descriptions.Item label="Allow access only to verified domains">
                         <Radio.Group
                             value={selectedOrg.flags.domains_only ? "yes" : "no"}
                             size="small"
                             onChange={(e) => handleFlagChange("domains_only", e.target.value === "yes")}
                             disabled={updating}
                         >
-                            <Radio.Button value="yes">Yes</Radio.Button>
-                            <Radio.Button value="no">No</Radio.Button>
+                            <Radio.Button value="yes">Allow</Radio.Button>
+                            <Radio.Button value="no">Deny</Radio.Button>
                         </Radio.Group>
                     </Descriptions.Item>
                     <Descriptions.Item label="Allow organization owner to bypass controls">
@@ -647,8 +584,8 @@ const Organization: FC = () => {
                             onChange={(e) => handleFlagChange("allow_root", e.target.value === "yes")}
                             disabled={updating}
                         >
-                            <Radio.Button value="yes">Yes</Radio.Button>
-                            <Radio.Button value="no">No</Radio.Button>
+                            <Radio.Button value="yes">Allow</Radio.Button>
+                            <Radio.Button value="no">Deny</Radio.Button>
                         </Radio.Group>
                     </Descriptions.Item>
                 </Descriptions>
@@ -658,11 +595,11 @@ const Organization: FC = () => {
                 <Space direction="vertical" size="middle" style={{width: "100%"}}>
                     <div style={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
                         <div>
-                            <Title level={4} style={{margin: 0}}>
+                            <Title level={4} style={sectionTitleStyle}>
                                 Verified Domains
                             </Title>
-                            <Text type="secondary">
-                                Configure verified domains for organization auto-join and SSO enforcement.
+                            <Text type="secondary" style={sectionSubtitleStyle}>
+                                Configure verified domains (required for auto-join and SSO enforcement).
                             </Text>
                         </div>
                         <Button
@@ -680,7 +617,10 @@ const Organization: FC = () => {
                         rowKey="id"
                         pagination={false}
                         size="small"
+                        tableLayout="fixed"
+                        className="no-expand-indent no-expand-col org-domains-table"
                         expandable={{
+                            expandedRowKeys: pendingDomainRowKeys,
                             expandedRowRender: (record: OrganizationDomain) => {
                                 // Only show DNS instructions for unverified domains with a token
                                 if (record.flags?.is_verified || !record.token) {
@@ -688,34 +628,36 @@ const Organization: FC = () => {
                                 }
 
                                 const txtRecordName = `_agenta-verification.${record.slug}`
-                                const txtRecordValue = `agenta-verification=${record.token}`
+                                const txtRecordValue = `_agenta-verification=${record.token}`
 
                                 return (
                                     <Alert
-                                        message={<span style={{fontSize: "15px", fontWeight: 500}}>DNS Verification Instructions</span>}
+                                        message={<span style={{fontSize: "15px", fontWeight: 500}}>Verification Instructions</span>}
                                         description={
-                                            <Space direction="vertical" size="middle" style={{width: "100%"}}>
+                                            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
                                                 <Text style={{fontSize: "14px"}}>
-                                                    To verify ownership of <Text strong>{record.slug}</Text>, add the following DNS TXT record:
+                                                    1. Add the following DNS TXT record:
                                                 </Text>
-                                                <Descriptions bordered size="small" column={1}>
-                                                    <Descriptions.Item label={<span style={{fontSize: "14px"}}>Record Type</span>}>
-                                                        <Text code style={{fontSize: "14px"}}>TXT</Text>
+                                                <Descriptions bordered size="small" column={1} className="org-instructions">
+                                                    <Descriptions.Item label={<span style={{fontFamily: "monospace", fontSize: "12px"}}>Type</span>}>
+                                                        <span style={{fontFamily: "monospace", fontSize: "12px"}}>TXT</span>
                                                     </Descriptions.Item>
-                                                    <Descriptions.Item label={<span style={{fontSize: "14px"}}>Host/Name</span>}>
-                                                        <TooltipWithCopyAction copyText={txtRecordName} title="Copy host name">
-                                                            <Text code style={{fontSize: "14px"}}>{txtRecordName}</Text>
+                                                    <Descriptions.Item label={<span style={{fontFamily: "monospace", fontSize: "12px"}}>Host</span>}>
+                                                        <TooltipWithCopyAction copyText={txtRecordName} title="Copy host">
+                                                            <span style={{fontFamily: "monospace", fontSize: "12px"}}>{txtRecordName}</span>
                                                         </TooltipWithCopyAction>
                                                     </Descriptions.Item>
-                                                    <Descriptions.Item label={<span style={{fontSize: "14px"}}>Value</span>}>
+                                                    <Descriptions.Item label={<span style={{fontFamily: "monospace", fontSize: "12px"}}>Value</span>}>
                                                         <TooltipWithCopyAction copyText={txtRecordValue} title="Copy value">
-                                                            <Text code className="break-all" style={{fontSize: "14px"}}>{txtRecordValue}</Text>
+                                                            <span className="break-all" style={{fontFamily: "monospace", fontSize: "12px"}}>{txtRecordValue}</span>
                                                         </TooltipWithCopyAction>
                                                     </Descriptions.Item>
                                                 </Descriptions>
-                                                <Text type="secondary" style={{fontSize: "13px"}}>
-                                                    After adding the DNS record, wait 5-30 minutes for DNS propagation, then click the "Verify" button.
-                                                    The verification token expires after 48 hours.
+                                                <Text style={{fontSize: "14px"}}>
+                                                    2. Wait a few minutes for DNS propagation.
+                                                </Text>
+                                                <Text style={{fontSize: "14px"}}>
+                                                    3. Click the "Verify" button.
                                                 </Text>
                                             </Space>
                                         }
@@ -726,22 +668,7 @@ const Organization: FC = () => {
                                 )
                             },
                             rowExpandable: (record: OrganizationDomain) => !record.flags?.is_verified && !!record.token,
-                            expandIcon: ({expanded, onExpand, record}) => {
-                                // Only show expand icon for unverified domains with tokens
-                                if (record.flags?.is_verified || !record.token) {
-                                    return null
-                                }
-                                return (
-                                    <InfoCircleOutlined
-                                        style={{
-                                            fontSize: "16px",
-                                            color: expanded ? "#1890ff" : "#8c8c8c",
-                                            cursor: "pointer",
-                                        }}
-                                        onClick={(e) => onExpand(record, e)}
-                                    />
-                                )
-                            },
+                            expandIcon: () => null,
                         }}
                     />
                 </Space>
@@ -771,19 +698,8 @@ const Organization: FC = () => {
                         >
                             <Input placeholder="example.com or app.example.com" />
                         </Form.Item>
-                        <Form.Item
-                            name="name"
-                            label="Name"
-                            rules={[{required: true, message: "Please enter a name"}]}
-                        >
-                            <Input placeholder="Company Domain" />
-                        </Form.Item>
-                        <Form.Item name="description" label="Description">
-                            <Input.TextArea placeholder="Optional description" rows={3} />
-                        </Form.Item>
                         <Text type="secondary" style={{fontSize: "12px"}}>
-                            After adding the domain, you'll need to add a DNS TXT record with the
-                            verification token to prove ownership.
+                            After adding the domain, please follow the verification instructions.
                         </Text>
                     </Form>
                 </Modal>
@@ -793,21 +709,64 @@ const Organization: FC = () => {
                 <Space direction="vertical" size="middle" style={{width: "100%"}}>
                     <div style={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
                         <div>
-                            <Title level={4} style={{margin: 0}}>
-                                SSO Profiles
+                            <Title level={4} style={sectionTitleStyle}>
+                                SSO Providers
                             </Title>
-                            <Text type="secondary">
-                                Configure Single Sign-On (SSO) via OpenID Connect (OIDC).
+                            <Text type="secondary" style={sectionSubtitleStyle}>
+                                Configure SSO providers via OpenID Connect (OIDC).
                             </Text>
                         </div>
                         <Button
                             type="primary"
                             icon={<PlusOutlined />}
                             onClick={() => setProviderModalVisible(true)}
+                            disabled={!selectedOrg?.slug}
                         >
                             Add Provider
                         </Button>
                     </div>
+                    <Descriptions size="small" column={1} bordered className="org-kv-65-35">
+                        <Descriptions.Item label="Organization slug">
+                            {selectedOrg.slug ? (
+                                <Text>{selectedOrg.slug}</Text>
+                            ) : (
+                                <Button
+                                    size="small"
+                                    onClick={() => {
+                                        setSlugValue("")
+                                        setSlugModalVisible(true)
+                                    }}
+                                >
+                                    + Set Slug
+                                </Button>
+                            )}
+                        </Descriptions.Item>
+                    </Descriptions>
+                    <Modal
+                        title="Set organization slug"
+                        open={slugModalVisible}
+                        okText="Save"
+                        onOk={handleSlugSave}
+                        onCancel={() => setSlugModalVisible(false)}
+                        confirmLoading={updating}
+                    >
+                        <Text type="secondary">
+                            The slug is used in SSO callbacks and cannot be unset or edited once saved.
+                        </Text>
+                        <Input
+                            style={{marginTop: 12}}
+                            value={slugValue}
+                            onChange={(e) => setSlugValue(e.target.value)}
+                            placeholder="organization-slug"
+                        />
+                    </Modal>
+                    {!selectedOrg?.slug && (
+                        <Alert
+                            message="Set an organization slug before configuring SSO providers."
+                            type="warning"
+                            showIcon
+                        />
+                    )}
 
                     <Table
                         columns={providerColumns}
@@ -815,6 +774,60 @@ const Organization: FC = () => {
                         rowKey="id"
                         pagination={false}
                         size="small"
+                        tableLayout="fixed"
+                        className="no-expand-indent no-expand-col org-providers-table"
+                        expandable={{
+                            expandedRowKeys: pendingProviderRowKeys,
+                            expandedRowRender: (record: OrganizationProvider) => {
+                                // Only show configuration instructions for providers that are not valid
+                                if (record.flags?.is_valid !== false) {
+                                    return null
+                                }
+
+                                if (!selectedOrg?.slug) {
+                                    return null
+                                }
+
+                                const callbackUrl = `${getAgentaApiUrl()}/auth/sso/callback/${selectedOrg.slug}/${record.slug}`
+                                const expectedScopes = "openid email profile"
+
+                                return (
+                                    <Alert
+                                        message={<span style={{fontSize: "15px", fontWeight: 500}}>Configuration Instructions</span>}
+                                        description={
+                                            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+                                                <Text style={{fontSize: "14px"}}>
+                                                    1. Configure your SSO provider with the following details:
+                                                </Text>
+                                                <Descriptions bordered size="small" column={1} className="org-instructions">
+                                                    <Descriptions.Item label={<span style={{fontFamily: "monospace", fontSize: "12px"}}>Callback URL</span>}>
+                                                        <TooltipWithCopyAction copyText={callbackUrl} title="Copy callback URL">
+                                                            <span style={{fontFamily: "monospace", fontSize: "12px"}}>{callbackUrl}</span>
+                                                        </TooltipWithCopyAction>
+                                                    </Descriptions.Item>
+                                                    <Descriptions.Item label={<span style={{fontFamily: "monospace", fontSize: "12px"}}>Scopes</span>}>
+                                                        <TooltipWithCopyAction copyText={expectedScopes} title="Copy scopes">
+                                                            <span style={{fontFamily: "monospace", fontSize: "12px"}}>{expectedScopes}</span>
+                                                        </TooltipWithCopyAction>
+                                                    </Descriptions.Item>
+                                                </Descriptions>
+                                                <Text style={{fontSize: "14px"}}>
+                                                    2. Ensure your SSO provider's OIDC discovery endpoint is accessible.
+                                                </Text>
+                                                <Text style={{fontSize: "14px"}}>
+                                                    3. Click the "Verify" button.
+                                                </Text>
+                                            </Space>
+                                        }
+                                        type="info"
+                                        icon={<InfoCircleOutlined />}
+                                        showIcon
+                                    />
+                                )
+                            },
+                            rowExpandable: (record: OrganizationProvider) => record.flags?.is_valid === false,
+                            expandIcon: () => null,
+                        }}
                     />
                 </Space>
 
@@ -834,8 +847,14 @@ const Organization: FC = () => {
                     <Form form={providerForm} layout="vertical" style={{marginTop: 16}}>
                         <Form.Item
                             name="slug"
-                            label="Provider Name"
-                            rules={[{required: true, message: "Please enter a provider name"}]}
+                            label="Provider"
+                            rules={[
+                                {required: true, message: "Please enter a provider slug"},
+                                {
+                                    pattern: /^[a-z-]+$/,
+                                    message: "Provider slug must contain only lowercase letters and hyphens"
+                                }
+                            ]}
                         >
                             <Input placeholder="my-idp" />
                         </Form.Item>

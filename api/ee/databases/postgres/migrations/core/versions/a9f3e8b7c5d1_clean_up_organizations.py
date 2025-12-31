@@ -334,6 +334,15 @@ def upgrade() -> None:
     """)
     )
 
+    # Step 13c: Add unique constraint: one personal org per owner
+    op.create_index(
+        "uq_organizations_owner_personal",
+        "organizations",
+        ["owner_id"],
+        unique=True,
+        postgresql_where=sa.text("(flags->>'is_personal') = 'true'"),
+    )
+
     # Clean up temp table
     conn.execute(text("DROP TABLE IF EXISTS org_member_counts"))
 
@@ -473,10 +482,18 @@ def downgrade() -> None:
     conn = op.get_bind()
 
     # Drop foreign key constraints
-    op.drop_constraint("fk_organizations_deleted_by_id_users", "organizations", type_="foreignkey")
-    op.drop_constraint("fk_organizations_updated_by_id_users", "organizations", type_="foreignkey")
-    op.drop_constraint("fk_organizations_created_by_id_users", "organizations", type_="foreignkey")
-    op.drop_constraint("fk_organizations_owner_id_users", "organizations", type_="foreignkey")
+    op.drop_constraint(
+        "fk_organizations_deleted_by_id_users", "organizations", type_="foreignkey"
+    )
+    op.drop_constraint(
+        "fk_organizations_updated_by_id_users", "organizations", type_="foreignkey"
+    )
+    op.drop_constraint(
+        "fk_organizations_created_by_id_users", "organizations", type_="foreignkey"
+    )
+    op.drop_constraint(
+        "fk_organizations_owner_id_users", "organizations", type_="foreignkey"
+    )
     op.drop_constraint(
         "organization_members_organization_id_fkey",
         "organization_members",
@@ -561,6 +578,12 @@ def downgrade() -> None:
         "organizations",
         ["organization_id"],
         ["id"],
+    )
+
+    # Drop unique constraint for personal orgs
+    op.drop_index(
+        "uq_organizations_owner_personal",
+        table_name="organizations",
     )
 
     # Drop role column from organization_members

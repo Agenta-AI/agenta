@@ -11,7 +11,9 @@ from ee.src.core.meters.service import MetersService
 from ee.src.core.subscriptions.service import SubscriptionsService
 
 from ee.src.apis.fastapi.billing.router import SubscriptionsRouter
-from ee.src.apis.fastapi.organizations.router import router as organization_security_router
+from ee.src.apis.fastapi.organizations.router import (
+    router as organization_security_router,
+)
 from oss.src.apis.fastapi.auth.router import auth_router
 
 # DBS --------------------------------------------------------------------------

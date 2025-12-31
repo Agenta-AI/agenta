@@ -10,7 +10,7 @@ class OrganizationDomainCreate(BaseModel):
     """Request model for creating a domain."""
 
     domain: str = Field(..., description="Domain name to verify (e.g., 'company.com')")
-    name: str = Field(..., description="Friendly name for the domain")
+    name: Optional[str] = Field(None, description="Friendly name for the domain")
     description: Optional[str] = Field(None, description="Optional description")
 
 
@@ -26,7 +26,7 @@ class OrganizationDomainResponse(BaseModel):
     id: str
     organization_id: str
     slug: str  # The actual domain (e.g., "company.com")
-    name: str
+    name: Optional[str]
     description: Optional[str]
     token: Optional[str]  # Verification token
     flags: dict  # Contains is_verified flag
@@ -41,32 +41,30 @@ class OrganizationDomainResponse(BaseModel):
 class OrganizationProviderCreate(BaseModel):
     """Request model for creating an SSO provider."""
 
-    provider_type: str = Field(
-        default="oidc",
-        description="Type of SSO provider (only 'oidc' supported, 'saml' coming soon)"
+    slug: str = Field(
+        ...,
+        description="Provider slug (lowercase letters and hyphens only)",
+        pattern="^[a-z-]+$",
     )
-    name: str = Field(..., description="Friendly name for the provider")
-    client_id: str = Field(..., description="OAuth/OIDC client ID")
-    client_secret: str = Field(..., description="OAuth/OIDC client secret")
-    issuer_url: str = Field(..., description="OIDC issuer URL")
-    authorization_endpoint: Optional[str] = Field(None, description="Authorization endpoint URL")
-    token_endpoint: Optional[str] = Field(None, description="Token endpoint URL")
-    userinfo_endpoint: Optional[str] = Field(None, description="Userinfo endpoint URL")
-    scopes: Optional[list[str]] = Field(default=["openid", "profile", "email"], description="OAuth scopes")
+    name: Optional[str] = Field(None, description="Friendly name for the provider")
+    description: Optional[str] = Field(None, description="Optional description")
+    settings: dict = Field(
+        ...,
+        description="Provider settings (client_id, client_secret, issuer_url, scopes)",
+    )
+    flags: Optional[dict] = Field(
+        default=None, description="Provider flags (is_active, is_valid)"
+    )
 
 
 class OrganizationProviderUpdate(BaseModel):
     """Request model for updating an SSO provider."""
 
+    slug: Optional[str] = Field(None, description="Provider slug", pattern="^[a-z-]+$")
     name: Optional[str] = None
-    client_id: Optional[str] = None
-    client_secret: Optional[str] = None
-    issuer_url: Optional[str] = None
-    authorization_endpoint: Optional[str] = None
-    token_endpoint: Optional[str] = None
-    userinfo_endpoint: Optional[str] = None
-    scopes: Optional[list[str]] = None
-    is_active: Optional[bool] = None
+    description: Optional[str] = None
+    settings: Optional[dict] = None
+    flags: Optional[dict] = None
 
 
 class OrganizationProviderResponse(BaseModel):
@@ -75,16 +73,10 @@ class OrganizationProviderResponse(BaseModel):
     id: str
     organization_id: str
     slug: str  # Provider identifier
-    provider_type: str
-    name: str
-    client_id: str
-    client_secret: str  # Masked in actual responses
-    issuer_url: str
-    authorization_endpoint: Optional[str]
-    token_endpoint: Optional[str]
-    userinfo_endpoint: Optional[str]
-    scopes: list[str]
-    flags: dict  # Contains is_valid, is_active flags
+    name: Optional[str]
+    description: Optional[str]
+    settings: dict  # Contains client_id, client_secret, issuer_url, scopes
+    flags: dict  # Contains is_valid, is_active
     created_at: datetime
     updated_at: Optional[datetime]
 

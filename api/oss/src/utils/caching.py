@@ -12,6 +12,7 @@ from oss.src.utils.env import env
 
 log = get_module_logger(__name__)
 
+AGENTA_LOCK_TTL = 15  # 5 seconds
 AGENTA_CACHE_TTL = 5 * 60  # 5 minutes
 AGENTA_CACHE_LOCAL_TTL = 60  # 60 seconds for local in-memory cache (Layer 1)
 
@@ -547,3 +548,131 @@ async def invalidate_cache(
         log.warn(e)
 
         return None
+
+
+async def acquire_lock(
+    namespace: str,
+    key: Optional[Union[str, dict]] = None,
+    project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    ttl: int = AGENTA_LOCK_TTL,
+) -> Optional[str]:
+    """Acquire a distributed lock using Redis SET NX (atomic check-and-set).
+
+    This prevents race conditions in distributed systems by ensuring only one
+    process can acquire the lock at a time.
+
+    Args:
+        namespace: Lock namespace (e.g., "account-creation", "task-processing")
+        key: Unique identifier for the lock (e.g., email, user_id, task_id)
+        project_id: Optional project scope
+        user_id: Optional user scope
+        ttl: Lock expiration time in seconds (default: 10). Auto-releases after TTL.
+
+    Returns:
+        Lock key string if lock was acquired, None if lock is already held by another process.
+
+    Example:
+        lock_key = await acquire_lock(namespace="account-creation", key=email, ttl=10)
+        if not lock_key:
+            # Another process has the lock
+            return
+
+        try:
+            # Do work while holding the lock
+            await create_account(email)
+        finally:
+            # Always release the lock
+            await release_lock(lock_key)
+    """
+    try:
+        lock_key = _pack(
+            namespace=f"lock:{namespace}",
+            key=key,
+            project_id=project_id,
+            user_id=user_id,
+        )
+
+        # Atomic SET NX: Returns True if lock acquired, False if already held
+        acquired = await r.set(lock_key, "1", nx=True, ex=ttl)
+
+        if acquired:
+            if CACHE_DEBUG:
+                log.debug(
+                    "[lock] ACQUIRED",
+                    key=lock_key,
+                    ttl=ttl,
+                )
+            return lock_key
+        else:
+            if CACHE_DEBUG:
+                log.debug(
+                    "[lock] BLOCKED",
+                    key=lock_key,
+                )
+            return None
+
+    except Exception as e:
+        log.error(
+            f"[lock] ACQUIRE ERROR: namespace={namespace} key={key} error={e}",
+            exc_info=True,
+        )
+        return None
+
+
+async def release_lock(
+    namespace: str,
+    key: Optional[Union[str, dict]] = None,
+    project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+) -> bool:
+    """Release a distributed lock acquired with acquire_lock().
+
+    Args:
+        namespace: Lock namespace (same as used in acquire_lock)
+        key: Lock key (same as used in acquire_lock)
+        project_id: Optional project ID (same as used in acquire_lock)
+        user_id: Optional user ID (same as used in acquire_lock)
+
+    Returns:
+        True if lock was released, False if already expired or on error
+
+    Example:
+        lock_acquired = await acquire_lock(namespace="account-creation", key=email)
+        if lock_acquired:
+            try:
+                # ... critical section ...
+            finally:
+                await release_lock(namespace="account-creation", key=email)
+    """
+    try:
+        lock_key = _pack(
+            namespace=f"lock:{namespace}",
+            key=key,
+            project_id=project_id,
+            user_id=user_id,
+        )
+
+        deleted = await r.delete(lock_key)
+
+        if deleted:
+            if CACHE_DEBUG:
+                log.debug(
+                    "[lock] RELEASED",
+                    key=lock_key,
+                )
+            return True
+        else:
+            if CACHE_DEBUG:
+                log.debug(
+                    "[lock] ALREADY EXPIRED",
+                    key=lock_key,
+                )
+            return False
+
+    except Exception as e:
+        log.error(
+            f"[lock] RELEASE ERROR: namespace={namespace} key={key} error={e}",
+            exc_info=True,
+        )
+        return False

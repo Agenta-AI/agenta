@@ -1512,6 +1512,25 @@ async def get_organization_by_id(organization_id: str) -> OrganizationDB:
         return organization
 
 
+async def get_organization_by_slug(organization_slug: str) -> OrganizationDB:
+    """
+    Retrieve an organization from the database by its slug.
+
+    Args:
+        organization_slug (str): The slug of the organization
+
+    Returns:
+        OrganizationDB: The organization object if found, None otherwise.
+    """
+
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(OrganizationDB).filter_by(slug=organization_slug)
+        )
+        organization = result.scalar()
+        return organization
+
+
 async def get_organization_owner(organization_id: str):
     """
     Retrieve the owner of an organization from the database by its ID.

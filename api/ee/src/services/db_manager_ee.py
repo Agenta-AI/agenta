@@ -1288,6 +1288,7 @@ async def get_org_details(organization: Organization) -> dict:
 
     sample_organization = {
         "id": str(organization.id),
+        "slug": organization.slug,
         "name": organization.name,
         "description": organization.description,
         "flags": organization.flags,
