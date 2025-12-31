@@ -3,10 +3,11 @@ import {ComponentProps, ReactNode, useState} from "react"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {Button, Divider, Drawer} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {envRevisionsAtom} from "@/oss/components/DeploymentsDashboard/atoms"
+import {openSelectDeployVariantModalAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {JSSTheme} from "@/oss/lib/Types"
 import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
@@ -98,6 +99,8 @@ const DeploymentsDrawerContent = ({
 }: DeploymentsDrawerProps) => {
     const variants = useAtomValue(revisionListAtom) || []
     const envRevisions = useAtomValue(envRevisionsAtom)
+    const openSelectDeployVariantModal = useSetAtom(openSelectDeployVariantModalAtom)
+
     return (
         <div className="flex h-full">
             <div className={`flex-1 overflow-auto ${mainContentClassName}`}>
@@ -118,7 +121,9 @@ const DeploymentsDrawerContent = ({
                 >
                     {envRevisions ? (
                         <UseApiContent
-                            handleOpenSelectDeployVariantModal={() => close()}
+                            handleOpenSelectDeployVariantModal={() =>
+                                openSelectDeployVariantModal({variants, envRevisions})
+                            }
                             variants={variants}
                             revisionId={drawerVariantId}
                             selectedEnvironment={envRevisions}
