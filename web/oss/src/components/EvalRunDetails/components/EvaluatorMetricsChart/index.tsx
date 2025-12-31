@@ -41,6 +41,38 @@ interface EvaluatorLabelProps {
     fallbackLabel: string
 }
 
+type MetricDeltaTone = "positive" | "negative" | "neutral"
+
+interface MetricStripEntry {
+    key: string
+    label: string
+    color: string
+    value: number | null
+    displayValue: string
+    isMain: boolean
+    deltaText: string
+    deltaTone: MetricDeltaTone
+}
+
+const getMainEvaluatorSeries = (entries: MetricStripEntry[]) =>
+    entries.find((entry) => entry.isMain) ?? entries[0]
+
+const computeDeltaPercent = (current: number | null, baseline: number | null) => {
+    if (typeof current !== "number" || typeof baseline !== "number") return null
+    if (!Number.isFinite(current) || !Number.isFinite(baseline) || baseline === 0) return null
+    return ((current - baseline) / baseline) * 100
+}
+
+const formatDelta = (delta: number | null): {text: string; tone: MetricDeltaTone} => {
+    if (delta === null || !Number.isFinite(delta)) {
+        return {text: "-", tone: "neutral"}
+    }
+    const rounded = Math.round(delta)
+    if (rounded > 0) return {text: `+${rounded}%`, tone: "positive"}
+    if (rounded < 0) return {text: `${rounded}%`, tone: "negative"}
+    return {text: "0%", tone: "neutral"}
+}
+
 const EvaluatorMetricsChartTitle = memo(
     ({runId, evaluatorRef, fallbackLabel}: EvaluatorLabelProps) => {
         const evaluatorAtom = useMemo(
@@ -243,24 +275,144 @@ const EvaluatorMetricsChart = ({
         (isBooleanMetric && booleanChartData.length > 0) ||
         hasCategoricalFrequency
 
-    const summaryValue = useMemo((): string | null => {
-        if (isBooleanMetric) {
-            const percentage = booleanHistogram.percentages.true
-            return Number.isFinite(percentage) ? `${percentage.toFixed(2)}%` : "—"
+    const comparisonBooleanPercentMap = useMemo(() => {
+        const map = new Map<string, number>()
+        comparisonBooleanHistograms.forEach((entry) => {
+            if (Number.isFinite(entry.histogram.percentages.true)) {
+                map.set(entry.runId, entry.histogram.percentages.true)
+            }
+        })
+        return map
+    }, [comparisonBooleanHistograms])
+
+    const summaryItems = useMemo<MetricStripEntry[]>(() => {
+        const baseValue = (() => {
+            if (!resolvedStats) return {value: null, displayValue: "—"}
+            if (isBooleanMetric) {
+                const percentage = booleanHistogram.percentages.true
+                return Number.isFinite(percentage)
+                    ? {value: percentage, displayValue: `${percentage.toFixed(2)}%`}
+                    : {value: null, displayValue: "—"}
+            }
+            if (hasCategoricalFrequency) {
+                return {value: null, displayValue: "—"}
+            }
+            if (typeof resolvedStats.mean === "number" && Number.isFinite(resolvedStats.mean)) {
+                return {value: resolvedStats.mean, displayValue: format3Sig(resolvedStats.mean)}
+            }
+            return {value: null, displayValue: "—"}
+        })()
+
+        const baseEntry: MetricStripEntry = {
+            key: baseSeriesKey,
+            label: resolvedRunName,
+            color: resolvedBaseColor,
+            value: baseValue.value,
+            displayValue: baseValue.displayValue,
+            isMain: true,
+            deltaText: "-",
+            deltaTone: "neutral",
         }
-        if (hasCategoricalFrequency && categoricalFrequencyData.length) {
-            return null
-        }
-        if (typeof stats.mean === "number") return format3Sig(stats.mean)
-        return "—"
+
+        const comparisonEntries = comparisonSeries.map((entry) => {
+            const statsValue = entry.stats
+            if (!statsValue) {
+                return {
+                    key: entry.runId,
+                    label: entry.runName,
+                    color: entry.color,
+                    value: null,
+                    displayValue: "—",
+                    isMain: false,
+                    deltaText: "-",
+                    deltaTone: "neutral",
+                }
+            }
+            if (isBooleanMetric) {
+                const percentage = comparisonBooleanPercentMap.get(entry.runId)
+                return {
+                    key: entry.runId,
+                    label: entry.runName,
+                    color: entry.color,
+                    value: typeof percentage === "number" ? percentage : null,
+                    displayValue:
+                        typeof percentage === "number" && Number.isFinite(percentage)
+                            ? `${percentage.toFixed(2)}%`
+                            : "—",
+                    isMain: false,
+                    deltaText: "-",
+                    deltaTone: "neutral",
+                }
+            }
+            if (hasCategoricalFrequency) {
+                return {
+                    key: entry.runId,
+                    label: entry.runName,
+                    color: entry.color,
+                    value: null,
+                    displayValue: "—",
+                    isMain: false,
+                    deltaText: "-",
+                    deltaTone: "neutral",
+                }
+            }
+            if (typeof statsValue.mean === "number" && Number.isFinite(statsValue.mean)) {
+                return {
+                    key: entry.runId,
+                    label: entry.runName,
+                    color: entry.color,
+                    value: statsValue.mean,
+                    displayValue: format3Sig(statsValue.mean),
+                    isMain: false,
+                    deltaText: "-",
+                    deltaTone: "neutral",
+                }
+            }
+            return {
+                key: entry.runId,
+                label: entry.runName,
+                color: entry.color,
+                value: null,
+                displayValue: "—",
+                isMain: false,
+                deltaText: "-",
+                deltaTone: "neutral",
+            }
+        })
+
+        const entries = [baseEntry, ...comparisonEntries]
+        const mainSeries = getMainEvaluatorSeries(entries)
+
+        return entries.map((entry) => {
+            if (entry.isMain) {
+                return entry
+            }
+            const delta = computeDeltaPercent(entry.value, mainSeries?.value ?? null)
+            const formatted = formatDelta(delta)
+            return {
+                ...entry,
+                deltaText: formatted.text,
+                deltaTone: formatted.tone,
+            }
+        })
     }, [
+        baseSeriesKey,
         booleanHistogram.percentages.true,
-        categoricalFrequencyData,
-        effectiveScenarioCount,
+        comparisonBooleanPercentMap,
+        comparisonSeries,
         hasCategoricalFrequency,
         isBooleanMetric,
-        stats,
+        resolvedBaseColor,
+        resolvedRunName,
+        resolvedStats,
     ])
+
+    const metricsGridClass = useMemo(() => {
+        if (summaryItems.length <= 1) return "grid-cols-1"
+        if (summaryItems.length === 2) return "grid-cols-2"
+        if (summaryItems.length === 3) return "grid-cols-3"
+        return "grid-cols-2 sm:grid-cols-4"
+    }, [summaryItems.length])
 
     const chartContent = () => {
         if (isBooleanMetric) {
@@ -443,10 +595,11 @@ const EvaluatorMetricsChart = ({
     return (
         <Card
             className={clsx("h-full rounded-lg overflow-hidden", className)}
-            classNames={{header: "!p-0", body: "!p-0"}}
+            classNames={{body: "!p-0"}}
             variant="outlined"
-            title={
-                <div className="flex items-center justify-between px-4 py-3">
+        >
+            <div className="flex h-full flex-col">
+                <div className="px-4 pt-4 pb-2">
                     <div className="flex flex-col gap-0.5">
                         <EvaluatorMetricsChartTitle
                             runId={runId}
@@ -458,31 +611,42 @@ const EvaluatorMetricsChart = ({
                         </Typography.Text>
                     </div>
                 </div>
-            }
-        >
-            <div className="flex flex-col gap-4 px-4 pb-4">
-                {stableComparisons.length === 0 && (
-                    <div className="flex h-[70px] items-center justify-center">
-                        {summaryValue !== null ? (
-                            <Typography.Text
-                                className="text-xl font-medium"
-                                style={{color: resolvedBaseColor}}
-                            >
-                                {summaryValue}
-                            </Typography.Text>
-                        ) : null}
+                <div className="px-4 pb-3">
+                    <div className={clsx("grid gap-4 text-center sm:text-left", metricsGridClass)}>
+                        {summaryItems.map((entry) => (
+                            <div key={entry.key} className="flex flex-col gap-1">
+                                <Typography.Text
+                                    className="text-xl font-semibold"
+                                    style={{color: entry.color}}
+                                >
+                                    {entry.displayValue}
+                                </Typography.Text>
+                                <Typography.Text
+                                    className={clsx("text-xs font-medium", {
+                                        "text-emerald-600": entry.deltaTone === "positive",
+                                        "text-red-600": entry.deltaTone === "negative",
+                                        "text-neutral-400": entry.deltaTone === "neutral",
+                                    })}
+                                >
+                                    {entry.deltaText}
+                                </Typography.Text>
+                            </div>
+                        ))}
                     </div>
-                )}
-                <div className={stableComparisons.length > 0 ? "h-[370px]" : "h-[300px]"}>
-                    {isLoading ? (
-                        <Skeleton active className="w-full h-full" />
-                    ) : hasError && !resolvedStats ? (
-                        <div className="flex h-full items-center justify-center text-neutral-500">
-                            Unable to load metric data.
-                        </div>
-                    ) : (
-                        chartContent()
-                    )}
+                </div>
+                <div className="border-t border-neutral-200" />
+                <div className="flex flex-1 px-4 py-4">
+                    <div className="mt-auto h-[320px] w-full">
+                        {isLoading ? (
+                            <Skeleton active className="w-full h-full" />
+                        ) : hasError && !resolvedStats ? (
+                            <div className="flex h-full items-center justify-center text-neutral-500">
+                                Unable to load metric data.
+                            </div>
+                        ) : (
+                            chartContent()
+                        )}
+                    </div>
                 </div>
             </div>
         </Card>
