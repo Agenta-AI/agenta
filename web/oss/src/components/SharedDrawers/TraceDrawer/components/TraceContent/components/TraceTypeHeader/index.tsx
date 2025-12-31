@@ -84,6 +84,7 @@ const TraceTypeHeader = ({
                         traceId: activeTrace?.trace_id,
                         spanId: activeTrace?.span_id,
                     }}
+                    queryKey="trace-drawer-annotations"
                 />
 
                 <Button
