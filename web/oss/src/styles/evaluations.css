@@ -139,7 +139,6 @@
 .metadata-summary-table .ant-table,
 .metadata-summary-table .ant-table-container,
 .metadata-summary-table .ant-table-content {
-    border: none !important;
     box-shadow: none !important;
 }
 
@@ -159,6 +158,11 @@
 
 .metadata-summary-table .ant-table-tbody > tr:last-child > td {
     border-bottom: none;
+}
+
+.metadata-summary-table .ant-tag {
+    margin-inline-end: 0;
+    margin-bottom: 0;
 }
 
 .agenta-scenario-table .ant-table-tbody > tr > td {
