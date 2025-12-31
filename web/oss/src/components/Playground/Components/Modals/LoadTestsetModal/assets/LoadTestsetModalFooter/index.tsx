@@ -5,7 +5,7 @@ import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
-import {saveNewTestsetAtom} from "@/oss/state/entities/testcase/mutations"
+import {saveNewTestsetAtom} from "@/oss/state/entities/testcase"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 

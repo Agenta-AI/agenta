@@ -1,4 +1,4 @@
-import {memo, useCallback, useMemo} from "react"
+import {memo, useCallback} from "react"
 
 import {Divider, Spin} from "antd"
 import clsx from "clsx"
@@ -6,8 +6,7 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {useEntityList} from "@/oss/state/entities/hooks/useEntityList"
-import {testsetStore} from "@/oss/state/entities/testset"
+import {testset} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {urlAtom} from "@/oss/state/url"
 
@@ -30,15 +29,10 @@ const LoadTestsetModalContent = ({modalProps}: LoadTestsetModalContentProps) => 
     const router = useRouter()
     const urlState = useAtomValue(urlAtom)
 
-    // Memoize params to prevent infinite re-renders
-    const listParams = useMemo(() => ({projectId: projectId ?? ""}), [projectId])
-
-    const {
-        data: testsetListResponse,
-        isLoading: isLoadingTestsets,
-        refetch: refetchTestsetsList,
-    } = useEntityList(testsetStore, listParams)
-    const testsets = testsetListResponse?.testsets ?? []
+    // Use testset controller API
+    const testsetsQuery = useAtomValue(testset.queries.list(null))
+    const testsets = testsetsQuery.data?.testsets ?? []
+    const isLoadingTestsets = testsetsQuery.isLoading
 
     const handleCreateTestset = useCallback(() => {
         router.push(`${urlState.projectURL}/testsets`)
@@ -79,7 +73,7 @@ const LoadTestsetModalContent = ({modalProps}: LoadTestsetModalContentProps) => 
                             grow: isCreatingNew,
                         })}
                     >
-                        <CreateTestsetCard onTestsetCreated={refetchTestsetsList} />
+                        <CreateTestsetCard onTestsetCreated={testset.invalidate.list} />
                     </div>
                 </div>
 
