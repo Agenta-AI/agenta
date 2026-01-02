@@ -1,4 +1,4 @@
-from asyncio import sleep
+from asyncio import gather, sleep
 from functools import wraps
 from inspect import (
     Parameter,
@@ -218,13 +218,14 @@ class entrypoint:
                     for k, v in request.state.config["references"].items()
                     if k.startswith("application")
                 } or None
-            print("repetitions", repetitions)
+
             if repetitions > 1:
-                results = []
-                for _ in range(repetitions):
-                    result = await self.execute_wrapper(request, *args, **kwargs)
-                    results.append(result)
-                return results
+                tasks = [
+                    self.execute_wrapper(request, *args, **kwargs)
+                    for _ in range(repetitions)
+                ]
+                results = await gather(*tasks)
+                return list(results)
 
             return await self.execute_wrapper(request, *args, **kwargs)
 
