@@ -1,4 +1,3 @@
-import {GenerationChatRow, GenerationInputRow} from "@/oss/components/Playground/state/types"
 import {ConfigMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {constructPlaygroundTestUrl} from "@/oss/lib/shared/variant/stringUtils"
 import {OpenAPISpec} from "@/oss/lib/shared/variant/types/openapi"
@@ -7,6 +6,10 @@ import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 import {transformToRequestBody} from "../../../../../lib/shared/variant/transformer/transformToRequestBody"
 import {EnhancedVariant} from "../../../../../lib/shared/variant/transformer/types"
 import {parseValidationError} from "../../../assets/utilities/errors"
+
+// Define types locally since they are not exported
+type GenerationChatRow = any
+type GenerationInputRow = any
 
 // Track in-flight requests so we can cancel them by runId
 const abortControllers = new Map<string, AbortController>()
@@ -92,6 +95,7 @@ async function runVariantInputRow(payload: {
     isChat?: boolean
     isCustom?: boolean
     appType?: string
+    repetitions?: number
 }) {
     const {
         variant,
@@ -115,6 +119,7 @@ async function runVariantInputRow(payload: {
         isChat,
         isCustom,
         appType,
+        repetitions,
     } = payload
 
     const requestBody = stripAgentaMetadataDeep(
@@ -135,6 +140,13 @@ async function runVariantInputRow(payload: {
             appType,
         }),
     )
+
+    if (repetitions && repetitions > 1) {
+        requestBody["repetitions"] = repetitions
+    }
+
+    console.log("FINAL REQUEST BODY sent to test endpoint:", JSON.stringify(requestBody, null, 2))
+
     applyModelAttachmentRules(variant, requestBody)
     let result
     try {
@@ -175,12 +187,22 @@ async function runVariantInputRow(payload: {
                 },
             }
         } else {
-            result = {
-                response: data,
-                metadata: {
-                    timestamp: new Date().toISOString(),
-                    statusCode: response.status,
-                },
+            if (Array.isArray(data)) {
+                result = data.map((item) => ({
+                    response: item,
+                    metadata: {
+                        timestamp: new Date().toISOString(),
+                        statusCode: response.status,
+                    },
+                }))
+            } else {
+                result = {
+                    response: data,
+                    metadata: {
+                        timestamp: new Date().toISOString(),
+                        statusCode: response.status,
+                    },
+                }
             }
         }
     } catch (error) {

@@ -1,8 +1,7 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
-// antd imports not needed here
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import TurnMessageAdapter from "@/oss/components/Playground/adapters/TurnMessageAdapter"
@@ -14,18 +13,25 @@ import useEffectiveRevisionId from "@/oss/components/Playground/hooks/chat/useEf
 import useHasAssistantContent from "@/oss/components/Playground/hooks/chat/useHasAssistantContent"
 import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 import {resolvedGenerationResultAtomFamily} from "@/oss/components/Playground/state/atoms/generationProperties"
+import {messageSchemaMetadataAtom} from "@/oss/state/generation/entities"
 import {assistantMessageAtomFamily, chatTurnAtomFamily} from "@/oss/state/generation/selectors"
 import {
     addChatTurnAtom,
-    runChatTurnAtom,
     cancelChatTurnAtom,
+    runChatTurnAtom,
 } from "@/oss/state/newPlayground/chat/actions"
+import {repetitionIndexAtomFamily} from "@/oss/state/newPlayground/generation/uiState"
+import {buildAssistantMessage} from "@/oss/state/newPlayground/helpers/messageFactory"
+
+import RepetitionNavigation from "../RepetitionNavigation"
 
 interface Props {
     turnId: string
     variantId?: string
     withControls?: boolean
     className?: string
+    hideUserMessage?: boolean
+    messageProps?: any
 }
 
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {ssr: false})
@@ -58,6 +64,37 @@ const GenerationChatTurnNormalized = ({
     const {isRunning, result: inlineResult} = useAtomValue(genResultAtom) as any
     const result = inlineResult
 
+    const [repetitionIndex, setRepetitionIndex] = useAtom(
+        useMemo(
+            () => repetitionIndexAtomFamily(`${resolvedTurnId || turnId}:${variantId}`),
+            [resolvedTurnId, turnId, variantId],
+        ),
+    )
+
+    useEffect(() => {
+        setRepetitionIndex(0)
+    }, [result, setRepetitionIndex])
+
+    const totalRepetitions = Array.isArray(result) ? result.length : result ? 1 : 0
+    const safeIndex =
+        repetitionIndex >= totalRepetitions ? Math.max(0, totalRepetitions - 1) : repetitionIndex
+
+    const currentResult = useMemo(() => {
+        if (Array.isArray(result) && totalRepetitions > 0) {
+            return result[safeIndex]
+        }
+        return result
+    }, [result, safeIndex, totalRepetitions])
+
+    const messageSchema = useAtomValue(messageSchemaMetadataAtom)
+
+    const messageOverride = useMemo(() => {
+        if (Array.isArray(result) && result.length > 0) {
+            return buildAssistantMessage(messageSchema, currentResult)
+        }
+        return undefined
+    }, [result, currentResult, messageSchema])
+
     const onRun = useCallback(() => {
         runTurn({turnId, variantId: variantId as string | undefined})
     }, [runTurn, turnId, variantId, effectiveRevisionId, resolvedTurnId])
@@ -88,7 +125,10 @@ const GenerationChatTurnNormalized = ({
         ),
     ) as any
 
-    const displayAssistantValue = useAssistantDisplayValue(assistantMsg, result)
+    const displayAssistantValue = useAssistantDisplayValue(
+        messageOverride || assistantMsg,
+        currentResult,
+    )
 
     const turnState = useAtomValue(useMemo(() => chatTurnAtomFamily(sessionRowId), [sessionRowId]))
 
@@ -99,9 +139,23 @@ const GenerationChatTurnNormalized = ({
     }, [turnState, variantId])
 
     const hasAssistantContent = useHasAssistantContent(
-        assistantMsg as any,
+        (messageOverride || assistantMsg) as any,
         displayAssistantValue,
         toolMessages.length > 0,
+    )
+
+    const repetitionProps = useMemo(
+        () =>
+            totalRepetitions > 1
+                ? {
+                      current: safeIndex + 1,
+                      total: totalRepetitions,
+                      onNext: () =>
+                          setRepetitionIndex((prev) => Math.min(totalRepetitions - 1, prev + 1)),
+                      onPrev: () => setRepetitionIndex((prev) => Math.max(0, prev - 1)),
+                  }
+                : undefined,
+        [totalRepetitions, safeIndex, setRepetitionIndex],
     )
 
     return (
@@ -132,13 +186,24 @@ const GenerationChatTurnNormalized = ({
             ) : hasAssistantContent ? (
                 <>
                     <TurnMessageAdapter
+                        key={`${sessionRowId}-assistant-${repetitionIndex}`}
                         variantId={variantId as string}
                         rowId={sessionRowId}
                         kind="assistant"
                         className="w-full"
                         headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
-                        footer={result ? <GenerationResultUtils result={result as any} /> : null}
+                        footer={
+                            <div className="w-full flex justify-between items-center mt-2 gap-2">
+                                {currentResult ? (
+                                    <GenerationResultUtils result={currentResult as any} />
+                                ) : (
+                                    <div />
+                                )}
+                                {repetitionProps && <RepetitionNavigation {...repetitionProps} />}
+                            </div>
+                        }
                         messageProps={messageProps}
+                        messageOverride={messageOverride}
                     />
                     {variantId
                         ? toolMessages.map((_, index) => (

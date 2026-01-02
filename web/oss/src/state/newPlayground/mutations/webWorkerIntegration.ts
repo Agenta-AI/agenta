@@ -8,8 +8,8 @@ import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms/propertySelectors"
 import {
-    revisionListAtom,
     displayedVariantsAtom,
+    revisionListAtom,
 } from "@/oss/components/Playground/state/atoms/variants"
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {extractInputKeysFromSchema, extractVariables} from "@/oss/lib/shared/variant/inputHelpers"
@@ -21,22 +21,23 @@ import {
 import {getJWT} from "@/oss/services/api"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {
+    chatTurnIdsAtom,
+    chatTurnsByIdAtom,
+    chatTurnsByIdFamilyAtom,
+    inputRowsByIdAtom,
+    inputRowsByIdFamilyAtom,
+    messageSchemaMetadataAtom,
     rowIdIndexAtom,
     runStatusByRowRevisionAtom,
-    inputRowsByIdAtom,
-    chatTurnsByIdAtom,
-    inputRowsByIdFamilyAtom,
-    chatTurnsByIdFamilyAtom,
-    chatTurnIdsAtom,
-    messageSchemaMetadataAtom,
 } from "@/oss/state/generation/entities"
 import {rowVariablesAtomFamily} from "@/oss/state/generation/selectors"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {promptsAtomFamily, promptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
+import {repetitionCountAtom} from "@/oss/state/newPlayground/generation/options"
 import {
-    responseByRowRevisionAtomFamily,
     loadingByRowRevisionAtomFamily,
+    responseByRowRevisionAtomFamily,
 } from "@/oss/state/newPlayground/generation/runtime"
 import {
     buildAssistantMessage,
@@ -45,7 +46,7 @@ import {
 } from "@/oss/state/newPlayground/helpers/messageFactory"
 import {variableValuesSelectorFamily} from "@/oss/state/newPlayground/selectors/variables"
 import {getProjectValues} from "@/oss/state/project"
-import {getSpecLazy, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
+import {appUriInfoAtom, getSpecLazy} from "@/oss/state/variant/atoms/fetcher"
 
 import {selectedAppIdAtom} from "../../app"
 
@@ -460,9 +461,10 @@ export const triggerWebWorkerTestAtom = atom(
 
         const {projectId} = getProjectValues() || ({} as any)
         const appId = get(selectedAppIdAtom)
-        const {appType} = get(currentAppContextAtom) || ({} as any)
+        const {appType} = (get(currentAppContextAtom) as any) || {}
         const jwt = await getJWT()
         const uri = get(appUriInfoAtom) || ({} as any)
+        const repetitions = get(repetitionCountAtom)
 
         // Build headers for worker fetch
         const headers: Record<string, string> = {}
@@ -475,6 +477,8 @@ export const triggerWebWorkerTestAtom = atom(
             inputRow,
             rowId,
             messageId,
+            repetition: repetitions, // Keep singular key if worker expects it, or use valid key
+            repetitions, // Send both or specific one
             appId,
             uri: {
                 runtimePrefix: uri?.runtimePrefix,
@@ -560,15 +564,24 @@ export const handleWebWorkerResultAtom = atom(
         const previousStatus = pendingEntry?.previousStatus
 
         if (isChat) {
-            let normalizedResult = testResult
-            if (testResult?.error) {
-                const tree = testResult?.metadata?.rawError?.detail?.tree
+            // Check if testResult is array (repetitions > 1)
+            // For Chat, currently we only support visualizing the LAST result in the main chat flow
+            // OR we need to figure out how to show multiple.
+            // For now: if array, take the last one for the chat history update.
+            // The Atom `responseByRowRevisionAtomFamily` will store the full array.
+
+            const results = Array.isArray(testResult) ? testResult : [testResult]
+            const lastResult = results[results.length - 1] // Use last for chat history
+
+            let normalizedResult = lastResult
+            if (lastResult?.error) {
+                const tree = lastResult?.metadata?.rawError?.detail?.tree
                 const trace = tree?.nodes?.[0]
-                const messageStr = trace?.status?.message ?? String(testResult.error)
+                const messageStr = trace?.status?.message ?? String(lastResult.error)
                 normalizedResult = {
                     response: {data: messageStr, tree},
                     error: messageStr,
-                    metadata: testResult?.metadata,
+                    metadata: lastResult?.metadata,
                 }
             }
             const responseHash = hashResponse(normalizedResult)
@@ -637,8 +650,8 @@ export const handleWebWorkerResultAtom = atom(
                 // const metaId = draft?.userMessage?.__metadata as string | undefined
                 const messageSchema = get(messageSchemaMetadataAtom)
                 // metaId ? getMetadataLazy(metaId) : undefined
-                const incoming = buildAssistantMessage(messageSchema, testResult) || {}
-                const toolMessages = buildToolMessages(messageSchema, testResult)
+                const incoming = buildAssistantMessage(messageSchema, lastResult) || {}
+                const toolMessages = buildToolMessages(messageSchema, lastResult)
                 const existingToolMessages = draft?.toolResponsesByRevision?.[variantId] ?? null
                 const hasExistingToolResponses =
                     Array.isArray(existingToolMessages) && existingToolMessages.length > 0
@@ -685,7 +698,7 @@ export const handleWebWorkerResultAtom = atom(
 
             set(
                 responseByRowRevisionAtomFamily({rowId: targetRowId, revisionId: variantId}),
-                normalizedResult as any,
+                testResult as any, // Store FULL result (array or object)
             )
 
             // Append a new turn id once when the handled rowId is currently last in chatTurnIdsAtom
@@ -699,7 +712,12 @@ export const handleWebWorkerResultAtom = atom(
             return
         }
 
-        const responseHash = buildCompletionResponseText(testResult)
+        const results = Array.isArray(testResult) ? testResult : [testResult]
+        // Calculate hash for ALL results? Or key off the first/last?
+        // Let's use the last one for the "status" hash to show completion.
+        const lastResult = results[results.length - 1]
+        const responseHash = buildCompletionResponseText(lastResult)
+
         set(inputRowsByIdAtom, (prev) =>
             produce(prev, (draft: any) => {
                 const row = draft?.[rowId]
@@ -708,13 +726,23 @@ export const handleWebWorkerResultAtom = atom(
                 const arr: any[] = Array.isArray(row.responsesByRevision[variantId])
                     ? row.responsesByRevision[variantId]
                     : []
-                const exists = arr.some((m: any) => m?.content?.value === responseHash)
-                if (!exists)
-                    arr.push({
-                        __id: generateId(),
-                        role: "assistant",
-                        content: {value: responseHash},
-                    })
+
+                // For completions, we might want to store all hashes?
+                // Existing logic pushes a single "responseHash".
+                // If we have multiple repetitions, maybe we push multiple?
+                // Let's iterate.
+                for (const res of results) {
+                    const hash = buildCompletionResponseText(res)
+                    const exists = arr.some((m: any) => m?.content?.value === hash)
+                    if (!exists && hash) {
+                        arr.push({
+                            __id: generateId(),
+                            role: "assistant",
+                            content: {value: hash},
+                        })
+                    }
+                }
+
                 row.responsesByRevision[variantId] = arr
             }),
         )
@@ -723,7 +751,7 @@ export const handleWebWorkerResultAtom = atom(
             [`${rowId}:${variantId}`]: {isRunning: false, resultHash: responseHash},
         }))
         set(loadingByRowRevisionAtomFamily({rowId, revisionId: variantId}), false)
-        console.debug("[WW] completion result", {rowId, variantId, responseHash})
+        console.debug("[WW] completion result", {rowId, variantId, count: results.length})
         set(responseByRowRevisionAtomFamily({rowId, revisionId: variantId}), testResult as any)
         const queryClient = get(queryClientAtom)
         queryClient.invalidateQueries({queryKey: ["tracing"]})

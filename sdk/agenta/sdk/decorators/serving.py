@@ -10,7 +10,7 @@ from inspect import (
 )
 from os import environ
 from traceback import format_exception
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from uuid import UUID
 
 import agenta as ag
@@ -208,7 +208,7 @@ class entrypoint:
 
         ### --- Test --- #
         @wraps(func)
-        async def test_wrapper(request: Request, *args, **kwargs) -> Any:
+        async def test_wrapper(request: Request, repetitions: int = 1, *args, **kwargs) -> Any:
             kwargs, config = self.process_kwargs(kwargs, default_parameters)
             request.state.inline = True
             request.state.config["parameters"] = config
@@ -218,6 +218,14 @@ class entrypoint:
                     for k, v in request.state.config["references"].items()
                     if k.startswith("application")
                 } or None
+            print("repetitions", repetitions)
+            if repetitions > 1:
+                results = []
+                for _ in range(repetitions):
+                    result = await self.execute_wrapper(request, *args, **kwargs)
+                    results.append(result)
+                return results
+
             return await self.execute_wrapper(request, *args, **kwargs)
 
         self.update_test_wrapper_signature(wrapper=test_wrapper, config_instance=config)
@@ -225,7 +233,7 @@ class entrypoint:
         test_route = f"{route_path}{entrypoint._test_path}"
         app.post(
             test_route,
-            response_model=BaseResponse,
+            response_model=Union[BaseResponse, List[BaseResponse]],
             response_model_exclude_none=True,
         )(test_wrapper)
 
@@ -236,7 +244,7 @@ class entrypoint:
             test_route = entrypoint._legacy_generate_path
             app.post(
                 test_route,
-                response_model=BaseResponse,
+                response_model=Union[BaseResponse, List[BaseResponse]],
                 response_model_exclude_none=True,
             )(test_wrapper)
         # LEGACY
@@ -620,6 +628,14 @@ class entrypoint:
         updated_params: List[Parameter] = []
         self.add_config_params_to_parser(updated_params, config_instance)
         self.add_func_params_to_parser(updated_params)
+        updated_params.append(
+            Parameter(
+                "repetitions",
+                kind=Parameter.KEYWORD_ONLY,
+                annotation=int,
+                default=Body(1),
+            )
+        )
         self.update_wrapper_signature(wrapper, updated_params)
         self.add_request_to_signature(wrapper)
 

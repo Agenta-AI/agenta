@@ -1,14 +1,15 @@
-import {useMemo} from "react"
+import {useEffect, useMemo} from "react"
 
 import {Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import VariableControlAdapter from "@/oss/components/Playground/adapters/VariableControlAdapter"
 import RunButton from "@/oss/components/Playground/assets/RunButton"
 import TypingIndicator from "@/oss/components/Playground/assets/TypingIndicator"
 import {variableIdsUnifiedAtomFamily} from "@/oss/state/newPlayground/generation/selectors"
+import {repetitionIndexAtomFamily} from "@/oss/state/newPlayground/generation/uiState"
 
 import {ClickRunPlaceholder} from "../ResultPlaceholder"
 
@@ -46,12 +47,42 @@ const SingleView = ({
     cancelRow,
     containerClassName,
 }: Props) => {
-    const variableIds = useAtomValue(
+    // UI State for repetition index
+    const [repetitionIndex, setRepetitionIndex] = useAtom(
+        useMemo(() => repetitionIndexAtomFamily(`${rowId}:${variantId}`), [rowId, variantId]),
+    )
+
+    const variableIds = useAtom(
         useMemo(
             () => variableIdsUnifiedAtomFamily({rowId, revisionId: variantId}),
             [rowId, variantId],
         ),
-    ) as string[]
+    )[0] as string[]
+
+    useEffect(() => {
+        setRepetitionIndex(0)
+    }, [resultHash, setRepetitionIndex])
+
+    const totalRepetitions = Array.isArray(result) ? result.length : result ? 1 : 0
+    const safeIndex =
+        repetitionIndex >= totalRepetitions ? Math.max(0, totalRepetitions - 1) : repetitionIndex
+    const currentResult =
+        Array.isArray(result) && totalRepetitions > 0
+            ? result[safeIndex]
+            : totalRepetitions === 1
+              ? result
+              : null
+
+    const repetitionProps =
+        totalRepetitions > 1
+            ? {
+                  current: safeIndex + 1,
+                  total: totalRepetitions,
+                  onNext: () =>
+                      setRepetitionIndex((prev) => Math.min(totalRepetitions - 1, prev + 1)),
+                  onPrev: () => setRepetitionIndex((prev) => Math.max(0, prev - 1)),
+              }
+            : undefined
 
     return (
         <div
@@ -133,13 +164,21 @@ const SingleView = ({
                     <div className={clsx(["w-full flex flex-col gap-4  pb-2 mr-[52px]"])}>
                         {isBusy ? (
                             <TypingIndicator />
-                        ) : !result ? (
+                        ) : !currentResult ? (
                             <ClickRunPlaceholder />
-                        ) : result.error ? (
-                            <ErrorPanel result={result} />
-                        ) : result.response ? (
-                            <GenerationResponsePanel result={result} />
-                        ) : null}
+                        ) : (
+                            <div className="flex flex-col gap-2">
+                                {currentResult.error ? (
+                                    <ErrorPanel result={currentResult} />
+                                ) : currentResult.response ? (
+                                    <GenerationResponsePanel
+                                        key={safeIndex}
+                                        result={currentResult}
+                                        repetitionProps={repetitionProps}
+                                    />
+                                ) : null}
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : null}

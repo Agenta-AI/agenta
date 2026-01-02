@@ -31,6 +31,13 @@ interface Props {
     messageOptionProps?: Partial<ComponentProps<typeof TurnMessageHeaderOptions>>
     toolCallsView?: {title?: string; json: string} | null
     toolIndex?: number
+    messageOverride?: any
+    isJSON?: boolean
+    isTool?: boolean
+    messageProps?: any
+    editorType?: string
+    handleRerun?: (args: any) => void
+    resultHashes?: string[]
 }
 
 const TurnMessageAdapter: React.FC<Props> = ({
@@ -53,6 +60,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
     handleRerun: propsHandleRerun,
     resultHashes: propsResultHashes,
     toolIndex = 0,
+    messageOverride,
 }) => {
     const editorIdRef = useRef(uuidv4())
     const turn = useAtomValue(chatTurnsByIdFamilyAtom(rowId)) as any
@@ -66,12 +74,13 @@ const TurnMessageAdapter: React.FC<Props> = ({
         return messages[toolIndex] || null
     }, [turn, variantId, toolIndex])
     const msg = useMemo(() => {
+        if (messageOverride) return messageOverride
         const t = turn
         if (!t) return null
         if (kind === "assistant") return t?.assistantMessageByRevision?.[variantId] || null
         if (kind === "tool") return toolMessage
         return t?.userMessage || null
-    }, [turn, variantId, kind, toolMessage])
+    }, [turn, variantId, kind, toolMessage, messageOverride])
 
     const {baseImageProperties, baseFileProperties, baseRoleProperty, computedText} =
         useMessageContentProps(msg as any)
