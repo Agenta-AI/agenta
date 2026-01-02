@@ -55,7 +55,8 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({setTestsetData, ...p
             width={1150}
             styles={{
                 body: {
-                    flex: "0 0 auto",
+                    flex: "1 1 auto",
+                    height: 620,
                 },
             }}
             afterClose={() => {
@@ -78,7 +79,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({setTestsetData, ...p
             }
             onCancel={onClose}
             classNames={{
-                body: "h-[620px] overflow-hidden !flex-0 !flex",
+                body: "overflow-hidden !flex",
             }}
             {...modalProps}
         >
