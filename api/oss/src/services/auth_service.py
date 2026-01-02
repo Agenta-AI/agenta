@@ -93,7 +93,17 @@ async def authentication_middleware(request: Request, call_next):
     """
 
     try:
-        await _authenticate(request)
+        if "authorisationurl" in request.url.path:
+            log.info(
+                "[AUTH-ROUTE] authorisationurl path=%s root_path=%s raw_path=%s",
+                request.scope.get("path"),
+                request.scope.get("root_path"),
+                request.scope.get("raw_path"),
+            )
+
+        await _check_authentication_token(request)
+
+        await _check_organization_policy(request)
 
         response = await call_next(request)
 
@@ -134,7 +144,7 @@ async def authentication_middleware(request: Request, call_next):
         )
 
 
-async def _authenticate(request: Request):
+async def _check_authentication_token(request: Request):
     try:
         if request.url.path.startswith(_PUBLIC_ENDPOINTS):
             return
@@ -155,6 +165,7 @@ async def _authenticate(request: Request):
             access_token = auth_header[len(_ACCESS_TOKEN_PREFIX) :]
 
             return await verify_access_token(
+                request=request,
                 access_token=access_token,
             )
 
@@ -233,6 +244,7 @@ async def _authenticate(request: Request):
 
 
 async def verify_access_token(
+    request: Request,
     access_token: str,
 ):
     try:
@@ -241,6 +253,8 @@ async def verify_access_token(
 
         if access_token != _SECRET_KEY:
             raise UnauthorizedException()
+
+        request.state.admin = True
 
         return
 
@@ -450,8 +464,6 @@ async def verify_bearer_token(
             organization_id = project.organization_id
 
         elif not query_project_id and query_workspace_id:
-            log.warning("[AUTH] Missing project_id in query params!")
-
             workspace = await db_manager.get_workspace(
                 workspace_id=query_workspace_id,
             )
@@ -474,8 +486,6 @@ async def verify_bearer_token(
             organization_id = workspace.organization_id
 
         else:
-            log.warning("[AUTH] Missing project_id in query params!")
-
             if is_ee():
                 workspace_id = await db_manager_ee.get_default_workspace_id(
                     user_id=user_id,
@@ -753,3 +763,72 @@ async def sign_secret_token(
 
     except Exception as exc:  # pylint: disable=bare-except
         raise InternalServerErrorException() from exc
+
+
+async def _check_organization_policy(request: Request):
+    """
+    Check organization authentication policy for EE mode.
+
+    This is called after authentication to ensure the user's authentication method
+    is allowed by the organization's policy flags.
+
+    Skips policy checks for:
+    - Admin endpoints (using ACCESS_TOKEN)
+    - Invitation-related routes to allow users to accept invitations
+    """
+    if not is_ee():
+        return
+
+    if hasattr(request.state, "admin") and request.state.admin:
+        return
+
+    # Skip policy check for invitation routes
+    # Users must be able to accept invitations regardless of org auth policies
+    invitation_paths = [
+        "/invite/accept",
+        "/invite/resend",
+        "/invite",
+    ]
+
+    if any(path in request.url.path for path in invitation_paths):
+        return
+
+    organization_id = (
+        request.state.organization_id
+        if hasattr(request.state, "organization_id")
+        else None
+    )
+    user_id = request.state.user_id if hasattr(request.state, "user_id") else None
+
+    if not organization_id or not user_id:
+        return
+
+    from uuid import UUID
+    from oss.src.core.auth.service import AuthService
+
+    # Get identities from session
+    try:
+        session = await get_session(request)  # type: ignore
+        payload = session.get_access_token_payload() if session else {}  # type: ignore
+        identities = payload.get("identities", [])
+    except Exception:
+        identities = []
+        return  # Skip policy check on session errors
+
+    auth_service = AuthService()
+    policy_error = await auth_service.check_organization_access(
+        UUID(user_id), UUID(organization_id), identities
+    )
+
+    if policy_error:
+        # Only enforce auth policy errors (AUTH_UPGRADE_REQUIRED)
+        # Skip membership errors - those should be handled by route handlers
+        error_code = policy_error.get("error")
+        if error_code == "AUTH_UPGRADE_REQUIRED":
+            raise HTTPException(
+                status_code=403,
+                detail=policy_error.get(
+                    "message", "Authentication method not allowed for this organization"
+                ),
+            )
+        # If NOT_A_MEMBER, skip - let route handlers deal with it

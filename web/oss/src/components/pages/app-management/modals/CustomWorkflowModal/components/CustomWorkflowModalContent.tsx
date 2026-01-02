@@ -60,8 +60,8 @@ const CustomWorkflowModalContent = ({
         if (!customWorkflowAppValues) return
         const hasExplicit = Boolean(
             customWorkflowAppValues.appName ||
-            customWorkflowAppValues.appUrl ||
-            customWorkflowAppValues.appDesc,
+                customWorkflowAppValues.appUrl ||
+                customWorkflowAppValues.appDesc,
         )
         if (!hasExplicit) return
         setValues((draft) => {

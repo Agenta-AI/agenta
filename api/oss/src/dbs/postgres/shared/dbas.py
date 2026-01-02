@@ -37,7 +37,7 @@ class LegacyLifecycleDBA:
     created_at = Column(
         TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),
-        nullable=False,
+        nullable=True,
     )
     updated_at = Column(
         TIMESTAMP(timezone=True),

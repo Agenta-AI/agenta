@@ -65,10 +65,10 @@ const useEvaluatorReference = (
 
     const isLoading = Boolean(
         enabled &&
-        projectId &&
-        (evaluatorSlug || evaluatorId) &&
-        !reference &&
-        (queryResult?.isLoading || queryResult?.isFetching || queryResult?.isPending),
+            projectId &&
+            (evaluatorSlug || evaluatorId) &&
+            !reference &&
+            (queryResult?.isLoading || queryResult?.isFetching || queryResult?.isPending),
     )
 
     return {reference, isLoading}

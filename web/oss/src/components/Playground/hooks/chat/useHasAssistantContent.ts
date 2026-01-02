@@ -15,9 +15,9 @@ const useHasAssistantContent = (
         const txt = (displayAssistantValue || "").trim()
         const hasTools = Boolean(
             (assistant as any)?.function_call ||
-            (assistant as any)?.tool_call ||
-            (Array.isArray((assistant as any)?.tool_calls) &&
-                (((assistant as any)?.tool_calls as any[])?.length || 0) > 0),
+                (assistant as any)?.tool_call ||
+                (Array.isArray((assistant as any)?.tool_calls) &&
+                    (((assistant as any)?.tool_calls as any[])?.length || 0) > 0),
         )
 
         return Boolean(txt) || hasTools || Boolean(hasToolCallsOverride)

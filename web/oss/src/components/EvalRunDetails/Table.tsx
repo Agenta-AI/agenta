@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useRef} from "react"
 
-import {useAtomValue, useStore} from "jotai"
 import clsx from "clsx"
+import {useAtomValue, useStore} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"

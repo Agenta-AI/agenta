@@ -263,7 +263,7 @@ class SubscriptionsRouter:
         organization_id = metadata.get("organization_id")
 
         log.info(
-            "Stripe event:  %s | %s | %s",
+            "[billing] [stripe]   %s | %s | %s",
             organization_id,
             stripe_event.type,
             target,
@@ -446,7 +446,7 @@ class SubscriptionsRouter:
                 )
 
             user = await get_user_with_id(
-                user_id=organization.owner,
+                user_id=str(organization.owner_id),
             )
 
             if not user:

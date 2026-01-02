@@ -11,6 +11,10 @@ from ee.src.core.meters.service import MetersService
 from ee.src.core.subscriptions.service import SubscriptionsService
 
 from ee.src.apis.fastapi.billing.router import SubscriptionsRouter
+from ee.src.apis.fastapi.organizations.router import (
+    router as organization_security_router,
+)
+from oss.src.apis.fastapi.auth.router import auth_router
 
 # DBS --------------------------------------------------------------------------
 
@@ -56,6 +60,14 @@ def extend_main(app: FastAPI):
 
     # ROUTES (more) ------------------------------------------------------------
 
+    # Register security router BEFORE organization router to avoid route conflicts
+    # (specific routes must come before catch-all /{organization_id} route)
+    app.include_router(
+        organization_security_router,
+        prefix="/organizations",
+        tags=["Organizations", "Security"],
+    )
+
     app.include_router(
         organization_router.router,
         prefix="/organizations",
@@ -64,6 +76,14 @@ def extend_main(app: FastAPI):
     app.include_router(
         workspace_router.router,
         prefix="/workspaces",
+    )
+
+    # Auth router at root level (no /api prefix) for OAuth callbacks
+    app.include_router(
+        auth_router,
+        prefix="/auth",
+        tags=["Auth"],
+        include_in_schema=False,
     )
 
     # --------------------------------------------------------------------------

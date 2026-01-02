@@ -70,10 +70,10 @@ const extractInvocationReference = (run: any): InvocationReference | null => {
         const refs = step?.references ?? step
         return Boolean(
             refs?.application ||
-            refs?.applicationRevision ||
-            refs?.application_revision ||
-            refs?.applicationRef ||
-            refs?.application_ref,
+                refs?.applicationRevision ||
+                refs?.application_revision ||
+                refs?.applicationRef ||
+                refs?.application_ref,
         )
     })
 

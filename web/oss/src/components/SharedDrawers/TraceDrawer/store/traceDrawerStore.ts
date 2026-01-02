@@ -523,9 +523,9 @@ export const traceDrawerIsLinkedViewAtom = atom((get) => {
     const state = get(traceDrawerAtom)
     return Boolean(
         state.originTraceId &&
-        state.traceId &&
-        state.originTraceId !== state.traceId &&
-        state.history.length >= 0,
+            state.traceId &&
+            state.originTraceId !== state.traceId &&
+            state.history.length >= 0,
     )
 })
 

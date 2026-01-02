@@ -5,35 +5,43 @@ import PasswordlessReact from "supertokens-auth-react/recipe/passwordless"
 import SessionReact from "supertokens-auth-react/recipe/session"
 import ThirdPartyReact from "supertokens-auth-react/recipe/thirdparty"
 
+import {getEffectiveAuthConfig} from "../lib/helpers/dynamicEnv"
+
 import {appInfo} from "./appInfo"
-import {getEnv} from "../lib/helpers/dynamicEnv"
 
 export const frontendConfig = (): SuperTokensConfig => {
-    const authnEmail = getEnv("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL") || "password"
-    const googleOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID")
-    const githubOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GITHUB_OAUTH_CLIENT_ID")
+    const {authnEmail, oidcProviders} = getEffectiveAuthConfig()
 
     // Build recipe list based on enabled auth methods
     const recipeList: any[] = []
 
-    // Add OIDC (ThirdParty) if Google or GitHub OAuth is configured
-    const oidcProviders = []
-    if (googleOAuthClientId) {
-        oidcProviders.push(ThirdPartyReact.Google.init())
-    }
-    if (githubOAuthClientId) {
-        oidcProviders.push(ThirdPartyReact.Github.init())
+    const providerInitializers: Record<string, () => any> = {
+        google: () => ThirdPartyReact.Google.init(),
+        "google-workspaces": () => ThirdPartyReact.GoogleWorkspaces.init(),
+        github: () => ThirdPartyReact.Github.init(),
+        facebook: () => ThirdPartyReact.Facebook.init(),
+        apple: () => ThirdPartyReact.Apple.init(),
+        discord: () => ThirdPartyReact.Discord.init(),
+        twitter: () => ThirdPartyReact.Twitter.init(),
+        gitlab: () => ThirdPartyReact.Gitlab.init(),
+        bitbucket: () => ThirdPartyReact.Bitbucket.init(),
+        linkedin: () => ThirdPartyReact.LinkedIn.init(),
+        okta: () => ThirdPartyReact.Okta.init(),
+        "azure-ad": () => ThirdPartyReact.ActiveDirectory.init({id: "azure-ad", name: "Azure AD"}),
+        "boxy-saml": () => ThirdPartyReact.BoxySAML.init(),
     }
 
-    if (oidcProviders.length > 0) {
-        recipeList.push(
-            ThirdPartyReact.init({
-                signInAndUpFeature: {
-                    providers: oidcProviders,
-                },
-            })
-        )
-    }
+    const thirdPartyProviders = oidcProviders
+        .map((provider) => providerInitializers[provider.id]?.())
+        .filter(Boolean)
+
+    recipeList.push(
+        ThirdPartyReact.init({
+            signInAndUpFeature: {
+                providers: thirdPartyProviders,
+            },
+        }),
+    )
 
     // Add Email-Password if authnEmail is "password"
     if (authnEmail === "password") {
@@ -55,7 +63,7 @@ export const frontendConfig = (): SuperTokensConfig => {
                         ],
                     },
                 },
-            })
+            }),
         )
     }
 
@@ -64,7 +72,7 @@ export const frontendConfig = (): SuperTokensConfig => {
         recipeList.push(
             PasswordlessReact.init({
                 contactMethod: "EMAIL",
-            })
+            }),
         )
     }
 
@@ -73,6 +81,8 @@ export const frontendConfig = (): SuperTokensConfig => {
 
     return {
         appInfo,
+        // Allow empty provider list so dynamic SSO providers can be used.
+        usesDynamicLoginMethods: true,
         // enableDebugLogs: true,
         termsOfServiceLink: "https://agenta.ai/terms-and-conditions-demo",
         privacyPolicyLink: "https://agenta.ai/privacy-policy-demo",

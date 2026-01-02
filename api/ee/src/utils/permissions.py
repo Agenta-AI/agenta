@@ -93,7 +93,7 @@ async def check_user_org_access(
         if not organization:
             log.error("Organization not found")
             raise Exception("Organization not found")
-        return organization.owner == str(user.id)  # type: ignore
+        return organization.owner_id == user.id  # type: ignore
     else:
         user_organizations: List = kwargs["organization_ids"]
         user_exists_in_organizations = organization_id in user_organizations
@@ -290,7 +290,8 @@ async def check_rbac_permission(
     if project_id is not None:
         project = await db_manager.get_project_by_id(project_id)
         if project is None:
-            raise Exception("Project not found")
+            log.warning(f"Project {project_id} not found during permission check")
+            return False
 
         workspace = await db_manager.get_workspace(str(project.workspace_id))
         organization = await db_manager_ee.get_organization(

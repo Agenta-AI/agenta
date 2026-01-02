@@ -56,10 +56,10 @@ export const useAppReference = (
     const hasReference = Boolean(reference)
     const isLoading = Boolean(
         enabled &&
-        projectId &&
-        appId &&
-        !hasReference &&
-        (query?.isLoading || query?.isFetching || query?.isPending),
+            projectId &&
+            appId &&
+            !hasReference &&
+            (query?.isLoading || query?.isFetching || query?.isPending),
     )
 
     return {reference, isLoading}

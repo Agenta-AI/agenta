@@ -64,7 +64,7 @@ def check_for_multiple_default_projects(session: Session) -> Sequence[ProjectDB]
 
 
 def create_default_project():
-    PROJECT_NAME = "Default Project"
+    PROJECT_NAME = "Default"
     engine = create_engine(env.postgres.uri_core)
     sync_session = sessionmaker(engine, expire_on_commit=False)
 

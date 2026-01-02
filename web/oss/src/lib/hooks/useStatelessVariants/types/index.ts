@@ -8,10 +8,8 @@ import {type Variant} from "@/oss/lib/shared/variant/types"
 import {InitialStateType} from "../state/types"
 export * from "./playground"
 /** Base hook configuration types */
-interface BaseHookConfig<T = unknown, _Selected = unknown> extends Omit<
-    SWRConfiguration<T, Error>,
-    "compare" | "fetcher"
-> {
+interface BaseHookConfig<T = unknown, _Selected = unknown>
+    extends Omit<SWRConfiguration<T, Error>, "compare" | "fetcher"> {
     compare?: (a: T | undefined, b: T | undefined) => boolean
     fetcher?: AgentaFetcher
     hookId?: string
@@ -40,16 +38,15 @@ export interface PlaygroundStateData extends InitialStateType {
 
 // Playground specific config
 export interface PlaygroundSWRConfig<T = PlaygroundStateData, Selected = unknown>
-    extends BaseHookConfig<T, Selected>, SelectorConfig<T, Selected> {
+    extends BaseHookConfig<T, Selected>,
+        SelectorConfig<T, Selected> {
     variantId?: string
     propertyId?: string
 }
 
 // Each middleware extends this to add its own properties
-export interface PlaygroundResponse<
-    T = PlaygroundStateData,
-    Selected = unknown,
-> extends SWRResponse<T, Error> {
+export interface PlaygroundResponse<T = PlaygroundStateData, Selected = unknown>
+    extends SWRResponse<T, Error> {
     isDirty?: boolean
     selectedData?: Selected
     handleWebWorkerMessage?: (message: MessageEvent) => void
@@ -74,9 +71,8 @@ export type VariantUpdateFunction<T extends EnhancedVariant = EnhancedVariant> =
 ) => Partial<EnhancedVariant> | undefined
 
 // Single variant middleware extensions
-export interface PlaygroundVariantResponse<
-    _T extends PlaygroundStateData = PlaygroundStateData,
-> extends PlaygroundVariantsResponse {
+export interface PlaygroundVariantResponse<_T extends PlaygroundStateData = PlaygroundStateData>
+    extends PlaygroundVariantsResponse {
     variant?: EnhancedVariant
     displayedVariants?: string[]
     deleteVariant?: () => Promise<void>
@@ -180,10 +176,8 @@ export interface EnhancedProperty {
 
 export type ViewType = "single" | "comparison"
 
-export interface UIState<
-    Data extends PlaygroundStateData = PlaygroundStateData,
-    Selected = unknown,
-> extends PlaygroundResponse<Data, Selected> {
+export interface UIState<Data extends PlaygroundStateData = PlaygroundStateData, Selected = unknown>
+    extends PlaygroundResponse<Data, Selected> {
     displayedVariants?: string[]
     viewType?: ViewType
     setSelectedVariant?: (variantId: string) => void

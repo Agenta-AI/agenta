@@ -58,7 +58,7 @@ async def _assert_org_owner(request: Request):
     if not organization:
         raise HTTPException(status_code=404, detail="Organization not found")
 
-    if str(organization.owner) != str(user_id):
+    if str(organization.owner_id) != str(user_id):
         raise HTTPException(
             status_code=403,
             detail="Only the organization owner can perform this action",
@@ -69,7 +69,7 @@ async def _assert_org_owner(request: Request):
 
 def _get_oss_user_role(organization, user_id: str) -> str:
     """Owner vs editor logic used across OSS endpoints."""
-    return "owner" if str(organization.owner) == str(user_id) else "editor"
+    return "owner" if str(organization.owner_id) == str(user_id) else "editor"
 
 
 async def _get_ee_membership_for_project(user_id, project_id):

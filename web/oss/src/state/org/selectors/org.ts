@@ -47,6 +47,34 @@ const cacheLastWorkspaceId = (workspaceId: string | null) => {
     }
 }
 
+export const clearWorkspaceOrgCache = (workspaceId: string | null) => {
+    if (typeof window === "undefined") return
+    if (!workspaceId) return
+
+    try {
+        const map = readWorkspaceOrgMap()
+        if (map[workspaceId]) {
+            delete map[workspaceId]
+            if (Object.keys(map).length === 0) {
+                window.localStorage.removeItem(WORKSPACE_ORG_MAP_KEY)
+            } else {
+                window.localStorage.setItem(WORKSPACE_ORG_MAP_KEY, JSON.stringify(map))
+            }
+        }
+    } catch {
+        // ignore storage exceptions
+    }
+
+    try {
+        const lastUsed = readLastUsedWorkspaceId()
+        if (lastUsed === workspaceId) {
+            window.localStorage.removeItem(LAST_USED_WORKSPACE_ID_KEY)
+        }
+    } catch {
+        // ignore storage exceptions
+    }
+}
+
 export const cacheWorkspaceOrgPair = (
     workspaceId: string | null,
     organizationId: string | null,
@@ -177,24 +205,35 @@ export const selectedOrgNavigationAtom = atom(null, (get, set, next: string | nu
 
 const isDemoOrg = (org?: Partial<Org>): boolean => {
     if (!org) return false
-    if (org.is_demo === true) return true
-    const type = org.type?.toLowerCase?.() ?? ""
-    if (type === "view-only" || type === "demo") return true
-    const name = org.name?.toLowerCase?.() ?? ""
-    const description = org.description?.toLowerCase?.() ?? ""
-    return name.includes("demo") || description.includes("demo")
+    if (org?.flags?.["is_demo"] === true) return true
+    return false
+}
+
+export const isPersonalOrg = (org?: Partial<Org>): boolean => {
+    if (!org) return false
+    if (org?.flags?.["is_personal"] === true) return true
+    return false
 }
 
 const pickFirstNonDemoOrg = (orgs?: Org[]) => {
     if (!Array.isArray(orgs) || orgs.length === 0) return null
+    // Prioritize personal org
+    const personal = orgs.find((org) => isPersonalOrg(org))
+    if (personal) return personal
+    // Fall back to first non-demo org
     const nonDemo = orgs.find((org) => !isDemoOrg(org))
     return nonDemo ?? orgs[0]
 }
 
 export const pickOwnedOrg = (userId: string | null, orgs?: Org[], nonDemoOnly = false) => {
     if (!userId || !Array.isArray(orgs)) return null
-    const owned = orgs.filter((org) => org.owner === userId)
+    const owned = orgs.filter((org) => org.owner_id === userId)
     if (!owned.length) return null
+
+    // Prioritize personal org
+    const personal = owned.find((org) => isPersonalOrg(org))
+    if (personal) return personal
+
     if (!nonDemoOnly) return owned[0]
     const firstNonDemoOwned = owned.find((org) => !isDemoOrg(org))
     return firstNonDemoOwned ?? null

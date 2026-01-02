@@ -110,7 +110,9 @@ async def get_pending_migration_head():
 
 def run_alembic_migration():
     """
-    Applies migration for first-time users and also checks the environment variable "AGENTA_AUTO_MIGRATIONS" to determine whether to apply migrations for returning users.
+    Applies migration for first-time users and also checks the environment variable
+    "ALEMBIC_AUTO_MIGRATIONS" (legacy: "AGENTA_AUTO_MIGRATIONS") to determine whether
+    to apply migrations for returning users.
     """
 
     try:

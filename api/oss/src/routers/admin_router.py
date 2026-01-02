@@ -435,9 +435,12 @@ async def create_account(
         user = LegacyUserResponse(id=str(user_db.id))
 
         create_org_payload = CreateOrganization(
-            name=account.scope.name,
-            owner=str(user.id),
-            type="default",
+            name="Organization",
+            #
+            is_demo=False,
+            is_personal=False,
+            #
+            owner_id=UUID(str(user_db.id)),
         )
 
         organization_db, workspace_db, project_db = await legacy_create_organization(

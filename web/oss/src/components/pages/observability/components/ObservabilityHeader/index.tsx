@@ -76,7 +76,7 @@ const AutoRefreshControl: React.FC<{
             <Switch size="small" checked={checked} onChange={onChange} />
             <div className="relative inline-block">
                 <Typography.Text style={{fontSize: 12}} className="text-gray-600">
-                    Auto-refresh
+                    auto-refresh
                 </Typography.Text>
                 {checked && (
                     <div

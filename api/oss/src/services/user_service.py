@@ -1,5 +1,5 @@
 from sqlalchemy.future import select
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import NoResultFound, IntegrityError
 from supertokens_python.recipe.emailpassword.asyncio import create_reset_password_link
 
 from oss.src.utils.env import env
@@ -12,32 +12,86 @@ from oss.src.services import db_manager, email_service
 log = get_module_logger(__name__)
 
 
-async def create_new_user(payload: dict) -> UserDB:
+async def check_user_exists(email: str) -> bool:
     """
-    This function creates a new user.
+    Check if a user with the given email already exists.
 
     Args:
-        payload (dict): The payload data to create the user.
+        email (str): The email to check.
 
     Returns:
-        UserDB: The created user object.
+        bool: True if user exists, False otherwise.
     """
+    user = await db_manager.get_user_with_email(email)
+    return user is not None
 
+
+async def delete_user(user_id: str) -> None:
+    """
+    Delete a user by their ID.
+
+    Args:
+        user_id (str): The ID of the user to delete.
+
+    Raises:
+        NoResultFound: If user with the given ID is not found.
+    """
     async with engine.core_session() as session:
-        user = UserDB(**payload)
+        result = await session.execute(select(UserDB).filter_by(id=user_id))
+        user = result.scalars().first()
 
-        session.add(user)
+        if not user:
+            raise NoResultFound(f"User with id {user_id} not found.")
 
-        log.info(
-            "[scopes] user created",
-            user_id=user.id,
-        )
-
+        await session.delete(user)
         await session.commit()
 
-        await session.refresh(user)
 
-        return user
+async def create_new_user(payload: dict) -> UserDB:
+    """
+    Create a new user or return existing user if already exists (idempotent).
+
+    This function is safe to call multiple times in parallel with the same email.
+    It implements check-before-create with error fallback to handle race conditions.
+
+    Args:
+        payload (dict): The payload data to create the user (must include 'email').
+
+    Returns:
+        UserDB: The created or existing user object.
+    """
+
+    # Check if user already exists (happy path optimization)
+    existing_user = await db_manager.get_user_with_email(payload["email"])
+    if existing_user:
+        return existing_user
+
+    # Attempt to create new user
+    try:
+        async with engine.core_session() as session:
+            user = UserDB(**payload)
+
+            session.add(user)
+
+            log.info(
+                "[scopes] user created",
+                user_id=user.id,
+            )
+
+            await session.commit()
+
+            await session.refresh(user)
+
+            return user
+    except IntegrityError:
+        # Race condition: another request created user between check and create
+        # Fetch and return the existing user
+        existing_user = await db_manager.get_user_with_email(payload["email"])
+        if existing_user:
+            return existing_user
+        else:
+            # Should never happen, but re-raise if user still doesn't exist
+            raise
 
 
 async def update_user(user_uid: str, payload: UserUpdate) -> UserDB:

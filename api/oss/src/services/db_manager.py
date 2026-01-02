@@ -19,6 +19,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.models import converters
 from oss.src.services import user_service
 from oss.src.utils.common import is_ee
+from oss.src.utils.env import env
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services.json_importer_helper import get_json
 from oss.src.utils.helpers import get_slug_from_name_and_id
@@ -1302,7 +1303,7 @@ async def _assign_user_to_organization_oss(
         await get_organization_owner(organization_id=organization_id)
     except (NoResultFound, ValueError):
         await update_organization(
-            organization_id=organization_id, values_to_update={"owner": str(user_db.id)}
+            organization_id=organization_id, values_to_update={"owner_id": user_db.id}
         )
 
     # Get project belonging to organization
@@ -1339,18 +1340,43 @@ async def get_default_workspace_id_oss() -> str:
     return str(workspaces[0].id)
 
 
-async def create_organization(name: str):
+async def create_organization(
+    name: str,
+    owner_id: Optional[uuid.UUID] = None,
+    created_by_id: Optional[uuid.UUID] = None,
+    is_personal: Optional[bool] = None,
+):
     """Create a new organization in the database.
 
     Args:
         name (str): The name of the organization
+        owner_id (Optional[uuid.UUID]): The UUID of the organization owner
+        created_by_id (Optional[uuid.UUID]): The UUID of the user who created the organization
 
     Returns:
         OrganizationDB: instance of organization
     """
 
     async with engine.core_session() as session:
-        organization_db = OrganizationDB(name=name)
+        # For bootstrap scenario, use a placeholder UUID if not provided
+        _owner_id = owner_id or uuid.uuid4()
+        _created_by_id = created_by_id or _owner_id
+
+        organization_db = OrganizationDB(
+            name=name,
+            flags={
+                "is_demo": False,
+                "is_personal": is_personal or False,
+                "allow_email": env.auth.email_enabled,
+                "allow_social": env.auth.oidc_enabled,
+                "allow_sso": False,
+                "allow_root": False,
+                "domains_only": False,
+                "auto_join": False,
+            },
+            owner_id=_owner_id,
+            created_by_id=_created_by_id,
+        )
 
         session.add(organization_db)
 
@@ -1413,6 +1439,15 @@ async def update_organization(organization_id: str, values_to_update: Dict[str, 
         if organization is None:
             raise Exception(f"Organization with ID {organization_id} not found")
 
+        # Validate slug immutability: once set, cannot be changed
+        if "slug" in values_to_update:
+            new_slug = values_to_update["slug"]
+            if organization.slug is not None and new_slug != organization.slug:
+                raise ValueError(
+                    f"Organization slug cannot be changed once set. "
+                    f"Current slug: '{organization.slug}'"
+                )
+
         for key, value in values_to_update.items():
             if hasattr(organization, key):
                 setattr(organization, key, value)
@@ -1433,7 +1468,7 @@ async def create_or_update_default_project(values_to_update: Dict[str, Any]):
         project = result.scalar()
 
         if project is None:
-            project = ProjectDB(project_name="Default Project", is_default=True)
+            project = ProjectDB(project_name="Default", is_default=True)
 
             session.add(project)
 
@@ -1478,6 +1513,25 @@ async def get_organization_by_id(organization_id: str) -> OrganizationDB:
         return organization
 
 
+async def get_organization_by_slug(organization_slug: str) -> OrganizationDB:
+    """
+    Retrieve an organization from the database by its slug.
+
+    Args:
+        organization_slug (str): The slug of the organization
+
+    Returns:
+        OrganizationDB: The organization object if found, None otherwise.
+    """
+
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(OrganizationDB).filter_by(slug=organization_slug)
+        )
+        organization = result.scalar()
+        return organization
+
+
 async def get_organization_owner(organization_id: str):
     """
     Retrieve the owner of an organization from the database by its ID.
@@ -1497,7 +1551,39 @@ async def get_organization_owner(organization_id: str):
         if organization is None:
             raise NoResultFound(f"Organization with ID {organization_id} not found")
 
-        return await get_user_with_id(user_id=str(organization.owner))
+        return await get_user_with_id(user_id=str(organization.owner_id))
+
+
+async def get_user_organizations(user_id: str) -> List[OrganizationDB]:
+    """
+    Retrieve all organizations that a user is a member of.
+
+    Args:
+        user_id (str): The ID of the user
+
+    Returns:
+        List[OrganizationDB]: List of organizations the user belongs to
+    """
+    # Import OrganizationMemberDB conditionally (EE only)
+    if is_ee():
+        from ee.src.models.db_models import OrganizationMemberDB
+
+        async with engine.core_session() as session:
+            # Query organizations through organization_members table
+            result = await session.execute(
+                select(OrganizationDB)
+                .join(
+                    OrganizationMemberDB,
+                    OrganizationDB.id == OrganizationMemberDB.organization_id,
+                )
+                .filter(OrganizationMemberDB.user_id == uuid.UUID(user_id))
+            )
+            organizations = result.scalars().all()
+            return list(organizations)
+    else:
+        # OSS mode: return empty list or implement simplified logic
+        # In OSS, users might only have one default organization
+        return []
 
 
 async def get_workspace(workspace_id: str) -> WorkspaceDB:
@@ -1620,6 +1706,23 @@ async def get_user_with_id(user_id: str) -> UserDB:
         if user is None:
             log.error("Failed to get user with id")
             raise NoResultFound(f"User with id {user_id} not found")
+        return user
+
+
+async def update_user_username(user_id: str, username: str) -> UserDB:
+    """Update a user's username."""
+
+    async with engine.core_session() as session:
+        result = await session.execute(select(UserDB).filter_by(id=uuid.UUID(user_id)))
+        user = result.scalars().first()
+        if user is None:
+            log.error("Failed to get user with id for username update")
+            raise NoResultFound(f"User with id {user_id} not found")
+
+        user.username = username
+        user.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+        await session.refresh(user)
         return user
 
 

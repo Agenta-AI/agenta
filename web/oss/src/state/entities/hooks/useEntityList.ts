@@ -1,5 +1,6 @@
-import {useAtomValue, useSetAtom} from "jotai"
 import {useEffect} from "react"
+
+import {useAtomValue, useSetAtom} from "jotai"
 
 import type {BaseEntity, EntityStore} from "../core/types"
 

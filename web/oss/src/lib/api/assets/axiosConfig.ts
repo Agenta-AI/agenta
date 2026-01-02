@@ -16,7 +16,7 @@ import {isDemo} from "../../helpers/utils"
 export const PERMISSION_ERR_MSG =
     "You don't have permission to perform this action. Please contact your organization admin."
 
-const ENDPOINTS_PROJECT_ID_WHITELIST = ["/projects", "/profile", "/organizations"]
+const ENDPOINTS_PROJECT_ID_WHITELIST = ["/auth/", "/projects", "/profile", "/organizations"]
 const axios = axiosApi.create({
     baseURL: getAgentaApiUrl(),
     headers: {
@@ -139,10 +139,6 @@ axios.interceptors.response.use(
             }) // Commented out for test environment
             error.message = error.response?.data?.detail || PERMISSION_ERR_MSG
             throw error
-        }
-
-        if (error.response?.status === 409) {
-            return Promise.reject(error)
         }
 
         // if axios config has _ignoreError set to true, then don't handle error

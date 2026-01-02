@@ -65,11 +65,11 @@ async def get_second_user_object():
 async def get_or_create_project_from_db():
     async with engine.core_session() as session:
         result = await session.execute(
-            select(ProjectDB).filter_by(project_name="Default Project", is_default=True)
+            select(ProjectDB).filter_by(project_name="Default", is_default=True)
         )
         project = result.scalars().first()
         if project is None:
-            create_project = ProjectDB(project_name="Default Project", is_default=True)
+            create_project = ProjectDB(project_name="Default", is_default=True)
             session.add(create_project)
             await session.commit()
             await session.refresh(create_project)

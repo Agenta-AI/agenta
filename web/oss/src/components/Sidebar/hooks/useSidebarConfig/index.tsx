@@ -1,4 +1,4 @@
-import {AppstoreOutlined, DatabaseOutlined, GithubFilled} from "@ant-design/icons"
+import {GithubFilled} from "@ant-design/icons"
 import {
     ChartDonut,
     ChartLineUp,
@@ -15,6 +15,8 @@ import {
     ChatCircle,
     Gauge,
     HouseIcon,
+    GridFour,
+    Database,
 } from "@phosphor-icons/react"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
@@ -47,14 +49,14 @@ export const useSidebarConfig = () => {
             key: "project-prompts-link",
             title: "Prompts",
             link: `${projectURL}/prompts`,
-            icon: <AppstoreOutlined size={16} />,
+            icon: <GridFour size={16} />,
             disabled: !hasProjectURL,
         },
         {
             key: "app-testsets-link",
             title: "Testsets",
             link: `${projectURL}/testsets`,
-            icon: <DatabaseOutlined size={16} />,
+            icon: <Database size={16} />,
             disabled: !hasProjectURL,
         },
         {

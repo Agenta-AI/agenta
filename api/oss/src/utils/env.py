@@ -43,27 +43,92 @@ class SuperTokensConfig(BaseModel):
 class AuthConfig(BaseModel):
     """Authentication configuration - auto-detects enabled methods from env vars"""
 
-    authn_email: str | None = os.getenv("AGENTA_AUTHN_EMAIL")
+    supertokens_email_disabled: bool = (
+        os.getenv("SUPERTOKENS_EMAIL_DISABLED") or "false"
+    ).lower() in _TRUTHY
 
     google_oauth_client_id: str | None = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
     google_oauth_client_secret: str | None = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 
+    google_workspaces_oauth_client_id: str | None = os.getenv(
+        "GOOGLE_WORKSPACES_OAUTH_CLIENT_ID"
+    )
+    google_workspaces_oauth_client_secret: str | None = os.getenv(
+        "GOOGLE_WORKSPACES_OAUTH_CLIENT_SECRET"
+    )
+    google_workspaces_hd: str | None = os.getenv("GOOGLE_WORKSPACES_HD")
+
     github_oauth_client_id: str | None = os.getenv("GITHUB_OAUTH_CLIENT_ID")
     github_oauth_client_secret: str | None = os.getenv("GITHUB_OAUTH_CLIENT_SECRET")
+
+    facebook_oauth_client_id: str | None = os.getenv("FACEBOOK_OAUTH_CLIENT_ID")
+    facebook_oauth_client_secret: str | None = os.getenv("FACEBOOK_OAUTH_CLIENT_SECRET")
+
+    apple_oauth_client_id: str | None = os.getenv("APPLE_OAUTH_CLIENT_ID")
+    apple_oauth_client_secret: str | None = os.getenv("APPLE_OAUTH_CLIENT_SECRET")
+    apple_key_id: str | None = os.getenv("APPLE_KEY_ID")
+    apple_team_id: str | None = os.getenv("APPLE_TEAM_ID")
+    apple_private_key: str | None = os.getenv("APPLE_PRIVATE_KEY")
+
+    discord_oauth_client_id: str | None = os.getenv("DISCORD_OAUTH_CLIENT_ID")
+    discord_oauth_client_secret: str | None = os.getenv("DISCORD_OAUTH_CLIENT_SECRET")
+
+    twitter_oauth_client_id: str | None = os.getenv("TWITTER_OAUTH_CLIENT_ID")
+    twitter_oauth_client_secret: str | None = os.getenv("TWITTER_OAUTH_CLIENT_SECRET")
+
+    gitlab_oauth_client_id: str | None = os.getenv("GITLAB_OAUTH_CLIENT_ID")
+    gitlab_oauth_client_secret: str | None = os.getenv("GITLAB_OAUTH_CLIENT_SECRET")
+    gitlab_base_url: str | None = os.getenv("GITLAB_BASE_URL")
+
+    bitbucket_oauth_client_id: str | None = os.getenv("BITBUCKET_OAUTH_CLIENT_ID")
+    bitbucket_oauth_client_secret: str | None = os.getenv(
+        "BITBUCKET_OAUTH_CLIENT_SECRET"
+    )
+
+    linkedin_oauth_client_id: str | None = os.getenv("LINKEDIN_OAUTH_CLIENT_ID")
+    linkedin_oauth_client_secret: str | None = os.getenv("LINKEDIN_OAUTH_CLIENT_SECRET")
+
+    okta_oauth_client_id: str | None = os.getenv("OKTA_OAUTH_CLIENT_ID")
+    okta_oauth_client_secret: str | None = os.getenv("OKTA_OAUTH_CLIENT_SECRET")
+    okta_domain: str | None = os.getenv("OKTA_DOMAIN")
+
+    azure_ad_oauth_client_id: str | None = os.getenv(
+        "AZURE_AD_OAUTH_CLIENT_ID"
+    ) or os.getenv("ACTIVE_DIRECTORY_OAUTH_CLIENT_ID")
+    azure_ad_oauth_client_secret: str | None = os.getenv(
+        "AZURE_AD_OAUTH_CLIENT_SECRET"
+    ) or os.getenv("ACTIVE_DIRECTORY_OAUTH_CLIENT_SECRET")
+    azure_ad_directory_id: str | None = os.getenv("AZURE_AD_DIRECTORY_ID") or os.getenv(
+        "ACTIVE_DIRECTORY_DIRECTORY_ID"
+    )
+
+    boxy_saml_oauth_client_id: str | None = os.getenv("BOXY_SAML_OAUTH_CLIENT_ID")
+    boxy_saml_oauth_client_secret: str | None = os.getenv(
+        "BOXY_SAML_OAUTH_CLIENT_SECRET"
+    )
+    boxy_saml_url: str | None = os.getenv("BOXY_SAML_URL")
 
     model_config = ConfigDict(extra="ignore")
 
     def model_post_init(self, _):
-        """Ensure at least one auth method is enabled; fallback to password email."""
-        if not self.authn_email and not self.oidc_enabled:
-            self.authn_email = "password"
+        """Keep config normalized without relying on deprecated AGENTA_AUTHN_EMAIL."""
+        return
 
     @property
     def email_method(self) -> str:
         """Returns email auth method: 'password', 'otp', or '' (disabled)"""
-        if self.authn_email in ("password", "otp"):
-            return self.authn_email
-        return ""
+        if self.supertokens_email_disabled:
+            return ""
+
+        sendgrid_enabled = bool(
+            os.getenv("SENDGRID_API_KEY")
+            and (
+                os.getenv("SENDGRID_FROM_ADDRESS")
+                or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
+                or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
+            )
+        )
+        return "otp" if sendgrid_enabled else "password"
 
     @property
     def email_enabled(self) -> bool:
@@ -76,14 +141,106 @@ class AuthConfig(BaseModel):
         return bool(self.google_oauth_client_id and self.google_oauth_client_secret)
 
     @property
+    def google_workspaces_enabled(self) -> bool:
+        """Google Workspaces OAuth enabled if both credentials present"""
+        return bool(
+            self.google_workspaces_oauth_client_id
+            and self.google_workspaces_oauth_client_secret
+        )
+
+    @property
     def github_enabled(self) -> bool:
         """GitHub OAuth enabled if both credentials present"""
         return bool(self.github_oauth_client_id and self.github_oauth_client_secret)
 
     @property
+    def facebook_enabled(self) -> bool:
+        """Facebook OAuth enabled if both credentials present"""
+        return bool(self.facebook_oauth_client_id and self.facebook_oauth_client_secret)
+
+    @property
+    def apple_enabled(self) -> bool:
+        """Apple OAuth enabled if client ID present and secret or key data provided"""
+        return bool(
+            self.apple_oauth_client_id
+            and (
+                self.apple_oauth_client_secret
+                or (self.apple_key_id and self.apple_team_id and self.apple_private_key)
+            )
+        )
+
+    @property
+    def discord_enabled(self) -> bool:
+        """Discord OAuth enabled if both credentials present"""
+        return bool(self.discord_oauth_client_id and self.discord_oauth_client_secret)
+
+    @property
+    def twitter_enabled(self) -> bool:
+        """Twitter OAuth enabled if both credentials present"""
+        return bool(self.twitter_oauth_client_id and self.twitter_oauth_client_secret)
+
+    @property
+    def gitlab_enabled(self) -> bool:
+        """GitLab OAuth enabled if both credentials present"""
+        return bool(self.gitlab_oauth_client_id and self.gitlab_oauth_client_secret)
+
+    @property
+    def bitbucket_enabled(self) -> bool:
+        """Bitbucket OAuth enabled if both credentials present"""
+        return bool(
+            self.bitbucket_oauth_client_id and self.bitbucket_oauth_client_secret
+        )
+
+    @property
+    def linkedin_enabled(self) -> bool:
+        """LinkedIn OAuth enabled if both credentials present"""
+        return bool(self.linkedin_oauth_client_id and self.linkedin_oauth_client_secret)
+
+    @property
+    def okta_enabled(self) -> bool:
+        """Okta OAuth enabled if credentials and domain are present"""
+        return bool(
+            self.okta_oauth_client_id
+            and self.okta_oauth_client_secret
+            and self.okta_domain
+        )
+
+    @property
+    def azure_ad_enabled(self) -> bool:
+        """Azure AD OAuth enabled if credentials and directory ID are present"""
+        return bool(
+            self.azure_ad_oauth_client_id
+            and self.azure_ad_oauth_client_secret
+            and self.azure_ad_directory_id
+        )
+
+    @property
+    def boxy_saml_enabled(self) -> bool:
+        """BoxySAML OAuth enabled if credentials and Boxy URL are present"""
+        return bool(
+            self.boxy_saml_oauth_client_id
+            and self.boxy_saml_oauth_client_secret
+            and self.boxy_saml_url
+        )
+
+    @property
     def oidc_enabled(self) -> bool:
         """Any OIDC provider enabled"""
-        return self.google_enabled or self.github_enabled
+        return (
+            self.google_enabled
+            or self.google_workspaces_enabled
+            or self.github_enabled
+            or self.facebook_enabled
+            or self.apple_enabled
+            or self.discord_enabled
+            or self.twitter_enabled
+            or self.gitlab_enabled
+            or self.bitbucket_enabled
+            or self.linkedin_enabled
+            or self.okta_enabled
+            or self.azure_ad_enabled
+            or self.boxy_saml_enabled
+        )
 
     @property
     def any_enabled(self) -> bool:
@@ -96,17 +253,24 @@ class AuthConfig(BaseModel):
         if not self.any_enabled:
             raise ValueError(
                 "At least one authentication method must be configured:\n"
-                "  - AGENTA_AUTHN_EMAIL=password or AGENTA_AUTHN_EMAIL=otp\n"
-                "  - GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET\n"
-                "  - GITHUB_OAUTH_CLIENT_ID + GITHUB_OAUTH_CLIENT_SECRET\n"
+                "  - SUPERTOKENS_EMAIL_DISABLED must be false (or unset) for email auth\n"
+                "  - Any supported OAuth provider credentials, e.g.\n"
+                "    GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET\n"
+                "    GITHUB_OAUTH_CLIENT_ID + GITHUB_OAUTH_CLIENT_SECRET\n"
+                "    FACEBOOK_OAUTH_CLIENT_ID + FACEBOOK_OAUTH_CLIENT_SECRET\n"
+                "    APPLE_OAUTH_CLIENT_ID + APPLE_OAUTH_CLIENT_SECRET (or APPLE_KEY_ID/APPLE_TEAM_ID/APPLE_PRIVATE_KEY)\n"
+                "    DISCORD_OAUTH_CLIENT_ID + DISCORD_OAUTH_CLIENT_SECRET\n"
+                "    TWITTER_OAUTH_CLIENT_ID + TWITTER_OAUTH_CLIENT_SECRET\n"
+                "    GITLAB_OAUTH_CLIENT_ID + GITLAB_OAUTH_CLIENT_SECRET\n"
+                "    BITBUCKET_OAUTH_CLIENT_ID + BITBUCKET_OAUTH_CLIENT_SECRET\n"
+                "    LINKEDIN_OAUTH_CLIENT_ID + LINKEDIN_OAUTH_CLIENT_SECRET\n"
+                "    OKTA_OAUTH_CLIENT_ID + OKTA_OAUTH_CLIENT_SECRET + OKTA_DOMAIN\n"
+                "    AZURE_AD_OAUTH_CLIENT_ID + AZURE_AD_OAUTH_CLIENT_SECRET + AZURE_AD_DIRECTORY_ID\n"
+                "    BOXY_SAML_OAUTH_CLIENT_ID + BOXY_SAML_OAUTH_CLIENT_SECRET + BOXY_SAML_URL\n"
+                "    GOOGLE_WORKSPACES_OAUTH_CLIENT_ID + GOOGLE_WORKSPACES_OAUTH_CLIENT_SECRET\n"
             )
 
-        # Email auth value must be valid
-        if self.authn_email and self.authn_email not in ("password", "otp"):
-            raise ValueError(
-                f"Invalid AGENTA_AUTHN_EMAIL value: '{self.authn_email}'. "
-                "Must be 'password', 'otp', or empty (disabled)."
-            )
+        return
 
 
 class PostHogConfig(BaseModel):
@@ -117,7 +281,10 @@ class PostHogConfig(BaseModel):
         or os.getenv("POSTHOG_HOST")
         or "https://alef.agenta.ai"
     )
-    api_key: str | None = os.getenv("POSTHOG_API_KEY")
+    api_key: str | None = (
+        os.getenv("POSTHOG_API_KEY")
+        or "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -165,6 +332,8 @@ class SendgridConfig(BaseModel):
     from_address: str | None = (
         os.getenv("SENDGRID_FROM_ADDRESS")
         #
+        or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
+        #
         or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
     )
 
@@ -172,8 +341,8 @@ class SendgridConfig(BaseModel):
 
     @property
     def enabled(self) -> bool:
-        """SendGrid enabled if API key present"""
-        return bool(self.api_key)
+        """SendGrid enabled only if API key and from address are present"""
+        return bool(self.api_key and self.from_address)
 
 
 class CrispConfig(BaseModel):
@@ -315,6 +484,12 @@ class RedisConfig(BaseModel):
         or "redis://redis-durable:6381/0"
     )
 
+    # Cache control flag - defaults to true
+    cache_enabled: bool = os.getenv("AGENTA_CACHE_ENABLED", "true").lower() in (
+        "true",
+        "1",
+    )
+
     model_config = ConfigDict(extra="ignore")
 
     @property
@@ -328,17 +503,19 @@ class AgentaConfig(BaseModel):
 
     license: str = _LICENSE
 
-    api_url: str = os.getenv("AGENTA_API_URL") or "http://localhost/api"
     web_url: str = os.getenv("AGENTA_WEB_URL") or "http://localhost"
     services_url: str = os.getenv("AGENTA_SERVICES_URL") or "http://localhost/services"
+    api_url: str = os.getenv("AGENTA_API_URL") or "http://localhost/api"
 
-    auth_key: str = os.getenv("AGENTA_AUTH_KEY") or ""
-    crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or ""
+    auth_key: str = os.getenv("AGENTA_AUTH_KEY") or "replace-me"
+    crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
 
     runtime_prefix: str = os.getenv("AGENTA_RUNTIME_PREFIX") or ""
 
     auto_migrations: bool = (
-        os.getenv("AGENTA_AUTO_MIGRATIONS") or "true"
+        os.getenv("ALEMBIC_AUTO_MIGRATIONS")
+        or os.getenv("AGENTA_AUTO_MIGRATIONS")
+        or "true"
     ).lower() in _TRUTHY
 
     demos: str = os.getenv("AGENTA_DEMOS") or ""
@@ -375,21 +552,8 @@ class PostgresConfig(BaseModel):
         f"postgresql://username:password@postgres:5432/agenta_{_LICENSE}_supertokens"
     )
 
-    username: str = (
-        os.getenv("POSTGRES_USERNAME")
-        #
-        or os.getenv("POSTGRES_USER")
-        or "username"
-    )
+    username: str = os.getenv("POSTGRES_USER") or "username"
     password: str = os.getenv("POSTGRES_PASSWORD") or "password"
-
-    username_admin: str = (
-        os.getenv("POSTGRES_USERNAME_ADMIN")
-        #
-        or os.getenv("POSTGRES_USER_ADMIN")
-        or "username"
-    )
-    password_admin: str = os.getenv("POSTGRES_PASSWORD_ADMIN") or "password"
 
     model_config = ConfigDict(extra="ignore")
 
