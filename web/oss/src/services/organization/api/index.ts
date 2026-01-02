@@ -184,8 +184,12 @@ export const verifyOrganizationDomain = async (domainId: string): Promise<Organi
 /**
  * Refresh the verification token for an unverified domain
  */
-export const refreshOrganizationDomainToken = async (domainId: string): Promise<OrganizationDomain> => {
-    const response = await axios.post(`${getAgentaApiUrl()}/organizations/domains/${domainId}/refresh`)
+export const refreshOrganizationDomainToken = async (
+    domainId: string,
+): Promise<OrganizationDomain> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/organizations/domains/${domainId}/refresh`,
+    )
     return response.data
 }
 

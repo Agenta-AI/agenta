@@ -262,7 +262,7 @@ const ListOfProjects = ({
             if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
 
             // Preserve current page route if on settings page
-            const isOnSettingsPage = router.pathname.includes('/settings')
+            const isOnSettingsPage = router.pathname.includes("/settings")
             const currentTab =
                 (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ??
                 (router.query.tab as string | undefined)

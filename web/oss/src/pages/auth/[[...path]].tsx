@@ -1,7 +1,6 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import ProtectedRoute from "@agenta/oss/src/components/ProtectedRoute/ProtectedRoute"
-import {Alert, Typography} from "antd"
 import {
     AppleOutlined,
     FacebookOutlined,
@@ -11,23 +10,26 @@ import {
     TwitterOutlined,
     GlobalOutlined,
 } from "@ant-design/icons"
+import {Alert, Button, Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 import Image from "next/image"
 import {useRouter} from "next/router"
 import {getLoginAttemptInfo} from "supertokens-auth-react/recipe/passwordless"
+import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 import {useLocalStorage} from "usehooks-ts"
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {getEffectiveAuthConfig, getEnv} from "@/oss/lib/helpers/dynamicEnv"
+import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
 
 const PasswordlessAuth = dynamic(() => import("@/oss/components/pages/auth/PasswordlessAuth"))
 const EmailPasswordAuth = dynamic(() => import("@/oss/components/pages/auth/EmailPasswordAuth"))
+const EmailFirst = dynamic(() => import("@/oss/components/pages/auth/EmailFirst"))
 const SocialAuth = dynamic(() => import("@/oss/components/pages/auth/SocialAuth"), {ssr: false})
 const SendOTP = dynamic(() => import("@/oss/components/pages/auth/SendOTP"), {ssr: false})
 const SideBanner = dynamic(() => import("@/oss/components/pages/auth/SideBanner"), {ssr: false})
@@ -39,6 +41,7 @@ const Auth = () => {
     const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
+    const discoveryInProgress = useRef(false)
     const [availableMethods, setAvailableMethods] = useState<{
         "email:password"?: boolean
         "email:otp"?: boolean
@@ -56,14 +59,10 @@ const Auth = () => {
         "social:azure-ad"?: boolean
         "social:boxy-saml"?: boolean
     }>({})
+    const [discoveryComplete, setDiscoveryComplete] = useState(false)
     const [invite, setInvite] = useLocalStorage("invite", {})
     const router = useRouter()
-    const {
-        authnEmail,
-        authEmailEnabled,
-        authOidcEnabled,
-        oidcProviders,
-    } = getEffectiveAuthConfig()
+    const {authnEmail, authEmailEnabled, authOidcEnabled, oidcProviders} = getEffectiveAuthConfig()
     const isPasswordlessDemo = isDemo() && authnEmail === "otp"
 
     const firstString = (value: string | string[] | undefined): string | undefined => {
@@ -80,6 +79,7 @@ const Auth = () => {
     const isInvitedUser = Object.keys(queries.token ? queries : invite).length > 0
 
     const [email, setEmail] = useState(emailFromQuery ?? "")
+    const [emailSubmitted, setEmailSubmitted] = useState(!!emailFromQuery)
 
     useEffect(() => {
         if (isInvitedUser && Object.keys(invite).length === 0) {
@@ -137,31 +137,107 @@ const Auth = () => {
         }
     }, [])
 
-    useEffect(() => {
-        const emailForDiscover = emailFromQuery ?? ""
+    // Discover available auth methods after email is submitted
+    const handleEmailDiscovery = async (emailToDiscover: string) => {
+        console.log("🔍 Starting discovery for email:", emailToDiscover)
+        console.log("📋 Auth config:", {authEmailEnabled, authOidcEnabled})
 
-        // Only probe discover if either auth path is configured
-        if (!authEmailEnabled && !authOidcEnabled) {
-            console.warn("⚠️ Both authEmailEnabled and authOidcEnabled are false - no auth methods available!")
+        // Prevent duplicate calls
+        if (discoveryInProgress.current) {
+            console.warn("⚠️ Discovery already in progress, skipping...")
             return
         }
 
-        const fetchDiscover = async () => {
-            try {
-                const resp = await axios.post(`${getAgentaApiUrl()}/auth/discover`, {
-                    email: emailForDiscover,
-                })
-                if (resp?.data?.methods) {
-                    setAvailableMethods(resp.data.methods)
-                }
-            } catch (err) {
-                // Ignore discover failures; UI will fall back to env flags
-                console.warn("Failed to fetch auth discover info", err)
-            }
+        // Only probe discover if either auth path is configured
+        if (!authEmailEnabled && !authOidcEnabled) {
+            console.warn(
+                "⚠️ Both authEmailEnabled and authOidcEnabled are false - no auth methods available!",
+            )
+            setMessage({
+                message: "No authentication methods are configured",
+                type: "error",
+            })
+            return
         }
 
-        fetchDiscover()
-    }, [authEmailEnabled, authOidcEnabled, emailFromQuery])
+        try {
+            discoveryInProgress.current = true
+            setIsAuthLoading(true)
+            console.log("📡 Calling /auth/discover...")
+
+            const {data} = await axios.post(`${getAgentaApiUrl()}/auth/discover`, {
+                email: emailToDiscover,
+            })
+            console.log("✅ Discovery response:", data)
+
+            if (data?.methods) {
+                setAvailableMethods(data.methods)
+                setDiscoveryComplete(true)
+                setEmailSubmitted(true)
+                console.log("✅ Discovery complete. Available methods:", data.methods)
+
+                // Check if only SSO is available and auto-redirect
+                const methods = data.methods
+                const ssoMethods = Object.keys(methods).filter(
+                    (key) => key.startsWith("social:") && methods[key] === true,
+                )
+                const hasSSOOnly =
+                    ssoMethods.length > 0 &&
+                    methods["email:password"] === false &&
+                    methods["email:otp"] === false
+
+                console.log("🔐 SSO analysis:", {ssoMethods, hasSSOOnly})
+
+                if (hasSSOOnly && ssoMethods.length === 1) {
+                    // Auto-redirect to SSO if it's the only method
+                    const ssoProviderId = ssoMethods[0].replace("social:", "")
+                    console.log("🔄 Only SSO available, auto-redirecting to:", ssoProviderId)
+
+                    try {
+                        const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
+                            thirdPartyId: ssoProviderId,
+                            frontendRedirectURI: `${
+                                getEnv("NEXT_PUBLIC_AGENTA_WEB_URL") ||
+                                getEnv("NEXT_PUBLIC_AGENTA_API_URL")
+                            }/auth/callback/${ssoProviderId}`,
+                        })
+                        console.log("🔄 Redirecting to:", authUrl)
+                        await router.push(authUrl)
+                    } catch (ssoErr) {
+                        console.error("❌ SSO redirect failed:", ssoErr)
+                        authErrorMsg(ssoErr)
+                    }
+                }
+            } else {
+                console.warn("⚠️ No methods in discovery response")
+                setDiscoveryComplete(true)
+                setEmailSubmitted(true)
+            }
+        } catch (err) {
+            console.error("❌ Failed to fetch auth discover info:", err)
+            // Only show error if it's not a cancellation
+            if (err instanceof Error && err.name !== "AbortError") {
+                setDiscoveryComplete(true)
+                setEmailSubmitted(true)
+                authErrorMsg(err)
+            }
+        } finally {
+            discoveryInProgress.current = false
+            setIsAuthLoading(false)
+        }
+    }
+
+    const handleEmailContinue = async (emailValue: string) => {
+        setEmail(emailValue)
+        await handleEmailDiscovery(emailValue)
+    }
+
+    // Auto-discover if email comes from query params
+    useEffect(() => {
+        if (emailFromQuery && !discoveryComplete) {
+            handleEmailDiscovery(emailFromQuery)
+        }
+    }, [emailFromQuery])
 
     const oidcProviderMeta = [
         {id: "google", label: "Google", icon: <GoogleOutlined />},
@@ -193,13 +269,24 @@ const Auth = () => {
 
     const socialAvailable = authOidcEnabled && providersToShow.length > 0
 
-    const emailPasswordAvailable =
-        authEmailEnabled &&
-        authnEmail === "password" &&
-        (availableMethods["email:password"] !== false)
+    // After discovery, check what's actually available
+    const emailPasswordAvailable = discoveryComplete && availableMethods["email:password"] === true
 
-    const emailOtpAvailable =
-        authEmailEnabled && authnEmail === "otp" && (availableMethods["email:otp"] !== false)
+    const emailOtpAvailable = discoveryComplete && availableMethods["email:otp"] === true
+
+    // Debug logging
+    console.log("🎨 Render state:", {
+        emailSubmitted,
+        discoveryComplete,
+        authEmailEnabled,
+        authOidcEnabled,
+        socialAvailable,
+        emailPasswordAvailable,
+        emailOtpAvailable,
+        isLoginCodeVisible,
+        availableMethods,
+        providersToShow: providersToShow.length,
+    })
 
     useLazyEffect(() => {
         if (message.message && message.type !== "error") {
@@ -265,48 +352,97 @@ const Auth = () => {
                         />
                     )}
 
-                    {socialAvailable && (
+                    {/* Step 1: Show social auth options (if configured) */}
+                    {socialAvailable && !emailSubmitted && (
                         <SocialAuth
                             authErrorMsg={authErrorMsg}
                             disabled={isAuthLoading}
                             isLoading={isSocialAuthLoading}
                             setIsLoading={setIsSocialAuthLoading}
                             providers={providersToShow}
-                            showDivider={emailOtpAvailable || emailPasswordAvailable}
+                            showDivider={authEmailEnabled}
                         />
                     )}
 
-                    {emailOtpAvailable ? (
-                        !isLoginCodeVisible ? (
-                            <PasswordlessAuth
-                                email={email}
-                                setEmail={setEmail}
-                                isLoading={isAuthLoading}
-                                message={message}
-                                setIsLoading={setIsAuthLoading}
-                                setMessage={setMessage}
-                                authErrorMsg={authErrorMsg}
-                                setIsLoginCodeVisible={setIsLoginCodeVisible}
-                                disabled={isSocialAuthLoading}
-                            />
-                        ) : (
-                            <SendOTP
-                                message={message}
-                                email={email}
-                                setMessage={setMessage}
-                                authErrorMsg={authErrorMsg}
-                                setIsLoginCodeVisible={setIsLoginCodeVisible}
-                                isInvitedUser={isInvitedUser}
-                            />
-                        )
-                    ) : emailPasswordAvailable ? (
-                        <EmailPasswordAuth
+                    {/* Step 2: Email-first (if email auth is enabled and email not yet submitted) */}
+                    {authEmailEnabled && !emailSubmitted && !isLoginCodeVisible && (
+                        <EmailFirst
+                            email={email}
+                            setEmail={setEmail}
+                            onContinue={handleEmailContinue}
                             message={message}
-                            setMessage={setMessage}
-                            authErrorMsg={authErrorMsg}
-                            initialEmail={emailFromQuery}
+                            disabled={isSocialAuthLoading}
                         />
-                    ) : null}
+                    )}
+
+                    {/* Step 3: After email discovery, show available methods */}
+                    {emailSubmitted && discoveryComplete && (
+                        <>
+                            {/* Show OIDC options after discovery if available */}
+                            {socialAvailable && (
+                                <SocialAuth
+                                    authErrorMsg={authErrorMsg}
+                                    disabled={isAuthLoading}
+                                    isLoading={isSocialAuthLoading}
+                                    setIsLoading={setIsSocialAuthLoading}
+                                    providers={providersToShow}
+                                    showDivider={emailPasswordAvailable || emailOtpAvailable}
+                                />
+                            )}
+
+                            {/* Show OTP flow if available */}
+                            {emailOtpAvailable && !isLoginCodeVisible && (
+                                <PasswordlessAuth
+                                    email={email}
+                                    setEmail={setEmail}
+                                    isLoading={isAuthLoading}
+                                    message={message}
+                                    setIsLoading={setIsAuthLoading}
+                                    setMessage={setMessage}
+                                    authErrorMsg={authErrorMsg}
+                                    setIsLoginCodeVisible={setIsLoginCodeVisible}
+                                    disabled={isSocialAuthLoading}
+                                />
+                            )}
+
+                            {/* Show OTP input if OTP was sent */}
+                            {emailOtpAvailable && isLoginCodeVisible && (
+                                <SendOTP
+                                    message={message}
+                                    email={email}
+                                    setMessage={setMessage}
+                                    authErrorMsg={authErrorMsg}
+                                    setIsLoginCodeVisible={setIsLoginCodeVisible}
+                                    isInvitedUser={isInvitedUser}
+                                />
+                            )}
+
+                            {/* Show password field if available */}
+                            {emailPasswordAvailable && !isLoginCodeVisible && (
+                                <EmailPasswordAuth
+                                    message={message}
+                                    setMessage={setMessage}
+                                    authErrorMsg={authErrorMsg}
+                                    initialEmail={email}
+                                />
+                            )}
+
+                            {/* Show back button to change email */}
+                            {!isLoginCodeVisible && (
+                                <Button
+                                    type="link"
+                                    onClick={() => {
+                                        setEmailSubmitted(false)
+                                        setDiscoveryComplete(false)
+                                        setAvailableMethods({})
+                                    }}
+                                    className="text-center w-full"
+                                >
+                                    Use a different email
+                                </Button>
+                            )}
+                        </>
+                    )}
 
                     {isDemo() && !isLoginCodeVisible && (
                         <Text>

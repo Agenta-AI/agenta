@@ -29,6 +29,9 @@ async def discover(request: DiscoverRequest):
         result = await auth_service.discover(request.email)
         return DiscoverResponse(**result)
     except Exception as e:
+        import traceback
+        print(f"❌ Discovery error: {e}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -115,8 +115,12 @@ const Settings: React.FC = () => {
                                     <span>ID</span>
                                 </Tag>
                             </Tooltip>
-                            {isPersonalOrg && <Tag className="bg-[#0517290F] m-0 font-normal">personal</Tag>}
-                            {isDemoOrg && <Tag className="bg-[#0517290F] m-0 font-normal">demo</Tag>}
+                            {isPersonalOrg && (
+                                <Tag className="bg-[#0517290F] m-0 font-normal">personal</Tag>
+                            )}
+                            {isDemoOrg && (
+                                <Tag className="bg-[#0517290F] m-0 font-normal">demo</Tag>
+                            )}
                         </div>
                     ),
                 }
@@ -147,7 +151,15 @@ const Settings: React.FC = () => {
                     ),
                 }
         }
-    }, [tab, isOrgIdCopied, isProjectIdCopied, handleCopyOrgId, handleCopyProjectId, isPersonalOrg, isDemoOrg])
+    }, [
+        tab,
+        isOrgIdCopied,
+        isProjectIdCopied,
+        handleCopyOrgId,
+        handleCopyProjectId,
+        isPersonalOrg,
+        isDemoOrg,
+    ])
 
     return (
         <PageLayout key={settingsKey} title={title}>

@@ -1,6 +1,13 @@
 import {memo, useEffect, useMemo, useState} from "react"
 
-import {ArrowsLeftRight, CaretDown, PencilSimple, Plus, SignOut, Trash, CopyIcon} from "@phosphor-icons/react"
+import {
+    ArrowsLeftRight,
+    CaretDown,
+    PencilSimple,
+    SignOut,
+    Trash,
+    CopyIcon,
+} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
     Button,
@@ -70,8 +77,12 @@ const ListOfOrgs = ({
     const router = useRouter()
     const {user} = useProfileData()
     const {logout} = useSession()
-    const {selectedOrg: selectedOrganization, orgs: organizations, changeSelectedOrg, refetch} =
-        useOrgData()
+    const {
+        selectedOrg: selectedOrganization,
+        orgs: organizations,
+        changeSelectedOrg,
+        refetch,
+    } = useOrgData()
     const {members: workspaceMembers} = useWorkspaceMembers()
     const selectedOrganizationId = useAtomValue(selectedOrgIdAtom)
     const effectiveSelectedId =
@@ -161,12 +172,8 @@ const ListOfOrgs = ({
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                             <Avatar size="small" name={organization.name} />
                             <span className="truncate">{organization.name}</span>
-                            {isPersonal && (
-                                <Tag className="bg-[#0517290F] m-0">personal</Tag>
-                            )}
-                            {isDemo && (
-                                <Tag className="bg-[#0517290F] m-0">demo</Tag>
-                            )}
+                            {isPersonal && <Tag className="bg-[#0517290F] m-0">personal</Tag>}
+                            {isDemo && <Tag className="bg-[#0517290F] m-0">demo</Tag>}
                         </div>
                     </div>
                 ),
@@ -251,13 +258,7 @@ const ListOfOrgs = ({
         })
 
         return items
-    }, [
-        effectiveSelectedId,
-        interactive,
-        organizationSelectionEnabled,
-        organizations,
-        user?.id,
-    ])
+    }, [effectiveSelectedId, interactive, organizationSelectionEnabled, organizations, user?.id])
 
     const [organizationDropdownOpen, setOrganizationDropdownOpen] = useState(false)
 
@@ -347,9 +348,7 @@ const ListOfOrgs = ({
         },
         onError: (error: any) => {
             const detail =
-                error?.response?.data?.detail ||
-                error?.message ||
-                "Unable to create organization"
+                error?.response?.data?.detail || error?.message || "Unable to create organization"
             message.error(detail)
         },
     })
@@ -368,9 +367,7 @@ const ListOfOrgs = ({
         },
         onError: (error: any) => {
             const detail =
-                error?.response?.data?.detail ||
-                error?.message ||
-                "Unable to rename organization"
+                error?.response?.data?.detail || error?.message || "Unable to rename organization"
             message.error(detail)
         },
     })
@@ -388,9 +385,7 @@ const ListOfOrgs = ({
         },
         onError: (error: any) => {
             const detail =
-                error?.response?.data?.detail ||
-                error?.message ||
-                "Unable to delete organization"
+                error?.response?.data?.detail || error?.message || "Unable to delete organization"
             message.error(detail)
         },
     })
@@ -408,9 +403,7 @@ const ListOfOrgs = ({
                 newOwnerId,
                 newOwnerIdType: typeof newOwnerId,
             })
-            const {transferOrganizationOwnership} = await import(
-                "@/oss/services/organization/api"
-            )
+            const {transferOrganizationOwnership} = await import("@/oss/services/organization/api")
             const result = await transferOrganizationOwnership(organizationId, newOwnerId)
             console.log("✅ Transfer ownership result:", result)
             return result
@@ -437,9 +430,7 @@ const ListOfOrgs = ({
                 detail: error?.response?.data?.detail,
             })
             const detail =
-                error?.response?.data?.detail ||
-                error?.message ||
-                "Unable to transfer ownership"
+                error?.response?.data?.detail || error?.message || "Unable to transfer ownership"
             message.error(detail)
         },
     })
@@ -467,7 +458,8 @@ const ListOfOrgs = ({
         if (keyString.startsWith("copy:")) {
             const organizationId = keyString.split(":")[1]
             if (typeof navigator !== "undefined" && navigator?.clipboard) {
-                navigator.clipboard.writeText(organizationId)
+                navigator.clipboard
+                    .writeText(organizationId)
                     .then(() => message.success("Organization ID copied"))
                     .catch(() => message.error("Failed to copy organization ID"))
             } else {
@@ -730,14 +722,10 @@ const ListOfOrgs = ({
                                 setNewOwnerId(String(value))
                             }}
                             filterOption={(input, option) =>
-                                (option?.label ?? "")
-                                    .toLowerCase()
-                                    .includes(input.toLowerCase())
+                                (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
                             }
                             labelRender={(option) => {
-                                const data = transferOwnerOptionByValue.get(
-                                    String(option.value),
-                                )
+                                const data = transferOwnerOptionByValue.get(String(option.value))
                                 if (!data) return <span>{option.label}</span>
                                 return (
                                     <div className="flex items-center gap-2 w-full min-w-0">
@@ -782,7 +770,6 @@ const ListOfOrgs = ({
                     </Form.Item>
                 </Form>
             </Modal>
-
         </div>
     )
 }

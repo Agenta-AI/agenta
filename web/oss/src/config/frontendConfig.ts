@@ -5,8 +5,9 @@ import PasswordlessReact from "supertokens-auth-react/recipe/passwordless"
 import SessionReact from "supertokens-auth-react/recipe/session"
 import ThirdPartyReact from "supertokens-auth-react/recipe/thirdparty"
 
-import {appInfo} from "./appInfo"
 import {getEffectiveAuthConfig} from "../lib/helpers/dynamicEnv"
+
+import {appInfo} from "./appInfo"
 
 export const frontendConfig = (): SuperTokensConfig => {
     const {authnEmail, oidcProviders} = getEffectiveAuthConfig()
@@ -15,19 +16,18 @@ export const frontendConfig = (): SuperTokensConfig => {
     const recipeList: any[] = []
 
     const providerInitializers: Record<string, () => any> = {
-        "google": () => ThirdPartyReact.Google.init(),
+        google: () => ThirdPartyReact.Google.init(),
         "google-workspaces": () => ThirdPartyReact.GoogleWorkspaces.init(),
-        "github": () => ThirdPartyReact.Github.init(),
-        "facebook": () => ThirdPartyReact.Facebook.init(),
-        "apple": () => ThirdPartyReact.Apple.init(),
-        "discord": () => ThirdPartyReact.Discord.init(),
-        "twitter": () => ThirdPartyReact.Twitter.init(),
-        "gitlab": () => ThirdPartyReact.Gitlab.init(),
-        "bitbucket": () => ThirdPartyReact.Bitbucket.init(),
-        "linkedin": () => ThirdPartyReact.LinkedIn.init(),
-        "okta": () => ThirdPartyReact.Okta.init(),
-        "azure-ad": () =>
-            ThirdPartyReact.ActiveDirectory.init({id: "azure-ad", name: "Azure AD"}),
+        github: () => ThirdPartyReact.Github.init(),
+        facebook: () => ThirdPartyReact.Facebook.init(),
+        apple: () => ThirdPartyReact.Apple.init(),
+        discord: () => ThirdPartyReact.Discord.init(),
+        twitter: () => ThirdPartyReact.Twitter.init(),
+        gitlab: () => ThirdPartyReact.Gitlab.init(),
+        bitbucket: () => ThirdPartyReact.Bitbucket.init(),
+        linkedin: () => ThirdPartyReact.LinkedIn.init(),
+        okta: () => ThirdPartyReact.Okta.init(),
+        "azure-ad": () => ThirdPartyReact.ActiveDirectory.init({id: "azure-ad", name: "Azure AD"}),
         "boxy-saml": () => ThirdPartyReact.BoxySAML.init(),
     }
 
@@ -41,7 +41,7 @@ export const frontendConfig = (): SuperTokensConfig => {
                 signInAndUpFeature: {
                     providers: thirdPartyProviders,
                 },
-            })
+            }),
         )
     }
 
@@ -65,7 +65,7 @@ export const frontendConfig = (): SuperTokensConfig => {
                         ],
                     },
                 },
-            })
+            }),
         )
     }
 
@@ -74,7 +74,7 @@ export const frontendConfig = (): SuperTokensConfig => {
         recipeList.push(
             PasswordlessReact.init({
                 contactMethod: "EMAIL",
-            })
+            }),
         )
     }
 

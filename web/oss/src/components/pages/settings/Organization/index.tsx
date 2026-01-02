@@ -1,6 +1,16 @@
 import {type FC, useState, useCallback} from "react"
 
 import {
+    PlusOutlined,
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    DeleteOutlined,
+    EditOutlined,
+    InfoCircleOutlined,
+    ReloadOutlined,
+} from "@ant-design/icons"
+import {useQueryClient, useQuery, useMutation} from "@tanstack/react-query"
+import {
     Card,
     Descriptions,
     Input,
@@ -16,10 +26,9 @@ import {
     Popconfirm,
     Alert,
 } from "antd"
-import {useQueryClient, useQuery, useMutation} from "@tanstack/react-query"
-import {PlusOutlined, CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, InfoCircleOutlined, ReloadOutlined} from "@ant-design/icons"
 
-import {useOrgData} from "@/oss/state/org"
+import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {
     updateOrganization,
     fetchOrganizationDomains,
@@ -35,8 +44,7 @@ import {
     deleteOrganizationProvider,
     type OrganizationProvider,
 } from "@/oss/services/organization/api"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
+import {useOrgData} from "@/oss/state/org"
 
 const {Title, Text} = Typography
 
@@ -70,7 +78,9 @@ const Organization: FC = () => {
                     queryClient.setQueryData(["selectedOrg", selectedOrg.id], updated)
                     queryClient.setQueriesData(["orgs"], (old: any) => {
                         if (!Array.isArray(old)) return old
-                        return old.map((org) => (org.id === updated.id ? {...org, ...updated} : org))
+                        return old.map((org) =>
+                            org.id === updated.id ? {...org, ...updated} : org,
+                        )
                     })
                 }
                 message.success("Organization updated successfully")
@@ -110,10 +120,14 @@ const Organization: FC = () => {
                     content: (
                         <div>
                             <p>
-                                You are about to disable all authentication methods, for this organization.
+                                You are about to disable all authentication methods, for this
+                                organization.
                             </p>
                             <p>
-                                <strong>To prevent lockout, the "Allow organization owner to bypass controls" flag will be enabled.</strong>
+                                <strong>
+                                    To prevent lockout, the "Allow organization owner to bypass
+                                    controls" flag will be enabled.
+                                </strong>
                             </p>
                             <p>Do you want to continue?</p>
                         </div>
@@ -143,10 +157,7 @@ const Organization: FC = () => {
 
     const handleSlugSave = useCallback(() => {
         if (!slugValue.trim()) return
-        handleUpdateOrganization(
-            {slug: slugValue.trim()},
-            {ignoreAxiosError: true},
-        )
+        handleUpdateOrganization({slug: slugValue.trim()}, {ignoreAxiosError: true})
         setSlugModalVisible(false)
     }, [slugValue, handleUpdateOrganization])
 
@@ -177,7 +188,8 @@ const Organization: FC = () => {
             refetchDomains()
         },
         onError: (error: any) => {
-            const errorMessage = error?.response?.data?.detail || error?.message || "Failed to verify domain"
+            const errorMessage =
+                error?.response?.data?.detail || error?.message || "Failed to verify domain"
             message.error(errorMessage)
         },
     })
@@ -300,7 +312,6 @@ const Organization: FC = () => {
     ]
 
     const sectionTitleStyle = {margin: 0, fontSize: 20, fontWeight: 600}
-    const sectionSubtitleStyle = {display: "block", fontSize: 13}
 
     const pendingDomainRowKeys = domains
         .filter((domain) => !domain.flags?.is_verified && !!domain.token)
@@ -384,7 +395,11 @@ const Organization: FC = () => {
                     issuer_url: values.issuer_url,
                     client_id: values.client_id,
                     client_secret: values.client_secret,
-                    scopes: values.scopes?.split(",").map((s: string) => s.trim()) || ["openid", "profile", "email"],
+                    scopes: values.scopes?.split(",").map((s: string) => s.trim()) || [
+                        "openid",
+                        "profile",
+                        "email",
+                    ],
                 },
             }
 
@@ -397,7 +412,13 @@ const Organization: FC = () => {
                 createProviderMutation.mutate(payload)
             }
         })
-    }, [providerForm, editingProvider, createProviderMutation, updateProviderMutation, selectedOrg?.slug])
+    }, [
+        providerForm,
+        editingProvider,
+        createProviderMutation,
+        updateProviderMutation,
+        selectedOrg?.slug,
+    ])
 
     const handleEditProvider = useCallback(
         (provider: OrganizationProvider) => {
@@ -477,8 +498,7 @@ const Organization: FC = () => {
                         icon={<EditOutlined />}
                         aria-label="Edit provider"
                         onClick={() => handleEditProvider(record)}
-                    >
-                    </Button>
+                    ></Button>
                     <Popconfirm
                         title="Delete SSO provider"
                         description="Are you sure you want to delete this SSO provider?"
@@ -508,7 +528,6 @@ const Organization: FC = () => {
     }
 
     const isPersonal = selectedOrg.flags.is_personal
-    const isDemo = selectedOrg.flags.is_demo
 
     if (isPersonal) {
         return (
@@ -518,11 +537,13 @@ const Organization: FC = () => {
                         This is your Personal Organization.
                     </Typography.Title>
                     <Typography.Text type="secondary" className="text-base leading-relaxed">
-                        To edit access controls, verified domains, and SSO,<br />
+                        To edit access controls, verified domains, and SSO,
+                        <br />
                         please create or switch to a collaborative organization.
                     </Typography.Text>
                     <Typography.Text type="secondary" className="text-sm">
-                        Click on your organization in the sidebar<br />
+                        Click on your organization in the sidebar
+                        <br />
                         to create a new organization or switch to an existing one.
                     </Typography.Text>
                     <Button
@@ -551,81 +572,97 @@ const Organization: FC = () => {
                         </Title>
                     </div>
                     <Descriptions column={1} bordered size="small" className="org-kv-65-35">
-                    <Descriptions.Item label="Email authentication">
-                        <Radio.Group
-                            value={selectedOrg.flags.allow_email ? "yes" : "no"}
-                            size="small"
-                            onChange={(e) => handleFlagChange("allow_email", e.target.value === "yes")}
-                            disabled={updating}
-                        >
-                            <Radio.Button value="yes">Allow</Radio.Button>
-                            <Radio.Button value="no">Deny</Radio.Button>
-                        </Radio.Group>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Social authentication">
-                        <Radio.Group
-                            value={selectedOrg.flags.allow_social ? "yes" : "no"}
-                            size="small"
-                            onChange={(e) => handleFlagChange("allow_social", e.target.value === "yes")}
-                            disabled={updating}
-                        >
-                            <Radio.Button value="yes">Allow</Radio.Button>
-                            <Radio.Button value="no">Deny</Radio.Button>
-                        </Radio.Group>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="SSO authentication">
-                        <Radio.Group
-                            value={selectedOrg.flags.allow_sso ? "yes" : "no"}
-                            size="small"
-                            onChange={(e) => handleFlagChange("allow_sso", e.target.value === "yes")}
-                            disabled={updating}
-                        >
-                            <Radio.Button value="yes">Allow</Radio.Button>
-                            <Radio.Button value="no">Deny</Radio.Button>
-                        </Radio.Group>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Join from non-verified domains">
-                        <Radio.Group
-                            value={selectedOrg.flags.domains_only ? "no" : "yes"}
-                            size="small"
-                            onChange={(e) => handleFlagChange("domains_only", e.target.value === "no")}
-                            disabled={updating}
-                        >
-                            <Radio.Button value="yes">Allow</Radio.Button>
-                            <Radio.Button value="no">Deny</Radio.Button>
-                        </Radio.Group>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Auto-join from verified domains">
-                        <Radio.Group
-                            value={selectedOrg.flags.auto_join ? "yes" : "no"}
-                            size="small"
-                            onChange={(e) =>
-                                handleFlagChange("auto_join", e.target.value === "yes")
-                            }
-                            disabled={updating}
-                        >
-                            <Radio.Button value="yes">Allow</Radio.Button>
-                            <Radio.Button value="no">Deny</Radio.Button>
-                        </Radio.Group>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Owner can bypass controls">
-                        <Radio.Group
-                            value={selectedOrg.flags.allow_root ? "yes" : "no"}
-                            size="small"
-                            onChange={(e) => handleFlagChange("allow_root", e.target.value === "yes")}
-                            disabled={updating}
-                        >
-                            <Radio.Button value="yes">Allow</Radio.Button>
-                            <Radio.Button value="no">Deny</Radio.Button>
-                        </Radio.Group>
-                    </Descriptions.Item>
+                        <Descriptions.Item label="Email authentication">
+                            <Radio.Group
+                                value={selectedOrg.flags.allow_email ? "yes" : "no"}
+                                size="small"
+                                onChange={(e) =>
+                                    handleFlagChange("allow_email", e.target.value === "yes")
+                                }
+                                disabled={updating}
+                            >
+                                <Radio.Button value="yes">Allow</Radio.Button>
+                                <Radio.Button value="no">Deny</Radio.Button>
+                            </Radio.Group>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Social authentication">
+                            <Radio.Group
+                                value={selectedOrg.flags.allow_social ? "yes" : "no"}
+                                size="small"
+                                onChange={(e) =>
+                                    handleFlagChange("allow_social", e.target.value === "yes")
+                                }
+                                disabled={updating}
+                            >
+                                <Radio.Button value="yes">Allow</Radio.Button>
+                                <Radio.Button value="no">Deny</Radio.Button>
+                            </Radio.Group>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="SSO authentication">
+                            <Radio.Group
+                                value={selectedOrg.flags.allow_sso ? "yes" : "no"}
+                                size="small"
+                                onChange={(e) =>
+                                    handleFlagChange("allow_sso", e.target.value === "yes")
+                                }
+                                disabled={updating}
+                            >
+                                <Radio.Button value="yes">Allow</Radio.Button>
+                                <Radio.Button value="no">Deny</Radio.Button>
+                            </Radio.Group>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Join from non-verified domains">
+                            <Radio.Group
+                                value={selectedOrg.flags.domains_only ? "no" : "yes"}
+                                size="small"
+                                onChange={(e) =>
+                                    handleFlagChange("domains_only", e.target.value === "no")
+                                }
+                                disabled={updating}
+                            >
+                                <Radio.Button value="yes">Allow</Radio.Button>
+                                <Radio.Button value="no">Deny</Radio.Button>
+                            </Radio.Group>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Auto-join from verified domains">
+                            <Radio.Group
+                                value={selectedOrg.flags.auto_join ? "yes" : "no"}
+                                size="small"
+                                onChange={(e) =>
+                                    handleFlagChange("auto_join", e.target.value === "yes")
+                                }
+                                disabled={updating}
+                            >
+                                <Radio.Button value="yes">Allow</Radio.Button>
+                                <Radio.Button value="no">Deny</Radio.Button>
+                            </Radio.Group>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Owner can bypass controls">
+                            <Radio.Group
+                                value={selectedOrg.flags.allow_root ? "yes" : "no"}
+                                size="small"
+                                onChange={(e) =>
+                                    handleFlagChange("allow_root", e.target.value === "yes")
+                                }
+                                disabled={updating}
+                            >
+                                <Radio.Button value="yes">Allow</Radio.Button>
+                                <Radio.Button value="no">Deny</Radio.Button>
+                            </Radio.Group>
+                        </Descriptions.Item>
                     </Descriptions>
                 </Space>
             </Card>
 
             <Card>
                 <Space direction="vertical" size="small" style={{width: "100%"}}>
-                    <div style={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                        }}
+                    >
                         <div>
                             <Title level={1} style={sectionTitleStyle}>
                                 Verified Domains
@@ -661,24 +698,98 @@ const Organization: FC = () => {
 
                                 return (
                                     <Alert
-                                        message={<span style={{fontSize: "15px", fontWeight: 500}}>Verification Instructions</span>}
+                                        message={
+                                            <span style={{fontSize: "15px", fontWeight: 500}}>
+                                                Verification Instructions
+                                            </span>
+                                        }
                                         description={
-                                            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+                                            <Space
+                                                direction="vertical"
+                                                size="middle"
+                                                style={{width: "100%"}}
+                                            >
                                                 <Text style={{fontSize: "14px"}}>
                                                     1. Add the following DNS TXT record:
                                                 </Text>
-                                                <Descriptions bordered size="small" column={1} className="org-instructions">
-                                                    <Descriptions.Item label={<span style={{fontFamily: "monospace", fontSize: "12px"}}>Type</span>}>
-                                                        <span style={{fontFamily: "monospace", fontSize: "12px"}}>TXT</span>
+                                                <Descriptions
+                                                    bordered
+                                                    size="small"
+                                                    column={1}
+                                                    className="org-instructions"
+                                                >
+                                                    <Descriptions.Item
+                                                        label={
+                                                            <span
+                                                                style={{
+                                                                    fontFamily: "monospace",
+                                                                    fontSize: "12px",
+                                                                }}
+                                                            >
+                                                                Type
+                                                            </span>
+                                                        }
+                                                    >
+                                                        <span
+                                                            style={{
+                                                                fontFamily: "monospace",
+                                                                fontSize: "12px",
+                                                            }}
+                                                        >
+                                                            TXT
+                                                        </span>
                                                     </Descriptions.Item>
-                                                    <Descriptions.Item label={<span style={{fontFamily: "monospace", fontSize: "12px"}}>Host</span>}>
-                                                        <TooltipWithCopyAction copyText={txtRecordName} title="Copy host">
-                                                            <span style={{fontFamily: "monospace", fontSize: "12px"}}>{txtRecordName}</span>
+                                                    <Descriptions.Item
+                                                        label={
+                                                            <span
+                                                                style={{
+                                                                    fontFamily: "monospace",
+                                                                    fontSize: "12px",
+                                                                }}
+                                                            >
+                                                                Host
+                                                            </span>
+                                                        }
+                                                    >
+                                                        <TooltipWithCopyAction
+                                                            copyText={txtRecordName}
+                                                            title="Copy host"
+                                                        >
+                                                            <span
+                                                                style={{
+                                                                    fontFamily: "monospace",
+                                                                    fontSize: "12px",
+                                                                }}
+                                                            >
+                                                                {txtRecordName}
+                                                            </span>
                                                         </TooltipWithCopyAction>
                                                     </Descriptions.Item>
-                                                    <Descriptions.Item label={<span style={{fontFamily: "monospace", fontSize: "12px"}}>Value</span>}>
-                                                        <TooltipWithCopyAction copyText={txtRecordValue} title="Copy value">
-                                                            <span className="break-all" style={{fontFamily: "monospace", fontSize: "12px"}}>{txtRecordValue}</span>
+                                                    <Descriptions.Item
+                                                        label={
+                                                            <span
+                                                                style={{
+                                                                    fontFamily: "monospace",
+                                                                    fontSize: "12px",
+                                                                }}
+                                                            >
+                                                                Value
+                                                            </span>
+                                                        }
+                                                    >
+                                                        <TooltipWithCopyAction
+                                                            copyText={txtRecordValue}
+                                                            title="Copy value"
+                                                        >
+                                                            <span
+                                                                className="break-all"
+                                                                style={{
+                                                                    fontFamily: "monospace",
+                                                                    fontSize: "12px",
+                                                                }}
+                                                            >
+                                                                {txtRecordValue}
+                                                            </span>
                                                         </TooltipWithCopyAction>
                                                     </Descriptions.Item>
                                                 </Descriptions>
@@ -696,7 +807,8 @@ const Organization: FC = () => {
                                     />
                                 )
                             },
-                            rowExpandable: (record: OrganizationDomain) => !record.flags?.is_verified && !!record.token,
+                            rowExpandable: (record: OrganizationDomain) =>
+                                !record.flags?.is_verified && !!record.token,
                             expandIcon: () => null,
                         }}
                     />
@@ -720,8 +832,10 @@ const Organization: FC = () => {
                             rules={[
                                 {required: true, message: "Please enter a domain"},
                                 {
-                                    pattern: /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.[a-zA-Z]{2,}$/,
-                                    message: "Please enter a valid domain (e.g., example.com or app.example.com)",
+                                    pattern:
+                                        /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.[a-zA-Z]{2,}$/,
+                                    message:
+                                        "Please enter a valid domain (e.g., example.com or app.example.com)",
                                 },
                             ]}
                         >
@@ -736,7 +850,13 @@ const Organization: FC = () => {
 
             <Card>
                 <Space direction="vertical" size="small" style={{width: "100%"}}>
-                    <div style={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                        }}
+                    >
                         <div>
                             <Title level={1} style={sectionTitleStyle}>
                                 SSO Providers
@@ -757,7 +877,12 @@ const Organization: FC = () => {
                             {selectedOrg?.slug ? "Add Provider" : "Set Slug"}
                         </Button>
                     </div>
-                    <Descriptions size="small" column={1} bordered className="org-kv-65-35 org-slug-row">
+                    <Descriptions
+                        size="small"
+                        column={1}
+                        bordered
+                        className="org-kv-65-35 org-slug-row"
+                    >
                         <Descriptions.Item label="Organization slug">
                             <div className="org-slug-content">
                                 {selectedOrg.slug ? (
@@ -777,7 +902,8 @@ const Organization: FC = () => {
                         confirmLoading={updating}
                     >
                         <Text type="secondary">
-                            The slug is used in SSO callbacks and cannot be unset or edited once saved.
+                            The slug is used in SSO callbacks and cannot be unset or edited once
+                            saved.
                         </Text>
                         <Input
                             style={{marginTop: 12}}
@@ -819,26 +945,82 @@ const Organization: FC = () => {
 
                                 return (
                                     <Alert
-                                        message={<span style={{fontSize: "15px", fontWeight: 500}}>Configuration Instructions</span>}
+                                        message={
+                                            <span style={{fontSize: "15px", fontWeight: 500}}>
+                                                Configuration Instructions
+                                            </span>
+                                        }
                                         description={
-                                            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+                                            <Space
+                                                direction="vertical"
+                                                size="middle"
+                                                style={{width: "100%"}}
+                                            >
                                                 <Text style={{fontSize: "14px"}}>
                                                     1. Edit your IdP with the following details:
                                                 </Text>
-                                                <Descriptions bordered size="small" column={1} className="org-instructions">
-                                                    <Descriptions.Item label={<span style={{fontFamily: "monospace", fontSize: "12px"}}>Callback URL</span>}>
-                                                        <TooltipWithCopyAction copyText={callbackUrl} title="Copy callback URL">
-                                                            <span style={{fontFamily: "monospace", fontSize: "12px"}}>{callbackUrl}</span>
+                                                <Descriptions
+                                                    bordered
+                                                    size="small"
+                                                    column={1}
+                                                    className="org-instructions"
+                                                >
+                                                    <Descriptions.Item
+                                                        label={
+                                                            <span
+                                                                style={{
+                                                                    fontFamily: "monospace",
+                                                                    fontSize: "12px",
+                                                                }}
+                                                            >
+                                                                Callback URL
+                                                            </span>
+                                                        }
+                                                    >
+                                                        <TooltipWithCopyAction
+                                                            copyText={callbackUrl}
+                                                            title="Copy callback URL"
+                                                        >
+                                                            <span
+                                                                style={{
+                                                                    fontFamily: "monospace",
+                                                                    fontSize: "12px",
+                                                                }}
+                                                            >
+                                                                {callbackUrl}
+                                                            </span>
                                                         </TooltipWithCopyAction>
                                                     </Descriptions.Item>
-                                                    <Descriptions.Item label={<span style={{fontFamily: "monospace", fontSize: "12px"}}>Scopes</span>}>
-                                                        <TooltipWithCopyAction copyText={expectedScopes} title="Copy scopes">
-                                                            <span style={{fontFamily: "monospace", fontSize: "12px"}}>{expectedScopes}</span>
+                                                    <Descriptions.Item
+                                                        label={
+                                                            <span
+                                                                style={{
+                                                                    fontFamily: "monospace",
+                                                                    fontSize: "12px",
+                                                                }}
+                                                            >
+                                                                Scopes
+                                                            </span>
+                                                        }
+                                                    >
+                                                        <TooltipWithCopyAction
+                                                            copyText={expectedScopes}
+                                                            title="Copy scopes"
+                                                        >
+                                                            <span
+                                                                style={{
+                                                                    fontFamily: "monospace",
+                                                                    fontSize: "12px",
+                                                                }}
+                                                            >
+                                                                {expectedScopes}
+                                                            </span>
                                                         </TooltipWithCopyAction>
                                                     </Descriptions.Item>
                                                 </Descriptions>
                                                 <Text style={{fontSize: "14px"}}>
-                                                    2. Ensure your SSO provider's OIDC discovery endpoint is accessible.
+                                                    2. Ensure your SSO provider's OIDC discovery
+                                                    endpoint is accessible.
                                                 </Text>
                                                 <Text style={{fontSize: "14px"}}>
                                                     3. Click the "Enable" button.
@@ -851,7 +1033,8 @@ const Organization: FC = () => {
                                     />
                                 )
                             },
-                            rowExpandable: (record: OrganizationProvider) => record.flags?.is_valid === false,
+                            rowExpandable: (record: OrganizationProvider) =>
+                                record.flags?.is_valid === false,
                             expandIcon: () => null,
                         }}
                     />
@@ -866,7 +1049,9 @@ const Organization: FC = () => {
                         setEditingProvider(null)
                         providerForm.resetFields()
                     }}
-                    confirmLoading={createProviderMutation.isPending || updateProviderMutation.isPending}
+                    confirmLoading={
+                        createProviderMutation.isPending || updateProviderMutation.isPending
+                    }
                     okText={editingProvider ? "Update" : "Add"}
                     width={600}
                 >
@@ -878,8 +1063,9 @@ const Organization: FC = () => {
                                 {required: true, message: "Please enter a provider slug"},
                                 {
                                     pattern: /^[a-z-]+$/,
-                                    message: "Provider slug must contain only lowercase letters and hyphens"
-                                }
+                                    message:
+                                        "Provider slug must contain only lowercase letters and hyphens",
+                                },
                             ]}
                         >
                             <Input placeholder="my-idp" />
@@ -916,7 +1102,8 @@ const Organization: FC = () => {
                             <Input placeholder="openid, profile, email" />
                         </Form.Item>
                         <Text type="secondary" style={{fontSize: "12px"}}>
-                            After adding the provider, use the "Test" button to verify the connection.
+                            After adding the provider, use the "Test" button to verify the
+                            connection.
                         </Text>
                     </Form>
                 </Modal>

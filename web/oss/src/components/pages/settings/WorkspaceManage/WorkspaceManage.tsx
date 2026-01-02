@@ -1,15 +1,15 @@
 import {useMemo, useState, type FC} from "react"
 
-import {GearSix, Plus} from "@phosphor-icons/react"
 import {PlusOutlined} from "@ant-design/icons"
+import {GearSix, Plus} from "@phosphor-icons/react"
 import {Button, Input, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dynamic from "next/dynamic"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {getUsernameFromEmail, isDemo} from "@/oss/lib/helpers/utils"
 import {isEmailInvitationsEnabled, isEE} from "@/oss/lib/helpers/isEE"
+import {getUsernameFromEmail, isDemo} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {useOrgData, isPersonalOrg} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -154,11 +154,13 @@ const WorkspaceManage: FC = () => {
                         This is your Personal Organization.
                     </Typography.Title>
                     <Typography.Text type="secondary" className="text-base leading-relaxed">
-                        To invite team members and manage roles<br />
+                        To invite team members and manage roles
+                        <br />
                         please create or switch to a collaborative organization.
                     </Typography.Text>
                     <Typography.Text type="secondary" className="text-sm">
-                        Click on your organization in the sidebar<br />
+                        Click on your organization in the sidebar
+                        <br />
                         to create a new organization or switch to an existing one.
                     </Typography.Text>
                     <Button

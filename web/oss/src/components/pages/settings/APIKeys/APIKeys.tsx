@@ -2,7 +2,7 @@ import {useCallback, useEffect, useState} from "react"
 
 import {CopyOutlined, DeleteOutlined} from "@ant-design/icons"
 import {Plus} from "@phosphor-icons/react"
-import {Alert, Button, Modal, Table, Tooltip, Typography, theme} from "antd"
+import {Button, Modal, Table, Tooltip, Typography, theme} from "antd"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useLoading} from "@/oss/hooks/useLoading"
@@ -13,7 +13,7 @@ import {useOrgData} from "@/oss/state/org"
 
 import {Loading} from "./assets/constants"
 
-const {Title, Text} = Typography
+const {Text} = Typography
 
 const APIKeys: React.FC = () => {
     const [keys, setKeys] = useState<APIKey[]>([])

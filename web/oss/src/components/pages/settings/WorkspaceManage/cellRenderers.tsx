@@ -6,11 +6,12 @@ import {Button, Dropdown, Input, Modal, Space, Tag, Tooltip, Typography} from "a
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {message} from "@/oss/components/AppMessageContext"
+import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
-import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {Plan, User} from "@/oss/lib/Types"
 import {WorkspaceMember} from "@/oss/lib/Types"
+import {updateUsername} from "@/oss/services/profile"
 import {
     assignWorkspaceRole,
     removeFromWorkspace,
@@ -19,7 +20,6 @@ import {
 } from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
-import {updateUsername} from "@/oss/services/profile"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
 
 export const Actions: React.FC<{

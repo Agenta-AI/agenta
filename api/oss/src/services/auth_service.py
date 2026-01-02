@@ -157,6 +157,7 @@ async def _check_authentication_token(request: Request):
             access_token = auth_header[len(_ACCESS_TOKEN_PREFIX) :]
 
             return await verify_access_token(
+                request=request,
                 access_token=access_token,
             )
 
@@ -235,6 +236,7 @@ async def _check_authentication_token(request: Request):
 
 
 async def verify_access_token(
+    request: Request,
     access_token: str,
 ):
     try:
@@ -243,6 +245,8 @@ async def verify_access_token(
 
         if access_token != _SECRET_KEY:
             raise UnauthorizedException()
+
+        request.state.admin = True
 
         return
 
@@ -760,10 +764,14 @@ async def _check_organization_policy(request: Request):
     This is called after authentication to ensure the user's authentication method
     is allowed by the organization's policy flags.
 
-    Skips policy checks for invitation-related routes to allow users to accept
-    invitations regardless of current organization auth policies.
+    Skips policy checks for:
+    - Admin endpoints (using ACCESS_TOKEN)
+    - Invitation-related routes to allow users to accept invitations
     """
     if not is_ee():
+        return
+
+    if hasattr(request.state, "admin") and request.state.admin:
         return
 
     # Skip policy check for invitation routes

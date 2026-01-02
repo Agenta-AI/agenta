@@ -1,7 +1,7 @@
 import {useEffect} from "react"
 
-import {useSetAtom} from "jotai"
 import {useQueryClient} from "@tanstack/react-query"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
