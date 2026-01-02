@@ -70,18 +70,6 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
         }))
     }, [columnResult?.evaluators, groupAnchorMap])
 
-    const metricNodes = useMemo<AnchorTreeNode[]>(() => {
-        if (!columnResult?.groups?.length) return []
-        return columnResult.groups
-            .filter((group) => group.kind === "metric" && group.id !== "metrics:human")
-            .map((group) => ({
-                title: group.label,
-                key: `metric:${group.id}`,
-                icon: <Speedometer size={14} className="text-[#1677FF]" />,
-                anchorId: groupAnchorMap.get(group.id) ?? toSectionAnchorId(group.id),
-            }))
-    }, [columnResult?.groups, groupAnchorMap])
-
     const treeData = useMemo<AnchorTreeNode[]>(() => {
         if (!columnResult) return []
 
@@ -119,19 +107,6 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
             })
         }
 
-        if (metricNodes.length) {
-            children.push({
-                title: "Metrics",
-                key: "metrics",
-                icon: <Speedometer size={14} className="text-[#1677FF]" />,
-                children: metricNodes,
-                anchorId:
-                    groupAnchorMap.get("metrics:auto") ??
-                    groupAnchorMap.get("metric") ??
-                    toSectionAnchorId("metrics-auto"),
-            })
-        }
-
         return [
             {
                 title: parentTitle,
@@ -140,7 +115,7 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
                 children,
             },
         ]
-    }, [columnResult, parentTitle, metricNodes, evaluatorNodes])
+    }, [columnResult, parentTitle, evaluatorNodes])
 
     const handleSelect = useCallback((_selectedKeys: Key[], info: any) => {
         if (typeof window === "undefined") return
