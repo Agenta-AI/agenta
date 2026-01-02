@@ -134,14 +134,25 @@ export function DrillInContent({
             const pathParts = focusPath.split(".")
             // Remove the rootTitle prefix if present
             const startIndex = pathParts[0] === rootTitle ? 1 : 0
-            const targetPath = pathParts.slice(startIndex)
+            let targetPath = pathParts.slice(startIndex)
+
+            // For trace span entities, the data is wrapped in "ag.data" structure
+            // If the focus path comes from mapping (starts with rootTitle like "data.inputs.country"),
+            // we need to prepend "ag.data" to navigate within the entity structure
+            if (startIndex > 0 && targetPath.length > 0) {
+                // Check if we're already inside ag.data by looking at parsedInitialPath
+                // If initialPath was "ag.data", we should prepend ["ag", "data"] to targetPath
+                if (parsedInitialPath.length >= 2 && parsedInitialPath[0] === "ag" && parsedInitialPath[1] === "data") {
+                    targetPath = ["ag", "data", ...targetPath]
+                }
+            }
 
             if (targetPath.length > 0) {
                 setCurrentPath(targetPath)
                 onFocusPathHandled?.()
             }
         }
-    }, [focusPath, rootTitle, onFocusPathHandled])
+    }, [focusPath, rootTitle, onFocusPathHandled, parsedInitialPath])
 
     // Navigation functions
     const navigateInto = useCallback((key: string) => {
