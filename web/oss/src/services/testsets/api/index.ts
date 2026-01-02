@@ -23,7 +23,11 @@ export const fetchPreviewTestsets = async (payload: PreviewTestsetsQueryPayload 
     return response.data
 }
 
-export async function createNewTestset(testsetName: string, testsetData?: any) {
+export async function createNewTestset(
+    testsetName: string,
+    testsetData?: any,
+    commitMessage?: string,
+) {
     const {projectId} = getProjectValues()
 
     // Transform testsetData to the format expected by the API
@@ -45,6 +49,7 @@ export async function createNewTestset(testsetName: string, testsetData?: any) {
                     testcases,
                 },
             },
+            message: commitMessage || undefined,
         },
     )
 

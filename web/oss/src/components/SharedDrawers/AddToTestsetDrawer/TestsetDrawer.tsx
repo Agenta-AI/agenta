@@ -99,21 +99,19 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                 headerExtra="Add to testset"
                 footer={
                     <div className="flex flex-col gap-3 py-2 px-3">
-                        {/* Commit message input - only for existing testsets */}
-                        {!drawer.isNewTestset && drawer.testset.id && (
-                            <div className="flex flex-col gap-1">
-                                <Typography.Text className="text-gray-500">
-                                    Commit message (optional)
-                                </Typography.Text>
-                                <Input.TextArea
-                                    placeholder="Describe your changes..."
-                                    value={drawer.commitMessage}
-                                    onChange={(e) => drawer.setCommitMessage(e.target.value)}
-                                    rows={2}
-                                    maxLength={500}
-                                />
-                            </div>
-                        )}
+                        {/* Commit message input */}
+                        <div className="flex flex-col gap-1">
+                            <Typography.Text className="text-gray-500">
+                                Commit message (optional)
+                            </Typography.Text>
+                            <Input.TextArea
+                                placeholder="Describe your changes..."
+                                value={drawer.commitMessage}
+                                onChange={(e) => drawer.setCommitMessage(e.target.value)}
+                                rows={2}
+                                maxLength={500}
+                            />
+                        </div>
                         <div className="flex justify-end items-center gap-2">
                             <Button
                                 onClick={() => {
