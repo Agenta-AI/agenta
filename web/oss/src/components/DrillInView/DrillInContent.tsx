@@ -142,7 +142,11 @@ export function DrillInContent({
             if (startIndex > 0 && targetPath.length > 0) {
                 // Check if we're already inside ag.data by looking at parsedInitialPath
                 // If initialPath was "ag.data", we should prepend ["ag", "data"] to targetPath
-                if (parsedInitialPath.length >= 2 && parsedInitialPath[0] === "ag" && parsedInitialPath[1] === "data") {
+                if (
+                    parsedInitialPath.length >= 2 &&
+                    parsedInitialPath[0] === "ag" &&
+                    parsedInitialPath[1] === "data"
+                ) {
                     targetPath = ["ag", "data", ...targetPath]
                 }
             }
@@ -481,12 +485,12 @@ export function DrillInContent({
 
     return (
         <DrillInProvider value={{enabled: drillInEnabled}}>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
                 {/* Optional header content */}
                 {headerContent}
 
                 {/* Breadcrumb navigation and add controls */}
-                <div className="flex flex-col gap-2 px-3 py-2">
+                <div className="flex flex-col gap-2 px-3">
                     <div className="flex items-center gap-2">
                         <div className="flex-1">
                             <DrillInBreadcrumb
@@ -625,10 +629,7 @@ export function DrillInContent({
                                             editable,
                                             setValue,
                                             valueMode,
-                                            onPropertyClick,
-                                            dataPath,
                                             setCurrentPath,
-                                            rootTitle,
                                         })}
                                     </div>
                                 )}
@@ -687,10 +688,7 @@ interface RenderFieldContentProps {
     editable: boolean
     setValue: (path: string[], value: unknown) => void
     valueMode: "string" | "native"
-    onPropertyClick?: (fullPath: string) => void
-    dataPath: string
     setCurrentPath: (path: string[]) => void
-    rootTitle: string
 }
 
 function renderFieldContent({
@@ -703,10 +701,7 @@ function renderFieldContent({
     editable,
     setValue,
     valueMode,
-    onPropertyClick,
-    dataPath,
     setCurrentPath,
-    rootTitle,
 }: RenderFieldContentProps) {
     if (!editable) {
         // Read-only preview
@@ -946,19 +941,11 @@ function renderFieldContent({
                     }
                 }}
                 onPropertyClick={(clickedPath) => {
-                    // Internal navigation - always enabled for drilling into nested properties
+                    // Internal navigation - drill into nested properties within the JSON editor
                     const pathParts = clickedPath.split(".")
                     setCurrentPath([...fullPath, ...pathParts])
-
-                    // Also call external handler if provided (e.g., TraceDataDrillIn)
-                    if (onPropertyClick) {
-                        const navigationPath = [
-                            rootTitle,
-                            ...fullPath,
-                            ...pathParts,
-                        ].join(".")
-                        onPropertyClick(navigationPath)
-                    }
+                    // Note: Don't call external onPropertyClick here - that's for external coordination
+                    // (like MappingSection's "Focus" button), not for internal editor navigation
                 }}
             />
         )
