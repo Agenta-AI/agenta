@@ -357,6 +357,14 @@ export const updateAllLocalEntitiesAtom = atom(
                 if (!targetColumn) continue
 
                 const value = getValueAtPath(trace, mapping.data)
+                console.log("[updateAllLocalEntitiesAtom] Mapping extraction", {
+                    mappingPath: mapping.data,
+                    targetColumn,
+                    traceDataKeys: Object.keys(trace.data || {}),
+                    traceDataPreview: JSON.stringify(trace.data).slice(0, 200),
+                    extractedValue: value,
+                    valueType: typeof value,
+                })
                 // Preserve objects/arrays as-is, only convert null/undefined to empty string
                 updates[targetColumn] = value === undefined || value === null ? "" : value
             }
@@ -537,6 +545,14 @@ export const selectRevisionAtom = atom(
                 if (!targetColumn) continue
 
                 const value = getValueAtPath(trace, mapping.data)
+                console.log("[selectRevisionAtom] Mapping extraction", {
+                    mappingPath: mapping.data,
+                    targetColumn,
+                    traceDataKeys: Object.keys(trace.data || {}),
+                    traceDataPreview: JSON.stringify(trace.data).slice(0, 200),
+                    extractedValue: value,
+                    valueType: typeof value,
+                })
                 // Preserve objects/arrays as-is, only convert null/undefined to empty string
                 mappedData[targetColumn] = value === undefined || value === null ? "" : value
             }

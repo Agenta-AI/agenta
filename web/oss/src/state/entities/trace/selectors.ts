@@ -29,7 +29,7 @@ const splitPath = (path: string): string[] =>
 
 /**
  * Get a value from an object using dot-notation path
- * Handles nested objects and escaped dots in keys
+ * Handles nested objects, escaped dots in keys, and stringified JSON values
  */
 export const getValueAtPath = (obj: any, rawPath: string): any => {
     if (obj == null || !rawPath) return undefined
@@ -42,6 +42,17 @@ export const getValueAtPath = (obj: any, rawPath: string): any => {
 
     for (let i = 0; i < parts.length; i++) {
         if (cur == null) return undefined
+
+        // If current value is a string, try to parse it as JSON
+        // This handles cases where data is stringified (e.g., outputs: '{"Response": "value"}')
+        if (typeof cur === "string") {
+            try {
+                cur = JSON.parse(cur)
+            } catch {
+                // Not valid JSON, can't navigate further into a string
+                return undefined
+            }
+        }
 
         const key = parts[i]
 

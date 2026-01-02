@@ -9,7 +9,7 @@ import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {getValueAtPath} from "@/oss/state/entities/trace"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {Mapping, TestsetColumn, TestsetTraceData} from "../assets/types"
+import {createMappingId, Mapping, TestsetColumn, TestsetTraceData} from "../assets/types"
 import {onCascaderChangeAtom} from "../atoms/actions"
 import {
     allTracePathsSelectOptionsAtom,
@@ -192,7 +192,7 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
             if (column === "create") {
                 setMappingData((prev) => [
                     ...prev,
-                    {data: dataPath, column: "create", newColumn: ""},
+                    {id: createMappingId(), data: dataPath, column: "create", newColumn: ""},
                 ])
                 // Scroll to mapping section so user can fill in the column name
                 setTimeout(() => {
@@ -200,7 +200,7 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
                     mappingSection?.scrollIntoView({behavior: "smooth", block: "center"})
                 }, 100)
             } else {
-                setMappingData((prev) => [...prev, {data: dataPath, column}])
+                setMappingData((prev) => [...prev, {id: createMappingId(), data: dataPath, column}])
                 // Trigger entity update to sync columns to preview table
                 executeNewColumnBlur(getValueAtPath)
             }

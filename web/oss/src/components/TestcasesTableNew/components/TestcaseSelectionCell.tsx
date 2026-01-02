@@ -28,10 +28,12 @@ const TestcaseSelectionCell = memo(function TestcaseSelectionCell({
     originNode,
     mode = "edit",
 }: TestcaseSelectionCellProps) {
-    // Check if testcase has unsaved changes using controller selector (only in edit mode)
+    // Check if testcase has unsaved changes using controller selector
     // This includes both draft edits AND pending column changes
     const isDirtyAtom = useMemo(() => testcase.selectors.isDirty(testcaseId || ""), [testcaseId])
-    const isDirty = mode === "edit" ? useAtomValue(isDirtyAtom) : false
+    // Always call useAtomValue (hooks must be unconditional), then check mode
+    const isDirtyValue = useAtomValue(isDirtyAtom)
+    const isDirty = mode === "edit" ? isDirtyValue : false
 
     // New rows (not yet saved) are always dirty
     const isNewRow = testcaseId?.startsWith("new-") || testcaseId?.startsWith("local-") || false
