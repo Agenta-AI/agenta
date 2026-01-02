@@ -55,7 +55,7 @@ export function PreviewSection({
                             hideControls={true}
                             enableSelection={true}
                             showRowIndex={true}
-                            autoHeight={true}
+                            autoHeight={false}
                             disableDeleteAction={true}
                             scopeIdPrefix="drawer-preview"
                             maxRows={5}

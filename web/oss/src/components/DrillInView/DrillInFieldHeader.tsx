@@ -1,6 +1,17 @@
 import {memo, useCallback, useState} from "react"
 
-import {CaretDown, CaretRight, Check, Code, Copy, MapPin, Trash, X} from "@phosphor-icons/react"
+import {
+    CaretDown,
+    CaretRight,
+    Check,
+    Code,
+    Copy,
+    MapPin,
+    MarkdownLogoIcon,
+    TextAa,
+    Trash,
+    X,
+} from "@phosphor-icons/react"
 import {Button, Input, Popover, Tooltip} from "antd"
 
 import {message} from "@/oss/components/AppMessageContext"
@@ -44,6 +55,12 @@ export interface DrillInFieldHeaderProps {
     mappedColumn?: string
     /** Number of nested paths that are mapped (for parent objects) */
     nestedMappingCount?: number
+    /** Whether markdown toggle should be shown */
+    showMarkdownToggle?: boolean
+    /** Whether markdown view is active */
+    isMarkdownView?: boolean
+    /** Callback when markdown view is toggled */
+    onToggleMarkdownView?: () => void
 }
 
 /**
@@ -201,6 +218,9 @@ const DrillInFieldHeader = memo(
         isMapped = false,
         mappedColumn,
         nestedMappingCount = 0,
+        showMarkdownToggle = false,
+        isMarkdownView = false,
+        onToggleMarkdownView,
     }: DrillInFieldHeaderProps) => {
         const [copiedField, setCopiedField] = useState<string | null>(null)
 
@@ -260,6 +280,23 @@ const DrillInFieldHeader = memo(
                                 className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500" : "text-gray-500"}`}
                                 icon={<Code size={12} />}
                                 onClick={onToggleRawMode}
+                            />
+                        </Tooltip>
+                    )}
+                    {showMarkdownToggle && onToggleMarkdownView && (
+                        <Tooltip title={isMarkdownView ? "Preview text" : "Preview markdown"}>
+                            <Button
+                                type="text"
+                                size="small"
+                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500" : "text-gray-500"}`}
+                                icon={
+                                    isMarkdownView ? (
+                                        <TextAa size={12} />
+                                    ) : (
+                                        <MarkdownLogoIcon size={12} />
+                                    )
+                                }
+                                onClick={onToggleMarkdownView}
                             />
                         </Tooltip>
                     )}
