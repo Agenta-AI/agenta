@@ -8,7 +8,6 @@ import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
-import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 import {startSimpleEvaluation, stopSimpleEvaluation} from "@/oss/services/onlineEvaluations/api"
 
@@ -24,7 +23,6 @@ import {
     runTestsetIdsAtomFamily,
     runFlagsAtomFamily,
 } from "../atoms/runDerived"
-import {evaluationRunQueryAtomFamily} from "../atoms/table"
 import {previewEvalTypeAtom} from "../state/evalType"
 
 import CompareRunsMenu from "./CompareRunsMenu"
@@ -149,8 +147,6 @@ const PreviewEvalRunMeta = ({
     projectId?: string | null
     className?: string
 }) => {
-    const runQueryAtom = useMemo(() => evaluationRunQueryAtomFamily(runId), [runId])
-    const runQuery = useAtomValue(runQueryAtom)
     const _invocationRefs = useAtomValue(useMemo(() => runInvocationRefsAtomFamily(runId), [runId]))
     const _testsetIds = useAtomValue(useMemo(() => runTestsetIdsAtomFamily(runId), [runId]))
     const {canStopOnline, handleOnlineAction, onlineAction, showOnlineAction} =
@@ -179,17 +175,6 @@ const PreviewEvalRunMeta = ({
         [orderedRunIds],
     )
     const runDescriptors = useAtomValue(runDescriptorsAtom)
-
-    const runData = runQuery.data?.camelRun ?? runQuery.data?.rawRun ?? null
-    const runStatus = runData?.status ?? null
-    const updatedTs =
-        (runData as any)?.updatedAt ||
-        (runData as any)?.updated_at ||
-        (runData as any)?.createdAt ||
-        (runData as any)?.created_at ||
-        null
-    const updatedMoment = updatedTs ? dayjs(updatedTs) : null
-    const lastUpdated = updatedMoment?.isValid() ? updatedMoment.fromNow() : undefined
 
     return (
         <div className={clsx("flex items-center justify-between gap-4 px-4", className)}>

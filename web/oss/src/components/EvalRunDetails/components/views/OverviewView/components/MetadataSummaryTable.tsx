@@ -241,8 +241,8 @@ const MetadataRunNameCell = memo(
         const accent =
             accentColor === null
                 ? null
-                : accentColor ??
-                  (typeof runData?.accentColor === "string" ? (runData as any).accentColor : null)
+                : (accentColor ??
+                  (typeof runData?.accentColor === "string" ? (runData as any).accentColor : null))
         return (
             <div className="group flex items-center justify-between gap-2 w-full">
                 <RunNameTag runId={runId} label={resolvedName} accentColor={accent} />

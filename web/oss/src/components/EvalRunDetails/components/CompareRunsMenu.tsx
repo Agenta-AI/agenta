@@ -228,34 +228,9 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
         [setCompareIds],
     )
 
-    const handleRemove = useCallback(
-        (targetId: string) => {
-            setCompareIds((prev) => prev.filter((id) => id !== targetId))
-        },
-        [setCompareIds],
-    )
-
     const handleClearAll = useCallback(() => {
         setCompareIds([])
     }, [setCompareIds])
-
-    const selectedDetails = useMemo(() => {
-        const map = new Map<string, CandidateRun>()
-        candidates.forEach((candidate) => {
-            map.set(candidate.id, candidate)
-        })
-        return compareIds.map(
-            (id) =>
-                map.get(id) ?? {
-                    id,
-                    name: id,
-                    status: undefined,
-                    createdAt: undefined,
-                    testsetNames: [],
-                    structure: {testsetIds: [], hasQueryInput: false, inputStepCount: 0},
-                },
-        )
-    }, [candidates, compareIds])
 
     return (
         <Space orientation="vertical" style={{width: "100%"}} size="small">

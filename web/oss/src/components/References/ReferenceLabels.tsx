@@ -61,7 +61,7 @@ export const TestsetTag = memo(
                 tooltip={isDeleted ? `Testset ${testsetId} was deleted` : label}
                 copyValue={testsetId}
                 className="max-w-[220px] w-fit"
-                tone={toneOverride === null ? undefined : toneOverride ?? "testset"}
+                tone={toneOverride === null ? undefined : (toneOverride ?? "testset")}
                 showIcon={showIconOverride ?? true}
                 openExternally={openExternally}
             />
@@ -271,7 +271,7 @@ export const ApplicationReferenceLabel = memo(
                 tooltip={isDeleted ? `Application ${applicationId} was deleted` : label}
                 copyValue={applicationId ?? undefined}
                 className="max-w-[220px] w-fit"
-                tone={toneOverride === null ? undefined : toneOverride ?? "app"}
+                tone={toneOverride === null ? undefined : (toneOverride ?? "app")}
                 showIcon={showIconOverride ?? true}
                 openExternally={openExternally}
             />
@@ -350,7 +350,7 @@ export const VariantReferenceLabel = memo(
                     tooltip={isDeleted ? `Variant ${revisionId} was deleted` : label}
                     copyValue={revisionId ?? undefined}
                     className="max-w-[220px]"
-                    tone={toneOverride === null ? undefined : toneOverride ?? "variant"}
+                    tone={toneOverride === null ? undefined : (toneOverride ?? "variant")}
                     showIcon={showIconOverride ?? true}
                     openExternally={openExternally}
                 />
@@ -437,7 +437,7 @@ export const VariantRevisionLabel = memo(
                 tooltip={isDeleted ? `Variant ${revisionId ?? variantId} was deleted` : label}
                 copyValue={revisionId ?? variantId ?? undefined}
                 className="max-w-[220px]"
-                tone={toneOverride === null ? undefined : toneOverride ?? "variant"}
+                tone={toneOverride === null ? undefined : (toneOverride ?? "variant")}
                 showIcon={showIconOverride ?? true}
             />
         )
