@@ -196,17 +196,16 @@ export const selectTestsetAtom = atom(
         set(selectedTestsetIdAtom, testsetId)
         set(selectedTestsetInfoAtom, {id: testsetId, name: testsetName})
 
-        // Clear revision selection initially
-        set(selectedRevisionIdAtom, "")
-
+        // Handle "create new" or empty testset - clear revision immediately
         if (!testsetId || testsetId === "create") {
+            set(selectedRevisionIdAtom, "")
             return
         }
 
         // Load revisions (will use cache if available)
         const revisions = await set(loadRevisionsForTestsetAtom, testsetId)
 
-        // Auto-select latest revision
+        // Auto-select latest revision, or clear if no revisions found
         if (autoSelectLatest && revisions.length > 0) {
             // Try to get latest from query atom first (more reliable)
             const latestRevision = get(latestRevisionForTestsetAtomFamily(testsetId))
@@ -214,7 +213,12 @@ export const selectTestsetAtom = atom(
 
             if (latestId) {
                 set(selectedRevisionIdAtom, latestId)
+            } else {
+                set(selectedRevisionIdAtom, "")
             }
+        } else {
+            // No revisions or auto-select disabled - clear selection
+            set(selectedRevisionIdAtom, "")
         }
     },
 )
