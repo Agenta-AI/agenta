@@ -3,16 +3,16 @@ import {atomFamily} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
-import {
-    isSpansResponse,
-    isTracesResponse,
-    transformTracesResponseToTree,
-    transformTracingResponse,
-} from "@/oss/services/tracing/lib/helpers"
+import {isSpansResponse} from "@/oss/services/tracing/lib/helpers"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
-import {traceSpanSchema, type TraceSpan, type TraceSpanNode, type TraceListResponse} from "./schema"
+import {
+    createEntityDraftState,
+    normalizeValueForComparison,
+} from "../shared/createEntityDraftState"
+
+import {traceSpanSchema, type TraceSpan, type TraceSpanNode} from "./schema"
 import {extractAgData, extractInputs, extractOutputs} from "./selectors"
 
 /**
@@ -279,35 +279,158 @@ const traceBatchFetcher = createBatchFetcher<
 // ============================================================================
 
 /**
- * Look up a span in the observability list's query cache
- * Returns the span if found, undefined otherwise
- *
- * The observability list uses query keys like:
- * ["traces-list", appId, ...]
+ * Recursively search for a span in nested trace data structures
  */
-const findSpanInListCache = (
-    queryClient: import("@tanstack/react-query").QueryClient,
-    _projectId: string,
+const findSpanInTraceData = (data: unknown, spanId: string): unknown | undefined => {
+    if (!data || typeof data !== "object") return undefined
+
+    // Check if this object is the span we're looking for
+    if ((data as any)?.span_id === spanId) return data
+
+    // Check traces object (from trace-entity responses)
+    if ((data as any)?.traces) {
+        const traces = (data as any).traces
+        for (const traceData of Object.values(traces)) {
+            if ((traceData as any)?.spans) {
+                const spans = (traceData as any).spans
+                for (const span of Object.values(spans)) {
+                    if ((span as any)?.span_id === spanId) return span
+                }
+            }
+        }
+    }
+
+    // Check response.tree structure (from trace-drawer agenta format)
+    if ((data as any)?.response?.tree) {
+        const found = findSpanInTree((data as any).response.tree, spanId)
+        if (found) return found
+    }
+
+    // Check spans array (from traces-list)
+    if (Array.isArray((data as any)?.spans)) {
+        const found = (data as any).spans.find((s: any) => s?.span_id === spanId)
+        if (found) return found
+    }
+
+    return undefined
+}
+
+/**
+ * Recursively search a tree structure for a span
+ */
+const findSpanInTree = (node: unknown, spanId: string): unknown | undefined => {
+    if (!node) return undefined
+
+    // Check array of nodes
+    if (Array.isArray(node)) {
+        for (const child of node) {
+            const found = findSpanInTree(child, spanId)
+            if (found) return found
+        }
+        return undefined
+    }
+
+    // Check if this node is the span
+    if ((node as any)?.span_id === spanId) return node
+
+    // Check children
+    if ((node as any)?.children) {
+        return findSpanInTree((node as any).children, spanId)
+    }
+
+    // Check nodes (for tree structures)
+    if ((node as any)?.nodes) {
+        return findSpanInTree((node as any).nodes, spanId)
+    }
+
+    return undefined
+}
+
+/**
+ * Convert playground ExecutionNode to TraceSpan format
+ * This allows us to use playground data directly without re-fetching
+ */
+const executionNodeToTraceSpan = (
+    node: any,
     spanId: string,
 ): TraceSpan | undefined => {
-    // Get all queries that match the traces-list key prefix
-    const queries = queryClient.getQueriesData<{spans?: unknown[]}>({
-        queryKey: ["traces-list"],
-    })
+    if (!node || !node.data) return undefined
 
-    // Search through all cached pages for the span
-    for (const [_queryKey, data] of queries) {
-        if (data?.spans) {
-            const found = data.spans.find((span: any) => span?.span_id === spanId)
+    try {
+        // Build a minimal TraceSpan from ExecutionNode
+        return traceSpanSchema.parse({
+            trace_id: node.root?.id || node.tree?.id || spanId,
+            span_id: spanId,
+            name: node.node?.name || "span",
+            kind: node.otel?.kind || "INTERNAL",
+            start_time: node.time?.start,
+            end_time: node.time?.end,
+            status_code: node.status?.code || "OK",
+            attributes: {
+                "ag.data": node.data,
+                "ag.type": node.node?.type,
+            },
+        })
+    } catch (e) {
+        console.debug("[executionNodeToTraceSpan] Failed to convert:", e)
+        return undefined
+    }
+}
+
+/**
+ * Look up a span in various caches
+ * Checks: traces-list, trace-drawer, trace-entity caches, and playground responses
+ */
+const findSpanInCache = (
+    queryClient: import("@tanstack/react-query").QueryClient,
+    spanId: string,
+): TraceSpan | undefined => {
+    // Check all potentially relevant TanStack Query caches
+    const cacheKeys = [
+        ["traces-list"],
+        ["trace-drawer"],
+        ["trace-entity"],
+    ]
+
+    for (const keyPrefix of cacheKeys) {
+        const queries = queryClient.getQueriesData({queryKey: keyPrefix})
+
+        for (const [_queryKey, data] of queries) {
+            const found = findSpanInTraceData(data, spanId)
             if (found) {
                 try {
                     return traceSpanSchema.parse(found)
                 } catch {
-                    // Invalid span data, skip
+                    // Invalid span data, continue searching
                     continue
                 }
             }
         }
+    }
+
+    // Check playground response cache (responseAtom from useStatelessVariants)
+    try {
+        // Import lazily to avoid circular dependencies
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const {getAllResponses} = require("@/oss/lib/hooks/useStatelessVariants/state")
+        const responses = getAllResponses()
+
+        for (const response of Object.values(responses)) {
+            const tree = (response as any)?.response?.tree
+            if (!tree?.nodes) continue
+
+            // tree.nodes is an array of ExecutionNode
+            const nodes = Array.isArray(tree.nodes) ? tree.nodes : Object.values(tree.nodes)
+            for (const node of nodes) {
+                if (node?.node?.id === spanId) {
+                    const converted = executionNodeToTraceSpan(node, spanId)
+                    if (converted) return converted
+                }
+            }
+        }
+    } catch (e) {
+        // Playground state not available - skip
+        console.debug("[findSpanInCache] Playground state not available:", e)
     }
 
     return undefined
@@ -319,12 +442,27 @@ const findSpanInListCache = (
 // ============================================================================
 
 /**
+ * Custom error for span not found - triggers retry
+ */
+class SpanNotFoundError extends Error {
+    constructor(spanId: string) {
+        super(`Span ${spanId} not found - may not be ingested yet`)
+        this.name = "SpanNotFoundError"
+    }
+}
+
+/**
  * Query atom family for fetching a single span
  *
  * Cache redirect strategy:
- * 1. First check paginated list query cache for the span
+ * 1. Check various query caches (traces-list, trace-drawer, trace-entity)
  * 2. If found, use as initialData (no fetch needed)
  * 3. If not found, use batch fetcher to combine concurrent requests
+ *
+ * Retry strategy:
+ * - If span is not found (null result), throws SpanNotFoundError to trigger retry
+ * - Retries up to 3 times with exponential backoff (1s, 2s, 4s)
+ * - This handles the case where span hasn't been ingested yet (e.g., from playground)
  *
  * This provides the "server state" for each span entity.
  */
@@ -333,251 +471,115 @@ export const spanQueryAtomFamily = atomFamily((spanId: string) =>
         const projectId = get(projectIdAtom)
         const queryClient = get(queryClientAtom)
 
-        // Try to find in paginated list cache
-        const cachedData =
-            projectId && spanId ? findSpanInListCache(queryClient, projectId, spanId) : undefined
+        // Try to find in any cached trace data
+        const cachedData = spanId ? findSpanInCache(queryClient, spanId) : undefined
 
         return {
             queryKey: ["span", projectId, spanId],
             queryFn: async (): Promise<TraceSpan | null> => {
                 if (!projectId || !spanId) return null
-                return spanBatchFetcher({projectId, spanId})
+                const result = await spanBatchFetcher({projectId, spanId})
+                // Throw if not found - triggers retry (span may not be ingested yet)
+                if (!result) {
+                    throw new SpanNotFoundError(spanId)
+                }
+                return result
             },
-            // Use cached data as initial data - prevents fetch if already in paginated cache
+            // Use cached data as initial data - prevents fetch if already in cache
             initialData: cachedData ?? undefined,
             // Only fetch if not in cache
             enabled: Boolean(projectId && spanId && !cachedData),
             staleTime: 60_000, // 1 minute
             gcTime: 5 * 60_000, // 5 minutes
+            // Retry configuration for spans not yet ingested
+            retry: (failureCount, error) => {
+                // Only retry SpanNotFoundError, not other errors
+                if (error instanceof SpanNotFoundError && failureCount < 3) {
+                    return true
+                }
+                return false
+            },
+            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 8000), // 1s, 2s, 4s
         }
     }),
 )
 
 // ============================================================================
-// NORMALIZED CACHE (DEPRECATED - will migrate to query atoms)
+// DRAFT STATE MANAGEMENT
+// Uses shared factory for draft state with trace-specific configuration
 // ============================================================================
 
 /**
- * Normalized cache for trace spans indexed by span_id
- * This allows O(1) lookup of any span by its ID
- *
- * @deprecated Use spanQueryAtomFamily instead. This cache is kept for backward compatibility
- * during migration but will be removed once all consumers use query atoms.
+ * Type for trace span attributes (the draftable portion)
  */
-export const traceSpanCacheAtom = atom<Map<string, TraceSpan>>(new Map())
+type TraceSpanAttributes = TraceSpan["attributes"]
 
 /**
- * Atom family for accessing individual spans from the cache or query
- * Now prioritizes query atoms over manual cache
- *
- * Migration strategy:
- * 1. Read from query atom first (if data exists)
- * 2. Fall back to manual cache for backward compatibility
- * 3. Eventually remove manual cache entirely
+ * Create draft state management for trace spans
+ * Uses shared factory with trace-specific configuration
  */
-export const traceSpanAtomFamily = atomFamily((spanId: string) =>
-    atom((get) => {
-        // Try query atom first
-        const query = get(spanQueryAtomFamily(spanId))
-        if (query.data) {
-            return query.data
-        }
+const traceSpanDraftState = createEntityDraftState<TraceSpan, TraceSpanAttributes>({
+    // Extract server data from query atom (single source of truth)
+    entityAtomFamily: (spanId: string) => {
+        const queryAtom = spanQueryAtomFamily(spanId)
+        return atom((get) => get(queryAtom).data ?? null)
+    },
 
-        // Fall back to manual cache for backward compatibility
-        const cache = get(traceSpanCacheAtom)
-        return cache.get(spanId) ?? null
+    // Only attributes are draftable (rest of span metadata is read-only)
+    getDraftableData: (span) => span.attributes || {},
+
+    // Merge draft attributes back into span
+    mergeDraft: (span, draftAttrs) => ({
+        ...span,
+        attributes: {...span.attributes, ...draftAttrs},
     }),
-)
 
-/**
- * Atom family for accessing spans by trace_id (returns all spans in a trace)
- */
-export const spansByTraceIdAtomFamily = atomFamily((traceId: string) =>
-    atom((get) => {
-        const cache = get(traceSpanCacheAtom)
-        const spans: TraceSpan[] = []
-        cache.forEach((span) => {
-            if (span.trace_id === traceId) {
-                spans.push(span)
-            }
-        })
-        return spans
-    }),
-)
+    // Custom dirty detection: compare normalized attributes
+    isDirty: (currentAttrs, originalAttrs) => {
+        const normalizedCurrent = normalizeValueForComparison(currentAttrs)
+        const normalizedOriginal = normalizeValueForComparison(originalAttrs)
+        return normalizedCurrent !== normalizedOriginal
+    },
+})
+
+// Export draft atoms
+export const traceSpanDraftAtomFamily = traceSpanDraftState.draftAtomFamily
+export const traceSpanHasDraftAtomFamily = traceSpanDraftState.hasDraftAtomFamily
+export const traceSpanIsDirtyAtomFamily = traceSpanDraftState.isDirtyAtomFamily
+export const discardTraceSpanDraftAtom = traceSpanDraftState.discardDraftAtom
+export const updateTraceSpanAtom = traceSpanDraftState.updateAtom
 
 // ============================================================================
-// CACHE OPERATIONS
-// ============================================================================
-
-/**
- * Upsert a single span into the cache
- */
-export const upsertSpanAtom = atom(null, (get, set, span: TraceSpan) => {
-    const cache = new Map(get(traceSpanCacheAtom))
-    cache.set(span.span_id, span)
-    set(traceSpanCacheAtom, cache)
-})
-
-/**
- * Upsert multiple spans into the cache
- */
-export const upsertManySpansAtom = atom(null, (get, set, spans: TraceSpan[]) => {
-    const cache = new Map(get(traceSpanCacheAtom))
-    spans.forEach((span) => {
-        cache.set(span.span_id, span)
-    })
-    set(traceSpanCacheAtom, cache)
-})
-
-/**
- * Remove a span from the cache
- */
-export const removeSpanAtom = atom(null, (get, set, spanId: string) => {
-    const cache = new Map(get(traceSpanCacheAtom))
-    cache.delete(spanId)
-    set(traceSpanCacheAtom, cache)
-})
-
-/**
- * Clear all spans from the cache
- */
-export const clearSpanCacheAtom = atom(null, (_get, set) => {
-    set(traceSpanCacheAtom, new Map())
-})
-
-// ============================================================================
-// API FUNCTIONS
+// COMBINED ENTITY ATOM FAMILY
+// Returns draft if exists, otherwise server state
+// This is the primary atom for UI rendering
 // ============================================================================
 
 /**
- * Fetch traces/spans list with optional filters
+ * Combined entity atom: returns draft if exists, otherwise server data
+ * This is the main read atom for trace span data in UI components
+ *
+ * Equivalent to testcaseEntityAtomFamily pattern
  */
-export async function fetchTracesList(params: TraceListParams): Promise<TraceListResponse> {
-    const {
-        projectId: _projectId,
-        appId,
-        focus = "trace",
-        size = 50,
-        oldest,
-        newest,
-        filter,
-    } = params
+export const traceSpanEntityAtomFamily = atomFamily((spanId: string) =>
+    atom((get): TraceSpan | null => {
+        // Use query atom directly as single source of truth for server data
+        const queryState = get(spanQueryAtomFamily(spanId))
+        const serverState = queryState.data ?? null
+        const draftAttrs = get(traceSpanDraftAtomFamily(spanId))
 
-    const queryParams: Record<string, any> = {
-        size,
-        focus,
-    }
-
-    if (oldest) queryParams.oldest = oldest
-    if (newest) queryParams.newest = newest
-    if (filter) queryParams.filter = filter
-
-    const data = await fetchAllPreviewTraces(queryParams, appId ?? "")
-
-    // Transform response to tree structure
-    const transformed: TraceSpanNode[] = []
-    if (isTracesResponse(data)) {
-        transformed.push(...transformTracingResponse(transformTracesResponseToTree(data)))
-    } else if (isSpansResponse(data)) {
-        transformed.push(...transformTracingResponse(data.spans))
-    }
-
-    // Calculate next cursor from earliest timestamp
-    let nextCursor: string | undefined
-    const getTs = (n: any) =>
-        n?.start_time ?? n?.startTime ?? n?.timestamp ?? n?.ts ?? n?.created_at ?? null
-
-    const times = transformed
-        .map(getTs)
-        .map((value) => {
-            if (typeof value === "number") return value
-            const parsed = typeof value === "string" ? Date.parse(value) : NaN
-            return Number.isNaN(parsed) ? null : parsed
-        })
-        .filter((value): value is number => value !== null)
-
-    if (times.length) {
-        const minVal = times.reduce((min, cur) => (cur < min ? cur : min))
-        const cursorDate = new Date(minVal)
-        const lowerBound = oldest ? Date.parse(oldest) : undefined
-
-        if (!Number.isNaN(cursorDate.getTime())) {
-            if (lowerBound !== undefined && minVal <= lowerBound) {
-                nextCursor = undefined
-            } else {
-                nextCursor = cursorDate.toISOString()
+        if (draftAttrs && serverState) {
+            // Merge draft attributes into server state
+            return {
+                ...serverState,
+                attributes: {...serverState.attributes, ...draftAttrs},
             }
         }
-    }
 
-    return {
-        traces: transformed,
-        count: (data as any)?.count ?? 0,
-        nextCursor,
-    }
-}
-
-/**
- * Fetch a single span by trace_id and span_id
- */
-export async function fetchSpanDetail(params: TraceDetailParams): Promise<TraceSpan | null> {
-    const {traceId, spanId, projectId: _projectId} = params
-
-    if (!spanId) return null
-
-    // Fetch the trace containing this span
-    const queryParams: Record<string, any> = {
-        size: 1,
-        focus: "span",
-        filter: JSON.stringify({
-            conditions: [
-                {field: "trace_id", operator: "is", value: traceId},
-                {field: "span_id", operator: "is", value: spanId},
-            ],
-        }),
-    }
-
-    const data = await fetchAllPreviewTraces(queryParams, "")
-
-    if (isSpansResponse(data) && data.spans.length > 0) {
-        return traceSpanSchema.parse(data.spans[0])
-    }
-
-    return null
-}
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Extract all spans from a tree structure (flattens nested children)
- */
-export function flattenTraceTree(nodes: TraceSpanNode[]): TraceSpan[] {
-    const spans: TraceSpan[] = []
-
-    const visit = (node: TraceSpanNode) => {
-        // Extract the span data (without children)
-        const {children, key, invocationIds, ...spanData} = node
-        spans.push(spanData as TraceSpan)
-
-        // Recursively visit children
-        if (children && Array.isArray(children)) {
-            children.forEach((child) => visit(child as TraceSpanNode))
-        }
-    }
-
-    nodes.forEach(visit)
-    return spans
-}
-
-/**
- * Hydrate the cache from a list of trace nodes
- */
-export const hydrateSpanCacheAtom = atom(null, (get, set, nodes: TraceSpanNode[]) => {
-    const spans = flattenTraceTree(nodes)
-    set(upsertManySpansAtom, spans)
-})
+        // Return server state (or null if not loaded)
+        return serverState
+    }),
+)
 
 // ============================================================================
 // DERIVED ATOM FAMILIES FOR SPAN DATA EXTRACTION
@@ -589,7 +591,7 @@ export const hydrateSpanCacheAtom = atom(null, (get, set, nodes: TraceSpanNode[]
  */
 export const spanInputsAtomFamily = atomFamily((spanId: string) =>
     atom((get) => {
-        const span = get(traceSpanAtomFamily(spanId))
+        const span = get(traceSpanEntityAtomFamily(spanId))
         return extractInputs(span)
     }),
 )
@@ -600,7 +602,7 @@ export const spanInputsAtomFamily = atomFamily((spanId: string) =>
  */
 export const spanOutputsAtomFamily = atomFamily((spanId: string) =>
     atom((get) => {
-        const span = get(traceSpanAtomFamily(spanId))
+        const span = get(traceSpanEntityAtomFamily(spanId))
         return extractOutputs(span)
     }),
 )
@@ -611,7 +613,7 @@ export const spanOutputsAtomFamily = atomFamily((spanId: string) =>
  */
 export const spanAgDataAtomFamily = atomFamily((spanId: string) =>
     atom((get) => {
-        const span = get(traceSpanAtomFamily(spanId))
+        const span = get(traceSpanEntityAtomFamily(spanId))
         return extractAgData(span)
     }),
 )

@@ -1,4 +1,4 @@
-import {cloneElement, isValidElement, SetStateAction, useCallback, useState} from "react"
+import {cloneElement, isValidElement, useCallback, useState} from "react"
 
 import {Database} from "@phosphor-icons/react"
 import {Button} from "antd"
@@ -7,6 +7,8 @@ import dynamic from "next/dynamic"
 
 import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
 import {loadTestsetNormalizedMutationAtom} from "@/oss/components/Playground/state/atoms/mutations/testset/loadNormalized"
+
+import {LoadTestsetSelectionPayload} from "../types"
 
 import {LoadTestsetButtonProps} from "./types"
 
@@ -23,29 +25,20 @@ const LoadTestsetButton = ({
     const isChat = useAtomValue(appChatModeAtom) ?? false
 
     const [isTestsetModalOpen, setIsTestsetModalOpen] = useState(false)
-    const [, setTestsetData] = useState<Record<string, any> | null>(null)
+    const [, setTestsetData] = useState<LoadTestsetSelectionPayload | null>(null)
 
     const wrappedSetTestsetData = useCallback(
-        (d: SetStateAction<Record<string, any> | null>) => {
-            // Only call the mutation if we have valid testset data
-            if (d && Array.isArray(d) && d.length > 0) {
-                // Use the new mutation atom to load testset data
+        (payload: LoadTestsetSelectionPayload | null) => {
+            const testcases = payload?.testcases ?? []
+            if (Array.isArray(testcases) && testcases.length > 0) {
                 loadTestsetData({
-                    testsetData: d,
-                    isChatVariant: isChat,
-                    regenerateVariableIds: true,
-                })
-            } else if (d && !Array.isArray(d)) {
-                // Handle single testset item
-                loadTestsetData({
-                    testsetData: [d],
+                    testsetData: testcases,
                     isChatVariant: isChat,
                     regenerateVariableIds: true,
                 })
             }
 
-            // Update local state for the modal
-            setTestsetData(d)
+            setTestsetData(payload)
         },
         [loadTestsetData, isChat],
     )

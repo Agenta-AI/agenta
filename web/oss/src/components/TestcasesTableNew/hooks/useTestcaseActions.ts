@@ -5,8 +5,15 @@ import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
+import {downloadRevision, updateTestsetMetadata} from "@/oss/services/testsets/api"
+import type {ExportFileType} from "@/oss/services/testsets/api"
 import type {TestsetMetadata} from "@/oss/state/entities/testcase/queries"
-import {updateRevisionDraftAtom} from "@/oss/state/entities/testset/revisionEntity"
+import {
+    revision,
+    invalidateTestsetCache,
+    invalidateTestsetsListCache,
+    invalidateRevisionsListCache,
+} from "@/oss/state/entities/testset"
 
 import AlertPopup from "../../AlertPopup/AlertPopup"
 import {message} from "../../AppMessageContext"
@@ -63,6 +70,9 @@ export interface UseTestcaseActionsResult {
 
     // Revision actions
     handleDeleteRevision: () => Promise<void>
+
+    // Export actions
+    handleExport: (fileType: ExportFileType) => Promise<void>
 }
 
 /**
@@ -84,8 +94,8 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
     const router = useRouter()
     const {projectURL} = useURL()
 
-    // Atoms for updating metadata (name/description stored in revision draft)
-    const updateRevisionDraft = useSetAtom(updateRevisionDraftAtom)
+    // Action for clearing revision draft on discard
+    const discardRevisionDraft = useSetAtom(revision.actions.discardDraft)
 
     // Track programmatic navigation after save to skip blocker
     const skipBlockerRef = useRef(false)
@@ -214,8 +224,15 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         async (commitMessage: string) => {
             if (mode === "view") return
 
+            // Check if this is a new testset
+            const isNewTestset = revisionIdParam === "new"
+
             try {
-                const newRevisionId = await table.saveTestset({commitMessage})
+                const newRevisionId = await table.saveTestset({
+                    commitMessage,
+                    // For new testsets, pass the name from metadata (set from URL query param)
+                    testsetName: isNewTestset ? metadata?.testsetName : undefined,
+                })
                 if (newRevisionId) {
                     message.success("Changes saved successfully!")
                     skipBlockerRef.current = true // Skip nav blocker for programmatic navigation
@@ -229,7 +246,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
                 message.error("Failed to save changes")
             }
         },
-        [table, router, projectURL, mode],
+        [table, router, projectURL, mode, revisionIdParam, metadata?.testsetName],
     )
 
     const handleDiscardChanges = useCallback(() => {
@@ -241,29 +258,55 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
             okText: "Discard",
             okButtonProps: {danger: true},
             onOk: () => {
+                // Clear testcase changes
                 table.clearChanges()
+
+                // Clear revision draft (name/description changes)
+                if (revisionIdParam) {
+                    const revisionId = Array.isArray(revisionIdParam)
+                        ? revisionIdParam[0]
+                        : revisionIdParam
+                    if (revisionId) {
+                        discardRevisionDraft(revisionId)
+                    }
+                }
+
                 message.success("Changes discarded")
             },
         })
-    }, [table, mode])
+    }, [table, mode, revisionIdParam, discardRevisionDraft])
 
     // ========================================================================
     // METADATA ACTIONS
     // ========================================================================
 
     const handleRenameConfirm = useCallback(
-        (editModalName: string, editModalDescription: string, onClose: () => void) => {
-            if (mode === "view" || !revisionIdParam) return
-            updateRevisionDraft({
-                revisionId: revisionIdParam as string,
-                updates: {
+        async (editModalName: string, editModalDescription: string, onClose: () => void) => {
+            if (mode === "view") return
+
+            const testsetId = metadata?.testsetId
+            if (!testsetId) {
+                message.error("Testset not found")
+                return
+            }
+
+            try {
+                // Update testset metadata directly (not via commit flow)
+                await updateTestsetMetadata(testsetId, {
                     name: editModalName,
                     description: editModalDescription,
-                },
-            })
-            onClose()
+                })
+                message.success("Testset details updated")
+                onClose()
+                // Invalidate caches to refresh the UI
+                invalidateTestsetCache(testsetId)
+                invalidateTestsetsListCache()
+            } catch (error) {
+                console.error("Failed to update testset details:", error)
+                message.error("Failed to update testset details")
+            }
         },
-        [updateRevisionDraft, revisionIdParam, mode],
+        [mode, metadata?.testsetId],
     )
 
     const handleCopyId = useCallback(async () => {
@@ -308,10 +351,19 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
                     await archiveTestsetRevision(revisionIdParam as string)
                     message.success("Revision deleted successfully")
 
+                    // Invalidate caches so revisions list and testset data are refreshed
+                    if (metadata?.testsetId) {
+                        invalidateRevisionsListCache(metadata.testsetId)
+                        invalidateTestsetCache(metadata.testsetId)
+                    }
+                    invalidateTestsetsListCache()
+
                     // Navigate to the latest revision
                     const latestRevision = availableRevisions
                         .filter((r: RevisionListItem) => r.id !== revisionIdParam)
-                        .sort((a: RevisionListItem, b: RevisionListItem) => b.version - a.version)[0]
+                        .sort(
+                            (a: RevisionListItem, b: RevisionListItem) => b.version - a.version,
+                        )[0]
 
                     if (latestRevision) {
                         router.push(`${projectURL}/testsets/${latestRevision.id}`, undefined, {
@@ -327,6 +379,31 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
             },
         })
     }, [revisionIdParam, metadata, availableRevisions, router, projectURL])
+
+    // ========================================================================
+    // EXPORT ACTIONS
+    // ========================================================================
+
+    const handleExport = useCallback(
+        async (fileType: ExportFileType) => {
+            if (!revisionIdParam) {
+                message.error("No revision to export")
+                return
+            }
+
+            try {
+                const testsetName = metadata?.testsetName || "testset"
+                const version = metadata?.revisionVersion ?? "unknown"
+                const filename = `${testsetName}_v${version}.${fileType}`
+                await downloadRevision(revisionIdParam as string, fileType, filename)
+                message.success(`Exported as ${fileType.toUpperCase()}`)
+            } catch (error) {
+                console.error("Failed to export:", error)
+                message.error(`Failed to export as ${fileType.toUpperCase()}`)
+            }
+        },
+        [revisionIdParam, metadata?.testsetName, metadata?.revisionVersion],
+    )
 
     return {
         skipBlockerRef,
@@ -344,5 +421,6 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         handleCopyId,
         handleCopyRevisionSlug,
         handleDeleteRevision,
+        handleExport,
     }
 }

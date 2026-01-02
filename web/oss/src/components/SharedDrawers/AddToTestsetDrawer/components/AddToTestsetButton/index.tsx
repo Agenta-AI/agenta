@@ -61,7 +61,7 @@ const AddToTestsetButton = ({
 
             <TestsetDrawer
                 open={isDrawerOpen}
-                data={testsetData}
+                spanIds={spanIds}
                 showSelectedSpanText={false}
                 onClose={() => {
                     closeDrawer()

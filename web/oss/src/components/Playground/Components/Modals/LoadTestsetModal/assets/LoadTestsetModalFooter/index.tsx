@@ -5,7 +5,7 @@ import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
-import {saveNewTestsetAtom} from "@/oss/state/entities/testcase/mutations"
+import {saveNewTestsetAtom} from "@/oss/state/entities/testcase"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
@@ -18,6 +18,7 @@ const LoadTestsetModalFooter = ({
     selectedRowKeys,
     testsetCsvData,
     setTestsetData,
+    selectedRevisionId,
     isCreatingNew,
     newTestsetName,
 }: LoadTestsetModalFooterProps) => {
@@ -68,9 +69,12 @@ const LoadTestsetModalFooter = ({
 
                 message.success("Testset created successfully")
 
-                const newTestcases = result.testcases ?? []
+                const newTestcases = (result.testcases ?? []) as Record<string, any>[]
                 if (newTestcases.length) {
-                    setTestsetData(newTestcases)
+                    setTestsetData({
+                        testcases: newTestcases,
+                        revisionId: result.revisionId,
+                    })
                 } else {
                     message.info("Testset is empty. Add rows before loading.")
                 }
@@ -92,7 +96,10 @@ const LoadTestsetModalFooter = ({
             return
         }
 
-        setTestsetData(testsetCsvData)
+        setTestsetData({
+            testcases: testsetCsvData as Record<string, any>[],
+            revisionId: selectedRevisionId || undefined,
+        })
         onClose()
     }, [
         isCreatingNew,
@@ -101,6 +108,7 @@ const LoadTestsetModalFooter = ({
         saveNewTestset,
         testsetCsvData,
         setTestsetData,
+        selectedRevisionId,
         onClose,
     ])
 

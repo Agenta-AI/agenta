@@ -1,33 +1,21 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
-    addColumnAtom,
-    currentColumnsAtom,
-    deleteColumnAtom,
-    expandedColumnsAtom,
-    renameColumnAtom,
-} from "@/oss/state/entities/testcase/columnState"
-import {displayRowRefsAtom} from "@/oss/state/entities/testcase/displayRows"
-import {initializeEmptyRevisionAtom} from "@/oss/state/entities/testcase/editSession"
-import {
-    addTestcaseAtom,
-    appendTestcasesAtom,
     clearChangesAtom,
-    deleteTestcasesAtom,
-    saveNewTestsetAtom,
-    saveTestsetAtom,
-} from "@/oss/state/entities/testcase/mutations"
-import {
+    displayRowRefsAtom,
+    initializeEmptyRevisionAtom,
     metadataLoadingAtom,
     revisionQueryAtom,
+    saveNewTestsetAtom,
+    saveTestsetAtom,
+    testcase,
     testsetIdAtom,
     testsetMetadataAtom,
-} from "@/oss/state/entities/testcase/queries"
-import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
-import {updateTestcaseAtom} from "@/oss/state/entities/testcase/testcaseEntity"
-import {changesSummaryAtom, hasUnsavedChangesAtom} from "@/oss/state/entities/testset"
+    type FlattenedTestcase,
+} from "@/oss/state/entities/testcase"
+import {changesSummaryAtom, hasUnsavedChangesAtom, revision} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {
@@ -175,8 +163,8 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     // Extract data from query atoms
     const testsetId = useAtomValue(testsetIdAtom)
 
-    // Update testcase atom - for local edits
-    const executeUpdateTestcase = useSetAtom(updateTestcaseAtom)
+    // Update testcase action - for local edits (uses controller pattern)
+    const executeUpdateTestcase = useSetAtom(testcase.actions.update)
 
     // NOTE: Pagination is handled by InfiniteVirtualTableFeatureShell via datasetStore
     // The shell calls datasetStore.hooks.usePagination() internally
@@ -189,16 +177,53 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         .map((row) => row.id as string)
 
     // =========================================================================
-    // COLUMN STATE (from atoms instead of useEditableTable)
+    // COLUMN STATE (via revision controller)
     // Columns are derived directly from entity/server data - no useEffect sync needed
     // Note: Column reset and v0 draft init are handled by revisionChangeEffectAtom
-    // Uses expandedColumnsAtom for dynamic object expansion (e.g., "event" -> "event.type", "event.date")
+    // Uses expandedColumns for dynamic object expansion (e.g., "event" -> "event.type", "event.date")
     // =========================================================================
-    const baseColumns = useAtomValue(currentColumnsAtom) // Original columns (for drawer/editing)
+    const columnsAtom = useMemo(
+        () => revision.selectors.columns(revisionId ?? ""),
+        [revisionId],
+    )
+    const expandedColumnsAtom = useMemo(
+        () => revision.selectors.expandedColumns(revisionId ?? ""),
+        [revisionId],
+    )
+    const baseColumns = useAtomValue(columnsAtom) // Original columns (for drawer/editing)
     const columns = useAtomValue(expandedColumnsAtom) // Expanded columns (for table display)
-    const addColumn = useSetAtom(addColumnAtom)
-    const deleteColumn = useSetAtom(deleteColumnAtom)
-    const renameColumnAction = useSetAtom(renameColumnAtom)
+
+    // Check if revision data suggests columns should exist but haven't been derived yet
+    // This catches the gap between data arriving and columns being populated
+    const revisionData = revisionQuery.data
+    // Check various indicators that testcases exist:
+    // 1. flags.has_testcases - explicit boolean from backend
+    // 2. data.testcases array - inline testcases (when include_testcases=true)
+    // 3. data.testcase_ids array - list of testcase references
+    const revisionHasColumnData =
+        revisionData &&
+        (revisionData.flags?.has_testcases === true ||
+            (revisionData.data?.testcases && revisionData.data.testcases.length > 0) ||
+            (revisionData.data?.testcase_ids && revisionData.data.testcase_ids.length > 0))
+    const stillDerivingColumns = columns.length === 0 && revisionHasColumnData
+
+    // Combined loading state - true when any data source is still loading
+    // This prevents empty state flash between different loading phases:
+    // 1. metadataLoading - testset metadata query
+    // 2. isFetching - paginated store fetching rows
+    // 3. revisionQuery.isPending - revision data (columns come from here)
+    // 4. !hasInitialFetchCompleted - initial data sync not yet complete
+    // 5. stillDerivingColumns - revision has data but columns not yet derived
+    const combinedIsLoading =
+        metadataLoading ||
+        isFetching ||
+        revisionQuery.isPending ||
+        !hasInitialFetchCompleted ||
+        stillDerivingColumns
+
+    const addColumn = useSetAtom(revision.actions.addColumn)
+    const deleteColumn = useSetAtom(revision.actions.deleteColumn)
+    const renameColumnAction = useSetAtom(revision.actions.renameColumn)
 
     /**
      * Row refs for table display
@@ -213,18 +238,15 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
      */
     const updateTestcase = useCallback(
         (rowKey: string, columnKey: string, value: unknown) => {
-            executeUpdateTestcase({
-                id: rowKey,
-                updates: {[columnKey]: value} as Partial<FlattenedTestcase>,
-            })
+            executeUpdateTestcase(rowKey, {[columnKey]: value} as Partial<FlattenedTestcase>)
         },
         [executeUpdateTestcase],
     )
 
     /**
-     * Delete testcases - uses deleteTestcasesAtom
+     * Delete testcases - uses testcase.actions.delete
      */
-    const executeDeleteTestcases = useSetAtom(deleteTestcasesAtom)
+    const executeDeleteTestcases = useSetAtom(testcase.actions.delete)
     const deleteTestcases = useCallback(
         (rowKeys: string[]) => executeDeleteTestcases(rowKeys),
         [executeDeleteTestcases],
@@ -241,9 +263,9 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     )
 
     /**
-     * Add a new testcase - uses addTestcaseAtom
+     * Add a new testcase - uses testcase.actions.add
      */
-    const executeAddTestcase = useSetAtom(addTestcaseAtom)
+    const executeAddTestcase = useSetAtom(testcase.actions.add)
     const addTestcase = useCallback((): TestcaseTableRow => {
         const result = executeAddTestcase()
         return {
@@ -255,9 +277,9 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     }, [executeAddTestcase])
 
     /**
-     * Append multiple testcases - uses appendTestcasesAtom
+     * Append multiple testcases - uses testcase.actions.append
      */
-    const executeAppendTestcases = useSetAtom(appendTestcasesAtom)
+    const executeAppendTestcases = useSetAtom(testcase.actions.append)
     const appendTestcases = useCallback(
         (rows: Record<string, unknown>[]): number => executeAppendTestcases(rows),
         [executeAppendTestcases],
@@ -368,7 +390,8 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         testcaseIds, // IDs for entity atom access
         columns, // Expanded columns for table display
         baseColumns, // Original columns for drawer/editing
-        isLoading: metadataLoading,
+        // Use combined loading state (includes revisionQuery.isPending for columns)
+        isLoading: combinedIsLoading,
         error: revisionQuery.error as Error | null,
 
         // Stats

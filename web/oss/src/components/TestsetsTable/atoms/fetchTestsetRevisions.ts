@@ -1,3 +1,19 @@
+/**
+ * @deprecated This file is deprecated. Use the centralized entity store instead:
+ *
+ * ```typescript
+ * import { fetchRevisionsList, type Revision } from "@/oss/state/entities/testset"
+ * ```
+ *
+ * The centralized entity store provides:
+ * - Zod schema validation
+ * - Entity caching
+ * - Consistent API across the app
+ * - Better type safety
+ *
+ * This file is kept for backwards compatibility only and should not be used in new code.
+ */
+
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {getProjectValues} from "@/oss/state/project"
@@ -7,6 +23,8 @@ import {getProjectValues} from "@/oss/state/project"
  *
  * Note: We skip the variant layer entirely. The frontend works directly with
  * testsets and their revisions (2-level hierarchy instead of 3-level).
+ *
+ * @deprecated Use `Revision` type from "@/oss/state/entities/testset" instead
  */
 export interface TestsetRevision {
     id: string
@@ -34,6 +52,13 @@ interface FetchTestsetRevisionsParams {
  *
  * Note: We fetch revisions directly by testset_id, skipping the variant layer.
  * The backend supports variants, but the frontend uses only testsets + revisions.
+ *
+ * @deprecated Use `fetchRevisionsList` from "@/oss/state/entities/testset" instead:
+ * ```typescript
+ * import { fetchRevisionsList } from "@/oss/state/entities/testset"
+ * const response = await fetchRevisionsList({ projectId, testsetId })
+ * const revisions = response.testset_revisions
+ * ```
  */
 export const fetchTestsetRevisions = async ({
     testsetId,

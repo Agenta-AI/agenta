@@ -1,14 +1,15 @@
 import {type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
 
-import {Input, InputNumber, Select, Switch} from "antd"
+import {InputNumber, Select, Switch} from "antd"
 
-import {ChatMessageList} from "@/oss/components/ChatMessageEditor"
+import {ChatMessageEditor, ChatMessageList} from "@/oss/components/ChatMessageEditor"
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import {DrillInProvider} from "@/oss/components/Editor/plugins/code/context/DrillInContext"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {
     detectDataType,
     getTextModeValue,
+    isChatMessageObject,
     isMessagesArray,
     parseMessages,
     textModeToStorageValue,
@@ -73,6 +74,8 @@ export interface DrillInContentProps {
     lockedFieldTypes?: Record<string, DataType>
     /** Callback to update locked field types */
     onLockedFieldTypesChange?: (types: Record<string, DataType>) => void
+    /** Initial path to start navigation at (e.g., "inputs.prompt" or ["inputs", "prompt"]) */
+    initialPath?: string | string[]
 }
 
 /**
@@ -101,8 +104,18 @@ export function DrillInContent({
     getDefaultValueForType,
     lockedFieldTypes = {},
     onLockedFieldTypesChange,
+    initialPath,
 }: DrillInContentProps) {
-    const [currentPath, setCurrentPath] = useState<string[]>([])
+    // Parse initialPath to array format, removing rootTitle prefix if present
+    const parsedInitialPath = (() => {
+        if (!initialPath) return []
+        const pathArray = typeof initialPath === "string" ? initialPath.split(".") : initialPath
+        // Remove the rootTitle prefix if present
+        const startIndex = pathArray[0] === rootTitle ? 1 : 0
+        return pathArray.slice(startIndex)
+    })()
+
+    const [currentPath, setCurrentPath] = useState<string[]>(parsedInitialPath)
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
     const [rawModeFields, setRawModeFields] = useState<Record<string, boolean>>({})
 
@@ -443,8 +456,9 @@ export function DrillInContent({
         [currentPath, getValue, valueToString, setValue, valueMode],
     )
 
-    // Drill-in is enabled when property click is available (either string mode or external callback)
-    const drillInEnabled = valueMode === "string" || !!onPropertyClick
+    // Drill-in is always enabled for navigation within the view
+    // Property click allows drilling into nested JSON properties
+    const drillInEnabled = true
 
     return (
         <DrillInProvider value={{enabled: drillInEnabled}}>
@@ -485,10 +499,13 @@ export function DrillInContent({
                         const fieldKey = `${currentPath.join(".")}.${item.key}`
                         // When drilling into a primitive, currentPath already contains the full path
                         // and item.key is just the last segment (duplicate). Use currentPath directly.
+                        // IMPORTANT: Must verify value is actually primitive, not just matching key name
+                        // (e.g., nested objects like inputs.inputs should NOT trigger this)
                         const isDrilledPrimitive =
                             currentPath.length > 0 &&
                             currentPath[currentPath.length - 1] === item.key &&
-                            currentLevelItems.length === 1
+                            currentLevelItems.length === 1 &&
+                            !isExpandable(item.value)
                         const fullPath = isDrilledPrimitive
                             ? currentPath
                             : [...currentPath, item.key]
@@ -592,6 +609,7 @@ export function DrillInContent({
                                             onPropertyClick,
                                             dataPath,
                                             setCurrentPath,
+                                            rootTitle,
                                         })}
                                     </div>
                                 )}
@@ -653,6 +671,7 @@ interface RenderFieldContentProps {
     onPropertyClick?: (fullPath: string) => void
     dataPath: string
     setCurrentPath: (path: string[]) => void
+    rootTitle: string
 }
 
 function renderFieldContent({
@@ -668,6 +687,7 @@ function renderFieldContent({
     onPropertyClick,
     dataPath,
     setCurrentPath,
+    rootTitle,
 }: RenderFieldContentProps) {
     if (!editable) {
         // Read-only preview
@@ -679,127 +699,66 @@ function renderFieldContent({
     }
 
     if (isRawMode) {
-        // Raw mode - show how the value appears as an escaped string in JSON requests
+        // Raw mode - read-only view showing the value in its storage format
+        // If original was a JSON string (escaped), show escaped format
+        // If original was a nested object, show JSON editor view (read-only)
+        const originalWasString = typeof item.value === "string"
+
+        // For nested objects/arrays (not originally strings), use JSON editor (read-only)
+        if (
+            !originalWasString &&
+            (dataType === "json-object" || dataType === "json-array" || dataType === "messages")
+        ) {
+            return (
+                <JsonEditorWithLocalState
+                    editorKey={`${fullPath.join("-")}-raw-editor`}
+                    initialValue={stringValue}
+                    onValidChange={() => {}}
+                    readOnly
+                />
+            )
+        }
+
+        // For string-encoded JSON, show escaped format (read-only)
+        // For primitives, behavior depends on whether we're in string mode (stringified JSON structure)
         let rawValue = stringValue
 
-        if (dataType === "json-object" || dataType === "json-array" || dataType === "messages") {
+        if (
+            originalWasString &&
+            (dataType === "json-object" || dataType === "json-array" || dataType === "messages")
+        ) {
+            // String-encoded JSON: show as escaped string literal
             try {
                 const parsed = JSON.parse(stringValue)
-                const compactJson = JSON.stringify(parsed) // Compact to one line
-                rawValue = JSON.stringify(compactJson) // Escape to show as string literal (with \" quotes)
+                const compactJson = JSON.stringify(parsed)
+                rawValue = JSON.stringify(compactJson) // Escape to show as string literal
             } catch {
                 // If parsing fails, use stringValue as-is
             }
         } else if (dataType === "string") {
-            // String primitives: double-stringify to show escaped quotes
-            // "22:00" -> "\"22:00\""
-            const withQuotes = JSON.stringify(stringValue) // First: "22:00"
-            rawValue = JSON.stringify(withQuotes) // Second: "\"22:00\""
+            if (valueMode === "string") {
+                // Part of stringified JSON structure: show double-escaped
+                // "system" -> "\"system\"" (shows how it appears in the JSON string)
+                const withQuotes = JSON.stringify(stringValue)
+                rawValue = JSON.stringify(withQuotes)
+            } else {
+                // Native mode: just show with quotes
+                // "system" -> "system"
+                rawValue = JSON.stringify(stringValue)
+            }
         }
         // Numbers and booleans stay as-is (no escaping needed)
 
-        if (!editable) {
-            return (
-                <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[#9d4edd] p-3 bg-gray-50 rounded-md max-h-[400px] overflow-auto">
-                    {rawValue}
-                </pre>
-            )
-        }
-
         return (
-            <Input.TextArea
-                value={rawValue}
-                onChange={(e) => {
-                    const newValue = e.target.value
-
-                    if (valueMode === "string") {
-                        // For JSON values, un-escape the edited string before storing
-                        if (
-                            dataType === "json-object" ||
-                            dataType === "json-array" ||
-                            dataType === "messages"
-                        ) {
-                            try {
-                                // Parse the escaped string to get the actual value
-                                const unescaped = JSON.parse(newValue)
-                                setValue(fullPath, unescaped)
-                            } catch {
-                                // Invalid format, ignore
-                            }
-                        } else if (dataType === "string") {
-                            try {
-                                // String primitives: double-parse to un-escape
-                                // "\"22:00\"" -> "22:00" -> 22:00
-                                const firstParse = JSON.parse(newValue) // Remove outer escaping
-                                const secondParse = JSON.parse(firstParse) // Remove quotes
-                                setValue(fullPath, secondParse)
-                            } catch {
-                                // Invalid format, ignore
-                            }
-                        } else {
-                            // For numbers and booleans, store as-is
-                            setValue(fullPath, newValue)
-                        }
-                    } else {
-                        // For native mode, try to parse it before storing
-                        try {
-                            const parsed = JSON.parse(newValue)
-                            setValue(fullPath, parsed)
-                        } catch {
-                            // Invalid JSON, ignore the change
-                        }
-                    }
-                }}
-                autoSize={{minRows: 3, maxRows: 20}}
-                className="font-mono text-xs"
-                style={{
-                    resize: "vertical",
-                    fontFamily:
-                        'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-                }}
-            />
+            <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[#9d4edd] p-3 bg-gray-50 rounded-md max-h-[400px] overflow-auto">
+                {rawValue}
+            </pre>
         )
     }
 
     // Type-specific rendering
-    if (dataType === "null") {
-        // Show empty editor for null values (same as string primitives)
-        const nullEditorId = `drill-field-${fieldKey}-null`
-        return (
-            <EditorProvider
-                key={`${nullEditorId}-provider`}
-                id={nullEditorId}
-                initialValue=""
-                showToolbar={false}
-                enableTokens
-            >
-                <SharedEditor
-                    id={nullEditorId}
-                    initialValue=""
-                    handleChange={(newValue) => {
-                        if (newValue.trim()) {
-                            // Try to parse as JSON, otherwise store as string
-                            try {
-                                const parsed = JSON.parse(newValue)
-                                setValue(fullPath, valueMode === "string" ? newValue : parsed)
-                            } catch {
-                                setValue(
-                                    fullPath,
-                                    valueMode === "string" ? JSON.stringify(newValue) : newValue,
-                                )
-                            }
-                        }
-                    }}
-                    placeholder={`Enter ${item.name}...`}
-                    editorType="border"
-                    className="overflow-hidden"
-                    disableDebounce
-                    noProvider
-                    header={<TestcaseFieldHeader id={nullEditorId} value="" />}
-                />
-            </EditorProvider>
-        )
-    }
+    // Note: "null" dataType is handled by the string editor at the end (using empty string)
+    // to avoid focus loss when null becomes a string value
 
     if (dataType === "boolean") {
         const boolValue =
@@ -844,98 +803,153 @@ function renderFieldContent({
     }
 
     if (dataType === "json-array") {
-        // Array selector for drilling in
-        const arrayItems = JSON.parse(stringValue)
+        const arrayItems = JSON.parse(stringValue) as unknown[]
+        const originalWasString = typeof item.value === "string"
+
+        const getPreview = (arrItem: unknown) =>
+            typeof arrItem === "string"
+                ? arrItem.length > 60
+                    ? arrItem.substring(0, 60) + "..."
+                    : arrItem
+                : typeof arrItem === "object" && arrItem !== null
+                  ? JSON.stringify(arrItem).substring(0, 60) + "..."
+                  : String(arrItem)
+
         return (
             <div className="flex flex-col gap-2">
-                <Select
-                    mode="multiple"
-                    allowClear
-                    placeholder="Select items to view/edit"
-                    className="w-full"
-                    size="middle"
-                    value={[]}
-                    options={arrayItems.map((arrItem: unknown, idx: number) => ({
-                        value: idx,
-                        label: `Item ${idx + 1}: ${
-                            typeof arrItem === "string"
-                                ? arrItem.substring(0, 50) + (arrItem.length > 50 ? "..." : "")
-                                : typeof arrItem === "object"
-                                  ? JSON.stringify(arrItem).substring(0, 50) + "..."
-                                  : String(arrItem)
-                        }`,
-                    }))}
-                    onSelect={(idx: number) => {
-                        setCurrentPath([...fullPath, String(idx)])
+                {/* Navigation select for drilling into items */}
+                {arrayItems.length > 0 && (
+                    <Select
+                        placeholder="Jump to item"
+                        className="w-full"
+                        size="small"
+                        value={null}
+                        options={arrayItems.map((arrItem: unknown, idx: number) => ({
+                            value: idx,
+                            label: `${idx + 1}. ${getPreview(arrItem)}`,
+                        }))}
+                        onSelect={(idx: number) => {
+                            setCurrentPath([...fullPath, String(idx)])
+                        }}
+                    />
+                )}
+
+                {/* Editable JSON editor for array content */}
+                <JsonEditorWithLocalState
+                    editorKey={`${fullPath.join("-")}-editor`}
+                    initialValue={stringValue}
+                    onValidChange={(value) => {
+                        const shouldStringify = valueMode === "string" || originalWasString
+                        if (shouldStringify) {
+                            setValue(fullPath, value)
+                        } else {
+                            setValue(fullPath, JSON.parse(value))
+                        }
                     }}
-                    dropdownRender={(menu) => (
-                        <div>
-                            <div className="px-2 py-1 text-xs text-gray-500 border-b">
-                                Click an item to drill in
-                            </div>
-                            {menu}
-                        </div>
-                    )}
+                    onPropertyClick={(clickedPath) => {
+                        const pathParts = clickedPath.split(".")
+                        setCurrentPath([...fullPath, ...pathParts])
+                    }}
                 />
-                <div className="text-xs text-gray-500">
-                    {arrayItems.length} items • Use &quot;Drill In&quot; or select an item above to
-                    edit
-                </div>
+
+                {arrayItems.length === 0 && (
+                    <div className="text-sm text-gray-400">Empty array</div>
+                )}
             </div>
         )
     }
 
     if (dataType === "messages") {
+        // Check if original value was a string (stringified JSON) to preserve format when saving
+        const originalWasString = typeof item.value === "string"
         return (
             <ChatMessageList
                 messages={parseMessages(stringValue)}
-                onChange={(messages) =>
-                    setValue(fullPath, valueMode === "string" ? JSON.stringify(messages) : messages)
-                }
+                onChange={(messages) => {
+                    // Preserve stringified format if original was a string, otherwise use native
+                    const shouldStringify = valueMode === "string" || originalWasString
+                    setValue(fullPath, shouldStringify ? JSON.stringify(messages) : messages)
+                }}
                 showControls={isMessagesArray(stringValue)}
             />
         )
     }
 
     if (dataType === "json-object") {
-        // Check if the original value was a string (stringified JSON)
-        // If so, keep it as a string when updating
+        // Check if original value was a string (stringified JSON) to preserve format when saving
         const originalWasString = typeof item.value === "string"
+
+        // Check if this is a single chat message object - render as ChatMessageEditor
+        try {
+            const parsed = JSON.parse(stringValue)
+            if (isChatMessageObject(parsed)) {
+                const role = (parsed.role || parsed.sender || parsed.author || "user") as string
+                const content =
+                    typeof parsed.content === "string"
+                        ? parsed.content
+                        : parsed.text || parsed.message || ""
+                return (
+                    <ChatMessageEditor
+                        role={role}
+                        text={content}
+                        disabled={!editable}
+                        onChangeRole={(newRole: string) => {
+                            const updated = {...parsed, role: newRole}
+                            // Preserve stringified format if original was a string
+                            const shouldStringify = valueMode === "string" || originalWasString
+                            setValue(fullPath, shouldStringify ? JSON.stringify(updated) : updated)
+                        }}
+                        onChangeText={(newText: string) => {
+                            const updated = {...parsed, content: newText}
+                            // Preserve stringified format if original was a string
+                            const shouldStringify = valueMode === "string" || originalWasString
+                            setValue(fullPath, shouldStringify ? JSON.stringify(updated) : updated)
+                        }}
+                    />
+                )
+            }
+        } catch {
+            // Not valid JSON, fall through to default handling
+        }
+
+        // originalWasString is already declared at top of json-object block
         return (
             <JsonEditorWithLocalState
                 editorKey={`${fullPath.join("-")}-editor`}
                 initialValue={stringValue}
                 onValidChange={(value) => {
-                    if (valueMode === "string") {
-                        setValue(fullPath, value)
-                    } else if (originalWasString) {
-                        // Keep as string if original was stringified JSON
+                    // Preserve stringified format if original was a string, otherwise use native
+                    const shouldStringify = valueMode === "string" || originalWasString
+                    if (shouldStringify) {
                         setValue(fullPath, value)
                     } else {
                         setValue(fullPath, JSON.parse(value))
                     }
                 }}
-                onPropertyClick={
-                    valueMode === "string" || onPropertyClick
-                        ? (clickedPath) => {
-                              if (valueMode === "string") {
-                                  // TestcaseEditDrawer pattern - always enabled
-                                  const pathParts = clickedPath.split(".")
-                                  setCurrentPath([...fullPath, ...pathParts])
-                              } else if (onPropertyClick) {
-                                  // TraceDataDrillIn pattern - needs external callback
-                                  onPropertyClick(`${dataPath}.${clickedPath}`)
-                              }
-                          }
-                        : undefined
-                }
+                onPropertyClick={(clickedPath) => {
+                    // Internal navigation - always enabled for drilling into nested properties
+                    const pathParts = clickedPath.split(".")
+                    setCurrentPath([...fullPath, ...pathParts])
+
+                    // Also call external handler if provided (e.g., TraceDataDrillIn)
+                    if (onPropertyClick) {
+                        const navigationPath = [
+                            rootTitle,
+                            ...fullPath,
+                            ...pathParts,
+                        ].join(".")
+                        onPropertyClick(navigationPath)
+                    }
+                }}
             />
         )
     }
 
-    // String/text mode with rich editor
+    // String/text mode with rich editor (also handles null values)
     const editorId = `drill-field-${fieldKey}`
-    const textValue = getTextModeValue(stringValue)
+    // For null values, use empty string; otherwise get text mode value
+    const isNull = dataType === "null" || item.value === null
+    const textValue = isNull ? "" : getTextModeValue(stringValue)
     return (
         <EditorProvider
             key={`${editorId}-provider`}
@@ -948,8 +962,13 @@ function renderFieldContent({
                 id={editorId}
                 initialValue={textValue}
                 handleChange={(newValue) => {
-                    const storageValue = textModeToStorageValue(newValue, stringValue)
-                    setValue(fullPath, valueMode === "string" ? storageValue : storageValue)
+                    if (isNull) {
+                        // Transitioning from null - store as string directly
+                        setValue(fullPath, newValue)
+                    } else {
+                        const storageValue = textModeToStorageValue(newValue, stringValue)
+                        setValue(fullPath, valueMode === "string" ? storageValue : storageValue)
+                    }
                 }}
                 placeholder={`Enter ${item.name}...`}
                 editorType="border"

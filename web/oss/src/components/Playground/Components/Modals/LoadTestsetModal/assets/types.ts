@@ -2,8 +2,13 @@ import {ModalProps} from "antd"
 
 import {Testset} from "@/oss/lib/Types"
 
+export interface LoadTestsetSelectionPayload {
+    testcases: Record<string, any>[]
+    revisionId?: string
+}
+
 export interface LoadTestsetModalProps extends ModalProps {
-    setTestsetData: React.Dispatch<React.SetStateAction<Record<string, any>[] | null>>
+    setTestsetData: (payload: LoadTestsetSelectionPayload | null) => void
 }
 
 /**
@@ -19,7 +24,8 @@ export interface LoadTestsetModalFooterProps {
     isLoadingTestset: boolean
     selectedRowKeys: React.Key[]
     testsetCsvData: Testset["csvdata"]
-    setTestsetData: React.Dispatch<React.SetStateAction<Record<string, any>[] | null>>
+    setTestsetData: (payload: LoadTestsetSelectionPayload | null) => void
+    selectedRevisionId: string
     isCreatingNew: boolean
     newTestsetName: string
 }

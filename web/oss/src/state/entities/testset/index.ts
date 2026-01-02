@@ -1,11 +1,11 @@
 /**
  * Testset Entity Module
  *
- * Manages testset and revision entities with:
+ * Manages testset, revision, and variant entities with:
  * - Zod schema validation
- * - Entity store with normalized caching
- * - Batch fetching for latest revisions
- * - Compatible with useEntity/useEntityList hooks
+ * - Query atoms with cache redirect (no explicit hydration)
+ * - Batch fetching for revisions
+ * - Entity controllers for unified API access
  */
 
 // Schema exports
@@ -15,6 +15,7 @@ export {
     revisionsResponseSchema,
     testsetSchema,
     testsetsResponseSchema,
+    variantSchema,
     normalizeRevision,
     isV0Revision,
     getVersionDisplay,
@@ -23,24 +24,58 @@ export {
     type RevisionsResponse,
     type Testset,
     type TestsetsResponse,
+    type Variant,
 } from "./revisionSchema"
 
-// Store export (use with useEntity/useEntityList hooks)
+// Testset entity atoms
 export {
-    revisionStore,
-    testsetStore,
+    // Query atoms (single source of truth for server data)
+    testsetQueryAtomFamily,
+    testsetsListQueryAtomFamily,
+    // Entity atoms (with draft merged)
+    testsetEntityAtomFamily,
+    // Server data (without draft)
+    testsetServerDataAtomFamily,
+    // Draft state atoms
+    testsetDraftState,
+    testsetHasDraftAtomFamily,
+    testsetIsDirtyAtomFamily,
+    updateTestsetDraftAtom,
+    discardTestsetDraftAtom,
+    // New testset helpers
+    NEW_TESTSET_ID,
+    isNewTestsetId,
+    // Variant query atoms
+    variantQueryAtomFamily,
+    variantEntityAtomFamily,
+    // API functions
     fetchRevision,
     fetchRevisionsList,
     fetchTestsetsList,
     fetchTestsetDetail,
+    fetchVariantDetail,
+    // Cache invalidation
+    invalidateTestsetsListCache,
+    invalidateTestsetCache,
+    invalidateRevisionsListCache,
+    // Param types
     type RevisionListParams,
     type RevisionDetailParams,
     type TestsetListParams,
     type TestsetDetailParams,
+    type VariantDetailParams,
 } from "./store"
 
-// Revision entity atoms (use these directly instead of wrapper atoms)
+// Revision entity atoms
 export {
+    // Query atoms
+    revisionQueryAtomFamily,
+    // Entity atoms (includes draft merging)
+    revisionEntityAtomFamily,
+    // Draft atoms
+    revisionDraftAtomFamily,
+    revisionHasDraftAtomFamily,
+    clearRevisionDraftAtom,
     // Revisions list query (for dropdown)
     revisionsListQueryAtomFamily,
     enableRevisionsListQueryAtom,
@@ -49,12 +84,8 @@ export {
     // Latest revision (legacy - batch fetches latest revision per testset)
     requestLatestRevisionAtom,
     latestRevisionAtomFamily,
+    latestRevisionStatefulAtomFamily,
     clearLatestRevisionCacheAtom,
-    // Entity pattern atoms - use these directly
-    revisionEntityAtomFamily,
-    revisionDraftAtomFamily,
-    revisionHasDraftAtomFamily,
-    clearRevisionDraftAtom,
     type LatestRevisionInfo,
 } from "./revisionEntity"
 
@@ -79,3 +110,37 @@ export {
     type SaveTestsetParams,
     type SaveTestsetResult,
 } from "./mutations"
+
+// Revision controller (unified API for revision entity + column operations)
+// Access all revision functionality through the `revision` API:
+//   - revision.controller(id) - Full state + dispatch
+//   - revision.selectors.* - Fine-grained subscriptions
+//   - revision.actions.* - For use in other atoms
+//   - revision.queries.* - List and detail queries
+//   - revision.invalidate.* - Cache invalidation
+export {
+    revision,
+    type RevisionControllerState,
+    type RevisionAction,
+    type Column,
+    type ExpandedColumn,
+} from "./controller"
+
+// Testset controller (unified API for testset queries)
+// Access testset functionality through the `testset` API:
+//   - testset.queries.list(searchQuery) - List query
+//   - testset.queries.detail(id) - Detail query
+//   - testset.selectors.* - Entity access
+//   - testset.invalidate.* - Cache invalidation
+//   - testset.paginated.* - Paginated store for InfiniteVirtualTable
+//   - testset.filters.* - Filter atoms for paginated queries
+export {
+    testset,
+    type TestsetApiRow,
+    type TestsetTableRow,
+    type TestsetDateRange,
+    type TestsetPaginatedMeta,
+} from "./testsetController"
+
+// Paginated store (for direct access if needed)
+export {testsetPaginatedStore} from "./paginatedStore"

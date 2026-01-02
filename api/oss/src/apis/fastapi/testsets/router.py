@@ -130,6 +130,93 @@ TESTSET_REVISIONS_RESPONSE_EXCLUDE: Dict[str, Any] = {
 }
 
 
+def _to_plain_dict(value: Any) -> Dict[str, Any]:
+    """Convert a value to a plain Python dict, handling Pydantic models."""
+    if value is None:
+        return {}
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if hasattr(value, "dict"):
+        return value.dict()
+    if isinstance(value, dict):
+        return dict(value)  # Make a copy to be safe
+    return {}
+
+
+def _serialize_value(value: Any) -> Any:
+    """Serialize a value to a JSON-safe type.
+
+    Handles Pydantic models, dicts, lists, and primitives.
+    Returns the serialized value (not a JSON string).
+    """
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if hasattr(value, "dict"):
+        return value.dict()
+    if isinstance(value, dict):
+        return {k: _serialize_value(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_serialize_value(v) for v in value]
+    # Fallback: convert to string
+    return str(value)
+
+
+def _serialize_value_for_csv(value: Any) -> Any:
+    """Serialize complex values to JSON strings for CSV export.
+
+    Polars cannot serialize dicts, lists, or other complex objects to CSV,
+    so we convert them to JSON strings. This includes Pydantic models.
+    """
+    if value is None:
+        return ""
+    # Handle primitive types directly
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    # Handle Pydantic models by converting to dict first
+    if hasattr(value, "model_dump"):
+        return orjson.dumps(value.model_dump()).decode("utf-8")
+    if hasattr(value, "dict"):
+        return orjson.dumps(value.dict()).decode("utf-8")
+    # Handle dicts and lists
+    if isinstance(value, (dict, list)):
+        return orjson.dumps(value).decode("utf-8")
+    # Fallback: convert to string
+    return str(value)
+
+
+def _prepare_testcases_for_csv(testcases_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Prepare testcases data for CSV export by serializing complex values."""
+    return [
+        {key: _serialize_value_for_csv(val) for key, val in row.items()}
+        for row in testcases_data
+    ]
+
+
+def _build_testcase_export_row(testcase: Any) -> Dict[str, Any]:
+    """Build a dict for exporting a testcase, properly handling Pydantic models.
+
+    Extracts and serializes all testcase fields into a flat dict suitable for export.
+    """
+    # Extract the data field - handle both Pydantic models and plain dicts
+    data_dict = _to_plain_dict(testcase.data)
+
+    # Serialize all values in the data dict to ensure they're JSON-safe
+    serialized_data = {key: _serialize_value(val) for key, val in data_dict.items()}
+
+    # Build the export row with metadata fields
+    return {
+        **serialized_data,
+        "__id__": str(testcase.id) if testcase.id else None,
+        "__flags__": _serialize_value(testcase.flags),
+        "__tags__": _serialize_value(testcase.tags),
+        "__meta__": _serialize_value(testcase.meta),
+    }
+
+
 class TestsetsRouter:
     TESTCASES_FLAGS = TestsetFlags(
         has_testcases=True,
@@ -331,6 +418,15 @@ class TestsetsRouter:
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
             response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
+        )
+
+        # POST /api/preview/testsets/revisions/{testset_revision_id}/download
+        self.router.add_api_route(
+            "/revisions/{testset_revision_id}/download",
+            self.fetch_testset_revision_to_file,
+            methods=["POST"],
+            operation_id="fetch_testset_revision_to_file",
+            status_code=status.HTTP_200_OK,
         )
 
         self.router.add_api_route(
@@ -951,6 +1047,87 @@ class TestsetsRouter:
         )
 
         return testset_revision_response
+
+    @intercept_exceptions()
+    async def fetch_testset_revision_to_file(
+        self,
+        request: Request,
+        *,
+        testset_revision_id: UUID,
+        #
+        file_type: Optional[Literal["csv", "json"]] = Query(
+            "csv",
+            description="File type to download. Supported: 'csv' or 'json'. Default: 'csv'.",
+        ),
+        file_name: Optional[str] = Query(
+            None,
+            description="Optional custom filename for the download.",
+        ),
+    ) -> StreamingResponse:  # type: ignore
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if file_type is None or file_type not in ["csv", "json"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid file type. Supported types are 'csv' and 'json'.",
+            )
+
+        # Fetch the revision with testcases
+        testset_revision_response = await self.fetch_testset_revision(
+            request=request,
+            testset_revision_id=testset_revision_id,
+            include_testcases=True,
+        )
+
+        if not testset_revision_response.count or not testset_revision_response.testset_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Testset revision not found. Please check the revision_id and try again.",
+            )
+
+        revision = testset_revision_response.testset_revision
+
+        filename = (file_name or f"revision_{testset_revision_id}") + f".{file_type.lower()}"
+        testcases = revision.data.testcases if revision.data else []
+
+        # Build export data using helper that properly handles Pydantic models
+        testcases_data = [
+            _build_testcase_export_row(testcase)
+            for testcase in testcases or []
+        ]
+
+        if file_type.lower() == "json":
+            buffer = BytesIO(orjson.dumps(testcases_data))
+
+            return StreamingResponse(
+                buffer,
+                media_type="application/json",
+                headers={"Content-Disposition": f"attachment; filename={filename}"},
+            )
+
+        elif file_type.lower() == "csv":
+            buffer = BytesIO()
+            csv_data = _prepare_testcases_for_csv(testcases_data)
+            pl.DataFrame(csv_data).write_csv(buffer)
+            buffer.seek(0)
+
+            return StreamingResponse(
+                buffer,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename={filename}"},
+            )
+
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid file type. Supported types are 'csv' and 'json'.",
+            )
 
     async def query_testset_revisions(
         self,
@@ -1861,14 +2038,9 @@ class SimpleTestsetsRouter:
         filename = (file_name or f"testset_{testset_id}") + f".{file_type.lower()}"
         testcases = testset.data.testcases
 
+        # Build export data using helper that properly handles Pydantic models
         testcases_data = [
-            {
-                **testcase.data,
-                "__id__": testcase.id,
-                "__flags__": testcase.flags,
-                "__tags__": testcase.tags,
-                "__meta__": testcase.meta,
-            }
+            _build_testcase_export_row(testcase)
             for testcase in testcases or []
         ]
 
@@ -1883,7 +2055,9 @@ class SimpleTestsetsRouter:
 
         elif file_type.lower() == "csv":
             buffer = BytesIO()
-            pl.DataFrame(testcases_data).write_csv(buffer)
+            csv_data = _prepare_testcases_for_csv(testcases_data)
+            df = pl.DataFrame(csv_data)
+            df.write_csv(buffer)
             buffer.seek(0)
 
             return StreamingResponse(

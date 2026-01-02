@@ -10,6 +10,8 @@ interface JsonEditorWithLocalStateProps {
     editorKey: string
     /** Callback when a JSON property key is clicked */
     onPropertyClick?: (path: string) => void
+    /** Make the editor read-only */
+    readOnly?: boolean
 }
 
 /**
@@ -21,6 +23,7 @@ export function JsonEditorWithLocalState({
     onValidChange,
     editorKey,
     onPropertyClick,
+    readOnly,
 }: JsonEditorWithLocalStateProps) {
     const [localValue, setLocalValue] = useState(initialValue)
 
@@ -48,13 +51,15 @@ export function JsonEditorWithLocalState({
                 <SharedEditor
                     key={`${editorKey}-shared`}
                     initialValue={localValue}
-                    handleChange={handleChange}
+                    handleChange={readOnly ? undefined : handleChange}
                     editorType="border"
                     className="min-h-[60px] overflow-hidden"
                     disableDebounce
                     noProvider
                     onPropertyClick={onPropertyClick}
                     syncWithInitialValueChanges
+                    disabled={readOnly}
+                    state={readOnly ? "readOnly" : undefined}
                     editorProps={{
                         codeOnly: true,
                         language: "json",

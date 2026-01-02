@@ -1,13 +1,18 @@
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
-import {revisionsListQueryAtom, testsetMetadataAtom} from "@/oss/state/entities/testcase/queries"
+import {
+    currentRevisionIdAtom,
+    revisionsListQueryAtom,
+    testsetMetadataAtom,
+} from "@/oss/state/entities/testcase/queries"
+import {NEW_TESTSET_ID, testset} from "@/oss/state/entities/testset"
 
 import {testcasesSearchTermAtom} from "./atoms/tableStore"
 import {TestcaseActions} from "./components/TestcaseActions"
@@ -74,6 +79,31 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false)
     const [isIdCopied, setIsIdCopied] = useState(false)
     const [isRevisionSlugCopied, setIsRevisionSlugCopied] = useState(false)
+
+    // Sync current revision ID atom with URL parameter
+    const setCurrentRevisionId = useSetAtom(currentRevisionIdAtom)
+    useEffect(() => {
+        // Handle both string and array cases from router query
+        const revisionId = Array.isArray(revisionIdParam) ? revisionIdParam[0] : revisionIdParam
+        if (revisionId && typeof revisionId === "string") {
+            setCurrentRevisionId(revisionId)
+        }
+    }, [revisionIdParam, setCurrentRevisionId])
+
+    // Initialize testset draft with name from URL query parameter for new testsets
+    const updateTestsetMetadata = useSetAtom(testset.actions.updateMetadata)
+    useEffect(() => {
+        if (isNewTestset && router.query.name) {
+            const nameFromUrl = Array.isArray(router.query.name)
+                ? router.query.name[0]
+                : router.query.name
+            if (nameFromUrl) {
+                // Update the testset entity draft (not revision draft)
+                // This correctly stores metadata on the testset, not the revision
+                updateTestsetMetadata(NEW_TESTSET_ID, {name: decodeURIComponent(nameFromUrl)})
+            }
+        }
+    }, [isNewTestset, router.query.name, updateTestsetMetadata])
 
     // Main table hook - only manages testcases data
     const table = useTestcasesTable({
@@ -170,6 +200,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         isIdCopied={isIdCopied}
                         isRevisionSlugCopied={isRevisionSlugCopied}
                         revisionIdParam={revisionIdParam as string}
+                        isNewTestset={isNewTestset}
                         onCopyId={async () => {
                             await actions.handleCopyId()
                             setIsIdCopied(true)
@@ -182,6 +213,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         }}
                         onOpenRenameModal={() => setIsRenameModalOpen(true)}
                         onDeleteRevision={actions.handleDeleteRevision}
+                        onExport={actions.handleExport}
                         projectURL={projectURL}
                     />
                 }

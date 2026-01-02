@@ -1,18 +1,28 @@
-import type {Atom, WritableAtom} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useCallback} from "react"
 
+import type {EntityAPI, EntityDrillIn, PathItem} from "@/oss/state/entities/shared"
+
 import {DrillInContent} from "./DrillInContent"
-import type {DrillInContentProps, PathItem} from "./DrillInContent"
+import type {DrillInContentProps} from "./DrillInContent"
+
+// Re-export PathItem for convenience
+export type {PathItem} from "@/oss/state/entities/shared"
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
+/**
+ * Props for EntityDrillInView
+ *
+ * Uses the unified EntityAPI for all state management.
+ * Pass the entity controller and ID - the component handles the rest.
+ */
 export interface EntityDrillInViewProps<TEntity>
     extends Omit<
         DrillInContentProps,
-        "getValue" | "setValue" | "getRootItems" | "valueMode"
+        "getValue" | "setValue" | "getRootItems" | "valueMode" | "initialPath"
     > {
     /**
      * The entity ID to read/write
@@ -20,43 +30,20 @@ export interface EntityDrillInViewProps<TEntity>
     entityId: string
 
     /**
-     * Atom family that returns the entity (with draft if applicable)
+     * The unified entity API (from createEntityController)
+     * Must have drillIn capability configured
      */
-    entityAtomFamily: (id: string) => Atom<TEntity | null>
-
-    /**
-     * Helper to get value at a specific path in the entity
-     */
-    getValueAtPath: (entity: TEntity | null, path: string[]) => unknown
-
-    /**
-     * Write atom to set value at a specific path
-     */
-    setValueAtPathAtom: WritableAtom<
-        null,
-        [{id: string; path: string[]; value: unknown}],
-        void
-    >
-
-    /**
-     * Helper to get root-level items to display
-     * May require columns for some entities (testcase), or not for others (trace)
-     */
-    getRootItems:
-        | ((entity: TEntity | null) => PathItem[])
-        | ((entity: TEntity | null, columns: any) => PathItem[])
-
-    /**
-     * Value mode for serialization
-     * - "string": values are JSON strings
-     * - "native": values are kept as-is
-     */
-    valueMode: "string" | "native"
+    entity: EntityAPI<TEntity, any> & {drillIn: EntityDrillIn<TEntity>}
 
     /**
      * Optional columns (required for entities like testcase that use column-based structure)
      */
-    columns?: any
+    columns?: unknown
+
+    /**
+     * Initial path to start navigation at (e.g., "inputs.prompt" or ["inputs", "prompt"])
+     */
+    initialPath?: string | string[]
 }
 
 // ============================================================================
@@ -65,63 +52,80 @@ export interface EntityDrillInViewProps<TEntity>
 
 /**
  * Generic entity-aware DrillInView component
- * Automatically handles atom-based read/write operations for any entity
  *
- * This component unifies the pattern used across different entity types (testcase, trace, etc.)
- * by accepting entity-specific configuration and handling the atom operations internally.
+ * Uses the unified entity controller API for state management.
+ * Provides path-based navigation and editing for nested entity data.
+ *
+ * Features:
+ * - Efficient subscriptions (only subscribes to data changes)
+ * - Dispatch-based mutations via controller
+ * - Supports column-based entities (testcase) and key-based entities (trace)
+ *
+ * @example
+ * ```tsx
+ * import { testcase } from "@/state/entities/testcase"
+ * import { traceSpan } from "@/state/entities/trace"
+ *
+ * // For testcase (requires columns)
+ * <EntityDrillInView
+ *   entityId={testcaseId}
+ *   entity={testcase}
+ *   columns={columns}
+ *   editable
+ * />
+ *
+ * // For trace span
+ * <EntityDrillInView
+ *   entityId={spanId}
+ *   entity={traceSpan}
+ *   editable={false}
+ * />
+ * ```
  */
 export function EntityDrillInView<TEntity>({
     entityId,
-    entityAtomFamily,
-    getValueAtPath,
-    setValueAtPathAtom,
-    getRootItems,
-    valueMode,
+    entity,
     columns,
+    initialPath,
     ...drillInProps
 }: EntityDrillInViewProps<TEntity>) {
-    // Read entity from atom (includes draft if applicable)
-    const entity = useAtomValue(entityAtomFamily(entityId))
+    // Read entity from controller's data selector (efficient: only subscribes to data)
+    const data = useAtomValue(entity.selectors.data(entityId))
 
-    // Write mutations
-    const setValueAtPath = useSetAtom(setValueAtPathAtom)
+    // Get dispatch function without subscribing to controller state
+    const dispatch = useSetAtom(entity.controller(entityId))
 
-    // getValue callback using entity-level helper
+    // getValue callback
     const getValue = useCallback(
         (path: string[]): unknown => {
-            return getValueAtPath(entity, path)
+            return entity.drillIn.getValueAtPath(data, path)
         },
-        [entity, getValueAtPath],
+        [data, entity.drillIn],
     )
 
-    // setValue callback using entity-level write atom
+    // setValue callback using dispatch API
     const setValue = useCallback(
         (path: string[], value: unknown) => {
-            setValueAtPath({id: entityId, path, value})
+            dispatch({type: "setAtPath", path, value})
         },
-        [entityId, setValueAtPath],
+        [dispatch],
     )
 
-    // getRootItems callback using entity-level helper
-    // Handles both signatures: with or without columns parameter
-    const getRootItemsCallback = useCallback(() => {
+    // getRootItems callback
+    const getRootItems = useCallback(() => {
         if (columns !== undefined) {
-            // Cast to function that accepts columns
-            return (getRootItems as (entity: TEntity | null, columns: any) => PathItem[])(
-                entity,
-                columns,
-            )
+            return entity.drillIn.getRootItems(data, columns)
         }
-        // Function without columns parameter
-        return (getRootItems as (entity: TEntity | null) => PathItem[])(entity)
-    }, [entity, columns, getRootItems])
+        return entity.drillIn.getRootItems(data)
+    }, [data, columns, entity.drillIn])
 
     return (
         <DrillInContent
             getValue={getValue}
             setValue={setValue}
-            getRootItems={getRootItemsCallback}
-            valueMode={valueMode}
+            getRootItems={getRootItems}
+            valueMode={entity.drillIn.valueMode}
+            initialPath={initialPath}
             {...drillInProps}
         />
     )

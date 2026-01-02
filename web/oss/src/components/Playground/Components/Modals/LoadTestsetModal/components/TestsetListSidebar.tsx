@@ -6,13 +6,7 @@ import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {buildRevisionMenuItems} from "@/oss/components/TestcasesTableNew/components/RevisionMenuItems"
 import {Testset} from "@/oss/lib/Types"
-import {useEntityList} from "@/oss/state/entities/hooks/useEntityList"
-import {
-    enableRevisionsListQueryAtom,
-    revisionsListQueryAtomFamily,
-    testsetStore,
-} from "@/oss/state/entities/testset"
-import {projectIdAtom} from "@/oss/state/project/selectors/project"
+import {revision, testset} from "@/oss/state/entities/testset"
 import {
     selectTestsetAtom,
     selectedRevisionIdAtom,
@@ -44,12 +38,11 @@ export const TestsetListSidebar: React.FC<TestsetListSidebarProps> = ({
     modalOpen,
     isCreatingNew,
 }) => {
-    const [selectedTestset, setSelectedTestset] = useAtom(selectedTestsetIdAtom)
+    const [selectedTestsetId, setSelectedTestset] = useAtom(selectedTestsetIdAtom)
     const [selectedRevisionId, setSelectedRevisionId] = useAtom(selectedRevisionIdAtom)
-    const selectTestset = useSetAtom(selectTestsetAtom)
+    const selectTestsetAction = useSetAtom(selectTestsetAtom)
     const setSelectedRowKeys = useSetAtom(selectedTestcaseRowKeysAtom)
-    const enableRevisionsListQuery = useSetAtom(enableRevisionsListQueryAtom)
-    const projectId = useAtomValue(projectIdAtom)
+    const enableRevisionsListQuery = useSetAtom(revision.queries.enableList)
 
     const [searchTerm, setSearchTerm] = useState("")
     const [revisionPanelTestsetId, setRevisionPanelTestsetId] = useState("")
@@ -57,12 +50,10 @@ export const TestsetListSidebar: React.FC<TestsetListSidebarProps> = ({
     // Track if we've already auto-selected for the current modal session
     const hasAutoSelectedRef = useRef(false)
 
-    const listParams = useMemo(() => ({projectId: projectId ?? ""}), [projectId])
-    const {data: testsetListResponse, isLoading: isLoadingTestsets} = useEntityList(
-        testsetStore,
-        listParams,
-    )
-    const testsets = useMemo(() => testsetListResponse?.testsets ?? [], [testsetListResponse])
+    // Use testset controller API
+    const testsetsQuery = useAtomValue(testset.queries.list(null))
+    const testsets = useMemo(() => testsetsQuery.data?.testsets ?? [], [testsetsQuery.data])
+    const isLoadingTestsets = testsetsQuery.isLoading
 
     // Create an actual atom for empty query state
     const emptyQueryAtom = useMemo(
@@ -79,11 +70,11 @@ export const TestsetListSidebar: React.FC<TestsetListSidebarProps> = ({
     const popoverRevisionsQueryAtom = useMemo(
         () =>
             revisionPanelTestsetId
-                ? revisionsListQueryAtomFamily(revisionPanelTestsetId)
-                : selectedTestset
-                  ? revisionsListQueryAtomFamily(selectedTestset)
+                ? revision.queries.list(revisionPanelTestsetId)
+                : selectedTestsetId
+                  ? revision.queries.list(selectedTestsetId)
                   : emptyQueryAtom,
-        [revisionPanelTestsetId, selectedTestset, emptyQueryAtom],
+        [revisionPanelTestsetId, selectedTestsetId, emptyQueryAtom],
     )
 
     const popoverRevisionsQuery = useAtomValue(popoverRevisionsQueryAtom)
@@ -117,16 +108,16 @@ export const TestsetListSidebar: React.FC<TestsetListSidebarProps> = ({
     const onChangeTestset = useCallback(
         ({key}: any) => {
             setSelectedRowKeys([])
-            const testset = testsets.find((ts: Testset) => ts.id === key)
+            const foundTestset = testsets.find((ts: Testset) => ts.id === key)
             // Enable revisions query for this testset
             enableRevisionsListQuery(key)
-            selectTestset({
+            selectTestsetAction({
                 testsetId: key,
-                testsetName: testset?.name || "",
+                testsetName: foundTestset?.name || "",
                 autoSelectLatest: true,
             })
         },
-        [setSelectedRowKeys, testsets, selectTestset, enableRevisionsListQuery],
+        [setSelectedRowKeys, testsets, selectTestsetAction, enableRevisionsListQuery],
     )
 
     const onChangeRevision = useCallback(
@@ -141,16 +132,16 @@ export const TestsetListSidebar: React.FC<TestsetListSidebarProps> = ({
     const popoverMenuItems = useMemo(
         () =>
             buildRevisionMenuItems(popoverRevisions, (revisionId) => {
-                setSelectedTestset(revisionPanelTestsetId || selectedTestset || "")
+                setSelectedTestset(revisionPanelTestsetId || selectedTestsetId || "")
                 onChangeRevision({key: revisionId})
                 setRevisionPanelTestsetId("")
             }) ?? [],
-        [popoverRevisions, onChangeRevision, revisionPanelTestsetId, selectedTestset],
+        [popoverRevisions, onChangeRevision, revisionPanelTestsetId, selectedTestsetId],
     )
 
     const menuSelectedKeys = useMemo(
-        () => (selectedTestset ? [selectedTestset] : []),
-        [selectedTestset],
+        () => (selectedTestsetId ? [selectedTestsetId] : []),
+        [selectedTestsetId],
     )
     const revisionSelectedKeys = useMemo(
         () => (selectedRevisionId ? [selectedRevisionId] : []),
@@ -171,13 +162,13 @@ export const TestsetListSidebar: React.FC<TestsetListSidebarProps> = ({
         }
 
         const prevExists =
-            selectedTestset && testsets.some((ts: Testset) => ts?.id === selectedTestset)
+            selectedTestsetId && testsets.some((ts: Testset) => ts?.id === selectedTestsetId)
 
         if (!prevExists && testsets[0]) {
             hasAutoSelectedRef.current = true
             // Enable revisions query for auto-selected testset
             enableRevisionsListQuery(testsets[0].id)
-            selectTestset({
+            selectTestsetAction({
                 testsetId: testsets[0].id,
                 testsetName: testsets[0].name,
                 autoSelectLatest: true,

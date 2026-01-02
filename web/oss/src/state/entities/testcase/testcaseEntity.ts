@@ -1,6 +1,7 @@
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
+import {get} from "lodash"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
@@ -97,11 +98,16 @@ export const clearDeletedIdsAtom = atom(null, (get, set) => {
 // ============================================================================
 // BATCH FETCHER FOR TESTCASES
 // Collects concurrent single-testcase requests and batches them
+// Checks paginated cache first to avoid redundant API calls
 // ============================================================================
 
 interface TestcaseRequest {
     projectId: string
     testcaseId: string
+    /** Optional: queryClient for cache lookup */
+    queryClient?: import("@tanstack/react-query").QueryClient
+    /** Optional: revisionId for scoped cache lookup */
+    revisionId?: string
 }
 
 /**
@@ -113,7 +119,56 @@ const isValidUUID = (id: string): boolean => {
 }
 
 /**
+ * Page structure from the paginated store cache
+ */
+interface PaginatedCachePage {
+    rows: FlattenedTestcase[]
+    totalCount: number
+    nextCursor: string | null
+    hasMore: boolean
+}
+
+/**
+ * Look up testcases in the paginated cache
+ * Returns a map of testcaseId -> FlattenedTestcase for found items
+ */
+const findMultipleInPaginatedCache = (
+    queryClient: import("@tanstack/react-query").QueryClient,
+    revisionId: string,
+    testcaseIds: string[],
+): Map<string, FlattenedTestcase> => {
+    const found = new Map<string, FlattenedTestcase>()
+    const idsToFind = new Set(testcaseIds)
+
+    // Build scopeId to narrow down the search
+    const scopeId = `testcases-${revisionId}`
+
+    // Get all queries that match the testcase-paginated key prefix with this scopeId
+    const queries = queryClient.getQueriesData<PaginatedCachePage>({
+        queryKey: ["testcase-paginated", scopeId],
+    })
+
+    // Search through all cached pages for the testcases
+    for (const [_queryKey, data] of queries) {
+        if (data?.rows && idsToFind.size > 0) {
+            for (const row of data.rows) {
+                if (row.id && idsToFind.has(row.id)) {
+                    found.set(row.id, row)
+                    idsToFind.delete(row.id)
+                    // Early exit if we found everything
+                    if (idsToFind.size === 0) break
+                }
+            }
+        }
+        if (idsToFind.size === 0) break
+    }
+
+    return found
+}
+
+/**
  * Batch fetcher that combines concurrent testcase requests into a single API call
+ * Checks paginated cache first to avoid fetching data that's already available
  */
 const testcaseBatchFetcher = createBatchFetcher<
     TestcaseRequest,
@@ -124,15 +179,58 @@ const testcaseBatchFetcher = createBatchFetcher<
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, FlattenedTestcase | null>()
 
-        // Group by projectId
+        // First pass: check paginated cache for all requests that have queryClient
+        // Group requests by revisionId for efficient cache lookup
+        const cacheCheckGroups = new Map<
+            string,
+            {queryClient: import("@tanstack/react-query").QueryClient; testcaseIds: string[]; keyMap: Map<string, string>}
+        >()
+
+        requests.forEach((req, idx) => {
+            const key = serializedKeys[idx]
+            if (req.queryClient && req.revisionId && req.testcaseId && isValidUUID(req.testcaseId)) {
+                const groupKey = req.revisionId
+                const existing = cacheCheckGroups.get(groupKey)
+                if (existing) {
+                    existing.testcaseIds.push(req.testcaseId)
+                    existing.keyMap.set(req.testcaseId, key)
+                } else {
+                    cacheCheckGroups.set(groupKey, {
+                        queryClient: req.queryClient,
+                        testcaseIds: [req.testcaseId],
+                        keyMap: new Map([[req.testcaseId, key]]),
+                    })
+                }
+            }
+        })
+
+        // Look up all items in cache
+        const cachedItems = new Map<string, FlattenedTestcase>()
+        for (const [revisionId, {queryClient, testcaseIds, keyMap}] of cacheCheckGroups) {
+            const found = findMultipleInPaginatedCache(queryClient, revisionId, testcaseIds)
+            for (const [testcaseId, testcase] of found) {
+                const serializedKey = keyMap.get(testcaseId)
+                if (serializedKey) {
+                    results.set(serializedKey, testcase)
+                    cachedItems.set(testcaseId, testcase)
+                }
+            }
+        }
+
+        // Second pass: group remaining (non-cached) requests by projectId
         const byProject = new Map<string, {ids: string[]; keys: string[]}>()
         requests.forEach((req, idx) => {
             const key = serializedKeys[idx]
+
+            // Skip if already resolved from cache
+            if (results.has(key)) return
+
             // Skip invalid requests or non-UUID IDs (new rows have temp IDs)
             if (!req.projectId || !req.testcaseId || !isValidUUID(req.testcaseId)) {
                 results.set(key, null)
                 return
             }
+
             const existing = byProject.get(req.projectId)
             if (existing) {
                 existing.ids.push(req.testcaseId)
@@ -142,7 +240,7 @@ const testcaseBatchFetcher = createBatchFetcher<
             }
         })
 
-        // Fetch each project's testcases in batch
+        // Fetch each project's testcases in batch (only those not in cache)
         await Promise.all(
             Array.from(byProject.entries()).map(async ([projectId, {ids, keys}]) => {
                 try {
@@ -201,33 +299,31 @@ const testcaseBatchFetcher = createBatchFetcher<
 })
 
 // ============================================================================
-// PAGINATED CACHE LOOKUP
-// Helper to find testcase in datasetStore's TanStack Query cache
+// PAGINATED CACHE LOOKUP (SINGLE ITEM)
+// Helper to find a single testcase in datasetStore's TanStack Query cache
 // ============================================================================
-
-interface DatasetStorePage {
-    rows: FlattenedTestcase[]
-    totalCount: number
-    nextCursor: string | null
-    hasMore: boolean
-}
 
 /**
  * Look up a testcase in the datasetStore's paginated query cache
  * Returns the testcase if found, undefined otherwise
  *
- * The datasetStore uses query keys like:
- * ["testcases-table", scopeId, cursor, limit, offset, windowing.next, windowing.stop, metaKey]
+ * The paginated store uses query keys like:
+ * ["testcase-paginated", scopeId, cursor, limit, offset, windowing.next, windowing.stop, metaKey]
+ *
+ * Where scopeId = "testcases-{revisionId}"
  */
 const findInPaginatedCache = (
     queryClient: import("@tanstack/react-query").QueryClient,
     _projectId: string,
-    _revisionId: string,
+    revisionId: string,
     testcaseId: string,
 ): FlattenedTestcase | undefined => {
-    // Get all queries that match the testcases-table key prefix
-    const queries = queryClient.getQueriesData<DatasetStorePage>({
-        queryKey: ["testcases-table"],
+    // Build scopeId to narrow down the search to the correct revision
+    const scopeId = `testcases-${revisionId}`
+
+    // Get all queries that match the testcase-paginated key prefix with this scopeId
+    const queries = queryClient.getQueriesData<PaginatedCachePage>({
+        queryKey: ["testcase-paginated", scopeId],
     })
 
     // Search through all cached pages for the testcase
@@ -274,7 +370,13 @@ export const testcaseQueryAtomFamily = atomFamily((testcaseId: string) =>
             queryKey: ["testcase", projectId, testcaseId],
             queryFn: async (): Promise<FlattenedTestcase | null> => {
                 if (!projectId || !testcaseId) return null
-                return testcaseBatchFetcher({projectId, testcaseId})
+                // Pass queryClient and revisionId for cache lookup in batch fetcher
+                return testcaseBatchFetcher({
+                    projectId,
+                    testcaseId,
+                    queryClient,
+                    revisionId: revisionId ?? undefined,
+                })
             },
             // Use cached data as initial data - prevents fetch if already in paginated cache
             initialData: cachedData ?? undefined,
@@ -333,7 +435,9 @@ const testcaseDraftState = createEntityDraftState<FlattenedTestcase, FlattenedTe
     // Complex dirty detection logic with pending column changes
     isDirty: (currentData, originalData, {get, id}) => {
         const draft = get(testcaseDraftAtomFamily(id))
-        const serverState = get(testcaseServerStateAtomFamily(id))
+        // Use query atom directly (single source of truth for server data)
+        const queryState = get(testcaseQueryAtomFamily(id))
+        const serverState = queryState.data ?? null
 
         // Check if pending column changes affect this entity (even without draft)
         if (!draft && serverState) {
@@ -513,16 +617,6 @@ export const testcaseEntityAtomFamily = atomFamily((testcaseId: string) =>
     }),
 )
 
-/**
- * Get server state for a testcase (for dirty comparison)
- */
-export const testcaseServerStateAtomFamily = atomFamily((testcaseId: string) =>
-    atom((get): FlattenedTestcase | null => {
-        const query = get(testcaseQueryAtomFamily(testcaseId))
-        return query.data ?? null
-    }),
-)
-
 // ============================================================================
 // ENTITY MUTATIONS
 // ============================================================================
@@ -531,11 +625,12 @@ export const testcaseServerStateAtomFamily = atomFamily((testcaseId: string) =>
  * Update a testcase field (creates draft if needed)
  * Keys with undefined values are deleted from the entity
  *
- * Note: Extends factory updateAtom with custom logic for handling undefined values
+ * Signature: (id: string, updates: Partial<FlattenedTestcase>) => void
+ * This matches the standard entity controller pattern.
  */
 export const updateTestcaseAtom = atom(
     null,
-    (get, set, {id, updates}: {id: string; updates: Partial<FlattenedTestcase>}) => {
+    (get, set, id: string, updates: Partial<FlattenedTestcase>) => {
         const current = get(testcaseEntityAtomFamily(id))
         if (!current) return
 
@@ -703,13 +798,91 @@ export const deleteColumnFromTestcasesAtom = atom(null, (get, set, columnKey: st
         if (!entity) continue
 
         const record = entity as Record<string, unknown>
-        if (columnKey in record) {
-            updates.push({
-                id,
-                updates: {
-                    [columnKey]: undefined,
-                } as Partial<FlattenedTestcase>,
-            })
+
+        // Handle nested column keys (e.g., "inputs.code", "current_rfp.event")
+        if (columnKey.includes(".")) {
+            const parts = columnKey.split(".")
+            const rootKey = parts[0]
+
+            // Check if root exists
+            if (rootKey in record && record[rootKey] != null) {
+                let rootValue = record[rootKey]
+                let isJsonString = false
+
+                // Parse if it's a JSON string
+                if (typeof rootValue === "string") {
+                    try {
+                        const parsed = JSON.parse(rootValue)
+                        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                            rootValue = parsed
+                            isJsonString = true
+                        }
+                    } catch {
+                        // Not valid JSON, skip this entity
+                        continue
+                    }
+                }
+
+                // Now rootValue should be an object
+                if (typeof rootValue === "object" && !Array.isArray(rootValue)) {
+                    // Clone to avoid mutation
+                    const clonedRoot = JSON.parse(JSON.stringify(rootValue))
+
+                    // Navigate to the parent of the property to delete
+                    let current: any = clonedRoot
+                    for (let i = 1; i < parts.length - 1; i++) {
+                        if (current && typeof current === "object" && parts[i] in current) {
+                            current = current[parts[i]]
+                        } else {
+                            current = null
+                            break
+                        }
+                    }
+
+                    // Delete the final property
+                    if (current && typeof current === "object") {
+                        const finalKey = parts[parts.length - 1]
+                        if (finalKey in current) {
+                            delete current[finalKey]
+
+                            // Check if the root object is now empty (no properties left)
+                            const hasRemainingProperties = Object.keys(clonedRoot).length > 0
+
+                            if (!hasRemainingProperties) {
+                                // Remove the entire parent key if empty
+                                updates.push({
+                                    id,
+                                    updates: {
+                                        [rootKey]: undefined,
+                                    } as Partial<FlattenedTestcase>,
+                                })
+                            } else {
+                                // Convert back to JSON string if needed
+                                const updatedValue = isJsonString
+                                    ? JSON.stringify(clonedRoot)
+                                    : clonedRoot
+
+                                updates.push({
+                                    id,
+                                    updates: {
+                                        [rootKey]: updatedValue,
+                                    } as Partial<FlattenedTestcase>,
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Simple top-level column
+            if (columnKey in record) {
+                updates.push({
+                    id,
+                    updates: {
+                        [columnKey]: undefined,
+                    } as Partial<FlattenedTestcase>,
+                })
+            }
         }
     }
 
@@ -791,8 +964,42 @@ export const testcaseCellAtomFamily = atomFamily(
         return selectAtom(
             testcaseEntityAtomFamily(id),
             (entity) => {
-                if (!entity) return undefined
-                return (entity as Record<string, unknown>)[column]
+                if (!entity) {
+                    return undefined
+                }
+
+                // Handle nested paths (e.g., "VMs_previous_RFP.event")
+                // We need to parse JSON strings for nested access
+                const parts = column.split(".")
+
+                if (parts.length === 1) {
+                    // Simple top-level access
+                    return get(entity, column)
+                }
+
+                // Nested path - need to parse JSON strings along the way
+                let current: any = entity
+                for (let i = 0; i < parts.length; i++) {
+                    const part = parts[i]
+                    current = current?.[part]
+
+                    // If we got a JSON string and there are more parts to traverse, parse it
+                    if (i < parts.length - 1 && typeof current === "string") {
+                        const trimmed = current.trim()
+                        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+                            try {
+                                current = JSON.parse(trimmed)
+                            } catch {
+                                return undefined
+                            }
+                        } else {
+                            // String but not JSON - can't traverse further
+                            return undefined
+                        }
+                    }
+                }
+
+                return current
             },
             cellValueEquals,
         )
@@ -810,6 +1017,5 @@ atomFamilyRegistry.testcaseQuery = testcaseQueryAtomFamily
 atomFamilyRegistry.testcaseDraft = testcaseDraftAtomFamily
 atomFamilyRegistry.testcaseEntity = testcaseEntityAtomFamily
 atomFamilyRegistry.testcaseHasDraft = testcaseHasDraftAtomFamily
-atomFamilyRegistry.testcaseServerState = testcaseServerStateAtomFamily
 atomFamilyRegistry.testcaseIsDirty = testcaseIsDirtyAtomFamily
 atomFamilyRegistry.testcaseCell = testcaseCellAtomFamily

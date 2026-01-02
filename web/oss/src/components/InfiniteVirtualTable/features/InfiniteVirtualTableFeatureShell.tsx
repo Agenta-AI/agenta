@@ -436,18 +436,21 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         )
     }, [builtInDeleteButton, builtInExportButton, secondaryActions, exportButtonNode])
 
+    // Only show export in settings when enableExport is true AND no custom renderExportButton is provided
+    const showExportInSettings = enableExport && !renderExportButton
+
     const columnVisibilityRenderer = useMemo(
         () =>
             resolveColumnVisibilityRenderer(columnVisibilityMenuRenderer, columnVisibility, {
                 scopeId,
-                onExport: enableExport ? exportHandler : undefined,
+                onExport: showExportInSettings ? exportHandler : undefined,
                 isExporting,
             }),
         [
             columnVisibilityMenuRenderer,
             columnVisibility,
             scopeId,
-            enableExport,
+            showExportInSettings,
             exportHandler,
             isExporting,
         ],
@@ -463,7 +466,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         (controls: ColumnVisibilityState<Row>) => (
             <TableSettingsDropdown
                 controls={controls}
-                onExport={enableExport ? exportHandler : undefined}
+                onExport={showExportInSettings ? exportHandler : undefined}
                 isExporting={isExporting}
                 onDelete={resolvedSettingsDropdownDelete?.onDelete}
                 deleteDisabled={resolvedSettingsDropdownDelete?.disabled}
@@ -472,7 +475,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                 renderColumnVisibilityContent={(ctrls, close) =>
                     columnVisibilityRenderer(ctrls, close, {
                         scopeId,
-                        onExport: enableExport ? exportHandler : undefined,
+                        onExport: showExportInSettings ? exportHandler : undefined,
                         isExporting,
                     })
                 }
@@ -480,7 +483,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         ),
         [
             columnVisibilityRenderer,
-            enableExport,
+            showExportInSettings,
             exportHandler,
             isExporting,
             scopeId,

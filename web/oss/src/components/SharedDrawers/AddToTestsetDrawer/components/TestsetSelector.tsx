@@ -9,7 +9,6 @@ interface TestsetSelectorProps {
     onCascaderChange: (value: any, selectedOptions: any[]) => void
     loadRevisions: (selectedOptions: any[]) => Promise<void>
     isTestsetsLoading: boolean
-    loadingRevisions: boolean
     renderSelectedRevisionLabel: (labels: string[], selectedOptions?: any[]) => React.ReactNode
     isNewTestset: boolean
     newTestsetName: string
@@ -18,9 +17,12 @@ interface TestsetSelectorProps {
 }
 
 // Add ellipsis rendering to cascader options recursively
+// Preserves original label as textLabel for displayRender to access
 function addOptionRender(options: any[]): any[] {
     return options.map((opt) => ({
         ...opt,
+        // Keep original label accessible for displayRender
+        textLabel: typeof opt.label === "string" ? opt.label : opt.textLabel,
         label: (
             <Typography.Text ellipsis style={{width: 170, display: "block"}}>
                 {opt.label}
@@ -36,7 +38,6 @@ export function TestsetSelector({
     onCascaderChange,
     loadRevisions,
     isTestsetsLoading,
-    loadingRevisions,
     renderSelectedRevisionLabel,
     isNewTestset,
     newTestsetName,
@@ -61,7 +62,7 @@ export function TestsetSelector({
                     options={optionsWithEllipsis}
                     onChange={onCascaderChange}
                     loadData={loadRevisions}
-                    loading={isTestsetsLoading || loadingRevisions}
+                    loading={isTestsetsLoading}
                     changeOnSelect
                     expandTrigger="hover"
                     displayRender={renderSelectedRevisionLabel}

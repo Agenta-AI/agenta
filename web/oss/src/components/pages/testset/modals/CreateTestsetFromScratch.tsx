@@ -11,7 +11,7 @@ import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/t
 import useURL from "@/oss/hooks/useURL"
 import {JSSTheme, KeyValuePair, testset, TestsetCreationMode} from "@/oss/lib/Types"
 import {cloneTestset, renameTestset} from "@/oss/services/testsets/api"
-import {useTestsetsData} from "@/oss/state/testset"
+import {invalidateTestsetsListCache} from "@/oss/state/entities/testset"
 
 const {Text} = Typography
 
@@ -50,7 +50,6 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
         mode === "rename" ? (editTestsetValues?.name as string) : "",
     )
     const [isLoading, setIsLoading] = useState(false)
-    const {mutate} = useTestsetsData()
     const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
 
     const handleCreateTestset = async (_data?: KeyValuePair[]) => {
@@ -67,7 +66,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
             const response = await cloneTestset(testsetId, testsetName)
 
             // Revalidate both legacy testsets data and the new table store
-            await mutate()
+            invalidateTestsetsListCache()
             setRefreshTrigger((prev) => prev + 1)
             message.success("Testset cloned successfully")
 
@@ -95,7 +94,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
         try {
             await renameTestset(testsetId, testsetName)
             message.success("Testset renamed successfully")
-            await mutate()
+            invalidateTestsetsListCache()
             setRefreshTrigger((prev) => prev + 1)
             onCancel()
         } catch (error) {

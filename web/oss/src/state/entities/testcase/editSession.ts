@@ -3,9 +3,9 @@ import {atom} from "jotai"
 import {revisionDraftAtomFamily} from "../testset"
 
 import {addColumnAtom, currentColumnsAtom} from "./columnState"
-import {currentRevisionIdAtom, revisionQueryAtom, testsetNameQueryAtom} from "./queries"
+import {testcase} from "./controller"
+import {currentRevisionIdAtom, revisionQueryAtom, testsetDetailQueryAtom} from "./queries"
 import {newEntityIdsAtom, testcaseIdsAtom} from "./testcaseEntity"
-import {addTestcaseAtom} from "./testcaseMutations"
 
 // Re-export for backward compatibility
 export {currentRevisionIdAtom} from "../testset"
@@ -86,24 +86,17 @@ export const initializeEmptyRevisionAtom = atom(null, (get, set) => {
 
     // Set revision name from testset name for empty revisions
     const revisionId = get(currentRevisionIdAtom)
-    const testsetNameQuery = get(testsetNameQueryAtom)
-    const testsetData = testsetNameQuery.data
-    if (revisionId && testsetData) {
-        set(revisionDraftAtomFamily(revisionId), {name: testsetData.name})
+    const testset = get(testsetDetailQueryAtom)
+    if (revisionId && testset?.name) {
+        set(revisionDraftAtomFamily(revisionId), {name: testset.name})
     }
 
     // Add default columns for empty revision
     set(addColumnAtom, "input")
     set(addColumnAtom, "correct_answer")
 
-    // Add one empty row
-    set(addTestcaseAtom)
+    // Add one empty row via controller
+    set(testcase.actions.add)
 
     return true
 })
-
-// Export old name for backward compatibility (deprecated)
-/**
- * @deprecated Use initializeEmptyRevisionAtom instead
- */
-export const initializeV0DraftAtom = initializeEmptyRevisionAtom

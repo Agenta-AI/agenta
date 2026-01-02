@@ -1,4 +1,4 @@
-import {useCallback, useEffect} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -12,9 +12,9 @@ import {
     loadingRevisionsAtom,
     loadRevisionsAtom,
     newTestsetNameAtom,
-    renderSelectedRevisionLabel,
     selectedTestsetInfoAtom,
 } from "../atoms/cascaderState"
+import {buildSelectedRevisionLabel} from "../components/RevisionLabel"
 import {selectedRevisionIdAtom} from "../atoms/drawerState"
 import {
     selectedTestsetIdAtom,
@@ -112,6 +112,39 @@ export function useTestsetRevisionSelect() {
                 : []),
         ]
     }, [])
+
+    // Custom render function that can look up version from availableRevisions
+    // when revisionMeta is not available (e.g., programmatic selection)
+    const renderSelectedRevisionLabel = useMemo(() => {
+        return (labels: string[], selectedOptions?: any[]): React.ReactNode => {
+            if (!selectedOptions || selectedOptions.length === 0) {
+                return labels.join(" / ")
+            }
+
+            // Use textLabel (preserved original string) or fall back to labels array
+            const baseLabel =
+                typeof selectedOptions[0]?.textLabel === "string"
+                    ? selectedOptions[0].textLabel
+                    : typeof labels?.[0] === "string"
+                      ? labels[0]
+                      : "Selected testset"
+
+            const revisionOption = selectedOptions[selectedOptions.length - 1]
+            let revisionVersion = revisionOption?.revisionMeta?.version
+
+            // If version not in selectedOptions, look it up from availableRevisions
+            if (!revisionVersion && selectedRevisionId && availableRevisions?.length) {
+                const revision = availableRevisions.find((r) => r.id === selectedRevisionId)
+                revisionVersion = revision?.version
+            }
+
+            if (!revisionVersion) {
+                return baseLabel
+            }
+
+            return buildSelectedRevisionLabel(baseLabel, revisionVersion)
+        }
+    }, [availableRevisions, selectedRevisionId])
 
     return {
         // State (read from atoms)

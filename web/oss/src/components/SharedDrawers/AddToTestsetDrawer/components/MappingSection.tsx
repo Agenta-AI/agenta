@@ -9,6 +9,7 @@ interface MappingSectionProps {
     mappingData: Mapping[]
     setMappingData: (data: Mapping[] | ((prev: Mapping[]) => Mapping[])) => void
     onMappingOptionChange: (params: {pathName: keyof Mapping; value: string; idx: number}) => void
+    onRemoveMapping: (idx: number) => void
     onNewColumnBlur: () => void
     allAvailablePaths: {value: string; label: string}[]
     columnOptions: {value: string; label: string}[]
@@ -27,6 +28,7 @@ export function MappingSection({
     mappingData,
     setMappingData,
     onMappingOptionChange,
+    onRemoveMapping,
     onNewColumnBlur,
     allAvailablePaths,
     columnOptions,
@@ -206,11 +208,7 @@ export function MappingSection({
                                             type="text"
                                             size="small"
                                             icon={<Trash size={16} />}
-                                            onClick={() =>
-                                                setMappingData(
-                                                    mappingData.filter((_, index) => index !== idx),
-                                                )
-                                            }
+                                            onClick={() => onRemoveMapping(idx)}
                                         />
                                     </div>
                                 </div>
