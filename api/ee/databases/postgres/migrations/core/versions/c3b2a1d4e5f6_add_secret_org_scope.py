@@ -48,9 +48,13 @@ def upgrade() -> None:
             ondelete="CASCADE",
         )
 
-    org_providers_columns = {col["name"] for col in inspector.get_columns("organization_providers")}
+    org_providers_columns = {
+        col["name"] for col in inspector.get_columns("organization_providers")
+    }
     if "secret_id" not in org_providers_columns:
-        op.add_column("organization_providers", sa.Column("secret_id", sa.UUID(), nullable=True))
+        op.add_column(
+            "organization_providers", sa.Column("secret_id", sa.UUID(), nullable=True)
+        )
 
     org_providers_fks = {
         fk["name"] for fk in inspector.get_foreign_keys("organization_providers")

@@ -25,7 +25,7 @@ class WorkspaceMemberResponse(BaseModel):
 
 class Workspace(BaseModel):
     id: Optional[str] = None
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     type: Optional[str]
     members: Optional[List[WorkspaceMember]] = None
@@ -33,7 +33,7 @@ class Workspace(BaseModel):
 
 class WorkspaceResponse(TimestampModel):
     id: str
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     type: Optional[str]
     organization: str
@@ -41,7 +41,7 @@ class WorkspaceResponse(TimestampModel):
 
 
 class CreateWorkspace(BaseModel):
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     type: Optional[str] = None
 

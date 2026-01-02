@@ -28,7 +28,7 @@ import {
 } from "antd"
 
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {
     updateOrganization,
     fetchOrganizationDomains,
@@ -447,14 +447,19 @@ const Organization: FC = () => {
             ellipsis: true,
         },
         {
-            title: "Issuer URL",
-            dataIndex: ["settings", "issuer_url"],
-            key: "issuer_url",
-            render: (url: string) => (
-                <Text ellipsis style={{maxWidth: 300}}>
-                    {url}
-                </Text>
-            ),
+            title: "Callback URL",
+            key: "callback_url",
+            render: (_: any, record: OrganizationProvider) => {
+                if (!selectedOrg?.slug) {
+                    return <Text type="secondary">Set org slug</Text>
+                }
+                const callbackUrl = `${getAgentaWebUrl()}/auth/callback/sso:${selectedOrg.slug}:${record.slug}`
+                return (
+                    <Text ellipsis style={{maxWidth: 300}}>
+                        {callbackUrl}
+                    </Text>
+                )
+            },
         },
         {
             title: "Status",
@@ -940,7 +945,7 @@ const Organization: FC = () => {
                                     return null
                                 }
 
-                                const callbackUrl = `${getAgentaApiUrl()}/auth/sso/callback/${selectedOrg.slug}/${record.slug}`
+                                const callbackUrl = `${getAgentaWebUrl()}/auth/callback/sso:${selectedOrg.slug}:${record.slug}`
                                 const expectedScopes = "openid email profile"
 
                                 return (
@@ -1068,7 +1073,26 @@ const Organization: FC = () => {
                                 },
                             ]}
                         >
-                            <Input placeholder="my-idp" />
+                            <Input placeholder="my-idp" disabled={!!editingProvider} />
+                        </Form.Item>
+                        <Form.Item
+                            label="Callback URL"
+                            shouldUpdate={(prev, next) => prev.slug !== next.slug}
+                        >
+                            {() => {
+                                const slug = providerForm.getFieldValue("slug")
+                                const callbackUrl =
+                                    selectedOrg?.slug && slug
+                                        ? `${getAgentaWebUrl()}/auth/callback/sso:${selectedOrg.slug}:${slug}`
+                                        : ""
+                                return (
+                                    <Input
+                                        value={callbackUrl}
+                                        placeholder="Set organization and provider slug"
+                                        readOnly
+                                    />
+                                )
+                            }}
                         </Form.Item>
                         <Form.Item
                             name="issuer_url"

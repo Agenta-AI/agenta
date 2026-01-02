@@ -3,6 +3,8 @@
 from typing import Dict, Any, List, Optional, Union
 from uuid import UUID
 
+from oss.src.utils.logging import get_module_logger
+
 from supertokens_python.recipe.thirdparty.provider import (
     Provider,
     ProviderInput,
@@ -32,7 +34,9 @@ from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.core.users.types import UserIdentityCreate
 from oss.src.services import db_manager
+from oss.src.core.auth.service import AuthService
 
+log = get_module_logger(__name__)
 
 # DAOs for accessing user identities (always available)
 identities_dao = IdentitiesDAO()
@@ -42,25 +46,29 @@ if is_ee():
     from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
     from oss.src.core.secrets.services import VaultService
     from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+
     providers_dao = OrganizationProvidersDAO()
 else:
     providers_dao = None
+
+# Auth service for domain policy enforcement
+auth_service = AuthService()
 
 
 async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInput]:
     """
     Fetch dynamic OIDC provider configuration from database (EE only).
 
-    third_party_id format: "oidc:{organization_slug}:{provider_slug}"
+    third_party_id format: "sso:{organization_slug}:{provider_slug}"
     """
     # OIDC providers require EE
     if not is_ee() or providers_dao is None:
-        print(f"OIDC provider {third_party_id} requested but EE not enabled")
+        log.debug(f"SSO provider {third_party_id} requested but EE not enabled")
         return None
 
     try:
-        # Parse third_party_id: "oidc:{organization_slug}:{provider_slug}"
-        if not third_party_id.startswith("oidc:"):
+        # Parse third_party_id: "sso:{organization_slug}:{provider_slug}"
+        if not third_party_id.startswith("sso:"):
             return None
 
         parts = third_party_id.split(":", 2)
@@ -87,7 +95,7 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
             organization_id=organization.id,
         )
         if not secret:
-            print(f"Secret not found for provider id={provider.id}")
+            log.debug(f"Secret not found for provider id={provider.id}")
             return None
 
         data = secret.data
@@ -98,7 +106,7 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
             provider_settings = data.get("provider")
 
         if not isinstance(provider_settings, dict):
-            print(f"Invalid provider secret format for provider id={provider.id}")
+            log.debug(f"Invalid provider secret format for provider id={provider.id}")
             return None
 
         issuer_url = provider_settings.get("issuer_url")
@@ -125,7 +133,7 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
         )
     except Exception as e:
         # Log error but don't crash
-        print(f"Error fetching dynamic OIDC provider {third_party_id}: {e}")
+        log.debug(f"Error fetching dynamic OIDC provider {third_party_id}: {e}")
         return None
 
 
@@ -135,6 +143,7 @@ def override_thirdparty_functions(
     """Override third-party recipe functions to support dynamic providers."""
 
     original_sign_in_up = original_implementation.sign_in_up
+    original_get_provider = original_implementation.get_provider
 
     async def sign_in_up(
         third_party_id: str,
@@ -153,6 +162,7 @@ def override_thirdparty_functions(
         1. Create user_identity record after successful authentication
         2. Populate session with identities array
         """
+        internal_user = None
         # Call original implementation
         result = await original_sign_in_up(
             third_party_id=third_party_id,
@@ -168,18 +178,19 @@ def override_thirdparty_functions(
         )
 
         # Determine method string based on third_party_id
-        if third_party_id.startswith("oidc:"):
-            # Format: oidc:{organization_slug}:{provider_slug} -> sso:{organization_slug}:{provider_slug}
-            parts = third_party_id.split(":")
-            org_slug, provider_slug = parts[1], parts[2]
-
-            method = f"sso:{org_slug}:{provider_slug}"
+        if third_party_id.startswith("sso:"):
+            # Format: sso:{organization_slug}:{provider_slug}
+            method = third_party_id
         elif third_party_id == "google":
             method = "social:google"
         elif third_party_id == "github":
             method = "social:github"
         else:
             method = f"social:{third_party_id}"
+
+        log.debug(
+            f"[AUTH-IDENTITY] third_party_id={third_party_id} method={method} email={email}"
+        )
 
         # Extract domain from email
         domain = email.split("@")[1] if "@" in email and email.count("@") == 1 else None
@@ -211,9 +222,26 @@ def override_thirdparty_functions(
                         domain=domain,
                     )
                 )
+                log.debug(
+                    "[AUTH-IDENTITY] created",
+                    {
+                        "user_id": str(internal_user_id),
+                        "method": method,
+                        "subject": third_party_user_id,
+                    },
+                )
+            else:
+                log.debug(
+                    "[AUTH-IDENTITY] existing",
+                    {
+                        "user_id": str(internal_user_id),
+                        "method": method,
+                        "subject": third_party_user_id,
+                    },
+                )
         except Exception:
             # Log error but don't block authentication
-            pass
+            log.debug("[AUTH-IDENTITY] create failed", exc_info=True)
 
         # Fetch all user identities for session payload
         try:
@@ -230,10 +258,62 @@ def override_thirdparty_functions(
 
         # Store identities in user_context for session creation
         user_context["identities"] = identities_array
+        log.debug(
+            "[AUTH-IDENTITY] session identities",
+            {
+                "user_id": str(internal_user.id) if internal_user else None,
+                "identities": identities_array,
+            },
+        )
+
+        # Enforce domain-based policies (auto-join, domains-only)
+        if internal_user:
+            try:
+                await auth_service.enforce_domain_policies(
+                    email=email,
+                    user_id=internal_user.id,
+                )
+            except Exception as e:
+                log.debug(f"Error enforcing domain policies: {e}")
 
         return result
 
     original_implementation.sign_in_up = sign_in_up
+
+    async def get_provider(
+        third_party_id: str,
+        client_type: Optional[str],
+        tenant_id: str,
+        user_context: Dict[str, Any],
+    ):
+        provider = await original_get_provider(
+            third_party_id=third_party_id,
+            client_type=client_type,
+            tenant_id=tenant_id,
+            user_context=user_context,
+        )
+        if provider is not None:
+            return provider
+
+        if not third_party_id.startswith("sso:"):
+            return None
+
+        provider_input = await get_dynamic_oidc_provider(third_party_id)
+        if provider_input is None:
+            return None
+
+        from supertokens_python.recipe.thirdparty.recipe_implementation import (
+            find_and_create_provider_instance,
+        )
+
+        return await find_and_create_provider_instance(
+            [provider_input],
+            third_party_id,
+            client_type,
+            user_context,
+        )
+
+    original_implementation.get_provider = get_provider
     return original_implementation
 
 
@@ -389,6 +469,16 @@ def override_passwordless_functions(
         # Store identities in user_context for session creation
         user_context["identities"] = identities_array
 
+        # Enforce domain-based policies (auto-join, domains-only)
+        if internal_user:
+            try:
+                await auth_service.enforce_domain_policies(
+                    email=email,
+                    user_id=internal_user.id,
+                )
+            except Exception as e:
+                log.debug(f"Error enforcing domain policies: {e}")
+
         return result
 
     original_implementation.consume_code = consume_code
@@ -485,6 +575,16 @@ def override_emailpassword_functions(
         # Store identities in user_context for session creation
         user_context["identities"] = identities_array
 
+        # Enforce domain-based policies (auto-join, domains-only)
+        if internal_user:
+            try:
+                await auth_service.enforce_domain_policies(
+                    email=email,
+                    user_id=internal_user.id,
+                )
+            except Exception as e:
+                log.debug(f"Error enforcing domain policies: {e}")
+
         return result
 
     async def sign_up(
@@ -568,6 +668,16 @@ def override_emailpassword_functions(
 
         # Store identities in user_context for session creation
         user_context["identities"] = identities_array
+
+        # Enforce domain-based policies (auto-join, domains-only)
+        if internal_user:
+            try:
+                await auth_service.enforce_domain_policies(
+                    email=email,
+                    user_id=internal_user.id,
+                )
+            except Exception as e:
+                log.debug(f"Error enforcing domain policies: {e}")
 
         return result
 

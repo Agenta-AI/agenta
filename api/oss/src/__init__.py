@@ -495,8 +495,10 @@ def _init_supertokens():
         )
 
     # Third-Party OIDC Authentication
+    # Always initialize thirdparty recipe for dynamic OIDC support (EE)
     from oss.src.core.auth.supertokens_config import get_thirdparty_providers
     from oss.src.core.auth.supertokens_overrides import override_thirdparty_functions
+    from oss.src.utils.common import is_ee
 
     oidc_providers = get_thirdparty_providers()
     if oidc_providers:
@@ -504,6 +506,9 @@ def _init_supertokens():
             provider.config.third_party_id for provider in oidc_providers
         ]
         logger.info("✓ OIDC providers enabled: %s", ", ".join(enabled_providers))
+
+    # Initialize thirdparty recipe if we have static providers OR if EE is enabled (for dynamic OIDC)
+    if oidc_providers or is_ee():
         recipe_list.append(
             thirdparty.init(
                 sign_in_and_up_feature=SignInAndUpFeature(providers=oidc_providers),
@@ -513,6 +518,8 @@ def _init_supertokens():
                 ),
             )
         )
+        if is_ee() and not oidc_providers:
+            logger.info("✓ Third-party recipe enabled for dynamic OIDC (EE)")
 
     # Sessions always required if auth is enabled
     from oss.src.core.auth.supertokens_overrides import override_session_functions

@@ -164,9 +164,7 @@ def revert_rename_and_update_secrets_data_schema(session: Connection):
                         "kind" not in secret_json_data
                         and "provider" not in secret_json_data
                     ):
-                        raise ValueError(
-                            f"Invalid secret format for ID {secret_id}"
-                        )
+                        raise ValueError(f"Invalid secret format for ID {secret_id}")
 
                     old_format_data = {
                         "provider": secret_json_data["kind"],

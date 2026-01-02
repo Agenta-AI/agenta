@@ -545,8 +545,8 @@ class SSOProviderService:
                     ),
                 )
                 await self._vault_service().update_secret(
-                    secret_id=UUID(provider.secret_id),
-                    organization_id=UUID(organization_id),
+                    secret_id=provider.secret_id,
+                    organization_id=organization_id,
                     update_secret_dto=updated_secret,
                 )
 
@@ -640,8 +640,8 @@ class SSOProviderService:
                 raise HTTPException(status_code=404, detail="Provider not found")
 
             await self._vault_service().delete_secret(
-                secret_id=UUID(provider.secret_id),
-                organization_id=UUID(organization_id),
+                secret_id=provider.secret_id,
+                organization_id=organization_id,
             )
             deleted = await dao.delete(provider_id, user_id)
             await session.commit()

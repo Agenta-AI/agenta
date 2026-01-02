@@ -10,7 +10,7 @@ import {
     TwitterOutlined,
     GlobalOutlined,
 } from "@ant-design/icons"
-import {Alert, Button, Typography} from "antd"
+import {Alert, Button, Divider, Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 import Image from "next/image"
@@ -21,8 +21,8 @@ import {useLocalStorage} from "usehooks-ts"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {getEffectiveAuthConfig, getEnv} from "@/oss/lib/helpers/dynamicEnv"
+import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
+import {getEffectiveAuthConfig} from "@/oss/lib/helpers/dynamicEnv"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
@@ -42,6 +42,8 @@ const Auth = () => {
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
     const discoveryInProgress = useRef(false)
+    const discoveryAbortRef = useRef<AbortController | null>(null)
+    const ssoRedirectInFlight = useRef(false)
     const [availableMethods, setAvailableMethods] = useState<{
         "email:password"?: boolean
         "email:otp"?: boolean
@@ -58,6 +60,7 @@ const Auth = () => {
         "social:okta"?: boolean
         "social:azure-ad"?: boolean
         "social:boxy-saml"?: boolean
+        sso?: {providers: {id: string; slug: string; third_party_id?: string}[]}
     }>({})
     const [discoveryComplete, setDiscoveryComplete] = useState(false)
     const [invite, setInvite] = useLocalStorage("invite", {})
@@ -131,9 +134,44 @@ const Auth = () => {
         }
     }
 
+    const redirectToSsoProvider = async (provider: {
+        id: string
+        slug: string
+        third_party_id?: string
+    }) => {
+        if (isSocialAuthLoading || ssoRedirectInFlight.current) return
+        ssoRedirectInFlight.current = true
+        setIsSocialAuthLoading(true)
+
+        try {
+            if (!provider.third_party_id) {
+                throw new Error("SSO provider is missing a third_party_id")
+            }
+
+            const callbackUrl = `${getAgentaWebUrl()}/auth/callback/${provider.third_party_id}`
+            const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
+                thirdPartyId: provider.third_party_id,
+                frontendRedirectURI: callbackUrl,
+                redirectURIOnProviderDashboard: callbackUrl,
+            })
+
+            window.location.href = authUrl
+        } catch (err) {
+            ssoRedirectInFlight.current = false
+            setIsSocialAuthLoading(false)
+            authErrorMsg(err)
+        }
+    }
+
     useEffect(() => {
         if (isPasswordlessDemo) {
             hasInitialOTPBeenSent()
+        }
+    }, [])
+
+    useEffect(() => {
+        return () => {
+            discoveryAbortRef.current?.abort()
         }
     }, [])
 
@@ -144,8 +182,9 @@ const Auth = () => {
 
         // Prevent duplicate calls
         if (discoveryInProgress.current) {
-            console.warn("⚠️ Discovery already in progress, skipping...")
-            return
+            console.warn("⚠️ Discovery already in progress, aborting previous request...")
+            discoveryAbortRef.current?.abort()
+            discoveryInProgress.current = false
         }
 
         // Only probe discover if either auth path is configured
@@ -165,9 +204,19 @@ const Auth = () => {
             setIsAuthLoading(true)
             console.log("📡 Calling /auth/discover...")
 
-            const {data} = await axios.post(`${getAgentaApiUrl()}/auth/discover`, {
-                email: emailToDiscover,
-            })
+            discoveryAbortRef.current?.abort()
+            const controller = new AbortController()
+            discoveryAbortRef.current = controller
+
+            const {data} = await axios.post(
+                `${getAgentaApiUrl()}/auth/discover`,
+                {
+                    email: emailToDiscover,
+                },
+                {
+                    signal: controller.signal,
+                },
+            )
             console.log("✅ Discovery response:", data)
 
             if (data?.methods) {
@@ -178,35 +227,23 @@ const Auth = () => {
 
                 // Check if only SSO is available and auto-redirect
                 const methods = data.methods
+                const ssoProviders = Array.isArray(methods.sso?.providers)
+                    ? methods.sso.providers
+                    : []
                 const ssoMethods = Object.keys(methods).filter(
                     (key) => key.startsWith("social:") && methods[key] === true,
                 )
                 const hasSSOOnly =
-                    ssoMethods.length > 0 &&
+                    ssoProviders.length > 0 &&
                     methods["email:password"] === false &&
-                    methods["email:otp"] === false
+                    methods["email:otp"] === false &&
+                    ssoMethods.length === 0
 
                 console.log("🔐 SSO analysis:", {ssoMethods, hasSSOOnly})
 
-                if (hasSSOOnly && ssoMethods.length === 1) {
-                    // Auto-redirect to SSO if it's the only method
-                    const ssoProviderId = ssoMethods[0].replace("social:", "")
-                    console.log("🔄 Only SSO available, auto-redirecting to:", ssoProviderId)
-
-                    try {
-                        const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
-                            thirdPartyId: ssoProviderId,
-                            frontendRedirectURI: `${
-                                getEnv("NEXT_PUBLIC_AGENTA_WEB_URL") ||
-                                getEnv("NEXT_PUBLIC_AGENTA_API_URL")
-                            }/auth/callback/${ssoProviderId}`,
-                        })
-                        console.log("🔄 Redirecting to:", authUrl)
-                        await router.push(authUrl)
-                    } catch (ssoErr) {
-                        console.error("❌ SSO redirect failed:", ssoErr)
-                        authErrorMsg(ssoErr)
-                    }
+                if (hasSSOOnly && ssoProviders.length === 1) {
+                    console.log("🔄 Only SSO available, auto-redirecting to:", ssoProviders[0])
+                    await redirectToSsoProvider(ssoProviders[0])
                 }
             } else {
                 console.warn("⚠️ No methods in discovery response")
@@ -214,9 +251,20 @@ const Auth = () => {
                 setEmailSubmitted(true)
             }
         } catch (err) {
+            const isCanceled =
+                axios.isCancel?.(err) ||
+                (err as {code?: string}).code === "ERR_CANCELED" ||
+                (err instanceof Error &&
+                    (err.name === "AbortError" ||
+                        err.name === "CanceledError" ||
+                        err.message === "canceled"))
+
+            if (isCanceled) {
+                return
+            }
+
             console.error("❌ Failed to fetch auth discover info:", err)
-            // Only show error if it's not a cancellation
-            if (err instanceof Error && err.name !== "AbortError") {
+            if (err instanceof Error) {
                 setDiscoveryComplete(true)
                 setEmailSubmitted(true)
                 authErrorMsg(err)
@@ -268,6 +316,13 @@ const Auth = () => {
     })
 
     const socialAvailable = authOidcEnabled && providersToShow.length > 0
+    const ssoProviders = Array.isArray(availableMethods.sso?.providers)
+        ? availableMethods.sso.providers
+        : []
+    const ssoAvailable = ssoProviders.length > 0
+    const ssoProvidersToShow = ssoProviders.map((provider) => ({
+        ...provider,
+    }))
 
     // After discovery, check what's actually available
     const emailPasswordAvailable = discoveryComplete && availableMethods["email:password"] === true
@@ -281,6 +336,7 @@ const Auth = () => {
         authEmailEnabled,
         authOidcEnabled,
         socialAvailable,
+        ssoAvailable,
         emailPasswordAvailable,
         emailOtpAvailable,
         isLoginCodeVisible,
@@ -364,6 +420,10 @@ const Auth = () => {
                         />
                     )}
 
+                    {socialAvailable && authEmailEnabled && !emailSubmitted && (
+                        <Divider className="!m-0">or</Divider>
+                    )}
+
                     {/* Step 2: Email-first (if email auth is enabled and email not yet submitted) */}
                     {authEmailEnabled && !emailSubmitted && !isLoginCodeVisible && (
                         <EmailFirst
@@ -378,6 +438,29 @@ const Auth = () => {
                     {/* Step 3: After email discovery, show available methods */}
                     {emailSubmitted && discoveryComplete && (
                         <>
+                            {ssoAvailable && (
+                                <div className="flex flex-col gap-2">
+                                    {ssoProvidersToShow.map((provider) => (
+                                        <Button
+                                            key={provider.id}
+                                            icon={provider.icon}
+                                            size="large"
+                                            className="w-full"
+                                            onClick={() => redirectToSsoProvider(provider)}
+                                            loading={isSocialAuthLoading}
+                                            disabled={isAuthLoading}
+                                        >
+                                            Continue with SSO ({provider.slug})
+                                        </Button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {ssoAvailable &&
+                                (socialAvailable ||
+                                    emailPasswordAvailable ||
+                                    emailOtpAvailable) && <Divider className="!m-0">or</Divider>}
+
                             {/* Show OIDC options after discovery if available */}
                             {socialAvailable && (
                                 <SocialAuth
@@ -388,6 +471,10 @@ const Auth = () => {
                                     providers={providersToShow}
                                     showDivider={emailPasswordAvailable || emailOtpAvailable}
                                 />
+                            )}
+
+                            {socialAvailable && (emailPasswordAvailable || emailOtpAvailable) && (
+                                <Divider className="!m-0">or</Divider>
                             )}
 
                             {/* Show OTP flow if available */}

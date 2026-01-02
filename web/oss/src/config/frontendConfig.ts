@@ -35,15 +35,13 @@ export const frontendConfig = (): SuperTokensConfig => {
         .map((provider) => providerInitializers[provider.id]?.())
         .filter(Boolean)
 
-    if (thirdPartyProviders.length > 0) {
-        recipeList.push(
-            ThirdPartyReact.init({
-                signInAndUpFeature: {
-                    providers: thirdPartyProviders,
-                },
-            }),
-        )
-    }
+    recipeList.push(
+        ThirdPartyReact.init({
+            signInAndUpFeature: {
+                providers: thirdPartyProviders,
+            },
+        }),
+    )
 
     // Add Email-Password if authnEmail is "password"
     if (authnEmail === "password") {
@@ -83,6 +81,8 @@ export const frontendConfig = (): SuperTokensConfig => {
 
     return {
         appInfo,
+        // Allow empty provider list so dynamic SSO providers can be used.
+        usesDynamicLoginMethods: true,
         // enableDebugLogs: true,
         termsOfServiceLink: "https://agenta.ai/terms-and-conditions-demo",
         privacyPolicyLink: "https://agenta.ai/privacy-policy-demo",

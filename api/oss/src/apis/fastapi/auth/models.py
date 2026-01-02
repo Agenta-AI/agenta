@@ -12,13 +12,18 @@ class DiscoverRequest(BaseModel):
 
 
 class SSOProviderInfo(BaseModel):
+    id: str
     slug: str
-    name: str
+    third_party_id: str
+
+
+class SSOProviders(BaseModel):
+    providers: List[SSOProviderInfo]
 
 
 class DiscoverResponse(BaseModel):
     exists: bool
-    methods: Dict[str, bool | List[SSOProviderInfo]]
+    methods: Dict[str, bool | SSOProviders]
 
 
 # ============================================================================

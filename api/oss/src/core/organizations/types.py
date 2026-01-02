@@ -19,8 +19,8 @@ class MethodKind(str, Enum):
     - social:google - Google OAuth
     - social:github - GitHub OAuth
     - social:* - Any social provider
-    - sso:{org_slug}:{provider_slug} - Specific SSO provider for organization
-    - sso:{org_slug}:* - Any SSO provider for organization
+    - sso:{organization_slug}:{provider_slug} - Specific SSO provider for organization
+    - sso:{organization_slug}:* - Any SSO provider for organization
     - sso:* - Any SSO provider (any organization)
     """
 
@@ -39,7 +39,7 @@ class MethodKind(str, Enum):
 
         Allows:
         - Exact enum values
-        - SSO patterns: sso:{org_slug}:{provider_slug} or sso:{org_slug}:*
+        - SSO patterns: sso:{organization_slug}:{provider_slug} or sso:{organization_slug}:*
         """
         # Check if it's a known enum value
         if pattern in cls._value2member_map_:
@@ -49,9 +49,9 @@ class MethodKind(str, Enum):
         if pattern.startswith("sso:"):
             parts = pattern.split(":")
             if len(parts) == 3:
-                org_slug, provider = parts[1], parts[2]
-                # Validate org_slug is not empty
-                if org_slug and (provider == "*" or provider):
+                organization_slug, provider = parts[1], parts[2]
+                # Validate organization_slug is not empty
+                if organization_slug and (provider == "*" or provider):
                     return True
 
         return False

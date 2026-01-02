@@ -346,21 +346,21 @@ body {
 .org-domains-table .ant-table-tbody > tr > td:nth-child(1),
 .org-providers-table .ant-table-thead > tr > th:nth-child(1),
 .org-providers-table .ant-table-tbody > tr > td:nth-child(1) {
-    width: 30%;
+    width: 5%;
 }
 
 .org-domains-table .ant-table-thead > tr > th:nth-child(2),
 .org-domains-table .ant-table-tbody > tr > td:nth-child(2),
 .org-providers-table .ant-table-thead > tr > th:nth-child(2),
 .org-providers-table .ant-table-tbody > tr > td:nth-child(2) {
-    width: 30%;
+    width: 20%;
 }
 
 .org-domains-table .ant-table-thead > tr > th:nth-child(3),
 .org-domains-table .ant-table-tbody > tr > td:nth-child(3),
 .org-providers-table .ant-table-thead > tr > th:nth-child(3),
 .org-providers-table .ant-table-tbody > tr > td:nth-child(3) {
-    width: 20%;
+    width: 30%;
 }
 
 .org-domains-table .ant-table-thead > tr > th:nth-child(4),

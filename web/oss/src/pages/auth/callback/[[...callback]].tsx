@@ -3,6 +3,7 @@ import {useEffect, useState} from "react"
 import {Alert, Spin} from "antd"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
+import Session from "supertokens-auth-react/recipe/session"
 import {signInAndUp} from "supertokens-auth-react/recipe/thirdparty"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
@@ -40,16 +41,31 @@ const Callback = () => {
 
     const handleThirdPartyCallback = async () => {
         try {
+            console.log("[AUTH-CALLBACK] Starting third-party callback", {
+                path: window.location.pathname,
+                query: window.location.search,
+                state,
+                code,
+            })
             const response = await signInAndUp()
 
             if (response.status === "OK") {
+                console.log("[AUTH-CALLBACK] signInAndUp OK", response)
+                try {
+                    const payload = await Session.getAccessTokenPayloadSecurely()
+                    console.log("[AUTH-CALLBACK] session payload", payload)
+                } catch (payloadErr) {
+                    console.warn("[AUTH-CALLBACK] session payload fetch failed", payloadErr)
+                }
                 setMessage({message: "Verification successful", type: "success"})
                 const {createdNewRecipeUser, user} = response
                 await handleAuthSuccess({createdNewRecipeUser, user})
             } else if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
+                console.warn("[AUTH-CALLBACK] signInAndUp not allowed", response)
                 setMessage({message: response.reason, type: "error"})
                 await router.push("/auth")
             } else {
+                console.warn("[AUTH-CALLBACK] signInAndUp no email", response)
                 setMessage({
                     message: "No email provided by social login. Please use another form of login",
                     type: "error",
@@ -57,15 +73,24 @@ const Callback = () => {
                 await router.push("/auth")
             }
         } catch (err: any) {
+            console.error("[AUTH-CALLBACK] signInAndUp error", err)
             handleAuthError(err)
         }
     }
 
     useEffect(() => {
+        console.log("[AUTH-CALLBACK] Router ready check", {
+            isReady: router.isReady,
+            state,
+            code,
+        })
         if (router.isReady && !state && !code) {
             ;(async () => {
                 const context = await waitForWorkspaceContext()
                 const nextPath = buildPostLoginPath(context)
+                console.log("[AUTH-CALLBACK] No state/code; redirecting", {
+                    nextPath,
+                })
                 router.replace(nextPath)
             })()
         }
@@ -73,6 +98,9 @@ const Callback = () => {
 
     useEffect(() => {
         if (window.location.pathname.startsWith("/auth/callback/")) {
+            console.log("[AUTH-CALLBACK] Detected callback path", {
+                path: window.location.pathname,
+            })
             handleThirdPartyCallback()
         }
     }, [])

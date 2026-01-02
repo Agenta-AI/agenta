@@ -21,6 +21,7 @@ from ee.src.utils.permissions import (
     check_rbac_permission,
 )
 from ee.src.models.api.organization_models import (
+    Organization,
     OrganizationUpdate,
     OrganizationOutput,
     CreateCollaborativeOrganization,
@@ -145,8 +146,16 @@ async def fetch_organization_details(
         )
 
 
-@router.put("/{organization_id}/", operation_id="update_organization")
-@router.patch("/{organization_id}/", operation_id="patch_organization")
+@router.put(
+    "/{organization_id}/",
+    operation_id="update_organization",
+    response_model=Organization,
+)
+@router.patch(
+    "/{organization_id}/",
+    operation_id="patch_organization",
+    response_model=Organization,
+)
 async def update_organization(
     organization_id: str,
     payload: OrganizationUpdate,

@@ -106,7 +106,7 @@ const EmailPasswordAuth = ({
                     className="w-full"
                     loading={isLoading}
                 >
-                    Sign in
+                    Continue with password
                 </Button>
                 {message.type == "error" && (
                     <ShowErrorMessage info={message} className="text-start" />

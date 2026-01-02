@@ -118,7 +118,7 @@ async def add_user_to_demos(user_id: str) -> None:
 
 async def create_accounts(
     payload: dict,
-    organization_name: str = "Personal",
+    organization_name: Optional[str] = None,
     is_personal: bool = True,
     use_reverse_trial: bool = True,
 ):
@@ -241,7 +241,7 @@ async def create_accounts(
 async def create_organization_with_subscription(
     user_id: UUID,
     organization_email: str,
-    organization_name: str,
+    organization_name: Optional[str] = None,
     organization_description: Optional[str] = None,
     is_personal: bool = False,
     use_reverse_trial: bool = False,

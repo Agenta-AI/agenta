@@ -60,7 +60,7 @@ Tier = str
 
 
 class OrganizationRequest(BaseModel):
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     #
     is_demo: bool = False
@@ -70,8 +70,8 @@ class OrganizationRequest(BaseModel):
 
 
 class WorkspaceRequest(BaseModel):
-    name: str
-    description: str
+    name: Optional[str] = None
+    description: Optional[str] = None
     #
     is_default: bool
     #
@@ -79,8 +79,8 @@ class WorkspaceRequest(BaseModel):
 
 
 class ProjectRequest(BaseModel):
-    name: str
-    description: str
+    name: Optional[str] = None
+    description: Optional[str] = None
     is_default: bool
     #
     workspace_ref: Reference

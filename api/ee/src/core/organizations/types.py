@@ -13,7 +13,7 @@ class OrganizationDomain(BaseModel):
     id: UUID
     organization_id: UUID
     slug: str
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     token: Optional[str] = None
     flags: Optional[Dict[str, Any]] = None
@@ -29,7 +29,7 @@ class OrganizationDomain(BaseModel):
 class OrganizationDomainCreate(BaseModel):
     organization_id: UUID
     slug: str
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     token: Optional[str] = None
     flags: Optional[Dict[str, Any]] = None
@@ -46,7 +46,7 @@ class OrganizationProvider(BaseModel):
     id: UUID
     organization_id: UUID
     slug: str
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     settings: Dict[str, Any]
     flags: Optional[Dict[str, Any]] = None
@@ -62,7 +62,7 @@ class OrganizationProvider(BaseModel):
 class OrganizationProviderCreate(BaseModel):
     organization_id: UUID
     slug: str
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     settings: Dict[str, Any]
     flags: Optional[Dict[str, Any]] = None

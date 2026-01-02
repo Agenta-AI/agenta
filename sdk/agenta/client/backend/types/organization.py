@@ -8,9 +8,9 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 class Organization(UniversalBaseModel):
     id: str
-    name: str
+    name: typing.Optional[str] = None
     owner: str
-    description: str
+    description: typing.Optional[str] = None
     type: typing.Optional[str] = None
     workspaces: typing.Optional[typing.List[str]] = None
 

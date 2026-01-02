@@ -1,14 +1,15 @@
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class Organization(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     slug: Optional[str] = None
     #
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     #
     flags: Optional[Dict[str, Any]] = None
@@ -23,7 +24,7 @@ class Organization(BaseModel):
 
 
 class CreateOrganization(BaseModel):
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     #
     is_demo: bool = False
@@ -42,9 +43,9 @@ class OrganizationUpdate(BaseModel):
 
 class OrganizationOutput(BaseModel):
     id: str
-    name: str
+    name: Optional[str] = None
 
 
 class CreateCollaborativeOrganization(BaseModel):
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None

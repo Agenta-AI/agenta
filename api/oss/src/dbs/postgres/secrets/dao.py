@@ -24,12 +24,18 @@ class SecretsDAO(SecretsDAOInterface):
     @staticmethod
     def _validate_scope(project_id: UUID | None, organization_id: UUID | None) -> None:
         if bool(project_id) == bool(organization_id):
-            raise ValueError("Exactly one of project_id or organization_id must be provided.")
+            raise ValueError(
+                "Exactly one of project_id or organization_id must be provided."
+            )
 
     @staticmethod
     def _scope_filter(project_id: UUID | None, organization_id: UUID | None) -> dict:
         SecretsDAO._validate_scope(project_id, organization_id)
-        return {"project_id": project_id} if project_id else {"organization_id": organization_id}
+        return (
+            {"project_id": project_id}
+            if project_id
+            else {"organization_id": organization_id}
+        )
 
     async def create(
         self,

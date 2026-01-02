@@ -63,7 +63,7 @@ const PasswordlessAuth = ({
                 loading={isLoading}
                 disabled={disabled}
             >
-                Continue with email
+                Continue with OTP
             </Button>
         </Form>
     )

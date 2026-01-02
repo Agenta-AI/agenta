@@ -30,13 +30,14 @@ async def discover(request: DiscoverRequest):
         return DiscoverResponse(**result)
     except Exception as e:
         import traceback
+
         print(f"❌ Discovery error: {e}")
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @auth_router.get("/authorize/oidc")
-async def oidc_authorize(provider_id: str, redirect: str = "/"):
+async def oidc_authorize(request: Request, provider_id: str, redirect: str = "/"):
     """
     Initiate OIDC/SSO authorization flow using SuperTokens third-party recipe (EE only).
 
@@ -45,13 +46,13 @@ async def oidc_authorize(provider_id: str, redirect: str = "/"):
     - redirect: Where to redirect after successful authentication (stored in state)
 
     This endpoint redirects to SuperTokens third-party signinup with:
-    - third_party_id: "oidc:{organization_slug}:{provider_slug}"
+    - third_party_id: "sso:{organization_slug}:{provider_slug}"
     - redirect_uri: Frontend URL after authentication
 
     SuperTokens will handle:
     1. Building OIDC authorization URL (via our get_dynamic_oidc_provider)
     2. Redirecting user to IdP
-    3. Handling callback at /auth/callback/oidc/{thirdPartyId}
+    3. Handling callback at /auth/callback/sso:{organization_slug}:{provider_slug}
     4. Creating session with identities (via our overrides)
     5. Redirecting to frontend
     """
@@ -65,9 +66,13 @@ async def oidc_authorize(provider_id: str, redirect: str = "/"):
         # Get provider to build third_party_id
         from uuid import UUID
         from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
+        import httpx
+
+        from oss.src.utils.env import env
+        from oss.src.utils.helpers import parse_url
 
         providers_dao = OrganizationProvidersDAO()
-        provider = await providers_dao.get_by_id(UUID(provider_id))
+        provider = await providers_dao.get_by_id_any(str(provider_id))
 
         if not provider or not (provider.flags and provider.flags.get("is_active")):
             raise HTTPException(
@@ -86,16 +91,68 @@ async def oidc_authorize(provider_id: str, redirect: str = "/"):
             )
 
         # Build third_party_id for SuperTokens
-        # Format: "oidc:{organization_slug}:{provider_slug}"
-        third_party_id = f"oidc:{organization.slug}:{provider.slug}"
+        # Format: "sso:{organization_slug}:{provider_slug}"
+        third_party_id = f"sso:{organization.slug}:{provider.slug}"
 
-        # Redirect to SuperTokens third-party signin
-        # SuperTokens will use our get_dynamic_oidc_provider to fetch config
-        supertokens_url = (
-            f"/auth/signinup?thirdPartyId={third_party_id}&redirectToPath={redirect}"
+        callback_url = (
+            f"{env.agenta.web_url.rstrip('/')}/auth/callback/{third_party_id}"
+        )
+        print(f"[OIDC-AUTH] Expected redirect URI: {callback_url}")
+        api_url = parse_url(env.agenta.api_url)
+        request_base_url = str(request.base_url).rstrip("/")
+
+        authorisation_urls = [
+            f"{request_base_url}/auth/authorisationurl",
+            f"{api_url}/auth/authorisationurl",
+        ]
+
+        print(
+            "[OIDC-AUTH] Request context: "
+            f"request_url={request.url} base_url={request_base_url} api_url={api_url} "
+            f"candidates={authorisation_urls}"
         )
 
-        return RedirectResponse(url=supertokens_url, status_code=302)
+        response = None
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for candidate in authorisation_urls:
+                print(
+                    f"[OIDC-AUTH] Resolving auth URL. third_party_id={third_party_id} "
+                    f"authorisation_url={candidate} callback_url={callback_url}"
+                )
+                try:
+                    response = await client.get(
+                        candidate,
+                        params={
+                            "thirdPartyId": third_party_id,
+                            "redirectURIOnProviderDashboard": callback_url,
+                        },
+                    )
+                except Exception as exc:
+                    print(f"[OIDC-AUTH] Request failed for {candidate}: {exc}")
+                    continue
+                content_type = response.headers.get("content-type", "")
+                print(
+                    f"[OIDC-AUTH] SuperTokens response status={response.status_code} "
+                    f"content_type={content_type} body={response.text}"
+                )
+                if response.status_code == 200 and "application/json" in content_type:
+                    break
+
+        if not response or response.status_code != 200:
+            raise HTTPException(
+                status_code=502,
+                detail="Failed to fetch authorization URL from auth provider.",
+            )
+
+        data = response.json()
+        redirect_url = data.get("urlWithQueryParams") or data.get("url")
+        if not redirect_url:
+            raise HTTPException(
+                status_code=502,
+                detail="Auth provider response missing authorization URL.",
+            )
+
+        return RedirectResponse(url=redirect_url, status_code=302)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -111,7 +168,7 @@ async def sso_callback_redirect(
     This endpoint:
     1. Accepts clean URL path: /auth/sso/callback/{organization_slug}/{provider_slug}
     2. Validates the organization and provider exist
-    3. Builds SuperTokens thirdPartyId: oidc:{organization_slug}:{provider_slug}
+    3. Builds SuperTokens thirdPartyId: sso:{organization_slug}:{provider_slug}
     4. Redirects to SuperTokens callback: /auth/callback/{thirdPartyId}
 
     SuperTokens then handles:
@@ -155,7 +212,7 @@ async def sso_callback_redirect(
             )
 
         # Build thirdPartyId and redirect to SuperTokens callback
-        third_party_id = f"oidc:{organization.slug}:{provider.slug}"
+        third_party_id = f"sso:{organization.slug}:{provider.slug}"
 
         # Get the original query parameters from the IdP callback (code, state, etc.)
         # SuperTokens expects them at /auth/callback/{thirdPartyId}?code=...&state=...
@@ -175,5 +232,5 @@ async def sso_callback_redirect(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Note: Final OIDC callback is handled by SuperTokens at /auth/callback/{thirdPartyId}
+# Note: Final SSO callback is handled by SuperTokens at /auth/callback/{thirdPartyId}
 # After our custom endpoint redirects to it with the code and state parameters

@@ -93,6 +93,14 @@ async def authentication_middleware(request: Request, call_next):
     """
 
     try:
+        if "authorisationurl" in request.url.path:
+            log.info(
+                "[AUTH-ROUTE] authorisationurl path=%s root_path=%s raw_path=%s",
+                request.scope.get("path"),
+                request.scope.get("root_path"),
+                request.scope.get("raw_path"),
+            )
+
         await _check_authentication_token(request)
 
         await _check_organization_policy(request)

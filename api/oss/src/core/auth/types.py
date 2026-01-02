@@ -14,9 +14,9 @@ class MethodKind(str, Enum):
     - social:google - Google OAuth
     - social:github - GitHub OAuth
     - social:* - Any social provider
-    - oidc:{org_slug}:{provider_slug} - Specific OIDC provider for organization
-    - oidc:{org_slug}:* - Any OIDC provider for organization
-    - oidc:* - Any OIDC provider (any organization)
+    - sso:{organization_slug}:{provider_slug} - Specific SSO provider for organization
+    - sso:{organization_slug}:* - Any SSO provider for organization
+    - sso:* - Any SSO provider (any organization)
     """
 
     EMAIL_OTP = "email:otp"
@@ -25,7 +25,7 @@ class MethodKind(str, Enum):
     SOCIAL_GOOGLE = "social:google"
     SOCIAL_GITHUB = "social:github"
     SOCIAL_WILDCARD = "social:*"
-    OIDC_WILDCARD = "oidc:*"
+    SSO_WILDCARD = "sso:*"
 
     @classmethod
     def is_valid_pattern(cls, pattern: str) -> bool:
@@ -34,19 +34,19 @@ class MethodKind(str, Enum):
 
         Allows:
         - Exact enum values
-        - OIDC patterns: oidc:{org_slug}:{provider_slug} or oidc:{org_slug}:*
+        - SSO patterns: sso:{organization_slug}:{provider_slug} or sso:{organization_slug}:*
         """
         # Check if it's a known enum value
         if pattern in cls._value2member_map_:
             return True
 
-        # Check OIDC patterns
-        if pattern.startswith("oidc:"):
+        # Check SSO patterns
+        if pattern.startswith("sso:"):
             parts = pattern.split(":")
             if len(parts) == 3:
-                org_slug, provider = parts[1], parts[2]
-                # Validate org_slug is not empty
-                if org_slug and (provider == "*" or provider):
+                organization_slug, provider = parts[1], parts[2]
+                # Validate organization_slug is not empty
+                if organization_slug and (provider == "*" or provider):
                     return True
 
         return False
@@ -66,8 +66,8 @@ class MethodKind(str, Enum):
         Examples:
             matches_pattern("email:otp", "email:*") → True
             matches_pattern("social:google", "social:*") → True
-            matches_pattern("oidc:acme:okta", "oidc:acme:*") → True
-            matches_pattern("email:otp", "oidc:*") → False
+            matches_pattern("sso:acme:okta", "sso:acme:*") → True
+            matches_pattern("email:otp", "sso:*") → False
         """
         # Exact match
         if identity == allowed_pattern:

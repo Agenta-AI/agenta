@@ -280,6 +280,26 @@ class OrganizationProvidersDAO:
                 )
                 return result.scalars().first()
 
+    async def get_by_id_any(
+        self, provider_id: str
+    ) -> Optional[OrganizationProviderDBE]:
+        """Get a provider by ID without organization scoping."""
+        if self.session:
+            result = await self.session.execute(
+                select(OrganizationProviderDBE).where(
+                    OrganizationProviderDBE.id == provider_id
+                )
+            )
+            return result.scalars().first()
+        else:
+            async with engine.core_session() as session:
+                result = await session.execute(
+                    select(OrganizationProviderDBE).where(
+                        OrganizationProviderDBE.id == provider_id
+                    )
+                )
+                return result.scalars().first()
+
     async def get_by_slug(
         self, slug: str, organization_id: str
     ) -> Optional[OrganizationProviderDBE]:
