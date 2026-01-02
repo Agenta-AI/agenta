@@ -1,20 +1,22 @@
 import type {ParsedUrlQuery} from "querystring"
 
 import {atom, getDefaultStore} from "jotai"
-import type {Store} from "jotai/vanilla"
+import type {Store} from "jotai/vanilla/store"
 import Router from "next/router"
 
-import {setLocationAtom, parseRouterState} from "@/oss/state/appState"
+import {parseRouterState, setLocationAtom} from "@/oss/state/appState"
 import {sessionLoadingAtom} from "@/oss/state/session"
 import focusDrawerState from "@/oss/state/url/focusDrawer"
 
 import {syncAuthStateFromUrl} from "./auth"
 import {syncPlaygroundStateFromUrl} from "./playground"
+import {syncSessionStateFromUrl} from "./session"
 import {syncTraceStateFromUrl} from "./trace"
 import {syncVariantStateFromUrl} from "./variant"
 
-export {protectedRouteReadyAtom, activeInviteAtom} from "./auth"
-export {traceIdAtom, clearTraceQueryParam, clearTraceParamAtom} from "./trace"
+export {activeInviteAtom, protectedRouteReadyAtom} from "./auth"
+export {clearSessionParamAtom, clearSessionQueryParam, sessionIdAtom} from "./session"
+export {clearTraceParamAtom, clearTraceQueryParam, traceIdAtom} from "./trace"
 
 const isBrowser = typeof window !== "undefined"
 
@@ -64,6 +66,7 @@ const syncUrlState = (nextUrl?: string) => {
     const store = getDefaultStore()
     syncAppLocation(store, nextUrl)
     syncTraceStateFromUrl(nextUrl)
+    syncSessionStateFromUrl(nextUrl)
     syncVariantStateFromUrl(nextUrl)
 
     if (typeof focusDrawerState?.syncFocusDrawerStateFromUrl === "function") {

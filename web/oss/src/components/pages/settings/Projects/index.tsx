@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {PlusOutlined} from "@ant-design/icons"
+import {TrashIcon} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 import {
     Button,
@@ -19,14 +20,13 @@ import {
 import type {ColumnsType} from "antd/es/table"
 
 import useURL from "@/oss/hooks/useURL"
-import {ProjectsResponse} from "@/oss/services/project/types"
 import {createProject, deleteProject, patchProject} from "@/oss/services/project"
+import {ProjectsResponse} from "@/oss/services/project/types"
 import {useProjectData} from "@/oss/state/project"
-import {TrashIcon} from "@phosphor-icons/react"
 
-const {Paragraph, Text} = Typography
+const {Text} = Typography
 
-type ProjectFormValues = {
+interface ProjectFormValues {
     name: string
     make_default?: boolean
 }
@@ -311,7 +311,7 @@ const ProjectsSettings = () => {
                 }}
                 onOk={() => createForm.submit()}
                 confirmLoading={createMutation.isPending}
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form form={createForm} layout="vertical" onFinish={handleCreate}>
                     <Form.Item
@@ -343,7 +343,7 @@ const ProjectsSettings = () => {
                 }}
                 onOk={() => renameForm.submit()}
                 confirmLoading={renameMutation.isPending}
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form form={renameForm} layout="vertical" onFinish={handleRename}>
                     <Form.Item

@@ -78,6 +78,7 @@ const EvaluatorTestcaseModal = ({
         onChange: (keys: React.Key[]) => {
             setSelectedRowKeys(keys)
         },
+        columnWidth: 48,
     }
 
     const loadTestcase = () => {
@@ -138,7 +139,7 @@ const EvaluatorTestcaseModal = ({
                         className={classes.menu}
                     />
                 </div>
-                <Divider type="vertical" className="m-0 h-full" />
+                <Divider orientation="vertical" className="m-0 h-full" />
                 <div className="flex flex-col gap-4 flex-1 overflow-x-auto">
                     <Typography.Text className={classes.subTitle}>
                         Select a testcase

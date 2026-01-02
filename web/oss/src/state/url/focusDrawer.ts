@@ -2,11 +2,11 @@ import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
 import {
-    focusDrawerAtom,
-    openFocusDrawerAtom,
-    resetFocusDrawerAtom,
-    setFocusDrawerTargetAtom,
-} from "@/oss/components/EvalRunDetails/state/focusScenarioAtom"
+    openFocusDrawerAtom as openPreviewFocusDrawerAtom,
+    focusDrawerAtom as previewFocusDrawerAtom,
+    resetFocusDrawerAtom as resetPreviewFocusDrawerAtom,
+    setFocusDrawerTargetAtom as setPreviewFocusDrawerTargetAtom,
+} from "@/oss/components/EvalRunDetails/state/focusDrawerAtom"
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
 
 const isBrowser = typeof window !== "undefined"
@@ -47,7 +47,14 @@ export const syncFocusDrawerStateFromUrl = (nextUrl?: string) => {
         const scenarioId = rawScenario?.trim() || undefined
         const runId = rawRun?.trim() || undefined
 
-        const currentState = store.get(focusDrawerAtom)
+        const focusTargets = [
+            {
+                currentState: store.get(previewFocusDrawerAtom),
+                setTargetAtom: setPreviewFocusDrawerTargetAtom,
+                openAtom: openPreviewFocusDrawerAtom,
+                resetAtom: resetPreviewFocusDrawerAtom,
+            },
+        ] as const
 
         // Clean up empty params before processing
         if (ensureCleanFocusParams(url)) {
@@ -69,39 +76,44 @@ export const syncFocusDrawerStateFromUrl = (nextUrl?: string) => {
                 return
             }
 
-            const hasStoredTarget =
-                currentState.focusScenarioId != null || currentState.focusRunId != null
             const urlProvided = typeof nextUrl === "string" && nextUrl.length > 0
-            // Avoid racing against local open actions (no URL yet) while still reacting to
-            // deliberate URL transitions that remove the focus params.
-            const shouldReset =
-                currentState.isClosing ||
-                (!currentState.open && hasStoredTarget) ||
-                (urlProvided && currentState.open && hasStoredTarget && !currentState.isClosing)
 
-            if (shouldReset) {
-                store.set(resetFocusDrawerAtom, null)
+            focusTargets.forEach(({currentState, resetAtom}) => {
+                if (!currentState) return
+                const hasStoredTarget =
+                    currentState.focusScenarioId != null || currentState.focusRunId != null
+                const shouldReset =
+                    currentState.isClosing ||
+                    (!currentState.open && hasStoredTarget) ||
+                    (urlProvided && currentState.open && hasStoredTarget && !currentState.isClosing)
+
+                if (shouldReset) {
+                    store.set(resetAtom, null)
+                }
+            })
+            return
+        }
+
+        focusTargets.forEach(({currentState, setTargetAtom, openAtom}) => {
+            if (!currentState) return
+
+            const nextTarget = {
+                focusScenarioId: scenarioId,
+                focusRunId: runId ?? currentState.focusRunId ?? null,
             }
-            return
-        }
 
-        const nextTarget = {
-            focusScenarioId: scenarioId,
-            focusRunId: runId ?? currentState.focusRunId ?? null,
-        }
+            const alreadyOpen =
+                currentState.open &&
+                currentState.focusScenarioId === nextTarget.focusScenarioId &&
+                currentState.focusRunId === nextTarget.focusRunId
 
-        const alreadyOpen =
-            currentState.open &&
-            currentState.focusScenarioId === nextTarget.focusScenarioId &&
-            currentState.focusRunId === nextTarget.focusRunId
+            if (alreadyOpen && !currentState.isClosing) {
+                return
+            }
 
-        if (alreadyOpen && !currentState.isClosing) {
-            return
-        }
-
-        // Ensure target is up to date before opening (helps preserve data during transitions)
-        store.set(setFocusDrawerTargetAtom, nextTarget)
-        store.set(openFocusDrawerAtom, nextTarget)
+            store.set(setTargetAtom, nextTarget)
+            store.set(openAtom, nextTarget)
+        })
     } catch (err) {
         console.error("Failed to sync focus drawer state from URL:", nextUrl, err)
     }

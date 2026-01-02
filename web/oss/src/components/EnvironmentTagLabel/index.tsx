@@ -14,17 +14,9 @@ export const deploymentStatusColors: Record<
 const defaultStatus = {bgColor: "bg-gray-200", textColor: "text-gray-600", label: "Unknown"}
 
 const EnvironmentTagLabel: FC<{environment: string}> = ({environment}) => {
-    const {bgColor, textColor, label} = deploymentStatusColors[environment] ?? defaultStatus
+    const {label} = deploymentStatusColors[environment] ?? defaultStatus
 
-    return (
-        <Tag
-            style={{backgroundColor: bgColor, color: textColor}}
-            className="w-fit"
-            bordered={false}
-        >
-            {label}
-        </Tag>
-    )
+    return <Tag className="w-fit">{label}</Tag>
 }
 
 export default EnvironmentTagLabel

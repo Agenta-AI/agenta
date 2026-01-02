@@ -1,37 +1,37 @@
 import {memo, useEffect, useMemo} from "react"
 
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Button, Space, Spin, Tag, Typography, TabsProps, Tabs, Switch, Tooltip} from "antd"
+import {Button, Space, Spin, Switch, Tabs, TabsProps, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {useRouter} from "next/router"
 
+import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
 import PlaygroundVariantCustomProperties from "@/oss/components/Playground/Components/PlaygroundVariantCustomProperties"
 import {PromptsSourceProvider} from "@/oss/components/Playground/context/PromptsSource"
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {
+    parametersOverrideAtomFamily,
+    variantByRevisionIdAtomFamily,
+} from "@/oss/components/Playground/state/atoms"
 import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms/dirtyState"
-import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {useAppId} from "@/oss/hooks/useAppId"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
-import {useQueryParam} from "@/oss/hooks/useQuery"
-import useURL from "@/oss/hooks/useURL"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {
-    derivePromptsFromSpec,
     deriveCustomPropertiesFromSpec,
+    derivePromptsFromSpec,
 } from "@/oss/lib/shared/variant/transformer/transformer"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {
+    appSchemaAtom,
     appStatusLoadingAtom,
+    appUriInfoAtom,
     revisionDeploymentAtomFamily,
     variantRevisionsQueryFamily,
 } from "@/oss/state/variant/atoms/fetcher"
-import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {variantDrawerAtom} from "../../store/variantDrawerStore"
 import {NewVariantParametersView} from "../Parameters"
@@ -154,6 +154,9 @@ const VariantDrawerContent = ({
         }
     }, [showOriginal, appSchema, selectedVariant, uriInfo?.routePath])
 
+    const disableOriginalPromptCollapse = originalPromptIds.length === 1
+    const disablePromptCollapse = (promptIds?.length || 0) === 1
+
     const tabItems = useMemo(() => {
         return [
             appStatus
@@ -176,6 +179,7 @@ const VariantDrawerContent = ({
                                           variantId={(selectedVariant as any)?.id || variantId}
                                           className="[&_.ant-collapse-content-box>div>div]:!w-[97%] border border-solid border-[#0517290F]"
                                           viewOnly
+                                          disableCollapse={disableOriginalPromptCollapse}
                                       />
                                   ))}
                                   <PlaygroundVariantCustomProperties
@@ -194,6 +198,7 @@ const VariantDrawerContent = ({
                                       promptId={promptId}
                                       variantId={selectedVariant?.id}
                                       className="[&_.ant-collapse-content-box>div>div]:!w-[97%] border border-solid border-[#0517290F]"
+                                      disableCollapse={disablePromptCollapse}
                                   />
                               ))}
 
@@ -226,6 +231,8 @@ const VariantDrawerContent = ({
         originalPrompts,
         originalPromptIds,
         isLoading,
+        disableOriginalPromptCollapse,
+        disablePromptCollapse,
     ])
     const drawerState = useAtomValue(variantDrawerAtom)
     const clearJsonOverride = useSetAtom(
@@ -345,7 +352,7 @@ const VariantDrawerContent = ({
                 )}
 
                 {deployedIn?.length > 0 && (
-                    <Space direction="vertical">
+                    <Space orientation="vertical">
                         <Text className="font-medium">Deployment</Text>
                         <div className="flex flex-col gap-1">
                             {deployedIn.map((env, idx) => (

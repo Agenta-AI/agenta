@@ -1,4 +1,5 @@
 import deepEqual from "fast-deep-equal"
+
 import {GeneratedJSONSchema, SchemaConfig} from "./types"
 
 export function isSchemaCompatibleWithBasicMode(schemaString: string): boolean {
@@ -85,8 +86,9 @@ export function generateJSONSchema(config: SchemaConfig): GeneratedJSONSchema {
             type: "object",
             properties,
             required,
-            strict: true,
+            additionalProperties: false,
         },
+        strict: true,
     }
 }
 

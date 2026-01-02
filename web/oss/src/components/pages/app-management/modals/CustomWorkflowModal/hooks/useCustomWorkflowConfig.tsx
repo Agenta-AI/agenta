@@ -10,13 +10,13 @@ import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {removeTrailingSlash} from "@/oss/lib/shared/variant"
 import {createAndStartTemplate, ServiceType} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
+import {appCreationStatusAtom} from "@/oss/state/appCreation/status"
 import {
     openCustomWorkflowModalAtom,
     closeCustomWorkflowModalAtom,
 } from "@/oss/state/customWorkflow/modalAtoms"
 import {customWorkflowValuesAtomFamily} from "@/oss/state/customWorkflow/modalAtoms"
 import {useProfileData} from "@/oss/state/profile"
-import {appCreationStatusAtom} from "@/oss/state/appCreation/status"
 
 import {useCustomWorkflowConfigProps} from "./types"
 
@@ -25,6 +25,7 @@ const useCustomWorkflowConfig = ({
     setStatusModalOpen,
     // configureWorkflow = true,
     appId: propsAppId,
+    folderId,
     afterConfigSave,
 }: useCustomWorkflowConfigProps) => {
     const {currentApp} = useAppsData()
@@ -66,6 +67,7 @@ const useCustomWorkflowConfig = ({
             templateKey: ServiceType.Custom,
             serviceUrl: removeTrailingSlash(latestValues.appUrl),
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
+            folderId,
             onStatusChange: async (status, details, appId) => {
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     setFetchingTemplate(false)

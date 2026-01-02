@@ -1,5 +1,6 @@
 from typing import Optional, List, Tuple, Dict, Union
 from uuid import UUID
+from datetime import datetime
 
 from fastapi import APIRouter, Request, Depends, status, HTTPException
 
@@ -25,10 +26,24 @@ from oss.src.apis.fastapi.tracing.models import (
     OTelTracingResponse,
     OldAnalyticsResponse,
     AnalyticsResponse,
+    SessionsQueryRequest,
+    SessionIdsResponse,
+    UsersQueryRequest,
+    UserIdsResponse,
 )
 from oss.src.core.tracing.service import TracingService
-from oss.src.core.tracing.utils import FilteringException
+from oss.src.core.tracing.utils import (
+    FilteringException,
+    calculate_and_propagate_metrics,
+)
+
+# TYPE_CHECKING to avoid circular import at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 from oss.src.core.tracing.dtos import (
+    OTelLink,
     OTelLinks,
     OTelSpan,
     OTelFlatSpans,
@@ -40,16 +55,22 @@ from oss.src.core.tracing.dtos import (
     MetricType,
     MetricSpec,
 )
+from oss.src.core.shared.dtos import Windowing
 
 log = get_module_logger(__name__)
+
+if is_ee():
+    from ee.src.utils.entitlements import check_entitlements, Counter
 
 
 class TracingRouter:
     def __init__(
         self,
         tracing_service: TracingService,
+        tracing_worker: "TracingWorker",
     ):
         self.service = tracing_service
+        self.worker = tracing_worker
 
         self.router = APIRouter()
 
@@ -147,16 +168,37 @@ class TracingRouter:
             response_model_exclude_none=True,
         )
 
+        self.router.add_api_route(
+            "/sessions/query",
+            self.list_sessions,
+            methods=["POST"],
+            operation_id="list_sessions",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionIdsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/users/query",
+            self.list_users,
+            methods=["POST"],
+            operation_id="list_users",
+            status_code=status.HTTP_200_OK,
+            response_model=UserIdsResponse,
+            response_model_exclude_none=True,
+        )
+
     ### HELPERS
 
     async def _upsert(
         self,
         project_id: UUID,
         user_id: UUID,
+        organization_id: UUID,
         #
         spans: Optional[OTelFlatSpans] = None,
         traces: Optional[OTelTraceTree] = None,
-        strict: Optional[bool] = False,
+        sync: bool = False,
     ) -> OTelLinks:
         _spans: Dict[str, Union[OTelSpan, OTelFlatSpans]] = dict()
 
@@ -188,26 +230,53 @@ class TracingRouter:
 
         span_dtos = parse_spans_from_request(_spans)
 
-        if strict:
-            links = (
-                await self.service.create(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    span_dtos=span_dtos,
-                )
-                or []
+        # Calculate and propagate costs/tokens BEFORE batching
+        # This ensures complete trace trees for proper metric propagation
+        span_dtos = calculate_and_propagate_metrics(span_dtos)
+
+        if sync:
+            # Synchronous path for low-volume, user-facing operations
+            # (annotations, invocations) - check entitlements inline and write directly
+            if is_ee():
+                # Count root spans (traces) for entitlements check
+                delta = sum(1 for span_dto in span_dtos if span_dto.parent_id is None)
+                if delta > 0:
+                    allowed, _, _ = await check_entitlements(  # type: ignore
+                        organization_id=organization_id,
+                        key=Counter.TRACES,  # type: ignore
+                        delta=delta,
+                        use_cache=False,  # Authoritative DB check
+                    )
+                    if not allowed:
+                        raise HTTPException(
+                            status_code=429,
+                            detail="Trace quota exceeded for organization",
+                        )
+
+            # Write directly to database (synchronous)
+            await self.service.create(
+                project_id=project_id,
+                user_id=user_id,
+                span_dtos=span_dtos,
             )
         else:
-            links = (
-                await self.service.update(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    span_dtos=span_dtos,
-                )
-                or []
+            # Async path for high-volume operations (observability, evaluations)
+            # Publish to Redis Streams for async processing with entitlements check
+            await self.worker.publish_to_stream(
+                organization_id=organization_id,
+                project_id=project_id,
+                user_id=user_id,
+                span_dtos=span_dtos,
             )
+
+        # Generate links from span_dtos to return to client
+        links = [
+            OTelLink(
+                trace_id=str(span_dto.trace_id),
+                span_id=str(span_dto.span_id),
+            )
+            for span_dto in span_dtos
+        ]
 
         return links
 
@@ -218,6 +287,7 @@ class TracingRouter:
         self,
         request: Request,
         trace_request: OTelTracingRequest,
+        sync: bool = False,
     ) -> OTelLinksResponse:
         spans = None
 
@@ -272,10 +342,11 @@ class TracingRouter:
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
+            organization_id=UUID(request.state.organization_id),
             #
             spans=trace_request.spans,
             traces=trace_request.traces,
-            strict=True,
+            sync=sync,
         )
 
         link_response = OTelLinksResponse(
@@ -331,6 +402,7 @@ class TracingRouter:
         trace_request: OTelTracingRequest,
         #
         trace_id: str,
+        sync: bool = False,
     ) -> OTelLinksResponse:
         spans = None
 
@@ -385,10 +457,11 @@ class TracingRouter:
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
+            organization_id=UUID(request.state.organization_id),
             #
             spans=trace_request.spans,
             traces=trace_request.traces,
-            strict=False,
+            sync=sync,
         )
 
         link_response = OTelLinksResponse(
@@ -437,10 +510,10 @@ class TracingRouter:
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
+            organization_id=UUID(request.state.organization_id),
             #
             spans=spans_request.spans,
             traces=spans_request.traces,
-            strict=True,
         )
 
         link_response = OTelLinksResponse(
@@ -630,3 +703,116 @@ class TracingRouter:
             query=query,
             specs=specs,
         )
+
+    def _compute_next_windowing(
+        self,
+        *,
+        input_windowing: Optional[Windowing],
+        result_ids: List[str],
+        activity_cursor: Optional[datetime],
+    ) -> Optional[Windowing]:
+        """
+        Compute next windowing cursor for time-based pagination.
+
+        Args:
+            input_windowing: The windowing parameters from the request
+            result_ids: The list of IDs returned from the query
+            activity_cursor: The activity timestamp (first_active or last_active)
+
+        Returns:
+            Windowing object for the next page, or None if no more pages
+        """
+        # Only compute cursor if we have all required conditions
+        if not (
+            input_windowing
+            and input_windowing.limit
+            and result_ids
+            and len(result_ids) >= input_windowing.limit
+            and activity_cursor
+        ):
+            return None
+
+        # Determine order direction
+        order_direction = (
+            input_windowing.order.lower() if input_windowing.order else "descending"
+        )
+
+        # Move cursor based on order direction:
+        # DESC (default): newest moves backward, oldest stays fixed
+        # ASC: oldest moves forward, newest stays fixed
+        if order_direction == "ascending":
+            # ASC: Move oldest forward, keep newest fixed
+            return Windowing(
+                newest=input_windowing.newest,
+                oldest=activity_cursor,
+                limit=input_windowing.limit,
+                order=input_windowing.order,
+            )
+        else:
+            # DESC: Move newest backward, keep oldest fixed
+            return Windowing(
+                newest=activity_cursor,
+                oldest=input_windowing.oldest,
+                limit=input_windowing.limit,
+                order=input_windowing.order,
+            )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SessionIdsResponse())
+    async def list_sessions(
+        self,
+        request: Request,
+        sessions_query_request: SessionsQueryRequest,
+    ):
+        session_ids, activity_cursor = await self.service.sessions(
+            project_id=request.state.project_id,
+            #
+            realtime=sessions_query_request.realtime,
+            #
+            windowing=sessions_query_request.windowing,
+        )
+
+        # Compute next windowing cursor for time-based pagination
+        windowing = self._compute_next_windowing(
+            input_windowing=sessions_query_request.windowing,
+            result_ids=session_ids,
+            activity_cursor=activity_cursor,
+        )
+
+        session_ids_response = SessionIdsResponse(
+            count=len(session_ids) if session_ids else 0,
+            session_ids=session_ids,
+            windowing=windowing,
+        )
+
+        return session_ids_response
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=UserIdsResponse())
+    async def list_users(
+        self,
+        request: Request,
+        users_query_request: UsersQueryRequest,
+    ):
+        user_ids, activity_cursor = await self.service.users(
+            project_id=request.state.project_id,
+            #
+            realtime=users_query_request.realtime,
+            #
+            windowing=users_query_request.windowing,
+        )
+
+        # Compute next windowing cursor for time-based pagination
+        windowing = self._compute_next_windowing(
+            input_windowing=users_query_request.windowing,
+            result_ids=user_ids,
+            activity_cursor=activity_cursor,
+        )
+
+        user_ids_response = UserIdsResponse(
+            count=len(user_ids) if user_ids else 0,
+            user_ids=user_ids,
+            windowing=windowing,
+        )
+
+        return user_ids_response

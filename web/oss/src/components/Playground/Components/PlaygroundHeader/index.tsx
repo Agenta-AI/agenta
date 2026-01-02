@@ -13,18 +13,18 @@ import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
 import {usePlaygroundLayout} from "../../hooks/usePlaygroundLayout"
 import {variantListDisplayAtom} from "../../state/atoms"
-import NewVariantButton from "../Modals/CreateVariantModal/assets/NewVariantButton"
 import type {BaseContainerProps} from "../types"
 
-interface PlaygroundHeaderProps extends BaseContainerProps {
-    isLoading?: boolean
-}
-
+import RunEvaluationButton from "./RunEvaluationButton"
 import {useStyles} from "./styles"
 
 const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
 })
+
+interface PlaygroundHeaderProps extends BaseContainerProps {
+    isLoading?: boolean
+}
 
 const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
     className,
@@ -115,7 +115,11 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
                     {currentApp?.app_type === "custom" ? (
                         <Dropdown
                             trigger={["click"]}
-                            overlayStyle={{width: 180}}
+                            styles={{
+                                root: {
+                                    width: 180,
+                                },
+                            }}
                             menu={{
                                 items: [
                                     ...[
@@ -138,13 +142,13 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <RunEvaluationButton />
                     <SelectVariant
                         showAsCompare
                         multiple
                         onChange={(value) => onAddVariant(value)}
                         value={displayedVariants}
                     />
-                    <NewVariantButton label="Variant" size="small" />
                 </div>
             </div>
         </>

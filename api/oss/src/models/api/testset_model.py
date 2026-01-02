@@ -48,6 +48,7 @@ class TestsetOutputResponse(BaseModel):
     name: str
     created_at: str
     updated_at: str
+    columns: List[str] = Field(default_factory=list)
 
     class Config:
         populate_by_name = True

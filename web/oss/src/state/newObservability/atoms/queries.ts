@@ -1,31 +1,19 @@
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
-import {selectAtom, atomFamily} from "jotai/utils"
+import {atomFamily, selectAtom} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
 import {atomWithInfiniteQuery, atomWithQuery} from "jotai-tanstack-query"
 
-import {
-    normalizeReferenceValue,
-    parseReferenceKey,
-} from "@/oss/components/pages/observability/assets/filters/referenceUtils"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {formatLatency, formatCurrency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
-import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
+import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {
     attachAnnotationsToTraces,
     groupAnnotationsByReferenceId,
 } from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
 import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
-import type {_AgentaRootsResponse} from "@/oss/services/observability/types"
-import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
-import {
-    isSpansResponse,
-    isTracesResponse,
-    transformTracesResponseToTree,
-    transformTracingResponse,
-} from "@/oss/services/tracing/lib/helpers"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {getOrgValues} from "@/oss/state/org"
@@ -34,382 +22,47 @@ import {projectIdAtom} from "@/oss/state/project"
 import {sessionExistsAtom} from "../../session"
 
 import {
-    sortAtom,
-    filtersAtom,
-    traceTabsAtom,
-    selectedTraceIdAtom,
+    filtersAtomFamily,
+    limitAtomFamily,
+    realtimeModeAtomFamily,
     selectedNodeAtom,
-    limitAtom,
+    selectedTraceIdAtom,
+    sortAtomFamily,
+    traceTabsAtom,
+    traceTabsAtomFamily,
+    userFiltersAtomFamily,
 } from "./controls"
+import {buildTraceQueryParams, executeTraceQuery, mergeConditions} from "./queryHelpers"
 
 // Traces query ----------------------------------------------------------------
 export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
     const appId = get(selectedAppIdAtom)
-    const sort = get(sortAtom)
-    const filters = get(filtersAtom)
-    const traceTabs = get(traceTabsAtom)
+    const sort = get(sortAtomFamily("traces"))
+    const filters = get(filtersAtomFamily("traces"))
+    const traceTabs = get(traceTabsAtomFamily("traces"))
     const projectId = get(projectIdAtom)
-    const limit = get(limitAtom)
+    const limit = get(limitAtomFamily("traces"))
 
-    const params: Record<string, any> = {
-        size: limit,
-        focus: traceTabs === "chat" ? "span" : traceTabs,
-    }
-
-    interface Condition {
-        field: string
-        operator: string
-        value?: any
-        key?: string
-    }
-
-    const isHasAnnotationSelected = filters.findIndex((f) => f.field === "has_annotation")
-    const hasAnnotationOperator =
-        isHasAnnotationSelected === -1 ? undefined : filters[isHasAnnotationSelected]?.operator
-    let hasAnnotationConditions: Condition[] = []
-
-    const buildAnnotationConditions = (value: any, operator: string): Condition[] => {
-        const v = Array.isArray(value) ? value[0] : value || {}
-        const out: Condition[] = []
-
-        const evaluatorSlug = v.evaluator
-        const feedback = v.feedback
-
-        if (evaluatorSlug) {
-            out.push({
-                field: "references",
-                operator,
-                value: [{slug: evaluatorSlug, "attributes.key": "evaluator"}],
-            })
-        }
-
-        if (feedback) {
-            out.push({
-                field: "attributes",
-                key: `ag.data.outputs.${feedback.field}`,
-                operator: feedback.operator,
-                value: feedback.value,
-            })
-        }
-
-        return out
-    }
-
-    if (filters.length > 0) {
-        const sanitized = filters.flatMap(({field, key, operator, value}) => {
-            if (field === "has_annotation") {
-                hasAnnotationConditions = [
-                    ...hasAnnotationConditions,
-                    ...buildAnnotationConditions(value, operator),
-                ]
-                return []
-            }
-
-            if (field === "references") {
-                const {category, property} = parseReferenceKey(key, value)
-                const arrayValue = normalizeReferenceValue(value, property, category)
-                return {field, operator, value: arrayValue}
-            }
-
-            if (field === "custom" || field === "input_keys" || field === "output_keys") {
-                const attributeKey = key?.slice("attributes.".length)
-                return {field: "attributes", key: attributeKey, operator, value}
-            }
-
-            if (field?.startsWith("attributes.")) {
-                const attributeKey = field.slice("attributes.".length)
-
-                return {field: "attributes", key: attributeKey, operator, value}
-            }
-
-            if (field === "status_code" && value === "STATUS_CODE_OK") {
-                if (operator === "is") {
-                    return {field, operator: "is_not", value: "STATUS_CODE_ERROR"}
-                }
-
-                if (operator === "is_not") {
-                    return {field, operator: "is", value: "STATUS_CODE_ERROR"}
-                }
-            }
-
-            if (field.includes("annotation")) {
-                return buildAnnotationConditions(value, operator)
-            }
-
-            return {field, operator, value}
-        })
-
-        params.filter = JSON.stringify({conditions: sanitized})
-    }
-
-    if (sort?.type === "standard" && sort.sorted) {
-        params.oldest = sort.sorted
-    } else if (
-        sort?.type === "custom" &&
-        (sort.customRange?.startTime || sort.customRange?.endTime)
-    ) {
-        const {startTime, endTime} = sort.customRange
-        if (startTime) params.oldest = startTime
-        if (endTime) params.newest = endTime
-    }
-
-    const toFilterString = (conditions?: Condition[]) =>
-        conditions && conditions.length ? JSON.stringify({conditions}) : undefined
-
-    const parseFilterJSON = (filterStr?: string): Condition[] => {
-        if (!filterStr) return []
-        try {
-            const obj = JSON.parse(filterStr)
-            return Array.isArray(obj?.conditions) ? obj.conditions : []
-        } catch {
-            return []
-        }
-    }
-
-    const buildFiltersForHasAnnotation = (
-        windowParams: Record<string, any>,
-        annotationConditions: Condition[],
-        operator?: string,
-    ) => {
-        const originalConditions = parseFilterJSON(windowParams.filter)
-
-        const annotationConditionsForStep1 =
-            operator === "not_in"
-                ? annotationConditions.map((condition) =>
-                      condition.field === "references" ? {...condition, operator: "in"} : condition,
-                  )
-                : annotationConditions
-
-        const annotationOnlyFilter = toFilterString([
-            {field: "trace_type", operator: "is", value: "annotation"},
-            ...annotationConditionsForStep1,
-        ])
-        const originalFilter = toFilterString(originalConditions)
-        return {originalFilter, annotationOnlyFilter}
-    }
-
-    const extractLinkedIds = (data: any) => {
-        const traceIds = new Set<string>()
-        const spanIds = new Set<string>()
-
-        // shape 1: { traces: { [id]: { spans: { [id]: { links }}}}}
-        if (data?.traces && typeof data.traces === "object") {
-            for (const trace of Object.values<any>(data.traces)) {
-                if (!trace?.spans) continue
-                for (const span of Object.values<any>(trace.spans)) {
-                    const links = Array.isArray(span?.links)
-                        ? span.links
-                        : span?.links && typeof span.links === "object"
-                          ? Object.values(span.links)
-                          : []
-                    for (const l of links) {
-                        if (l?.trace_id) traceIds.add(String(l.trace_id))
-                        if (l?.span_id) spanIds.add(String(l.span_id))
-                    }
-                }
-            }
-        }
-
-        // shape 2: { spans: { [id]: {...} } } or { spans: Span[] }
-        const spansContainer = data?.spans
-        const spansIterable = Array.isArray(spansContainer)
-            ? spansContainer
-            : spansContainer && typeof spansContainer === "object"
-              ? Object.values(spansContainer)
-              : []
-        for (const span of spansIterable) {
-            const links = Array.isArray(span?.links)
-                ? span.links
-                : span?.links && typeof span.links === "object"
-                  ? Object.values(span.links)
-                  : []
-            for (const l of links) {
-                if (l?.trace_id) traceIds.add(String(l.trace_id))
-                if (l?.span_id) spanIds.add(String(l.span_id))
-            }
-        }
-
-        return {traceIds: [...traceIds], spanIds: [...spanIds]}
-    }
-
-    const extractEarliestTimestamp = (data: any): string | undefined => {
-        const getTs = (n: any) =>
-            n?.start_time ?? n?.startTime ?? n?.timestamp ?? n?.ts ?? n?.created_at ?? null
-
-        const spans = data?.spans
-        const list = Array.isArray(spans)
-            ? spans
-            : spans && typeof spans === "object"
-              ? Object.values(spans)
-              : []
-
-        const times = list
-            .map(getTs)
-            .map((v) => (typeof v === "number" ? v : typeof v === "string" ? Date.parse(v) : NaN))
-            .filter((n) => Number.isFinite(n)) as number[]
-
-        if (!times.length) return undefined
-        const minVal = times.reduce((a, b) => (a < b ? a : b))
-        const d = new Date(minVal)
-        return Number.isNaN(d.getTime()) ? undefined : d.toISOString()
-    }
-
-    const mergeConditions = (baseFilterJSON: string | undefined, extra: Condition[]) => {
-        const base = parseFilterJSON(baseFilterJSON)
-        const cleaned = extra.filter(
-            (c) => c.operator !== "in" || (Array.isArray(c.value) && c.value.length > 0),
-        )
-        const keyOf = (c: Condition) =>
-            `${c.field}|${c.operator}|${c.key ?? ""}|${JSON.stringify(c.value)}`
-        const seen = new Set(base.map(keyOf))
-        const merged = [...base]
-        for (const c of cleaned) if (!seen.has(keyOf(c))) merged.push(c)
-        return toFilterString(merged)
-    }
+    const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
+        buildTraceQueryParams(filters, sort, traceTabs, limit)
 
     const sessionExists = get(sessionExistsAtom)
 
     return {
         queryKey: ["traces", projectId, appId, params],
-        initialPageParam: {newest: params.newest as string | undefined},
-
-        queryFn: async ({pageParam}: {pageParam?: {newest?: string}}) => {
-            const windowParams = {...params}
-            let data: any = []
-            let annotationPageSize: number | undefined
-            let nextCursorFromStep1: string | undefined
-
-            if (isHasAnnotationSelected !== -1) {
-                const {originalFilter, annotationOnlyFilter} = buildFiltersForHasAnnotation(
-                    windowParams,
-                    hasAnnotationConditions,
-                    hasAnnotationOperator,
-                )
-
-                // STEP 1: paginated annotations only
-                const firstParams = {...windowParams}
-                firstParams.focus = "span"
-                firstParams.filter = annotationOnlyFilter
-                if (pageParam?.newest) firstParams.newest = pageParam.newest
-
-                const data1 = await fetchAllPreviewTraces(firstParams, appId as string)
-
-                // page size for pagination decision
-                const countEntries = (container: unknown) => {
-                    if (!container) return 0
-                    if (Array.isArray(container)) return container.length
-                    if (typeof container === "object") return Object.keys(container).length
-                    return 0
-                }
-                const spansPageSize = countEntries((data1 as any)?.spans)
-                const tracesPageSize = countEntries((data1 as any)?.traces)
-                annotationPageSize = spansPageSize || tracesPageSize
-
-                // cursor from step 1 only
-                nextCursorFromStep1 = extractEarliestTimestamp(data1)
-                if (nextCursorFromStep1 && typeof params.oldest === "string") {
-                    const lb = Date.parse(params.oldest)
-                    const nc = Date.parse(nextCursorFromStep1)
-                    if (!Number.isNaN(lb) && !Number.isNaN(nc) && nc <= lb)
-                        nextCursorFromStep1 = undefined
-                }
-
-                // IDs from step 1
-                const {traceIds, spanIds} = extractLinkedIds(data1)
-
-                const shouldExcludeAnnotations = hasAnnotationOperator === "not_in"
-
-                if (!shouldExcludeAnnotations && (traceIds.length === 0 || spanIds.length === 0)) {
-                    return {
-                        traces: [],
-                        traceCount: 0,
-                        nextCursor: nextCursorFromStep1,
-                        annotationPageSize,
-                    }
-                }
-
-                if (shouldExcludeAnnotations && traceIds.length === 0 && spanIds.length === 0) {
-                    if (pageParam?.newest) windowParams.newest = pageParam.newest
-                    data = await fetchAllPreviewTraces(windowParams, appId as string)
-                } else {
-                    // STEP 2: not paginated, fetch matches with inclusion/exclusion conditions
-                    const extraConditions: Condition[] = shouldExcludeAnnotations
-                        ? [
-                              ...(traceIds.length
-                                  ? [{field: "trace_id", operator: "not_in", value: traceIds}]
-                                  : []),
-                              ...(spanIds.length
-                                  ? [{field: "span_id", operator: "not_in", value: spanIds}]
-                                  : []),
-                          ]
-                        : [
-                              {field: "trace_id", operator: "in", value: traceIds},
-                              {field: "span_id", operator: "in", value: spanIds},
-                          ]
-
-                    const secondParams: Record<string, any> = {...params}
-                    delete secondParams.newest
-                    delete secondParams.oldest
-                    if (!shouldExcludeAnnotations) {
-                        secondParams.size = Math.max(traceIds.length, spanIds.length)
-                    }
-                    secondParams.filter = mergeConditions(originalFilter, extraConditions)
-
-                    data = await fetchAllPreviewTraces(secondParams, appId as string)
-                }
-            } else {
-                // normal flow
-                if (pageParam?.newest) windowParams.newest = pageParam.newest
-                data = await fetchAllPreviewTraces(windowParams, appId as string)
-            }
-
-            // transform to tree
-            const transformed: TraceSpanNode[] = []
-            if (isTracesResponse(data)) {
-                transformed.push(...transformTracingResponse(transformTracesResponseToTree(data)))
-            } else if (isSpansResponse(data)) {
-                transformed.push(...transformTracingResponse(data.spans))
-            }
-
-            // cursor
-            let nextCursor: string | undefined = nextCursorFromStep1
-            if (isHasAnnotationSelected === -1) {
-                const getTs = (n: any) =>
-                    n?.start_time ?? n?.startTime ?? n?.timestamp ?? n?.ts ?? n?.created_at ?? null
-                const times = transformed
-                    .map(getTs)
-                    .map((value) => {
-                        if (typeof value === "number") return value
-                        const parsed = typeof value === "string" ? Date.parse(value) : NaN
-                        return Number.isNaN(parsed) ? null : parsed
-                    })
-                    .filter((value): value is number => value !== null)
-
-                if (times.length) {
-                    const minVal = times.reduce((min, cur) => (cur < min ? cur : min))
-                    const cursorDate = new Date(minVal)
-                    const lowerBound =
-                        params.oldest && typeof params.oldest === "string"
-                            ? Date.parse(params.oldest)
-                            : undefined
-
-                    if (!Number.isNaN(cursorDate.getTime())) {
-                        if (lowerBound !== undefined && minVal <= lowerBound) {
-                            nextCursor = undefined
-                        } else {
-                            nextCursor = cursorDate.toISOString()
-                        }
-                    }
-                }
-            }
-
-            return {
-                traces: transformed,
-                traceCount: (data as any)?.count ?? 0,
-                nextCursor,
-                annotationPageSize,
-            }
+        initialPageParam: {
+            newest: typeof params.newest === "string" ? params.newest : undefined,
         },
+
+        queryFn: async ({pageParam}) =>
+            executeTraceQuery({
+                params,
+                pageParam: pageParam as {newest?: string} | undefined,
+                appId: appId as string,
+                isHasAnnotationSelected,
+                hasAnnotationConditions,
+                hasAnnotationOperator,
+            }),
         enabled: sessionExists && Boolean(appId || projectId),
 
         getNextPageParam: (lastPage, _pages) => {
@@ -600,3 +253,344 @@ export const formattedCostAtomFamily = atomFamily((cost?: number) =>
 export const formattedUsageAtomFamily = atomFamily((tokens?: number) =>
     atom(() => formatTokenUsage(tokens)),
 )
+
+// Session queries -------------------------------------------------------------
+export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
+    const appId = get(selectedAppIdAtom)
+
+    const projectId = get(projectIdAtom)
+
+    const sort = get(sortAtomFamily("sessions"))
+    // const filters = get(userFiltersAtomFamily("sessions"))
+    const baseWindowing: {oldest?: string; newest?: string; order?: string} = {}
+
+    if (sort?.type === "standard" && sort.sorted) {
+        baseWindowing.oldest = sort.sorted
+    } else if (
+        sort?.type === "custom" &&
+        (sort.customRange?.startTime || sort.customRange?.endTime)
+    ) {
+        const {startTime, endTime} = sort.customRange
+        if (startTime) baseWindowing.oldest = startTime
+        if (endTime) baseWindowing.newest = endTime
+    }
+
+    const limit = get(limitAtomFamily("sessions"))
+    const sessionExists = get(sessionExistsAtom)
+    const realtimeMode = get(realtimeModeAtomFamily("sessions"))
+
+    return {
+        queryKey: ["sessions", projectId, appId, baseWindowing, limit, realtimeMode],
+        initialPageParam: {
+            newest: undefined as string | undefined,
+            oldest: undefined as string | undefined,
+        },
+
+        queryFn: async ({pageParam}: {pageParam?: {newest?: string; oldest?: string}}) => {
+            const {fetchSessions} = await import("@/oss/services/tracing/api")
+
+            const response: any = await fetchSessions({
+                appId: (appId as string) || undefined,
+                windowing: {
+                    limit,
+                    // Base time window from sort (initial boundaries for first page)
+                    oldest: baseWindowing.oldest,
+                    newest: baseWindowing.newest,
+                    // Pagination cursors override base boundaries for subsequent pages:
+                    // - In DESC order: pageParam.newest moves backward, oldest stays fixed
+                    // - In ASC order: pageParam.oldest moves forward, newest stays fixed
+                    ...(pageParam?.oldest && {oldest: pageParam.oldest}),
+                    ...(pageParam?.newest && {newest: pageParam.newest}),
+                },
+                filter: undefined,
+                realtime: realtimeMode,
+            })
+
+            return {
+                session_ids: response.session_ids || [],
+                count: response.count || 0,
+                nextWindowing: response.windowing,
+            }
+        },
+        enabled: sessionExists && Boolean(appId || projectId),
+
+        getNextPageParam: (lastPage: any) => {
+            // Disable pagination in realtime mode (latest activity shows fixed LIMIT items)
+            if (realtimeMode) {
+                return undefined
+            }
+
+            // Use the windowing object from response for time-based pagination
+            const hasMore = lastPage.session_ids.length === limit && lastPage.nextWindowing
+            if (!hasMore) return undefined
+
+            return {
+                newest: lastPage.nextWindowing.newest,
+                oldest: lastPage.nextWindowing.oldest,
+            }
+        },
+
+        refetchOnWindowFocus: false,
+    }
+})
+
+export const sessionIdsAtom = selectAtom(
+    sessionsQueryAtom,
+    (query) => {
+        const pages = query.data?.pages ?? []
+        const sessionIds = pages.flatMap((page: any) => page.session_ids || [])
+        return Array.from(new Set(sessionIds))
+    },
+    deepEqual,
+)
+
+export const sessionCountAtom = selectAtom(
+    sessionsQueryAtom,
+    (query) => (query.data?.pages?.[0] as any)?.count ?? 0,
+)
+
+export const filteredSessionIdsAtom = atom((get) => {
+    const sessionIds = get(sessionIdsAtom)
+    const sessionsSpans = get(sessionsSpansAtom)
+    return sessionIds.filter((id) => (sessionsSpans[id]?.length ?? 0) > 0)
+})
+
+// Session Spans ---------------------------------------------------------------
+export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
+    const appId = get(selectedAppIdAtom)
+    const filters = get(userFiltersAtomFamily("sessions"))
+    const traceTabs = get(traceTabsAtomFamily("sessions"))
+    const projectId = get(projectIdAtom)
+    const limit = get(limitAtomFamily("sessions"))
+    const sessionIds = get(sessionIdsAtom)
+
+    const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
+        buildTraceQueryParams(filters, undefined, traceTabs, undefined)
+
+    const sessionExists = get(sessionExistsAtom)
+
+    return {
+        queryKey: ["session_spans", projectId, appId, params, JSON.stringify(sessionIds)],
+        initialPageParam: {
+            newest: typeof params.newest === "string" ? params.newest : undefined,
+        },
+
+        queryFn: async ({pageParam}) => {
+            if (!sessionIds.length) {
+                return {
+                    traces: [],
+                    traceCount: 0,
+                    nextCursor: undefined,
+                    annotationPageSize: 0,
+                }
+            }
+
+            const promises = sessionIds.map(async (sessionId) => {
+                // Clone params and inject session ID filter for this request
+                const specificParams = JSON.parse(JSON.stringify(params))
+                specificParams.filter = mergeConditions(specificParams.filter, [
+                    {
+                        field: "attributes",
+                        key: "ag.session.id",
+                        operator: "is",
+                        value: sessionId,
+                    },
+                ])
+
+                return executeTraceQuery({
+                    params: specificParams,
+                    pageParam: pageParam as {newest?: string} | undefined,
+                    appId: appId as string,
+                    isHasAnnotationSelected,
+                    hasAnnotationConditions,
+                    hasAnnotationOperator,
+                })
+            })
+
+            const results = await Promise.all(promises)
+
+            // Merge results
+            const mergedTraces: TraceSpanNode[] = []
+            let maxCount = 0
+
+            results.forEach((res) => {
+                mergedTraces.push(...res.traces)
+                maxCount += res.traceCount // Sum or max? Depending on how we use it. Usually count is total.
+            })
+
+            return {
+                traces: mergedTraces,
+                traceCount: maxCount,
+                nextCursor: undefined, // Pagination for multi-session not supported in this view
+                annotationPageSize: 0,
+            }
+        },
+        enabled: sessionExists && Boolean(appId || projectId) && sessionIds.length > 0,
+
+        getNextPageParam: (lastPage, _pages) => {
+            const page = lastPage as any
+            const pageSize = page.annotationPageSize ?? page.traces.length
+            return pageSize === limit && page.nextCursor
+                ? {newest: page.nextCursor as string}
+                : undefined
+        },
+
+        refetchOnWindowFocus: false,
+    }
+})
+
+export const sessionsSpansAtom = selectAtom(
+    sessionsSpansQueryAtom,
+    (query) => {
+        const pages = query.data?.pages ?? []
+        if (!pages.length) return {} as Record<string, TraceSpanNode[]>
+
+        const seen = new Set<string>()
+        const grouped: Record<string, TraceSpanNode[]> = {}
+
+        pages.forEach((page) => {
+            page.traces.forEach((trace: TraceSpanNode) => {
+                const key = trace.span_id || trace.key
+                if (!key || seen.has(key)) return
+                seen.add(key)
+                console.log("trace", trace)
+                const sessionId = (trace.attributes as any)?.ag?.session?.id as string
+
+                if (sessionId) {
+                    if (!grouped[sessionId]) grouped[sessionId] = []
+                    grouped[sessionId].push(trace)
+                }
+            })
+        })
+
+        return grouped
+    },
+    deepEqual,
+)
+
+// --- Granular Session Stats Atoms ---
+
+const sessionTracesAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const spansMap = get(sessionsSpansAtom)
+        return spansMap[sessionId] || []
+    }),
+)
+
+export const sessionTraceCountAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const traces = get(sessionTracesAtomFamily(sessionId))
+        return traces.length
+    }),
+)
+
+// Sorted traces are required for time-based metrics (Start/End/Duration)
+// We memoize this to avoid re-sorting for every time-related cell
+const sessionSortedTracesAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const traces = get(sessionTracesAtomFamily(sessionId))
+        if (!traces.length) return []
+        return [...traces].sort(
+            (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime(),
+        )
+    }),
+)
+
+export const sessionTimeRangeAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const sorted = get(sessionSortedTracesAtomFamily(sessionId))
+        if (!sorted.length) return {startTime: undefined, endTime: undefined}
+        return {
+            startTime: sorted[0].created_at,
+            endTime: sorted[sorted.length - 1].created_at,
+        }
+    }),
+)
+
+export const sessionDurationAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const {startTime, endTime} = get(sessionTimeRangeAtomFamily(sessionId))
+        if (!startTime || !endTime) return 0
+        const duration = new Date(endTime).getTime() - new Date(startTime).getTime()
+        return duration > 0 ? duration : 0
+    }),
+)
+
+export const sessionLatencyAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const traces = get(sessionTracesAtomFamily(sessionId))
+        return traces.reduce((acc, trace) => {
+            if (trace.end_time && trace.start_time) {
+                const lat =
+                    new Date(trace.end_time).getTime() - new Date(trace.start_time).getTime()
+                return acc + (lat > 0 ? lat : 0)
+            }
+            return acc
+        }, 0)
+    }),
+)
+
+export const sessionUsageAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const traces = get(sessionTracesAtomFamily(sessionId))
+        return traces.reduce((acc, trace) => {
+            const attrs = trace.attributes || {}
+            const tokens =
+                (attrs as any)?.ag?.metrics?.tokens?.incremental?.total ||
+                (attrs as any)?.ag?.metrics?.tokens?.cumulative?.total ||
+                (attrs["ag.usage.total_tokens"] as number) ||
+                (attrs["total_tokens"] as number) ||
+                0
+            return acc + (Number(tokens) || 0)
+        }, 0)
+    }),
+)
+
+export const sessionCostAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const traces = get(sessionTracesAtomFamily(sessionId))
+        return traces.reduce((acc, trace) => {
+            const attrs = trace.attributes || {}
+            const cost =
+                (attrs as any)?.ag?.metrics?.costs?.incremental?.total ||
+                (attrs as any)?.ag?.metrics?.costs?.cumulative?.total ||
+                0
+            return acc + (Number(cost) || 0)
+        }, 0)
+    }),
+)
+
+export const sessionFirstInputAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const sorted = get(sessionSortedTracesAtomFamily(sessionId))
+        if (!sorted.length) return undefined
+        const firstTrace = sorted[0]
+        console.log("firstTrace", firstTrace)
+        return (firstTrace.attributes as any)?.ag?.data?.inputs
+    }),
+)
+
+export const sessionLastOutputAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const sorted = get(sessionSortedTracesAtomFamily(sessionId))
+        if (!sorted.length) return undefined
+        const lastTrace = sorted[sorted.length - 1]
+
+        if (lastTrace.status_code === "STATUS_CODE_ERROR") {
+            return lastTrace.status_message
+        }
+        return (lastTrace.attributes as any)?.ag?.data?.outputs
+    }),
+)
+
+// Combined loading state for session context
+// Checks strict loading state of sessions list and session spans
+export const sessionsLoadingAtom = atom((get) => {
+    const sessionsQuery = get(sessionsQueryAtom)
+    const isSessionsLoading = sessionsQuery.isLoading && !sessionsQuery.isFetchingNextPage
+
+    const spansQuery = get(sessionsSpansQueryAtom)
+    const isSpansLoading = spansQuery.isLoading && !spansQuery.isFetchingNextPage
+
+    return isSessionsLoading || isSpansLoading
+})

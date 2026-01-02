@@ -1,10 +1,11 @@
 import {useCallback, useState, useMemo, type FC} from "react"
 
 import {MinusCircleOutlined} from "@ant-design/icons"
-import {Alert, Form, Input, Modal, Select, Space, Typography, message, theme} from "antd"
+import {Alert, Form, Input, Modal, Select, Space, Typography, theme} from "antd"
 import {useAtom} from "jotai"
 import Link from "next/link"
 
+import {message} from "@/oss/components/AppMessageContext"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
@@ -132,7 +133,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                             }))}
                             disabled={subscription?.plan !== Plan.Business}
                             optionRender={(option) => (
-                                <Space direction="vertical" size="small">
+                                <Space orientation="vertical" size="small">
                                     <Typography.Text>{option.label}</Typography.Text>
                                     <Typography.Text className="text-wrap" type="secondary">
                                         {option.data.desc}

@@ -9,21 +9,14 @@ import {usePlaygroundLayout} from "@/oss/components/Playground/hooks/usePlaygrou
 import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 import {
     generationInputRowIdsAtom,
-    resolvedGenerationResultAtomFamily,
+    generationRowIdsAtom,
 } from "@/oss/components/Playground/state/atoms/generationProperties"
-// import {inputRowIdsWithPropertiesCompatAtom} from "@/oss/state/generation/compat"
-import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
-import {generationLogicalTurnIdsAtom} from "@/oss/state/generation/compat"
 import {chatTurnsByIdAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 import {
     addChatTurnAtom,
     runChatTurnAtom,
     cancelChatTurnAtom,
 } from "@/oss/state/newPlayground/chat/actions"
-import {
-    sessionTurnIdForVariantAtomFamily,
-    isCellRunningAtomFamily,
-} from "@/oss/state/newPlayground/chat/view"
 
 import LastTurnFooterControls from "../../ChatCommon/LastTurnFooterControls"
 import GenerationChatTurnNormalized from "../../PlaygroundGenerations/assets/GenerationChatTurnNormalized"

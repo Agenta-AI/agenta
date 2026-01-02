@@ -1,6 +1,6 @@
 import {useRouter} from "next/router"
 
-import EvalRunDetailsPage from "@/oss/components/EvalRunDetails"
+import EvalRunDetailsPage from "@/oss/components/EvalRunDetails/test"
 
 const ProjectEvaluationResultsPage = () => {
     const router = useRouter()
@@ -17,7 +17,7 @@ const ProjectEvaluationResultsPage = () => {
               : rawType === "custom"
                 ? "custom"
                 : "auto"
-    return <EvalRunDetailsPage evalType={normalized} />
+    return <EvalRunDetailsPage type={normalized} />
 }
 
 export default ProjectEvaluationResultsPage

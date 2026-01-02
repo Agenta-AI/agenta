@@ -28,9 +28,8 @@ const ImagePreview = ({
     alt = "Preview",
     size = 48,
     className = "",
-    isValidPreview=true,
+    isValidPreview = true,
 }: ImagePreviewProps) => {
-
     const [open, setOpen] = useState(false)
 
     const isSafeImageSrc = (url: string) => {
@@ -38,25 +37,25 @@ const ImagePreview = ({
         // Only allow valid https/http image URLs, blob URLs, or safe data:image URLs
         try {
             // Block javascript: and other schemes
-            const lower = url.toLowerCase().trim();
+            const lower = url.toLowerCase().trim()
             // Only allow https/http with proper image extensions
             if (/^https?:\/\/[^ "]+$/i.test(lower)) {
                 // Optional: Allow only image file extensions
                 if (/\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(lower)) {
                     // Further checking could be done here (e.g., image mimetype fetch), but for now file extension is checked
-                    return true;
+                    return true
                 }
                 // Otherwise, reject
-                return false;
+                return false
             }
             // Allow blob: URLs (browser-generated, controlled)
-            if (lower.startsWith("blob:")) return true;
+            if (lower.startsWith("blob:")) return true
             // Only allow specific data:image/*;base64 URLs
-            if (/^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i.test(lower)) return true;
+            if (/^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i.test(lower)) return true
             // Otherwise, reject
-            return false;
+            return false
         } catch {
-            return false;
+            return false
         }
     }
 
@@ -97,7 +96,12 @@ const ImagePreview = ({
                 height={600}
             >
                 {isValidPreview && isSafeImageSrc(imageURL) && (
-                    <img src={imageURL} alt={alt} className="w-full h-full max-h-[600px] max-w-[800px] object-contain" />
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                        src={imageURL}
+                        alt={alt}
+                        className="w-full h-full max-h-[600px] max-w-[800px] object-contain"
+                    />
                 )}
             </Modal>
         </>

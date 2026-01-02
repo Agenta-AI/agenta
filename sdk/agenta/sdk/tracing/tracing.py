@@ -31,6 +31,7 @@ from agenta.sdk.tracing.conventions import Reference, is_valid_attribute_key
 from agenta.sdk.tracing.propagation import extract, inject
 from agenta.sdk.utils.cache import TTLLRUCache
 
+import agenta as ag
 
 log = get_module_logger(__name__)
 
@@ -101,7 +102,7 @@ class Tracing(metaclass=Singleton):
 
         # TRACE PROCESSORS -- OTLP
         try:
-            log.info("Agenta - OLTP URL: %s", self.otlp_url)
+            log.info("Agenta -    OTLP URL: %s", self.otlp_url)
 
             _otlp = TraceProcessor(
                 OTLPExporter(
@@ -114,7 +115,7 @@ class Tracing(metaclass=Singleton):
 
             self.tracer_provider.add_span_processor(_otlp)
         except:  # pylint: disable=bare-except
-            log.warning("Agenta - OLTP unreachable, skipping exports.")
+            log.warning("Agenta - OTLP unreachable, skipping exports.")
 
         # --- INLINE
         if inline:
@@ -215,6 +216,42 @@ class Tracing(metaclass=Singleton):
                         namespace="metrics",
                     )
 
+    def store_session(
+        self,
+        session_id: Optional[str] = None,
+        span: Optional[Span] = None,
+    ):
+        """Set session attributes on the current span.
+
+        Args:
+            session_id: Unique identifier for the session
+            span: Optional span to set attributes on (defaults to current span)
+        """
+        with suppress():
+            if span is None:
+                span = self.get_current_span()
+
+            if session_id:
+                span.set_attribute("id", session_id, namespace="session")
+
+    def store_user(
+        self,
+        user_id: Optional[str] = None,
+        span: Optional[Span] = None,
+    ):
+        """Set user attributes on the current span.
+
+        Args:
+            user_id: Unique identifier for the user
+            span: Optional span to set attributes on (defaults to current span)
+        """
+        with suppress():
+            if span is None:
+                span = self.get_current_span()
+
+            if user_id:
+                span.set_attribute("id", user_id, namespace="user")
+
     def is_inline_trace_ready(
         self,
         trace_id: Optional[int] = None,
@@ -313,6 +350,58 @@ class Tracing(metaclass=Singleton):
             )
 
         return None
+
+    def get_trace_url(
+        self,
+        trace_id: Optional[str] = None,
+    ) -> str:
+        """
+        Build a URL to view a trace in the Agenta UI.
+
+        Automatically extracts the trace ID from the current tracing context
+        if not explicitly provided.
+
+        Args:
+            trace_id: Optional trace ID (hex string format). If not provided,
+                      it will be automatically extracted from the current trace context.
+
+        Returns:
+            The full URL to view the trace in the observability dashboard
+
+        Raises:
+            RuntimeError: If the SDK is not initialized, no active trace context exists,
+                          or scope info cannot be fetched
+        """
+        if trace_id is None:
+            span_ctx = self.get_span_context()
+            if span_ctx is None or not span_ctx.is_valid:
+                raise RuntimeError(
+                    "No active trace context found. "
+                    "Make sure you call this within an instrumented function or span."
+                )
+
+            trace_id = f"{span_ctx.trace_id:032x}"
+
+        if not ag or not ag.DEFAULT_AGENTA_SINGLETON_INSTANCE:
+            raise RuntimeError(
+                "Agenta SDK is not initialized. Please call ag.init() first."
+            )
+
+        api_url = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_url
+        web_url = api_url.replace("/api", "") if api_url else None
+
+        (organization_id, workspace_id, project_id) = (
+            ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.resolve_scopes()
+        )
+
+        if not web_url or not workspace_id or not project_id:
+            raise RuntimeError(
+                "Could not determine workspace/project context. Please call ag.init() first."
+            )
+
+        return (
+            f"{web_url}/w/{workspace_id}/p/{project_id}/observability?trace={trace_id}"
+        )
 
 
 def get_tracer(

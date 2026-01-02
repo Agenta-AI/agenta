@@ -43,10 +43,14 @@ export function buildAssistantMessage(messageSchema: any | undefined, testResult
         return createMessageFromSchema(messageSchema, inner)
     }
 
+    const fallbackContent = testResult?.error
+        ? String(testResult.error)
+        : (testResult?.response?.data?.content ?? "")
+
     return {
         __id: generateId(),
         role: {value: testResult?.error ? "Error" : "assistant", __id: generateId()},
-        content: {value: contentValue, __id: generateId()},
+        content: {value: fallbackContent, __id: generateId()},
     }
 }
 
@@ -73,21 +77,11 @@ export function buildToolMessages(messageSchema: any | undefined, testResult: an
                 const toolCallId =
                     toolCall?.id || toolCall?.__id || toolCall?.tool_call_id || undefined
 
-                let contentValue: string | undefined
                 const rawArgs = toolCall?.function?.arguments ?? toolCall?.arguments
                 const rawResponse = toolCall?.response ?? toolCall?.output ?? toolCall?.content
-
-                const pickValue = rawResponse !== undefined ? rawResponse : rawArgs
-
-                if (typeof pickValue === "string") {
-                    contentValue = pickValue
-                } else if (pickValue !== undefined) {
-                    try {
-                        contentValue = JSON.stringify(pickValue, null, 2)
-                    } catch {
-                        contentValue = String(pickValue)
-                    }
-                }
+                // pickValue kept for potential future use in content field
+                const _pickValue = rawResponse !== undefined ? rawResponse : rawArgs
+                void _pickValue
 
                 return createMessageFromSchema(messageSchema, {
                     role: "tool",

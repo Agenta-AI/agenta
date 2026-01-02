@@ -1,6 +1,6 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getTagColors} from "@/oss/lib/helpers/colors"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {getTagColors} from "@/oss/lib/helpers/colors"
 import {isDemo, stringToNumberInRange} from "@/oss/lib/helpers/utils"
 import {EvaluatorResponseDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
@@ -73,12 +73,12 @@ const evaluatorIconsMap = {
     auto_json_diff: bracketCurlyImg,
     auto_semantic_similarity: similarityImg,
     auto_contains_json: bracketCurlyImg,
-    rag_faithfulness: codeImg,
-    rag_context_relevancy: codeImg,
+    // rag_faithfulness: codeImg,
+    // rag_context_relevancy: codeImg,
 }
 
 //Evaluators
-export const fetchAllEvaluators = async () => {
+export const fetchAllEvaluators = async (includeArchived = false) => {
     const tagColors = getTagColors()
     const {projectId} = getProjectValues()
 
@@ -86,6 +86,12 @@ export const fetchAllEvaluators = async () => {
     const evaluators = (response.data || [])
         .filter((item: Evaluator) => !item.key.startsWith("human"))
         .filter((item: Evaluator) => isDemo() || item.oss)
+        .filter((item: Evaluator) => includeArchived || (item as any).archived !== true)
+        // Deduplicate by key (keep first occurrence)
+        .filter(
+            (item: Evaluator, index: number, self: Evaluator[]) =>
+                index === self.findIndex((e) => e.key === item.key),
+        )
         .map((item: Evaluator) => ({
             ...item,
             icon_url: evaluatorIconsMap[item.key as keyof typeof evaluatorIconsMap],

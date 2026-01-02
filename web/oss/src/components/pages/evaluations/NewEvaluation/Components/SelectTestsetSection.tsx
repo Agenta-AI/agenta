@@ -1,30 +1,109 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {useQueryClient} from "@tanstack/react-query"
-import {Input, Tooltip, Typography} from "antd"
+import {Input, Tooltip} from "antd"
 import Table, {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import dayjs from "dayjs"
-import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {useTestsetInputsAnalysis} from "@/oss/components/Playground/Components/Modals/LoadTestsetModal/hooks/useTestsetInputsAnalysis"
-import {
-    displayedVariantsVariablesAtom,
-    schemaInputKeysAtom,
-} from "@/oss/components/Playground/state/atoms/variants"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {testset} from "@/oss/lib/Types"
 import {fetchTestset} from "@/oss/services/testsets/api"
-import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {useTestsetsData} from "@/oss/state/testset"
-import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import type {SelectTestsetSectionProps} from "../types"
 
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+// Regex to extract {{variable}} patterns from prompt text
+const VARIABLE_REGEX = /\{\{([^{}]+)\}\}/g
+
+/**
+ * Extract variables from a prompt message content string
+ */
+const extractVariables = (content: string): string[] => {
+    const vars: string[] = []
+    let match
+    while ((match = VARIABLE_REGEX.exec(content)) !== null) {
+        vars.push(match[1].trim())
+    }
+    return vars
+}
+
+/**
+ * Extract input_keys from variant's parameters (ag_config)
+ * This is used for completion/custom apps where inputs are defined in the config
+ */
+const extractInputKeysFromParameters = (variant: EnhancedVariant): string[] => {
+    try {
+        const params = (variant as any)?.parameters
+        const agConfig = params?.ag_config ?? params ?? {}
+        const keys = new Set<string>()
+
+        Object.values(agConfig || {}).forEach((cfg: any) => {
+            const arr = cfg?.input_keys
+            if (Array.isArray(arr)) {
+                arr.forEach((k) => {
+                    if (typeof k === "string" && k) keys.add(k)
+                })
+            }
+        })
+
+        return Array.from(keys)
+    } catch {
+        return []
+    }
+}
+
+/**
+ * Extract input variables from an EnhancedVariant's prompts ({{variable}} patterns)
+ * This is used for chat apps where variables are embedded in message templates
+ */
+const extractVariablesFromPrompts = (variant: EnhancedVariant): string[] => {
+    const vars = new Set<string>()
+
+    ;(variant.prompts || []).forEach((prompt: any) => {
+        const messages = prompt?.messages?.value || []
+        messages.forEach((message: any) => {
+            const content = message?.content?.value
+            if (typeof content === "string") {
+                extractVariables(content).forEach((v) => vars.add(v))
+            } else if (Array.isArray(content)) {
+                content.forEach((part: any) => {
+                    const text = part?.text?.value ?? part?.text ?? ""
+                    if (typeof text === "string") {
+                        extractVariables(text).forEach((v) => vars.add(v))
+                    }
+                })
+            }
+        })
+    })
+
+    return Array.from(vars)
+}
+
+/**
+ * Extract input variables from an EnhancedVariant
+ * Combines both input_keys from parameters and {{variables}} from prompts
+ */
+const extractVariablesFromVariant = (variant: EnhancedVariant): string[] => {
+    const vars = new Set<string>()
+
+    // First, try to get input_keys from parameters (for completion/custom apps)
+    extractInputKeysFromParameters(variant).forEach((v) => vars.add(v))
+
+    // Then, extract {{variables}} from prompts (for chat apps)
+    extractVariablesFromPrompts(variant).forEach((v) => vars.add(v))
+
+    return Array.from(vars)
+}
+
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const SelectTestsetSection = ({
     testsets: propsTestsets,
@@ -32,6 +111,7 @@ const SelectTestsetSection = ({
     setSelectedTestsetId,
     handlePanelChange,
     selectedVariantRevisionIds,
+    selectedVariants,
     className,
     ...props
 }: SelectTestsetSectionProps) => {
@@ -47,37 +127,21 @@ const SelectTestsetSection = ({
         [selectedVariantRevisionIds],
     )
 
-    // Derive expected input variables from schema/dynamic vars (no dataset needed here)
-    const appUriInfo = useAtomValue(appUriInfoAtom)
-    const routePath = appUriInfo?.routePath
-    const displayedVariables = useAtomValue(displayedVariantsVariablesAtom)
-    const schemaInputKeys = useAtomValue(schemaInputKeysAtom)
-    const selectedRevisionId = hasSelectedRevision ? selectedVariantRevisionIds[0] : undefined
-    const eeDisplayedVars = useAtomValue(
-        useMemo(
-            () =>
-                selectedRevisionId
-                    ? stablePromptVariablesAtomFamily(selectedRevisionId)
-                    : stablePromptVariablesAtomFamily("") /* empty, returns [] */,
-            [selectedRevisionId],
-        ),
-    )
-    const {expectedInputVariables} = useTestsetInputsAnalysis({
-        routePath,
-        testsetCsvData: [],
-        displayedVariablesOverride: (hasSelectedRevision
-            ? (eeDisplayedVars as string[])
-            : (displayedVariables as string[] | undefined)) as string[] | undefined,
-        schemaInputKeysOverride: schemaInputKeys as string[] | undefined,
-    })
+    // Extract expected input variables directly from the selected variant's prompts
+    // This ensures we check against the variant selected in the modal, not the global app context
+    const expectedVariables = useMemo(() => {
+        if (!hasSelectedRevision || !selectedVariants?.length) return []
 
-    const expectedVariables = useMemo(
-        () =>
-            (expectedInputVariables || [])
-                .map((variable) => (typeof variable === "string" ? variable.trim() : ""))
-                .filter(Boolean),
-        [expectedInputVariables],
-    )
+        // Get the first selected variant (for single selection) or combine all variables
+        const allVariables = new Set<string>()
+        selectedVariants.forEach((variant) => {
+            extractVariablesFromVariant(variant).forEach((v) => allVariables.add(v))
+        })
+
+        return Array.from(allVariables)
+            .map((variable) => variable.trim())
+            .filter(Boolean)
+    }, [hasSelectedRevision, selectedVariants])
 
     const hasExpectedVariables = expectedVariables.length > 0
 
@@ -204,7 +268,7 @@ const SelectTestsetSection = ({
         [compatibilityByTestset],
     )
 
-    const selectedTestsetMessage = useMemo(() => {
+    const _selectedTestsetMessage = useMemo(() => {
         if (!selectedTestsetId) return undefined
         return compatibilityByTestset[selectedTestsetId]?.message
     }, [compatibilityByTestset, selectedTestsetId])

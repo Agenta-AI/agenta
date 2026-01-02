@@ -3,7 +3,6 @@ import {useEffect, useRef} from "react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import ProtectedRoute from "@/oss/components/ProtectedRoute/ProtectedRoute"
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
 import useURL from "@/oss/hooks/useURL"
 import {EvaluationType} from "@/oss/lib/enums"
@@ -18,21 +17,21 @@ const EvaluationShare: React.FC = () => {
     const {changeSelectedOrg, selectedOrg, loading} = useOrgData()
     const called = useRef(false)
     const {baseAppURL} = useURL()
+    // variants from global store - must be at component level (React hooks rule)
+    const allVariants = useAtomValue(variantsAtom)
 
     useEffect(() => {
         const {app, org, variants: variantIds, testset, type} = router.query
 
         //1. check all the required params are present
         if (app && org && testset && type && Array.isArray(variantIds) && !loading) {
-            const executor = async () => {
+            const Executor = async () => {
                 //make sure this is only called once
                 if (called.current) {
                     return
                 }
                 called.current = true
 
-                // variants from global store
-                const allVariants = useAtomValue(variantsAtom)
                 const variants = variantIds
                     .map((id) => allVariants.find((item) => item.variantId === id))
                     .filter((item) => item !== undefined) as Variant[]
@@ -72,10 +71,10 @@ const EvaluationShare: React.FC = () => {
             if (selectedOrg?.id !== org) {
                 //2. change the selected org to the one in the query
                 changeSelectedOrg(org as string, () => {
-                    executor()
+                    Executor()
                 })
             } else {
-                executor()
+                Executor()
             }
         }
     }, [router.query, loading])

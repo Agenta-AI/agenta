@@ -1,4 +1,4 @@
-import {EvaluationRow} from "@/oss/components/HumanEvaluations/types"
+import {EvaluationRow} from "@/oss/components/SaveTestsetModal/types"
 
 type Nullable<T> = T | null | undefined
 
@@ -28,10 +28,10 @@ const parseInvocationMetadata = (
         const refs = step.references ?? step ?? {}
         return Boolean(
             refs?.application ||
-                refs?.applicationRevision ||
-                refs?.application_revision ||
-                refs?.applicationRef ||
-                refs?.application_ref,
+            refs?.applicationRevision ||
+            refs?.application_revision ||
+            refs?.applicationRef ||
+            refs?.application_ref,
         )
     })
     if (!invocationStep) return null

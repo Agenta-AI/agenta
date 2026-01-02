@@ -6,11 +6,11 @@ import {DeleteVariantModalProps} from "./types"
 type EnhancedProps = Omit<React.ComponentProps<typeof EnhancedModal>, "children">
 type Props = EnhancedProps & DeleteVariantModalProps
 
-const DeleteVariantModal = ({variantId, ...props}: Props) => {
+const DeleteVariantModal = ({revisionIds, ...props}: Props) => {
     return (
         <EnhancedModal centered title="Are you sure you want to delete?" footer={null} {...props}>
             <DeleteVariantContent
-                variantId={variantId}
+                revisionIds={revisionIds}
                 onClose={() => props.onCancel?.({} as any)}
             />
         </EnhancedModal>

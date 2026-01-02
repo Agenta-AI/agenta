@@ -54,10 +54,10 @@ const VariantDropdown = ({
                 },
             },
         ],
-        [record],
+        [handleDeleteVariant, handleDeploy, handleOpenDetails, handleOpenInPlayground, record],
     )
     return (
-        <Dropdown trigger={["click"]} overlayStyle={{width: 180}} menu={{items}}>
+        <Dropdown trigger={["click"]} styles={{root: {width: 180}}} menu={{items}}>
             <Button onClick={(e) => e.stopPropagation()} type="text" icon={<MoreOutlined />} />
         </Dropdown>
     )

@@ -1,6 +1,6 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Tuple
 from uuid import UUID
-
+from datetime import datetime
 
 from oss.src.utils.logging import get_module_logger
 
@@ -13,14 +13,8 @@ from oss.src.core.tracing.dtos import (
     Bucket,
     MetricSpec,
     MetricsBucket,
-)
-
-from oss.src.core.tracing.utils import (
-    parse_span_dtos_to_span_idx,
-    parse_span_idx_to_span_id_tree,
-    calculate_costs,
-    cumulate_costs,
-    cumulate_tokens,
+    #
+    Windowing,
 )
 
 
@@ -28,6 +22,10 @@ log = get_module_logger(__name__)
 
 
 class TracingService:
+    """
+    Tracing service for managing spans and traces.
+    """
+
     def __init__(
         self,
         tracing_dao: TracingDAOInterface,
@@ -43,18 +41,6 @@ class TracingService:
         span_dto: Optional[OTelFlatSpan] = None,
         span_dtos: Optional[List[OTelFlatSpan]] = None,
     ) -> List[OTelLink]:
-        span_idx = parse_span_dtos_to_span_idx(
-            [span_dto] if span_dto else span_dtos or []
-        )
-
-        span_id_tree = parse_span_idx_to_span_id_tree(span_idx)
-
-        calculate_costs(span_idx)
-
-        cumulate_costs(span_id_tree, span_idx)
-
-        cumulate_tokens(span_id_tree, span_idx)
-
         if span_dto:
             link = await self.tracing_dao.create_span(
                 project_id=project_id,
@@ -256,3 +242,37 @@ class TracingService:
         )
 
         return bucket_dtos
+
+    async def sessions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        realtime: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> Tuple[List[str], Optional[datetime]]:
+        return await self.tracing_dao.sessions(
+            project_id=project_id,
+            #
+            realtime=realtime,
+            #
+            windowing=windowing,
+        )
+
+    async def users(
+        self,
+        *,
+        project_id: UUID,
+        #
+        realtime: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> Tuple[List[str], Optional[datetime]]:
+        return await self.tracing_dao.users(
+            project_id=project_id,
+            #
+            realtime=realtime,
+            #
+            windowing=windowing,
+        )

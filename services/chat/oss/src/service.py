@@ -1,14 +1,11 @@
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
-from fastapi import HTTPException
-import litellm
-
 import agenta as ag
-
+import litellm
 from agenta.sdk.litellm import mockllm
-from agenta.sdk.types import PromptTemplate, Message
-
+from agenta.sdk.types import Message, PromptTemplate
+from fastapi import HTTPException
+from pydantic import BaseModel, Field
 
 litellm.drop_params = True
 mockllm.litellm = litellm
@@ -23,6 +20,36 @@ class MyConfig(BaseModel):
             system_prompt="You are a helpful customer service chatbot. Please help the user with their query.\nUse the following context if available:\n<context>{{context}}</context>",
         )
     )
+
+
+def _apply_responses_bridge_if_needed(
+    formatted_prompt: PromptTemplate, provider_settings: Dict
+) -> Dict:
+    """
+    Checks if web_search_preview tool is present and applies responses bridge if needed.
+
+    If a web_search_preview tool is detected, this function modifies the provider_settings
+    to use the responses bridge by prepending 'openai/responses/' to the model name.
+
+    Args:
+        formatted_prompt: The formatted prompt template containing LLM config and tools
+        provider_settings: The provider settings dictionary that may be modified
+
+    Returns:
+        The provider_settings dictionary, potentially modified to use responses bridge
+    """
+    tools = formatted_prompt.llm_config.tools
+    if tools:
+        for tool in tools:
+            if isinstance(tool, dict) and tool.get("type") in [
+                "web_search_preview",
+                "code_execution",
+                "mcp",
+            ]:
+                model_val = provider_settings.get("model")
+                if model_val and "/" not in model_val:
+                    provider_settings["model"] = f"openai/responses/{model_val}"
+    return provider_settings
 
 
 @ag.route("/", config_schema=MyConfig)
@@ -46,10 +73,6 @@ async def generate(
         formatted_prompt = config.prompt.format(**inputs)
     else:
         formatted_prompt = config.prompt
-    openai_kwargs = formatted_prompt.to_openai_kwargs()
-
-    if messages is not None:
-        openai_kwargs["messages"].extend(messages)
 
     provider_settings = ag.SecretsManager.get_provider_settings(
         config.prompt.llm_config.model
@@ -60,6 +83,14 @@ async def generate(
             status_code=424,
             detail=f"Credentials not found for model {config.prompt.llm_config.model}. Please configure them under settings.",
         )
+
+    provider_settings = _apply_responses_bridge_if_needed(
+        formatted_prompt, provider_settings
+    )
+
+    openai_kwargs = formatted_prompt.to_openai_kwargs()
+    if messages is not None:
+        openai_kwargs["messages"].extend(messages)
 
     with mockllm.user_aws_credentials_from(provider_settings):
         response = await mockllm.acompletion(

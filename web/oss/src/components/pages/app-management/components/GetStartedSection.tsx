@@ -66,8 +66,10 @@ const GetStartedSection = ({
     const classes = useStyles()
 
     return (
-        <div className="my-6 flex flex-col gap-4">
-            <Title level={2}>Get Started</Title>
+        <div className="flex flex-col gap-4">
+            <Title level={2} className="!my-0">
+                Get Started
+            </Title>
 
             <div className="flex gap-4">
                 <Card

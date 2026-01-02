@@ -4,10 +4,12 @@ import {Button, Dropdown, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 
-import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
+import NoResultsFound from "@/oss/components/Placeholders/NoResultsFound/NoResultsFound"
 import useURL from "@/oss/hooks/useURL"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {ListAppsItem} from "@/oss/lib/Types"
+
+import {getAppTypeIcon} from "../../prompts/assets/iconHelpers"
 
 interface AppTableProps {
     filteredApps: ListAppsItem[]
@@ -25,7 +27,14 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
             dataIndex: "name",
             key: "name",
             render: (_, record) => {
-                return <div>{record.app_name}</div>
+                return (
+                    <div className="flex items-center gap-2 truncate">
+                        <span className="flex items-center text-gray-400">
+                            {getAppTypeIcon(record.app_type)}
+                        </span>
+                        <span className="truncate">{record.app_name}</span>
+                    </div>
+                )
             },
         },
         {
@@ -41,20 +50,24 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
             dataIndex: "app_type",
             key: "app_type",
             render: (_, record) => {
-                return <Tag>{record.app_type}</Tag>
+                return <Tag bordered={false}>{record.app_type}</Tag>
             },
         },
         {
             title: <GearSix size={16} />,
             key: "key",
-            width: 56,
+            width: 61,
             fixed: "right",
             align: "center",
             render: (_, record) => {
                 return (
                     <Dropdown
                         trigger={["click"]}
-                        overlayStyle={{width: 180}}
+                        styles={{
+                            root: {
+                                width: 180,
+                            },
+                        }}
                         menu={{
                             items: [
                                 {

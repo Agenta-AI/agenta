@@ -12,9 +12,9 @@ import {
     TreeView,
     Lightning,
     Rocket,
-    CloudArrowUp,
     ChatCircle,
     Gauge,
+    HouseIcon,
 } from "@phosphor-icons/react"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
@@ -38,8 +38,15 @@ export const useSidebarConfig = () => {
     const sidebarConfig: SidebarConfig[] = [
         {
             key: "app-management-link",
-            title: "App Management",
+            title: "Home",
             link: baseAppURL,
+            icon: <HouseIcon size={16} />,
+            disabled: !hasProjectURL,
+        },
+        {
+            key: "project-prompts-link",
+            title: "Prompts",
+            link: `${projectURL}/prompts`,
             icon: <AppstoreOutlined size={16} />,
             disabled: !hasProjectURL,
         },
@@ -117,14 +124,6 @@ export const useSidebarConfig = () => {
             icon: <TreeView size={16} />,
             isHidden: !currentApp && !recentlyVisitedAppId,
             link: `${appURL || recentlyVisitedAppURL}/traces`,
-            disabled: !hasProjectURL,
-        },
-        {
-            key: "app-deployments-link",
-            title: "Deployments",
-            link: `${appURL || recentlyVisitedAppURL}/deployments`,
-            isHidden: !currentApp && !recentlyVisitedAppId,
-            icon: <CloudArrowUp size={16} />,
             disabled: !hasProjectURL,
         },
         {

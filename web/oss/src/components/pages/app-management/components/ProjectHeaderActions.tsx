@@ -1,17 +1,17 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {DotsThreeVertical, PencilSimple, Star, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Form, Input, MenuProps, Modal, message} from "antd"
 import {useMutation} from "@tanstack/react-query"
+import {Button, Dropdown, Form, Input, MenuProps, Modal, message} from "antd"
 import {useRouter} from "next/router"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
-import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
 import {deleteProject, patchProject} from "@/oss/services/project"
 import type {ProjectsResponse} from "@/oss/services/project/types"
+import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
+import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
 
-type ProjectFormValues = {
+interface ProjectFormValues {
     name: string
 }
 
@@ -147,7 +147,7 @@ const ProjectHeaderActions = () => {
                 label: (
                     <div className="flex items-center gap-2">
                         <Star size={16} />
-                        Set as default
+                        Set project as default
                     </div>
                 ),
                 disabled: project.is_default_project,
@@ -157,7 +157,7 @@ const ProjectHeaderActions = () => {
                 label: (
                     <div className="flex items-center gap-2">
                         <PencilSimple size={16} />
-                        Rename
+                        Rename project
                     </div>
                 ),
             },
@@ -167,7 +167,7 @@ const ProjectHeaderActions = () => {
                 label: (
                     <div className="flex items-center gap-2">
                         <Trash size={16} />
-                        Delete
+                        Delete project
                     </div>
                 ),
                 disabled: !canDeleteProject || project.is_default_project,
@@ -201,7 +201,7 @@ const ProjectHeaderActions = () => {
             <Dropdown
                 trigger={["click"]}
                 placement="bottomLeft"
-                destroyPopupOnHide
+                destroyOnHidden
                 menu={{items: menuItems, onClick: handleMenuClick}}
             >
                 <Button type="text" icon={<DotsThreeVertical size={16} weight="bold" />} />
@@ -217,7 +217,7 @@ const ProjectHeaderActions = () => {
                 }}
                 onOk={() => renameForm.submit()}
                 confirmLoading={renameMutation.isPending}
-                destroyOnClose
+                destroyOnHidden
                 centered
             >
                 <Form

@@ -14,10 +14,9 @@ import TooltipButton from "../../../../assets/EnhancedButton"
 import RunButton from "../../../../assets/RunButton"
 import {usePlaygroundAtoms} from "../../../../hooks/usePlaygroundAtoms"
 import {generationHeaderDataAtomFamily, triggerWebWorkerTestAtom} from "../../../../state/atoms"
-import TestsetDrawerButton from "../../../Drawers/TestsetDrawer"
-import LoadTestsetButton from "../../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
 
 import {useStyles} from "./styles"
+import TestSetMenu from "./TestSetMenu"
 import type {GenerationHeaderProps} from "./types"
 
 // Global atom to track collapse state for all generations
@@ -105,14 +104,10 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                         </Button>
                     </Tooltip>
 
-                    <LoadTestsetButton label="Load testset" variantId={variantId} />
-
-                    <TestsetDrawerButton
-                        label="Add all to testset"
-                        icon={false}
-                        size="small"
-                        disabled={isRunning}
+                    <TestSetMenu
+                        variantId={variantId}
                         resultHashes={resultHashes}
+                        isRunning={isRunning}
                     />
 
                     {!isRunning ? (

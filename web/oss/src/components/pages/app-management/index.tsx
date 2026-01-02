@@ -1,10 +1,10 @@
 import {useEffect, useMemo, useState} from "react"
 
 import {Typography} from "antd"
-import {useRouter} from "next/router"
 import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
@@ -21,14 +21,15 @@ import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreati
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 
+import PageLayout from "../../PageLayout/PageLayout"
+
 import {getTemplateKey, timeout} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
 import GetStartedSection from "./components/GetStartedSection"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
-import useCustomWorkflowConfig from "./modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import ProjectHeaderActions from "./components/ProjectHeaderActions"
-import {useProjectData} from "@/oss/state/project"
+import useCustomWorkflowConfig from "./modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -50,7 +51,6 @@ const ObservabilityDashboardSection: any = dynamic(
 const {Title} = Typography
 
 const AppManagement: React.FC = () => {
-    const {project} = useProjectData()
     const statusData = useAtomValue(appCreationStatusAtom)
     const setStatusData = useSetAtom(appCreationStatusAtom)
     const resetAppCreation = useSetAtom(resetAppCreationAtom)
@@ -162,25 +162,19 @@ const AppManagement: React.FC = () => {
 
     return (
         <>
-            <div className={classes.container}>
+            <PageLayout className={`${classes.container} gap-8`}>
                 {error ? (
                     <ResultComponent status={"error"} title="Failed to load" />
                 ) : (
                     <>
-                        <div className="flex items-center gap-3 flex-wrap">
-                            <Title level={3} className="!m-0 flex items-center gap-2 min-w-0">
-                                <span
-                                    className="truncate max-w-[360px]"
-                                    title={project?.project_name || "Project"}
-                                >
-                                    {project?.project_name || "Project"}
-                                </span>
-                                <span className="text-neutral-500 whitespace-nowrap">
-                                    App Management
-                                </span>
-                            </Title>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <Title level={2} className="!m-0">
+                                    Home
+                                </Title>
 
-                            <ProjectHeaderActions />
+                                <ProjectHeaderActions />
+                            </div>
                         </div>
 
                         <GetStartedSection
@@ -206,7 +200,7 @@ const AppManagement: React.FC = () => {
                         <HelpAndSupportSection />
                     </>
                 )}
-            </div>
+            </PageLayout>
 
             <SetupTracingModal
                 open={isSetupTracingModal}

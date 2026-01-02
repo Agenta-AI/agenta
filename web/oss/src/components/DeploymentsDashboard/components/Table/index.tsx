@@ -5,15 +5,15 @@ import {Table, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import Image from "next/image"
 
-import EmptyComponent from "@/oss/components/EmptyComponent"
+import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
-import {useQuery, useQueryParam} from "@/oss/hooks/useQuery"
+import {useQuery} from "@/oss/hooks/useQuery"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 import {variantsLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {DeploymentRevisionWithVariant} from "../../atoms"
 
-import {getColumns} from "./assets/getDeploymentColumns"
+import {getColumns, type OnOpenUseApiPayload} from "./assets/getDeploymentColumns"
 
 interface DeploymentTableProps {
     setSelectedRevisionRow: React.Dispatch<
@@ -24,7 +24,7 @@ interface DeploymentTableProps {
     setSelectedVariantRevisionIdToRevert: React.Dispatch<React.SetStateAction<string>>
     envRevisions: DeploymentRevisions | undefined
     setIsSelectDeployVariantModalOpen: (value: React.SetStateAction<boolean>) => void
-    onOpenUseApi: () => void
+    onOpenUseApi: (payload?: OnOpenUseApiPayload) => void
     isLoading?: boolean
 }
 

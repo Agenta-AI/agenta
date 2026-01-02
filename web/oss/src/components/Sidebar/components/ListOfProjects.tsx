@@ -1,6 +1,7 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {CaretDown, CopyIcon, PencilSimple, Star, Trash} from "@phosphor-icons/react"
+import {useMutation} from "@tanstack/react-query"
 import {
     Button,
     ButtonProps,
@@ -15,15 +16,13 @@ import {
 } from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
-import {useMutation} from "@tanstack/react-query"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {createProject, deleteProject, patchProject} from "@/oss/services/project"
+import type {ProjectsResponse} from "@/oss/services/project/types"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
-
-import type {ProjectsResponse} from "@/oss/services/project/types"
-import {createProject, deleteProject, patchProject} from "@/oss/services/project"
 
 interface ListOfProjectsProps {
     collapsed: boolean
@@ -33,7 +32,7 @@ interface ListOfProjectsProps {
     dropdownProps?: Omit<DropdownProps, "menu" | "children">
 }
 
-type ProjectMeta = {
+interface ProjectMeta {
     key: string
     projectId: string
     workspaceId: string
@@ -41,7 +40,7 @@ type ProjectMeta = {
     project: ProjectsResponse
 }
 
-type ProjectFormValues = {
+interface ProjectFormValues {
     name: string
 }
 
@@ -474,8 +473,12 @@ const ListOfProjects = ({
                         {...(dropdownProps ?? {})}
                         trigger={["click"]}
                         placement={collapsed ? "bottomLeft" : "bottomRight"}
-                        destroyPopupOnHide
-                        overlayStyle={{zIndex: 2000}}
+                        destroyOnHidden
+                        styles={{
+                            root: {
+                                zIndex: 2000,
+                            },
+                        }}
                         onOpenChange={setProjectDropdownOpen}
                         className={clsx({"flex items-center justify-center": collapsed})}
                         menu={{
@@ -522,7 +525,7 @@ const ListOfProjects = ({
                 }}
                 onOk={() => createForm.submit()}
                 confirmLoading={createMutation.isPending}
-                destroyOnClose
+                destroyOnHidden
                 centered
             >
                 <Form
@@ -551,7 +554,7 @@ const ListOfProjects = ({
                 }}
                 onOk={() => renameForm.submit()}
                 confirmLoading={renameMutation.isPending}
-                destroyOnClose
+                destroyOnHidden
                 centered
             >
                 <Form

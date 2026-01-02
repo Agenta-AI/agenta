@@ -16,9 +16,10 @@ import type {Variant, VariantRevision} from "@/oss/lib/Types"
 import {fetchSingleProfile} from "@/oss/services/api"
 import {fetchVariants as fetchAppVariants} from "@/oss/services/api"
 import {routerAppIdAtom, recentAppIdAtom} from "@/oss/state/app/atoms/fetcher"
-import {environmentsAtom} from "@/oss/state/environment/atoms/fetcher"
 import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"
+import {environmentsAtom} from "@/oss/state/environment/atoms/fetcher"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
+import {projectScopedVariantsAtom} from "@/oss/state/projectVariantConfig"
 
 // Utility: check if a string is a canonical UUID (v1–v5)
 const isUuid = (val: string): boolean =>
@@ -257,15 +258,50 @@ export const appStatusLoadingAtom = selectAtom(
 // Backwards-compatible app-level simple selector (runtimePrefix/routePath)
 export const appUriStateAtom = selectAtom(appUriStateQueryAtom, (res) => (res as any)?.data ?? res)
 
-export const appSchemaAtom = selectAtom(
+// Base app schema from app context
+const baseAppSchemaAtom = selectAtom(
     appUriStateQueryAtom,
     (res) => (res as any)?.data?.schema ?? (res as any)?.schema,
 )
 
-export const appUriInfoAtom = selectAtom(appUriStateQueryAtom, (res) => {
+// Combined schema atom that falls back to project-scoped schema
+// This is needed for evaluation run details where app context may not be available
+export const appSchemaAtom = atom((get) => {
+    // First try app-context schema
+    const appSchema = get(baseAppSchemaAtom)
+    if (appSchema) return appSchema
+
+    // Fallback to project-scoped schema (first available)
+    const projectScoped = get(projectScopedVariantsAtom)
+    if (projectScoped?.specMap) {
+        const firstSchema = Object.values(projectScoped.specMap).find(Boolean)
+        if (firstSchema) return firstSchema
+    }
+
+    return undefined
+})
+
+// Base URI info from app context
+const baseAppUriInfoAtom = selectAtom(appUriStateQueryAtom, (res) => {
     const data: any = (res as any)?.data ?? res
     if (!data) return undefined
     return {runtimePrefix: data.runtimePrefix, routePath: data.routePath}
+})
+
+// Combined URI info atom that falls back to project-scoped URI info
+export const appUriInfoAtom = atom((get) => {
+    // First try app-context URI info
+    const appUriInfo = get(baseAppUriInfoAtom)
+    if (appUriInfo) return appUriInfo
+
+    // Fallback to project-scoped URI info (first available)
+    const projectScoped = get(projectScopedVariantsAtom)
+    if (projectScoped?.uriMap) {
+        const firstUri = Object.values(projectScoped.uriMap).find(Boolean)
+        if (firstUri) return firstUri
+    }
+
+    return undefined
 })
 
 // Centralized lazy getter for OpenAPI spec
@@ -353,11 +389,25 @@ export function getEnhancedRevisionById(
     get: (an: any) => any,
     revisionId: string,
 ): EnhancedVariant | undefined {
+    // First, check app-context variants
     const map = get(revisionIdToVariantIdAtom)
     const variantId = map[revisionId]
-    if (!variantId) return undefined
-    const revs = get(revisionsByVariantIdAtomFamily(variantId)) as any[]
-    return revs?.find((r: any) => r.id === revisionId) as EnhancedVariant | undefined
+    if (variantId) {
+        const revs = get(revisionsByVariantIdAtomFamily(variantId)) as any[]
+        const found = revs?.find((r: any) => r.id === revisionId) as EnhancedVariant | undefined
+        if (found) return found
+    }
+
+    // Fallback: check project-scoped variants (for evaluation run details context)
+    const projectScoped = get(projectScopedVariantsAtom)
+    if (projectScoped?.revisions?.length) {
+        const found = projectScoped.revisions.find(
+            (r: any) => r.id === revisionId || r.variantId === revisionId,
+        )
+        if (found) return found as EnhancedVariant
+    }
+
+    return undefined
 }
 
 export const userProfilesMapAtom = atomWithQuery<Map<string, any>>((get) => {

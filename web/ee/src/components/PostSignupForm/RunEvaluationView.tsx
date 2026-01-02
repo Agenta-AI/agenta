@@ -1,9 +1,10 @@
 import {useState} from "react"
-import {Typography, Space, Button} from "antd"
-import {Book, CodeBlock, Play} from "@phosphor-icons/react"
-import {TracingCodeComponent} from "@/oss/components/pages/app-management/modals/SetupTracingModal/components/TracingCodeComponent"
+
+import {Book, Play} from "@phosphor-icons/react"
+import {Typography, Button} from "antd"
+
 import ApiKeyInput from "@/oss/components/pages/app-management/components/ApiKeyInput"
-import {useRouter} from "next/router"
+import {TracingCodeComponent} from "@/oss/components/pages/app-management/modals/SetupTracingModal/components/TracingCodeComponent"
 
 const {Title, Text} = Typography
 
@@ -68,13 +69,14 @@ if __name__ == "__main__":
 
 export const RunEvaluationView = () => {
     const [apiKeyValue, setApiKeyValue] = useState("")
-    const router = useRouter()
 
     return (
         <div className="flex flex-col gap-8">
             <div className="flex flex-col gap-1">
                 <div className="flex justify-between items-center">
-                    <Title level={1} style={{margin: 0}}>Evaluate from SDK</Title>
+                    <Title level={1} style={{margin: 0}}>
+                        Evaluate from SDK
+                    </Title>
                     <div className="flex items-center gap-2">
                         <Button
                             icon={<Play size={16} className="mt-1" />}
@@ -98,28 +100,26 @@ export const RunEvaluationView = () => {
             </div>
             <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
 
-            
             <div className="flex flex-col gap-2">
                 <Text strong>1. Install the required packages:</Text>
-                <TracingCodeComponent 
+                <TracingCodeComponent
                     command={{
                         title: "Bash",
-                        code: "pip install -U agenta"
-                    }} 
-                    index={0} 
+                        code: "pip install -U agenta",
+                    }}
+                    index={0}
                 />
             </div>
 
             <div className="flex flex-col gap-4">
-                <TracingCodeComponent 
+                <TracingCodeComponent
                     command={{
                         title: "Python Code",
-                        code: CODE_SNIPPET
-                    }} 
-                    index={1} 
+                        code: CODE_SNIPPET,
+                    }}
+                    index={1}
                 />
             </div>
-
         </div>
     )
 }

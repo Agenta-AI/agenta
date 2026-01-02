@@ -32,6 +32,8 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
     promptId,
     className,
     viewOnly = false,
+    disableCollapse = false,
+    expandIcon: expandIconProp,
     ...props
 }) => {
     const defaultActiveKey = useRef(["1"])
@@ -41,6 +43,15 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
         () => [
             {
                 key: "1",
+                ...(disableCollapse
+                    ? {
+                          // Avoid AntD "disabled" styling (cursor: not-allowed).
+                          // Make it effectively non-collapsible by allowing toggling only via icon,
+                          // then removing the icon.
+                          collapsible: "icon" as const,
+                          showArrow: false,
+                      }
+                    : {}),
                 classNames: {
                     body: "!border-t-0 !pt-0",
                     header: "z-10",
@@ -63,17 +74,18 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
                 ),
             },
         ],
-        [variantId, promptId, viewOnly],
+        [variantId, promptId, viewOnly, disableCollapse],
     )
 
     return (
         <Collapse
+            {...props}
             ghost
             className={clsx("rounded-none", className, classes.collapseContainer)}
             bordered={false}
             defaultActiveKey={defaultActiveKey.current}
             items={items}
-            {...props}
+            expandIcon={disableCollapse ? () => null : expandIconProp}
         />
     )
 }

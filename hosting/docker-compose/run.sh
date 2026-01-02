@@ -10,6 +10,7 @@ AGENTA_WEB_URL=  # Use env var if available, otherwise default
 ENV_FILE=""  # Default to no env file
 BUILD=false  # Default to no forced build
 NO_CACHE=false  # Default to using cache
+PULL=false  # Default to no pull
 NUKE=false  # Default to not nuking volumes
 
 show_usage() {
@@ -24,6 +25,7 @@ show_usage() {
     echo "  --env-file <path>       Specify an environment file to load variables (default: built-in)"
     echo "  --build                 Force a fresh build of containers (default: false)"
     echo "  --no-cache              Build without using cache [implies --build] (default: false)"
+    echo "  --pull                  Pull latest images from registry (default: implicit for gh stages)"
     echo "  --nuke                  Remove related volumes before starting containers"
     echo "  --help                  Show this help message and exit"
     exit 0
@@ -81,6 +83,9 @@ while [[ "$#" -gt 0 ]]; do
             NO_CACHE=true
             BUILD=true  # --no-cache implies --build
             ;;
+        --pull)
+            PULL=true
+            ;;
         --nuke)
             NUKE=true
             ;;
@@ -133,21 +138,18 @@ else
     COMPOSE_CMD+=" --profile with-traefik"
 fi
 
-if [[ "$STAGE" == "dev" ]]; then
-    if $NO_CACHE; then
-        echo "Building containers with no cache (dev)..."
-        $COMPOSE_CMD build --parallel --no-cache || error_exit "Build failed"
-    elif $BUILD; then
-        echo "Building containers (dev)..."
-        $COMPOSE_CMD build --parallel || error_exit "Build failed"
-    fi
-else
-    if $NO_CACHE; then
-        echo "Pulling latest images (non-dev with --no-cache)..."
-        $COMPOSE_CMD pull || error_exit "Pull failed"
-    fi
-    # else: do nothing
+if $NO_CACHE; then
+    echo "Building containers with no cache..."
+    $COMPOSE_CMD build --parallel --no-cache || error_exit "Build failed"
+elif $BUILD; then
+    echo "Building containers..."
+    $COMPOSE_CMD build --parallel || error_exit "Build failed"
+elif $PULL || [[ "$STAGE" == "gh" || "$STAGE" == "gh.ssl" ]]; then
+    # Pull images if --pull flag is explicitly set OR implicitly for gh/gh.ssl stages
+    echo "Pulling latest images..."
+    $COMPOSE_CMD pull || error_exit "Pull failed"
 fi
+# For dev stage without flags, use existing local images
 
 # Shutdown with optional nuke
 echo "Stopping existing Docker containers..."

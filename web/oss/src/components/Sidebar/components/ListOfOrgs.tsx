@@ -4,6 +4,7 @@ import {CaretDown, SignOut} from "@phosphor-icons/react"
 import {Button, ButtonProps, Dropdown, DropdownProps, MenuProps} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
+import {useRouter} from "next/router"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useSession} from "@/oss/hooks/useSession"
@@ -11,9 +12,9 @@ import {useOrgData} from "@/oss/state/org"
 import {orgsAtom as organizationsAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
-import {useRouter} from "next/router"
 
 import Avatar from "../../Avatar/Avatar"
+
 import ListOfProjects from "./ListOfProjects"
 
 interface ListOfOrgsProps extends Omit<DropdownProps, "menu" | "children"> {
@@ -186,8 +187,12 @@ const ListOfOrgs = ({
                             {...dropdownProps}
                             trigger={["click"]}
                             placement="bottomRight"
-                            destroyPopupOnHide
-                            overlayStyle={{zIndex: 2000}}
+                            destroyOnHidden
+                            styles={{
+                                root: {
+                                    zIndex: 2000,
+                                },
+                            }}
                             onOpenChange={setOrganizationDropdownOpen}
                             className={clsx({"flex items-center justify-center": collapsed})}
                             menu={{

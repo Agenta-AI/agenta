@@ -19,6 +19,7 @@ export interface BaseSchema extends Base {
     const?: unknown
     enum?: unknown[]
     key?: string
+    "x-model-metadata"?: Record<string, unknown>
 }
 
 export interface BaseSchemaProperties extends BaseSchema {
@@ -66,8 +67,10 @@ export type SchemaProperty =
 export type ObjectSchema = Extract<SchemaProperty, {type: "object"}>
 
 // Convenience interfaces that extend from the union type
-export interface PrimitiveSchema
-    extends Extract<SchemaProperty, {type: Exclude<SchemaType, "object" | "array" | "compound">}> {}
+export interface PrimitiveSchema extends Extract<
+    SchemaProperty,
+    {type: Exclude<SchemaType, "object" | "array" | "compound">}
+> {}
 export interface ArraySchema extends Extract<SchemaProperty, {type: "array"}> {}
 export interface AnyOfSchema extends Extract<SchemaProperty, {anyOf: SchemaProperty[]}> {}
 
