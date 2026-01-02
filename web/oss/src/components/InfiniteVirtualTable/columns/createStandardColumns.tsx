@@ -157,8 +157,8 @@ function createDateColumn<T>(def: DateColumnDef): ColumnType<T> {
         key: def.key,
         width: def.width || 200,
         render: (date: string) => {
-            if (!date) return "—"
-            return def.format ? def.format(date) : formatDateCell(date)
+            const formatted = !date ? "—" : def.format ? def.format(date) : formatDateCell(date)
+            return <div className="h-full flex items-center">{formatted}</div>
         },
         onHeaderCell: () => ({
             style: {minWidth: def.width || 180},
@@ -270,20 +270,22 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
             }
 
             return (
-                <Dropdown
-                    trigger={["click"]}
-                    styles={{root: {width: 200}}}
-                    menu={{items: menuItems}}
-                >
-                    <Tooltip title="Actions">
-                        <Button
-                            onClick={(e) => e.stopPropagation()}
-                            type="text"
-                            icon={<MoreOutlined />}
-                            size="small"
-                        />
-                    </Tooltip>
-                </Dropdown>
+                <div className="h-full flex items-center justify-center">
+                    <Dropdown
+                        trigger={["click"]}
+                        styles={{root: {width: 200}}}
+                        menu={{items: menuItems}}
+                    >
+                        <Tooltip title="Actions">
+                            <Button
+                                onClick={(e) => e.stopPropagation()}
+                                type="text"
+                                icon={<MoreOutlined />}
+                                size="small"
+                            />
+                        </Tooltip>
+                    </Dropdown>
+                </div>
             )
         },
     }
@@ -300,7 +302,11 @@ function createUserColumn<T extends InfiniteTableRowBase>(def: UserColumnDef<T>)
         render: (value: string | null | undefined, record: T) => {
             if (record.__isSkeleton) return null
             const userId = getUserId ? getUserId(record) : value
-            return <UserReference userId={userId} />
+            return (
+                <div className="h-full flex items-center">
+                    <UserReference userId={userId} />
+                </div>
+            )
         },
         onHeaderCell: () => ({
             style: {minWidth: width},

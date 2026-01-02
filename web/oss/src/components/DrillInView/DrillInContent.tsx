@@ -76,6 +76,8 @@ export interface DrillInContentProps {
     onLockedFieldTypesChange?: (types: Record<string, DataType>) => void
     /** Initial path to start navigation at (e.g., "inputs.prompt" or ["inputs", "prompt"]) */
     initialPath?: string | string[]
+    /** Callback when navigation path changes */
+    onPathChange?: (path: string[]) => void
 }
 
 /**
@@ -105,6 +107,7 @@ export function DrillInContent({
     lockedFieldTypes = {},
     onLockedFieldTypesChange,
     initialPath,
+    onPathChange,
 }: DrillInContentProps) {
     // Parse initialPath to array format, removing rootTitle prefix if present
     const parsedInitialPath = (() => {
@@ -118,6 +121,11 @@ export function DrillInContent({
     const [currentPath, setCurrentPath] = useState<string[]>(parsedInitialPath)
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
     const [rawModeFields, setRawModeFields] = useState<Record<string, boolean>>({})
+
+    // Notify parent when path changes (for persistence across navigation)
+    useEffect(() => {
+        onPathChange?.(currentPath)
+    }, [currentPath, onPathChange])
 
     // Handle focusPath - navigate directly to the clicked property path
     useEffect(() => {

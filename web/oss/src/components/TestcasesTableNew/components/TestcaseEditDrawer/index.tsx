@@ -24,12 +24,16 @@ interface TestcaseEditDrawerContentProps {
     onClose: () => void
     editMode: EditMode
     onEditModeChange?: (mode: EditMode) => void
+    /** Initial drill-in path (for persistence across navigation) */
+    initialPath?: string[]
+    /** Callback when drill-in path changes */
+    onPathChange?: (path: string[]) => void
 }
 
 const TestcaseEditDrawerContent = forwardRef<
     TestcaseEditDrawerContentRef,
     TestcaseEditDrawerContentProps
->(({testcaseId, columns, isNewRow, editMode, onEditModeChange}, ref) => {
+>(({testcaseId, columns, isNewRow, editMode, onEditModeChange, initialPath, onPathChange}, ref) => {
     // Track locked types for fields (to prevent UI switching when content changes)
     const [lockedFieldTypes, setLockedFieldTypes] = useState<Record<string, DataType>>({})
 
@@ -82,6 +86,8 @@ const TestcaseEditDrawerContent = forwardRef<
                     getDefaultValueForType={getDefaultValueForType}
                     lockedFieldTypes={lockedFieldTypes}
                     onLockedFieldTypesChange={setLockedFieldTypes}
+                    initialPath={initialPath}
+                    onPathChange={onPathChange}
                     headerContent={
                         isNewRow ? (
                             <div className="rounded-md bg-green-50 border border-green-200 p-3 mb-4">

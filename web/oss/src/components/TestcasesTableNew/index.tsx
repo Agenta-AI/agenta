@@ -201,6 +201,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         isRevisionSlugCopied={isRevisionSlugCopied}
                         revisionIdParam={revisionIdParam as string}
                         isNewTestset={isNewTestset}
+                        isExporting={actions.isExporting}
                         onCopyId={async () => {
                             await actions.handleCopyId()
                             setIsIdCopied(true)

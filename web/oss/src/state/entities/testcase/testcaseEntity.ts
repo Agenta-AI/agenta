@@ -36,13 +36,22 @@ export const testcaseIdsAtom = atom<string[]>([])
 /**
  * Append testcase IDs (called by fetchData when paginated data arrives)
  * Appends new IDs to existing list to support infinite scroll
+ * Deduplicates both incoming IDs and against existing IDs
  */
 export const setTestcaseIdsAtom = atom(null, (get, set, ids: string[]) => {
     const existing = get(testcaseIdsAtom)
     const existingSet = new Set(existing)
-    const newIds = ids.filter((id) => !existingSet.has(id))
-    if (newIds.length > 0) {
-        set(testcaseIdsAtom, [...existing, ...newIds])
+    // Deduplicate incoming IDs and filter out already existing ones
+    const uniqueNewIds: string[] = []
+    const seenInBatch = new Set<string>()
+    for (const id of ids) {
+        if (!existingSet.has(id) && !seenInBatch.has(id)) {
+            uniqueNewIds.push(id)
+            seenInBatch.add(id)
+        }
+    }
+    if (uniqueNewIds.length > 0) {
+        set(testcaseIdsAtom, [...existing, ...uniqueNewIds])
     }
 })
 
