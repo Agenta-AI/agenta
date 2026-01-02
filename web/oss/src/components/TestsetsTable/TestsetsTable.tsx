@@ -170,7 +170,10 @@ const TestsetsTable = ({
                         projectId,
                         testsetId: record.id,
                     })
-                    const revisions = response.testset_revisions
+                    // Filter out v0 revisions - they are placeholders
+                    const revisions = response.testset_revisions.filter(
+                        (r: any) => r.version !== 0 && r.version !== "0",
+                    )
                     if (revisions.length > 0) {
                         const latestRevision = revisions[0]
                         const numericVersion =
@@ -207,7 +210,10 @@ const TestsetsTable = ({
             try {
                 if (!projectId) return
                 const response = await fetchRevisionsList({projectId, testsetId: record.id})
-                const revisions = response.testset_revisions
+                // Filter out v0 revisions - they are placeholders
+                const revisions = response.testset_revisions.filter(
+                    (r: any) => r.version !== 0 && r.version !== "0",
+                )
                 if (revisions.length > 0) {
                     // Navigate to the first revision (latest)
                     window.location.href = `${projectURL}/testsets/${revisions[0].id}`
@@ -427,7 +433,10 @@ const TestsetsTable = ({
                     // Fetch revisions directly for this testset (skip variants)
                     if (!projectId) return
                     const response = await fetchRevisionsList({projectId, testsetId: record.id})
-                    const revisions = response.testset_revisions
+                    // Filter out v0 revisions - they are placeholders and should not be displayed
+                    const revisions = response.testset_revisions.filter(
+                        (r: any) => r.version !== 0 && r.version !== "0",
+                    )
                     const childRows: TestsetTableRow[] = revisions.map((revision: any) => ({
                         key: `${record.id}-${revision.id}`,
                         id: revision.id,

@@ -172,6 +172,15 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
     const isDeleteDisabled =
         !revisionsRequested || loadingRevisions || validRevisions.length <= 1
 
+    // Tooltip explaining why delete is disabled
+    const deleteDisabledReason = !revisionsRequested
+        ? "Loading revisions..."
+        : loadingRevisions
+          ? "Loading revisions..."
+          : validRevisions.length <= 1
+            ? "Cannot delete the only revision"
+            : undefined
+
     // Header actions dropdown menu items
     const headerActionsMenuItems = useMemo(
         () => [
@@ -207,10 +216,11 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                 icon: <Trash size={16} />,
                 danger: true,
                 disabled: isDeleteDisabled,
+                title: deleteDisabledReason,
                 onClick: onDeleteRevision,
             },
         ],
-        [onOpenRenameModal, onDeleteRevision, isDeleteDisabled, onExport, loadingRevisions, isExporting],
+        [onOpenRenameModal, onDeleteRevision, isDeleteDisabled, deleteDisabledReason, onExport, loadingRevisions, isExporting],
     )
 
     // Handler to execute copy action and remember it

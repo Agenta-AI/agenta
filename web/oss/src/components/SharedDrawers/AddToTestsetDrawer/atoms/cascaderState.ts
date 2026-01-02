@@ -187,7 +187,10 @@ export const loadRevisionsAtom = atom(
 
         if (isFresh && cachedData) {
             // Use cached data immediately - no loading state, no flicker
-            const revisionChildren = cachedData.map((rev) => buildRevisionOption(rev))
+            // Filter out v0 revisions - they are placeholders and should not be displayed
+            const revisionChildren = cachedData
+                .filter((rev) => rev.version > 0)
+                .map((rev) => buildRevisionOption(rev))
             const children =
                 revisionChildren.length > 0
                     ? revisionChildren
@@ -228,7 +231,10 @@ export const loadRevisionsAtom = atom(
                 staleTime: 30_000,
             })
 
-            const revisionChildren = revisions.map((rev) => buildRevisionOption(rev))
+            // Filter out v0 revisions - they are placeholders and should not be displayed
+            const revisionChildren = revisions
+                .filter((rev) => rev.version > 0)
+                .map((rev) => buildRevisionOption(rev))
             const children =
                 revisionChildren.length > 0
                     ? revisionChildren
