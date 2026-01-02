@@ -469,7 +469,7 @@ const TestsetsTable = ({
                     key: "name",
                     title: "Name",
                     width: 300,
-                    fixed: "left",
+                    columnVisibilityLocked: true,
                     render: (_value, record) => {
                         const isRevision = (record as any).__isRevision
                         const isExpanded = expandedRowKeys.includes(record.key)

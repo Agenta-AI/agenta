@@ -30,6 +30,7 @@ export const useTestsetsColumns = ({
                 dataIndex: "name",
                 key: "name",
                 width: 300,
+                columnVisibilityLocked: true,
                 onHeaderCell: () => ({
                     style: {minWidth: 220},
                 }),
@@ -76,6 +77,7 @@ export const useTestsetsColumns = ({
                 width: 56,
                 fixed: "right",
                 align: "center",
+                columnVisibilityLocked: true,
                 render: (_, record) => {
                     if (record.__isSkeleton) return null
 
