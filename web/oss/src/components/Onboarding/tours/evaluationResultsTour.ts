@@ -24,29 +24,38 @@ const evaluationResultsTour: OnboardingTour = {
         },
         {
             icon: "📊",
-            title: "View Tabs",
+            title: "Aggregated Results",
             content:
-                "Use these tabs to switch between Overview (summary metrics), Scenarios (detailed test cases), and Configuration (evaluation settings).",
-            selector: ".ant-tabs-nav", // Target the tabs navigation
-            side: "bottom",
+                "The Overview tab shows aggregated metrics and summary statistics for your entire evaluation run.",
+            selector: ".ant-tabs-nav .ant-tabs-tab:first-child", // Target the Overview tab
+            side: "right-end", // Position to the right, aligned to bottom
             showControls: true,
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
         },
         {
-            icon: "🎯",
-            title: "Explore Test Scenarios",
+            icon: "🔍",
+            title: "Detailed Results",
             content:
-                "Click on any row in the Scenarios view to see detailed inputs, outputs, and individual metric scores for that test case.",
-            selector: ".ant-tabs-content", // Target the content area
-            side: "top",
+                "The Scenarios tab shows detailed results for each test case. Click on any row to see inputs, outputs, and individual metric scores.",
+            selector: ".ant-tabs-nav .ant-tabs-tab:nth-child(2)", // Target the Scenarios tab
+            side: "right-end", // Position to the right, aligned to bottom
             showControls: true,
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
             controlLabels: {
                 finish: "Got it!",
+            },
+            // Click the Scenarios tab when this step is shown
+            onEnter: () => {
+                const scenariosTab = document.querySelector(
+                    ".ant-tabs-nav .ant-tabs-tab:nth-child(2)",
+                ) as HTMLElement | null
+                if (scenariosTab) {
+                    scenariosTab.click()
+                }
             },
         },
     ],
