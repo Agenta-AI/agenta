@@ -1,15 +1,22 @@
 "use client"
 
-import {cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef} from "react"
+import {
+    cloneElement,
+    isValidElement,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 import type {CSSProperties, ReactElement} from "react"
 
-import {ArrowLeft, ArrowRight} from "@phosphor-icons/react"
-import {Button, Card, Typography} from "antd"
-import clsx from "clsx"
-import {useSetAtom} from "jotai"
 import type {CardComponentProps} from "@agentaai/nextstepjs"
+import {ArrowLeft, ArrowRight, DotsSixVertical} from "@phosphor-icons/react"
+import {Button, Card, Typography} from "antd"
+import {useSetAtom} from "jotai"
 
-import {currentStepStateAtom, markTourSeenAtom} from "@/oss/lib/onboarding"
+import {currentStepStateAtom} from "@/oss/lib/onboarding"
 import type {OnboardingStep} from "@/oss/lib/onboarding"
 
 const {Text} = Typography
@@ -23,6 +30,7 @@ interface Props extends CardComponentProps {
  *
  * This component is passed to NextStep as the cardComponent prop.
  * It renders the step content with navigation controls.
+ * Users can drag the card if it's blocking content.
  */
 const OnboardingCard = ({
     step,
@@ -34,8 +42,81 @@ const OnboardingCard = ({
     arrow,
 }: Props) => {
     const setCurrentStepState = useSetAtom(currentStepStateAtom)
-    const markTourSeen = useSetAtom(markTourSeenAtom)
     const cleanupHandlersRef = useRef<Set<() => void>>(new Set())
+    const cardRef = useRef<HTMLDivElement>(null)
+
+    // Drag state
+    const [offset, setOffset] = useState({x: 0, y: 0})
+    const [isDragging, setIsDragging] = useState(false)
+    const dragStartRef = useRef({x: 0, y: 0, offsetX: 0, offsetY: 0})
+
+    // Reset offset when step changes
+    useEffect(() => {
+        setOffset({x: 0, y: 0})
+    }, [currentStep])
+
+    // Drag handlers
+    const handleMouseDown = useCallback(
+        (e: React.MouseEvent) => {
+            e.preventDefault()
+            setIsDragging(true)
+            dragStartRef.current = {
+                x: e.clientX,
+                y: e.clientY,
+                offsetX: offset.x,
+                offsetY: offset.y,
+            }
+        },
+        [offset],
+    )
+
+    useEffect(() => {
+        if (!isDragging) return
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const dx = e.clientX - dragStartRef.current.x
+            const dy = e.clientY - dragStartRef.current.y
+
+            // Calculate new position
+            let newX = dragStartRef.current.offsetX + dx
+            let newY = dragStartRef.current.offsetY + dy
+
+            // Viewport boundary check
+            if (cardRef.current) {
+                const rect = cardRef.current.getBoundingClientRect()
+                const viewportWidth = window.innerWidth
+                const viewportHeight = window.innerHeight
+
+                // Keep card within viewport with some padding
+                const padding = 10
+                const cardLeft = rect.left - offset.x + newX
+                const cardRight = cardLeft + rect.width
+                const cardTop = rect.top - offset.y + newY
+                const cardBottom = cardTop + rect.height
+
+                if (cardLeft < padding) newX = newX + (padding - cardLeft)
+                if (cardRight > viewportWidth - padding)
+                    newX = newX - (cardRight - viewportWidth + padding)
+                if (cardTop < padding) newY = newY + (padding - cardTop)
+                if (cardBottom > viewportHeight - padding)
+                    newY = newY - (cardBottom - viewportHeight + padding)
+            }
+
+            setOffset({x: newX, y: newY})
+        }
+
+        const handleMouseUp = () => {
+            setIsDragging(false)
+        }
+
+        document.addEventListener("mousemove", handleMouseMove)
+        document.addEventListener("mouseup", handleMouseUp)
+
+        return () => {
+            document.removeEventListener("mousemove", handleMouseMove)
+            document.removeEventListener("mouseup", handleMouseUp)
+        }
+    }, [isDragging, offset])
 
     // Run cleanup handlers
     const runCleanupHandlers = useCallback(() => {
@@ -134,13 +215,28 @@ const OnboardingCard = ({
     const showSkip = step?.showSkip ?? true
 
     return (
-        <section className="w-[340px]">
-            <Card className="!rounded-xl !p-0" classNames={{body: "!px-4 !py-[10px]"}}>
+        <section
+            ref={cardRef}
+            className="w-[340px]"
+            style={{
+                transform: `translate(${offset.x}px, ${offset.y}px)`,
+                transition: isDragging ? "none" : "transform 0.1s ease-out",
+            }}
+        >
+            <Card className="!rounded-xl !p-0 shadow-lg" classNames={{body: "!px-4 !py-[10px]"}}>
                 <div className="flex w-full flex-col gap-4">
-                    {/* Header */}
+                    {/* Header with drag handle */}
                     <div className="flex flex-col gap-1">
-                        <div className="flex items-center justify-between gap-4">
-                            <Text className="!mb-0 !text-sm font-medium leading-6 text-colorText">
+                        <div className="flex items-center justify-between gap-2">
+                            {/* Drag handle */}
+                            <div
+                                onMouseDown={handleMouseDown}
+                                className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                                title="Drag to move"
+                            >
+                                <DotsSixVertical size={16} weight="bold" />
+                            </div>
+                            <Text className="!mb-0 !text-sm font-medium leading-6 text-colorText flex-1">
                                 {step?.title}
                             </Text>
                             <Text className="!mb-0 !text-xs font-medium text-colorTextSecondary">
@@ -202,8 +298,8 @@ const OnboardingCard = ({
                     </Button>
                 )}
 
-                {/* Arrow */}
-                {adjustedArrow && (
+                {/* Arrow - hide if user has dragged the card */}
+                {adjustedArrow && offset.x === 0 && offset.y === 0 && (
                     <div className="mt-2 flex w-full justify-center !bg-white">{adjustedArrow}</div>
                 )}
             </Card>
