@@ -20,6 +20,7 @@ export const ENABLED_EVALUATORS = [
     "auto_semantic_similarity",
     "auto_regex_test",
     "field_match_test",
+    "json_multi_field_match",
     "auto_json_diff",
     "auto_ai_critique",
     "auto_custom_code_run",

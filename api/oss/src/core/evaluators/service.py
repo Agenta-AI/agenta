@@ -1,13 +1,9 @@
 from typing import Optional, List
 from uuid import UUID, uuid4
-from json import loads
 
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.services.db_manager import fetch_evaluator_config
 from oss.src.core.workflows.dtos import (
-    WorkflowFlags,
-    WorkflowQueryFlags,
-    #
     WorkflowCreate,
     WorkflowEdit,
     WorkflowQuery,
@@ -16,8 +12,6 @@ from oss.src.core.workflows.dtos import (
     WorkflowVariantCreate,
     WorkflowVariantEdit,
     WorkflowVariantQuery,
-    #
-    WorkflowRevisionData,
     #
     WorkflowRevisionCreate,
     WorkflowRevisionEdit,
@@ -35,11 +29,7 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorEdit,
     SimpleEvaluatorQuery,
     SimpleEvaluatorFlags,
-    SimpleEvaluatorQueryFlags,
-    #
     EvaluatorFlags,
-    EvaluatorQueryFlags,
-    #
     Evaluator,
     EvaluatorQuery,
     EvaluatorRevisionsLog,
@@ -1435,11 +1425,33 @@ class SimpleEvaluatorsService:
             else None
         )
         headers = None
+        # TODO: This function reconstructs output schemas from old evaluator settings.
+        # When fully migrating to the new workflow-based evaluator system, the output
+        # schema should be stored directly in the evaluator revision (workflow revision)
+        # at configuration time, rather than being inferred from settings here.
+        # For evaluators with dynamic outputs (auto_ai_critique, json_multi_field_match),
+        # the frontend/API should build and save the complete output schema when the
+        # user configures the evaluator.
         outputs_schema = None
         if str(old_evaluator.evaluator_key) == "auto_ai_critique":
             json_schema = old_evaluator.settings_values.get("json_schema", None)
             if json_schema and isinstance(json_schema, dict):
                 outputs_schema = json_schema.get("schema", None)
+        # Handle json_multi_field_match with dynamic field-based properties
+        if str(old_evaluator.evaluator_key) == "json_multi_field_match":
+            # Build dynamic properties based on configured fields
+            fields = old_evaluator.settings_values.get("fields", [])
+            properties = {"aggregate_score": {"type": "number"}}
+            for field in fields:
+                # Each field becomes a numeric score (0 or 1)
+                properties[field] = {"type": "number"}
+            outputs_schema = {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": properties,
+                "required": ["aggregate_score"],
+                "additionalProperties": False,
+            }
         if not outputs_schema:
             properties = (
                 {"score": {"type": "number"}, "success": {"type": "boolean"}}

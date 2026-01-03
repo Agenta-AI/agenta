@@ -11,6 +11,7 @@ import {isValidRegex} from "@/oss/lib/helpers/validators"
 import {generatePaths} from "@/oss/lib/transformers"
 import {EvaluationSettingsTemplate, JSSTheme} from "@/oss/lib/Types"
 
+import {FieldsTagsEditor} from "./FieldsTagsEditor"
 import {JSONSchemaEditor} from "./JSONSchema"
 import {Messages} from "./Messages"
 
@@ -215,6 +216,8 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                                     : JSON.stringify(savedValue ?? {}, null, 2)
                             }
                         />
+                    ) : type === "fields_tags_editor" ? (
+                        <FieldsTagsEditor form={form} name={name} />
                     ) : null}
                 </Form.Item>
             )}

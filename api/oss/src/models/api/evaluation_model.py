@@ -20,6 +20,7 @@ class LegacyEvaluator(BaseModel):
     oss: Optional[bool] = False
     requires_llm_api_keys: Optional[bool] = False
     tags: List[str]
+    archived: Optional[bool] = False
 
 
 class EvaluatorConfig(BaseModel):
