@@ -270,17 +270,22 @@ services:
 
     postgres:
         image: postgres:16
-        
+
         restart: always
+
         ports:
-            - "5432:5432"
+            - "${POSTGRES_PORT:-5432}:5432"
+
         networks:
             - agenta-network
+
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+
         volumes:
             - postgres-data:/var/lib/postgresql/data/
             - ../../../api/oss/databases/postgres/init-db-oss.sql:/docker-entrypoint-initdb.d/init-db.sql
+
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss_core"]
             interval: 10s
@@ -342,16 +347,34 @@ services:
 
     traefik:
         image: traefik:2
-        
-        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${TRAEFIK_PORT:-80}
+
+        command:
+            - --api.dashboard=true
+            - --api.insecure=true
+            - --providers.docker
+            - --providers.docker.constraints=Label(`com.docker.compose.project`,`${COMPOSE_PROJECT_NAME:-agenta-oss-dev}`)
+            - --entrypoints.web.address=:80
+            - --ping=true
+            - --accesslog=true
+
         ports:
-            - "${TRAEFIK_PORT:-80}:${TRAEFIK_PORT:-80}"
+            - "${TRAEFIK_PORT:-80}:80"
             - "${TRAEFIK_UI_PORT:-8080}:8080"
+
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
+
         networks:
             - agenta-network
+
         restart: always
+
+        healthcheck:
+            test: ["CMD", "traefik", "healthcheck", "--ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
+            start_period: 10s
 
     supertokens:
         image: registry.supertokens.io/supertokens/supertokens-postgresql
