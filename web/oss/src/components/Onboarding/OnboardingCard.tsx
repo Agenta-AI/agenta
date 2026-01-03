@@ -137,12 +137,20 @@ const OnboardingCard = ({
         setCurrentStepState({step, currentStep, totalSteps})
         step.onEnter?.()
 
-        if (step.onCleanup) {
-            cleanupHandlersRef.current.add(step.onCleanup)
+        // Store reference to this step's cleanup handler
+        const currentCleanup = step.onCleanup
+
+        if (currentCleanup) {
+            cleanupHandlersRef.current.add(currentCleanup)
         }
 
         return () => {
             step.onExit?.()
+            // Remove this step's cleanup handler when leaving the step
+            // This prevents accumulation of stale handlers
+            if (currentCleanup) {
+                cleanupHandlersRef.current.delete(currentCleanup)
+            }
         }
     }, [step, currentStep, totalSteps, setCurrentStepState])
 
