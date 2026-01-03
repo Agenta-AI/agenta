@@ -59,6 +59,7 @@ const OnboardingInner = ({children}: {children: React.ReactNode}) => {
             cardComponent={OnboardingCard}
             onComplete={handleComplete}
             onSkip={handleSkip}
+            cardTransition={{duration: 0.2}}
         >
             {children}
         </NextStep>
