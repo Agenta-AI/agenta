@@ -168,7 +168,7 @@
 .agenta-scenario-table .ant-table-tbody > tr > td {
     padding: 0 !important;
     vertical-align: top;
-    background-color: #fff;
+    background-color: inherit;
 }
 
 .agenta-scenario-table .scenario-row--comparison .ant-table-cell {

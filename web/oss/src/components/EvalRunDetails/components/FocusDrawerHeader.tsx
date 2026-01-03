@@ -1,9 +1,10 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
-import {LeftOutlined, RightOutlined} from "@ant-design/icons"
+import {CaretDownIcon, CaretUpIcon} from "@phosphor-icons/react"
 import {Button, Select, SelectProps, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
 import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
@@ -127,17 +128,17 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
     )
 
     return (
-        <div className="flex items-center justify-between gap-3 pr-4">
+        <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
                 <Button
-                    icon={<LeftOutlined />}
+                    icon={<CaretUpIcon size={14} />}
                     size="small"
                     type="text"
                     onClick={handlePrev}
                     disabled={currentIndex <= 0}
                 />
                 <Button
-                    icon={<RightOutlined />}
+                    icon={<CaretDownIcon size={14} />}
                     size="small"
                     type="text"
                     onClick={handleNext}
@@ -166,12 +167,16 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
                     )}
                 />
             </div>
+
             {selectedOption?.description ? (
-                <Tag bordered={false} className="bg-[#0517290F] font-normal">
-                    <Typography.Text copyable={{text: selectedOption.description}}>
+                <TooltipWithCopyAction
+                    copyText={selectedOption.description}
+                    title={`Copy ${scenarioLabel.toLowerCase()} id`}
+                >
+                    <Tag bordered={false} className="bg-[#0517290F] font-normal">
                         {selectedOption.description}
-                    </Typography.Text>
-                </Tag>
+                    </Tag>
+                </TooltipWithCopyAction>
             ) : null}
         </div>
     )

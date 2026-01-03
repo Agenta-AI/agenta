@@ -1,9 +1,6 @@
-import React, {useState} from "react"
+import React, {useMemo, useState} from "react"
 
 import {MinusSquareOutlined, PlusSquareOutlined} from "@ant-design/icons"
-
-import {TreeContent} from "@/oss/components/SharedDrawers/TraceDrawer/components/TraceTree"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 import {useStyles} from "./assets/styles"
 
@@ -11,57 +8,89 @@ import {useStyles} from "./assets/styles"
  * CustomTree is a recursive tree view component for rendering a hierarchy of nodes.
  *
  * This component is highly customizable and highlights the selected node.
- * It supports displaying additional metrics like latency, cost, and token usage.
+ * It supports custom node rendering and optional default expansion.
  *
  * Example usage:
  * ```tsx
  * <CustomTree
  *   data={rootNode}
- *   settings={{ latency: true, cost: false, tokens: true }}
+ *   getKey={(node) => node.id}
+ *   getChildren={(node) => node.children}
+ *   renderLabel={(node) => node.title}
  *   selectedKey={selectedNodeId}
- *   onSelect={(key) => setSelectedNodeId(key)}
+ *   onSelect={(key, node) => setSelectedNodeId(key)}
  * />
  * ```
  */
-interface TreeProps {
+interface TreeProps<TNode> {
     /**
      * Root node of the hierarchical data structure.
      */
-    data: TraceSpanNode
+    data: TNode
 
     /**
-     * Settings for what additional metrics to show in each node.
+     * Returns a stable key for a node.
      */
-    settings: {
-        latency: boolean
-        cost: boolean
-        tokens: boolean
-    }
+    getKey: (node: TNode) => string
+
+    /**
+     * Returns child nodes for a node.
+     */
+    getChildren: (node: TNode) => TNode[] | undefined
+
+    /**
+     * Render the label content for a node.
+     */
+    renderLabel: (node: TNode) => React.ReactNode
 
     /**
      * The currently selected node key (ID).
      */
-    selectedKey: string | null
+    selectedKey?: string | null
 
     /**
      * Function to handle when a node is selected.
      */
-    onSelect: (key: string) => void
+    onSelect?: (key: string, node: TNode) => void
+
+    /**
+     * Default expansion state for nodes without explicit `expanded` metadata.
+     */
+    defaultExpanded?: boolean
 }
 
-const TreeNodeComponent: React.FC<{
-    node: TraceSpanNode
+const TreeNodeComponent = <TNode,>({
+    node,
+    isLast,
+    getKey,
+    getChildren,
+    renderLabel,
+    selectedKey,
+    onSelect,
+    defaultExpanded = true,
+    isRoot = false,
+}: {
+    node: TNode
     isLast: boolean
-    settings: {latency: boolean; cost: boolean; tokens: boolean}
-    selectedKey: string | null
-    onSelect: (key: string) => void
+    getKey: (node: TNode) => string
+    getChildren: (node: TNode) => TNode[] | undefined
+    renderLabel: (node: TNode) => React.ReactNode
+    selectedKey?: string | null
+    onSelect?: (key: string, node: TNode) => void
+    defaultExpanded?: boolean
     isRoot?: boolean
-}> = ({node, isLast, settings, selectedKey, onSelect, isRoot = false}) => {
+}) => {
     const classes = useStyles()
-    const [expanded, setExpanded] = useState(
-        typeof (node as any).expanded === "boolean" ? (node as any).expanded : true,
-    )
-    const hasChildren = node.children && node.children.length > 0
+    const initialExpanded = useMemo(() => {
+        if (typeof (node as {expanded?: boolean}).expanded === "boolean") {
+            return (node as {expanded?: boolean}).expanded as boolean
+        }
+        return defaultExpanded
+    }, [defaultExpanded, node])
+    const [expanded, setExpanded] = useState(initialExpanded)
+    const children = getChildren(node) ?? []
+    const hasChildren = children.length > 0
+    const nodeKey = getKey(node)
 
     const toggle = () => setExpanded((prev) => !prev)
 
@@ -81,7 +110,7 @@ const TreeNodeComponent: React.FC<{
                             ? `${classes.nodeLabel} ${shouldShowAsLast ? "last" : ""}`
                             : "flex items-center"
                     }
-                    onClick={() => onSelect(node.span_id)}
+                    onClick={() => onSelect?.(nodeKey, node)}
                 >
                     {hasChildren && (
                         <span
@@ -98,24 +127,27 @@ const TreeNodeComponent: React.FC<{
                         className={
                             classes.nodeLabelContent +
                             " " +
-                            (node.span_id === selectedKey ? "bg-[#F5F7FA]" : "")
+                            (nodeKey === selectedKey ? "bg-[#F5F7FA]" : "")
                         }
                     >
-                        <TreeContent value={node} settings={settings} />
+                        {renderLabel(node)}
                     </div>
                 </div>
             </div>
 
             {hasChildren && expanded && (
                 <div>
-                    {node.children!.map((child, index) => (
+                    {children.map((child, index) => (
                         <TreeNodeComponent
-                            key={index}
+                            key={getKey(child)}
                             node={child}
-                            isLast={index === node.children!.length - 1}
-                            settings={settings}
+                            isLast={index === children.length - 1}
+                            getKey={getKey}
+                            getChildren={getChildren}
+                            renderLabel={renderLabel}
                             selectedKey={selectedKey}
                             onSelect={onSelect}
+                            defaultExpanded={defaultExpanded}
                             isRoot={false}
                         />
                     ))}
@@ -125,15 +157,26 @@ const TreeNodeComponent: React.FC<{
     )
 }
 
-const CustomTree: React.FC<TreeProps> = ({data, settings, selectedKey, onSelect}) => {
+const CustomTree = <TNode,>({
+    data,
+    getKey,
+    getChildren,
+    renderLabel,
+    selectedKey,
+    onSelect,
+    defaultExpanded,
+}: TreeProps<TNode>) => {
     return (
         <div className={"h-full overflow-y-auto p-2"}>
             <TreeNodeComponent
                 node={data}
                 isLast={false}
-                settings={settings}
+                getKey={getKey}
+                getChildren={getChildren}
+                renderLabel={renderLabel}
                 selectedKey={selectedKey}
                 onSelect={onSelect}
+                defaultExpanded={defaultExpanded}
                 isRoot={true}
             />
         </div>

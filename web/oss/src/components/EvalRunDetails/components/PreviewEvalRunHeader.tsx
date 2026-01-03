@@ -1,9 +1,8 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
-import {PushpinFilled} from "@ant-design/icons"
 import {PauseIcon, PlayIcon, XCircleIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Tabs, Tag, Tooltip, Typography} from "antd"
+import {Button, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
@@ -11,12 +10,7 @@ import {message} from "@/oss/components/AppMessageContext"
 import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 import {startSimpleEvaluation, stopSimpleEvaluation} from "@/oss/services/onlineEvaluations/api"
 
-import {
-    compareRunIdsAtom,
-    compareRunIdsWriteAtom,
-    getComparisonColor,
-    getComparisonSolidColor,
-} from "../atoms/compare"
+import {compareRunIdsAtom, compareRunIdsWriteAtom, getComparisonSolidColor} from "../atoms/compare"
 import {
     runDisplayNameAtomFamily,
     runInvocationRefsAtomFamily,
@@ -26,6 +20,7 @@ import {
 import {previewEvalTypeAtom} from "../state/evalType"
 
 import CompareRunsMenu from "./CompareRunsMenu"
+import EvaluationRunTag from "./EvaluationRunTag"
 
 type ActiveView = "overview" | "focus" | "scenarios" | "configuration"
 
@@ -184,24 +179,12 @@ const PreviewEvalRunMeta = ({
                     {runDescriptors.map((run, index) => {
                         const isBaseRun = index === 0
                         const tagColor = getComparisonSolidColor(index)
-                        const tagBg = getComparisonColor(index)
                         return (
-                            <Tag
+                            <EvaluationRunTag
                                 key={run.id}
-                                className="m-0 inline-flex shrink-0 min-w-0 items-center gap-1 max-w-[200px] px-2 overflow-hidden"
-                                style={{
-                                    backgroundColor: tagBg,
-                                    borderColor: "transparent",
-                                    color: tagColor,
-                                }}
-                                icon={
-                                    isBaseRun ? (
-                                        <PushpinFilled
-                                            style={{fontSize: 16, flexShrink: 0}}
-                                            className="text-inherit"
-                                        />
-                                    ) : undefined
-                                }
+                                label={run.name}
+                                compareIndex={index}
+                                isBaseRun={isBaseRun}
                                 closable={!isBaseRun}
                                 closeIcon={
                                     !isBaseRun ? (
@@ -218,9 +201,7 @@ const PreviewEvalRunMeta = ({
                                           }
                                         : undefined
                                 }
-                            >
-                                <span className="min-w-0 flex-1 truncate">{run.name}</span>
-                            </Tag>
+                            />
                         )
                     })}
                 </div>

@@ -5,7 +5,6 @@ import {useAtomValue, useStore} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
-import ScenarioColumnVisibilityPopoverContent from "@/oss/components/EvalRunDetails/components/columnVisibility/ColumnVisibilityPopoverContent"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
@@ -24,6 +23,7 @@ import {runDisplayNameAtomFamily} from "./atoms/runDerived"
 import type {EvaluationTableColumn} from "./atoms/table"
 import {DEFAULT_SCENARIO_PAGE_SIZE} from "./atoms/table"
 import type {PreviewTableRow} from "./atoms/tableRows"
+import ScenarioColumnVisibilityPopoverContent from "./components/columnVisibility/ColumnVisibilityPopoverContent"
 import {
     evaluationPreviewDatasetStore,
     evaluationPreviewTableStore,
@@ -39,12 +39,6 @@ import {scenarioRowHeightAtom} from "./state/rowHeight"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
 
 type TableRowData = PreviewTableRow
-
-// Alternating background colors for timestamp-based batch grouping
-const TIMESTAMP_GROUP_COLORS = [
-    "rgba(59, 130, 246, 0.06)", // blue
-    "rgba(16, 185, 129, 0.06)", // green
-]
 
 interface EvalRunDetailsTableProps {
     runId: string
@@ -305,21 +299,6 @@ const EvalRunDetailsTable = ({
         }),
         [handleLoadMore, handleResetPages, mergedRows],
     )
-
-    // Build timestamp color map for row grouping (only for online evaluations)
-    const timestampColorMap = useMemo(() => {
-        const map = new Map<string, string>()
-        if (evaluationType !== "online") return map
-
-        // Process rows in order to assign consistent colors
-        mergedRows.forEach((row) => {
-            if (row.timestamp && !map.has(row.timestamp)) {
-                const colorIndex = map.size % TIMESTAMP_GROUP_COLORS.length
-                map.set(row.timestamp, TIMESTAMP_GROUP_COLORS[colorIndex])
-            }
-        })
-        return map
-    }, [evaluationType, mergedRows])
 
     // Build group map for export label resolution
     const groupMap = useMemo(() => {
@@ -856,7 +835,7 @@ const EvalRunDetailsTable = ({
     )
 
     return (
-        <section className="bg-zinc-1 w-full h-full overflow-scroll flex flex-col px-4 pt-2">
+        <section className="bg-zinc-1 w-full h-full overflow-scroll flex flex-col px-2">
             <div className="w-full grow min-h-0 overflow-scroll">
                 <InfiniteVirtualTableFeatureShell<TableRowData>
                     datasetStore={evaluationPreviewDatasetStore}
@@ -898,17 +877,10 @@ const EvalRunDetailsTable = ({
                         bordered: true,
                         tableLayout: "fixed",
                         onRow: (record) => {
-                            // Determine background color: comparison color takes precedence, then timestamp grouping
-                            let backgroundColor: string | undefined
-                            if (record.compareIndex) {
-                                backgroundColor = getComparisonColor(record.compareIndex)
-                            } else if (
-                                evaluationType === "online" &&
-                                record.timestamp &&
-                                timestampColorMap.has(record.timestamp)
-                            ) {
-                                backgroundColor = timestampColorMap.get(record.timestamp)
-                            }
+                            // Always tint rows: base run uses index 0; comparisons use their index.
+                            const backgroundColor = getComparisonColor(
+                                typeof record.compareIndex === "number" ? record.compareIndex : 0,
+                            )
 
                             return {
                                 onClick: (event) => {

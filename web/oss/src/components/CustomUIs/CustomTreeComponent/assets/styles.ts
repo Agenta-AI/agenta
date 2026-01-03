@@ -9,12 +9,13 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
             position: "absolute",
             left: 6,
             top: 0,
-            bottom: -6,
+            bottom: -12,
             width: 1,
             backgroundColor: theme.colorBorder,
         },
         "&.last::before": {
             height: "50%",
+            bottom: "auto",
         },
     },
     nodeLabel: {
@@ -22,8 +23,8 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         cursor: "default",
         display: "flex",
         alignItems: "center",
-        marginTop: 4,
-        marginBottom: 4,
+        marginTop: 12,
+        marginBottom: 12,
         "&::before": {
             content: "''",
             position: "absolute",
