@@ -1,7 +1,9 @@
-import {memo, useCallback, useMemo, useRef} from "react"
+import type {ReactNode} from "react"
+import {memo, useCallback, useMemo, useRef, useState} from "react"
 import {isValidElement} from "react"
 
-import {Collapse, Popover, Skeleton, Tag, Typography} from "antd"
+import {DownOutlined} from "@ant-design/icons"
+import {Button, Popover, Skeleton, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AlertCircle} from "lucide-react"
@@ -48,6 +50,7 @@ import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../utils/metricForm
 import EvaluationRunTag from "./EvaluationRunTag"
 import FocusDrawerHeader from "./FocusDrawerHeader"
 import FocusDrawerSidePanel from "./FocusDrawerSidePanel"
+import {SectionCard} from "./views/ConfigurationView/components/SectionPrimitives"
 
 const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
 
@@ -82,7 +85,7 @@ const buildStaticMetricColumn = (
     } as EvaluationTableColumn & {__source: "runMetric"}
 }
 
-const {Text, Title} = Typography
+const {Text} = Typography
 
 type FocusDrawerColumn = EvaluationTableColumn & {__source?: "runMetric"}
 
@@ -738,7 +741,7 @@ const EvalOutputMetaRow = memo(
         const resolvedCompareIndex = compareIndex ?? 0
 
         return (
-            <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-4 min-w-[480px]">
+            <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-4 min-w-[480px] border-[0.5px] border-solid border-[#EAEFF5]">
                 <EvaluationRunTag
                     label={runDisplayName || "Evaluation"}
                     compareIndex={resolvedCompareIndex}
@@ -755,7 +758,27 @@ const EvalOutputMetaRow = memo(
 
 EvalOutputMetaRow.displayName = "EvalOutputMetaRow"
 
-const FocusDrawerSectionCard = memo(
+const FocusSectionHeader = ({
+    title,
+    collapsed,
+    onToggle,
+}: {
+    title: ReactNode
+    collapsed: boolean
+    onToggle: () => void
+}) => (
+    <div className="flex items-center justify-between py-1 px-3 h-10 sticky top-0 bg-zinc-1 z-10">
+        <Text className="text-sm font-semibold text-[#344054]">{title}</Text>
+        <Button
+            type="link"
+            size="small"
+            icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+            onClick={onToggle}
+        />
+    </div>
+)
+
+const FocusSectionContent = memo(
     ({
         section,
         runId,
@@ -766,68 +789,69 @@ const FocusDrawerSectionCard = memo(
         scenarioId: string
     }) => {
         const isInputSection = section.group?.kind === "input"
-        const sectionLabelNode = useMemo(
-            () => (
-                <Title level={5} className="!m-0 text-[#1D2939]">
-                    <FocusGroupLabel group={section.group} label={section.label} runId={runId} />
-                </Title>
-            ),
-            [runId, section.group, section.label],
-        )
-        const sectionContent = useMemo(
-            () => (
-                <div
-                    className={`flex flex-col gap-2 p-4 ${isInputSection ? "max-h-[240px] overflow-auto" : ""}`}
-                >
-                    {section.group?.kind === "invocation" ? (
-                        <InvocationMetaChips group={section.group} runId={runId} />
-                    ) : null}
 
-                    {section.columns.map(({column, descriptor}) => (
-                        <ScenarioColumnValue
-                            key={column.id}
-                            runId={runId}
-                            scenarioId={scenarioId}
-                            column={column}
-                            descriptor={descriptor}
-                            groupLabel={section.label}
-                        />
-                    ))}
-                </div>
-            ),
-            [isInputSection, runId, scenarioId, section],
+        return (
+            <div
+                className={clsx(
+                    "flex flex-col gap-3",
+                    isInputSection && "max-h-[240px] overflow-auto",
+                )}
+            >
+                {section.group?.kind === "invocation" ? (
+                    <InvocationMetaChips group={section.group} runId={runId} />
+                ) : null}
+
+                {section.columns.map(({column, descriptor}) => (
+                    <ScenarioColumnValue
+                        key={column.id}
+                        runId={runId}
+                        scenarioId={scenarioId}
+                        column={column}
+                        descriptor={descriptor}
+                        groupLabel={section.label}
+                    />
+                ))}
+            </div>
         )
-        const collapseItems = useMemo(
-            () => [
-                {
-                    key: section.id,
-                    label: sectionLabelNode,
-                    children: sectionContent,
-                },
-            ],
-            [section.id, sectionContent, sectionLabelNode],
+    },
+)
+
+FocusSectionContent.displayName = "FocusSectionContent"
+
+const FocusDrawerSectionCard = memo(
+    ({
+        section,
+        runId,
+        scenarioId,
+    }: {
+        section: FocusDrawerSection
+        runId: string
+        scenarioId: string
+    }) => {
+        const [collapsed, setCollapsed] = useState(false)
+        const sectionLabelNode = useMemo(
+            () => <FocusGroupLabel group={section.group} label={section.label} runId={runId} />,
+            [runId, section.group, section.label],
         )
 
         return (
-            <div id={section.anchorId}>
-                <Collapse
-                    bordered={false}
-                    defaultActiveKey={[section.id]}
-                    expandIconPlacement="end"
-                    items={collapseItems}
-                    className={clsx(
-                        "rounded-none",
-                        "[&_.ant-collapse-body]:!p-0",
-                        "[&_.ant-collapse-body]:bg-white",
-                        "[&_.ant-collapse-header]:sticky",
-                        "[&_.ant-collapse-header]:bg-[rgba(5,23,41,0.02)]",
-                        "[&_.ant-collapse-header]:top-0",
-                        "[&_.ant-collapse-header]:z-10",
-                        // "[&_.ant-collapse-header]:border-b",
-                        // "[&_.ant-collapse-header]:border-solid",
-                        // "[&_.ant-collapse-header]:border-b-[rgba(5,23,41,0.06)]",
-                    )}
+            <div id={section.anchorId} className="flex flex-col">
+                <FocusSectionHeader
+                    title={sectionLabelNode}
+                    collapsed={collapsed}
+                    onToggle={() => setCollapsed((value) => !value)}
                 />
+                {!collapsed ? (
+                    <div className="pb-2">
+                        <SectionCard className="gap-4">
+                            <FocusSectionContent
+                                section={section}
+                                runId={runId}
+                                scenarioId={scenarioId}
+                            />
+                        </SectionCard>
+                    </div>
+                ) : null}
             </div>
         )
     },
@@ -909,32 +933,15 @@ const CompareRunColumnContent = memo(
         runId,
         scenarioId,
         section,
-        compareIndex,
     }: {
         runId: string
         scenarioId: string
         section: FocusDrawerSection
-        compareIndex: number
     }) => {
         return (
-            <div className="flex-1 min-w-[480px] shrink-0 flex flex-col p-4 gap-6">
-                {section.group?.kind === "invocation" ? (
-                    <InvocationMetaChips group={section.group} runId={runId} />
-                ) : null}
-
-                <div className="flex flex-col gap-3">
-                    {section.columns.map(({column, descriptor}) => (
-                        <ScenarioColumnValue
-                            key={column.id}
-                            runId={runId}
-                            scenarioId={scenarioId}
-                            column={column}
-                            descriptor={descriptor}
-                            groupLabel={section.label}
-                        />
-                    ))}
-                </div>
-            </div>
+            <SectionCard className="flex-1 min-w-[480px] shrink-0 gap-4">
+                <FocusSectionContent section={section} runId={runId} scenarioId={scenarioId} />
+            </SectionCard>
         )
     },
 )
@@ -973,7 +980,7 @@ const CompareMetaRow = memo(
         }, [onScrollSync])
 
         return (
-            <div className="rounded-none border border-[#EAECF0] bg-white">
+            <SectionCard className="!p-0">
                 <div
                     ref={(node) => {
                         scrollRef.current = node
@@ -1006,7 +1013,7 @@ const CompareMetaRow = memo(
                         })}
                     </div>
                 </div>
-            </div>
+            </SectionCard>
         )
     },
 )
@@ -1040,10 +1047,11 @@ const CompareSectionRow = memo(
         registerScrollContainer: (node: HTMLDivElement | null) => void
         onScrollSync: (node: HTMLDivElement) => void
     }) => {
+        const [collapsed, setCollapsed] = useState(false)
         const scrollRef = useRef<HTMLDivElement | null>(null)
         const firstSection = sectionMapsPerRun.find((map) => map.get(sectionId))?.get(sectionId)
         const sectionLabelNode = (
-            <Title level={5} className="!m-0 text-[#1D2939]">
+            <>
                 {sectionGroup && firstSection ? (
                     <FocusGroupLabel
                         group={sectionGroup}
@@ -1053,7 +1061,7 @@ const CompareSectionRow = memo(
                 ) : (
                     sectionLabel
                 )}
-            </Title>
+            </>
         )
         const columnsCount = compareScenarios.length
         const rowGridStyle = useMemo(
@@ -1068,82 +1076,49 @@ const CompareSectionRow = memo(
                 onScrollSync(scrollRef.current)
             }
         }, [onScrollSync])
-        const collapseItems = useMemo(
-            () => [
-                {
-                    key: sectionId,
-                    label: sectionLabelNode,
-                    children: (
-                        <div
-                            ref={(node) => {
-                                scrollRef.current = node
-                                registerScrollContainer(node)
-                            }}
-                            className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                            onScroll={handleScroll}
-                        >
-                            <div className="grid gap-4" style={rowGridStyle}>
-                                {compareScenarios.map(({runId, scenarioId, compareIndex}) => {
-                                    const section = sectionMapsPerRun[compareIndex]?.get(sectionId)
-
-                                    if (!runId || !scenarioId || !section) {
-                                        return (
-                                            <div
-                                                key={`empty-${compareIndex}`}
-                                                className="min-w-[480px] flex items-center justify-center p-4 bg-gray-50 rounded-lg"
-                                            >
-                                                <Text type="secondary">—</Text>
-                                            </div>
-                                        )
-                                    }
-
-                                    return (
-                                        <CompareRunColumnContent
-                                            key={`${runId}-${sectionId}`}
-                                            runId={runId}
-                                            scenarioId={scenarioId}
-                                            section={section}
-                                            compareIndex={compareIndex}
-                                        />
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    ),
-                },
-            ],
-            [
-                compareScenarios,
-                handleScroll,
-                registerScrollContainer,
-                rowGridStyle,
-                sectionId,
-                sectionLabelNode,
-                sectionMapsPerRun,
-            ],
-        )
-
         return (
-            <div id={toSectionAnchorId(sectionId)}>
-                <Collapse
-                    bordered={false}
-                    defaultActiveKey={[sectionId]}
-                    expandIconPlacement="end"
-                    items={collapseItems}
-                    className={clsx(
-                        "rounded-none",
-                        "[&_.ant-collapse-body]:!p-0",
-                        "[&_.ant-collapse-body]:bg-white",
-                        "[&_.ant-collapse-header]:bg-[rgba(5,23,41,0.02)]",
-                        "[&_.ant-collapse-header]:sticky",
-                        "[&_.ant-collapse-header]:top-0",
-                        "[&_.ant-collapse-header]:z-10",
-                        "[&_.ant-collapse-header]:bg-[rgba(5,23,41,0.02)]",
-                        // "[&_.ant-collapse-header]:border-b",
-                        // "[&_.ant-collapse-header]:border-solid",
-                        // "[&_.ant-collapse-header]:border-b-[rgba(5,23,41,0.06)]",
-                    )}
+            <div id={toSectionAnchorId(sectionId)} className="flex flex-col">
+                <FocusSectionHeader
+                    title={sectionLabelNode}
+                    collapsed={collapsed}
+                    onToggle={() => setCollapsed((value) => !value)}
                 />
+                {!collapsed ? (
+                    <div
+                        ref={(node) => {
+                            scrollRef.current = node
+                            registerScrollContainer(node)
+                        }}
+                        className="overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                        onScroll={handleScroll}
+                    >
+                        <div className="grid gap-4" style={rowGridStyle}>
+                            {compareScenarios.map(({runId, scenarioId, compareIndex}) => {
+                                const section = sectionMapsPerRun[compareIndex]?.get(sectionId)
+
+                                if (!runId || !scenarioId || !section) {
+                                    return (
+                                        <div
+                                            key={`empty-${compareIndex}`}
+                                            className="min-w-[480px] flex items-center justify-center p-4 bg-gray-50 rounded-lg"
+                                        >
+                                            <Text type="secondary">—</Text>
+                                        </div>
+                                    )
+                                }
+
+                                return (
+                                    <CompareRunColumnContent
+                                        key={`${runId}-${sectionId}`}
+                                        runId={runId}
+                                        scenarioId={scenarioId}
+                                        section={section}
+                                    />
+                                )
+                            })}
+                        </div>
+                    </div>
+                ) : null}
             </div>
         )
     },
@@ -1274,7 +1249,7 @@ const FocusDrawerCompareContentInner = ({
     }, [])
 
     return (
-        <div className="flex flex-col overflow-auto h-full">
+        <div className="flex flex-col pb-6">
             {inputSectionEntry ? (
                 <FocusDrawerSectionCard
                     section={inputSectionEntry.section}
@@ -1336,7 +1311,7 @@ const FocusDrawerCompareContent = () => {
     }
 
     return (
-        <div className="flex flex-col h-full bg-[#F8FAFC]">
+        <div className="flex h-full min-h-0 flex-col bg-zinc-1 overflow-y-auto">
             <FocusDrawerCompareContentInner compareScenarios={compareScenarios} />
         </div>
     )
@@ -1418,16 +1393,19 @@ export const FocusDrawerContent = ({
 
     return (
         <div
-            className={`flex flex-col bg-[#F8FAFC] ${disableScroll ? "" : "h-full overflow-auto"}`}
+            className={clsx(
+                "flex flex-col min-h-0 px-2 pb-6 bg-zinc-1",
+                disableScroll ? "" : "h-full overflow-y-auto",
+            )}
             data-focus-drawer-content
         >
             {sections.map((section) => {
                 if (section.group?.kind === "invocation") {
                     return (
                         <div key={section.id} className="flex flex-col">
-                            <div className="rounded-none border border-solid border-[#EAECF0] bg-white">
+                            <SectionCard className="!p-0">
                                 <EvalOutputMetaRow runId={runId} scenarioId={scenarioId} />
-                            </div>
+                            </SectionCard>
                             <FocusDrawerSectionCard
                                 section={section}
                                 runId={runId}
