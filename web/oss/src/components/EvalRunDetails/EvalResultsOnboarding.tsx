@@ -1,7 +1,5 @@
 "use client"
 
-import {useEffect} from "react"
-
 import {useOnboardingTour} from "@/oss/components/Onboarding"
 import {
     registerEvaluationResultsTour,

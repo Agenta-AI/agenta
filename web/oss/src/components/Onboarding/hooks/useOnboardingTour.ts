@@ -1,14 +1,13 @@
 import {useCallback, useEffect, useRef} from "react"
 
-import {useAtomValue, useSetAtom} from "jotai"
 import {useNextStep} from "@agentaai/nextstepjs"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {
     tourRegistry,
     isNewUserAtom,
     seenToursAtom,
     activeTourIdAtom,
-    markTourSeenAtom,
 } from "@/oss/lib/onboarding"
 import type {TriggerTourOptions} from "@/oss/lib/onboarding"
 
@@ -71,7 +70,6 @@ export function useOnboardingTour({
     const seenTours = useAtomValue(seenToursAtom)
     const activeTourId = useAtomValue(activeTourIdAtom)
     const setActiveTourId = useSetAtom(activeTourIdAtom)
-    const markTourSeen = useSetAtom(markTourSeenAtom)
 
     const hasBeenSeen = Boolean(seenTours[tourId])
     const isActive = activeTourId === tourId && isNextStepVisible
