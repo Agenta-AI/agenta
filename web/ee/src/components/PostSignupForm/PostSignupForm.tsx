@@ -512,7 +512,7 @@ const PostSignupForm = () => {
                                     currentStep < totalSteps - 1 ? handleNextStep : form.submit
                                 }
                                 className="w-full min-h-[32px] mt-2"
-                                iconPosition="end"
+                                iconPlacement="end"
                                 icon={<ArrowRight className="mt-[3px]" />}
                                 disabled={!isCurrentStepValid}
                             >

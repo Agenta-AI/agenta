@@ -36,7 +36,10 @@ export const useColumnVisibilityFlag = (columnKey?: string): boolean => {
     )
     // Use IMMEDIATE_PRIORITY to ensure visibility updates don't lag behind scroll
     // but still allow batching with other updates
-    return useAtomValueWithSchedule(visibilityAtom, {priority: IMMEDIATE_PRIORITY}) ?? false
+    const isVisible =
+        useAtomValueWithSchedule(visibilityAtom, {priority: IMMEDIATE_PRIORITY}) ?? false
+
+    return isVisible
 }
 
 export default ColumnVisibilityFlagContext

@@ -80,9 +80,13 @@ const useInfiniteTablePagination = <TableRow extends InfiniteTableRowBase>({
     const loadedRowCount = useMemo(() => rows.filter((row) => !row.__isSkeleton).length, [rows])
 
     const loadNextPage = useCallback(() => {
-        if (!paginationInfo.hasMore) return
+        if (!paginationInfo.hasMore) {
+            return
+        }
         const nextCursor = paginationInfo.nextCursor
-        if (!nextCursor || paginationInfo.isFetching) return
+        if (!nextCursor || paginationInfo.isFetching) {
+            return
+        }
 
         const nextOffset = paginationInfo.nextOffset ?? totalRows
         const nextWindowing =

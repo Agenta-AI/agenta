@@ -3,7 +3,7 @@ import os
 import csv
 import sys
 import json
-import requests
+import httpx
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
@@ -238,7 +238,7 @@ async def import_testset(
             )
 
     try:
-        response = requests.get(
+        response = httpx.get(
             endpoint,
             timeout=10,
             headers={"Authorization": authorization} if authorization else None,

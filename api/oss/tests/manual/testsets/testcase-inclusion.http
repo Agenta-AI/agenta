@@ -1,0 +1,273 @@
+# ============================================================================
+# TESTCASE INCLUSION FEATURE TEST
+# ============================================================================
+#
+# This file tests the optional testcase inclusion feature for testset revisions.
+#
+# FEATURE OVERVIEW:
+# All testset revision endpoints now support an optional `include_testcases` parameter:
+# - include_testcases=null or true (default): Returns full testcase objects
+# - include_testcases=false: Returns only testcase_ids (lightweight response)
+#
+# AFFECTED ENDPOINTS:
+# - POST /revisions/retrieve
+# - POST /revisions/ (create)
+# - GET /revisions/{id} (fetch)
+# - PUT /revisions/{id} (edit)
+# - POST /revisions/query
+# - POST /revisions/commit
+# - POST /revisions/log
+#
+# SETUP:
+# 1. Run the account creation request
+# 2. Create a testset (Simple API - creates testset+variant+revision)
+# 3. Test fetching with different include_testcases values
+#
+# ============================================================================
+
+@host = http://localhost
+@token = change-me-auth
+@base_url = {{host}}/api/preview/testsets
+@simple_base_url = {{host}}/api/preview/simple/testsets
+
+###
+# @name create_account
+POST {{host}}/api/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@project_id = {{create_account.response.body.scopes[0].project_id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+# ============================================================================
+# STEP 1: CREATE TESTSET WITH 3 TESTCASES (Simple API)
+# ============================================================================
+# This creates testset + variant + revision all in one call
+
+###
+# @name create_testset
+POST {{simple_base_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "testset": {
+        "slug": "{{$guid}}",
+        "name": "Testcase Inclusion Test",
+        "description": "Testing optional testcase inclusion feature",
+        "data": {
+            "testcases": [
+                {
+                    "data": {
+                        "country": "Germany",
+                        "capital": "Berlin",
+                        "population": "83M"
+                    }
+                },
+                {
+                    "data": {
+                        "country": "France",
+                        "capital": "Paris",
+                        "population": "67M"
+                    }
+                },
+                {
+                    "data": {
+                        "country": "Spain",
+                        "capital": "Madrid",
+                        "population": "47M"
+                    }
+                }
+            ]
+        }
+    }
+}
+
+###
+@testset_id = {{create_testset.response.body.testset.id}}
+@testcase_id_0 = {{create_testset.response.body.testset.data.testcases[0].id}}
+@testcase_id_1 = {{create_testset.response.body.testset.data.testcases[1].id}}
+@testcase_id_2 = {{create_testset.response.body.testset.data.testcases[2].id}}
+
+# ============================================================================
+# TEST SCENARIOS
+# ============================================================================
+# Note: GET /testsets/{id} returns only metadata (no testcases/revisions).
+# To get testset revisions with testcase data, use the /revisions/* endpoints.
+
+# ----------------------------------------------------------------------------
+# SCENARIO 1: GET /testsets/{id} - Testset metadata only
+# ----------------------------------------------------------------------------
+
+###
+# @name fetch_testset_metadata
+GET {{base_url}}/{{testset_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# EXPECTED RESULT:
+# - Returns testset metadata only (id, name, description, etc.)
+# - No testcases or revision data
+
+# ----------------------------------------------------------------------------
+# SCENARIO 2: POST /revisions/retrieve - DEFAULT (by testset ref)
+# ----------------------------------------------------------------------------
+# This retrieves the latest revision for the testset with FULL testcases
+
+###
+# @name retrieve_default
+POST {{base_url}}/revisions/retrieve
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "testset_ref": {
+        "id": "{{testset_id}}"
+    }
+}
+
+# EXPECTED RESULT:
+# - testset_revision.data.testcase_ids: [uuid1, uuid2, uuid3]
+# - testset_revision.data.testcases: [full objects with data] ✅ DEFAULT BEHAVIOR
+
+# ----------------------------------------------------------------------------
+# SCENARIO 3: POST /revisions/retrieve - WITH include_testcases=false
+# ----------------------------------------------------------------------------
+
+###
+# @name retrieve_without_testcases
+POST {{base_url}}/revisions/retrieve
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "testset_ref": {
+        "id": "{{testset_id}}"
+    },
+    "include_testcases": false
+}
+
+# EXPECTED RESULT:
+# - testset_revision.data.testcase_ids: [uuid1, uuid2, uuid3]
+# - testset_revision.data.testcases: null
+
+# ----------------------------------------------------------------------------
+# SCENARIO 4: POST /revisions/query - DEFAULT
+# ----------------------------------------------------------------------------
+
+###
+# @name query_default
+POST {{base_url}}/revisions/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "testset_refs": [
+        {
+            "id": "{{testset_id}}"
+        }
+    ]
+}
+
+# EXPECTED RESULT:
+# - All revisions include full testcases
+
+# ----------------------------------------------------------------------------
+# SCENARIO 5: POST /revisions/query - WITH include_testcases=false
+# ----------------------------------------------------------------------------
+
+###
+# @name query_without_testcases
+POST {{base_url}}/revisions/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "testset_refs": [
+        {
+            "id": "{{testset_id}}"
+        }
+    ],
+    "include_testcases": false
+}
+
+# EXPECTED RESULT:
+# - All revisions include only testcase_ids
+# - testcases field is null for all revisions
+
+# ----------------------------------------------------------------------------
+# SCENARIO 6: POST /revisions/log - BY testset ID (artifact-level)
+# ----------------------------------------------------------------------------
+
+###
+# @name log_by_testset
+POST {{base_url}}/revisions/log
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "testset_revision": {
+        "testset_id": "{{testset_id}}"
+    }
+}
+
+# EXPECTED RESULT:
+# - All revisions in log include full testcases (default)
+
+# ----------------------------------------------------------------------------
+# SCENARIO 7: POST /revisions/log - WITH include_testcases=false
+# ----------------------------------------------------------------------------
+
+###
+# @name log_without_testcases
+POST {{base_url}}/revisions/log
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "testset_revision": {
+        "testset_id": "{{testset_id}}"
+    },
+    "include_testcases": false
+}
+
+# EXPECTED RESULT:
+# - All revisions in log include only testcase_ids
+# - testcases field is null for all revisions
+
+# ============================================================================
+# COMPARISON TEST
+# ============================================================================
+
+###
+# @name compare_response_sizes
+# Compare the response sizes between full and IDs-only responses
+#
+# Run this after running both fetch_with_testcases and fetch_without_testcases
+# to see the performance difference.
+#
+# EXPECTED OUTCOME:
+# - Full testcases response: ~2-3KB (includes all testcase data)
+# - IDs only response: ~200-300 bytes (just UUIDs)
+# - Performance improvement: ~90% reduction in response size
+
+# ============================================================================
+# NOTES
+# ============================================================================
+#
+# 1. BACKWARD COMPATIBILITY:
+#    - All existing API clients continue to work without changes
+#    - Default behavior (include_testcases=null) returns full testcases
+#
+# 2. PERFORMANCE BENEFITS:
+#    - For testsets with many/large testcases, include_testcases=false
+#      significantly reduces response size and query time
+#    - Useful for list views, pagination, and metadata-only operations
+#
+# 3. USE CASES:
+#    - include_testcases=true: Detail views, editing, full data display
+#    - include_testcases=false: List views, counts, navigation, metadata
+#
+# ============================================================================

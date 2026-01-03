@@ -4,14 +4,12 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
-import {KeyValuePair} from "@/oss/lib/Types"
-import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
 
 import {deleteTraceModalAtom} from "../../../DeleteTraceModal/store/atom"
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
@@ -31,20 +29,12 @@ const TraceTypeHeader = ({
     isAnnotationsSectionOpen,
 }: TraceTypeHeaderProps) => {
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
-    const activeTraceData = useAtomValue(spanAgDataAtomFamily(activeTrace))
-    const testsetData = useMemo(() => {
-        if (!activeTrace?.key) return [] as {data: KeyValuePair; key: string; id: number}[]
-        return [
-            {
-                data: activeTraceData as KeyValuePair,
-                key: activeTrace.key,
-                id: 1,
-            },
-        ]
-    }, [activeTrace?.key, activeTraceData])
+    const spanIds = useMemo(() => {
+        if (!activeTrace?.span_id) return []
+        return [activeTrace.span_id]
+    }, [activeTrace?.span_id])
 
     const displayTrace = activeTrace || traces?.[0]
-
     return (
         <div className="h-10 px-4 flex items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
             <Tooltip
@@ -65,7 +55,7 @@ const TraceTypeHeader = ({
                     title="Copy span id"
                     tooltipProps={{placement: "bottom", arrow: true}}
                 >
-                    <Tag className="font-mono truncate bg-[#0517290F]" bordered={false}>
+                    <Tag className="font-mono truncate bg-[#0517290F]" variant="filled">
                         # {activeTrace?.span_id || "-"}
                     </Tag>
                 </TooltipWithCopyAction>
@@ -73,8 +63,8 @@ const TraceTypeHeader = ({
                     className="flex items-center"
                     label="Add to testset"
                     size="small"
-                    testsetData={testsetData}
-                    disabled={!activeTrace?.key}
+                    spanIds={spanIds}
+                    disabled={!activeTrace?.span_id}
                 />
 
                 <AnnotateDrawerButton

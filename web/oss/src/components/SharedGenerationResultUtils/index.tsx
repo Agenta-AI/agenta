@@ -1,10 +1,9 @@
 import {memo, useCallback, useMemo} from "react"
 
 import {PlusCircle, Timer, TreeView} from "@phosphor-icons/react"
-import {useQuery} from "@tanstack/react-query"
 import {Button, Space, Tag} from "antd"
 import clsx from "clsx"
-import {getDefaultStore} from "jotai"
+import {getDefaultStore, useAtomValue} from "jotai"
 
 import StatusRenderer from "@/oss/components/pages/observability/components/StatusRenderer"
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
@@ -15,10 +14,10 @@ import {
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {resolvePath} from "@/oss/lib/traces/traceUtils"
 import {sortSpansByStartTime} from "@/oss/lib/traces/tracing"
-import {fetchPreviewTrace} from "@/oss/services/tracing/api"
 import {transformTracesResponseToTree} from "@/oss/services/tracing/lib/helpers"
 import {StatusCode, type TraceSpan, type TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
+import {traceEntityAtomFamily} from "@/oss/state/entities/trace"
 
 // Use the global Jotai store to ensure the TraceDrawer (rendered in AppGlobalWrappers)
 // receives the state updates, even when this component is inside an isolated store context
@@ -40,41 +39,86 @@ const numeric = (value: unknown): number | undefined => {
 }
 
 const buildSpanList = (data: any): TraceSpan[] => {
+    console.log("[SharedGenerationResultUtils] buildSpanList input:", {
+        hasData: !!data,
+        dataType: typeof data,
+        hasSpans: !!data?.spans,
+        hasTraces: !!data?.traces,
+        dataKeys: data ? Object.keys(data) : [],
+    })
+
     if (!data) return []
 
     if (Array.isArray(data?.spans)) {
+        console.log("[SharedGenerationResultUtils] Found spans array:", data.spans.length)
         return data.spans as TraceSpan[]
     }
 
     if (data?.traces && typeof data.traces === "object") {
         const traces = Object.values(data.traces ?? {}) as any[]
         const spans: TraceSpan[] = []
-        traces.forEach((entry) => {
+        console.log("[SharedGenerationResultUtils] Found traces object:", {
+            traceCount: traces.length,
+            traceKeys: Object.keys(data.traces),
+        })
+        traces.forEach((entry, idx) => {
             const record = entry?.spans
+            console.log(`[SharedGenerationResultUtils] Trace ${idx}:`, {
+                hasSpans: !!record,
+                spansType: typeof record,
+                spanCount: record ? Object.keys(record).length : 0,
+            })
             if (record && typeof record === "object") {
                 spans.push(...(Object.values(record) as TraceSpan[]))
             }
         })
+        console.log("[SharedGenerationResultUtils] Total spans extracted:", spans.length)
         return spans
     }
 
+    console.log("[SharedGenerationResultUtils] No spans or traces found")
     return []
 }
 
 const extractPrimarySpan = (response: any, traceId?: string | null): TraceSpanNode | undefined => {
+    console.log("[SharedGenerationResultUtils] extractPrimarySpan:", {
+        hasResponse: !!response,
+        responseType: typeof response,
+        hasTraces: !!response?.traces,
+        traceId,
+    })
+
     const nodes = (() => {
         if (response?.traces) {
-            return transformTracesResponseToTree(response as any)
+            console.log("[SharedGenerationResultUtils] Using transformTracesResponseToTree")
+            const result = transformTracesResponseToTree(response as any)
+            console.log("[SharedGenerationResultUtils] transformTracesResponseToTree result:", {
+                nodeCount: result?.length,
+                firstNode: result?.[0]
+                    ? {span_id: result[0].span_id, trace_id: result[0].trace_id}
+                    : null,
+            })
+            return result
         }
         const spans = buildSpanList(response)
         if (!spans.length) return []
         return spans.map((span) => ({...span}) as TraceSpanNode)
     })()
 
+    console.log("[SharedGenerationResultUtils] nodes:", {
+        count: nodes.length,
+        firstNode: nodes[0] ? {span_id: nodes[0].span_id, parent_id: nodes[0].parent_id} : null,
+    })
+
     if (!nodes.length) return undefined
 
     const roots = nodes.filter((node) => !node.parent_id || node.trace_id === traceId)
+    console.log("[SharedGenerationResultUtils] roots:", roots.length)
     const sorted = sortSpansByStartTime(roots.length ? roots : nodes)
+    console.log(
+        "[SharedGenerationResultUtils] primarySpan:",
+        sorted[0] ? {span_id: sorted[0].span_id} : null,
+    )
     return sorted[0]
 }
 
@@ -126,11 +170,16 @@ const SharedGenerationResultUtils = ({
     const [, setTraceQueryParam] = useQueryParamState("trace")
     const [, setSpanQueryParam] = useQueryParamState("span")
 
-    const {data, isLoading} = useQuery({
-        queryKey: ["generation-trace", traceId ?? "none"],
-        enabled: Boolean(traceId),
-        queryFn: () => (traceId ? fetchPreviewTrace(traceId) : null),
-        staleTime: 15_000,
+    // Use trace entity atom family for data fetching
+    const traceEntityAtom = useMemo(() => traceEntityAtomFamily(traceId ?? null), [traceId])
+    const {data, isPending: isLoading} = useAtomValue(traceEntityAtom)
+
+    console.log("[SharedGenerationResultUtils] traceEntityAtom result:", {
+        traceId,
+        hasData: !!data,
+        isLoading,
+        dataType: typeof data,
+        dataKeys: data ? Object.keys(data) : [],
     })
 
     const primarySpan = useMemo(
@@ -269,7 +318,7 @@ const SharedGenerationResultUtils = ({
             {showStatus && status ? <StatusRenderer status={status} /> : null}
 
             {durationMs !== undefined ? (
-                <Tag color="default" bordered={false} className="flex items-center gap-1">
+                <Tag color="default" variant="filled" className="flex items-center gap-1">
                     <Timer size={14} /> {formattedLatency}
                 </Tag>
             ) : null}
@@ -277,7 +326,7 @@ const SharedGenerationResultUtils = ({
             {totalTokens !== undefined || totalCost !== undefined ? (
                 <ResultTag
                     color="default"
-                    bordered={false}
+                    variant="filled"
                     value1={
                         <div className="flex items-center gap-1 text-nowrap">
                             <PlusCircle size={14} /> {formattedTokens} / {formattedCosts}

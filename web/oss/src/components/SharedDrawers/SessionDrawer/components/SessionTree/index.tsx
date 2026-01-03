@@ -150,7 +150,9 @@ const SessionTree = ({selected, setSelected}: SessionTreeProps) => {
                 />
 
                 <Popover
-                    overlayInnerStyle={{padding: 0, width: 180}}
+                    styles={{
+                        container: {padding: 0, width: 180},
+                    }}
                     trigger="click"
                     content={
                         <TraceTreeSettings

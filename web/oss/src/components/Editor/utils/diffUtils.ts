@@ -386,7 +386,7 @@ export function isContentIncomplete(content: string, language: "json" | "yaml"):
             openObject: trimmed.endsWith("{"),
             openArray: trimmed.endsWith("["),
             trailingColon: trimmed.endsWith(":"),
-            emptyString: content.includes('""'),
+            // Removed emptyString check - '""' is valid JSON (empty string value)
             colonAtEnd: /"\s*:\s*$/.test(content),
             colonNewline: /"\s*:\s*\n/.test(content),
             // Removed invalidValueStart - too restrictive and causes false positives

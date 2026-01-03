@@ -1,3 +1,8 @@
+import {useMemo} from "react"
+
+import {Tag} from "antd"
+import {useAtomValue} from "jotai"
+
 import {
     useRunRowReferences,
     useRunRowSummary,
@@ -6,6 +11,7 @@ import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePO
 import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import {getSlotByRoleOrdinal} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
+import {revision} from "@/oss/state/entities/testset"
 
 import usePreviewTestsetReference from "../hooks/usePreviewTestsetReference"
 
@@ -51,6 +57,12 @@ const PreviewTestsetCellContent = ({
         {enabled: canFetch && Boolean(firstTestsetId)},
     )
 
+    // Fetch revision entity if we have a revisionId
+    const revisionId = reference?.revisionId ?? null
+    const revisionDataAtom = useMemo(() => revision.selectors.data(revisionId ?? ""), [revisionId])
+    const revisionEntity = useAtomValue(revisionDataAtom)
+    const revisionVersion = revisionId ? revisionEntity?.version : null
+
     const primaryName = normalize(reference?.name)
     const label = primaryName ?? "—"
     if (summaryLoading || referenceLoading) {
@@ -63,9 +75,18 @@ const PreviewTestsetCellContent = ({
         return <div className="not-available-table-cell" />
     }
 
+    // Format version display
+    const versionDisplay =
+        revisionVersion !== null && revisionVersion !== undefined ? `v${revisionVersion}` : null
+
     return (
-        <div className="flex flex-col items-start overflow-hidden whitespace-nowrap">
-            <span className="w-full text-ellipsis overflow-hidden">{label}</span>
+        <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap">
+            <span className="text-ellipsis overflow-hidden">{label}</span>
+            {versionDisplay && (
+                <Tag className="bg-[rgba(5,23,41,0.06)]" variant="filled">
+                    {versionDisplay}
+                </Tag>
+            )}
         </div>
     )
 }

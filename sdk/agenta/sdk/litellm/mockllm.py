@@ -2,9 +2,8 @@ from typing import Optional, Protocol, Any
 from os import environ
 from contextlib import contextmanager
 
-import litellm
-
 from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.lazy import _load_litellm
 
 from agenta.sdk.litellm.mocks import MOCKS
 from agenta.sdk.contexts.routing import RoutingContext
@@ -81,6 +80,7 @@ async def acompletion(*args, **kwargs):
 
         return MOCKS[mock](*args, **kwargs)
 
+    litellm = _load_litellm(injected=globals().get("litellm"))
     if not litellm:
         raise ValueError("litellm not found")
 

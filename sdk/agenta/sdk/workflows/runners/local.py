@@ -1,16 +1,7 @@
-from typing import Any, Dict, Union, Text
-
-from RestrictedPython import safe_builtins, compile_restricted, utility_builtins
-from RestrictedPython.Eval import (
-    default_guarded_getiter,
-    default_guarded_getitem,
-)
-from RestrictedPython.Guards import (
-    guarded_iter_unpack_sequence,
-    full_write_guard,
-)
+from typing import Any, Dict, Union
 
 from agenta.sdk.workflows.runners.base import CodeRunner
+from agenta.sdk.utils.lazy import _load_restrictedpython
 
 
 class LocalRunner(CodeRunner):
@@ -38,6 +29,16 @@ class LocalRunner(CodeRunner):
         Returns:
             Float score between 0 and 1, or None if execution fails
         """
+        (
+            safe_builtins,
+            compile_restricted,
+            utility_builtins,
+            default_guarded_getiter,
+            default_guarded_getitem,
+            guarded_iter_unpack_sequence,
+            full_write_guard,
+        ) = _load_restrictedpython()
+
         # Define the available built-ins
         local_builtins = safe_builtins.copy()
 

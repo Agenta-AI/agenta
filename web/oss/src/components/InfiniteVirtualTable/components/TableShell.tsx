@@ -34,16 +34,26 @@ const TableShell = ({
     children,
 }: TableShellProps) => {
     const headerRef = useRef<HTMLDivElement | null>(null)
+    const lastHeightRef = useRef<number>(0)
 
     useLayoutEffect(() => {
         if (!onHeaderHeightChange) return
         const element = headerRef.current
         if (!element) {
-            onHeaderHeightChange(0)
+            if (lastHeightRef.current !== 0) {
+                lastHeightRef.current = 0
+                onHeaderHeightChange(0)
+            }
             return
         }
         const update = () => {
-            onHeaderHeightChange(element.getBoundingClientRect().height)
+            const nextHeight = element.getBoundingClientRect().height
+            // Only call callback if height actually changed
+            // This prevents infinite loops during horizontal scroll
+            if (lastHeightRef.current !== nextHeight) {
+                lastHeightRef.current = nextHeight
+                onHeaderHeightChange(nextHeight)
+            }
         }
         update()
         const observer = new ResizeObserver(() => update())

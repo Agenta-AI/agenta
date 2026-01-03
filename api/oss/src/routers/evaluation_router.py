@@ -603,7 +603,7 @@ async def start_evaluation(
                 #
                 name=payload.name,
                 #
-                testset_id=payload.testset_id,
+                testset_revision_id=payload.testset_revision_id,
                 #
                 revision_id=payload.revisions_ids[i],
                 #
@@ -612,7 +612,7 @@ async def start_evaluation(
                 evaluations_service=evaluations_service,
                 queries_service=queries_service,
                 workflows_service=workflows_service,
-                simple_testsets_router=simple_testsets_router,
+                testsets_service=testsets_service,
                 simple_evaluators_router=simple_evaluators_router,
                 tracing_router=tracing_router,
             )
@@ -628,7 +628,7 @@ async def start_evaluation(
                 #
                 run_id=run.id,
                 #
-                testset_id=payload.testset_id,
+                testset_revision_id=payload.testset_revision_id,
                 #
                 revision_id=payload.revisions_ids[i],
                 #

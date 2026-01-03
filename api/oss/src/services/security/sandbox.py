@@ -63,7 +63,7 @@ def execute_code_safely(
         "random",
         "datetime",
         "json",
-        "requests",
+        "httpx",
         "typing",
     ]
 

@@ -59,6 +59,7 @@ export interface testset {
     name: string
     created_at: string
     updated_at: string
+    created_by_id?: string
     columns?: string[]
 }
 

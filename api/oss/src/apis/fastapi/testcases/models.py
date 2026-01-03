@@ -18,6 +18,7 @@ class TestcasesQueryRequest(BaseModel):
     testcase_ids: Optional[List[UUID]] = None
     #
     testset_id: Optional[UUID] = None
+    testset_revision_id: Optional[UUID] = None
     #
     windowing: Optional[Windowing] = None
 
@@ -30,3 +31,4 @@ class TestcaseResponse(BaseModel):
 class TestcasesResponse(BaseModel):
     count: int = 0
     testcases: List[Testcase] = []
+    windowing: Optional[Windowing] = None

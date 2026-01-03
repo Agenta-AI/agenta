@@ -10,12 +10,11 @@ import {
     type SetStateAction,
 } from "react"
 
-import {testsetCsvDataQueryAtomFamily} from "@agenta/oss/src/components/Playground/Components/Modals/LoadTestsetModal/assets/testsetCsvData"
 import {CloseCircleOutlined, CloseOutlined} from "@ant-design/icons"
 import {Play} from "@phosphor-icons/react"
 import {Button, Input, Modal, Tabs, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
@@ -26,8 +25,8 @@ import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import type {JSSTheme, ListAppsItem, Variant} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app/hooks"
+import {revision} from "@/oss/state/entities/testset"
 import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {useTestsetsData} from "@/oss/state/testset"
 
 import TabLabel from "../../../NewEvaluation/assets/TabLabel"
 import SelectAppSection from "../../../NewEvaluation/Components/SelectAppSection"
@@ -39,7 +38,7 @@ type EvaluatorVariantModalProps = {
     variants: Variant[] | null
     setSelectedVariant: Dispatch<SetStateAction<Variant | null>>
     selectedVariant: Variant | null
-    selectedTestsetId?: string
+    selectedRevisionId?: string
 } & ComponentProps<typeof Modal>
 
 interface VariantDiagnostics {
@@ -115,7 +114,7 @@ const EvaluatorVariantModal = ({
     variants: _variants,
     setSelectedVariant,
     selectedVariant,
-    selectedTestsetId,
+    selectedRevisionId,
     ...props
 }: EvaluatorVariantModalProps) => {
     const classes = useStyles()
@@ -167,69 +166,16 @@ const EvaluatorVariantModal = ({
         )
     }, [appOptions, appSearchTerm])
 
-    const {columnsByTestsetId} = useTestsetsData({enabled: Boolean(props.open)})
-
-    const testsetCsvQuery = useAtomValue(
-        useMemo(
-            () =>
-                testsetCsvDataQueryAtomFamily({
-                    testsetId: selectedTestsetId || "",
-                    enabled: Boolean(selectedTestsetId && props.open),
-                }),
-            [selectedTestsetId, props.open],
-        ),
-    ) as any
-    const testsetCsvData = useMemo(
-        () => (Array.isArray(testsetCsvQuery?.data) ? (testsetCsvQuery.data as any[]) : []),
-        [testsetCsvQuery],
-    )
-
-    const derivedTestsetColumns = useMemo(() => {
-        const fromColumns =
-            selectedTestsetId && columnsByTestsetId?.[selectedTestsetId]?.length
-                ? (columnsByTestsetId[selectedTestsetId] as string[])
-                : []
-
-        const firstRow =
-            Array.isArray(testsetCsvData) && testsetCsvData.length > 0
-                ? (testsetCsvData[0] as Record<string, unknown>)
-                : undefined
-
-        let normalizedSource: Record<string, unknown> | undefined
-        if (firstRow && typeof firstRow === "object") {
-            const candidate =
-                "data" in firstRow && firstRow.data && typeof firstRow.data === "object"
-                    ? (firstRow.data as Record<string, unknown>)
-                    : firstRow
-            normalizedSource = candidate
-        }
-
-        const fromCsv = normalizedSource ? Object.keys(normalizedSource) : []
-
-        const merged = new Map<string, string>()
-
-        const addValue = (value?: string) => {
-            if (!value) return
-            const trimmed = value.trim()
-            if (!trimmed) return
-            if (!merged.has(trimmed.toLowerCase())) {
-                merged.set(trimmed.toLowerCase(), trimmed)
-            }
-        }
-
-        fromColumns.forEach((col) => addValue(typeof col === "string" ? col : String(col)))
-        fromCsv.forEach((col) => addValue(typeof col === "string" ? col : String(col)))
-
-        return Array.from(merged.values())
-    }, [columnsByTestsetId, selectedTestsetId, testsetCsvData])
-
-    const normalizedTestsetColumns = useMemo(
+    // Use revision controller to get normalized testcase columns
+    // This fetches the revision with testcases included and derives column names
+    const testcaseColumnsAtom = useMemo(
         () =>
-            derivedTestsetColumns
-                .map((col) => (typeof col === "string" ? col.trim().toLowerCase() : ""))
-                .filter(Boolean),
-        [derivedTestsetColumns],
+            selectedRevisionId
+                ? revision.selectors.testcaseColumnsNormalized(selectedRevisionId)
+                : atom<string[]>([]),
+        [selectedRevisionId],
     )
+    const normalizedTestsetColumns = useAtomValue(testcaseColumnsAtom)
 
     const {variants: appVariantRevisions, isLoading: variantsLoading} = useAppVariantRevisions(
         selectedAppId || null,
@@ -422,7 +368,7 @@ const EvaluatorVariantModal = ({
                         type="primary"
                         danger={selectedVariantHasWarning}
                         icon={<Play />}
-                        iconPosition="end"
+                        iconPlacement="end"
                         disabled={!selectedRowKeys.length}
                         loading={variantsLoading}
                         onClick={loadVariant}
@@ -476,7 +422,7 @@ const EvaluatorVariantModal = ({
             [variables],
         )
 
-        const columnsKnown = Boolean(selectedTestsetId) && normalizedTestsetColumns.length > 0
+        const columnsKnown = normalizedTestsetColumns.length > 0
 
         const missingVariables = useMemo(
             () =>
@@ -489,20 +435,17 @@ const EvaluatorVariantModal = ({
         )
 
         const hasWarning =
-            Boolean(selectedTestsetId) &&
-            columnsKnown &&
-            expectedVariables.length > 0 &&
-            missingVariables.length > 0
+            columnsKnown && expectedVariables.length > 0 && missingVariables.length > 0
 
         const message = useMemo(() => {
-            if (!selectedTestsetId || !expectedVariables.length) return undefined
+            if (!expectedVariables.length) return undefined
             if (!columnsKnown) return "Analyzing testset columns..."
             if (missingVariables.length > 0) {
                 const missingList = missingVariables.join(", ")
                 return `The selected testset is missing required inputs for this variant: {{${missingList}}}`
             }
             return undefined
-        }, [columnsKnown, expectedVariables.length, missingVariables, selectedTestsetId])
+        }, [columnsKnown, expectedVariables.length, missingVariables])
 
         useEffect(() => {
             if (!revisionId) return

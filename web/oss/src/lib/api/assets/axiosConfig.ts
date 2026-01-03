@@ -114,6 +114,11 @@ axios.interceptors.request.use(async (config) => {
 axios.interceptors.response.use(
     (response) => {
         const {data} = response
+        // Skip transformation for blob responses (e.g., file downloads)
+        // Blob is an object but should not be JSON-parsed
+        if (data instanceof Blob) {
+            return response
+        }
         // deep convert all UTC dats to local
         if (data && isObject(data))
             response.data = JSON.parse(JSON.stringify(data), (k, v) => {

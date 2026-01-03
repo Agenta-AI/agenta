@@ -949,8 +949,9 @@ def parse_to_agenta_span_dto(
 ########################################
 
 
-from litellm import cost_calculator
 from opentelemetry.sdk.trace import ReadableSpan
+
+from agenta.sdk.utils.lazy import _load_litellm
 
 from agenta.sdk.types import AgentaNodeDto, AgentaNodesResponse
 
@@ -1112,6 +1113,12 @@ TYPES_WITH_COSTS = [
 
 
 def calculate_costs(span_idx: Dict[str, SpanDTO]):
+    litellm = _load_litellm()
+    if not litellm:
+        return
+
+    cost_calculator = litellm.cost_calculator
+
     for span in span_idx.values():
         if (
             span.node.type

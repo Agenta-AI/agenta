@@ -288,7 +288,7 @@ const ObservabilityTable = () => {
 
             <TestsetDrawer
                 open={testsetDrawerData.length > 0}
-                data={testsetDrawerData}
+                spanIds={testsetDrawerData.map((d) => d.key)}
                 onClose={() => {
                     setTestsetDrawerData([])
                     setSelectedRowKeys([])

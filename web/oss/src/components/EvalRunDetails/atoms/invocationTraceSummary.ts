@@ -98,6 +98,55 @@ const collectMetricSources = (node?: TraceNode | null): any[] => {
     return sources
 }
 
+/**
+ * Lightweight atom family that only checks if a scenario has an invocation.
+ * Much faster than invocationTraceSummaryAtomFamily as it doesn't extract metrics.
+ * Use this when you only need to know if an invocation exists.
+ */
+export const scenarioHasInvocationAtomFamily = atomFamily(
+    ({scenarioId, runId}: {scenarioId?: string; runId?: string}) =>
+        atom<boolean>((get) => {
+            if (!scenarioId) return false
+
+            const effectiveRunId = runId ?? get(activePreviewRunIdAtom) ?? undefined
+            const runIndex = get(
+                evaluationRunIndexAtomFamily(effectiveRunId ? effectiveRunId : null),
+            )
+
+            const stepsQuery = get(scenarioStepsQueryFamily({scenarioId, runId: effectiveRunId}))
+            if (stepsQuery.isLoading || stepsQuery.isFetching) {
+                return false // Treat loading as no invocation yet
+            }
+
+            const allSteps = stepsQuery.data?.steps ?? []
+            const candidateKeys: string[] = []
+            if (runIndex) {
+                runIndex.invocationKeys.forEach((key) => {
+                    if (!candidateKeys.includes(key)) candidateKeys.push(key)
+                })
+            }
+
+            // Quick check: does any invocation step exist with a traceId?
+            const invocationStep = candidateKeys
+                .map((key) => allSteps.find((step: any) => step?.stepKey === key))
+                .find((step) => step)
+
+            if (!invocationStep) return false
+
+            // Check for traceId existence
+            const traceId =
+                invocationStep?.traceId ||
+                invocationStep?.trace_id ||
+                invocationStep?.trace?.tree?.id ||
+                (Array.isArray(invocationStep?.trace?.trees) &&
+                    invocationStep.trace.trees[0]?.tree?.id) ||
+                (Array.isArray(invocationStep?.trace?.nodes) &&
+                    invocationStep.trace.nodes[0]?.trace_id)
+
+            return Boolean(traceId)
+        }),
+)
+
 export const invocationTraceSummaryAtomFamily = atomFamily(
     ({scenarioId, stepKey, runId}: {scenarioId?: string; stepKey?: string; runId?: string}) =>
         atom<InvocationTraceSummaryValue>((get) => {
@@ -109,7 +158,10 @@ export const invocationTraceSummaryAtomFamily = atomFamily(
             )
 
             const stepsQuery = get(scenarioStepsQueryFamily({scenarioId, runId: effectiveRunId}))
-            if (stepsQuery.isLoading || stepsQuery.isFetching) {
+            // Stale-while-revalidate: only show loading when there's no data yet
+            // Don't show loading during background refetches (isFetching with existing data)
+            const hasStepsData = Boolean(stepsQuery.data)
+            if (!hasStepsData && (stepsQuery.isLoading || stepsQuery.isPending)) {
                 return {state: "loading"}
             }
 

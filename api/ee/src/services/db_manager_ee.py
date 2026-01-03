@@ -520,11 +520,10 @@ async def create_workspace_db_object(
         session=session,
     )
 
-    # add default testset and evaluators
-    await db_manager.add_testset_to_app_variant(
-        template_name="completion",  # type: ignore
-        app_name="completion",  # type: ignore
+    # add default testsets and evaluators
+    await db_manager.add_default_simple_testsets(
         project_id=str(project_db.id),
+        user_id=str(user.id),
     )
     await evaluator_manager.create_ready_to_use_evaluators(
         project_id=str(project_db.id)

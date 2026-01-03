@@ -79,6 +79,20 @@ export type {
     EditableTableState,
     EditableTableActions,
 } from "./hooks/useEditableTable"
+export {
+    useRowHeight,
+    useRowHeightValue,
+    createRowHeightAtom,
+    createRowHeightPxAtom,
+    createRowHeightMaxLinesAtom,
+    DEFAULT_ROW_HEIGHT_CONFIG,
+} from "./hooks/useRowHeight"
+export type {
+    RowHeightSize,
+    RowHeightOption,
+    RowHeightConfig,
+    UseRowHeightResult,
+} from "./hooks/useRowHeight"
 export * from "./types"
 export type {ExpandableRowConfig, ExpandIconRenderProps} from "./types"
 export type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"

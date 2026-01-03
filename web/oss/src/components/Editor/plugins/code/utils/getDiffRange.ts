@@ -1,30 +1,60 @@
 import {LexicalNode} from "lexical"
 
-import {CodeHighlightNode} from "../nodes/CodeHighlightNode"
+import {$isBase64Node} from "../nodes/Base64Node"
+import {$isCodeHighlightNode} from "../nodes/CodeHighlightNode"
+import {$isLongTextNode} from "../nodes/LongTextNode"
 
 /**
- * Checks if two CodeHighlightNodes are semantically equal.
+ * Checks if two nodes (CodeHighlightNode, Base64Node, or LongTextNode) are semantically equal.
  *
  * Two nodes are considered equal if they have:
  * 1. The same text content
- * 2. The same highlight type (or both have no highlight type)
- * 3. The same validation error state
- * 4. The same validation message
+ * 2. The same type (both highlight, both base64, or both longtext)
+ * 3. For highlight nodes: same highlight type, validation error state, and message
  *
- * The optional chaining (?.) is used because highlight type may be undefined,
- * in which case we default to empty string for comparison.
- *
- * @param a - First CodeHighlightNode to compare
- * @param b - Second CodeHighlightNode to compare
+ * @param a - First node to compare
+ * @param b - Second node to compare
  * @returns true if nodes are equal, false otherwise
  */
-export function isEqual(a: CodeHighlightNode, b: CodeHighlightNode): boolean {
-    return (
-        a.getTextContent() === b.getTextContent() &&
-        (a.getHighlightType?.() ?? "") === (b.getHighlightType?.() ?? "") &&
-        a.hasValidationError() === b.hasValidationError() &&
-        (a.getValidationMessage() ?? null) === (b.getValidationMessage() ?? null)
-    )
+export function isEqual(a: LexicalNode, b: LexicalNode): boolean {
+    // Both must be the same type
+    const aIsBase64 = $isBase64Node(a)
+    const bIsBase64 = $isBase64Node(b)
+
+    if (aIsBase64 !== bIsBase64) {
+        return false
+    }
+
+    // For Base64Nodes, just compare text content
+    if (aIsBase64 && bIsBase64) {
+        return a.getTextContent() === b.getTextContent()
+    }
+
+    // Check for LongTextNodes
+    const aIsLongText = $isLongTextNode(a)
+    const bIsLongText = $isLongTextNode(b)
+
+    if (aIsLongText !== bIsLongText) {
+        return false
+    }
+
+    // For LongTextNodes, just compare text content
+    if (aIsLongText && bIsLongText) {
+        return a.getTextContent() === b.getTextContent()
+    }
+
+    // For CodeHighlightNodes, compare all properties
+    if ($isCodeHighlightNode(a) && $isCodeHighlightNode(b)) {
+        return (
+            a.getTextContent() === b.getTextContent() &&
+            (a.getHighlightType?.() ?? "") === (b.getHighlightType?.() ?? "") &&
+            a.hasValidationError() === b.hasValidationError() &&
+            (a.getValidationMessage() ?? null) === (b.getValidationMessage() ?? null)
+        )
+    }
+
+    // Fallback: compare text content only
+    return a.getTextContent() === b.getTextContent()
 }
 
 /**
@@ -47,16 +77,16 @@ export function isEqual(a: CodeHighlightNode, b: CodeHighlightNode): boolean {
  * - to: 4 (stop replacing before E)
  * - nodesForReplacement: [X, Y]
  *
- * @param prev - Array of existing CodeHighlightNodes
- * @param next - Array of new CodeHighlightNodes to replace with
+ * @param prev - Array of existing nodes (CodeHighlightNode or Base64Node)
+ * @param next - Array of new nodes to replace with
  * @returns Object containing:
  *   - from: Index to start replacing nodes from
  *   - to: Index to stop replacing nodes at
  *   - nodesForReplacement: New nodes to insert in the range
  */
 export function getDiffRange(
-    prev: CodeHighlightNode[],
-    next: CodeHighlightNode[],
+    prev: LexicalNode[],
+    next: LexicalNode[],
 ): {from: number; to: number; nodesForReplacement: LexicalNode[]} {
     let leadingMatch = 0
     while (leadingMatch < prev.length && isEqual(prev[leadingMatch], next[leadingMatch])) {

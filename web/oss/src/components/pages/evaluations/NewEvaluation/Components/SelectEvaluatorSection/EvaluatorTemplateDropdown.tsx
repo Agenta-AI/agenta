@@ -154,7 +154,11 @@ const EvaluatorTemplateDropdown = ({
             content={popoverContent}
             placement="bottomRight"
             arrow={false}
-            overlayInnerStyle={{padding: 0}}
+            styles={{
+                container: {
+                    padding: 0,
+                },
+            }}
         >
             <span className={className}>{trigger || defaultTrigger}</span>
         </Popover>

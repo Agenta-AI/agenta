@@ -21,6 +21,16 @@ from oss.src.services import user_service
 from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services.json_importer_helper import get_json
+from oss.src.utils.helpers import get_slug_from_name_and_id
+
+from oss.src.dbs.postgres.blobs.dao import BlobsDAO
+from oss.src.dbs.postgres.git.dao import GitDAO
+from oss.src.dbs.postgres.testcases.dbes import TestcaseBlobDBE
+from oss.src.dbs.postgres.testsets.dbes import (
+    TestsetArtifactDBE,
+    TestsetVariantDBE,
+    TestsetRevisionDBE,
+)
 
 from oss.src.models.db_models import (
     WorkspaceDB,
@@ -66,6 +76,8 @@ from oss.src.models.db_models import (
     EvaluationEvaluatorConfigDB,
     EvaluationAggregatedResultDB,
 )
+from oss.src.core.testcases.dtos import Testcase
+from oss.src.core.testsets.dtos import TestsetRevisionData
 
 
 log = get_module_logger(__name__)
@@ -151,43 +163,89 @@ async def fetch_organization_by_id(
         return organization
 
 
-async def add_testset_to_app_variant(
-    template_name: str, app_name: str, project_id: str
-):
-    """Add testset to app variant.
+async def add_default_simple_testsets(
+    *,
+    project_id: str,
+    user_id: str,
+    template_names: Optional[List[str]] = None,
+) -> None:
+    """Create default simple testsets from bundled presets."""
+    from oss.src.core.testcases.service import TestcasesService
+    from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
+    from oss.src.apis.fastapi.testsets.models import (
+        SimpleTestsetCreate,
+        SimpleTestsetCreateRequest,
+    )
 
-    Args:
-        template_name (str): The name of the app template name
-        app_name (str): The name of the app
-        project_id (str): The ID of the project
-    """
+    testsets_dir = PARENT_DIRECTORY / "resources" / "default_testsets"
+    if not testsets_dir.exists():
+        return
 
-    async with engine.core_session() as session:
+    if template_names:
+        filenames = [f"{name}_testset.json" for name in template_names]
+    else:
+        filenames = sorted(path.name for path in testsets_dir.glob("*_testset.json"))
+
+    if not filenames:
+        return
+
+    testcases_dao = BlobsDAO(
+        BlobDBE=TestcaseBlobDBE,
+    )
+    testsets_dao = GitDAO(
+        ArtifactDBE=TestsetArtifactDBE,
+        VariantDBE=TestsetVariantDBE,
+        RevisionDBE=TestsetRevisionDBE,
+    )
+    testcases_service = TestcasesService(
+        testcases_dao=testcases_dao,
+    )
+    testsets_service = TestsetsService(
+        testsets_dao=testsets_dao,
+        testcases_service=testcases_service,
+    )
+    simple_testsets_service = SimpleTestsetsService(
+        testsets_service=testsets_service,
+    )
+
+    project_uuid = uuid.UUID(project_id)
+    user_uuid = uuid.UUID(user_id)
+
+    for filename in filenames:
+        json_path = testsets_dir / filename
+        if not json_path.exists():
+            continue
+
         try:
-            json_path = os.path.join(
-                PARENT_DIRECTORY,
-                "resources",
-                "default_testsets",
-                f"{template_name}_testset.json",
+            testcases_data = get_json(str(json_path))
+            if not isinstance(testcases_data, list):
+                raise ValueError("Default testset must be a JSON array")
+
+            testcases = [Testcase(data=testcase) for testcase in testcases_data]
+            testset_revision_data = TestsetRevisionData(testcases=testcases)
+
+            testset_name = filename.replace("_testset.json", "_testset")
+            testset_slug = get_slug_from_name_and_id(testset_name, uuid.uuid4())
+
+            simple_testset_create_request = SimpleTestsetCreateRequest(
+                testset=SimpleTestsetCreate(
+                    slug=testset_slug,
+                    name=testset_name,
+                    data=testset_revision_data,
+                )
             )
 
-            if os.path.exists(json_path):
-                csvdata = get_json(json_path)
-                testset = {
-                    "name": f"{app_name}_testset",
-                    "csvdata": csvdata,
-                }
-                testset_db = TestsetDB(
-                    **testset,
-                    project_id=uuid.UUID(project_id),
-                )
-
-                session.add(testset_db)
-                await session.commit()
-                await session.refresh(testset_db)
-
+            await simple_testsets_service.create(
+                project_id=project_uuid,
+                user_id=user_uuid,
+                simple_testset_create_request=simple_testset_create_request,
+            )
         except Exception as e:
-            log.error(f"An error occurred in adding the default testset: {e}")
+            log.error(
+                "An error occurred in adding a default simple testset",
+                template_file=filename,
+                error=str(e),
+            )
 
 
 async def fetch_app_by_id(app_id: str) -> AppDB:

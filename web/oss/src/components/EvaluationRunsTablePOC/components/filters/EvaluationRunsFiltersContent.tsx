@@ -5,7 +5,7 @@ import {Button, Divider, Select, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {RunFlagsFilter} from "@/oss/lib/hooks/usePreviewEvaluations"
-import {useTestsetsData} from "@/oss/state/testset"
+import {testsetsListQueryAtomFamily} from "@/oss/state/entities/testset"
 
 import {evaluationRunsTableComponentSliceAtom} from "../../atoms/context"
 import {
@@ -172,9 +172,9 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
     const setDraft = useSetAtom(evaluationRunsFiltersDraftAtom)
     const initializeDraft = useSetAtom(evaluationRunsFiltersDraftInitializeAtom)
     const clearDraft = useSetAtom(evaluationRunsFiltersDraftClearAtom)
-    const {testsets, isLoading: testsetsLoading} = useTestsetsData({
-        enabled: Boolean(projectId && isOpen),
-    })
+    const testsetsQuery = useAtomValue(testsetsListQueryAtomFamily(null))
+    const testsets = testsetsQuery.data?.testsets ?? []
+    const testsetsLoading = testsetsQuery.isPending
 
     const draftStatusFilters = draft?.statusFilters ?? summary.statusFilters
     const draftReferences = draft?.referenceFilters ?? createReferenceDraftFromSummary(summary)

@@ -100,6 +100,13 @@ export function $getEditorCodeAsString(editor?: LexicalEditor): string {
                     if (text !== "\u200B") {
                         parts.push(text)
                     }
+                } else {
+                    // Handle other node types (LongTextNode, Base64Node, etc.)
+                    // by calling getTextContent() which returns the full value
+                    const text = child.getTextContent()
+                    if (text && text !== "\u200B") {
+                        parts.push(text)
+                    }
                 }
             }
 

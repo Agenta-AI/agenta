@@ -3,12 +3,10 @@ import {useMemo, useRef} from "react"
 import {Collapse, CollapseProps, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
-import {KeyValuePair} from "tailwindcss/types/config"
 
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import EnhancedTooltip from "@/oss/components/EnhancedUIs/Tooltip"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
-import {spanAgDataAtomFamily} from "@/oss/state/newObservability"
 
 import AddToTestsetButton from "../../../AddToTestsetDrawer/components/AddToTestsetButton"
 import AnnotateDrawerButton from "../../../AnnotateDrawer/assets/AnnotateDrawerButton"
@@ -31,19 +29,13 @@ const SessionMessagePanel = ({
     ...props
 }: SessionMessagePanelProps) => {
     const isAnnotationVisible = useAtomValue(isAnnotationVisibleAtom)
-    const activeTraceData = useAtomValue(spanAgDataAtomFamily(trace))
     const editorRef = useRef<HTMLDivElement>(null)
 
-    const testsetData = useMemo(() => {
-        if (!trace?.key) return [] as {data: KeyValuePair; key: string; id: number}[]
-        return [
-            {
-                data: activeTraceData as KeyValuePair,
-                key: trace.key,
-                id: 1,
-            },
-        ]
-    }, [trace?.key, activeTraceData])
+    // Get span ID for AddToTestsetButton - drawer will fetch data from entity cache
+    const spanIds = useMemo(() => {
+        if (!trace?.span_id) return []
+        return [trace.span_id]
+    }, [trace?.span_id])
 
     return (
         <>
@@ -122,8 +114,8 @@ const SessionMessagePanel = ({
                                     className="flex items-center"
                                     label="Add to testset"
                                     size="small"
-                                    testsetData={testsetData}
-                                    disabled={!trace?.key}
+                                    spanIds={spanIds}
+                                    disabled={!trace?.span_id}
                                 />
 
                                 <AnnotateDrawerButton

@@ -1,7 +1,6 @@
 import sys
 
 from redis.asyncio import Redis
-from taskiq import TaskiqEvents
 from taskiq.cli.worker.run import run_worker
 from taskiq.cli.worker.args import WorkerArgs
 from taskiq_redis import RedisStreamBroker
@@ -40,7 +39,6 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 
 import agenta as ag
@@ -159,22 +157,20 @@ tracing_router = TracingRouter(
     tracing_worker=tracing_worker,
 )
 
-simple_testsets_router = SimpleTestsetsRouter(
-    simple_testsets_service=simple_testsets_service,
-)
-
 simple_evaluators_router = SimpleEvaluatorsRouter(
     simple_evaluators_service=simple_evaluators_service,
 )
 
 evaluations_worker = EvaluationsWorker(
     broker=broker,
-    evaluations_service=evaluations_service,
+    #
+    tracing_router=tracing_router,
+    simple_evaluators_router=simple_evaluators_router,
+    #
+    testsets_service=testsets_service,
     queries_service=queries_service,
     workflows_service=workflows_service,
-    simple_testsets_router=simple_testsets_router,
-    simple_evaluators_router=simple_evaluators_router,
-    tracing_router=tracing_router,
+    evaluations_service=evaluations_service,
 )
 
 

@@ -117,6 +117,11 @@ export const playgroundSelectedVariantAtom = atomWithReset<Variant | null>(null)
 export const playgroundSelectedTestsetIdAtom = atomWithReset<string>("")
 
 /**
+ * Selected testset revision ID
+ */
+export const playgroundSelectedRevisionIdAtom = atomWithReset<string>("")
+
+/**
  * Selected testcase data from the testset
  * Contains the input data used for testing
  */
