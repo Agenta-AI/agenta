@@ -15,10 +15,15 @@ log = get_module_logger(__name__)
 
 class SecretsManager:
     @staticmethod
-    def get_from_route() -> Optional[List[Dict[str, Any]]]:
+    def get_from_route(scope: str = "all") -> Optional[List[Dict[str, Any]]]:
         context = RoutingContext.get()
 
-        secrets = context.secrets
+        if scope == "local":
+            secrets = context.local_secrets
+        elif scope == "vault":
+            secrets = context.vault_secrets
+        else:
+            secrets = context.secrets
 
         if not secrets:
             return []
@@ -140,7 +145,7 @@ class SecretsManager:
         return modified_model
 
     @staticmethod
-    def get_provider_settings(model: str) -> Optional[Dict]:
+    def get_provider_settings(model: str, scope: str = "all") -> Optional[Dict]:
         """
         Builds the LLM request with appropriate kwargs based on the custom provider/model
 
@@ -154,7 +159,7 @@ class SecretsManager:
         request_provider_model = model
 
         # STEP 1: get vault secrets from route context and transform it
-        secrets = SecretsManager.get_from_route()
+        secrets = SecretsManager.get_from_route(scope=scope)
         if not secrets:
             return None
 
@@ -231,7 +236,7 @@ class SecretsManager:
         return provider_settings
 
     @staticmethod
-    async def retrieve_secrets():
+    async def retrieve_secrets() -> tuple[list, list, list]:
         return await get_secrets(
             f"{ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host}/api",
             RunningContext.get().credentials,
@@ -241,14 +246,20 @@ class SecretsManager:
     async def ensure_secrets_in_workflow():
         ctx = RunningContext.get()
 
-        ctx.secrets = await SecretsManager.retrieve_secrets()
+        secrets, vault_secrets, local_secrets = await SecretsManager.retrieve_secrets()
+
+        ctx.secrets = secrets
+        ctx.vault_secrets = vault_secrets
+        ctx.local_secrets = local_secrets
 
         RunningContext.set(ctx)
 
         return ctx.secrets
 
     @staticmethod
-    def get_provider_settings_from_workflow(model: str) -> Optional[Dict]:
+    def get_provider_settings_from_workflow(
+        model: str, scope: str = "all"
+    ) -> Optional[Dict]:
         """
         Builds the LLM request with appropriate kwargs based on the custom provider/model
 
@@ -262,7 +273,13 @@ class SecretsManager:
         request_provider_model = model
 
         # STEP 1: get vault secrets from route context and transform it
-        secrets = RunningContext.get().secrets
+        ctx = RunningContext.get()
+        if scope == "local":
+            secrets = ctx.local_secrets
+        elif scope == "vault":
+            secrets = ctx.vault_secrets
+        else:
+            secrets = ctx.secrets
         if not secrets:
             return None
 

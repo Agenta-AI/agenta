@@ -27,6 +27,7 @@ from agenta.sdk.decorators.tracing import instrument
 from agenta.sdk.models.shared import Data
 from agenta.sdk.models.tracing import Trace
 from agenta.sdk.workflows.sandbox import execute_code_safely
+from agenta.sdk.workflows.templates import EVALUATOR_TEMPLATES
 from agenta.sdk.workflows.errors import (
     InvalidConfigurationParametersV0Error,
     MissingConfigurationParameterV0Error,
@@ -704,6 +705,15 @@ async def auto_custom_code_run_v0(
 
     _outputs = None
 
+    runtime = parameters.get("runtime") or "python"
+
+    if runtime not in ["python", "javascript", "typescript"]:
+        raise InvalidConfigurationParameterV0Error(
+            path="runtime",
+            expected="['python', 'javascript', 'typescript']",
+            got=runtime,
+        )
+
     # --------------------------------------------------------------------------
     try:
         _outputs = execute_code_safely(
@@ -712,6 +722,8 @@ async def auto_custom_code_run_v0(
             output=outputs,
             correct_answer=correct_answer,
             code=code,
+            runtime=runtime,
+            templates=EVALUATOR_TEMPLATES.get("v0", {}),
         )
     except Exception as e:
         raise CustomCodeServerV0Error(
@@ -820,7 +832,7 @@ async def auto_ai_critique_v0(
             if correct_answer_key in inputs:
                 correct_answer = inputs[correct_answer_key]
 
-    secrets = await SecretsManager.retrieve_secrets()
+    secrets, _, _ = await SecretsManager.retrieve_secrets()
 
     if secrets is None or not isinstance(secrets, list):
         raise InvalidSecretsV0Error(expected="list", got=secrets)
@@ -1619,7 +1631,7 @@ async def auto_semantic_similarity_v0(
 
     outputs_str = outputs if isinstance(outputs, str) else dumps(outputs)
 
-    secrets = await SecretsManager.retrieve_secrets()
+    secrets, _, _ = await SecretsManager.retrieve_secrets()
 
     if secrets is None or not isinstance(secrets, list):
         raise InvalidSecretsV0Error(expected="list", got=secrets)

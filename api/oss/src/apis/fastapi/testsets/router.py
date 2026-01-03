@@ -188,7 +188,9 @@ def _serialize_value_for_csv(value: Any) -> Any:
     return str(value)
 
 
-def _prepare_testcases_for_csv(testcases_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _prepare_testcases_for_csv(
+    testcases_data: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
     """Prepare testcases data for CSV export by serializing complex values."""
     return [
         {key: _serialize_value_for_csv(val) for key, val in row.items()}
@@ -1085,7 +1087,10 @@ class TestsetsRouter:
             include_testcases=True,
         )
 
-        if not testset_revision_response.count or not testset_revision_response.testset_revision:
+        if (
+            not testset_revision_response.count
+            or not testset_revision_response.testset_revision
+        ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Testset revision not found. Please check the revision_id and try again.",
@@ -1093,13 +1098,14 @@ class TestsetsRouter:
 
         revision = testset_revision_response.testset_revision
 
-        filename = (file_name or f"revision_{testset_revision_id}") + f".{file_type.lower()}"
+        filename = (
+            file_name or f"revision_{testset_revision_id}"
+        ) + f".{file_type.lower()}"
         testcases = revision.data.testcases if revision.data else []
 
         # Build export data using helper that properly handles Pydantic models
         testcases_data = [
-            _build_testcase_export_row(testcase)
-            for testcase in testcases or []
+            _build_testcase_export_row(testcase) for testcase in testcases or []
         ]
 
         if file_type.lower() == "json":
@@ -2040,8 +2046,7 @@ class SimpleTestsetsRouter:
 
         # Build export data using helper that properly handles Pydantic models
         testcases_data = [
-            _build_testcase_export_row(testcase)
-            for testcase in testcases or []
+            _build_testcase_export_row(testcase) for testcase in testcases or []
         ]
 
         if file_type.lower() == "json":

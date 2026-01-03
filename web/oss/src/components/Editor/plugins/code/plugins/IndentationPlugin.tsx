@@ -383,12 +383,20 @@ export function IndentationPlugin() {
                     const lineNode = $findMatchingParent(anchorNode, $isCodeLineNode)
                     if (!lineNode) return false
 
+                    // Determine language from parent code block
+                    const blockNode = lineNode.getParent()
+                    const language = $isCodeBlockNode(blockNode)
+                        ? blockNode.getLanguage()
+                        : undefined
+
                     const selectionNodes = selection.getNodes()
 
                     if (selectionNodes.length > 0 && $isCodeHighlightNode(selectionNodes[0])) {
-                        // Insert spaces instead of tab character to maintain valid JSON format
-                        // Use 2 spaces to match typical JSON formatting
-                        selection.insertText("  ")
+                        // Insert spaces instead of tab character
+                        // Use 4 spaces for Python/code (PEP 8 standard)
+                        // Use 2 spaces for JSON/YAML (typical formatting)
+                        const spaces = language === "json" || language === "yaml" ? "  " : "    "
+                        selection.insertText(spaces)
                     } else {
                         const newTab = $createCodeTabNode()
 

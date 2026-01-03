@@ -8,6 +8,8 @@ from pydantic import BaseModel
 class RoutingContext(BaseModel):
     parameters: Optional[dict] = None
     secrets: Optional[list] = None
+    local_secrets: Optional[list] = None
+    vault_secrets: Optional[list] = None
     mock: Optional[str] = None
 
     @classmethod

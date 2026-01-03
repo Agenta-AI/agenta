@@ -98,15 +98,16 @@ async def evaluator_run(
         workspace_id=str(request.state.workspace_id),
         organization_id=str(request.state.organization_id),
     )
+    credentials = f"Secret {secret_token}"
 
-    with tracing_context_manager(TracingContext.get()):
-        tracing_ctx = TracingContext.get()
-        tracing_ctx.credentials = f"Secret {secret_token}"
+    tracing_ctx = TracingContext.get()
+    tracing_ctx.credentials = credentials
 
-        with running_context_manager(RunningContext.get()):
-            running_ctx = RunningContext.get()
-            running_ctx.credentials = f"Secret {secret_token}"
+    ctx = RunningContext.get()
+    ctx.credentials = credentials
 
+    with tracing_context_manager(tracing_ctx):
+        with running_context_manager(ctx):
             try:
                 result = await evaluators_service.run(
                     evaluator_key=evaluator_key,
