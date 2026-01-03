@@ -6,6 +6,7 @@ import {atom, useAtom} from "jotai"
 
 import useURL from "@/oss/hooks/useURL"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {shouldIgnoreRowClick} from "@/oss/lib/tableRowClick"
 import {variantTableSelectionAtomFamily} from "@/oss/state/variant/atoms/selection"
 
 import ResizableTitle from "../../ResizableTitle"
@@ -143,7 +144,8 @@ const VariantsTable = ({
                 onRow={(record: any) => ({
                     className: "variant-table-row",
                     style: {cursor: "pointer"},
-                    onClick: () => {
+                    onClick: (event) => {
+                        if (shouldIgnoreRowClick(event)) return
                         onRowClick(record)
                     },
                 })}
