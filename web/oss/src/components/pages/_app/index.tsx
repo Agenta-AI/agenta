@@ -7,6 +7,7 @@ import dynamic from "next/dynamic"
 import {Inter} from "next/font/google"
 
 import ThemeContextProvider from "@/oss/components/Layout/ThemeContextProvider"
+import {OnboardingProvider} from "@/oss/components/Onboarding"
 import GlobalScripts from "@/oss/components/Scripts/GlobalScripts"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import AuthProvider from "@/oss/lib/helpers/auth/AuthProvider"
@@ -54,25 +55,27 @@ export default function App({Component, pageProps, ...rest}: AppProps) {
                 <QueryClientProvider client={queryClient}>
                     <AuthProvider pageProps={pageProps}>
                         <GlobalStateProvider>
-                            <CustomPosthogProvider
-                                config={{
-                                    persistence: "localStorage+cookie",
-                                }}
-                            >
-                                <ThemeContextProvider>
-                                    <AppComponent>
-                                        <ThemeContextBridge>
-                                            <PreloadQueries />
-                                            <Layout>
-                                                <AppContextComponent />
-                                                <Component {...pageProps} />
-                                                <NoMobilePageWrapper />
-                                            </Layout>
-                                            <AppGlobalWrappers />
-                                        </ThemeContextBridge>
-                                    </AppComponent>
-                                </ThemeContextProvider>
-                            </CustomPosthogProvider>
+                            <OnboardingProvider>
+                                <CustomPosthogProvider
+                                    config={{
+                                        persistence: "localStorage+cookie",
+                                    }}
+                                >
+                                    <ThemeContextProvider>
+                                        <AppComponent>
+                                            <ThemeContextBridge>
+                                                <PreloadQueries />
+                                                <Layout>
+                                                    <AppContextComponent />
+                                                    <Component {...pageProps} />
+                                                    <NoMobilePageWrapper />
+                                                </Layout>
+                                                <AppGlobalWrappers />
+                                            </ThemeContextBridge>
+                                        </AppComponent>
+                                    </ThemeContextProvider>
+                                </CustomPosthogProvider>
+                            </OnboardingProvider>
                         </GlobalStateProvider>
                     </AuthProvider>
                 </QueryClientProvider>
