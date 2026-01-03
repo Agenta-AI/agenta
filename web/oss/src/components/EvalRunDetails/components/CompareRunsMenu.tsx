@@ -228,38 +228,13 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
         [setCompareIds],
     )
 
-    const handleRemove = useCallback(
-        (targetId: string) => {
-            setCompareIds((prev) => prev.filter((id) => id !== targetId))
-        },
-        [setCompareIds],
-    )
-
     const handleClearAll = useCallback(() => {
         setCompareIds([])
     }, [setCompareIds])
 
-    const selectedDetails = useMemo(() => {
-        const map = new Map<string, CandidateRun>()
-        candidates.forEach((candidate) => {
-            map.set(candidate.id, candidate)
-        })
-        return compareIds.map(
-            (id) =>
-                map.get(id) ?? {
-                    id,
-                    name: id,
-                    status: undefined,
-                    createdAt: undefined,
-                    testsetNames: [],
-                    structure: {testsetIds: [], hasQueryInput: false, inputStepCount: 0},
-                },
-        )
-    }, [candidates, compareIds])
-
     return (
         <Space orientation="vertical" style={{width: "100%"}} size="small">
-            <div>
+            <div className="flex items-center justify-between">
                 <Space orientation="vertical" size={2} style={{width: "100%"}}>
                     {availability.testsetIds.length ? (
                         <Space size={[6, 6]} wrap className="compare-runs-match-tags">
@@ -280,31 +255,21 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                         </Space>
                     ) : null}
                 </Space>
-            </div>
-
-            <div className="compare-runs-selected-tags w-full flex max-w-prose">
-                <Text type="secondary" className="whitespace-nowrap">
-                    Selected {compareIds.length}/{MAX_COMPARISON_RUNS}
-                </Text>
-                <div className="flex gap-1 grow min-w-0 overflow-auto">
-                    {selectedDetails.map((run) => (
-                        <Tag
-                            key={run.id}
-                            closable
-                            onClose={(event) => {
-                                event.preventDefault()
-                                handleRemove(run.id)
-                            }}
+                <Space size={0}>
+                    <Text className="whitespace-nowrap">
+                        Selected {compareIds.length}/{MAX_COMPARISON_RUNS}
+                    </Text>
+                    {compareIds.length ? (
+                        <Button
+                            size="small"
+                            type="link"
+                            className="underline hover:no-underline"
+                            onClick={handleClearAll}
                         >
-                            {run.name}
-                        </Tag>
-                    ))}
-                </div>
-                {compareIds.length ? (
-                    <Button size="small" type="link" onClick={handleClearAll}>
-                        Clear
-                    </Button>
-                ) : null}
+                            Clear all
+                        </Button>
+                    ) : null}
+                </Space>
             </div>
 
             <Input
@@ -373,9 +338,9 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
 
                                 <Space
                                     size={4}
-                                    wrap
+                                    align="end"
                                     className="compare-run-row__meta"
-                                    align="center"
+                                    orientation="vertical"
                                 >
                                     {item.status ? <StatusChip status={item.status} /> : null}
                                     {createdLabel ? (
@@ -457,8 +422,8 @@ const TestsetReferenceTag = ({
         label={label}
         copyValue={copyValue}
         href={href}
-        tone="testset"
         className="max-w-[200px]"
+        showIcon={false}
     />
 )
 

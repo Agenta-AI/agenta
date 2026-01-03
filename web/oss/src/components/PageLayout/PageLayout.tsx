@@ -5,6 +5,7 @@ import classNames from "classnames"
 
 interface PageLayoutProps {
     title?: ReactNode
+    titleLevel?: 1 | 2 | 3 | 4 | 5
     headerTabs?: ReactNode
     headerTabsProps?: TabsProps
     children: ReactNode
@@ -14,6 +15,7 @@ interface PageLayoutProps {
 
 const PageLayout = ({
     title,
+    titleLevel = 5,
     headerTabs,
     headerTabsProps,
     children,
@@ -35,7 +37,7 @@ const PageLayout = ({
                         headerClassName,
                     )}
                 >
-                    <Typography.Title className="!m-0 font-medium" level={5}>
+                    <Typography.Title className="!m-0 font-medium" level={titleLevel}>
                         {title}
                     </Typography.Title>
                     {headerTabsContent ? (

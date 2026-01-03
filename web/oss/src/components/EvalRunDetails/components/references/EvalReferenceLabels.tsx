@@ -15,6 +15,7 @@ import {
     VariantReferenceText as GenericVariantReferenceText,
     VariantRevisionLabel as GenericVariantRevisionLabel,
 } from "@/oss/components/References"
+import type {ReferenceTone} from "@/oss/components/References/referenceColors"
 
 import {variantReferenceQueryAtomFamily} from "../../atoms/references"
 import {effectiveProjectIdAtom} from "../../atoms/run"
@@ -30,10 +31,14 @@ export const TestsetTag = memo(
         testsetId,
         projectURL,
         runId,
+        toneOverride,
+        showIconOverride,
     }: {
         testsetId: string
         projectURL?: string | null
         runId?: string | null
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
         const {buildTestsetHref} = useRunScopedUrls(runId)
@@ -44,6 +49,8 @@ export const TestsetTag = memo(
                 testsetId={testsetId}
                 projectId={projectId}
                 projectURL={href ? undefined : projectURL}
+                toneOverride={toneOverride}
+                showIconOverride={showIconOverride}
             />
         )
     },
@@ -59,11 +66,15 @@ export const TestsetTagList = memo(
         projectURL,
         runId,
         className,
+        toneOverride,
+        showIconOverride,
     }: {
         ids: string[]
         projectURL?: string | null
         runId?: string | null
         className?: string
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
         const {buildTestsetHref} = useRunScopedUrls(runId)
@@ -78,6 +89,8 @@ export const TestsetTagList = memo(
                 projectId={projectId}
                 projectURL={resolvedProjectURL ?? projectURL}
                 className={className}
+                toneOverride={toneOverride}
+                showIconOverride={showIconOverride}
             />
         )
     },
@@ -92,10 +105,14 @@ export const ApplicationReferenceLabel = memo(
         runId,
         applicationId: explicitApplicationId,
         projectURL: explicitProjectURL,
+        toneOverride,
+        showIconOverride,
     }: {
         runId?: string | null
         applicationId?: string | null
         projectURL?: string | null
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
         const {applicationId: runApplicationId} = useRunIdentifiers(runId)
@@ -112,6 +129,8 @@ export const ApplicationReferenceLabel = memo(
                 projectId={projectId}
                 projectURL={explicitProjectURL ?? scopedProjectURL}
                 href={appDetailHref}
+                toneOverride={toneOverride}
+                showIconOverride={showIconOverride}
             />
         )
     },
@@ -129,6 +148,8 @@ export const VariantReferenceLabel = memo(
         fallbackLabel,
         showVersionPill = false,
         explicitVersion,
+        toneOverride,
+        showIconOverride,
     }: {
         variantId?: string | null
         applicationId?: string | null
@@ -136,6 +157,8 @@ export const VariantReferenceLabel = memo(
         fallbackLabel?: string | null
         showVersionPill?: boolean
         explicitVersion?: number | string | null
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
         const {variantId: runVariantId, applicationId: runApplicationId} = useRunIdentifiers(runId)
@@ -153,6 +176,8 @@ export const VariantReferenceLabel = memo(
                 showVersionPill={showVersionPill}
                 explicitVersion={explicitVersion}
                 href={href}
+                toneOverride={toneOverride}
+                showIconOverride={showIconOverride}
             />
         )
     },
@@ -172,6 +197,8 @@ export const VariantRevisionLabel = memo(
         runId,
         fallbackVariantName,
         fallbackRevision,
+        toneOverride,
+        showIconOverride,
     }: {
         variantId?: string | null
         revisionId?: string | null
@@ -179,6 +206,8 @@ export const VariantRevisionLabel = memo(
         runId?: string | null
         fallbackVariantName?: string | null
         fallbackRevision?: number | string | null
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
         const {
@@ -235,6 +264,8 @@ export const VariantRevisionLabel = memo(
                 fallbackVariantName={resolvedVariantName}
                 fallbackRevision={resolvedRevision}
                 href={href}
+                toneOverride={toneOverride}
+                showIconOverride={showIconOverride}
             />
         )
     },

@@ -130,6 +130,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     return (
         <PageLayout
             className="!p-0 h-full min-h-0"
+            titleLevel={3}
             title={runDisplayName}
             headerTabs={
                 <PreviewEvalRunTabs
@@ -137,9 +138,9 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
                     onChangeView={(v) => setActiveViewParam(v)}
                 />
             }
-            headerClassName="px-2"
+            headerClassName="px-4"
         >
-            <div className="flex h-full min-h-0 flex-col gap-3 [&_.ant-tabs-content]:h-full [&_.ant-tabs-tabpane]:h-full">
+            <div className="flex h-full min-h-0 flex-col gap-2 [&_.ant-tabs-content]:h-full [&_.ant-tabs-tabpane]:h-full">
                 <PreviewEvalRunMeta runId={runId} projectId={projectId} />
                 <Tabs
                     className="flex-1 min-h-0 overflow-hidden"
