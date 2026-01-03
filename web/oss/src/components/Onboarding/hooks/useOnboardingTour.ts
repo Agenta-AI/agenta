@@ -3,12 +3,7 @@ import {useCallback, useEffect, useRef} from "react"
 import {useNextStep} from "@agentaai/nextstepjs"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {
-    tourRegistry,
-    isNewUserAtom,
-    seenToursAtom,
-    activeTourIdAtom,
-} from "@/oss/lib/onboarding"
+import {tourRegistry, isNewUserAtom, seenToursAtom, activeTourIdAtom} from "@/oss/lib/onboarding"
 import type {TriggerTourOptions} from "@/oss/lib/onboarding"
 
 interface UseOnboardingTourOptions {
