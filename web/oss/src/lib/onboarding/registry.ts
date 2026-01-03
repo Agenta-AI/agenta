@@ -19,14 +19,22 @@ import type {InternalTour, OnboardingTour, RegisterTourOptions} from "./types"
  * const tours = tourRegistry.getAll()
  */
 class TourRegistry {
-    private tours: Map<string, {tour: OnboardingTour; options: RegisterTourOptions}> = new Map()
-    private listeners: Set<() => void> = new Set()
+    private tours = new Map<string, {tour: OnboardingTour; options: RegisterTourOptions}>()
+    private listeners = new Set<() => void>()
+    // Cache for useSyncExternalStore - must return stable reference
+    private cachedNextStepFormat: InternalTour[] = []
+    private cacheVersion = 0
 
     /**
      * Register a tour
      */
     register(tour: OnboardingTour, options: RegisterTourOptions = {}): void {
+        // Prevent duplicate registration from causing re-renders
+        if (this.tours.has(tour.id)) {
+            return
+        }
         this.tours.set(tour.id, {tour, options})
+        this.invalidateCache()
         this.notifyListeners()
     }
 
@@ -34,7 +42,11 @@ class TourRegistry {
      * Unregister a tour
      */
     unregister(tourId: string): void {
+        if (!this.tours.has(tourId)) {
+            return
+        }
         this.tours.delete(tourId)
+        this.invalidateCache()
         this.notifyListeners()
     }
 
@@ -64,9 +76,18 @@ class TourRegistry {
 
     /**
      * Convert tours to nextstepjs format
+     * Returns a cached stable reference for useSyncExternalStore
      */
     toNextStepFormat(): InternalTour[] {
-        return this.getAll().map((tour) => ({
+        return this.cachedNextStepFormat
+    }
+
+    /**
+     * Invalidate cache and rebuild
+     */
+    private invalidateCache(): void {
+        this.cacheVersion++
+        this.cachedNextStepFormat = this.getAll().map((tour) => ({
             tour: tour.id,
             steps: tour.steps,
         }))
@@ -96,6 +117,7 @@ class TourRegistry {
      */
     clear(): void {
         this.tours.clear()
+        this.invalidateCache()
         this.notifyListeners()
     }
 }

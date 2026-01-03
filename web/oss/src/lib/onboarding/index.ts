@@ -2,6 +2,7 @@
 export type {
     OnboardingStep,
     OnboardingTour,
+    InternalTour,
     TriggerTourOptions,
     RegisterTourOptions,
     CurrentStepState,
