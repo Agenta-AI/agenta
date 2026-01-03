@@ -166,6 +166,24 @@ Region: <region_name> (e.g eu-central-1)
 Model name: <model_name> (e.g anthropic.claude-3-sonnet-20240229-v1:0)
 ```
 
+### Troubleshooting AWS Bedrock
+
+If a model works in the AWS console but fails in Agenta, the most common cause is that the model does not support on demand throughput in your Region. In that case, you must invoke the model through an inference profile.
+
+You will usually see an error similar to:
+
+`Invocation of model ID <model-id> with on-demand throughput isn't supported. Retry your request with the ID or ARN of an inference profile that contains this model.`
+
+To fix it:
+
+1. In AWS Bedrock, open the **Cross region inference** page.
+2. Create or select an **inference profile** that includes your model.
+3. Copy the **Inference profile ID**. It looks like `eu.anthropic.claude-3-haiku-20240307-v1:0`.
+4. In Agenta, set **Model name** to the inference profile ID (not the base model ID).
+5. Keep your Bedrock **Region** set to a Region supported by your account and the model. If you are not sure, use the same Region you used to create the inference profile.
+
+If you see a Bedrock error about a malformed request and an extraneous key (for example, `textGenerationConfig`), verify that you selected the right model identifier. The inference profile ID is often the correct choice for cross region inference models.
+
 
 ## Configuring OpenAI-Compatible Endpoints (e.g., Ollama)
 
