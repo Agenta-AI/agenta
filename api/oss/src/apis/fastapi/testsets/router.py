@@ -188,12 +188,47 @@ def _serialize_value_for_csv(value: Any) -> Any:
     return str(value)
 
 
-def _prepare_testcases_for_csv(testcases_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _prepare_testcases_for_csv(
+    testcases_data: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
     """Prepare testcases data for CSV export by serializing complex values."""
     return [
         {key: _serialize_value_for_csv(val) for key, val in row.items()}
         for row in testcases_data
     ]
+
+
+def _drop_empty_export_columns(testcases_data: List[Dict[str, Any]]) -> None:
+    """Drop metadata columns that are None for every row (CSV export only)."""
+    if not testcases_data:
+        return
+    for column in ("__flags__", "__tags__", "__meta__"):
+        if all(row.get(column) is None for row in testcases_data):
+            for row in testcases_data:
+                row.pop(column, None)
+
+
+def _normalize_testcase_dedup_ids(testcases_data: List[Dict[str, Any]]) -> None:
+    """Normalize legacy dedup keys to the canonical testcase_dedup_id field."""
+    for testcase_data in testcases_data:
+        if not isinstance(testcase_data, dict):
+            continue
+        legacy_dedup_id = testcase_data.pop("__dedup_id__", None)
+        existing_dedup_id = testcase_data.get("testcase_dedup_id")
+        if legacy_dedup_id not in (None, "") and existing_dedup_id in (None, ""):
+            testcase_data["testcase_dedup_id"] = legacy_dedup_id
+
+
+def _normalize_testcase_dedup_ids_in_request(testcases: Optional[List[Testcase]]) -> None:
+    """Normalize CSV-style dedup keys in JSON body requests."""
+    for testcase in testcases or []:
+        testcase_data = testcase.data
+        if not isinstance(testcase_data, dict):
+            continue
+        legacy_dedup_id = testcase_data.pop("__dedup_id__", None)
+        existing_dedup_id = testcase_data.get("testcase_dedup_id")
+        if legacy_dedup_id not in (None, "") and existing_dedup_id in (None, ""):
+            testcase_data["testcase_dedup_id"] = legacy_dedup_id
 
 
 def _build_testcase_export_row(testcase: Any) -> Dict[str, Any]:
@@ -206,15 +241,28 @@ def _build_testcase_export_row(testcase: Any) -> Dict[str, Any]:
 
     # Serialize all values in the data dict to ensure they're JSON-safe
     serialized_data = {key: _serialize_value(val) for key, val in data_dict.items()}
+    if "__dedup_id__" not in serialized_data and "testcase_dedup_id" in serialized_data:
+        serialized_data["__dedup_id__"] = serialized_data["testcase_dedup_id"]
+    if "__dedup_id__" in serialized_data and "testcase_dedup_id" in serialized_data:
+        serialized_data.pop("testcase_dedup_id", None)
 
-    # Build the export row with metadata fields
-    return {
+    export_row = {
         **serialized_data,
         "__id__": str(testcase.id) if testcase.id else None,
-        "__flags__": _serialize_value(testcase.flags),
-        "__tags__": _serialize_value(testcase.tags),
-        "__meta__": _serialize_value(testcase.meta),
     }
+
+    flags = _serialize_value(testcase.flags)
+    tags = _serialize_value(testcase.tags)
+    meta = _serialize_value(testcase.meta)
+
+    if flags is not None:
+        export_row["__flags__"] = flags
+    if tags is not None:
+        export_row["__tags__"] = tags
+    if meta is not None:
+        export_row["__meta__"] = meta
+
+    return export_row
 
 
 class TestsetsRouter:
@@ -1085,7 +1133,10 @@ class TestsetsRouter:
             include_testcases=True,
         )
 
-        if not testset_revision_response.count or not testset_revision_response.testset_revision:
+        if (
+            not testset_revision_response.count
+            or not testset_revision_response.testset_revision
+        ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Testset revision not found. Please check the revision_id and try again.",
@@ -1093,13 +1144,14 @@ class TestsetsRouter:
 
         revision = testset_revision_response.testset_revision
 
-        filename = (file_name or f"revision_{testset_revision_id}") + f".{file_type.lower()}"
+        filename = (
+            file_name or f"revision_{testset_revision_id}"
+        ) + f".{file_type.lower()}"
         testcases = revision.data.testcases if revision.data else []
 
         # Build export data using helper that properly handles Pydantic models
         testcases_data = [
-            _build_testcase_export_row(testcase)
-            for testcase in testcases or []
+            _build_testcase_export_row(testcase) for testcase in testcases or []
         ]
 
         if file_type.lower() == "json":
@@ -1113,6 +1165,7 @@ class TestsetsRouter:
 
         elif file_type.lower() == "csv":
             buffer = BytesIO()
+            _drop_empty_export_columns(testcases_data)
             csv_data = _prepare_testcases_for_csv(testcases_data)
             pl.DataFrame(csv_data).write_csv(buffer)
             buffer.seek(0)
@@ -1397,6 +1450,10 @@ class SimpleTestsetsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        _normalize_testcase_dedup_ids_in_request(
+            simple_testset_create_request.testset.data.testcases
+        )
+
         simple_testset = await self.simple_testsets_service.create(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1507,6 +1564,10 @@ class SimpleTestsetsRouter:
 
         if str(testset_id) != str(simple_testset_edit_request.testset.id):
             return SimpleTestsetResponse()
+
+        _normalize_testcase_dedup_ids_in_request(
+            simple_testset_edit_request.testset.data.testcases
+        )
 
         simple_testset: Optional[
             SimpleTestset
@@ -1791,6 +1852,7 @@ class SimpleTestsetsRouter:
             )
 
         try:
+            _normalize_testcase_dedup_ids(testcases_data)
             testcases_data = json_array_to_json_object(
                 data=testcases_data,
                 testcase_id_key="__id__",
@@ -1923,6 +1985,7 @@ class SimpleTestsetsRouter:
             )
 
         try:
+            _normalize_testcase_dedup_ids(testcases_data)
             testcases_data = json_array_to_json_object(
                 data=testcases_data,
                 testcase_id_key="__id__",
@@ -2040,8 +2103,7 @@ class SimpleTestsetsRouter:
 
         # Build export data using helper that properly handles Pydantic models
         testcases_data = [
-            _build_testcase_export_row(testcase)
-            for testcase in testcases or []
+            _build_testcase_export_row(testcase) for testcase in testcases or []
         ]
 
         if file_type.lower() == "json":
@@ -2055,6 +2117,7 @@ class SimpleTestsetsRouter:
 
         elif file_type.lower() == "csv":
             buffer = BytesIO()
+            _drop_empty_export_columns(testcases_data)
             csv_data = _prepare_testcases_for_csv(testcases_data)
             df = pl.DataFrame(csv_data)
             df.write_csv(buffer)
