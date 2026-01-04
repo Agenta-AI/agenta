@@ -69,9 +69,10 @@ async def _fetch_project_owner(
             WorkspaceMemberDBE.role == "owner",
             ProjectDBE.id == project_id,
         )
+        .order_by(WorkspaceMemberDBE.created_at.asc())
     )
     result = await connection.execute(workspace_owner_query)
-    owner = result.scalar_one_or_none()
+    owner = result.scalars().first()
     return owner
 
 

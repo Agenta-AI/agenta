@@ -2,13 +2,14 @@ import {LexicalNode} from "lexical"
 
 import {$isBase64Node} from "../nodes/Base64Node"
 import {$isCodeHighlightNode} from "../nodes/CodeHighlightNode"
+import {$isLongTextNode} from "../nodes/LongTextNode"
 
 /**
- * Checks if two nodes (CodeHighlightNode or Base64Node) are semantically equal.
+ * Checks if two nodes (CodeHighlightNode, Base64Node, or LongTextNode) are semantically equal.
  *
  * Two nodes are considered equal if they have:
  * 1. The same text content
- * 2. The same type (both highlight or both base64)
+ * 2. The same type (both highlight, both base64, or both longtext)
  * 3. For highlight nodes: same highlight type, validation error state, and message
  *
  * @param a - First node to compare
@@ -26,6 +27,19 @@ export function isEqual(a: LexicalNode, b: LexicalNode): boolean {
 
     // For Base64Nodes, just compare text content
     if (aIsBase64 && bIsBase64) {
+        return a.getTextContent() === b.getTextContent()
+    }
+
+    // Check for LongTextNodes
+    const aIsLongText = $isLongTextNode(a)
+    const bIsLongText = $isLongTextNode(b)
+
+    if (aIsLongText !== bIsLongText) {
+        return false
+    }
+
+    // For LongTextNodes, just compare text content
+    if (aIsLongText && bIsLongText) {
         return a.getTextContent() === b.getTextContent()
     }
 

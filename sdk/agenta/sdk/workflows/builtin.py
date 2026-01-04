@@ -166,11 +166,13 @@ def auto_custom_code_run(
     #
     correct_answer_key: Optional[str] = "correct_answer",
     threshold: Optional[float] = 0.5,
+    runtime: Optional[str] = "python",
 ) -> Workflow:
     parameters = dict(
         code=code,
         correct_answer_key=correct_answer_key,
         threshold=threshold,
+        runtime=runtime,
     )
 
     return evaluator(

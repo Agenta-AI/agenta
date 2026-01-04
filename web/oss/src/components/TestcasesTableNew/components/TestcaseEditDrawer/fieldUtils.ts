@@ -170,7 +170,14 @@ export function parseMessages(value: string): SimpleChatMessage[] {
 }
 
 // Data types detected from cell content
-export type DataType = "string" | "messages" | "json-object" | "json-array" | "boolean" | "number"
+export type DataType =
+    | "string"
+    | "messages"
+    | "json-object"
+    | "json-array"
+    | "boolean"
+    | "number"
+    | "null"
 
 /**
  * Detect the data type of a field value
@@ -200,11 +207,13 @@ export function detectDataType(value: string): DataType {
             return "json-array"
         }
 
+        // null type
+        if (parsed === null) return "null"
+
         // Single message objects are treated as json-object to show all properties
         // (provider_specific_fields, annotations, etc.)
         if (typeof parsed === "object" && parsed !== null) return "json-object"
 
-        // null - treat as string for display
         return "string"
     } catch {
         // Not valid JSON - it's a plain string
@@ -263,37 +272,28 @@ export function textModeToStorageValue(textValue: string, originalValue: string)
 }
 
 /**
- * Format form values for JSON display (parse nested JSON)
+ * Format values for JSON display
+ * Preserves original data types - strings stay as strings, objects stay as objects.
+ * This ensures the JSON editor shows the actual data format without modification.
  */
-export function formatForJsonDisplay(values: Record<string, string>): string {
-    const parsed: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(values)) {
-        try {
-            // Try to parse as JSON to avoid double-escaping
-            parsed[key] = JSON.parse(value)
-        } catch {
-            // If not valid JSON, use as-is
-            parsed[key] = value
-        }
-    }
-    return JSON.stringify(parsed, null, 2)
+export function formatForJsonDisplay(values: Record<string, unknown>): string {
+    // Use values as-is to preserve original data types
+    // A string containing JSON (e.g., '{"key": "value"}') should remain a string,
+    // not be parsed into an object - this preserves data integrity
+    return JSON.stringify(values, null, 2)
 }
 
 /**
- * Parse JSON display back to form values (re-stringify nested objects)
+ * Parse JSON display back to native values (preserves objects/arrays)
  */
-export function parseFromJsonDisplay(jsonStr: string): Record<string, string> | null {
+export function parseFromJsonDisplay(jsonStr: string): Record<string, unknown> | null {
     try {
         const parsed = JSON.parse(jsonStr)
-        const result: Record<string, string> = {}
-        for (const [key, value] of Object.entries(parsed)) {
-            if (typeof value === "string") {
-                result[key] = value
-            } else {
-                result[key] = JSON.stringify(value)
-            }
+        if (typeof parsed !== "object" || parsed === null) {
+            return null
         }
-        return result
+        // Return native values as-is (objects, arrays, strings, numbers, booleans)
+        return parsed as Record<string, unknown>
     } catch {
         return null
     }

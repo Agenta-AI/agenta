@@ -25,26 +25,39 @@ import {
 // ============================================================================
 
 // ============================================================================
-// PENDING COLUMN RENAMES
+// PENDING COLUMN RENAMES (REVISION-SCOPED)
 // Tracks column renames that need to be applied to newly loaded data
 // When page 2 loads after renaming a column on page 1, the server data
 // still has the old column name. This map is used to transform the data.
 // ============================================================================
 
 /**
- * Map of pending column renames: oldKey → newKey
+ * Map of pending column renames per revision: oldKey → newKey
  * Applied to newly loaded testcases to ensure consistency
  */
-const pendingColumnRenamesBaseAtom = atom<Map<string, string>>(new Map())
-export const pendingColumnRenamesAtom = atom((get) => get(pendingColumnRenamesBaseAtom))
+export const pendingColumnRenamesAtomFamily = atomFamily((_revisionId: string) =>
+    atom<Map<string, string>>(new Map()),
+)
 
 /**
- * Add a pending column rename
+ * Derived: pending renames for current revision
+ */
+export const pendingColumnRenamesAtom = atom((get) => {
+    const revisionId = get(currentRevisionIdAtom)
+    if (!revisionId) return new Map<string, string>()
+    return get(pendingColumnRenamesAtomFamily(revisionId))
+})
+
+/**
+ * Add a pending column rename to current revision
  */
 export const addPendingRenameAtom = atom(
     null,
     (get, set, {oldKey, newKey}: {oldKey: string; newKey: string}) => {
-        const current = get(pendingColumnRenamesBaseAtom)
+        const revisionId = get(currentRevisionIdAtom)
+        if (!revisionId) return
+
+        const current = get(pendingColumnRenamesAtomFamily(revisionId))
         const next = new Map(current)
         // Check if oldKey was itself a rename target (chain renames)
         // e.g., A→B then B→C should result in A→C
@@ -52,58 +65,90 @@ export const addPendingRenameAtom = atom(
             if (targetKey === oldKey) {
                 next.set(origKey, newKey)
                 next.delete(oldKey)
-                set(pendingColumnRenamesBaseAtom, next)
+                set(pendingColumnRenamesAtomFamily(revisionId), next)
                 return
             }
         }
         next.set(oldKey, newKey)
-        set(pendingColumnRenamesBaseAtom, next)
+        set(pendingColumnRenamesAtomFamily(revisionId), next)
     },
 )
 
 /**
- * Clear all pending renames (called after commit/discard)
+ * Clear all pending renames for current revision (called after commit/discard)
  */
 export const clearPendingRenamesAtom = atom(null, (get, set) => {
-    set(pendingColumnRenamesBaseAtom, new Map())
+    const revisionId = get(currentRevisionIdAtom)
+    if (!revisionId) return
+    set(pendingColumnRenamesAtomFamily(revisionId), new Map())
 })
 
 // ============================================================================
-// PENDING COLUMN DELETIONS
+// PENDING COLUMN DELETIONS (REVISION-SCOPED)
 // Tracks columns that have been deleted and need to be hidden from newly loaded data
 // ============================================================================
 
-const pendingDeletedColumnsBaseAtom = atom<Set<string>>(new Set())
-export const pendingDeletedColumnsAtom = atom((get) => get(pendingDeletedColumnsBaseAtom))
+export const pendingDeletedColumnsAtomFamily = atomFamily((_revisionId: string) =>
+    atom<Set<string>>(new Set()),
+)
+
+/**
+ * Derived: pending deletions for current revision
+ */
+export const pendingDeletedColumnsAtom = atom((get) => {
+    const revisionId = get(currentRevisionIdAtom)
+    if (!revisionId) return new Set<string>()
+    return get(pendingDeletedColumnsAtomFamily(revisionId))
+})
 
 export const addPendingDeletedColumnAtom = atom(null, (get, set, columnKey: string) => {
-    const current = get(pendingDeletedColumnsBaseAtom)
+    const revisionId = get(currentRevisionIdAtom)
+    if (!revisionId) return
+
+    const current = get(pendingDeletedColumnsAtomFamily(revisionId))
     const next = new Set(current)
     next.add(columnKey)
-    set(pendingDeletedColumnsBaseAtom, next)
+    set(pendingDeletedColumnsAtomFamily(revisionId), next)
 })
 
 export const clearPendingDeletedColumnsAtom = atom(null, (get, set) => {
-    set(pendingDeletedColumnsBaseAtom, new Set())
+    const revisionId = get(currentRevisionIdAtom)
+    if (!revisionId) return
+    set(pendingDeletedColumnsAtomFamily(revisionId), new Set())
 })
 
 // ============================================================================
-// PENDING COLUMN ADDITIONS
+// PENDING COLUMN ADDITIONS (REVISION-SCOPED)
 // Tracks columns that have been added and need to be initialized in newly loaded data
 // ============================================================================
 
-const pendingAddedColumnsBaseAtom = atom<Set<string>>(new Set())
-export const pendingAddedColumnsAtom = atom((get) => get(pendingAddedColumnsBaseAtom))
+export const pendingAddedColumnsAtomFamily = atomFamily((_revisionId: string) =>
+    atom<Set<string>>(new Set()),
+)
+
+/**
+ * Derived: pending additions for current revision
+ */
+export const pendingAddedColumnsAtom = atom((get) => {
+    const revisionId = get(currentRevisionIdAtom)
+    if (!revisionId) return new Set<string>()
+    return get(pendingAddedColumnsAtomFamily(revisionId))
+})
 
 export const addPendingAddedColumnAtom = atom(null, (get, set, columnKey: string) => {
-    const current = get(pendingAddedColumnsBaseAtom)
+    const revisionId = get(currentRevisionIdAtom)
+    if (!revisionId) return
+
+    const current = get(pendingAddedColumnsAtomFamily(revisionId))
     const next = new Set(current)
     next.add(columnKey)
-    set(pendingAddedColumnsBaseAtom, next)
+    set(pendingAddedColumnsAtomFamily(revisionId), next)
 })
 
 export const clearPendingAddedColumnsAtom = atom(null, (get, set) => {
-    set(pendingAddedColumnsBaseAtom, new Set())
+    const revisionId = get(currentRevisionIdAtom)
+    if (!revisionId) return
+    set(pendingAddedColumnsAtomFamily(revisionId), new Set())
 })
 
 /**
@@ -385,16 +430,23 @@ function isArrayValue(value: unknown): boolean {
  * @param prefix - Current path prefix (e.g., "event" or "event.location")
  * @param objectSubKeys - Map to populate with results
  * @param currentDepth - Current recursion depth
+ * @param deletedCols - Set of deleted column keys (to filter out deleted paths)
  */
 function collectObjectSubKeysRecursive(
     obj: Record<string, unknown>,
     prefix: string,
     objectSubKeys: Map<string, Set<string>>,
     currentDepth: number,
+    deletedCols: Set<string>,
 ): void {
     if (currentDepth >= MAX_COLUMN_DEPTH) return
 
     Object.entries(obj).forEach(([subKey, subValue]) => {
+        const fullPath = prefix ? `${prefix}.${subKey}` : subKey
+
+        // Skip if this path is marked as deleted
+        if (deletedCols.has(fullPath)) return
+
         // Skip array values entirely - they should be displayed as JSON, not expanded
         if (isArrayValue(subValue)) {
             // Add the key but don't recurse into it
@@ -404,7 +456,14 @@ function collectObjectSubKeysRecursive(
             return
         }
 
-        const fullPath = prefix ? `${prefix}.${subKey}` : subKey
+        // Try to parse as object to check if it's empty
+        const nestedObj = tryParseAsObject(subValue)
+
+        // Skip empty objects (e.g., "{}" from deleted nested properties)
+        // Empty objects should not create columns
+        if (nestedObj && Object.keys(nestedObj).length === 0) {
+            return
+        }
 
         // Add this subKey to the parent's set
         const parentSubKeys = objectSubKeys.get(prefix) || new Set<string>()
@@ -412,9 +471,8 @@ function collectObjectSubKeysRecursive(
         objectSubKeys.set(prefix, parentSubKeys)
 
         // If this value is also an object (not array), recurse
-        const nestedObj = tryParseAsObject(subValue)
         if (nestedObj && Object.keys(nestedObj).length > 0) {
-            collectObjectSubKeysRecursive(nestedObj, fullPath, objectSubKeys, currentDepth + 1)
+            collectObjectSubKeysRecursive(nestedObj, fullPath, objectSubKeys, currentDepth + 1, deletedCols)
         }
     })
 }
@@ -449,7 +507,8 @@ export const objectColumnSubKeysAtom = atom((get) => {
             const obj = tryParseAsObject(value)
             if (obj && Object.keys(obj).length > 0) {
                 // Recursively collect sub-keys up to MAX_COLUMN_DEPTH
-                collectObjectSubKeysRecursive(obj, key, objectSubKeys, 1)
+                // Pass deletedCols to filter out deleted nested paths
+                collectObjectSubKeysRecursive(obj, key, objectSubKeys, 1, deletedCols)
             }
         })
     })

@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import {Input, Modal, Typography} from "antd"
 
@@ -68,11 +68,13 @@ export function TestcaseModals(props: TestcaseModalsProps) {
     // Local state for add column modal
     const [newColumnName, setNewColumnName] = useState("")
 
-    // Sync initial values when modal opens
-    if (isRenameModalOpen && editModalName !== initialTestsetName) {
-        setEditModalName(initialTestsetName)
-        setEditModalDescription(initialDescription)
-    }
+    // Sync initial values when modal opens (only on open, not on every render)
+    useEffect(() => {
+        if (isRenameModalOpen) {
+            setEditModalName(initialTestsetName)
+            setEditModalDescription(initialDescription)
+        }
+    }, [isRenameModalOpen, initialTestsetName, initialDescription])
 
     const handleRenameConfirm = () => {
         onRenameConfirm(editModalName, editModalDescription)
@@ -155,6 +157,12 @@ export function TestcaseModals(props: TestcaseModalsProps) {
                         onPressEnter={handleAddColumn}
                         autoFocus
                     />
+                    <Typography.Text type="secondary" className="text-xs mt-2 block">
+                        Tip: Use dot notation to create nested columns. For example,{" "}
+                        <code className="bg-gray-100 px-1 rounded">parent.child</code> creates a{" "}
+                        <code className="bg-gray-100 px-1 rounded">child</code> column under the{" "}
+                        <code className="bg-gray-100 px-1 rounded">parent</code> group.
+                    </Typography.Text>
                 </div>
             </Modal>
         </>

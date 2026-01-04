@@ -274,7 +274,9 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     }, [onRowsChange, pagination.rows])
 
     const handleLoadMore = useCallback(() => {
-        if (!enableInfiniteScroll) return
+        if (!enableInfiniteScroll) {
+            return
+        }
         pagination.loadNextPage()
     }, [enableInfiniteScroll, pagination.loadNextPage])
 
@@ -434,18 +436,21 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         )
     }, [builtInDeleteButton, builtInExportButton, secondaryActions, exportButtonNode])
 
+    // Only show export in settings when enableExport is true AND no custom renderExportButton is provided
+    const showExportInSettings = enableExport && !renderExportButton
+
     const columnVisibilityRenderer = useMemo(
         () =>
             resolveColumnVisibilityRenderer(columnVisibilityMenuRenderer, columnVisibility, {
                 scopeId,
-                onExport: enableExport ? exportHandler : undefined,
+                onExport: showExportInSettings ? exportHandler : undefined,
                 isExporting,
             }),
         [
             columnVisibilityMenuRenderer,
             columnVisibility,
             scopeId,
-            enableExport,
+            showExportInSettings,
             exportHandler,
             isExporting,
         ],
@@ -461,7 +466,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         (controls: ColumnVisibilityState<Row>) => (
             <TableSettingsDropdown
                 controls={controls}
-                onExport={enableExport ? exportHandler : undefined}
+                onExport={showExportInSettings ? exportHandler : undefined}
                 isExporting={isExporting}
                 onDelete={resolvedSettingsDropdownDelete?.onDelete}
                 deleteDisabled={resolvedSettingsDropdownDelete?.disabled}
@@ -470,7 +475,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                 renderColumnVisibilityContent={(ctrls, close) =>
                     columnVisibilityRenderer(ctrls, close, {
                         scopeId,
-                        onExport: enableExport ? exportHandler : undefined,
+                        onExport: showExportInSettings ? exportHandler : undefined,
                         isExporting,
                     })
                 }
@@ -478,7 +483,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         ),
         [
             columnVisibilityRenderer,
-            enableExport,
+            showExportInSettings,
             exportHandler,
             isExporting,
             scopeId,
@@ -538,6 +543,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         )
     }, [tabs, headerExtra])
 
+    const effectiveDataSource = dataSource ?? pagination.rows
+
     return (
         <div
             className={clsx("flex flex-col", autoHeight ? "h-full min-h-0" : "min-h-0", className)}
@@ -557,7 +564,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                     useIsolatedStore={!store}
                     store={store}
                     columns={columns}
-                    dataSource={dataSource ?? pagination.rows}
+                    dataSource={effectiveDataSource}
                     loadMore={handleLoadMore}
                     rowKey={rowKey}
                     rowSelection={rowSelection}

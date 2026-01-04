@@ -15,7 +15,7 @@ import {
     pendingDeletedColumnsAtom,
     resetColumnsAtom,
 } from "../testcase/columnState"
-import {currentRevisionIdAtom, testsetNameQueryAtom} from "../testcase/queries"
+import {currentRevisionIdAtom} from "../testcase/queries"
 import {unflattenTestcase} from "../testcase/schema"
 import {
     clearDeletedIdsAtom,
@@ -29,8 +29,8 @@ import {
     testcaseIdsAtom,
 } from "../testcase/testcaseEntity"
 
-import {revisionIsDirtyAtom, testsetNameChangedAtom} from "./dirtyState"
 import {clearRevisionDraftAtom, revisionDraftAtomFamily} from "./revisionEntity"
+import {fetchRevision, fetchVariantDetail} from "./store"
 
 // ============================================================================
 // SAVE TESTSET MUTATION
@@ -71,13 +71,39 @@ export const saveTestsetAtom = atom(
             return {success: false, error: new Error("Missing projectId or testsetId")}
         }
 
-        // Get testset name from draft or query
-        const currentRevId = get(currentRevisionIdAtom)
-        const draft = currentRevId ? get(revisionDraftAtomFamily(currentRevId)) : null
-        const nameQuery = get(testsetNameQueryAtom)
-        const testsetName = draft?.name ?? nameQuery.data ?? ""
+        // Get testset name from revision or testset entity
+        // Use the passed revisionId parameter, fallback to currentRevisionIdAtom
+        const effectiveRevisionId = revisionId || get(currentRevisionIdAtom)
+
+        // Fetch revision data from server and merge with any local draft
+        let revisionData = null
+        if (effectiveRevisionId) {
+            try {
+                const serverRevision = await fetchRevision({id: effectiveRevisionId, projectId})
+                const draft = get(revisionDraftAtomFamily(effectiveRevisionId))
+                revisionData = draft ? {...serverRevision, ...draft} : serverRevision
+            } catch (error) {
+                console.error("[saveTestsetAtom] Failed to fetch revision:", error)
+            }
+        }
+
+        // Get variant ID from revision (name and description are stored in variant, not testset)
+        const variantId = revisionData?.testset_variant_id
+
+        // Fetch variant to get name and description
+        let variant = null
+        if (variantId) {
+            try {
+                variant = await fetchVariantDetail({id: variantId, projectId})
+            } catch (error) {
+                console.error("[saveTestsetAtom] Failed to fetch variant:", error)
+            }
+        }
+
+        const testsetName = revisionData?.name ?? variant?.name ?? ""
 
         if (!testsetName.trim()) {
+            console.error("[saveTestsetAtom] Testset name is empty! revisionData:", revisionData, "variant:", variant)
             return {success: false, error: new Error("Testset name is required")}
         }
 
@@ -87,9 +113,9 @@ export const saveTestsetAtom = atom(
             const serverIds = get(testcaseIdsAtom)
             const newIds = get(newEntityIdsAtom)
             const deletedIds = get(deletedEntityIdsAtom)
-            const testsetNameChanged = get(testsetNameChangedAtom)
-            const descriptionChanged = get(revisionIsDirtyAtom)
-            const description = draft?.description ?? ""
+
+            // Note: Name and description are now updated directly on testset entity,
+            // not via the commit flow. See updateTestsetMetadata API.
 
             // Build patch operations from local changes
             const operations: TestsetRevisionPatchOperations = {}
@@ -187,27 +213,24 @@ export const saveTestsetAtom = atom(
                 (operations.create?.length ?? 0) > 0 ||
                 (operations.delete?.length ?? 0) > 0
 
-            if (
-                !hasColumnOperations &&
-                !hasTestcaseOperations &&
-                !testsetNameChanged &&
-                !descriptionChanged
-            ) {
+            if (!hasColumnOperations && !hasTestcaseOperations) {
                 return {success: true, newRevisionId: revisionId || undefined}
             }
 
             // Patch revision with delta changes
+            // Note: Name/description are no longer passed here - they're updated directly on testset
             const response = await patchTestsetRevision(
                 testsetId,
                 operations,
                 commitMessage || undefined,
-                revisionId ?? undefined,
-                descriptionChanged ? description : undefined,
-                testsetName, // Pass testset name as revision name
+                effectiveRevisionId ?? undefined, // Pass the base revision ID we're editing from
             )
 
             if (response?.testset_revision) {
                 const newRevisionId = response.testset_revision.id as string
+
+                // NOTE: We no longer update the variant when patching, so no need to invalidate cache
+                // The name/description are stored on the revision itself
 
                 // Clear local edit state (drafts)
                 // Note: No need to update server state - page redirects to new revision
@@ -217,8 +240,8 @@ export const saveTestsetAtom = atom(
                 set(clearPendingAddedColumnsAtom)
                 set(clearPendingDeletedColumnsAtom)
                 // Clear revision draft (name/description)
-                if (currentRevId) {
-                    set(clearRevisionDraftAtom, currentRevId)
+                if (effectiveRevisionId) {
+                    set(clearRevisionDraftAtom, effectiveRevisionId)
                 }
                 // Discard drafts BEFORE clearing IDs (discardAllDraftsAtom reads from newEntityIdsAtom)
                 set(discardAllDraftsAtom)
@@ -255,6 +278,7 @@ export interface SaveNewTestsetResult {
     success: boolean
     revisionId?: string
     testsetId?: string
+    testcases?: Record<string, unknown>[]
     error?: Error
 }
 
@@ -311,6 +335,7 @@ export const saveNewTestsetAtom = atom(
                     success: true,
                     revisionId: response.data.revisionId,
                     testsetId: response.data.testset?.id,
+                    testcases: testcaseData,
                 }
             }
 

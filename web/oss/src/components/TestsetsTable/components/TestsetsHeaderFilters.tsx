@@ -4,15 +4,15 @@ import {Input} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {FiltersPopoverTrigger} from "@/oss/components/InfiniteVirtualTable"
+import {testset} from "@/oss/state/entities/testset"
 
 import {testsetsFiltersButtonStateAtom} from "../atoms/filters"
-import {testsetsSearchTermAtom} from "../atoms/tableStore"
 
 import TestsetsFiltersContent from "./TestsetsFiltersContent"
 import TestsetsFiltersSummary from "./TestsetsFiltersSummary"
 
 const TestsetsHeaderFilters = () => {
-    const [searchTerm, setSearchTerm] = useAtom(testsetsSearchTermAtom)
+    const [searchTerm, setSearchTerm] = useAtom(testset.filters.searchTerm)
     const filtersButtonState = useAtomValue(testsetsFiltersButtonStateAtom)
     const [_, setIsFiltersOpen] = useState(false)
 

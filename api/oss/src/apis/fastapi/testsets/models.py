@@ -61,6 +61,7 @@ class TestsetResponse(BaseModel):
 class TestsetsResponse(BaseModel):
     count: int = 0
     testsets: List[Testset] = []
+    windowing: Optional[Windowing] = None
 
 
 # TESTSET VARIANTS -------------------------------------------------------------

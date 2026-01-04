@@ -2,10 +2,11 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {
-    fetchTestsetRevisions,
-    type TestsetRevision,
-} from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
-import {latestRevisionForTestsetAtomFamily} from "@/oss/state/entities/testset"
+    fetchRevisionsList,
+    latestRevisionForTestsetAtomFamily,
+    type RevisionListItem,
+} from "@/oss/state/entities/testset"
+import {projectIdAtom} from "@/oss/state/project"
 
 /**
  * Testset/Revision Selection State
@@ -50,7 +51,7 @@ export const loadingRevisionsAtom = atom<boolean>(false)
 export const loadingTestsetMapAtom = atom<Map<string, boolean>>(new Map())
 
 /** Loaded revisions cache - maps testsetId to revisions array */
-export const loadedRevisionsMapAtom = atom<Map<string, TestsetRevision[]>>(new Map())
+export const loadedRevisionsMapAtom = atom<Map<string, RevisionListItem[]>>(new Map())
 
 /** Available revisions for the selected testset (derived from cache) */
 export const availableRevisionsAtom = atom<{id: string; version: number | null}[]>((get) => {
@@ -72,7 +73,7 @@ export const availableRevisionsAtom = atom<{id: string; version: number | null}[
  */
 export const setRevisionsForTestsetAtom = atom(
     null,
-    (get, set, {testsetId, revisions}: {testsetId: string; revisions: TestsetRevision[]}) => {
+    (get, set, {testsetId, revisions}: {testsetId: string; revisions: RevisionListItem[]}) => {
         const currentCache = get(loadedRevisionsMapAtom)
         const newCache = new Map(currentCache)
         newCache.set(testsetId, revisions)
@@ -90,7 +91,7 @@ export const setRevisionsForTestsetAtom = atom(
  */
 export const loadRevisionsForTestsetAtom = atom(
     null,
-    async (get, set, testsetId: string): Promise<TestsetRevision[]> => {
+    async (get, set, testsetId: string): Promise<RevisionListItem[]> => {
         if (!testsetId || testsetId === "create") {
             return []
         }
@@ -110,7 +111,12 @@ export const loadRevisionsForTestsetAtom = atom(
         set(loadingTestsetMapAtom, newLoadingMap)
 
         try {
-            const revisions = await fetchTestsetRevisions({testsetId})
+            const projectId = get(projectIdAtom)
+            if (!projectId) {
+                return []
+            }
+            const response = await fetchRevisionsList({projectId, testsetId})
+            const revisions = response.testset_revisions
 
             // Update cache
             const currentCache = get(loadedRevisionsMapAtom)
@@ -190,17 +196,16 @@ export const selectTestsetAtom = atom(
         set(selectedTestsetIdAtom, testsetId)
         set(selectedTestsetInfoAtom, {id: testsetId, name: testsetName})
 
-        // Clear revision selection initially
-        set(selectedRevisionIdAtom, "")
-
+        // Handle "create new" or empty testset - clear revision immediately
         if (!testsetId || testsetId === "create") {
+            set(selectedRevisionIdAtom, "")
             return
         }
 
         // Load revisions (will use cache if available)
         const revisions = await set(loadRevisionsForTestsetAtom, testsetId)
 
-        // Auto-select latest revision
+        // Auto-select latest revision, or clear if no revisions found
         if (autoSelectLatest && revisions.length > 0) {
             // Try to get latest from query atom first (more reliable)
             const latestRevision = get(latestRevisionForTestsetAtomFamily(testsetId))
@@ -208,7 +213,12 @@ export const selectTestsetAtom = atom(
 
             if (latestId) {
                 set(selectedRevisionIdAtom, latestId)
+            } else {
+                set(selectedRevisionIdAtom, "")
             }
+        } else {
+            // No revisions or auto-select disabled - clear selection
+            set(selectedRevisionIdAtom, "")
         }
     },
 )

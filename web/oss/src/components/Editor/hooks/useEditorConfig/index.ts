@@ -50,6 +50,7 @@ const useEditorConfig = ({
                     import("../../plugins/code/nodes/CodeBlockErrorIndicatorNode"),
                     import("../../plugins/code/nodes/CodeTabNode"),
                     import("../../plugins/code/nodes/Base64Node"),
+                    import("../../plugins/code/nodes/LongTextNode"),
                 ])
 
                 initialNodes.push(
@@ -60,6 +61,7 @@ const useEditorConfig = ({
                         initialNodesPromises[3].CodeBlockErrorIndicatorNode,
                         initialNodesPromises[4].CodeTabNode,
                         initialNodesPromises[5].Base64Node,
+                        initialNodesPromises[6].LongTextNode,
                     ],
                 )
             } else {

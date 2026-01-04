@@ -1,47 +1,30 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
-    addColumnAtom,
-    currentColumnsAtom,
-    deleteColumnAtom,
-    expandedColumnsAtom,
-    renameColumnAtom,
-} from "@/oss/state/entities/testcase/columnState"
-import {displayRowRefsAtom} from "@/oss/state/entities/testcase/displayRows"
-import {initializeEmptyRevisionAtom} from "@/oss/state/entities/testcase/editSession"
-import {
-    addTestcaseAtom,
-    appendTestcasesAtom,
     clearChangesAtom,
-    deleteTestcasesAtom,
-    saveNewTestsetAtom,
-    saveTestsetAtom,
-} from "@/oss/state/entities/testcase/mutations"
-import {
+    displayRowRefsAtom,
+    initializeEmptyRevisionAtom,
     metadataLoadingAtom,
     revisionQueryAtom,
-    revisionsListQueryAtom,
+    saveNewTestsetAtom,
+    saveTestsetAtom,
+    testcase,
     testsetIdAtom,
     testsetMetadataAtom,
-    testsetNameQueryAtom,
-} from "@/oss/state/entities/testcase/queries"
-import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
-import {updateTestcaseAtom} from "@/oss/state/entities/testcase/testcaseEntity"
-import {
-    changesSummaryAtom,
-    hasUnsavedChangesAtom,
-    revisionDraftAtomFamily,
-    revisionEntityAtomFamily,
-    revisionHasDraftAtomFamily,
-} from "@/oss/state/entities/testset"
+    type FlattenedTestcase,
+} from "@/oss/state/entities/testcase"
+import {changesSummaryAtom, hasUnsavedChangesAtom, revision} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {
+    hasInitialFetchCompletedAtom,
+    markFetchCompletedForRevisionAtom,
     revisionChangeEffectAtom,
     setDebouncedSearchTermAtom,
     syncRowIdsToEntityAtom,
+    tableQueryFetchingAtom,
     testcaseRowDataMapAtom,
     testcaseRowIdsAtom,
     testcasesSearchTermAtom,
@@ -90,7 +73,7 @@ export type {
  */
 export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTestcasesTableResult {
     const projectId = useAtomValue(projectIdAtom)
-    const {revisionId, skipEmptyRevisionInit = false, initialTestsetName} = options
+    const {revisionId, skipEmptyRevisionInit = false} = options
 
     // Check if this is a new testset (not yet saved to server)
     const isNewTestset = revisionId === "new"
@@ -107,51 +90,8 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     // Save state
     const [isSaving, setIsSaving] = useState(false)
 
-    // Revision entity - uses entity pattern directly
-    // Server data merged with local draft
-    const revisionEntity = useAtomValue(
-        revisionId ? revisionEntityAtomFamily(revisionId) : revisionEntityAtomFamily(""),
-    )
-    const _hasDraft = useAtomValue(
-        revisionId ? revisionHasDraftAtomFamily(revisionId) : revisionHasDraftAtomFamily(""),
-    )
-    const setDraft = useSetAtom(
-        revisionId ? revisionDraftAtomFamily(revisionId) : revisionDraftAtomFamily(""),
-    )
-
     // Query atoms - reactive data fetching via atomWithQuery
     const revisionQuery = useAtomValue(revisionQueryAtom)
-    const testsetNameQuery = useAtomValue(testsetNameQueryAtom)
-    const revisionsListQuery = useAtomValue(revisionsListQueryAtom)
-
-    // Derived values from entity
-    // For v0, revision name may be empty, so fall back to testset name from query
-    // For new testsets, use initialTestsetName
-    const testsetName = isNewTestset
-        ? revisionEntity?.name || initialTestsetName || ""
-        : revisionEntity?.name || testsetNameQuery.data || ""
-    const description = revisionEntity?.description ?? ""
-
-    // Write functions using entity draft pattern
-    const setLocalName = useCallback(
-        (name: string) => {
-            setDraft((prev) => ({...prev, name}))
-        },
-        [setDraft],
-    )
-    const setLocalDesc = useCallback(
-        (desc: string) => {
-            setDraft((prev) => ({...prev, description: desc}))
-        },
-        [setDraft],
-    )
-
-    // Dirty state from draft
-    const getDraft = useAtomValue(
-        revisionId ? revisionDraftAtomFamily(revisionId) : revisionDraftAtomFamily(""),
-    )
-    const testsetNameChanged = getDraft?.name !== undefined
-    const descriptionChanged = getDraft?.description !== undefined
 
     // Set revision context and run all side effects via consolidated effect atom
     // This handles: setting revision ID, cleanup, column reset, row ID sync
@@ -160,12 +100,8 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         runRevisionChangeEffect(revisionId ?? null)
     }, [revisionId, runRevisionChangeEffect])
 
-    // Initialize new testset with name from URL params
-    useEffect(() => {
-        if (isNewTestset && initialTestsetName && revisionId) {
-            setDraft((prev) => ({...prev, name: initialTestsetName}))
-        }
-    }, [isNewTestset, initialTestsetName, revisionId, setDraft])
+    // Extract metadata loading state early (needed by initialization logic)
+    const metadataLoading = useAtomValue(metadataLoadingAtom)
 
     // Row IDs are synced automatically via revisionChangeEffectAtom
     // which subscribes to testcaseRowIdsAtom changes
@@ -173,42 +109,62 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
 
     // Trigger sync when row IDs change (data arrives from paginated fetch)
     const syncRowIds = useSetAtom(syncRowIdsToEntityAtom)
-    // Using useMemo to avoid creating effect - sync happens synchronously when rowIds change
-    useMemo(() => {
+    const markFetchCompleted = useSetAtom(markFetchCompletedForRevisionAtom)
+
+    // Sync rowIds to entities when data arrives
+    useEffect(() => {
         if (rowIds.length > 0) {
             syncRowIds()
         }
-    }, [rowIds, syncRowIds])
+    }, [rowIds, syncRowIds, revisionId])
 
-    // Initialize empty revision when revision query completes
-    // This is the single point of initialization for empty revisions (any version)
-    // Adds default columns and one empty row to improve UX
-    // Can be skipped via skipEmptyRevisionInit option (e.g., for TestsetDrawer which manages its own columns)
+    // Monitor table query fetching state and mark fetch completed when query finishes
+    // This works for both empty and non-empty revisions by watching the actual query state
+    const isFetching = useAtomValue(tableQueryFetchingAtom)
+    const prevFetchingRef = useRef(isFetching)
+
+    useEffect(() => {
+        const wasFetching = prevFetchingRef.current
+        const isCurrentlyFetching = isFetching
+
+        // Detect transition from fetching -> not fetching (query completed)
+        if (wasFetching && !isCurrentlyFetching && revisionId) {
+            markFetchCompleted()
+        }
+
+        prevFetchingRef.current = isCurrentlyFetching
+    }, [isFetching, revisionId, markFetchCompleted, rowIds.length])
+
+    // Initialize empty revision ONLY after initial fetch completes
+    // This ensures testcasesAlreadyLoaded check in initializeEmptyRevisionAtom is accurate
     const initializeEmptyRevision = useSetAtom(initializeEmptyRevisionAtom)
+    const hasInitialFetchCompleted = useAtomValue(hasInitialFetchCompletedAtom)
+
     useEffect(() => {
         if (skipEmptyRevisionInit) return
-        if (!revisionQuery.isPending && revisionId && revisionQuery.data) {
-            initializeEmptyRevision()
-        }
+        if (!revisionId) return
+        if (revisionQuery.isPending) return
+        if (!revisionQuery.data) return
+        if (!hasInitialFetchCompleted) return // Wait for fetch to complete
+
+        // Now that fetch has completed, check if we need to initialize
+        // initializeEmptyRevisionAtom will check loadedTestcaseIds.length and only
+        // initialize if truly empty (no server data, no local data, no columns)
+        initializeEmptyRevision()
     }, [
         skipEmptyRevisionInit,
+        revisionId,
         revisionQuery.isPending,
         revisionQuery.data,
-        revisionId,
+        hasInitialFetchCompleted,
         initializeEmptyRevision,
     ])
 
     // Extract data from query atoms
     const testsetId = useAtomValue(testsetIdAtom)
-    const availableRevisions = revisionsListQuery.data ?? []
-    const loadingRevisions = revisionsListQuery.isPending
 
-    // Metadata from query atoms (automatically updates when queries complete)
-    const metadata = useAtomValue(testsetMetadataAtom)
-    const metadataLoading = useAtomValue(metadataLoadingAtom)
-
-    // Update testcase atom - for local edits
-    const executeUpdateTestcase = useSetAtom(updateTestcaseAtom)
+    // Update testcase action - for local edits (uses controller pattern)
+    const executeUpdateTestcase = useSetAtom(testcase.actions.update)
 
     // NOTE: Pagination is handled by InfiniteVirtualTableFeatureShell via datasetStore
     // The shell calls datasetStore.hooks.usePagination() internally
@@ -221,16 +177,53 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         .map((row) => row.id as string)
 
     // =========================================================================
-    // COLUMN STATE (from atoms instead of useEditableTable)
+    // COLUMN STATE (via revision controller)
     // Columns are derived directly from entity/server data - no useEffect sync needed
     // Note: Column reset and v0 draft init are handled by revisionChangeEffectAtom
-    // Uses expandedColumnsAtom for dynamic object expansion (e.g., "event" -> "event.type", "event.date")
+    // Uses expandedColumns for dynamic object expansion (e.g., "event" -> "event.type", "event.date")
     // =========================================================================
-    const baseColumns = useAtomValue(currentColumnsAtom) // Original columns (for drawer/editing)
+    const columnsAtom = useMemo(
+        () => revision.selectors.columns(revisionId ?? ""),
+        [revisionId],
+    )
+    const expandedColumnsAtom = useMemo(
+        () => revision.selectors.expandedColumns(revisionId ?? ""),
+        [revisionId],
+    )
+    const baseColumns = useAtomValue(columnsAtom) // Original columns (for drawer/editing)
     const columns = useAtomValue(expandedColumnsAtom) // Expanded columns (for table display)
-    const addColumn = useSetAtom(addColumnAtom)
-    const deleteColumn = useSetAtom(deleteColumnAtom)
-    const renameColumnAction = useSetAtom(renameColumnAtom)
+
+    // Check if revision data suggests columns should exist but haven't been derived yet
+    // This catches the gap between data arriving and columns being populated
+    const revisionData = revisionQuery.data
+    // Check various indicators that testcases exist:
+    // 1. flags.has_testcases - explicit boolean from backend
+    // 2. data.testcases array - inline testcases (when include_testcases=true)
+    // 3. data.testcase_ids array - list of testcase references
+    const revisionHasColumnData =
+        revisionData &&
+        (revisionData.flags?.has_testcases === true ||
+            (revisionData.data?.testcases && revisionData.data.testcases.length > 0) ||
+            (revisionData.data?.testcase_ids && revisionData.data.testcase_ids.length > 0))
+    const stillDerivingColumns = columns.length === 0 && revisionHasColumnData
+
+    // Combined loading state - true when any data source is still loading
+    // This prevents empty state flash between different loading phases:
+    // 1. metadataLoading - testset metadata query
+    // 2. isFetching - paginated store fetching rows
+    // 3. revisionQuery.isPending - revision data (columns come from here)
+    // 4. !hasInitialFetchCompleted - initial data sync not yet complete
+    // 5. stillDerivingColumns - revision has data but columns not yet derived
+    const combinedIsLoading =
+        metadataLoading ||
+        isFetching ||
+        revisionQuery.isPending ||
+        !hasInitialFetchCompleted ||
+        stillDerivingColumns
+
+    const addColumn = useSetAtom(revision.actions.addColumn)
+    const deleteColumn = useSetAtom(revision.actions.deleteColumn)
+    const renameColumnAction = useSetAtom(revision.actions.renameColumn)
 
     /**
      * Row refs for table display
@@ -245,18 +238,15 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
      */
     const updateTestcase = useCallback(
         (rowKey: string, columnKey: string, value: unknown) => {
-            executeUpdateTestcase({
-                id: rowKey,
-                updates: {[columnKey]: value} as Partial<FlattenedTestcase>,
-            })
+            executeUpdateTestcase(rowKey, {[columnKey]: value} as Partial<FlattenedTestcase>)
         },
         [executeUpdateTestcase],
     )
 
     /**
-     * Delete testcases - uses deleteTestcasesAtom
+     * Delete testcases - uses testcase.actions.delete
      */
-    const executeDeleteTestcases = useSetAtom(deleteTestcasesAtom)
+    const executeDeleteTestcases = useSetAtom(testcase.actions.delete)
     const deleteTestcases = useCallback(
         (rowKeys: string[]) => executeDeleteTestcases(rowKeys),
         [executeDeleteTestcases],
@@ -273,9 +263,9 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     )
 
     /**
-     * Add a new testcase - uses addTestcaseAtom
+     * Add a new testcase - uses testcase.actions.add
      */
-    const executeAddTestcase = useSetAtom(addTestcaseAtom)
+    const executeAddTestcase = useSetAtom(testcase.actions.add)
     const addTestcase = useCallback((): TestcaseTableRow => {
         const result = executeAddTestcase()
         return {
@@ -287,9 +277,9 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     }, [executeAddTestcase])
 
     /**
-     * Append multiple testcases - uses appendTestcasesAtom
+     * Append multiple testcases - uses testcase.actions.append
      */
-    const executeAppendTestcases = useSetAtom(appendTestcasesAtom)
+    const executeAppendTestcases = useSetAtom(testcase.actions.append)
     const appendTestcases = useCallback(
         (rows: Record<string, unknown>[]): number => executeAppendTestcases(rows),
         [executeAppendTestcases],
@@ -304,12 +294,13 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     /**
      * Save all changes - uses saveTestsetAtom mutation for existing testsets
      * or saveNewTestsetAtom for new testsets
+     * @param params - For new testsets: {testsetName: string, commitMessage?: string}. For existing: {commitMessage?: string}
      * @returns New revision ID on success, null on failure
      */
     const executeSave = useSetAtom(saveTestsetAtom)
     const executeSaveNewTestset = useSetAtom(saveNewTestsetAtom)
     const saveTestset = useCallback(
-        async (commitMessage?: string): Promise<string | null> => {
+        async (params?: {testsetName?: string; commitMessage?: string}): Promise<string | null> => {
             if (!projectId) {
                 console.error("[useTestcasesTable] Missing projectId")
                 return null
@@ -317,8 +308,8 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
 
             // For new testsets, use saveNewTestsetAtom
             if (isNewTestset) {
-                const nameToSave = getDraft?.name || initialTestsetName || ""
-                if (!nameToSave.trim()) {
+                const testsetName = params?.testsetName
+                if (!testsetName?.trim()) {
                     console.error("[useTestcasesTable] Missing testset name for new testset")
                     return null
                 }
@@ -327,7 +318,7 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
                 try {
                     const result = await executeSaveNewTestset({
                         projectId,
-                        testsetName: nameToSave,
+                        testsetName,
                     })
 
                     if (result.success && result.revisionId) {
@@ -356,7 +347,7 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
                     projectId,
                     testsetId,
                     revisionId,
-                    commitMessage,
+                    commitMessage: params?.commitMessage,
                 })
 
                 if (result.success && result.newRevisionId) {
@@ -374,16 +365,7 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
                 setIsSaving(false)
             }
         },
-        [
-            projectId,
-            testsetId,
-            revisionId,
-            executeSave,
-            executeSaveNewTestset,
-            isNewTestset,
-            getDraft,
-            initialTestsetName,
-        ],
+        [projectId, testsetId, revisionId, executeSave, executeSaveNewTestset, isNewTestset],
     )
 
     /**
@@ -408,17 +390,9 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         testcaseIds, // IDs for entity atom access
         columns, // Expanded columns for table display
         baseColumns, // Original columns for drawer/editing
-        isLoading: metadataLoading,
-        error: (revisionQuery.error || testsetNameQuery.error) as Error | null,
-
-        // Metadata
-        metadata,
-        testsetName,
-        setTestsetName: setLocalName,
-        testsetNameChanged,
-        description,
-        setDescription: setLocalDesc,
-        descriptionChanged,
+        // Use combined loading state (includes revisionQuery.isPending for columns)
+        isLoading: combinedIsLoading,
+        error: revisionQuery.error as Error | null,
 
         // Stats
         totalCount,
@@ -442,9 +416,5 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         // Search/Filter
         searchTerm,
         setSearchTerm,
-
-        // Revisions
-        availableRevisions,
-        loadingRevisions,
     }
 }

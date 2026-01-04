@@ -33,7 +33,10 @@ const EditableColumnHeader = ({
         const checkWidth = () => {
             if (containerRef.current) {
                 const width = containerRef.current.offsetWidth
-                setUseDropdown(width < inlineActionsMinWidth)
+                const shouldUseDropdown = width < inlineActionsMinWidth
+                // Only update state if the value actually changed
+                // This prevents infinite loops during horizontal scroll
+                setUseDropdown((prev) => (prev === shouldUseDropdown ? prev : shouldUseDropdown))
             }
         }
 
@@ -108,13 +111,13 @@ const EditableColumnHeader = ({
                             type="text"
                             size="small"
                             icon={<MoreOutlined />}
-                            className="flex-shrink-0 ml-1"
+                            className="flex-shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => e.stopPropagation()}
                         />
                     </Dropdown>
                 ) : (
                     // Inline action buttons for wider columns
-                    <div className="flex items-center gap-0.5 flex-shrink-0 ml-1">
+                    <div className="flex items-center gap-0.5 flex-shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Tooltip title="Rename column">
                             <Button
                                 type="text"
@@ -171,6 +174,12 @@ const EditableColumnHeader = ({
                         placeholder="Enter column name"
                         onPressEnter={handleRename}
                     />
+                    <Typography.Text type="secondary" className="text-xs mt-2 block">
+                        Tip: Use dot notation to create nested columns. For example,{" "}
+                        <code className="bg-gray-100 px-1 rounded">parent.child</code> creates a{" "}
+                        <code className="bg-gray-100 px-1 rounded">child</code> column under the{" "}
+                        <code className="bg-gray-100 px-1 rounded">parent</code> group.
+                    </Typography.Text>
                 </div>
             </Modal>
 

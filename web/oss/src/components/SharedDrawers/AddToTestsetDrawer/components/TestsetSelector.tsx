@@ -1,3 +1,5 @@
+import {useMemo} from "react"
+
 import {PencilSimple} from "@phosphor-icons/react"
 import {Cascader, Input, Typography} from "antd"
 
@@ -7,12 +9,27 @@ interface TestsetSelectorProps {
     onCascaderChange: (value: any, selectedOptions: any[]) => void
     loadRevisions: (selectedOptions: any[]) => Promise<void>
     isTestsetsLoading: boolean
-    loadingRevisions: boolean
     renderSelectedRevisionLabel: (labels: string[], selectedOptions?: any[]) => React.ReactNode
     isNewTestset: boolean
     newTestsetName: string
     setNewTestsetName: (name: string) => void
     elementWidth: number
+}
+
+// Add ellipsis rendering to cascader options recursively
+// Preserves original label as textLabel for displayRender to access
+function addOptionRender(options: any[]): any[] {
+    return options.map((opt) => ({
+        ...opt,
+        // Keep original label accessible for displayRender
+        textLabel: typeof opt.label === "string" ? opt.label : opt.textLabel,
+        label: (
+            <Typography.Text ellipsis style={{width: 170, display: "block"}}>
+                {opt.label}
+            </Typography.Text>
+        ),
+        children: opt.children ? addOptionRender(opt.children) : undefined,
+    }))
 }
 
 export function TestsetSelector({
@@ -21,13 +38,15 @@ export function TestsetSelector({
     onCascaderChange,
     loadRevisions,
     isTestsetsLoading,
-    loadingRevisions,
     renderSelectedRevisionLabel,
     isNewTestset,
     newTestsetName,
     setNewTestsetName,
     elementWidth,
 }: TestsetSelectorProps) {
+    // Transform options to use Typography.Text with ellipsis
+    const optionsWithEllipsis = useMemo(() => addOptionRender(cascaderOptions), [cascaderOptions])
+
     return (
         <div className="flex flex-col gap-1">
             <Typography.Text className="font-medium">1. Select Testset</Typography.Text>
@@ -40,13 +59,14 @@ export function TestsetSelector({
                     style={{width: elementWidth}}
                     placeholder="Select testset (auto-selects latest revision)"
                     value={cascaderValue}
-                    options={cascaderOptions}
+                    options={optionsWithEllipsis}
                     onChange={onCascaderChange}
                     loadData={loadRevisions}
-                    loading={isTestsetsLoading || loadingRevisions}
+                    loading={isTestsetsLoading}
                     changeOnSelect
                     expandTrigger="hover"
                     displayRender={renderSelectedRevisionLabel}
+                    popupMenuColumnStyle={{maxWidth: 200}}
                 />
                 {isNewTestset && (
                     <div className="relative">

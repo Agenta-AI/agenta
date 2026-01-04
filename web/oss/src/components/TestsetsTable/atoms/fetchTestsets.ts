@@ -94,6 +94,7 @@ export const fetchTestsetsWindow = async ({
         const data = response.data
         const testsets = data?.testsets ?? []
         const count = data?.count ?? testsets.length
+        const windowing = data?.windowing
 
         // Map API response to table rows
         // Testset includes: id, slug, name, description, created_at, updated_at, created_by_id, etc.
@@ -110,10 +111,10 @@ export const fetchTestsetsWindow = async ({
             meta: testset.meta,
         }))
 
-        // Determine if there are more results
-        // The API should ideally return windowing info, but we can infer from count
-        const hasMore = rows.length === limit && offset + rows.length < count
-        const nextCursor = hasMore && rows.length > 0 ? rows[rows.length - 1].id : null
+        // Use windowing info from API to determine pagination state
+        // The backend returns windowing.next if there are more results
+        const hasMore = !!windowing?.next
+        const nextCursor = windowing?.next ?? null
 
         return {
             rows,

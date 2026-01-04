@@ -3,12 +3,13 @@ import {useMemo} from "react"
 import {ArrowRight, Crosshair, Plus, Trash} from "@phosphor-icons/react"
 import {AutoComplete, Button, Select, Tooltip, Typography} from "antd"
 
-import {Mapping, TestsetColumn} from "../assets/types"
+import {createMappingId, Mapping, TestsetColumn} from "../assets/types"
 
 interface MappingSectionProps {
     mappingData: Mapping[]
     setMappingData: (data: Mapping[] | ((prev: Mapping[]) => Mapping[])) => void
     onMappingOptionChange: (params: {pathName: keyof Mapping; value: string; idx: number}) => void
+    onRemoveMapping: (idx: number) => void
     onNewColumnBlur: () => void
     allAvailablePaths: {value: string; label: string}[]
     columnOptions: {value: string; label: string}[]
@@ -27,6 +28,7 @@ export function MappingSection({
     mappingData,
     setMappingData,
     onMappingOptionChange,
+    onRemoveMapping,
     onNewColumnBlur,
     allAvailablePaths,
     columnOptions,
@@ -96,7 +98,7 @@ export function MappingSection({
                     <div className="flex flex-col gap-2">
                         {mappingData.map((mapping, idx) => (
                             <div
-                                key={`mapping-${idx}-${mapping.data || ""}`}
+                                key={mapping.id}
                                 className="flex gap-2 items-center"
                             >
                                 {/* Inputs container - takes remaining space */}
@@ -151,32 +153,37 @@ export function MappingSection({
                                     />
 
                                     {mapping.column === "create" && (
-                                        <AutoComplete
-                                            className="flex-1 min-w-0"
-                                            value={mapping.newColumn || undefined}
-                                            options={getAvailableColumnOptions(idx)}
-                                            onSelect={(value) =>
-                                                onMappingOptionChange({
-                                                    pathName: "newColumn",
-                                                    value,
-                                                    idx,
-                                                })
-                                            }
-                                            onChange={(value) =>
-                                                onMappingOptionChange({
-                                                    pathName: "newColumn",
-                                                    value,
-                                                    idx,
-                                                })
-                                            }
-                                            onBlur={onNewColumnBlur}
-                                            placeholder="Column name"
-                                            filterOption={(inputValue, option) =>
-                                                option!.value
-                                                    .toUpperCase()
-                                                    .indexOf(inputValue.toUpperCase()) !== -1
-                                            }
-                                        />
+                                        <Tooltip
+                                            title="Tip: Use dot notation (e.g., parent.child) to create nested columns"
+                                            placement="topRight"
+                                        >
+                                            <AutoComplete
+                                                className="flex-1 min-w-0"
+                                                value={mapping.newColumn || undefined}
+                                                options={getAvailableColumnOptions(idx)}
+                                                onSelect={(value) =>
+                                                    onMappingOptionChange({
+                                                        pathName: "newColumn",
+                                                        value,
+                                                        idx,
+                                                    })
+                                                }
+                                                onChange={(value) =>
+                                                    onMappingOptionChange({
+                                                        pathName: "newColumn",
+                                                        value,
+                                                        idx,
+                                                    })
+                                                }
+                                                onBlur={onNewColumnBlur}
+                                                placeholder="Column name (e.g., parent.child)"
+                                                filterOption={(inputValue, option) =>
+                                                    option!.value
+                                                        .toUpperCase()
+                                                        .indexOf(inputValue.toUpperCase()) !== -1
+                                                }
+                                            />
+                                        </Tooltip>
                                     )}
                                 </div>
 
@@ -201,11 +208,7 @@ export function MappingSection({
                                             type="text"
                                             size="small"
                                             icon={<Trash size={16} />}
-                                            onClick={() =>
-                                                setMappingData(
-                                                    mappingData.filter((_, index) => index !== idx),
-                                                )
-                                            }
+                                            onClick={() => onRemoveMapping(idx)}
                                         />
                                     </div>
                                 </div>
@@ -218,7 +221,12 @@ export function MappingSection({
                         className="mt-1"
                         style={{width: elementWidth}}
                         icon={<Plus />}
-                        onClick={() => setMappingData([...mappingData, {data: "", column: ""}])}
+                        onClick={() =>
+                            setMappingData([
+                                ...mappingData,
+                                {id: createMappingId(), data: "", column: ""},
+                            ])
+                        }
                     >
                         Add field
                     </Button>

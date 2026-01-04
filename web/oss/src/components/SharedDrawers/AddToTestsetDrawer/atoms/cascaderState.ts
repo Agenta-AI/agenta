@@ -1,9 +1,11 @@
 import {atom} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 
-import {
-    fetchTestsetRevisions,
-    type TestsetRevision,
-} from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
+import axios from "@/oss/lib/api/assets/axiosConfig"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import type {RevisionListItem} from "@/oss/state/entities/testset"
+import {enableRevisionsListQueryAtom} from "@/oss/state/entities/testset/revisionEntity"
+import {projectIdAtom} from "@/oss/state/project"
 import {
     availableRevisionsAtom as sharedAvailableRevisionsAtom,
     isNewTestsetAtom as sharedIsNewTestsetAtom,
@@ -67,23 +69,21 @@ export const loadingTestsetAtom = loadingTestsetMapAtom
  * Cascader options with dynamically loaded revision children
  * This is a DERIVED atom that merges base options with loaded children
  * No useEffect sync needed - it automatically updates when dependencies change
+ *
+ * IMPORTANT: We intentionally DON'T react to loadingTestsetAtom changes here
+ * to prevent cascader flickering. The Cascader's loadData handles loading internally.
+ * We only update options when actual children data is loaded.
  */
 export const cascaderOptionsWithChildrenAtom = atom(
-    // Read: merge base options with loaded children
+    // Read: merge base options with loaded children only
     (get) => {
         const baseOptions = get(cascaderOptionsAtom)
         const loadedChildren = get(loadedChildrenAtom)
-        const loadingTestsets = get(loadingTestsetAtom)
 
         return baseOptions.map((opt) => {
             const children = loadedChildren.get(opt.value)
-            const isLoading = loadingTestsets.get(opt.value) || false
-
             if (children) {
-                return {...opt, children, loading: isLoading}
-            }
-            if (isLoading) {
-                return {...opt, loading: true}
+                return {...opt, children}
             }
             return opt
         })
@@ -105,33 +105,136 @@ export const cascaderOptionsWithChildrenAtom = atom(
 )
 
 /** Build revision option for cascader with rich label */
-const buildRevisionOption = (revision: TestsetRevision) => ({
+const buildRevisionOption = (revision: RevisionListItem) => ({
     value: revision.id,
     label: buildRevisionLabel(revision),
     isLeaf: true,
     revisionMeta: revision,
 })
 
-/** Load revisions for a testset (cascader loadData) */
+/**
+ * Fetch revisions list using the same query key as revisionsListQueryAtomFamily
+ * This ensures cache is shared between cascader and entity atoms
+ */
+async function fetchRevisionsForCascader(
+    projectId: string,
+    testsetId: string,
+): Promise<RevisionListItem[]> {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        {
+            testset_refs: [{id: testsetId}],
+            windowing: {limit: 100, order: "descending"},
+            include_testcases: false,
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const revisions = response.data?.testset_revisions ?? []
+    // Transform to RevisionListItem format (same as revisionsListQueryAtomFamily)
+    return revisions.map((raw: any) => {
+        const {data: _data, ...rest} = raw
+        return {
+            id: rest.id,
+            version:
+                typeof rest.version === "string"
+                    ? parseInt(rest.version, 10)
+                    : rest.version !== null && rest.version !== undefined
+                      ? rest.version
+                      : 0,
+            created_at: rest.created_at ?? rest.date ?? rest.commit?.date,
+            message: rest.message ?? rest.commit_message ?? rest.commit?.message,
+            author:
+                rest.author ??
+                rest.created_by_id ??
+                rest.commit?.author_id ??
+                rest.commit?.author?.id ??
+                null,
+            created_by_id: rest.created_by_id,
+        }
+    })
+}
+
+/** Load revisions for a testset (cascader loadData) - uses query client for cache sharing */
 export const loadRevisionsAtom = atom(
     null,
-    async (get, set, testsetId: string): Promise<TestsetRevision[]> => {
+    async (get, set, testsetId: string): Promise<RevisionListItem[]> => {
         if (!testsetId || testsetId === "create") {
             return []
         }
 
-        set(loadingRevisionsAtom, true)
+        const projectId = get(projectIdAtom)
+        if (!projectId) {
+            return []
+        }
 
-        // Set loading state for this testset
+        // Check if children are already loaded locally - no fetch needed
+        const loadedChildren = get(loadedChildrenAtom)
+        if (loadedChildren.has(testsetId)) {
+            // Already loaded, return cached revisions
+            const cachedRevisions = get(loadedRevisionsMapAtom).get(testsetId)
+            return cachedRevisions ?? []
+        }
+
+        const queryClient = get(queryClientAtom)
+        const queryKey = ["revisions-list", projectId, testsetId]
+
+        // Check query cache - if fresh data exists, use it without loading state
+        const cachedData = queryClient.getQueryData<RevisionListItem[]>(queryKey)
+        const queryState = queryClient.getQueryState(queryKey)
+        const isFresh =
+            cachedData && queryState && Date.now() - (queryState.dataUpdatedAt || 0) < 30_000
+
+        if (isFresh && cachedData) {
+            // Use cached data immediately - no loading state, no flicker
+            // Filter out v0 revisions - they are placeholders and should not be displayed
+            const revisionChildren = cachedData
+                .filter((rev) => rev.version > 0)
+                .map((rev) => buildRevisionOption(rev))
+            const children =
+                revisionChildren.length > 0
+                    ? revisionChildren
+                    : [
+                          {
+                              value: "no-revisions",
+                              label: "No revisions available",
+                              disabled: true,
+                              isLeaf: true,
+                          },
+                      ]
+
+            set(cascaderOptionsWithChildrenAtom, {testsetId, children})
+
+            const currentCache = get(loadedRevisionsMapAtom)
+            const newCache = new Map(currentCache)
+            newCache.set(testsetId, cachedData)
+            set(loadedRevisionsMapAtom, newCache)
+
+            return cachedData
+        }
+
+        // Enable the entity query (for other components that might subscribe)
+        set(enableRevisionsListQueryAtom, testsetId)
+
+        // Only set loading state when actually fetching
         const currentLoading = get(loadingTestsetAtom)
         const newLoadingMap = new Map(currentLoading)
         newLoadingMap.set(testsetId, true)
         set(loadingTestsetAtom, newLoadingMap)
+        set(loadingRevisionsAtom, true)
 
         try {
-            const revisions = await fetchTestsetRevisions({testsetId})
-            const revisionChildren = revisions.map((rev) => buildRevisionOption(rev))
+            // Use queryClient.fetchQuery with the same query key as revisionsListQueryAtomFamily
+            const revisions = await queryClient.fetchQuery({
+                queryKey,
+                queryFn: () => fetchRevisionsForCascader(projectId, testsetId),
+                staleTime: 30_000,
+            })
 
+            // Filter out v0 revisions - they are placeholders and should not be displayed
+            const revisionChildren = revisions
+                .filter((rev) => rev.version > 0)
+                .map((rev) => buildRevisionOption(rev))
             const children =
                 revisionChildren.length > 0
                     ? revisionChildren
@@ -147,12 +250,6 @@ export const loadRevisionsAtom = atom(
             // Update loaded children via the derived atom's write function
             set(cascaderOptionsWithChildrenAtom, {testsetId, children})
 
-            // Clear loading state for this testset
-            const updatedLoading = get(loadingTestsetAtom)
-            const clearedLoadingMap = new Map(updatedLoading)
-            clearedLoadingMap.set(testsetId, false)
-            set(loadingTestsetAtom, clearedLoadingMap)
-
             // Update shared revisions cache for cross-component access
             const currentCache = get(loadedRevisionsMapAtom)
             const newCache = new Map(currentCache)
@@ -161,9 +258,6 @@ export const loadRevisionsAtom = atom(
 
             return revisions
         } catch (error) {
-            console.error("[loadRevisionsAtom] Error:", error)
-
-            // Set error children
             set(cascaderOptionsWithChildrenAtom, {
                 testsetId,
                 children: [
@@ -175,15 +269,13 @@ export const loadRevisionsAtom = atom(
                     },
                 ],
             })
-
+            return []
+        } finally {
             // Clear loading state
             const updatedLoading = get(loadingTestsetAtom)
             const clearedLoadingMap = new Map(updatedLoading)
             clearedLoadingMap.set(testsetId, false)
             set(loadingTestsetAtom, clearedLoadingMap)
-
-            return []
-        } finally {
             set(loadingRevisionsAtom, false)
         }
     },
@@ -216,9 +308,10 @@ export const renderSelectedRevisionLabel = (
         return labels.join(" / ")
     }
 
+    // Use textLabel (preserved original string) or fall back to labels array
     const baseLabel =
-        typeof selectedOptions[0]?.label === "string"
-            ? selectedOptions[0].label
+        typeof selectedOptions[0]?.textLabel === "string"
+            ? selectedOptions[0].textLabel
             : typeof labels?.[0] === "string"
               ? labels[0]
               : "Selected testset"

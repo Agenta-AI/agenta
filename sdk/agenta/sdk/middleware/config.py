@@ -224,6 +224,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
             baggage.get("ag.refs.variant.slug")
             # ALTERNATIVE
             or request.query_params.get("variant_slug")
+            or body.get("variant_slug")
             # LEGACY
             or baggage.get("variant_slug")
             or request.query_params.get("config")
@@ -234,6 +235,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
             baggage.get("ag.refs.variant.version")
             # ALTERNATIVE
             or request.query_params.get("variant_version")
+            or body.get("variant_version")
             # LEGACY
             or baggage.get("variant_version")
         )
@@ -244,7 +246,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         return Reference(
             id=variant_id,
             slug=variant_slug,
-            version=variant_version,
+            version=str(variant_version) if variant_version is not None else None,
         )
 
     async def _parse_environment_ref(

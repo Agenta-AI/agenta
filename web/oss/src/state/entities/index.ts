@@ -1,31 +1,33 @@
 /**
  * Entity Management System
- * Standardized state management for server-sourced entities
+ *
+ * Re-exports from entity modules. For most use cases, import directly
+ * from the specific entity module:
+ *
+ * - testcase: @/oss/state/entities/testcase
+ * - testset: @/oss/state/entities/testset
+ * - trace: @/oss/state/entities/trace
+ *
+ * Shared utilities can be imported from:
+ * - @/oss/state/entities/shared
  */
 
-// Core
-export {createEntityStore} from "./core/createEntityStore"
-export type {
-    BaseEntity,
-    EntityStore,
-    EntityStoreConfig,
-    EntityMetadata,
-    StoredEntity,
-    DraftState,
-    BatchFetcherConfig,
-} from "./core/types"
-
-// Hooks
-export {useEntity, useEntityCached, useEntityMetadata, useEntityMutation} from "./hooks/useEntity"
-export {useEntityList} from "./hooks/useEntityList"
-
-// History
-export {createEntityHistoryManager, UNDO, REDO, RESET} from "./core/history"
-export {createUseEntityHistory} from "./core/useEntityHistory"
-export type {HistoryLimit, EntityHistoryConfig, EntityHistoryState} from "./core/history"
-export type {UseEntityHistoryResult} from "./core/useEntityHistory"
-
-// Testcase entity (example)
-export {default as testcaseStore} from "./testcase/store"
-export type {Testcase, CreateTestcaseInput, UpdateTestcaseInput} from "./testcase/schema"
-export type {FetchTestcasesParams, FetchTestcasesResponse} from "./testcase/store"
+// Shared utilities
+export {
+    createEntityDraftState,
+    createEntityController,
+    type QueryResult,
+    type QueryState,
+    type DrillInConfig,
+    type DrillInValueMode,
+    type EntityAction,
+    type EntityAPI,
+    type EntityActions,
+    type EntityControllerAtomFamily,
+    type EntityControllerConfig,
+    type EntityControllerState,
+    type EntityDrillIn,
+    type EntitySelectors,
+    type PathItem,
+    type UseEntityControllerResult,
+} from "./shared"

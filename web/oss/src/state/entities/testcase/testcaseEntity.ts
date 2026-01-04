@@ -1,11 +1,17 @@
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
+import {get} from "lodash"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
+
+import {
+    createEntityDraftState,
+    normalizeValueForComparison,
+} from "../shared/createEntityDraftState"
 
 import {atomFamilyRegistry} from "./atomCleanup"
 import {
@@ -30,13 +36,22 @@ export const testcaseIdsAtom = atom<string[]>([])
 /**
  * Append testcase IDs (called by fetchData when paginated data arrives)
  * Appends new IDs to existing list to support infinite scroll
+ * Deduplicates both incoming IDs and against existing IDs
  */
 export const setTestcaseIdsAtom = atom(null, (get, set, ids: string[]) => {
     const existing = get(testcaseIdsAtom)
     const existingSet = new Set(existing)
-    const newIds = ids.filter((id) => !existingSet.has(id))
-    if (newIds.length > 0) {
-        set(testcaseIdsAtom, [...existing, ...newIds])
+    // Deduplicate incoming IDs and filter out already existing ones
+    const uniqueNewIds: string[] = []
+    const seenInBatch = new Set<string>()
+    for (const id of ids) {
+        if (!existingSet.has(id) && !seenInBatch.has(id)) {
+            uniqueNewIds.push(id)
+            seenInBatch.add(id)
+        }
+    }
+    if (uniqueNewIds.length > 0) {
+        set(testcaseIdsAtom, [...existing, ...uniqueNewIds])
     }
 })
 
@@ -92,11 +107,16 @@ export const clearDeletedIdsAtom = atom(null, (get, set) => {
 // ============================================================================
 // BATCH FETCHER FOR TESTCASES
 // Collects concurrent single-testcase requests and batches them
+// Checks paginated cache first to avoid redundant API calls
 // ============================================================================
 
 interface TestcaseRequest {
     projectId: string
     testcaseId: string
+    /** Optional: queryClient for cache lookup */
+    queryClient?: import("@tanstack/react-query").QueryClient
+    /** Optional: revisionId for scoped cache lookup */
+    revisionId?: string
 }
 
 /**
@@ -108,7 +128,56 @@ const isValidUUID = (id: string): boolean => {
 }
 
 /**
+ * Page structure from the paginated store cache
+ */
+interface PaginatedCachePage {
+    rows: FlattenedTestcase[]
+    totalCount: number
+    nextCursor: string | null
+    hasMore: boolean
+}
+
+/**
+ * Look up testcases in the paginated cache
+ * Returns a map of testcaseId -> FlattenedTestcase for found items
+ */
+const findMultipleInPaginatedCache = (
+    queryClient: import("@tanstack/react-query").QueryClient,
+    revisionId: string,
+    testcaseIds: string[],
+): Map<string, FlattenedTestcase> => {
+    const found = new Map<string, FlattenedTestcase>()
+    const idsToFind = new Set(testcaseIds)
+
+    // Build scopeId to narrow down the search
+    const scopeId = `testcases-${revisionId}`
+
+    // Get all queries that match the testcase-paginated key prefix with this scopeId
+    const queries = queryClient.getQueriesData<PaginatedCachePage>({
+        queryKey: ["testcase-paginated", scopeId],
+    })
+
+    // Search through all cached pages for the testcases
+    for (const [_queryKey, data] of queries) {
+        if (data?.rows && idsToFind.size > 0) {
+            for (const row of data.rows) {
+                if (row.id && idsToFind.has(row.id)) {
+                    found.set(row.id, row)
+                    idsToFind.delete(row.id)
+                    // Early exit if we found everything
+                    if (idsToFind.size === 0) break
+                }
+            }
+        }
+        if (idsToFind.size === 0) break
+    }
+
+    return found
+}
+
+/**
  * Batch fetcher that combines concurrent testcase requests into a single API call
+ * Checks paginated cache first to avoid fetching data that's already available
  */
 const testcaseBatchFetcher = createBatchFetcher<
     TestcaseRequest,
@@ -119,15 +188,58 @@ const testcaseBatchFetcher = createBatchFetcher<
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, FlattenedTestcase | null>()
 
-        // Group by projectId
+        // First pass: check paginated cache for all requests that have queryClient
+        // Group requests by revisionId for efficient cache lookup
+        const cacheCheckGroups = new Map<
+            string,
+            {queryClient: import("@tanstack/react-query").QueryClient; testcaseIds: string[]; keyMap: Map<string, string>}
+        >()
+
+        requests.forEach((req, idx) => {
+            const key = serializedKeys[idx]
+            if (req.queryClient && req.revisionId && req.testcaseId && isValidUUID(req.testcaseId)) {
+                const groupKey = req.revisionId
+                const existing = cacheCheckGroups.get(groupKey)
+                if (existing) {
+                    existing.testcaseIds.push(req.testcaseId)
+                    existing.keyMap.set(req.testcaseId, key)
+                } else {
+                    cacheCheckGroups.set(groupKey, {
+                        queryClient: req.queryClient,
+                        testcaseIds: [req.testcaseId],
+                        keyMap: new Map([[req.testcaseId, key]]),
+                    })
+                }
+            }
+        })
+
+        // Look up all items in cache
+        const cachedItems = new Map<string, FlattenedTestcase>()
+        for (const [revisionId, {queryClient, testcaseIds, keyMap}] of cacheCheckGroups) {
+            const found = findMultipleInPaginatedCache(queryClient, revisionId, testcaseIds)
+            for (const [testcaseId, testcase] of found) {
+                const serializedKey = keyMap.get(testcaseId)
+                if (serializedKey) {
+                    results.set(serializedKey, testcase)
+                    cachedItems.set(testcaseId, testcase)
+                }
+            }
+        }
+
+        // Second pass: group remaining (non-cached) requests by projectId
         const byProject = new Map<string, {ids: string[]; keys: string[]}>()
         requests.forEach((req, idx) => {
             const key = serializedKeys[idx]
+
+            // Skip if already resolved from cache
+            if (results.has(key)) return
+
             // Skip invalid requests or non-UUID IDs (new rows have temp IDs)
             if (!req.projectId || !req.testcaseId || !isValidUUID(req.testcaseId)) {
                 results.set(key, null)
                 return
             }
+
             const existing = byProject.get(req.projectId)
             if (existing) {
                 existing.ids.push(req.testcaseId)
@@ -137,7 +249,7 @@ const testcaseBatchFetcher = createBatchFetcher<
             }
         })
 
-        // Fetch each project's testcases in batch
+        // Fetch each project's testcases in batch (only those not in cache)
         await Promise.all(
             Array.from(byProject.entries()).map(async ([projectId, {ids, keys}]) => {
                 try {
@@ -196,33 +308,31 @@ const testcaseBatchFetcher = createBatchFetcher<
 })
 
 // ============================================================================
-// PAGINATED CACHE LOOKUP
-// Helper to find testcase in datasetStore's TanStack Query cache
+// PAGINATED CACHE LOOKUP (SINGLE ITEM)
+// Helper to find a single testcase in datasetStore's TanStack Query cache
 // ============================================================================
-
-interface DatasetStorePage {
-    rows: FlattenedTestcase[]
-    totalCount: number
-    nextCursor: string | null
-    hasMore: boolean
-}
 
 /**
  * Look up a testcase in the datasetStore's paginated query cache
  * Returns the testcase if found, undefined otherwise
  *
- * The datasetStore uses query keys like:
- * ["testcases-table", scopeId, cursor, limit, offset, windowing.next, windowing.stop, metaKey]
+ * The paginated store uses query keys like:
+ * ["testcase-paginated", scopeId, cursor, limit, offset, windowing.next, windowing.stop, metaKey]
+ *
+ * Where scopeId = "testcases-{revisionId}"
  */
 const findInPaginatedCache = (
     queryClient: import("@tanstack/react-query").QueryClient,
     _projectId: string,
-    _revisionId: string,
+    revisionId: string,
     testcaseId: string,
 ): FlattenedTestcase | undefined => {
-    // Get all queries that match the testcases-table key prefix
-    const queries = queryClient.getQueriesData<DatasetStorePage>({
-        queryKey: ["testcases-table"],
+    // Build scopeId to narrow down the search to the correct revision
+    const scopeId = `testcases-${revisionId}`
+
+    // Get all queries that match the testcase-paginated key prefix with this scopeId
+    const queries = queryClient.getQueriesData<PaginatedCachePage>({
+        queryKey: ["testcase-paginated", scopeId],
     })
 
     // Search through all cached pages for the testcase
@@ -269,7 +379,13 @@ export const testcaseQueryAtomFamily = atomFamily((testcaseId: string) =>
             queryKey: ["testcase", projectId, testcaseId],
             queryFn: async (): Promise<FlattenedTestcase | null> => {
                 if (!projectId || !testcaseId) return null
-                return testcaseBatchFetcher({projectId, testcaseId})
+                // Pass queryClient and revisionId for cache lookup in batch fetcher
+                return testcaseBatchFetcher({
+                    projectId,
+                    testcaseId,
+                    queryClient,
+                    revisionId: revisionId ?? undefined,
+                })
             },
             // Use cached data as initial data - prevents fetch if already in paginated cache
             initialData: cachedData ?? undefined,
@@ -283,23 +399,155 @@ export const testcaseQueryAtomFamily = atomFamily((testcaseId: string) =>
 )
 
 // ============================================================================
-// LOCAL DRAFT STATE ATOM FAMILY
-// Stores local edits for each testcase (null = no local edits)
+// DRAFT STATE MANAGEMENT
+// Uses shared factory for draft state with testcase-specific configuration
 // ============================================================================
 
 /**
- * Local draft state for each testcase
- * null = no local edits, use server state
- * FlattenedTestcase = local edits exist
+ * System fields to exclude from dirty comparison
  */
-export const testcaseDraftAtomFamily = atomFamily((testcaseId: string) =>
-    atom<FlattenedTestcase | null>(null),
-)
+const DIRTY_EXCLUDE_FIELDS = new Set([
+    "id",
+    "key",
+    "testset_id",
+    "set_id",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+    "created_by_id",
+    "updated_by_id",
+    "deleted_by_id",
+    "flags",
+    "tags",
+    "meta",
+    "__isSkeleton",
+    "testcase_dedup_id",
+])
+
+/**
+ * Create draft state management for testcases
+ * Uses shared factory with testcase-specific dirty detection
+ */
+const testcaseDraftState = createEntityDraftState<FlattenedTestcase, FlattenedTestcase>({
+    // Read from testcase query atoms (server state)
+    entityAtomFamily: (id: string) => {
+        const queryAtom = testcaseQueryAtomFamily(id)
+        return atom((get) => get(queryAtom).data ?? null)
+    },
+
+    // Entire testcase is draftable
+    getDraftableData: (testcase) => testcase,
+
+    // Merge draft over testcase
+    mergeDraft: (testcase, draft) => ({...testcase, ...draft}),
+
+    // Complex dirty detection logic with pending column changes
+    isDirty: (currentData, originalData, {get, id}) => {
+        const draft = get(testcaseDraftAtomFamily(id))
+        // Use query atom directly (single source of truth for server data)
+        const queryState = get(testcaseQueryAtomFamily(id))
+        const serverState = queryState.data ?? null
+
+        // Check if pending column changes affect this entity (even without draft)
+        if (!draft && serverState) {
+            const serverRecord = serverState as Record<string, unknown>
+
+            // Check pending renames
+            const pendingRenames = get(pendingColumnRenamesAtom)
+            for (const oldKey of pendingRenames.keys()) {
+                if (oldKey in serverRecord) {
+                    return true // Server has old column that needs renaming
+                }
+            }
+
+            // Check pending deletions
+            const pendingDeleted = get(pendingDeletedColumnsAtom)
+            for (const columnKey of pendingDeleted) {
+                if (columnKey in serverRecord) {
+                    const value = serverRecord[columnKey]
+                    if (value !== undefined && value !== null && value !== "") {
+                        return true // Server has column with data that needs deleting
+                    }
+                }
+            }
+
+            // Check pending additions (server doesn't have the column yet)
+            const pendingAdded = get(pendingAddedColumnsAtom)
+            for (const columnKey of pendingAdded) {
+                if (!(columnKey in serverRecord)) {
+                    return true // Server doesn't have this added column
+                }
+            }
+
+            return false
+        }
+
+        if (!draft) return false // No draft and no pending changes = not dirty
+
+        if (!serverState) {
+            // New entity (no server state) - dirty if has any data
+            for (const [key, value] of Object.entries(draft)) {
+                if (DIRTY_EXCLUDE_FIELDS.has(key)) continue
+                if (value !== undefined && value !== null && value !== "") {
+                    return true
+                }
+            }
+            return false
+        }
+
+        // Compare draft vs server state field by field
+        const draftRecord = currentData as Record<string, unknown>
+        const serverRecord = originalData as Record<string, unknown>
+
+        // Check draft keys against server
+        for (const key of Object.keys(draftRecord)) {
+            if (DIRTY_EXCLUDE_FIELDS.has(key)) continue
+
+            // Check if this is a new column (draft has it, server doesn't)
+            if (!(key in serverRecord)) {
+                // Draft has a key that server doesn't have - this is an added column
+                return true
+            }
+
+            const draftValue = draftRecord[key]
+            const serverValue = serverRecord[key]
+            // Normalize values for comparison - handles object vs string JSON comparison
+            const normalizedDraft = normalizeValueForComparison(draftValue)
+            const normalizedServer = normalizeValueForComparison(serverValue)
+            if (normalizedDraft !== normalizedServer) {
+                return true
+            }
+        }
+
+        // Check server keys not in draft (deleted columns)
+        for (const key of Object.keys(serverRecord)) {
+            if (DIRTY_EXCLUDE_FIELDS.has(key)) continue
+            if (!(key in draftRecord)) {
+                // Server has key that draft doesn't - check if server value is non-empty
+                const serverValue = serverRecord[key]
+                if (serverValue !== undefined && serverValue !== null && serverValue !== "") {
+                    return true
+                }
+            }
+        }
+
+        return false
+    },
+
+    excludeFields: DIRTY_EXCLUDE_FIELDS,
+})
+
+// Export atoms with original names for backward compatibility
+export const testcaseDraftAtomFamily = testcaseDraftState.draftAtomFamily
+export const testcaseHasDraftAtomFamily = testcaseDraftState.hasDraftAtomFamily
+export const testcaseIsDirtyAtomFamily = testcaseDraftState.isDirtyAtomFamily
+
+// Note: updateTestcaseAtom and discardDraftAtom are exported later after entity atom definition
 
 // ============================================================================
 // COMBINED ENTITY ATOM FAMILY
-// Combines query (server state) + draft (local edits)
-// Reads draft if exists, otherwise reads from query
+// Combines query (server state) + draft (local edits) + pending column changes
+// Reads draft if exists, otherwise reads from query with column changes applied
 // ============================================================================
 
 /**
@@ -378,173 +626,6 @@ export const testcaseEntityAtomFamily = atomFamily((testcaseId: string) =>
     }),
 )
 
-/**
- * Check if entity has local edits (draft exists)
- */
-export const testcaseHasDraftAtomFamily = atomFamily((testcaseId: string) =>
-    atom((get): boolean => {
-        const draft = get(testcaseDraftAtomFamily(testcaseId))
-        return draft !== null
-    }),
-)
-
-/**
- * Get server state for a testcase (for dirty comparison)
- */
-export const testcaseServerStateAtomFamily = atomFamily((testcaseId: string) =>
-    atom((get): FlattenedTestcase | null => {
-        const query = get(testcaseQueryAtomFamily(testcaseId))
-        return query.data ?? null
-    }),
-)
-
-/**
- * System fields to exclude from dirty comparison
- */
-const DIRTY_EXCLUDE_FIELDS = new Set([
-    "id",
-    "key",
-    "testset_id",
-    "set_id",
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "created_by_id",
-    "updated_by_id",
-    "deleted_by_id",
-    "flags",
-    "tags",
-    "meta",
-    "__isSkeleton",
-    "testcase_dedup_id",
-])
-
-/**
- * Normalize a value for comparison - handles object vs string JSON comparison
- * Returns a canonical string representation for comparison
- */
-function normalizeValueForComparison(value: unknown): string {
-    if (value === undefined || value === null || value === "") return ""
-
-    // If it's already a string, try to parse it as JSON for normalization
-    if (typeof value === "string") {
-        try {
-            const parsed = JSON.parse(value)
-            // Re-stringify to get canonical form (sorted keys, consistent spacing)
-            return JSON.stringify(parsed)
-        } catch {
-            // Not valid JSON, return as-is
-            return value
-        }
-    }
-
-    // If it's an object/array, stringify it
-    if (typeof value === "object") {
-        return JSON.stringify(value)
-    }
-
-    // For primitives (number, boolean), convert to string
-    return String(value)
-}
-
-/**
- * Check if a testcase is dirty by comparing draft vs server state
- * Returns true if:
- * - Draft exists AND differs from server state
- * - OR pending column changes would affect server data (no draft yet but changes pending)
- */
-export const testcaseIsDirtyAtomFamily = atomFamily((testcaseId: string) =>
-    atom((get): boolean => {
-        const draft = get(testcaseDraftAtomFamily(testcaseId))
-        const serverState = get(testcaseServerStateAtomFamily(testcaseId))
-
-        // Check if pending column changes affect this entity (even without draft)
-        if (!draft && serverState) {
-            const serverRecord = serverState as Record<string, unknown>
-
-            // Check pending renames
-            const pendingRenames = get(pendingColumnRenamesAtom)
-            for (const oldKey of pendingRenames.keys()) {
-                if (oldKey in serverRecord) {
-                    return true // Server has old column that needs renaming
-                }
-            }
-
-            // Check pending deletions
-            const pendingDeleted = get(pendingDeletedColumnsAtom)
-            for (const columnKey of pendingDeleted) {
-                if (columnKey in serverRecord) {
-                    const value = serverRecord[columnKey]
-                    if (value !== undefined && value !== null && value !== "") {
-                        return true // Server has column with data that needs deleting
-                    }
-                }
-            }
-
-            // Check pending additions (server doesn't have the column yet)
-            const pendingAdded = get(pendingAddedColumnsAtom)
-            for (const columnKey of pendingAdded) {
-                if (!(columnKey in serverRecord)) {
-                    return true // Server doesn't have this added column
-                }
-            }
-
-            return false
-        }
-
-        if (!draft) return false // No draft and no pending changes = not dirty
-
-        if (!serverState) {
-            // New entity (no server state) - dirty if has any data
-            for (const [key, value] of Object.entries(draft)) {
-                if (DIRTY_EXCLUDE_FIELDS.has(key)) continue
-                if (value !== undefined && value !== null && value !== "") {
-                    return true
-                }
-            }
-            return false
-        }
-
-        // Compare draft vs server state field by field
-        const draftRecord = draft as Record<string, unknown>
-        const serverRecord = serverState as Record<string, unknown>
-
-        // Check draft keys against server
-        for (const key of Object.keys(draftRecord)) {
-            if (DIRTY_EXCLUDE_FIELDS.has(key)) continue
-
-            // Check if this is a new column (draft has it, server doesn't)
-            if (!(key in serverRecord)) {
-                // Draft has a key that server doesn't have - this is an added column
-                return true
-            }
-
-            const draftValue = draftRecord[key]
-            const serverValue = serverRecord[key]
-            // Normalize values for comparison - handles object vs string JSON comparison
-            const normalizedDraft = normalizeValueForComparison(draftValue)
-            const normalizedServer = normalizeValueForComparison(serverValue)
-            if (normalizedDraft !== normalizedServer) {
-                return true
-            }
-        }
-
-        // Check server keys not in draft (deleted columns)
-        for (const key of Object.keys(serverRecord)) {
-            if (DIRTY_EXCLUDE_FIELDS.has(key)) continue
-            if (!(key in draftRecord)) {
-                // Server has key that draft doesn't - check if server value is non-empty
-                const serverValue = serverRecord[key]
-                if (serverValue !== undefined && serverValue !== null && serverValue !== "") {
-                    return true
-                }
-            }
-        }
-
-        return false
-    }),
-)
-
 // ============================================================================
 // ENTITY MUTATIONS
 // ============================================================================
@@ -552,10 +633,13 @@ export const testcaseIsDirtyAtomFamily = atomFamily((testcaseId: string) =>
 /**
  * Update a testcase field (creates draft if needed)
  * Keys with undefined values are deleted from the entity
+ *
+ * Signature: (id: string, updates: Partial<FlattenedTestcase>) => void
+ * This matches the standard entity controller pattern.
  */
 export const updateTestcaseAtom = atom(
     null,
-    (get, set, {id, updates}: {id: string; updates: Partial<FlattenedTestcase>}) => {
+    (get, set, id: string, updates: Partial<FlattenedTestcase>) => {
         const current = get(testcaseEntityAtomFamily(id))
         if (!current) return
 
@@ -578,9 +662,7 @@ export const updateTestcaseAtom = atom(
 /**
  * Discard local edits for a testcase
  */
-export const discardDraftAtom = atom(null, (get, set, id: string) => {
-    set(testcaseDraftAtomFamily(id), null)
-})
+export const discardDraftAtom = testcaseDraftState.discardDraftAtom
 
 /**
  * Discard all local drafts
@@ -725,13 +807,91 @@ export const deleteColumnFromTestcasesAtom = atom(null, (get, set, columnKey: st
         if (!entity) continue
 
         const record = entity as Record<string, unknown>
-        if (columnKey in record) {
-            updates.push({
-                id,
-                updates: {
-                    [columnKey]: undefined,
-                } as Partial<FlattenedTestcase>,
-            })
+
+        // Handle nested column keys (e.g., "inputs.code", "current_rfp.event")
+        if (columnKey.includes(".")) {
+            const parts = columnKey.split(".")
+            const rootKey = parts[0]
+
+            // Check if root exists
+            if (rootKey in record && record[rootKey] != null) {
+                let rootValue = record[rootKey]
+                let isJsonString = false
+
+                // Parse if it's a JSON string
+                if (typeof rootValue === "string") {
+                    try {
+                        const parsed = JSON.parse(rootValue)
+                        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                            rootValue = parsed
+                            isJsonString = true
+                        }
+                    } catch {
+                        // Not valid JSON, skip this entity
+                        continue
+                    }
+                }
+
+                // Now rootValue should be an object
+                if (typeof rootValue === "object" && !Array.isArray(rootValue)) {
+                    // Clone to avoid mutation
+                    const clonedRoot = JSON.parse(JSON.stringify(rootValue))
+
+                    // Navigate to the parent of the property to delete
+                    let current: any = clonedRoot
+                    for (let i = 1; i < parts.length - 1; i++) {
+                        if (current && typeof current === "object" && parts[i] in current) {
+                            current = current[parts[i]]
+                        } else {
+                            current = null
+                            break
+                        }
+                    }
+
+                    // Delete the final property
+                    if (current && typeof current === "object") {
+                        const finalKey = parts[parts.length - 1]
+                        if (finalKey in current) {
+                            delete current[finalKey]
+
+                            // Check if the root object is now empty (no properties left)
+                            const hasRemainingProperties = Object.keys(clonedRoot).length > 0
+
+                            if (!hasRemainingProperties) {
+                                // Remove the entire parent key if empty
+                                updates.push({
+                                    id,
+                                    updates: {
+                                        [rootKey]: undefined,
+                                    } as Partial<FlattenedTestcase>,
+                                })
+                            } else {
+                                // Convert back to JSON string if needed
+                                const updatedValue = isJsonString
+                                    ? JSON.stringify(clonedRoot)
+                                    : clonedRoot
+
+                                updates.push({
+                                    id,
+                                    updates: {
+                                        [rootKey]: updatedValue,
+                                    } as Partial<FlattenedTestcase>,
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Simple top-level column
+            if (columnKey in record) {
+                updates.push({
+                    id,
+                    updates: {
+                        [columnKey]: undefined,
+                    } as Partial<FlattenedTestcase>,
+                })
+            }
         }
     }
 
@@ -813,8 +973,42 @@ export const testcaseCellAtomFamily = atomFamily(
         return selectAtom(
             testcaseEntityAtomFamily(id),
             (entity) => {
-                if (!entity) return undefined
-                return (entity as Record<string, unknown>)[column]
+                if (!entity) {
+                    return undefined
+                }
+
+                // Handle nested paths (e.g., "VMs_previous_RFP.event")
+                // We need to parse JSON strings for nested access
+                const parts = column.split(".")
+
+                if (parts.length === 1) {
+                    // Simple top-level access
+                    return get(entity, column)
+                }
+
+                // Nested path - need to parse JSON strings along the way
+                let current: any = entity
+                for (let i = 0; i < parts.length; i++) {
+                    const part = parts[i]
+                    current = current?.[part]
+
+                    // If we got a JSON string and there are more parts to traverse, parse it
+                    if (i < parts.length - 1 && typeof current === "string") {
+                        const trimmed = current.trim()
+                        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+                            try {
+                                current = JSON.parse(trimmed)
+                            } catch {
+                                return undefined
+                            }
+                        } else {
+                            // String but not JSON - can't traverse further
+                            return undefined
+                        }
+                    }
+                }
+
+                return current
             },
             cellValueEquals,
         )
@@ -832,6 +1026,5 @@ atomFamilyRegistry.testcaseQuery = testcaseQueryAtomFamily
 atomFamilyRegistry.testcaseDraft = testcaseDraftAtomFamily
 atomFamilyRegistry.testcaseEntity = testcaseEntityAtomFamily
 atomFamilyRegistry.testcaseHasDraft = testcaseHasDraftAtomFamily
-atomFamilyRegistry.testcaseServerState = testcaseServerStateAtomFamily
 atomFamilyRegistry.testcaseIsDirty = testcaseIsDirtyAtomFamily
 atomFamilyRegistry.testcaseCell = testcaseCellAtomFamily

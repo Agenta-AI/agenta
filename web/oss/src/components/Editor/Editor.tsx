@@ -83,6 +83,8 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             tokens = [],
             additionalCodePlugins = [],
             showLineNumbers = true,
+            onPropertyClick,
+            disableLongText,
             ...rest
         }: EditorProps,
         ref,
@@ -359,6 +361,8 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             validationSchema={validationSchema}
                             tokens={tokens}
                             additionalCodePlugins={additionalCodePlugins}
+                            onPropertyClick={onPropertyClick}
+                            disableLongText={disableLongText}
                         />
                     ) : (
                         <FormView
@@ -485,6 +489,7 @@ const Editor = ({
     tokens = [],
     additionalCodePlugins = [],
     showLineNumbers = true,
+    onPropertyClick,
     ...rest
 }: EditorProps) => {
     const {setContainerElm, dimensions: dimension} = useEditorResize({
@@ -519,6 +524,7 @@ const Editor = ({
                     tokens={tokens}
                     additionalCodePlugins={additionalCodePlugins}
                     showLineNumbers={showLineNumbers}
+                    onPropertyClick={onPropertyClick}
                 />
             ) : (
                 <EditorProvider
@@ -579,6 +585,7 @@ const Editor = ({
                         tokens={tokens}
                         additionalCodePlugins={additionalCodePlugins}
                         showLineNumbers={showLineNumbers}
+                        onPropertyClick={onPropertyClick}
                     />
                 </EditorProvider>
             )}

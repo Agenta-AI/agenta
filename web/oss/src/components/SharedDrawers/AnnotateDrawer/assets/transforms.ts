@@ -216,7 +216,7 @@ export const getMetricsFromEvaluator = (evaluator: EvaluatorDto): Record<string,
                 return
             }
 
-            if (type && USEABLE_METRIC_TYPES.includes(type)) {
+            if (type && USEABLE_METRIC_TYPES.includes(getPropertyType(type))) {
                 const {value, ...restProps} = props
                 target[qualifiedKey] = {
                     value: getDefaultValue({property: props, ignoreObject: true}),

@@ -51,7 +51,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
             confirmLoading={submitLoading}
             styles={{
                 container: {
-                    height: 800,
+                    height: 700,
                 },
             }}
             {...props}

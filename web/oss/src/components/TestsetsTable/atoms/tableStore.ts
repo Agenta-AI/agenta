@@ -1,111 +1,73 @@
-import {atom} from "jotai"
-import {atomWithStorage} from "jotai/vanilla/utils"
+/**
+ * @deprecated This file is deprecated. Use the centralized entity store instead:
+ *
+ * ```typescript
+ * import { testset, type TestsetTableRow } from "@/oss/state/entities/testset"
+ *
+ * // Option 1: Use with useTableManager (recommended for InfiniteVirtualTable)
+ * const table = useTableManager({
+ *   datasetStore: testset.paginated.store,
+ *   scopeId: 'testsets-page',
+ *   pageSize: 50,
+ * })
+ *
+ * // Option 2: Use controller for fine-grained atom access
+ * const [state, dispatch] = useAtom(testset.paginated.controller({
+ *   scopeId: 'testsets-page',
+ *   pageSize: 50,
+ * }))
+ * // state.rows, state.isFetching, state.hasMore, state.selectedKeys
+ * // dispatch({ type: 'refresh' }), dispatch({ type: 'select', keys: [...] })
+ *
+ * // Option 3: Use individual selectors for minimal re-renders
+ * const rows = useAtomValue(testset.paginated.selectors.rows({scopeId, pageSize}))
+ * const pagination = useAtomValue(testset.paginated.selectors.pagination({scopeId, pageSize}))
+ *
+ * // Trigger refresh
+ * const refresh = useSetAtom(testset.paginated.actions.refresh)
+ * refresh()
+ *
+ * // Access filters
+ * testset.filters.searchTerm
+ * testset.filters.exportFormat
+ * testset.filters.dateCreated
+ * testset.filters.dateModified
+ * ```
+ *
+ * This file is kept for backwards compatibility only and should not be used in new code.
+ */
 
-import {
-    createSimpleTableStore,
-    type BaseTableMeta,
-    type InfiniteTableRowBase,
-} from "@/oss/components/InfiniteVirtualTable"
-import {projectIdAtom} from "@/oss/state/project"
+import {testset} from "@/oss/state/entities/testset"
 
-import {fetchTestsetsWindow} from "./fetchTestsets"
-import {
-    testsetsDateCreatedFilterAtom,
-    testsetsDateModifiedFilterAtom,
-    type TestsetDateRange,
-} from "./filters"
+// Re-export types from entity store
+export type {
+    TestsetApiRow,
+    TestsetTableRow,
+    TestsetDateRange,
+    TestsetPaginatedMeta as TestsetTableMeta,
+} from "@/oss/state/entities/testset"
 
 /**
- * API response row from /preview/simple/testsets/query
+ * @deprecated Use `testset.filters.exportFormat` instead
  */
-export interface TestsetApiRow {
-    id: string
-    slug?: string
-    name: string
-    description?: string
-    created_at: string
-    updated_at: string
-    created_by_id?: string
-    updated_by_id?: string
-    tags?: string[]
-    meta?: Record<string, unknown>
-}
+export const testsetsExportFormatAtom = testset.filters.exportFormat
 
 /**
- * Table row with key and skeleton flag
+ * @deprecated Use `testset.filters.searchTerm` instead
  */
-export interface TestsetTableRow extends TestsetApiRow, InfiniteTableRowBase {}
+export const testsetsSearchTermAtom = testset.filters.searchTerm
 
 /**
- * Metadata for the testsets table - drives fetching and filtering
+ * @deprecated Use `testset.paginated.refreshAtom` instead
  */
-export interface TestsetTableMeta extends BaseTableMeta {
-    searchTerm: string
-    dateCreatedFilter: TestsetDateRange | null
-    dateModifiedFilter: TestsetDateRange | null
-}
+export const testsetsRefreshTriggerAtom = testset.paginated.refreshAtom
 
-// Atom for search term (persisted in session storage)
-export const testsetsSearchTermAtom = atomWithStorage<string>("testsets-search-term", "")
+/**
+ * @deprecated Use `testset.paginated.metaAtom` instead
+ */
+export const testsetsTableMetaAtom = testset.paginated.metaAtom
 
-// Atom to trigger a refresh of the testsets table
-export const testsetsRefreshTriggerAtom = atom(0)
-
-// Atom for full testsets metadata (read-only derived)
-export const testsetsTableMetaAtom = atom<TestsetTableMeta>((get) => {
-    const projectId = get(projectIdAtom)
-    const searchTerm = get(testsetsSearchTermAtom)
-    const dateCreatedFilter = get(testsetsDateCreatedFilterAtom)
-    const dateModifiedFilter = get(testsetsDateModifiedFilterAtom)
-    const _refreshTrigger = get(testsetsRefreshTriggerAtom)
-
-    return {
-        projectId,
-        searchTerm,
-        dateCreatedFilter,
-        dateModifiedFilter,
-        _refreshTrigger,
-    }
-})
-
-// Create the dataset store using the simplified factory
-const {datasetStore} = createSimpleTableStore<TestsetTableRow, TestsetApiRow, TestsetTableMeta>({
-    key: "testsets-table",
-    metaAtom: testsetsTableMetaAtom,
-    rowHelpers: {
-        entityName: "testset",
-        skeletonDefaults: {
-            id: "",
-            name: "",
-            created_at: "",
-            updated_at: "",
-        } as Omit<TestsetTableRow, "key" | "__isSkeleton">,
-        getRowId: (row) => row.id,
-    },
-    fetchData: async ({meta, limit, offset, cursor}) => {
-        // Build date range from filters
-        let dateRange: {from?: string | null; to?: string | null} | null = null
-        if (meta.dateCreatedFilter || meta.dateModifiedFilter) {
-            const createdFrom = meta.dateCreatedFilter?.from
-            const createdTo = meta.dateCreatedFilter?.to
-            const modifiedFrom = meta.dateModifiedFilter?.from
-            const modifiedTo = meta.dateModifiedFilter?.to
-
-            dateRange = {
-                from: createdFrom || modifiedFrom || null,
-                to: createdTo || modifiedTo || null,
-            }
-        }
-
-        return fetchTestsetsWindow({
-            projectId: meta.projectId!,
-            limit,
-            offset,
-            cursor,
-            searchQuery: meta.searchTerm || null,
-            dateRange,
-        })
-    },
-})
-
-export const testsetsDatasetStore = datasetStore
+/**
+ * @deprecated Use `testset.paginated.store` instead
+ */
+export const testsetsDatasetStore = testset.paginated.store

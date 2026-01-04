@@ -101,12 +101,8 @@ export const formattedTestsetDataAtom = atom((get) => {
             }
 
             const value = getValueAtPath(item, mapping.data)
-            formattedItem[targetKey] =
-                value === undefined || value === null
-                    ? ""
-                    : typeof value === "string"
-                      ? value
-                      : JSON.stringify(value)
+            // Preserve objects/arrays as-is, only convert null/undefined to empty string
+            formattedItem[targetKey] = value === undefined || value === null ? "" : value
         }
 
         // Handle duplicate columns (merge values)
@@ -115,15 +111,18 @@ export const formattedTestsetDataAtom = atom((get) => {
                 .map((path) => {
                     const keys = path.split(".")
                     const value = keys.reduce((acc: any, key) => acc?.[key], item)
-                    return value === undefined || value === null
-                        ? ""
-                        : typeof value === "string"
-                          ? value
-                          : JSON.stringify(value)
+                    // Preserve objects/arrays as-is, only convert null/undefined to empty string
+                    return value === undefined || value === null ? "" : value
                 })
                 .filter((val) => val !== "")
 
-            formattedItem[columnName] = values.length > 0 ? values.join(" | ") : ""
+            // When joining multiple values, serialize objects/arrays to JSON strings
+            // to avoid [object Object] from JavaScript's default toString()
+            const serializedValues = values.map((val) =>
+                typeof val === "object" ? JSON.stringify(val) : val,
+            )
+            formattedItem[columnName] =
+                serializedValues.length > 0 ? serializedValues.join(" | ") : ""
         })
 
         // Ensure all columns exist
@@ -234,12 +233,8 @@ export const convertTraceDataAtom = atom(
                 }
 
                 const value = getValueAtPath(item, mapping.data)
-                formattedItem[targetKey] =
-                    value === undefined || value === null
-                        ? ""
-                        : typeof value === "string"
-                          ? value
-                          : JSON.stringify(value)
+                // Preserve objects/arrays as-is, only convert null/undefined to empty string
+                formattedItem[targetKey] = value === undefined || value === null ? "" : value
             }
 
             duplicateColumns.forEach((dataPaths, columnName) => {
@@ -247,15 +242,18 @@ export const convertTraceDataAtom = atom(
                     .map((path) => {
                         const keys = path.split(".")
                         const value = keys.reduce((acc: any, key) => acc?.[key], item)
-                        return value === undefined || value === null
-                            ? ""
-                            : typeof value === "string"
-                              ? value
-                              : JSON.stringify(value)
+                        // Preserve objects/arrays as-is, only convert null/undefined to empty string
+                        return value === undefined || value === null ? "" : value
                     })
                     .filter((val) => val !== "")
 
-                formattedItem[columnName] = values.length > 0 ? values.join(" | ") : ""
+                // When joining multiple values, serialize objects/arrays to JSON strings
+                // to avoid [object Object] from JavaScript's default toString()
+                const serializedValues = values.map((val) =>
+                    typeof val === "object" ? JSON.stringify(val) : val,
+                )
+                formattedItem[columnName] =
+                    serializedValues.length > 0 ? serializedValues.join(" | ") : ""
             })
 
             for (const column of columns) {

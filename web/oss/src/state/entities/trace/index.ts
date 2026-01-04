@@ -1,3 +1,14 @@
+/**
+ * Trace Entity Module
+ *
+ * Manages trace span entities with:
+ * - Batch fetching for concurrent requests
+ * - Cache redirect from various query caches
+ * - Draft state for local edits
+ * - Entity controllers for unified API access
+ * - Drill-in navigation for nested data
+ */
+
 // Schema and types
 export {
     TraceTypeEnum,
@@ -31,24 +42,38 @@ export {
 
 // Store and atoms
 export {
+    // Params types
     type TraceListParams,
     type TraceDetailParams,
-    traceSpanCacheAtom,
-    traceSpanAtomFamily,
-    spansByTraceIdAtomFamily,
-    upsertSpanAtom,
-    upsertManySpansAtom,
-    removeSpanAtom,
-    clearSpanCacheAtom,
-    fetchTracesList,
-    fetchSpanDetail,
-    flattenTraceTree,
-    hydrateSpanCacheAtom,
+    // Query atom family (single source of truth for server data)
+    spanQueryAtomFamily,
+    // Draft state atoms
+    traceSpanDraftAtomFamily,
+    traceSpanHasDraftAtomFamily,
+    traceSpanIsDirtyAtomFamily,
+    discardTraceSpanDraftAtom,
+    updateTraceSpanAtom,
+    // Combined entity atom (server + draft)
+    traceSpanEntityAtomFamily,
     // Derived atom families for data extraction
     spanInputsAtomFamily,
     spanOutputsAtomFamily,
     spanAgDataAtomFamily,
+    // Trace entity atom family (for trace tree data)
+    traceEntityAtomFamily,
+    // Cache invalidation
+    invalidateTraceEntityCache,
 } from "./store"
+
+// Entity API (unified API - recommended for most use cases)
+export {
+    traceSpan,
+    type EntityAction as TraceSpanAction,
+    type EntityControllerState as TraceSpanControllerState,
+} from "./controller"
+
+// Note: Drill-in helpers are now accessed via traceSpan.drillIn.*
+// e.g., traceSpan.drillIn.getValueAtPath, traceSpan.drillIn.getRootItems
 
 // Selectors and helpers
 export {

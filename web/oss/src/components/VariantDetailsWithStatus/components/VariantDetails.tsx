@@ -98,9 +98,8 @@ const VariantDetails = ({
                     placement="bottomLeft"
                 >
                     <Tag
-                        color="#586673"
-                        bordered={false}
-                        className="flex items-center gap-1 font-normal cursor-pointer"
+                        variant="filled"
+                        className="flex items-center gap-1 font-normal cursor-pointer bg-[#586673] text-white"
                     >
                         <PencilSimpleLine size={14} /> Draft
                     </Tag>
@@ -108,7 +107,7 @@ const VariantDetails = ({
             ) : (
                 isAppLatest &&
                 showLatestTag && (
-                    <Tag className={`bg-[#E6F4FF] text-[#1677FF]`} bordered={false}>
+                    <Tag className={`bg-[#E6F4FF] text-[#1677FF]`} variant="filled">
                         Last modified
                     </Tag>
                 )

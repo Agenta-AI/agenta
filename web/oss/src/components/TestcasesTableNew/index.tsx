@@ -1,14 +1,20 @@
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
-import {useAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
+import {
+    currentRevisionIdAtom,
+    revisionsListQueryAtom,
+    testsetMetadataAtom,
+} from "@/oss/state/entities/testcase/queries"
+import {NEW_TESTSET_ID, testset} from "@/oss/state/entities/testset"
 
-import {testcasesSearchTermAtom} from "./atoms/tableStore"
+import {setDebouncedSearchTermAtom, testcasesSearchTermAtom} from "./atoms/tableStore"
 import {TestcaseActions} from "./components/TestcaseActions"
 import TestcaseEditDrawer from "./components/TestcaseEditDrawer"
 import {TestcaseHeader} from "./components/TestcaseHeader"
@@ -49,15 +55,22 @@ export interface TestcasesTableNewProps {
  */
 export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const router = useRouter()
-    const {testset_id: revisionIdParam, name: testsetNameParam} = router.query
+    const {testset_id: revisionIdParam} = router.query
     const {projectURL} = useURL()
 
     // Check if this is a new testset (not yet saved)
     const isNewTestset = revisionIdParam === "new"
 
-    // Global state
-    const [searchTerm, setSearchTerm] = useAtom(testcasesSearchTermAtom)
+    // Global state - use debounced setter for search to trigger filtering
+    const searchTerm = useAtomValue(testcasesSearchTermAtom)
+    const setSearchTerm = useSetAtom(setDebouncedSearchTermAtom)
     const rowHeight = useRowHeight(testcaseRowHeightAtom, TESTCASE_ROW_HEIGHT_CONFIG)
+
+    // Metadata from query atoms (not from table hook)
+    const metadata = useAtomValue(testsetMetadataAtom)
+    const revisionsListQuery = useAtomValue(revisionsListQueryAtom)
+    const availableRevisions = revisionsListQuery.data ?? []
+    const loadingRevisions = revisionsListQuery.isPending
 
     // Local UI state
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -66,14 +79,36 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const [isCommitModalOpen, setIsCommitModalOpen] = useState(false)
     const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false)
     const [isIdCopied, setIsIdCopied] = useState(false)
+    const [isRevisionSlugCopied, setIsRevisionSlugCopied] = useState(false)
 
-    // Main table hook - pass initial name for new testsets
-    const initialTestsetName = isNewTestset
-        ? decodeURIComponent((testsetNameParam as string) || "")
-        : undefined
+    // Sync current revision ID atom with URL parameter
+    const setCurrentRevisionId = useSetAtom(currentRevisionIdAtom)
+    useEffect(() => {
+        // Handle both string and array cases from router query
+        const revisionId = Array.isArray(revisionIdParam) ? revisionIdParam[0] : revisionIdParam
+        if (revisionId && typeof revisionId === "string") {
+            setCurrentRevisionId(revisionId)
+        }
+    }, [revisionIdParam, setCurrentRevisionId])
+
+    // Initialize testset draft with name from URL query parameter for new testsets
+    const updateTestsetMetadata = useSetAtom(testset.actions.updateMetadata)
+    useEffect(() => {
+        if (isNewTestset && router.query.name) {
+            const nameFromUrl = Array.isArray(router.query.name)
+                ? router.query.name[0]
+                : router.query.name
+            if (nameFromUrl) {
+                // Update the testset entity draft (not revision draft)
+                // This correctly stores metadata on the testset, not the revision
+                updateTestsetMetadata(NEW_TESTSET_ID, {name: decodeURIComponent(nameFromUrl)})
+            }
+        }
+    }, [isNewTestset, router.query.name, updateTestsetMetadata])
+
+    // Main table hook - only manages testcases data
     const table = useTestcasesTable({
         revisionId: revisionIdParam as string,
-        initialTestsetName,
     })
 
     // Action handlers hook
@@ -81,6 +116,8 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
         table,
         revisionIdParam,
         mode,
+        metadata,
+        availableRevisions,
         onOpenCommitModal: () => setIsCommitModalOpen(true),
         onOpenRenameModal: () => setIsRenameModalOpen(true),
         onOpenAddColumnModal: () => setIsAddColumnModalOpen(true),
@@ -92,11 +129,14 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
         {
             breadcrumbs: {
                 testsets: {label: "testsets", href: `${projectURL}/testsets`},
-                "testset-detail": {label: table.testsetName, value: revisionIdParam as string},
+                "testset-detail": {
+                    label: metadata?.testsetName ?? "Testset",
+                    value: revisionIdParam as string,
+                },
             },
             condition: Boolean(projectURL),
         },
-        [table.testsetName, router.asPath, projectURL],
+        [metadata?.testsetName, router.asPath, projectURL],
     )
 
     // Block navigation if unsaved changes
@@ -112,9 +152,14 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 return true
             },
             cancelText: "Cancel",
-            thirdButtonText: "Discard changes",
+            // For new testsets: "Leave without saving", for existing: "Discard changes"
+            thirdButtonText: isNewTestset ? "Leave without saving" : "Discard changes",
             onThirdButton: async () => {
-                table.clearChanges()
+                // For new testsets, just allow navigation (no state to clear)
+                // For existing testsets, clear changes to revert to server state
+                if (!isNewTestset) {
+                    table.clearChanges()
+                }
             },
         },
         () => {
@@ -145,22 +190,32 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 onDeleteSelected={() => actions.handleDeleteSelected(selectedRowKeys)}
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
+                onAddColumn={() => setIsAddColumnModalOpen(true)}
                 header={
                     <TestcaseHeader
-                        testsetName={table.testsetName}
-                        description={table.description}
-                        metadata={table.metadata}
-                        availableRevisions={table.availableRevisions}
-                        loadingRevisions={table.loadingRevisions}
+                        testsetName={metadata?.testsetName ?? "Testset"}
+                        description={metadata?.description ?? ""}
+                        metadata={metadata}
+                        availableRevisions={availableRevisions}
+                        loadingRevisions={loadingRevisions}
                         isIdCopied={isIdCopied}
+                        isRevisionSlugCopied={isRevisionSlugCopied}
                         revisionIdParam={revisionIdParam as string}
+                        isNewTestset={isNewTestset}
+                        isExporting={actions.isExporting}
                         onCopyId={async () => {
                             await actions.handleCopyId()
                             setIsIdCopied(true)
                             setTimeout(() => setIsIdCopied(false), 2000)
                         }}
+                        onCopyRevisionSlug={async () => {
+                            await actions.handleCopyRevisionSlug()
+                            setIsRevisionSlugCopied(true)
+                            setTimeout(() => setIsRevisionSlugCopied(false), 2000)
+                        }}
                         onOpenRenameModal={() => setIsRenameModalOpen(true)}
                         onDeleteRevision={actions.handleDeleteRevision}
+                        onExport={actions.handleExport}
                         projectURL={projectURL}
                     />
                 }
@@ -170,9 +225,9 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         hasUnsavedChanges={table.hasUnsavedChanges}
                         isSaving={table.isSaving}
                         onAddTestcase={actions.handleAddTestcase}
-                        onAddColumn={() => setIsAddColumnModalOpen(true)}
                         onDiscard={actions.handleDiscardChanges}
                         onCommit={() => setIsCommitModalOpen(true)}
+                        isNewTestset={isNewTestset}
                     />
                 }
             />
@@ -190,7 +245,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 hasPrevious={editingRowIndex > 0}
                 hasNext={editingRowIndex < table.testcaseIds.length - 1}
                 testcaseNumber={editingRowIndex >= 0 ? editingRowIndex + 1 : undefined}
-                onSaveTestset={table.saveTestset}
+                onOpenCommitModal={() => setIsCommitModalOpen(true)}
                 isSavingTestset={table.isSaving}
             />
 
@@ -200,8 +255,8 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 onRenameConfirm={(name, desc) => {
                     actions.handleRenameConfirm(name, desc, () => setIsRenameModalOpen(false))
                 }}
-                initialTestsetName={table.testsetName}
-                initialDescription={table.description}
+                initialTestsetName={metadata?.testsetName ?? ""}
+                initialDescription={metadata?.description ?? ""}
                 isCommitModalOpen={isCommitModalOpen}
                 onCommitCancel={() => setIsCommitModalOpen(false)}
                 onCommit={async (msg) => {
@@ -210,8 +265,8 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 }}
                 changesSummary={isCommitModalOpen ? table.changesSummary : undefined}
                 isSaving={table.isSaving}
-                currentVersion={table.metadata?.revisionVersion}
-                latestVersion={table.availableRevisions[0]?.version}
+                currentVersion={metadata?.revisionVersion}
+                latestVersion={availableRevisions[0]?.version}
                 isAddColumnModalOpen={isAddColumnModalOpen}
                 onAddColumnCancel={() => setIsAddColumnModalOpen(false)}
                 onAddColumn={(name) => {

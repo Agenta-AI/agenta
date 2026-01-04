@@ -2,7 +2,8 @@ import {ModalProps} from "antd"
 import {createUseStyles} from "react-jss"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import {testset, TestsetCreationMode} from "@/oss/lib/Types"
+import {TestsetCreationMode} from "@/oss/lib/Types"
+import type {TestsetTableRow} from "@/oss/state/entities/testset"
 
 import CreateTestset from "./CreateTestset"
 import CreateTestsetFromApi from "./CreateTestsetFromApi"
@@ -24,8 +25,8 @@ const useStyles = createUseStyles({
 interface Props extends ModalProps {
     testsetCreationMode: TestsetCreationMode
     setTestsetCreationMode: React.Dispatch<React.SetStateAction<TestsetCreationMode>>
-    editTestsetValues: testset | null
-    setEditTestsetValues: React.Dispatch<React.SetStateAction<testset | null>>
+    editTestsetValues: TestsetTableRow | null
+    setEditTestsetValues: React.Dispatch<React.SetStateAction<TestsetTableRow | null>>
     current: number
     setCurrent: React.Dispatch<React.SetStateAction<number>>
 }

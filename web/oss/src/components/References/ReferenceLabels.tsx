@@ -4,10 +4,7 @@ import {Skeleton, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
-import {
-    latestRevisionForTestsetAtomFamily,
-    revisionEntityAtomFamily,
-} from "@/oss/state/entities/testset"
+import {latestRevisionForTestsetAtomFamily, revision} from "@/oss/state/entities/testset"
 
 import {
     appReferenceAtomFamily,
@@ -47,7 +44,11 @@ export const TestsetTag = memo(
         const query = useAtomValue(queryAtom)
 
         // Fetch revision entity to get version number (must be called before any early returns)
-        const revisionEntity = useAtomValue(revisionEntityAtomFamily(revisionId ?? ""))
+        const revisionDataAtom = useMemo(
+            () => revision.selectors.data(revisionId ?? ""),
+            [revisionId],
+        )
+        const revisionEntity = useAtomValue(revisionDataAtom)
         const revisionVersion = revisionId ? revisionEntity?.version : null
 
         // Get latest revision for testset (used when revisionId is not provided)

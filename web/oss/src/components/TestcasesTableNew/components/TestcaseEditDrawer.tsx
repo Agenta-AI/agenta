@@ -1,18 +1,14 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {ArrowsOut, CaretDoubleRight, CaretDown, CaretUp, Copy} from "@phosphor-icons/react"
-import {Button, Dropdown, Segmented, Space, Tooltip} from "antd"
+import {CaretDoubleRight, CaretDown, CaretUp, Copy} from "@phosphor-icons/react"
+import {Alert, Button, Dropdown, Segmented, Skeleton, Space, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
-import {
-    testcaseDraftAtomFamily,
-    testcaseEntityAtomFamily,
-    testcaseIsDirtyAtomFamily,
-} from "@/oss/state/entities/testcase/testcaseEntity"
+import {testcase} from "@/oss/state/entities/testcase"
 
 import TestcaseEditDrawerContent, {
     type TestcaseEditDrawerContentRef,
@@ -38,8 +34,10 @@ interface TestcaseEditDrawerProps {
     hasNext?: boolean
     /** 1-based index of the testcase for display */
     testcaseNumber?: number
-    /** Callback to save the entire testset (commit revision). Returns new revision ID on success. */
-    onSaveTestset?: () => Promise<string | null>
+    /** Callback to open the commit modal (for "Apply and Commit Changes") */
+    onOpenCommitModal?: () => void
+    /** Direct save callback (for contexts without commit modal, e.g., LoadTestsetModal) */
+    onSaveTestset?: (params?: {testsetName?: string; commitMessage?: string}) => Promise<string | null>
     /** Whether testset save is in progress */
     isSavingTestset?: boolean
 }
@@ -56,41 +54,89 @@ const TestcaseEditDrawer = ({
     hasPrevious = false,
     hasNext = false,
     testcaseNumber,
+    onOpenCommitModal,
     onSaveTestset,
     isSavingTestset = false,
 }: TestcaseEditDrawerProps) => {
-    // Read testcase from entity atom (server state + local draft)
-    const testcaseAtom = useMemo(() => testcaseEntityAtomFamily(testcaseId || ""), [testcaseId])
-    const testcase = useAtomValue(testcaseAtom)
+    // Use controller selectors for efficient subscriptions
+    // data: entity with draft merged
+    // query: loading/error states
+    // isDirty: draft vs server comparison
+    const testcaseData = useAtomValue(testcase.selectors.data(testcaseId || ""))
+    const queryState = useAtomValue(testcase.selectors.query(testcaseId || ""))
+    const isDirty = useAtomValue(testcase.selectors.isDirty(testcaseId || ""))
 
-    // Check if entity has actual data changes (compares draft vs server state)
-    const isDirtyAtom = useMemo(() => testcaseIsDirtyAtomFamily(testcaseId || ""), [testcaseId])
-    const isDirty = useAtomValue(isDirtyAtom)
-
-    // Draft setter for restoring session state
-    const setDraft = useSetAtom(testcaseDraftAtomFamily(testcaseId || ""))
+    // Get dispatch function without subscribing to controller state
+    const dispatch = useSetAtom(testcase.controller(testcaseId || ""))
 
     // Capture draft state when drawer opens (for session-based cancel)
-    const [sessionStartDraft, setSessionStartDraft] = useState<FlattenedTestcase | null>(null)
+    // Use a Map to store session start drafts per testcase ID to avoid cross-contamination during navigation
+    const sessionStartDraftsRef = useRef<Map<string, FlattenedTestcase>>(new Map())
 
-    // Capture the current draft when drawer opens
-    useEffect(() => {
-        if (open && testcaseId) {
-            // Capture the current entity state (server + draft merged) as the session start point
-            setSessionStartDraft(testcase ? {...testcase} : null)
-        }
-    }, [open, testcaseId])
+    // Get the session start draft for the current testcase (for Cancel functionality)
+    const sessionStartDraft = testcaseId ? sessionStartDraftsRef.current.get(testcaseId) ?? null : null
 
     const [editMode, setEditMode] = useState<EditMode>("fields")
     const [isIdCopied, setIsIdCopied] = useState(false)
     const contentRef = useRef<TestcaseEditDrawerContentRef>(null)
+
+    // Drill-in path state - lifted here to persist across testcase navigation
+    const [drillInPath, setDrillInPath] = useState<string[]>([])
+
+    // Track testcase IDs that were ever dirty during this drawer session
+    // This enables the save button even if the user reverts their changes
+    const [everDirtyIds, setEverDirtyIds] = useState<Set<string>>(new Set())
+
+    // Track when a testcase becomes dirty (or was already dirty when opened)
+    useEffect(() => {
+        if (open && testcaseId && isDirty) {
+            setEverDirtyIds((prev) => {
+                if (prev.has(testcaseId)) return prev
+                const next = new Set(prev)
+                next.add(testcaseId)
+                return next
+            })
+        }
+    }, [open, testcaseId, isDirty])
+
+    // Clear everDirtyIds when drawer closes
+    useEffect(() => {
+        if (!open) {
+            setEverDirtyIds(new Set())
+        }
+    }, [open])
+
+    // Session has changes if any testcase was ever dirty during this session
+    const hasSessionDirty = everDirtyIds.size > 0
+
+    // Capture the current draft when drawer opens or when testcaseId changes (for navigation)
+    useEffect(() => {
+        if (open && testcaseId && testcaseData) {
+            // Only capture if we haven't captured for this testcase yet in this session
+            if (!sessionStartDraftsRef.current.has(testcaseId)) {
+                // Deep clone to avoid reference issues that could cause false dirty detection
+                sessionStartDraftsRef.current.set(testcaseId, JSON.parse(JSON.stringify(testcaseData)))
+            }
+        } else if (!open) {
+            // Clear all session drafts and reset drill-in path when drawer closes
+            sessionStartDraftsRef.current.clear()
+            setDrillInPath([])
+        }
+    }, [open, testcaseId, testcaseData])
 
     // Apply changes and close (draft is already in entity atom, just close)
     const handleApply = useCallback(() => {
         onClose()
     }, [onClose])
 
-    // Apply changes and save entire testset (commit revision)
+    // Apply changes and open commit modal
+    const handleOpenCommitModal = useCallback(() => {
+        if (onOpenCommitModal) {
+            onOpenCommitModal()
+        }
+    }, [onOpenCommitModal])
+
+    // Apply changes and save directly (for contexts without commit modal)
     const handleSaveTestset = useCallback(async () => {
         if (onSaveTestset) {
             await onSaveTestset()
@@ -99,12 +145,12 @@ const TestcaseEditDrawer = ({
 
     // Discard session changes and close (restore to state when drawer opened)
     const handleCancel = useCallback(() => {
-        if (testcaseId) {
+        if (testcaseId && sessionStartDraft) {
             // Restore to the state when drawer opened (not discard entirely)
-            setDraft(sessionStartDraft)
+            dispatch({type: "update", changes: sessionStartDraft})
         }
         onClose()
-    }, [testcaseId, sessionStartDraft, setDraft, onClose])
+    }, [testcaseId, sessionStartDraft, dispatch, onClose])
 
     const handleCopyId = useCallback(async () => {
         if (!testcaseId) return
@@ -117,11 +163,6 @@ const TestcaseEditDrawer = ({
         return (
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-1">
-                    {/* Expand to full screen */}
-                    <Tooltip title="Open in full screen">
-                        <Button type="text" size="small" icon={<ArrowsOut size={14} />} disabled />
-                    </Tooltip>
-
                     {/* Close drawer */}
                     <Button
                         type="text"
@@ -154,6 +195,13 @@ const TestcaseEditDrawer = ({
                     <span className="font-medium text-sm">
                         {isNewRow ? "New Testcase" : `Testcase ${testcaseNumber ?? ""}`}
                     </span>
+
+                    {/* Draft indicator */}
+                    {isDirty && (
+                        <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                            edited
+                        </span>
+                    )}
 
                     {/* Copy ID */}
                     {testcaseId && !isNewRow && (
@@ -194,6 +242,7 @@ const TestcaseEditDrawer = ({
         testcaseNumber,
         handleCancel,
         isNewRow,
+        isDirty,
     ])
 
     return (
@@ -217,7 +266,7 @@ const TestcaseEditDrawer = ({
                         <Button
                             type="primary"
                             onClick={handleApply}
-                            disabled={!isDirty}
+                            disabled={!hasSessionDirty}
                             loading={isSavingTestset}
                         >
                             Apply and Continue Editing
@@ -226,35 +275,78 @@ const TestcaseEditDrawer = ({
                             placement="topRight"
                             menu={{
                                 items: [
-                                    {
-                                        key: "commit",
-                                        label: "Apply and Commit Changes",
-                                        onClick: handleSaveTestset,
-                                        disabled: !isDirty,
-                                    },
+                                    // Show "Apply and Commit Changes" when commit modal is available
+                                    ...(onOpenCommitModal
+                                        ? [
+                                              {
+                                                  key: "commit",
+                                                  label: "Apply and Commit Changes",
+                                                  onClick: handleOpenCommitModal,
+                                                  disabled: !hasSessionDirty,
+                                              },
+                                          ]
+                                        : []),
+                                    // Show "Save Testset" when direct save is available
+                                    ...(onSaveTestset
+                                        ? [
+                                              {
+                                                  key: "save",
+                                                  label: "Apply and Save Testset",
+                                                  onClick: handleSaveTestset,
+                                                  disabled: !hasSessionDirty,
+                                              },
+                                          ]
+                                        : []),
                                 ],
                             }}
                         >
                             <Button
                                 type="primary"
                                 icon={<CaretUp size={14} />}
-                                disabled={!isDirty}
+                                disabled={!hasSessionDirty || (!onOpenCommitModal && !onSaveTestset)}
                             />
                         </Dropdown>
                     </Space.Compact>
                 </div>
             }
         >
-            {open && testcaseId && testcase && (
-                <TestcaseEditDrawerContent
-                    ref={contentRef}
-                    testcaseId={testcaseId}
-                    columns={columns}
-                    isNewRow={isNewRow}
-                    onClose={onClose}
-                    editMode={editMode}
-                    onEditModeChange={setEditMode}
-                />
+            {open && testcaseId && (
+                <>
+                    {/* Loading state */}
+                    {queryState.isPending && (
+                        <div className="p-6 space-y-4">
+                            <Skeleton active paragraph={{rows: 8}} />
+                        </div>
+                    )}
+
+                    {/* Error state */}
+                    {queryState.isError && (
+                        <div className="p-6">
+                            <Alert
+                                type="error"
+                                message="Failed to load testcase"
+                                description={queryState.error?.message || "Unknown error"}
+                                showIcon
+                            />
+                        </div>
+                    )}
+
+                    {/* Loaded state */}
+                    {testcaseData && (
+                        <TestcaseEditDrawerContent
+                            key={testcaseId} // Force remount when testcase changes to prevent stale state
+                            ref={contentRef}
+                            testcaseId={testcaseId}
+                            columns={columns}
+                            isNewRow={isNewRow}
+                            onClose={onClose}
+                            editMode={editMode}
+                            onEditModeChange={setEditMode}
+                            initialPath={drillInPath}
+                            onPathChange={setDrillInPath}
+                        />
+                    )}
+                </>
             )}
         </EnhancedDrawer>
     )

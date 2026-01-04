@@ -9,7 +9,7 @@ import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {getValueAtPath} from "@/oss/state/entities/trace"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {Mapping, TestsetColumn, TestsetTraceData} from "../assets/types"
+import {createMappingId, Mapping, TestsetColumn, TestsetTraceData} from "../assets/types"
 import {onCascaderChangeAtom} from "../atoms/actions"
 import {
     allTracePathsSelectOptionsAtom,
@@ -24,7 +24,7 @@ import {
     revertEditedTraceAtom,
     rowDataPreviewAtom,
     selectedTraceDataAtom,
-    traceDataAtom,
+    traceDataFromEntitiesAtom,
     updateEditedTraceAtom,
 } from "../atoms/drawerState"
 import {clearLocalEntitiesAtom} from "../atoms/localEntities"
@@ -45,7 +45,6 @@ export interface UseTestsetDrawerResult {
     isTestsetsLoading: boolean
     cascaderOptions: any[]
     cascaderValue: string[]
-    loadingRevisions: boolean
     isDrawerExtended: boolean
     isLoading: boolean
     updatedTraceData: string
@@ -74,9 +73,6 @@ export interface UseTestsetDrawerResult {
 
     // Setters
     setMappingData: (data: Mapping[] | ((prev: Mapping[]) => Mapping[])) => void
-    setTraceDataState: (
-        data: TestsetTraceData[] | ((prev: TestsetTraceData[]) => TestsetTraceData[]),
-    ) => void
     setPreviewKey: (key: string) => void
     setHasDuplicateColumns: (value: boolean) => void
     setIsDrawerExtended: React.Dispatch<React.SetStateAction<boolean>>
@@ -94,9 +90,10 @@ export interface UseTestsetDrawerResult {
     onCascaderChange: (value: any, selectedOptions: any[]) => void
     onRemoveTraceData: () => void
     onMappingOptionChange: (params: {pathName: keyof Mapping; value: string; idx: number}) => void
+    onRemoveMapping: (idx: number) => void
     onNewColumnBlur: () => void
     onPreviewOptionChange: (value: string) => void
-    onSaveTestset: () => Promise<void>
+    onSaveTestset: (onCloseCallback?: () => void) => Promise<void>
     onSaveEditedTrace: (value?: string) => void
     onRevertEditedTrace: () => void
     customSelectOptions: (divider?: boolean) => any[]
@@ -118,9 +115,9 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
     // Entity-based columns (for selected revision)
     const currentColumns = useAtomValue(currentColumnsAtom)
 
-    // Drawer state atoms (trace data is set via openDrawerAtom from parent)
+    // Drawer state atoms (trace data is derived from entity atoms)
     const [mappingData, setMappingData] = useAtom(mappingDataAtom)
-    const [traceDataState, setTraceDataState] = useAtom(traceDataAtom)
+    const traceData = useAtomValue(traceDataFromEntitiesAtom)
     const [previewKey, setPreviewKey] = useAtom(previewKeyAtom)
     const [hasDuplicateColumns, setHasDuplicateColumns] = useAtom(hasDuplicateColumnsAtom)
     const [rowDataPreview, setRowDataPreview] = useAtom(rowDataPreviewAtom)
@@ -155,9 +152,6 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
 
     // Refs
     const elemRef = useRef<HTMLDivElement>(null)
-
-    // traceData is now managed by traceDataAtom
-    const traceData = traceDataState
 
     const isNewColumnCreated = useMemo(
         () => saveTestset.localColumns.find(({isNew}) => isNew),
@@ -198,7 +192,7 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
             if (column === "create") {
                 setMappingData((prev) => [
                     ...prev,
-                    {data: dataPath, column: "create", newColumn: ""},
+                    {id: createMappingId(), data: dataPath, column: "create", newColumn: ""},
                 ])
                 // Scroll to mapping section so user can fill in the column name
                 setTimeout(() => {
@@ -206,7 +200,7 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
                     mappingSection?.scrollIntoView({behavior: "smooth", block: "center"})
                 }, 100)
             } else {
-                setMappingData((prev) => [...prev, {data: dataPath, column}])
+                setMappingData((prev) => [...prev, {id: createMappingId(), data: dataPath, column}])
                 // Trigger entity update to sync columns to preview table
                 executeNewColumnBlur(getValueAtPath)
             }
@@ -218,6 +212,16 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
     const onUnmapFromDrillIn = useCallback(
         (dataPath: string) => {
             setMappingData((prev) => prev.filter((mapping) => mapping.data !== dataPath))
+            // Trigger entity update to sync columns to preview table
+            executeNewColumnBlur(getValueAtPath)
+        },
+        [setMappingData, executeNewColumnBlur],
+    )
+
+    // Handler to remove a mapping by index (from MappingSection)
+    const onRemoveMapping = useCallback(
+        (idx: number) => {
+            setMappingData((prev) => prev.filter((_, index) => index !== idx))
             // Trigger entity update to sync columns to preview table
             executeNewColumnBlur(getValueAtPath)
         },
@@ -306,9 +310,18 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
     )
 
     // Save handler using the save hook
-    const onSaveTestset = useCallback(async () => {
-        await saveTestset.saveTestset({onSuccess: handleDrawerClose})
-    }, [saveTestset, handleDrawerClose])
+    // Accepts optional onClose callback to dismiss the drawer after successful save
+    const onSaveTestset = useCallback(
+        async (onCloseCallback?: () => void) => {
+            await saveTestset.saveTestset({
+                onSuccess: () => {
+                    handleDrawerClose()
+                    onCloseCallback?.()
+                },
+            })
+        },
+        [saveTestset, handleDrawerClose],
+    )
 
     const onSaveEditedTrace = useCallback(
         (valueToSave?: string) => {
@@ -360,7 +373,6 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
         isTestsetsLoading: revisionSelect.isTestsetsLoading,
         cascaderOptions: revisionSelect.cascaderOptions,
         cascaderValue: revisionSelect.cascaderValue,
-        loadingRevisions: revisionSelect.loadingRevisions,
         isDrawerExtended,
         isLoading: saveTestset.isSaving,
         updatedTraceData,
@@ -386,7 +398,6 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
 
         // Setters
         setMappingData,
-        setTraceDataState,
         setPreviewKey,
         setHasDuplicateColumns,
         setIsDrawerExtended,
@@ -404,6 +415,7 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
         onCascaderChange: handleCascaderChange,
         onRemoveTraceData,
         onMappingOptionChange,
+        onRemoveMapping,
         onNewColumnBlur,
         onPreviewOptionChange,
         onSaveTestset,

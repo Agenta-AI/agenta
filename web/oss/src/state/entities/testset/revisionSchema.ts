@@ -16,12 +16,14 @@ export const revisionSchema = z.object({
     // Identifier
     id: z.string(),
 
-    // Parent testset
+    // Parent testset and variant
     testset_id: z.string(),
+    testset_variant_id: z.string().optional(), // Variant ID (may be excluded by backend)
 
     // Header fields (from Header mixin)
     name: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
+    slug: z.string().nullable().optional(),
 
     // Version number (0 = draft, 1+ = committed)
     version: z.union([z.number(), z.string()]).transform((v) => {
@@ -54,6 +56,7 @@ export const revisionSchema = z.object({
     data: z
         .object({
             testcase_ids: z.array(z.string()).optional(),
+            testcases: z.array(z.record(z.string(), z.any())).optional(),
         })
         .nullable()
         .optional(),
@@ -148,3 +151,16 @@ export function isV0Revision(revision: Revision | RevisionListItem): boolean {
 export function getVersionDisplay(revision: Revision | RevisionListItem): string {
     return `v${revision.version}`
 }
+
+/**
+ * Testset Variant schema (contains name and description)
+ */
+export const variantSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string().nullable().optional(),
+    created_at: z.string().nullable().optional(),
+    updated_at: z.string().nullable().optional(),
+})
+
+export type Variant = z.infer<typeof variantSchema>

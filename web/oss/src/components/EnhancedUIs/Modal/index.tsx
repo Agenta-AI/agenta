@@ -48,10 +48,7 @@ const EnhancedModal = ({children, ...props}: EnhancedModalProps) => {
                     display: "flex",
                     flexDirection: "column",
                     // Only apply maxHeight if not explicitly overridden by customContainer
-                    ...(customContainer?.maxHeight === undefined &&
-                    customContainer?.height === undefined
-                        ? {maxHeight: "90vh"}
-                        : {}),
+                    ...(customContainer?.maxHeight === undefined ? {maxHeight: "90vh"} : {}),
                     ...customContainer,
                 },
                 body: {

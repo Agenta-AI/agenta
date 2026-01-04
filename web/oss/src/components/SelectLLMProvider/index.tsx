@@ -1,13 +1,13 @@
 import {useMemo, useRef, useState} from "react"
 
 import {CaretRight, Plus, X} from "@phosphor-icons/react"
-import {Select, Input, Button, Divider, InputRef, Popover} from "antd"
+import {Button, Divider, Input, InputRef, Popover, Select, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {capitalize} from "@/oss/lib/helpers/utils"
-import {SecretDTOProvider, PROVIDER_LABELS} from "@/oss/lib/Types"
+import {PROVIDER_LABELS, SecretDTOProvider} from "@/oss/lib/Types"
 
 import LLMIcons from "../LLMIcons"
 import Anthropic from "../LLMIcons/assets/Anthropic"
@@ -25,6 +25,7 @@ interface ProviderOption {
     label: string
     value: string
     key?: string
+    metadata?: Record<string, any>
 }
 
 interface ProviderGroup {
@@ -169,6 +170,7 @@ const SelectLLMProvider = ({
                                 label: resolvedLabel,
                                 value: resolvedValue,
                                 key: option?.key ?? resolvedValue,
+                                metadata: option?.metadata,
                             }
                         })
                         .filter(Boolean) as ProviderOption[]) ?? [],
@@ -208,6 +210,68 @@ const SelectLLMProvider = ({
         setTimeout(() => setOpen(false), 0)
     }
 
+    const formatCost = (cost: number) => {
+        const value = Number(cost)
+        if (isNaN(value)) return "N/A"
+        return value < 0.01 ? value.toFixed(4) : value.toFixed(2)
+    }
+
+    const renderTooltipContent = (metadata: Record<string, any>) => (
+        <div className="flex flex-col gap-0.5">
+            {(metadata.input !== undefined || metadata.output !== undefined) && (
+                <>
+                    <div className="flex justify-between gap-4">
+                        <Typography.Text className="text-[10px] text-nowrap">
+                            Input:
+                        </Typography.Text>
+                        <Typography.Text className="text-[10px] text-nowrap">
+                            ${formatCost(metadata.input)} / 1M
+                        </Typography.Text>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                        <Typography.Text className="text-[10px] text-nowrap">
+                            Output:{" "}
+                        </Typography.Text>
+                        <Typography.Text className="text-[10px] text-nowrap">
+                            ${formatCost(metadata.output)} / 1M
+                        </Typography.Text>
+                    </div>
+                </>
+            )}
+        </div>
+    )
+
+    const renderOptionContent = (option: ProviderOption) => {
+        const Icon = getProviderIcon(option.value) || LLMIcons[option.label]
+        return (
+            <div className="flex items-center gap-2 w-full justify-between group h-full">
+                <div className="flex items-center gap-2 overflow-hidden w-full">
+                    {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+                    <span className="truncate">{option.label}</span>
+                </div>
+            </div>
+        )
+    }
+
+    const renderOption = (option: ProviderOption) => {
+        const content = renderOptionContent(option)
+
+        if (option.metadata) {
+            return (
+                <Tooltip
+                    title={renderTooltipContent(option.metadata)}
+                    placement="right"
+                    mouseEnterDelay={0.3}
+                    color="white"
+                >
+                    {content}
+                </Tooltip>
+            )
+        }
+
+        return content
+    }
+
     return (
         <>
             <Select
@@ -225,6 +289,7 @@ const SelectLLMProvider = ({
                 placeholder="Select a provider"
                 style={{width: "100%"}}
                 virtual={false}
+                optionLabelProp="label"
                 className={clsx([
                     "[&_.ant-select-item-option-content]:flex [&_.ant-select-item-option-content]:items-center [&_.ant-select-item-option-content]:gap-2 [&_.ant-select-selection-item]:!flex [&_.ant-select-selection-item]:!items-center [&_.ant-select-selection-item]:!gap-2",
                     className,
@@ -292,10 +357,7 @@ const SelectLLMProvider = ({
                                                                 handleSelect(option.value)
                                                             }}
                                                         >
-                                                            {Icon && (
-                                                                <Icon className="w-4 h-4 flex-shrink-0" />
-                                                            )}
-                                                            <span>{option.label}</span>
+                                                            {renderOption(option)}
                                                         </div>
                                                     ))}
                                                 </div>
@@ -369,27 +431,26 @@ const SelectLLMProvider = ({
                             }
                         >
                             {group.options?.map((option) => {
-                                const Icon =
-                                    getProviderIcon(group.label || "") || LLMIcons[option.label]
                                 return (
-                                    <Option key={option.key ?? option.value} value={option.value}>
-                                        <div className="flex items-center gap-2">
-                                            {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
-                                            <span>{option.label}</span>
-                                        </div>
+                                    <Option
+                                        key={option.key ?? option.value}
+                                        value={option.value}
+                                        label={renderOptionContent(option)}
+                                    >
+                                        {renderOption(option)}
                                     </Option>
                                 )
                             })}
                         </OptGroup>
                     ) : (
                         group.options?.map((option) => {
-                            const Icon = getProviderIcon(option.value) || LLMIcons[option.label]
                             return (
-                                <Option key={option.key ?? option.value} value={option.value}>
-                                    <div className="flex items-center gap-2">
-                                        {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
-                                        <span>{option.label}</span>
-                                    </div>
+                                <Option
+                                    key={option.key ?? option.value}
+                                    value={option.value}
+                                    label={renderOptionContent(option)}
+                                >
+                                    {renderOption(option)}
                                 </Option>
                             )
                         })

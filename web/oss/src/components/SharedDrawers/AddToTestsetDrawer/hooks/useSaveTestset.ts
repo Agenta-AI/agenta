@@ -3,15 +3,14 @@ import {useCallback} from "react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
-import {fetchTestsetRevisions} from "@/oss/components/TestsetsTable/atoms/fetchTestsetRevisions"
 import {createNewTestset} from "@/oss/services/testsets/api"
-import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
-import {appendTestcasesAtom, saveTestsetAtom} from "@/oss/state/entities/testcase/mutations"
+import {currentColumnsAtom, saveTestsetAtom} from "@/oss/state/entities/testcase"
+import {fetchRevisionsList} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project"
 import {setRevisionsForTestsetAtom} from "@/oss/state/testsetSelection"
 
 import {isNewTestsetAtom, newTestsetNameAtom, selectedTestsetInfoAtom} from "../atoms/cascaderState"
-import {mappingDataAtom, selectedRevisionIdAtom, traceDataAtom} from "../atoms/drawerState"
+import {mappingDataAtom, selectedRevisionIdAtom, traceDataFromEntitiesAtom} from "../atoms/drawerState"
 import {
     commitMessageAtom,
     convertTraceDataAtom,
@@ -54,13 +53,12 @@ export function useSaveTestset() {
     const testset = useAtomValue(selectedTestsetInfoAtom)
     const selectedRevisionId = useAtomValue(selectedRevisionIdAtom)
 
-    // Data atoms
-    const traceData = useAtomValue(traceDataAtom)
+    // Data atoms - use entity-derived trace data (not the primitive traceDataAtom)
+    const traceData = useAtomValue(traceDataFromEntitiesAtom)
     const mappingData = useAtomValue(mappingDataAtom)
     const currentColumns = useAtomValue(currentColumnsAtom)
 
     // Entity mutations
-    const executeAppendTestcases = useSetAtom(appendTestcasesAtom)
     const executeSaveTestset = useSetAtom(saveTestsetAtom)
     const convertTraceData = useSetAtom(convertTraceDataAtom)
 
@@ -100,8 +98,6 @@ export function useSaveTestset() {
             try {
                 setIsSaving(true)
 
-                const exportData = getExportData()
-
                 if (!projectId) {
                     message.error("Missing project information")
                     return {success: false, error: "Missing project information"}
@@ -114,7 +110,13 @@ export function useSaveTestset() {
                         return {success: false, error: "Missing testset name"}
                     }
 
-                    const response = await createNewTestset(newTestsetName, exportData)
+                    // Only compute export data for new testsets (API expects full data)
+                    const exportData = getExportData()
+                    const response = await createNewTestset(
+                        newTestsetName,
+                        exportData,
+                        commitMessage || undefined,
+                    )
 
                     if (!response?.data?.revisionId || !response?.data?.testset?.id) {
                         throw new Error("Failed to create testset: no revision ID returned")
@@ -123,7 +125,11 @@ export function useSaveTestset() {
                     const newTestsetId = response.data.testset.id
                     const createdRevisionId = response.data.revisionId
 
-                    message.success("Testset created successfully")
+                    message.success(
+                        commitMessage
+                            ? `Testset created with message: "${commitMessage}"`
+                            : "Testset created successfully",
+                    )
 
                     // Refetch testsets list so the new testset appears
                     await revisionSelect.refetchTestsets()
@@ -142,17 +148,18 @@ export function useSaveTestset() {
                         return {success: false, error: "Missing testset information"}
                     }
 
-                    // Add testcases to entity state
-                    const addedCount = executeAppendTestcases(exportData)
-                    console.log(`Added ${addedCount} testcases to entity state`)
+                    // NOTE: We don't call appendTestcasesAtom here because local entities
+                    // are already created by selectRevisionAtom when the user selects a revision.
+                    // Those entities are in newEntityIdsAtom and will be picked up by saveTestsetAtom.
+                    // Calling appendTestcasesAtom would create duplicates because its deduplication
+                    // compares JSON.stringify of rows which may have different column sets.
 
                     // Save via entity mutation
                     const result = await executeSaveTestset({
                         projectId,
                         testsetId: testset.id,
                         revisionId: selectedRevisionId,
-                        commitMessage:
-                            commitMessage || `Added ${traceData.length} span(s) to testset`,
+                        commitMessage: commitMessage || undefined,
                     })
 
                     if (result.success && result.newRevisionId) {
@@ -164,8 +171,14 @@ export function useSaveTestset() {
 
                         // Reload revisions and update cache
                         try {
-                            const revisions = await fetchTestsetRevisions({testsetId: testset.id})
-                            setRevisionsForTestset({testsetId: testset.id, revisions})
+                            const response = await fetchRevisionsList({
+                                projectId,
+                                testsetId: testset.id,
+                            })
+                            setRevisionsForTestset({
+                                testsetId: testset.id,
+                                revisions: response.testset_revisions,
+                            })
 
                             setSelectedRevisionId(result.newRevisionId)
                             revisionSelect.setCurrentRevisionId(result.newRevisionId)
@@ -199,7 +212,6 @@ export function useSaveTestset() {
             commitMessage,
             traceData.length,
             getExportData,
-            executeAppendTestcases,
             executeSaveTestset,
             setSelectedRevisionId,
             setRevisionsForTestset,

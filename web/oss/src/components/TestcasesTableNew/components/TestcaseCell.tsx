@@ -1,9 +1,8 @@
-import {memo, useDeferredValue, useMemo} from "react"
+import {memo, useMemo} from "react"
 
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {useColumnVisibilityFlag} from "@/oss/components/InfiniteVirtualTable/context/ColumnVisibilityFlagContext"
-import {testcaseEntityAtomFamily} from "@/oss/state/entities/testcase/testcaseEntity"
+import {testcase} from "@/oss/state/entities/testcase"
 
 import TestcaseCellContent from "./TestcaseCellContent"
 
@@ -21,62 +20,24 @@ interface TestcaseCellProps {
 }
 
 /**
- * Try to parse a value as an object (handles JSON strings)
- */
-function tryParseAsObject(value: unknown): Record<string, unknown> | null {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-        return value as Record<string, unknown>
-    }
-    if (typeof value === "string") {
-        const trimmed = value.trim()
-        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-            try {
-                const parsed = JSON.parse(trimmed)
-                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                    return parsed as Record<string, unknown>
-                }
-            } catch {
-                // Not valid JSON
-            }
-        }
-    }
-    return null
-}
-
-/**
- * Get a nested value from an object using dot notation
- * e.g., getNestedValue(obj, "event.type") returns obj.event.type
- * Handles JSON strings at any level of nesting
- */
-function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
-    const parts = path.split(".")
-    let current: unknown = obj
-
-    for (const part of parts) {
-        if (current === null || current === undefined) return undefined
-
-        // Try to parse as object if it's a JSON string
-        const asObject = tryParseAsObject(current)
-        if (asObject) {
-            current = asObject[part]
-        } else if (typeof current === "object") {
-            current = (current as Record<string, unknown>)[part]
-        } else {
-            return undefined
-        }
-    }
-
-    return current
-}
-
-/**
- * Table cell component that reads from entity atoms
+ * Table cell component that reads from cell atoms for fine-grained reactivity
  *
  * This component:
- * - Reads testcase data from entity atom (cache)
+ * - Reads cell value from testcaseCellAtomFamily (fine-grained subscription)
+ * - Only re-renders when THIS specific cell value changes
+ * - Uses selectAtom internally with custom equality checking
  * - Supports dot notation for nested values (e.g., "event.type")
- * - Reports missing entities for batch fetching
  * - Uses TestcaseCellContent for rendering
+ * - Defers updates during scroll with LOW_PRIORITY scheduling
+ *
+ * Performance benefits:
+ * - Cell-level subscriptions prevent unnecessary re-renders
+ * - Editing one cell only re-renders that cell, not the entire row
+ * - selectAtom with custom equality prevents spurious updates
+ * - LOW_PRIORITY scheduling defers updates during rapid scrolling
+ *
+ * Note: Does not check column visibility - InfiniteVirtualTable handles column virtualization.
+ * Per-cell visibility checks cause "Maximum update depth exceeded" errors during scroll.
  *
  * @example
  * ```tsx
@@ -93,45 +54,23 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
  * />
  * ```
  */
-/**
- * Inner cell component that does the heavy lifting
- * Only rendered when the column is visible in the viewport
- * This avoids atom subscriptions and value extraction for invisible columns
- */
-const TestcaseCellInner = memo(function TestcaseCellInner({
+export const TestcaseCell = memo(function TestcaseCell({
     testcaseId,
     columnKey,
     maxLines,
     render,
-}: Omit<TestcaseCellProps, "onMissing">) {
-    // Subscribe to the entire entity once per row
-    // The atomFamily ensures the same atom instance is reused for the same testcaseId
-    // This is more efficient than per-cell subscriptions because:
-    // 1. Jotai deduplicates subscriptions to the same atom
-    // 2. LOW_PRIORITY defers updates during scroll
-    const entityAtom = useMemo(() => testcaseEntityAtomFamily(testcaseId), [testcaseId])
-    const entity = useAtomValueWithSchedule(entityAtom, {priority: LOW_PRIORITY})
+}: TestcaseCellProps) {
+    // Subscribe to specific cell value using fine-grained cell selector
+    // This uses selectAtom internally to only re-render when THIS cell's value changes
+    // The composite key {id, column} ensures proper atom deduplication
+    const cellAtom = useMemo(
+        () => testcase.selectors.cell({id: testcaseId, column: columnKey}),
+        [testcaseId, columnKey],
+    )
 
-    // Extract value from entity using column key
-    // Supports dot notation for nested values (e.g., "event.type")
-    const value = useMemo(() => {
-        if (!entity) return undefined
-
-        const isNestedPath = columnKey.includes(".")
-        const rootColumn = isNestedPath ? columnKey.split(".")[0] : columnKey
-        const rootValue = (entity as Record<string, unknown>)[rootColumn]
-
-        if (!isNestedPath) return rootValue
-        if (rootValue === undefined || rootValue === null) return undefined
-
-        // For nested paths, parse the parent value and extract the nested property
-        const remainingPath = columnKey.substring(rootColumn.length + 1)
-        const asObject = tryParseAsObject(rootValue)
-        if (asObject) {
-            return getNestedValue(asObject, remainingPath)
-        }
-        return undefined
-    }, [entity, columnKey])
+    // Use LOW_PRIORITY scheduling to defer updates during rapid scrolling
+    // This prevents jank when scrolling through large tables
+    const value = useAtomValueWithSchedule(cellAtom, {priority: LOW_PRIORITY})
 
     // Use custom render if provided
     if (render) {
@@ -140,38 +79,4 @@ const TestcaseCellInner = memo(function TestcaseCellInner({
 
     // Default: use TestcaseCellContent for smart rendering
     return <TestcaseCellContent value={value} maxLines={maxLines} />
-})
-
-/**
- * Lightweight wrapper that checks column visibility first
- * Only mounts TestcaseCellInner when the column is visible
- * This prevents atom subscriptions and heavy computation for invisible columns
- */
-export const TestcaseCell = memo(function TestcaseCell({
-    testcaseId,
-    columnKey,
-    maxLines,
-    render,
-}: TestcaseCellProps) {
-    // Check if this column is visible in the horizontal viewport
-    const isColumnVisible = useColumnVisibilityFlag(columnKey)
-
-    // Defer the visibility value to prevent rapid mount/unmount cycles
-    // This helps avoid "Maximum update depth exceeded" errors during fast scrolling
-    const deferredIsVisible = useDeferredValue(isColumnVisible)
-
-    // Skip mounting the inner component for columns outside the horizontal viewport
-    // This is critical for scroll performance - prevents atom subscriptions for hidden cells
-    if (!deferredIsVisible) {
-        return <div className="testcase-table-cell w-full min-h-[24px]" />
-    }
-
-    return (
-        <TestcaseCellInner
-            testcaseId={testcaseId}
-            columnKey={columnKey}
-            maxLines={maxLines}
-            render={render}
-        />
-    )
 })

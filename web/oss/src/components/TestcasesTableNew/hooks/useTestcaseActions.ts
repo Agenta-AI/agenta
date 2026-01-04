@@ -1,15 +1,25 @@
-import {useCallback, useRef} from "react"
+import {useCallback, useRef, useState} from "react"
 
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
+import {downloadRevision, updateTestsetMetadata} from "@/oss/services/testsets/api"
+import type {ExportFileType} from "@/oss/services/testsets/api"
+import type {TestsetMetadata} from "@/oss/state/entities/testcase/queries"
+import {
+    revision,
+    invalidateTestsetCache,
+    invalidateTestsetsListCache,
+    invalidateRevisionsListCache,
+} from "@/oss/state/entities/testset"
 
 import AlertPopup from "../../AlertPopup/AlertPopup"
 import {message} from "../../AppMessageContext"
 import type {TestcaseTableRow} from "../atoms/tableStore"
 
-import type {UseTestcasesTableResult} from "./types"
+import type {RevisionListItem, UseTestcasesTableResult} from "./types"
 
 /**
  * Configuration for useTestcaseActions hook
@@ -18,6 +28,8 @@ export interface UseTestcaseActionsConfig {
     table: UseTestcasesTableResult
     revisionIdParam: string | string[] | undefined
     mode: "edit" | "view"
+    metadata: TestsetMetadata | null
+    availableRevisions: RevisionListItem[]
     onOpenCommitModal: () => void
     onOpenRenameModal: () => void
     onOpenAddColumnModal: () => void
@@ -54,9 +66,15 @@ export interface UseTestcaseActionsResult {
         onClose: () => void,
     ) => void
     handleCopyId: () => Promise<void>
+    handleCopyRevisionSlug: () => Promise<void>
 
     // Revision actions
     handleDeleteRevision: () => Promise<void>
+
+    // Export actions
+    handleExport: (fileType: ExportFileType) => Promise<void>
+    /** Whether an export is currently in progress */
+    isExporting: boolean
 }
 
 /**
@@ -68,6 +86,8 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         table,
         revisionIdParam,
         mode,
+        metadata,
+        availableRevisions,
         onOpenCommitModal,
         onOpenRenameModal: _onOpenRenameModal,
         onSetEditingTestcaseId,
@@ -75,6 +95,9 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
 
     const router = useRouter()
     const {projectURL} = useURL()
+
+    // Action for clearing revision draft on discard
+    const discardRevisionDraft = useSetAtom(revision.actions.discardDraft)
 
     // Track programmatic navigation after save to skip blocker
     const skipBlockerRef = useRef(false)
@@ -112,6 +135,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         (editingTestcaseId: string | null, testcaseIds: string[]) => {
             if (!editingTestcaseId) return
             const currentIndex = testcaseIds.indexOf(editingTestcaseId)
+            // Only navigate if current testcase is found and has a previous
             if (currentIndex > 0) {
                 onSetEditingTestcaseId(testcaseIds[currentIndex - 1])
             }
@@ -123,7 +147,8 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         (editingTestcaseId: string | null, testcaseIds: string[]) => {
             if (!editingTestcaseId) return
             const currentIndex = testcaseIds.indexOf(editingTestcaseId)
-            if (currentIndex < testcaseIds.length - 1) {
+            // Only navigate if current testcase is found (not -1) and has a next
+            if (currentIndex >= 0 && currentIndex < testcaseIds.length - 1) {
                 onSetEditingTestcaseId(testcaseIds[currentIndex + 1])
             }
         },
@@ -203,8 +228,15 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         async (commitMessage: string) => {
             if (mode === "view") return
 
+            // Check if this is a new testset
+            const isNewTestset = revisionIdParam === "new"
+
             try {
-                const newRevisionId = await table.saveTestset(commitMessage)
+                const newRevisionId = await table.saveTestset({
+                    commitMessage,
+                    // For new testsets, pass the name from metadata (set from URL query param)
+                    testsetName: isNewTestset ? metadata?.testsetName : undefined,
+                })
                 if (newRevisionId) {
                     message.success("Changes saved successfully!")
                     skipBlockerRef.current = true // Skip nav blocker for programmatic navigation
@@ -218,7 +250,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
                 message.error("Failed to save changes")
             }
         },
-        [table, router, projectURL, mode],
+        [table, router, projectURL, mode, revisionIdParam, metadata?.testsetName],
     )
 
     const handleDiscardChanges = useCallback(() => {
@@ -230,24 +262,55 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
             okText: "Discard",
             okButtonProps: {danger: true},
             onOk: () => {
+                // Clear testcase changes
                 table.clearChanges()
+
+                // Clear revision draft (name/description changes)
+                if (revisionIdParam) {
+                    const revisionId = Array.isArray(revisionIdParam)
+                        ? revisionIdParam[0]
+                        : revisionIdParam
+                    if (revisionId) {
+                        discardRevisionDraft(revisionId)
+                    }
+                }
+
                 message.success("Changes discarded")
             },
         })
-    }, [table, mode])
+    }, [table, mode, revisionIdParam, discardRevisionDraft])
 
     // ========================================================================
     // METADATA ACTIONS
     // ========================================================================
 
     const handleRenameConfirm = useCallback(
-        (editModalName: string, editModalDescription: string, onClose: () => void) => {
+        async (editModalName: string, editModalDescription: string, onClose: () => void) => {
             if (mode === "view") return
-            table.setTestsetName(editModalName)
-            table.setDescription(editModalDescription)
-            onClose()
+
+            const testsetId = metadata?.testsetId
+            if (!testsetId) {
+                message.error("Testset not found")
+                return
+            }
+
+            try {
+                // Update testset metadata directly (not via commit flow)
+                await updateTestsetMetadata(testsetId, {
+                    name: editModalName,
+                    description: editModalDescription,
+                })
+                message.success("Testset details updated")
+                onClose()
+                // Invalidate caches to refresh the UI
+                invalidateTestsetCache(testsetId)
+                invalidateTestsetsListCache()
+            } catch (error) {
+                console.error("Failed to update testset details:", error)
+                message.error("Failed to update testset details")
+            }
         },
-        [table, mode],
+        [mode, metadata?.testsetId],
     )
 
     const handleCopyId = useCallback(async () => {
@@ -257,6 +320,14 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         }
     }, [revisionIdParam])
 
+    const handleCopyRevisionSlug = useCallback(async () => {
+        const revisionSlug = metadata?.revisionSlug
+        if (revisionSlug) {
+            await copyToClipboard(revisionSlug)
+            message.success("Revision slug copied to clipboard")
+        }
+    }, [metadata?.revisionSlug])
+
     // ========================================================================
     // REVISION ACTIONS
     // ========================================================================
@@ -265,7 +336,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         if (!revisionIdParam) return
 
         // Check if this is the only valid revision
-        const validRevisions = table.availableRevisions.filter((r) => r.version > 0)
+        const validRevisions = availableRevisions.filter((r: RevisionListItem) => r.version > 0)
         const isOnlyRevision = validRevisions.length <= 1
 
         if (isOnlyRevision) {
@@ -275,7 +346,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
 
         AlertPopup({
             title: "Delete Revision",
-            message: `Are you sure you want to delete revision v${table.metadata?.revisionVersion}? This action cannot be undone.`,
+            message: `Are you sure you want to delete revision v${metadata?.revisionVersion}? This action cannot be undone.`,
             okText: "Delete",
             okButtonProps: {danger: true},
             onOk: async () => {
@@ -284,10 +355,19 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
                     await archiveTestsetRevision(revisionIdParam as string)
                     message.success("Revision deleted successfully")
 
+                    // Invalidate caches so revisions list and testset data are refreshed
+                    if (metadata?.testsetId) {
+                        invalidateRevisionsListCache(metadata.testsetId)
+                        invalidateTestsetCache(metadata.testsetId)
+                    }
+                    invalidateTestsetsListCache()
+
                     // Navigate to the latest revision
-                    const latestRevision = table.availableRevisions
-                        .filter((r) => r.id !== revisionIdParam)
-                        .sort((a, b) => b.version - a.version)[0]
+                    const latestRevision = availableRevisions
+                        .filter((r: RevisionListItem) => r.id !== revisionIdParam)
+                        .sort(
+                            (a: RevisionListItem, b: RevisionListItem) => b.version - a.version,
+                        )[0]
 
                     if (latestRevision) {
                         router.push(`${projectURL}/testsets/${latestRevision.id}`, undefined, {
@@ -302,7 +382,52 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
                 }
             },
         })
-    }, [revisionIdParam, table, router, projectURL])
+    }, [revisionIdParam, metadata, availableRevisions, router, projectURL])
+
+    // ========================================================================
+    // EXPORT ACTIONS
+    // ========================================================================
+
+    const [isExporting, setIsExporting] = useState(false)
+
+    const handleExport = useCallback(
+        async (fileType: ExportFileType) => {
+            if (!revisionIdParam) {
+                message.error("No revision to export")
+                return
+            }
+
+            setIsExporting(true)
+            // Show immediate feedback that action was triggered
+            message.info(`Starting ${fileType.toUpperCase()} export...`)
+            // Show persistent loading message
+            message.loading({
+                content: "Preparing export. This may take a moment for large testsets...",
+                key: "export-loading",
+                duration: 0, // Don't auto-dismiss
+            })
+
+            try {
+                const testsetName = metadata?.testsetName || "testset"
+                const version = metadata?.revisionVersion ?? "unknown"
+                const filename = `${testsetName}_v${version}.${fileType}`
+                await downloadRevision(revisionIdParam as string, fileType, filename)
+                message.success({
+                    content: `Exported as ${fileType.toUpperCase()}`,
+                    key: "export-loading",
+                })
+            } catch (error) {
+                console.error("Failed to export:", error)
+                message.error({
+                    content: `Failed to export as ${fileType.toUpperCase()}`,
+                    key: "export-loading",
+                })
+            } finally {
+                setIsExporting(false)
+            }
+        },
+        [revisionIdParam, metadata?.testsetName, metadata?.revisionVersion],
+    )
 
     return {
         skipBlockerRef,
@@ -318,6 +443,9 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         handleDiscardChanges,
         handleRenameConfirm,
         handleCopyId,
+        handleCopyRevisionSlug,
         handleDeleteRevision,
+        handleExport,
+        isExporting,
     }
 }

@@ -9,6 +9,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
+from oss.src.core.tracing.dtos import ListOperator, ComparisonOperator, Condition
+
 from oss.src.apis.fastapi.tracing.utils import (
     merge_queries,
     parse_query_from_params_request,
@@ -225,17 +227,26 @@ class TracingRouter:
 
         merged_query = merge_queries(query, query_from_body)
 
-        try:
-            span_dtos = await self.service.query(
+        # Optimize: detect simple trace_id queries and use fetch() instead
+        trace_ids = self._extract_trace_ids_from_query(merged_query)
+
+        if trace_ids is not None:
+            span_dtos = await self.service.fetch(
                 project_id=UUID(request.state.project_id),
-                #
-                query=merged_query,
+                trace_ids=trace_ids,
             )
-        except FilteringException as e:
-            raise HTTPException(
-                status_code=400,
-                detail=str(e),
-            ) from e
+        else:
+            try:
+                span_dtos = await self.service.query(
+                    project_id=UUID(request.state.project_id),
+                    #
+                    query=merged_query,
+                )
+            except FilteringException as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=str(e),
+                ) from e
 
         spans_or_traces = parse_spans_into_response(
             span_dtos,
@@ -268,6 +279,42 @@ class TracingRouter:
         )
 
         return spans_response
+
+    def _extract_trace_ids_from_query(
+        self, query: TracingQuery
+    ) -> Optional[List[UUID]]:
+        """
+        Detect if query is a simple trace_id filter and extract trace IDs.
+        Returns trace_ids if query can be optimized to use fetch(), else None.
+        """
+        if not query.filtering or not query.filtering.conditions:
+            return None
+
+        if len(query.filtering.conditions) != 1:
+            return None
+
+        condition = query.filtering.conditions[0]
+
+        if not isinstance(condition, Condition):
+            return None
+
+        if condition.field != "trace_id":
+            return None
+
+        if condition.operator not in [ComparisonOperator.IS, ListOperator.IN]:
+            return None
+
+        # Extract trace IDs from value
+        try:
+            if isinstance(condition.value, list):
+                # IN operator with list of trace_ids
+                return [UUID(str(tid)) for tid in condition.value]
+            else:
+                # IS operator with single trace_id
+                return [UUID(str(condition.value))]
+        except (ValueError, TypeError):
+            # Invalid UUID format
+            return None
 
     @intercept_exceptions()
     @suppress_exceptions(default=AnalyticsResponse())

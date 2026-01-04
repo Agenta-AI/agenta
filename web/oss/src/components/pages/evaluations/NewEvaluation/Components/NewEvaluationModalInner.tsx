@@ -14,7 +14,7 @@ import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"
 import {createEvaluation} from "@/oss/services/evaluations/api"
 import {useAppsData} from "@/oss/state/app/hooks"
 import {appIdentifiersAtom} from "@/oss/state/appState"
-import {useTestsetsData} from "@/oss/state/testset"
+import {testsetsListQueryAtomFamily} from "@/oss/state/entities/testset"
 
 import {buildEvaluationNavigationUrl} from "../../utils"
 import {DEFAULT_ADVANCE_SETTINGS} from "../assets/constants"
@@ -165,7 +165,9 @@ const NewEvaluationModalInner = ({
         appId: selectedAppId || appId,
         skip: false,
     })
-    const {testsets, isLoading: testsetsLoading} = useTestsetsData()
+    const testsetsQuery = useAtomValue(testsetsListQueryAtomFamily(null))
+    const testsets = testsetsQuery.data?.testsets ?? []
+    const testsetsLoading = testsetsQuery.isPending
 
     const {secrets} = useVaultSecret()
 

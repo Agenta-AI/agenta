@@ -1,14 +1,55 @@
-import {atom} from "jotai"
-import {atomWithStorage} from "jotai/vanilla/utils"
+/**
+ * Testcases Table Store
+ *
+ * This module provides table-specific state management for the TestcasesTableNew component.
+ * It uses the entity paginated store from @/oss/state/entities/testcase for core pagination.
+ *
+ * ## Architecture
+ *
+ * - Core pagination: Uses `testcase.paginated.store` from entity module
+ * - Table-specific: Revision change effects, row ID sync, initial fetch tracking
+ *
+ * ## Migration Note
+ *
+ * The common pagination atoms are now available via:
+ *
+ * ```typescript
+ * import { testcase } from '@/oss/state/entities/testcase'
+ *
+ * // Option 1: Use with useTableManager (recommended for InfiniteVirtualTable)
+ * const table = useTableManager({
+ *   datasetStore: testcase.paginated.store,
+ *   scopeId: `testcases-${revisionId}`,
+ *   pageSize: 50,
+ * })
+ *
+ * // Option 2: Use controller for fine-grained atom access
+ * const [state, dispatch] = useAtom(testcase.paginated.controller({
+ *   scopeId: `testcases-${revisionId}`,
+ *   pageSize: 50,
+ * }))
+ * // state.rows, state.isFetching, state.hasMore, state.selectedKeys
+ * // dispatch({ type: 'refresh' }), dispatch({ type: 'select', keys: [...] })
+ *
+ * // Option 3: Use individual selectors for minimal re-renders
+ * const rows = useAtomValue(testcase.paginated.selectors.rows({scopeId, pageSize}))
+ * const pagination = useAtomValue(testcase.paginated.selectors.pagination({scopeId, pageSize}))
+ *
+ * // Filter atoms
+ * testcase.filters.revisionId     // Current revision ID
+ * testcase.filters.searchTerm     // Immediate search term (for UI)
+ * testcase.filters.setSearchTerm  // Debounced search setter
+ *
+ * // Refresh
+ * const refresh = useSetAtom(testcase.paginated.actions.refresh)
+ * refresh()
+ * ```
+ *
+ * @see @/oss/state/entities/testcase for the canonical entity API
+ */
 
-import {
-    createSimpleTableStore,
-    type BaseTableMeta,
-    type InfiniteTableRowBase,
-} from "@/oss/components/InfiniteVirtualTable"
-import type {InfiniteTableFetchResult} from "@/oss/components/InfiniteVirtualTable/types"
-import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {atom} from "jotai"
+
 import {cleanupOnRevisionChangeAtom} from "@/oss/state/entities/testcase/atomCleanup"
 import {
     clearPendingAddedColumnsAtom,
@@ -16,20 +57,56 @@ import {
     clearPendingRenamesAtom,
     resetColumnsAtom,
 } from "@/oss/state/entities/testcase/columnState"
-import {testsetIdAtom as _testsetIdAtom} from "@/oss/state/entities/testcase/queries"
-import {flattenTestcase, testcasesResponseSchema} from "@/oss/state/entities/testcase/schema"
 import {
-    deletedEntityIdsAtom,
-    newEntityIdsAtom,
-    setTestcaseIdsAtom,
-    testcaseDraftAtomFamily,
-} from "@/oss/state/entities/testcase/testcaseEntity"
-import {projectIdAtom} from "@/oss/state/project"
+    setDebouncedSearchTermAtom as setDebouncedSearchTermAtomFromEntity,
+    testcase,
+    testcasePaginatedStore,
+    testcasesPaginatedMetaAtom,
+    testcasesRevisionIdAtom as testcasesRevisionIdAtomFromEntity,
+    testcasesSearchTermAtom as testcasesSearchTermAtomFromEntity,
+    TESTCASES_PAGE_SIZE as PAGE_SIZE,
+    type TestcasePaginatedMeta,
+    type TestcaseTableRow,
+} from "@/oss/state/entities/testcase"
+import {setTestcaseIdsAtom} from "@/oss/state/entities/testcase/testcaseEntity"
 
-import {testcasesRevisionIdAtom} from "./revisionContext"
+// ============================================================================
+// RE-EXPORTS FROM ENTITY MODULE
+// These are the canonical locations for pagination state
+// ============================================================================
 
-// Re-export for backward compatibility
-export {testcasesRevisionIdAtom} from "./revisionContext"
+/**
+ * @deprecated Import from `testcase.filters.revisionId` or `@/oss/state/entities/testcase` instead
+ */
+export const testcasesRevisionIdAtom = testcasesRevisionIdAtomFromEntity
+
+/**
+ * @deprecated Import from `testcase.filters.searchTerm` or `@/oss/state/entities/testcase` instead
+ */
+export const testcasesSearchTermAtom = testcasesSearchTermAtomFromEntity
+
+/**
+ * @deprecated Import from `testcase.filters.setSearchTerm` or `@/oss/state/entities/testcase` instead
+ */
+export const setDebouncedSearchTermAtom = setDebouncedSearchTermAtomFromEntity
+
+/**
+ * @deprecated Import from `testcase.paginated.store` or `@/oss/state/entities/testcase` instead
+ */
+export const testcasesDatasetStore = testcase.paginated.store
+
+/**
+ * @deprecated Import from `testcase.paginated.metaAtom` or `@/oss/state/entities/testcase` instead
+ */
+export const testcasesTableMetaAtom = testcasesPaginatedMetaAtom
+
+/**
+ * @deprecated Import from `testcase.paginated.refreshAtom` or `@/oss/state/entities/testcase` instead
+ */
+export const testcasesRefreshTriggerAtom = testcase.paginated.refreshAtom
+
+// Re-export types for backward compatibility
+export type {TestcasePaginatedMeta as TestcaseTableMeta, TestcaseTableRow}
 
 /**
  * API response from /preview/testsets/{testset_id}
@@ -47,258 +124,93 @@ export interface TestcaseRevisionResponse {
     }[]
 }
 
-/**
- * Testcase row in the table
- */
-export interface TestcaseTableRow extends InfiniteTableRowBase {
-    id?: string
-    testset_id?: string
-    created_at?: string
-    [key: string]: unknown
-}
+// ============================================================================
+// TABLE-SPECIFIC STATE
+// Initial fetch completion tracking (for triggering initialization)
+// ============================================================================
 
 /**
- * Metadata for the testcases table
+ * Atom to signal when initial fetch completes for a revision
+ * Maps revisionId -> true when first fetch completes
  */
-export interface TestcaseTableMeta extends BaseTableMeta {
-    /** Revision ID (testset_id from URL) */
-    revisionId: string | null
-    /** Search term for filtering */
-    searchTerm: string
-}
-
-// Atom for search term (persisted in session storage)
-// This is the immediate value that reflects user input
-export const testcasesSearchTermAtom = atomWithStorage<string>("testcases-search-term", "")
-
-// Debounced search term (300ms delay to reduce API calls)
-// Internal atom that updates after debounce period
-const debouncedSearchTermBaseAtom = atom("")
-
-// Timer ID for debouncing (module-level to persist between atom reads)
-let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+const initialFetchCompletedMapAtom = atom<Record<string, boolean>>({})
 
 /**
- * Write-only atom to set search term with debouncing
- * Updates UI immediately but delays API fetch by 300ms
+ * Mark a specific revision's initial fetch as completed
  */
-export const setDebouncedSearchTermAtom = atom(null, (get, set, searchTerm: string) => {
-    // Update immediate value for UI responsiveness
-    set(testcasesSearchTermAtom, searchTerm)
-
-    // Clear existing timer
-    if (searchDebounceTimer) {
-        clearTimeout(searchDebounceTimer)
-    }
-
-    // Set new timer to update debounced value after 300ms
-    searchDebounceTimer = setTimeout(() => {
-        set(debouncedSearchTermBaseAtom, searchTerm)
-        searchDebounceTimer = null
-    }, 300)
+export const markInitialFetchCompletedAtom = atom(null, (_get, set, revisionId: string) => {
+    set(initialFetchCompletedMapAtom, (prev) => ({...prev, [revisionId]: true}))
 })
 
-// Atom to trigger a refresh
-export const testcasesRefreshTriggerAtom = atom(0)
-
-// Atom for full testcases metadata (read-only derived)
-// Uses debounced search term to prevent excessive API calls
-export const testcasesTableMetaAtom = atom<TestcaseTableMeta>((get) => {
-    const projectId = get(projectIdAtom)
+/**
+ * Check if the current revision's initial fetch has completed
+ */
+export const hasInitialFetchCompletedAtom = atom((get) => {
     const revisionId = get(testcasesRevisionIdAtom)
-    const searchTerm = get(debouncedSearchTermBaseAtom) // Use debounced value for API calls
-    const _refreshTrigger = get(testcasesRefreshTriggerAtom)
-
-    return {
-        projectId,
-        revisionId,
-        searchTerm,
-        _refreshTrigger,
-    }
+    if (!revisionId) return false
+    const map = get(initialFetchCompletedMapAtom)
+    return map[revisionId] ?? false
 })
 
-const PAGE_SIZE = 50
-
 /**
- * Fetch testcases for a revision
+ * Atom that reads the table query fetching state from the paginated store
+ * Returns true when the query is currently fetching data
+ *
+ * @deprecated Use `testcase.selectors.isFetching` instead (imported from entity module)
+ *
+ * @example
+ * ```typescript
+ * // Preferred: Use the controller selector
+ * const isFetching = useAtomValue(testcase.selectors.isFetching)
+ *
+ * // Or with controller pattern
+ * const params = { scopeId: `testcases-${revisionId}`, pageSize: PAGE_SIZE }
+ * const { isFetching } = useAtomValue(testcase.paginated.selectors.pagination(params))
+ * ```
  */
-async function fetchTestcasesForTable(
-    projectId: string,
-    revisionId: string,
-    cursor: string | null,
-    limit: number,
-): Promise<InfiniteTableFetchResult<TestcaseTableRow>> {
-    // Guard against invalid revision IDs (e.g., "create" mode or non-UUID values)
-    // Valid UUIDs are 36 characters with hyphens (e.g., "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx")
-    const isValidUuid = revisionId && revisionId.length === 36 && revisionId.includes("-")
-    if (!isValidUuid) {
-        console.debug("[fetchTestcasesForTable] Skipping fetch - invalid revisionId:", revisionId)
-        return {
-            rows: [],
-            totalCount: 0,
-            hasMore: false,
-            nextOffset: null,
-            nextCursor: null,
-            nextWindowing: null,
-        }
-    }
+export const tableQueryFetchingAtom = atom((get) => {
+    const meta = get(testcasesPaginatedMetaAtom)
+    if (!meta.revisionId) return false
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testcases/query`,
-        {
-            testset_revision_id: revisionId,
-            windowing: {
-                limit,
-                ...(cursor && {next: cursor}),
-            },
-        },
-        {params: {project_id: projectId}},
-    )
-
-    // Validate response with Zod
-    const validated = testcasesResponseSchema.parse(response.data)
-
-    // Flatten testcases for table display
-    const rows = validated.testcases.map((tc) => {
-        const flattened = flattenTestcase(tc)
-        return {
-            ...flattened,
-            key: flattened.id,
-        } as TestcaseTableRow
+    const scopeId = `testcases-${meta.revisionId}`
+    const paginationAtom = testcasePaginatedStore.store.atoms.paginationAtom({
+        scopeId,
+        pageSize: PAGE_SIZE,
     })
+    const pagination = get(paginationAtom)
 
-    return {
-        rows,
-        totalCount: validated.count,
-        hasMore: Boolean(validated.windowing?.next),
-        nextOffset: rows.length,
-        nextCursor: validated.windowing?.next || null,
-        nextWindowing: null,
-    }
-}
-
-// ============================================================================
-// CLIENT ROWS ATOM
-// Provides client-side rows (unsaved drafts) to the IVT store
-// ============================================================================
-
-/**
- * Atom that provides client-created rows to the IVT store
- * Converts entity IDs to table row format
- */
-const clientTestcaseRowsAtom = atom<TestcaseTableRow[]>((get) => {
-    const newEntityIds = get(newEntityIdsAtom)
-
-    if (newEntityIds.length === 0) {
-        return []
-    }
-
-    // Create row objects for new entities (only if draft exists)
-    const newRows: TestcaseTableRow[] = []
-    for (const id of newEntityIds) {
-        const draft = get(testcaseDraftAtomFamily(id))
-        // Only include rows that have a draft - skip if draft was cleared
-        if (draft) {
-            newRows.push({
-                ...draft,
-                key: id,
-                __isSkeleton: false,
-                __isNew: true,
-            } as TestcaseTableRow)
-        }
-    }
-
-    // Reverse so newest rows appear first
-    return newRows.reverse()
+    return pagination.isFetching
 })
 
-/**
- * Wrapper atom to defer access to deletedEntityIdsAtom
- * This avoids circular dependency issues during module initialization
- */
-const excludedTestcaseIdsAtom = atom((get) => get(deletedEntityIdsAtom))
-
-// Create the dataset store with client rows support
-const {datasetStore} = createSimpleTableStore<
-    TestcaseTableRow,
-    TestcaseTableRow,
-    TestcaseTableMeta
->({
-    key: "testcases-table",
-    metaAtom: testcasesTableMetaAtom,
-    rowHelpers: {
-        entityName: "testcase",
-        skeletonDefaults: {
-            id: "",
-            testset_id: "",
-            created_at: "",
-        } as Omit<TestcaseTableRow, "key" | "__isSkeleton">,
-        getRowId: (row) => row.id || row.key.toString(),
-    },
-    // Provide client rows atom for IVT to merge with server rows
-    clientRowsAtom: clientTestcaseRowsAtom,
-    // Provide deleted IDs atom to filter out soft-deleted rows
-    excludeRowIdsAtom: excludedTestcaseIdsAtom,
-    fetchData: async ({meta, limit, cursor}) => {
-        // Skip fetch if no project/revision or if "create" mode (not a valid UUID)
-        if (!meta.projectId || !meta.revisionId || meta.revisionId === "create") {
-            return {
-                rows: [],
-                totalCount: 0,
-                hasMore: false,
-                nextOffset: null,
-                nextCursor: null,
-                nextWindowing: null,
-            }
-        }
-
-        const result = await fetchTestcasesForTable(
-            meta.projectId,
-            meta.revisionId,
-            cursor,
-            limit || PAGE_SIZE,
-        )
-
-        // Apply client-side search filtering if searchTerm exists
-        if (meta.searchTerm) {
-            const searchLower = meta.searchTerm.toLowerCase()
-            const filteredRows = result.rows.filter((row) =>
-                Object.values(row).some((value) =>
-                    String(value || "")
-                        .toLowerCase()
-                        .includes(searchLower),
-                ),
-            )
-            return {
-                ...result,
-                rows: filteredRows,
-                totalCount: filteredRows.length,
-            }
-        }
-
-        return result
-    },
-    isEnabled: (meta) => Boolean(meta?.projectId && meta?.revisionId),
-})
-
-export const testcasesDatasetStore = datasetStore
-
 // ============================================================================
-// ROWS TO ENTITY IDS SYNC ATOM
-// Watches datasetStore rows and hydrates testcaseIdsAtom when data arrives
+// ROWS TO ENTITY IDS SYNC
+// Watches paginated store rows and hydrates testcaseIdsAtom when data arrives
 // ============================================================================
 
 /**
- * Derived atom that extracts SERVER IDs from the datasetStore's rows
+ * Derived atom that extracts SERVER IDs from the paginated store's rows
  * This runs AFTER the query settles and data is in the cache
  * Excludes client-created rows (new rows) - those are tracked in newEntityIdsAtom
+ *
+ * NOTE: This uses the store's rowsAtom directly because it needs to compute
+ * scopeId dynamically from meta. For components with known scopeId, prefer:
+ *
+ * @example
+ * ```typescript
+ * // In components with known scopeId
+ * const rows = useAtomValue(testcase.paginated.selectors.rows({
+ *   scopeId: `testcases-${revisionId}`,
+ *   pageSize: PAGE_SIZE,
+ * }))
+ * const serverIds = rows.filter(r => !r.__isSkeleton && !r.__isNew).map(r => r.id)
+ * ```
  */
 export const testcaseRowIdsAtom = atom((get) => {
-    const meta = get(testcasesTableMetaAtom)
+    const meta = get(testcasesPaginatedMetaAtom)
     if (!meta.revisionId) return []
 
     const scopeId = `testcases-${meta.revisionId}`
-    const rowsAtom = datasetStore.atoms.rowsAtom({scopeId, pageSize: PAGE_SIZE})
+    const rowsAtom = testcasePaginatedStore.store.atoms.rowsAtom({scopeId, pageSize: PAGE_SIZE})
     const rows = get(rowsAtom)
 
     // Filter out skeleton rows, new rows (client-created), and extract IDs
@@ -317,15 +229,28 @@ export const testcaseRowIdsAtom = atom((get) => {
 })
 
 /**
- * Atom that provides a map of testcase ID to row data from the datasetStore
+ * Atom that provides a map of testcase ID to row data from the paginated store
  * Used for operations that need to access row data directly (e.g., column rename)
+ *
+ * NOTE: This uses the store's rowsAtom directly because it needs to compute
+ * scopeId dynamically from meta. For components with known scopeId, prefer:
+ *
+ * @example
+ * ```typescript
+ * // In components with known scopeId
+ * const rows = useAtomValue(testcase.paginated.selectors.rows({
+ *   scopeId: `testcases-${revisionId}`,
+ *   pageSize: PAGE_SIZE,
+ * }))
+ * const rowDataMap = new Map(rows.filter(r => r.id).map(r => [r.id, r]))
+ * ```
  */
 export const testcaseRowDataMapAtom = atom((get) => {
-    const meta = get(testcasesTableMetaAtom)
+    const meta = get(testcasesPaginatedMetaAtom)
     if (!meta.revisionId) return new Map<string, TestcaseTableRow>()
 
     const scopeId = `testcases-${meta.revisionId}`
-    const rowsAtom = datasetStore.atoms.rowsAtom({scopeId, pageSize: PAGE_SIZE})
+    const rowsAtom = testcasePaginatedStore.store.atoms.rowsAtom({scopeId, pageSize: PAGE_SIZE})
     const rows = get(rowsAtom)
 
     const map = new Map<string, TestcaseTableRow>()
@@ -349,8 +274,19 @@ export const syncRowIdsToEntityAtom = atom(null, (get, set) => {
     }
 })
 
+/**
+ * Effect atom that marks initial fetch as completed for the current revision
+ * This should be called after the first data sync to signal that we can now initialize placeholders
+ */
+export const markFetchCompletedForRevisionAtom = atom(null, (get, set) => {
+    const revisionId = get(testcasesRevisionIdAtom)
+    if (revisionId) {
+        set(markInitialFetchCompletedAtom, revisionId)
+    }
+})
+
 // ============================================================================
-// REVISION CHANGE EFFECT ATOM
+// REVISION CHANGE EFFECT
 // Consolidates all side effects when revision changes
 // ============================================================================
 
@@ -391,4 +327,21 @@ export const revisionChangeEffectAtom = atom(null, (get, set, newRevisionId: str
     set(clearPendingRenamesAtom)
     set(clearPendingDeletedColumnsAtom)
     set(clearPendingAddedColumnsAtom)
+
+    // 4. Reset initial fetch completed flag for new revision
+    set(initialFetchCompletedMapAtom, (prev) => {
+        const updated = {...prev}
+        if (newRevisionId) {
+            delete updated[newRevisionId]
+        }
+        return updated
+    })
+
+    // 5. For "new" or "draft" revisions (client-only), immediately mark fetch as completed
+    // These don't need real API fetches - the revisionQueryAtom returns mock data synchronously
+    // Without this, the second time entering "new" mode, the cached query doesn't trigger
+    // the fetching transition, so initialization never runs
+    if (newRevisionId === "new" || newRevisionId === "draft") {
+        set(markInitialFetchCompletedAtom, newRevisionId)
+    }
 })

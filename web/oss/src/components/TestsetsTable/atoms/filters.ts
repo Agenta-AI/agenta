@@ -1,23 +1,23 @@
 import {atom} from "jotai"
 
-export interface TestsetDateRange {
-    from: string | null
-    to: string | null
-}
+import {testset} from "@/oss/state/entities/testset"
+
+// Re-export date range type from entity store
+export type {TestsetDateRange} from "@/oss/state/entities/testset"
 
 export interface TestsetFilters {
-    dateCreated: TestsetDateRange | null
-    dateModified: TestsetDateRange | null
+    dateCreated: {from?: string | null; to?: string | null} | null
+    dateModified: {from?: string | null; to?: string | null} | null
 }
 
-// Filter state atoms
-export const testsetsDateCreatedFilterAtom = atom<TestsetDateRange | null>(null)
-export const testsetsDateModifiedFilterAtom = atom<TestsetDateRange | null>(null)
+// Re-export filter atoms from entity store for backwards compatibility
+export const testsetsDateCreatedFilterAtom = testset.filters.dateCreated
+export const testsetsDateModifiedFilterAtom = testset.filters.dateModified
 
 // Combined filters summary
 export const testsetsFiltersSummaryAtom = atom((get) => {
-    const dateCreated = get(testsetsDateCreatedFilterAtom)
-    const dateModified = get(testsetsDateModifiedFilterAtom)
+    const dateCreated = get(testset.filters.dateCreated)
+    const dateModified = get(testset.filters.dateModified)
 
     return {
         dateCreated,

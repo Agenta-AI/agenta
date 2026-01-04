@@ -81,24 +81,28 @@ export const onCascaderChangeAtom = atom(
         set(selectedTestsetIdAtom, testsetId)
         set(selectedTestsetInfoAtom, {name: testsetName, id: testsetId})
 
-        if (revisionId) {
-            // Revision explicitly selected
+        // Invalid revision values that should not trigger queries
+        const INVALID_REVISION_VALUES = new Set(["no-revisions", "error", "draft"])
+
+        if (revisionId && !INVALID_REVISION_VALUES.has(revisionId)) {
+            // Revision explicitly selected (and is valid)
             set(selectedRevisionIdAtom, revisionId)
             set(currentRevisionIdAtom, revisionId)
             set(cascaderValueAtom, [testsetId, revisionId])
         } else {
-            // Only testset clicked - auto-select latest revision from cascader children
+            // Only testset clicked or invalid revision - auto-select latest valid revision from cascader children
             const testsetOption = selectedOptions[0]
             const revisionChildren = testsetOption?.children || []
-            const latestRevision =
-                revisionChildren.find((r: any) => r.value !== "draft") || revisionChildren[0]
+            const latestRevision = revisionChildren.find(
+                (r: any) => r.value && !INVALID_REVISION_VALUES.has(r.value),
+            )
 
             if (latestRevision) {
                 set(selectedRevisionIdAtom, latestRevision.value)
                 set(currentRevisionIdAtom, latestRevision.value)
                 set(cascaderValueAtom, [testsetId, latestRevision.value])
             } else {
-                // Revisions not loaded yet - will be handled by effect in hook
+                // No valid revisions available - just set testset selection
                 set(cascaderValueAtom, [testsetId])
             }
         }

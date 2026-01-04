@@ -483,7 +483,7 @@ async def sdk_custom_code_run(
         )
 
     threshold = settings.get("threshold", 0.5)
-    runtime = settings.get("runtime")
+    runtime = settings.get("runtime", "python")
 
     workflow = sdk_auto_custom_code_run(
         code=str(code),

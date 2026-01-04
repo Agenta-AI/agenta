@@ -9,9 +9,10 @@ import {createUseStyles} from "react-jss"
 import {message} from "@/oss/components/AppMessageContext"
 import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import useURL from "@/oss/hooks/useURL"
-import {JSSTheme, KeyValuePair, testset, TestsetCreationMode} from "@/oss/lib/Types"
+import {JSSTheme, KeyValuePair, TestsetCreationMode} from "@/oss/lib/Types"
+import type {TestsetTableRow} from "@/oss/state/entities/testset"
 import {cloneTestset, renameTestset} from "@/oss/services/testsets/api"
-import {useTestsetsData} from "@/oss/state/testset"
+import {invalidateTestsetsListCache} from "@/oss/state/entities/testset"
 
 const {Text} = Typography
 
@@ -29,8 +30,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 interface Props {
     mode: TestsetCreationMode
     setMode: React.Dispatch<React.SetStateAction<TestsetCreationMode>>
-    editTestsetValues: testset | null
-    setEditTestsetValues: React.Dispatch<React.SetStateAction<testset | null>>
+    editTestsetValues: TestsetTableRow | null
+    setEditTestsetValues: React.Dispatch<React.SetStateAction<TestsetTableRow | null>>
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     onCancel: () => void
 }
@@ -50,7 +51,6 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
         mode === "rename" ? (editTestsetValues?.name as string) : "",
     )
     const [isLoading, setIsLoading] = useState(false)
-    const {mutate} = useTestsetsData()
     const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
 
     const handleCreateTestset = async (_data?: KeyValuePair[]) => {
@@ -67,7 +67,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
             const response = await cloneTestset(testsetId, testsetName)
 
             // Revalidate both legacy testsets data and the new table store
-            await mutate()
+            invalidateTestsetsListCache()
             setRefreshTrigger((prev) => prev + 1)
             message.success("Testset cloned successfully")
 
@@ -95,7 +95,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
         try {
             await renameTestset(testsetId, testsetName)
             message.success("Testset renamed successfully")
-            await mutate()
+            invalidateTestsetsListCache()
             setRefreshTrigger((prev) => prev + 1)
             onCancel()
         } catch (error) {
@@ -112,10 +112,10 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                 handleCreateTestset()
                 break
             case "clone":
-                handleCloneTestset(editTestsetValues?._id as string)
+                handleCloneTestset(editTestsetValues?.id as string)
                 break
             case "rename":
-                handleRenameTestset(editTestsetValues?._id as string)
+                handleRenameTestset(editTestsetValues?.id as string)
                 break
         }
     }

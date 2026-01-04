@@ -8,7 +8,10 @@ import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {
     fetchRevision,
+    isNewTestsetId,
+    NEW_TESTSET_ID,
     revisionsListQueryAtomFamily,
+    testsetEntityAtomFamily,
     type Revision,
     type RevisionListItem,
 } from "../testset"
@@ -84,32 +87,28 @@ export const testsetIdAtom = atom((get) => {
 })
 
 /**
- * Query atom for fetching testset name
+ * Query atom for testset detail
+ * Uses testset entity atom family which automatically fetches if not in cache
+ * Testsets contain the name and description (updated directly via API)
+ * For new testsets (revisionId="new"), uses the special "new" testset ID
  */
-export const testsetNameQueryAtom = atomWithQuery<string>((get) => {
-    const projectId = get(projectIdAtom)
-    const testsetId = get(testsetIdAtom)
+export const testsetDetailQueryAtom = atom((get) => {
+    const revisionQuery = get(revisionQueryAtom)
+    const currentRevisionId = get(currentRevisionIdAtom)
+    const testsetId = revisionQuery.data?.testset_id
 
-    return {
-        queryKey: ["testset-name", projectId, testsetId],
-        queryFn: async () => {
-            if (!projectId || !testsetId) return ""
-            const response = await axios.post(
-                `${getAgentaApiUrl()}/preview/testsets/query`,
-                {
-                    testset_refs: [{id: testsetId}],
-                    windowing: {limit: 1},
-                },
-                {params: {project_id: projectId}},
-            )
-            const testsets = response.data?.testsets ?? []
-            return testsets[0]?.name ?? ""
-        },
-        enabled: Boolean(projectId && testsetId),
-        // Testset name is immutable for a given testset
-        staleTime: Infinity,
-        gcTime: Infinity,
+    // For new testsets, use the special "new" testset ID
+    // This allows us to store/retrieve draft metadata for unsaved testsets
+    const isNewTestset = currentRevisionId === "new" || currentRevisionId === "draft"
+    const effectiveTestsetId = isNewTestset ? NEW_TESTSET_ID : testsetId
+
+    if (!effectiveTestsetId) {
+        return null
     }
+
+    // Testset entity handles fetching automatically if not in cache
+    // For "new" testsets, returns a mock entity that can be edited via draft
+    return get(testsetEntityAtomFamily(effectiveTestsetId))
 })
 
 /**
@@ -190,6 +189,8 @@ export async function fetchTestcasesPage(
 export interface TestsetMetadata {
     testsetId: string
     testsetName: string
+    testsetSlug?: string
+    revisionSlug?: string
     revisionVersion?: number
     description?: string
     commitMessage?: string
@@ -201,24 +202,37 @@ export interface TestsetMetadata {
 /**
  * Derived atom: full metadata object from query atoms
  * Automatically updates when any query data changes
+ * Triggers testset fetch to ensure entity is loaded
+ *
+ * NOTE: Name and description are read directly from the testset entity,
+ * which is updated via the updateTestsetMetadata API (not through commits).
+ * This ensures metadata changes are reflected immediately without creating new revisions.
  */
 export const testsetMetadataAtom = atom((get): TestsetMetadata | null => {
     const revisionQuery = get(revisionQueryAtom)
-    const nameQuery = get(testsetNameQueryAtom)
+    const testset = get(testsetDetailQueryAtom)
+    const currentRevisionId = get(currentRevisionIdAtom)
 
-    const revision = revisionQuery.data
-    if (!revision?.testset_id) return null
+    const revisionFromQuery = revisionQuery.data
+    // For new testsets, testset_id is empty but we still want to show metadata
+    const isNewTestset = currentRevisionId === "new" || currentRevisionId === "draft"
+    if (!revisionFromQuery?.testset_id && !isNewTestset) return null
+
+    // Name and description come directly from testset entity (updated via API, not commits)
+    const effectiveName = testset?.name || ""
+    const effectiveDescription = testset?.description || undefined
 
     return {
-        testsetId: revision.testset_id,
-        testsetName: nameQuery.data ?? "",
-        revisionVersion: revision.version,
-        // Note: description is stored at testset level, not revision level
-        description: undefined,
-        commitMessage: revision.message ?? undefined,
-        author: revision.author ?? undefined,
-        createdAt: revision.created_at ?? undefined,
-        updatedAt: revision.updated_at ?? undefined,
+        testsetId: revisionFromQuery?.testset_id ?? "",
+        testsetName: effectiveName,
+        testsetSlug: undefined, // slug is not in current schema
+        revisionSlug: revisionFromQuery?.slug ?? undefined,
+        revisionVersion: revisionFromQuery?.version,
+        description: effectiveDescription,
+        commitMessage: revisionFromQuery?.message ?? undefined,
+        author: revisionFromQuery?.author ?? undefined,
+        createdAt: revisionFromQuery?.created_at ?? undefined,
+        updatedAt: revisionFromQuery?.updated_at ?? undefined,
     }
 })
 
@@ -227,8 +241,8 @@ export const testsetMetadataAtom = atom((get): TestsetMetadata | null => {
  */
 export const metadataLoadingAtom = atom((get) => {
     const revisionQuery = get(revisionQueryAtom)
-    const nameQuery = get(testsetNameQueryAtom)
-    return revisionQuery.isPending || nameQuery.isPending
+    // Testset entity doesn't have isPending - it's synchronously read from cache or null
+    return revisionQuery.isPending
 })
 
 /**
@@ -236,6 +250,6 @@ export const metadataLoadingAtom = atom((get) => {
  */
 export const metadataErrorAtom = atom((get) => {
     const revisionQuery = get(revisionQueryAtom)
-    const nameQuery = get(testsetNameQueryAtom)
-    return (revisionQuery.error || nameQuery.error) as Error | null
+    // Testset entity doesn't expose error state directly
+    return revisionQuery.error as Error | null
 })
