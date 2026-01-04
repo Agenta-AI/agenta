@@ -168,6 +168,7 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
                                             })
                                         }
                                     >
+                                        <span className="text-[#94A3B8]">•</span>
                                         <span className="text-[#0F172A]">{toolLabel}</span>
                                     </Button>
                                 ))}
