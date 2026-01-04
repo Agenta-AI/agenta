@@ -15,7 +15,7 @@ import {
     selectedRevisionIdAtom as sharedSelectedRevisionIdAtom,
 } from "@/oss/state/testsetSelection"
 
-import type {Mapping, TestsetTraceData} from "../assets/types"
+import {createMappingId, type Mapping, type TestsetTraceData} from "../assets/types"
 
 import {
     cascaderValueAtom,
@@ -837,11 +837,16 @@ export const applyAutoMappingAtom = atom(
         const matchedMappings = matchColumnsWithSuggestions(suggestions, columns)
 
         // Convert to mapping format
-        const newMappings: Mapping[] = matchedMappings.map((match, index) => ({
-            ...currentMappings[index],
-            data: match.data,
-            column: match.column,
-        }))
+        const newMappings: Mapping[] = matchedMappings.map((match, index) => {
+            const existingMapping = currentMappings[index]
+            return {
+                // Use existing mapping ID if available, otherwise generate new one
+                id: existingMapping?.id || createMappingId(),
+                data: match.data,
+                column: match.column,
+                newColumn: existingMapping?.newColumn,
+            }
+        })
 
         // Only update mappings if different
         const isSame =
@@ -1015,6 +1020,17 @@ export const onRevisionSelectAtom = atom(
         // Skip if no trace data
         if (traceData.length === 0) {
             return {success: false, reason: "no_trace_data"}
+        }
+
+        // Check if trace data has loaded (entities have non-empty data)
+        // If not loaded yet, log a warning - the data will be synced when entities load
+        const hasLoadedData = traceData.some((t) => t.data && Object.keys(t.data).length > 0)
+        if (!hasLoadedData) {
+            console.warn(
+                "[onRevisionSelectAtom] Trace data entities not fully loaded yet. " +
+                    "Local entities will have empty data until onNewColumnBlur or mapping change triggers update.",
+                {traceDataCount: traceData.length, mappingCount: mappingData.length},
+            )
         }
 
         // Import selectRevisionAtom dynamically to avoid circular dependency

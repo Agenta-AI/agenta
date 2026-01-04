@@ -6,10 +6,16 @@ import {
     PlusOutlined,
     LoadingOutlined,
 } from "@ant-design/icons"
-import {CaretDown, Copy, DownloadSimple, Eye, Note, PencilSimple, Trash} from "@phosphor-icons/react"
+import {
+    CaretDown,
+    Copy,
+    DownloadSimple,
+    Eye,
+    Note,
+    PencilSimple,
+    Trash,
+} from "@phosphor-icons/react"
 import {Button, Dropdown, Modal, Space, Tag, Typography} from "antd"
-
-import CommitMessageCell from "@/oss/components/TestsetsTable/components/CommitMessageCell"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -21,6 +27,7 @@ import {
     createStandardColumns,
     TableDescription,
 } from "@/oss/components/InfiniteVirtualTable"
+import CommitMessageCell from "@/oss/components/TestsetsTable/components/CommitMessageCell"
 import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/TestsetsHeaderFilters"
 import useURL from "@/oss/hooks/useURL"
 import type {TestsetCreationMode} from "@/oss/lib/Types"
@@ -163,7 +170,10 @@ const TestsetsTable = ({
                         projectId,
                         testsetId: record.id,
                     })
-                    const revisions = response.testset_revisions
+                    // Filter out v0 revisions - they are placeholders
+                    const revisions = response.testset_revisions.filter(
+                        (r: any) => r.version !== 0 && r.version !== "0",
+                    )
                     if (revisions.length > 0) {
                         const latestRevision = revisions[0]
                         const numericVersion =
@@ -200,7 +210,10 @@ const TestsetsTable = ({
             try {
                 if (!projectId) return
                 const response = await fetchRevisionsList({projectId, testsetId: record.id})
-                const revisions = response.testset_revisions
+                // Filter out v0 revisions - they are placeholders
+                const revisions = response.testset_revisions.filter(
+                    (r: any) => r.version !== 0 && r.version !== "0",
+                )
                 if (revisions.length > 0) {
                     // Navigate to the first revision (latest)
                     window.location.href = `${projectURL}/testsets/${revisions[0].id}`
@@ -296,25 +309,44 @@ const TestsetsTable = ({
             const isRevision = (record as any).__isRevision
             const version = (record as any).__version
             const sanitizedName = record.name.replace(/[^a-zA-Z0-9-_]/g, "-")
+            const exportKey = `export-${record.key}`
 
             setExportingRowKey(record.key)
+            // Show immediate feedback that action was triggered
+            message.info(`Starting ${format.toUpperCase()} export for "${record.name}"...`)
+            // Show persistent loading message
+            message.loading({
+                content: "Preparing export. This may take a moment for large testsets...",
+                key: exportKey,
+                duration: 0, // Don't auto-dismiss
+            })
+
             try {
                 if (isRevision) {
                     // For revision rows, download the specific revision
                     const filename = `${sanitizedName}-v${version}.${format}`
                     await downloadRevision(record.id, format, filename)
-                    message.success(`Revision v${version} exported as ${format.toUpperCase()}`)
+                    message.success({
+                        content: `Revision v${version} exported as ${format.toUpperCase()}`,
+                        key: exportKey,
+                    })
                 } else {
                     // For testset rows, download the latest revision
                     const filename = `${sanitizedName}.${format}`
                     await downloadTestset(record.id, format, filename)
-                    message.success(`Testset exported as ${format.toUpperCase()}`)
+                    message.success({
+                        content: `Testset exported as ${format.toUpperCase()}`,
+                        key: exportKey,
+                    })
                 }
                 // Update format preference when user explicitly chooses a format
                 setExportFormat(format)
             } catch (error) {
                 console.error("[TestsetsTable] Failed to export:", error)
-                message.error("Failed to export")
+                message.error({
+                    content: "Failed to export",
+                    key: exportKey,
+                })
             } finally {
                 setExportingRowKey(null)
             }
@@ -401,7 +433,10 @@ const TestsetsTable = ({
                     // Fetch revisions directly for this testset (skip variants)
                     if (!projectId) return
                     const response = await fetchRevisionsList({projectId, testsetId: record.id})
-                    const revisions = response.testset_revisions
+                    // Filter out v0 revisions - they are placeholders and should not be displayed
+                    const revisions = response.testset_revisions.filter(
+                        (r: any) => r.version !== 0 && r.version !== "0",
+                    )
                     const childRows: TestsetTableRow[] = revisions.map((revision: any) => ({
                         key: `${record.id}-${revision.id}`,
                         id: revision.id,
@@ -443,7 +478,7 @@ const TestsetsTable = ({
                     key: "name",
                     title: "Name",
                     width: 300,
-                    fixed: "left",
+                    columnVisibilityLocked: true,
                     render: (_value, record) => {
                         const isRevision = (record as any).__isRevision
                         const isExpanded = expandedRowKeys.includes(record.key)
@@ -467,7 +502,7 @@ const TestsetsTable = ({
 
                         // Testset rows (parent) - show expand icon
                         return (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 h-full">
                                 {!isSkeleton && (
                                     <span
                                         className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors"
@@ -516,14 +551,22 @@ const TestsetsTable = ({
                         }
 
                         return (
-                            <span className="text-gray-600 truncate" title={commitMessage}>
+                            <span className="text-gray-600 truncate h-full" title={commitMessage}>
                                 {commitMessage}
                             </span>
                         )
                     },
                 },
-                {type: "date", key: "created_at", title: "Date Created"},
-                {type: "user", key: "created_by_id", title: "Created by"},
+                {
+                    type: "date",
+                    key: "created_at",
+                    title: "Date Created",
+                },
+                {
+                    type: "user",
+                    key: "created_by_id",
+                    title: "Created by",
+                },
                 {
                     type: "actions",
                     width: 48,

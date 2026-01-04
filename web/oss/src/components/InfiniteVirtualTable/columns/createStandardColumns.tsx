@@ -19,6 +19,8 @@ export interface TextColumnDef {
     render?: (value: any, record: any) => ReactNode
     /** Pin column to left or right */
     fixed?: "left" | "right"
+    /** Lock column from being hidden in visibility menu (defaults to true if fixed is set) */
+    columnVisibilityLocked?: boolean
 }
 
 export interface DateColumnDef {
@@ -127,8 +129,8 @@ function createTextColumn<T>(def: TextColumnDef): ColumnType<T> {
         width: def.width,
         fixed: def.fixed,
         render: def.render,
-        // Lock fixed columns from being toggled in visibility menu
-        columnVisibilityLocked: Boolean(def.fixed),
+        // Lock column from being toggled in visibility menu (explicit or derived from fixed)
+        columnVisibilityLocked: def.columnVisibilityLocked ?? Boolean(def.fixed),
         onHeaderCell: () => ({
             style: {minWidth: def.width || 220},
         }),
@@ -157,8 +159,8 @@ function createDateColumn<T>(def: DateColumnDef): ColumnType<T> {
         key: def.key,
         width: def.width || 200,
         render: (date: string) => {
-            if (!date) return "—"
-            return def.format ? def.format(date) : formatDateCell(date)
+            const formatted = !date ? "—" : def.format ? def.format(date) : formatDateCell(date)
+            return <div className="h-full flex items-center">{formatted}</div>
         },
         onHeaderCell: () => ({
             style: {minWidth: def.width || 180},
@@ -270,20 +272,22 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
             }
 
             return (
-                <Dropdown
-                    trigger={["click"]}
-                    styles={{root: {width: 200}}}
-                    menu={{items: menuItems}}
-                >
-                    <Tooltip title="Actions">
-                        <Button
-                            onClick={(e) => e.stopPropagation()}
-                            type="text"
-                            icon={<MoreOutlined />}
-                            size="small"
-                        />
-                    </Tooltip>
-                </Dropdown>
+                <div className="h-full flex items-center justify-center">
+                    <Dropdown
+                        trigger={["click"]}
+                        styles={{root: {width: 200}}}
+                        menu={{items: menuItems}}
+                    >
+                        <Tooltip title="Actions">
+                            <Button
+                                onClick={(e) => e.stopPropagation()}
+                                type="text"
+                                icon={<MoreOutlined />}
+                                size="small"
+                            />
+                        </Tooltip>
+                    </Dropdown>
+                </div>
             )
         },
     }
@@ -300,7 +304,11 @@ function createUserColumn<T extends InfiniteTableRowBase>(def: UserColumnDef<T>)
         render: (value: string | null | undefined, record: T) => {
             if (record.__isSkeleton) return null
             const userId = getUserId ? getUserId(record) : value
-            return <UserReference userId={userId} />
+            return (
+                <div className="h-full flex items-center">
+                    <UserReference userId={userId} />
+                </div>
+            )
         },
         onHeaderCell: () => ({
             style: {minWidth: width},

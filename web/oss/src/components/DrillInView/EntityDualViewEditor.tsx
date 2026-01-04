@@ -61,6 +61,9 @@ export interface EntityDualViewEditorProps<TEntity> {
     lockedFieldTypes?: Record<string, DataType>
     onLockedFieldTypesChange?: (types: Record<string, DataType>) => void
     getDefaultValueForType?: (type: PropertyType) => unknown
+
+    // Path persistence for navigation
+    onPathChange?: (path: string[]) => void
 }
 
 function EntityDualViewEditorInner<TEntity>({
@@ -96,6 +99,7 @@ function EntityDualViewEditorInner<TEntity>({
     lockedFieldTypes,
     onLockedFieldTypesChange,
     getDefaultValueForType,
+    onPathChange,
 }: EntityDualViewEditorProps<TEntity>) {
     // Internal state for uncontrolled mode
     const [internalEditMode, setInternalEditMode] = useState<EditMode>(defaultEditMode)
@@ -258,6 +262,7 @@ function EntityDualViewEditorInner<TEntity>({
                     lockedFieldTypes={lockedFieldTypes}
                     onLockedFieldTypesChange={onLockedFieldTypesChange}
                     getDefaultValueForType={getDefaultValueForType}
+                    onPathChange={onPathChange}
                 />
             ) : (
                 <div className={`px-4 ${isDirty ? "[&_.agenta-shared-editor]:border-blue-400" : ""}`}>

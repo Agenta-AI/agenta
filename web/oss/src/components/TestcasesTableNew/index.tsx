@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
@@ -14,7 +14,7 @@ import {
 } from "@/oss/state/entities/testcase/queries"
 import {NEW_TESTSET_ID, testset} from "@/oss/state/entities/testset"
 
-import {testcasesSearchTermAtom} from "./atoms/tableStore"
+import {setDebouncedSearchTermAtom, testcasesSearchTermAtom} from "./atoms/tableStore"
 import {TestcaseActions} from "./components/TestcaseActions"
 import TestcaseEditDrawer from "./components/TestcaseEditDrawer"
 import {TestcaseHeader} from "./components/TestcaseHeader"
@@ -61,8 +61,9 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     // Check if this is a new testset (not yet saved)
     const isNewTestset = revisionIdParam === "new"
 
-    // Global state
-    const [searchTerm, setSearchTerm] = useAtom(testcasesSearchTermAtom)
+    // Global state - use debounced setter for search to trigger filtering
+    const searchTerm = useAtomValue(testcasesSearchTermAtom)
+    const setSearchTerm = useSetAtom(setDebouncedSearchTermAtom)
     const rowHeight = useRowHeight(testcaseRowHeightAtom, TESTCASE_ROW_HEIGHT_CONFIG)
 
     // Metadata from query atoms (not from table hook)
@@ -201,6 +202,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         isRevisionSlugCopied={isRevisionSlugCopied}
                         revisionIdParam={revisionIdParam as string}
                         isNewTestset={isNewTestset}
+                        isExporting={actions.isExporting}
                         onCopyId={async () => {
                             await actions.handleCopyId()
                             setIsIdCopied(true)

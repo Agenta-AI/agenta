@@ -88,6 +88,7 @@ export function DataPreviewEditor({
                 entityId={rowDataPreview}
                 entity={entityWithDrillIn}
                 defaultEditMode="fields"
+                showViewToggle={false}
                 // Multi-span navigation
                 items={spanItems}
                 selectedItemId={rowDataPreview}

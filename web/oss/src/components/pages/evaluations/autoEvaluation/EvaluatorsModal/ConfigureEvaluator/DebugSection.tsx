@@ -1118,7 +1118,7 @@ const DebugSection = () => {
                     ]}
                 />
             </div>
-            shit
+
             <EvaluatorVariantModal
                 variants={derivedVariants}
                 open={openVariantModal}

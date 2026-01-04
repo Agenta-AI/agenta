@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {ArrowsOut, CaretDoubleRight, CaretDown, CaretUp, Copy} from "@phosphor-icons/react"
+import {CaretDoubleRight, CaretDown, CaretUp, Copy} from "@phosphor-icons/react"
 import {Alert, Button, Dropdown, Segmented, Skeleton, Space, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -70,26 +70,59 @@ const TestcaseEditDrawer = ({
     const dispatch = useSetAtom(testcase.controller(testcaseId || ""))
 
     // Capture draft state when drawer opens (for session-based cancel)
-    const [sessionStartDraft, setSessionStartDraft] = useState<FlattenedTestcase | null>(null)
-    const hasCapturedSessionDraft = useRef(false)
+    // Use a Map to store session start drafts per testcase ID to avoid cross-contamination during navigation
+    const sessionStartDraftsRef = useRef<Map<string, FlattenedTestcase>>(new Map())
 
-    // Capture the current draft when drawer opens (ONLY ONCE when opening)
-    useEffect(() => {
-        if (open && testcaseId && testcaseData && !hasCapturedSessionDraft.current) {
-            // Capture the current entity state (server + draft merged) as the session start point
-            // Only capture once when data is first available, not on subsequent edits
-            setSessionStartDraft({...testcaseData})
-            hasCapturedSessionDraft.current = true
-        } else if (!open) {
-            // Clear session draft when drawer closes and reset capture flag
-            setSessionStartDraft(null)
-            hasCapturedSessionDraft.current = false
-        }
-    }, [open, testcaseId, testcaseData])
+    // Get the session start draft for the current testcase (for Cancel functionality)
+    const sessionStartDraft = testcaseId ? sessionStartDraftsRef.current.get(testcaseId) ?? null : null
 
     const [editMode, setEditMode] = useState<EditMode>("fields")
     const [isIdCopied, setIsIdCopied] = useState(false)
     const contentRef = useRef<TestcaseEditDrawerContentRef>(null)
+
+    // Drill-in path state - lifted here to persist across testcase navigation
+    const [drillInPath, setDrillInPath] = useState<string[]>([])
+
+    // Track testcase IDs that were ever dirty during this drawer session
+    // This enables the save button even if the user reverts their changes
+    const [everDirtyIds, setEverDirtyIds] = useState<Set<string>>(new Set())
+
+    // Track when a testcase becomes dirty (or was already dirty when opened)
+    useEffect(() => {
+        if (open && testcaseId && isDirty) {
+            setEverDirtyIds((prev) => {
+                if (prev.has(testcaseId)) return prev
+                const next = new Set(prev)
+                next.add(testcaseId)
+                return next
+            })
+        }
+    }, [open, testcaseId, isDirty])
+
+    // Clear everDirtyIds when drawer closes
+    useEffect(() => {
+        if (!open) {
+            setEverDirtyIds(new Set())
+        }
+    }, [open])
+
+    // Session has changes if any testcase was ever dirty during this session
+    const hasSessionDirty = everDirtyIds.size > 0
+
+    // Capture the current draft when drawer opens or when testcaseId changes (for navigation)
+    useEffect(() => {
+        if (open && testcaseId && testcaseData) {
+            // Only capture if we haven't captured for this testcase yet in this session
+            if (!sessionStartDraftsRef.current.has(testcaseId)) {
+                // Deep clone to avoid reference issues that could cause false dirty detection
+                sessionStartDraftsRef.current.set(testcaseId, JSON.parse(JSON.stringify(testcaseData)))
+            }
+        } else if (!open) {
+            // Clear all session drafts and reset drill-in path when drawer closes
+            sessionStartDraftsRef.current.clear()
+            setDrillInPath([])
+        }
+    }, [open, testcaseId, testcaseData])
 
     // Apply changes and close (draft is already in entity atom, just close)
     const handleApply = useCallback(() => {
@@ -130,11 +163,6 @@ const TestcaseEditDrawer = ({
         return (
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-1">
-                    {/* Expand to full screen */}
-                    <Tooltip title="Open in full screen">
-                        <Button type="text" size="small" icon={<ArrowsOut size={14} />} disabled />
-                    </Tooltip>
-
                     {/* Close drawer */}
                     <Button
                         type="text"
@@ -167,6 +195,13 @@ const TestcaseEditDrawer = ({
                     <span className="font-medium text-sm">
                         {isNewRow ? "New Testcase" : `Testcase ${testcaseNumber ?? ""}`}
                     </span>
+
+                    {/* Draft indicator */}
+                    {isDirty && (
+                        <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                            edited
+                        </span>
+                    )}
 
                     {/* Copy ID */}
                     {testcaseId && !isNewRow && (
@@ -207,6 +242,7 @@ const TestcaseEditDrawer = ({
         testcaseNumber,
         handleCancel,
         isNewRow,
+        isDirty,
     ])
 
     return (
@@ -230,7 +266,7 @@ const TestcaseEditDrawer = ({
                         <Button
                             type="primary"
                             onClick={handleApply}
-                            disabled={!isDirty}
+                            disabled={!hasSessionDirty}
                             loading={isSavingTestset}
                         >
                             Apply and Continue Editing
@@ -246,7 +282,7 @@ const TestcaseEditDrawer = ({
                                                   key: "commit",
                                                   label: "Apply and Commit Changes",
                                                   onClick: handleOpenCommitModal,
-                                                  disabled: !isDirty,
+                                                  disabled: !hasSessionDirty,
                                               },
                                           ]
                                         : []),
@@ -257,7 +293,7 @@ const TestcaseEditDrawer = ({
                                                   key: "save",
                                                   label: "Apply and Save Testset",
                                                   onClick: handleSaveTestset,
-                                                  disabled: !isDirty,
+                                                  disabled: !hasSessionDirty,
                                               },
                                           ]
                                         : []),
@@ -267,7 +303,7 @@ const TestcaseEditDrawer = ({
                             <Button
                                 type="primary"
                                 icon={<CaretUp size={14} />}
-                                disabled={!isDirty || (!onOpenCommitModal && !onSaveTestset)}
+                                disabled={!hasSessionDirty || (!onOpenCommitModal && !onSaveTestset)}
                             />
                         </Dropdown>
                     </Space.Compact>
@@ -298,6 +334,7 @@ const TestcaseEditDrawer = ({
                     {/* Loaded state */}
                     {testcaseData && (
                         <TestcaseEditDrawerContent
+                            key={testcaseId} // Force remount when testcase changes to prevent stale state
                             ref={contentRef}
                             testcaseId={testcaseId}
                             columns={columns}
@@ -305,6 +342,8 @@ const TestcaseEditDrawer = ({
                             onClose={onClose}
                             editMode={editMode}
                             onEditModeChange={setEditMode}
+                            initialPath={drillInPath}
+                            onPathChange={setDrillInPath}
                         />
                     )}
                 </>

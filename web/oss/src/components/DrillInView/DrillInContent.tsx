@@ -1,10 +1,12 @@
-import {type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
+import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {InputNumber, Select, Switch} from "antd"
+import {useAtomValue} from "jotai"
 
 import {ChatMessageEditor, ChatMessageList} from "@/oss/components/ChatMessageEditor"
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import {DrillInProvider} from "@/oss/components/Editor/plugins/code/context/DrillInContext"
+import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {
     detectDataType,
@@ -15,13 +17,25 @@ import {
     textModeToStorageValue,
     type DataType,
 } from "@/oss/components/TestcasesTableNew/components/TestcaseEditDrawer/fieldUtils"
-import TestcaseFieldHeader from "@/oss/components/TestcasesTableNew/components/TestcaseFieldHeader"
 
 import DrillInBreadcrumb from "./DrillInBreadcrumb"
 import {DrillInControls, type PropertyType} from "./DrillInControls"
 import DrillInFieldHeader from "./DrillInFieldHeader"
+import {EditorMarkdownToggleExposer} from "./EditorMarkdownToggleExposer"
 import {JsonEditorWithLocalState} from "./JsonEditorWithLocalState"
 import {canToggleRawMode} from "./utils"
+
+// Helper component to read markdown view state for a field
+function MarkdownViewState({
+    editorId,
+    children,
+}: {
+    editorId: string
+    children: (isMarkdownView: boolean) => React.ReactNode
+}) {
+    const isMarkdownView = useAtomValue(markdownViewAtom(editorId))
+    return <>{children(isMarkdownView)}</>
+}
 
 export interface PathItem {
     key: string
@@ -76,6 +90,8 @@ export interface DrillInContentProps {
     onLockedFieldTypesChange?: (types: Record<string, DataType>) => void
     /** Initial path to start navigation at (e.g., "inputs.prompt" or ["inputs", "prompt"]) */
     initialPath?: string | string[]
+    /** Callback when navigation path changes */
+    onPathChange?: (path: string[]) => void
 }
 
 /**
@@ -105,6 +121,7 @@ export function DrillInContent({
     lockedFieldTypes = {},
     onLockedFieldTypesChange,
     initialPath,
+    onPathChange,
 }: DrillInContentProps) {
     // Parse initialPath to array format, removing rootTitle prefix if present
     const parsedInitialPath = (() => {
@@ -119,6 +136,19 @@ export function DrillInContent({
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
     const [rawModeFields, setRawModeFields] = useState<Record<string, boolean>>({})
 
+    // Track markdown toggle functions per field (registered by EditorMarkdownToggleExposer)
+    const markdownToggleFnsRef = useRef<Map<string, () => void>>(new Map())
+
+    // Callback to register markdown toggle function for a field
+    const registerMarkdownToggle = useCallback((fieldKey: string, toggleFn: () => void) => {
+        markdownToggleFnsRef.current.set(fieldKey, toggleFn)
+    }, [])
+
+    // Notify parent when path changes (for persistence across navigation)
+    useEffect(() => {
+        onPathChange?.(currentPath)
+    }, [currentPath, onPathChange])
+
     // Handle focusPath - navigate directly to the clicked property path
     useEffect(() => {
         if (focusPath) {
@@ -126,14 +156,29 @@ export function DrillInContent({
             const pathParts = focusPath.split(".")
             // Remove the rootTitle prefix if present
             const startIndex = pathParts[0] === rootTitle ? 1 : 0
-            const targetPath = pathParts.slice(startIndex)
+            let targetPath = pathParts.slice(startIndex)
+
+            // For trace span entities, the data is wrapped in "ag.data" structure
+            // If the focus path comes from mapping (starts with rootTitle like "data.inputs.country"),
+            // we need to prepend "ag.data" to navigate within the entity structure
+            if (startIndex > 0 && targetPath.length > 0) {
+                // Check if we're already inside ag.data by looking at parsedInitialPath
+                // If initialPath was "ag.data", we should prepend ["ag", "data"] to targetPath
+                if (
+                    parsedInitialPath.length >= 2 &&
+                    parsedInitialPath[0] === "ag" &&
+                    parsedInitialPath[1] === "data"
+                ) {
+                    targetPath = ["ag", "data", ...targetPath]
+                }
+            }
 
             if (targetPath.length > 0) {
                 setCurrentPath(targetPath)
                 onFocusPathHandled?.()
             }
         }
-    }, [focusPath, rootTitle, onFocusPathHandled])
+    }, [focusPath, rootTitle, onFocusPathHandled, parsedInitialPath])
 
     // Navigation functions
     const navigateInto = useCallback((key: string) => {
@@ -462,12 +507,12 @@ export function DrillInContent({
 
     return (
         <DrillInProvider value={{enabled: drillInEnabled}}>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
                 {/* Optional header content */}
                 {headerContent}
 
                 {/* Breadcrumb navigation and add controls */}
-                <div className="flex flex-col gap-2 px-3 py-2">
+                <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
                         <div className="flex-1">
                             <DrillInBreadcrumb
@@ -556,46 +601,110 @@ export function DrillInContent({
                               ).length
                             : 0
 
+                        // Determine if markdown toggle should be shown (only for string fields)
+                        const showMarkdownToggle =
+                            !expandable && (dataType === "string" || dataType === "null")
+                        const editorId = `drill-field-${fieldKey}`
+
                         return (
                             <div key={item.key} className="flex flex-col gap-2">
-                                {/* Field header */}
-                                <DrillInFieldHeader
-                                    name={item.name}
-                                    value={item.value}
-                                    isCollapsed={isCollapsed}
-                                    onToggleCollapse={() => toggleFieldCollapse(fieldKey)}
-                                    itemCount={itemCount}
-                                    expandable={expandable}
-                                    onDrillIn={
-                                        expandable ? () => navigateInto(item.key) : undefined
-                                    }
-                                    showRawToggle={showRawToggle}
-                                    isRawMode={isRawMode}
-                                    onToggleRawMode={
-                                        showRawToggle ? () => toggleRawMode(fieldKey) : undefined
-                                    }
-                                    showDelete={showDeleteControls && !item.isColumn}
-                                    onDelete={
-                                        showDeleteControls && !item.isColumn
-                                            ? () => deleteItem(item.key)
-                                            : undefined
-                                    }
-                                    alwaysShowCopy={false}
-                                    columnOptions={columnOptions}
-                                    onMapToColumn={
-                                        onMapToColumn
-                                            ? (column: string) => onMapToColumn(dataPath, column)
-                                            : undefined
-                                    }
-                                    onUnmap={onUnmap ? () => onUnmap(dataPath) : undefined}
-                                    isMapped={isMapped}
-                                    mappedColumn={mappedColumn}
-                                    nestedMappingCount={nestedMappingCount}
-                                />
+                                {/* Field header - wrap with markdown state if showing toggle */}
+                                {showMarkdownToggle ? (
+                                    <MarkdownViewState editorId={editorId}>
+                                        {(isMarkdownView) => (
+                                            <DrillInFieldHeader
+                                                name={item.name}
+                                                value={item.value}
+                                                isCollapsed={isCollapsed}
+                                                onToggleCollapse={() =>
+                                                    toggleFieldCollapse(fieldKey)
+                                                }
+                                                itemCount={itemCount}
+                                                expandable={expandable}
+                                                onDrillIn={
+                                                    expandable
+                                                        ? () => navigateInto(item.key)
+                                                        : undefined
+                                                }
+                                                showRawToggle={showRawToggle}
+                                                isRawMode={isRawMode}
+                                                onToggleRawMode={
+                                                    showRawToggle
+                                                        ? () => toggleRawMode(fieldKey)
+                                                        : undefined
+                                                }
+                                                showDelete={showDeleteControls && !item.isColumn}
+                                                onDelete={
+                                                    showDeleteControls && !item.isColumn
+                                                        ? () => deleteItem(item.key)
+                                                        : undefined
+                                                }
+                                                alwaysShowCopy={false}
+                                                columnOptions={columnOptions}
+                                                onMapToColumn={
+                                                    onMapToColumn
+                                                        ? (column: string) =>
+                                                              onMapToColumn(dataPath, column)
+                                                        : undefined
+                                                }
+                                                onUnmap={
+                                                    onUnmap ? () => onUnmap(dataPath) : undefined
+                                                }
+                                                isMapped={isMapped}
+                                                mappedColumn={mappedColumn}
+                                                nestedMappingCount={nestedMappingCount}
+                                                showMarkdownToggle={showMarkdownToggle}
+                                                isMarkdownView={isMarkdownView}
+                                                onToggleMarkdownView={() => {
+                                                    const fn =
+                                                        markdownToggleFnsRef.current.get(fieldKey)
+                                                    if (fn) fn()
+                                                }}
+                                            />
+                                        )}
+                                    </MarkdownViewState>
+                                ) : (
+                                    <DrillInFieldHeader
+                                        name={item.name}
+                                        value={item.value}
+                                        isCollapsed={isCollapsed}
+                                        onToggleCollapse={() => toggleFieldCollapse(fieldKey)}
+                                        itemCount={itemCount}
+                                        expandable={expandable}
+                                        onDrillIn={
+                                            expandable ? () => navigateInto(item.key) : undefined
+                                        }
+                                        showRawToggle={showRawToggle}
+                                        isRawMode={isRawMode}
+                                        onToggleRawMode={
+                                            showRawToggle
+                                                ? () => toggleRawMode(fieldKey)
+                                                : undefined
+                                        }
+                                        showDelete={showDeleteControls && !item.isColumn}
+                                        onDelete={
+                                            showDeleteControls && !item.isColumn
+                                                ? () => deleteItem(item.key)
+                                                : undefined
+                                        }
+                                        alwaysShowCopy={false}
+                                        columnOptions={columnOptions}
+                                        onMapToColumn={
+                                            onMapToColumn
+                                                ? (column: string) =>
+                                                      onMapToColumn(dataPath, column)
+                                                : undefined
+                                        }
+                                        onUnmap={onUnmap ? () => onUnmap(dataPath) : undefined}
+                                        isMapped={isMapped}
+                                        mappedColumn={mappedColumn}
+                                        nestedMappingCount={nestedMappingCount}
+                                    />
+                                )}
 
                                 {/* Field content - collapsible */}
                                 {!isCollapsed && (
-                                    <div className="px-4">
+                                    <div>
                                         {renderFieldContent({
                                             item,
                                             stringValue,
@@ -606,10 +715,8 @@ export function DrillInContent({
                                             editable,
                                             setValue,
                                             valueMode,
-                                            onPropertyClick,
-                                            dataPath,
                                             setCurrentPath,
-                                            rootTitle,
+                                            registerMarkdownToggle,
                                         })}
                                     </div>
                                 )}
@@ -668,10 +775,8 @@ interface RenderFieldContentProps {
     editable: boolean
     setValue: (path: string[], value: unknown) => void
     valueMode: "string" | "native"
-    onPropertyClick?: (fullPath: string) => void
-    dataPath: string
     setCurrentPath: (path: string[]) => void
-    rootTitle: string
+    registerMarkdownToggle: (fieldKey: string, toggleFn: () => void) => void
 }
 
 function renderFieldContent({
@@ -684,10 +789,8 @@ function renderFieldContent({
     editable,
     setValue,
     valueMode,
-    onPropertyClick,
-    dataPath,
     setCurrentPath,
-    rootTitle,
+    registerMarkdownToggle,
 }: RenderFieldContentProps) {
     if (!editable) {
         // Read-only preview
@@ -927,19 +1030,11 @@ function renderFieldContent({
                     }
                 }}
                 onPropertyClick={(clickedPath) => {
-                    // Internal navigation - always enabled for drilling into nested properties
+                    // Internal navigation - drill into nested properties within the JSON editor
                     const pathParts = clickedPath.split(".")
                     setCurrentPath([...fullPath, ...pathParts])
-
-                    // Also call external handler if provided (e.g., TraceDataDrillIn)
-                    if (onPropertyClick) {
-                        const navigationPath = [
-                            rootTitle,
-                            ...fullPath,
-                            ...pathParts,
-                        ].join(".")
-                        onPropertyClick(navigationPath)
-                    }
+                    // Note: Don't call external onPropertyClick here - that's for external coordination
+                    // (like MappingSection's "Focus" button), not for internal editor navigation
                 }}
             />
         )
@@ -958,6 +1053,9 @@ function renderFieldContent({
             showToolbar={false}
             enableTokens
         >
+            <EditorMarkdownToggleExposer
+                onToggleReady={(toggleFn) => registerMarkdownToggle(fieldKey, toggleFn)}
+            />
             <SharedEditor
                 id={editorId}
                 initialValue={textValue}
@@ -975,7 +1073,6 @@ function renderFieldContent({
                 className="overflow-hidden"
                 disableDebounce
                 noProvider
-                header={<TestcaseFieldHeader id={editorId} value={textValue} />}
             />
         </EditorProvider>
     )

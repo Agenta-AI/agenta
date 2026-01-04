@@ -494,11 +494,16 @@ function createEntityDrillIn<T, TRootData>(
 
     // Pure function: get value at path
     const getValueAtPath = (entity: T | null, path: string[]): unknown => {
-        if (!entity || path.length === 0) {
+        if (!entity) {
             return valueMode === "string" ? "" : undefined
         }
 
         const rootData = getRootData(entity)
+
+        // When path is empty, return the entire root data (used by JSON view)
+        if (path.length === 0) {
+            return rootData
+        }
         const value = navigatePath(rootData, path)
 
         return serializeValue(value, valueMode)

@@ -25,7 +25,6 @@
  */
 
 import {atom} from "jotai"
-import {atomWithStorage} from "jotai/vanilla/utils"
 
 import type {BaseTableMeta} from "@/oss/components/InfiniteVirtualTable/helpers/createSimpleTableStore"
 import type {
@@ -89,8 +88,9 @@ export const testcasesRevisionIdAtom = currentRevisionIdAtom
 
 /**
  * Search term for filtering testcases (immediate value for UI)
+ * Not persisted - clears on page refresh
  */
-export const testcasesSearchTermAtom = atomWithStorage<string>("testcases-search-term", "")
+export const testcasesSearchTermAtom = atom<string>("")
 
 /**
  * Debounced search term (300ms delay to reduce API calls)

@@ -187,7 +187,8 @@ const baseController = createEntityController<FlattenedTestcase>({
             return columns.map((col) => ({
                 key: col.key,
                 name: col.name,
-                value: (entity as Record<string, unknown>)[col.key] || "",
+                // Use nullish coalescing to preserve falsy values like false and 0
+                value: (entity as Record<string, unknown>)[col.key] ?? "",
                 isColumn: true, // Prevents deletion of column
             }))
         },

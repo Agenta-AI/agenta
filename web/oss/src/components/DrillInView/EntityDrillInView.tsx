@@ -44,6 +44,11 @@ export interface EntityDrillInViewProps<TEntity>
      * Initial path to start navigation at (e.g., "inputs.prompt" or ["inputs", "prompt"])
      */
     initialPath?: string | string[]
+
+    /**
+     * Callback when navigation path changes (for persistence across navigation)
+     */
+    onPathChange?: (path: string[]) => void
 }
 
 // ============================================================================
@@ -87,6 +92,7 @@ export function EntityDrillInView<TEntity>({
     entity,
     columns,
     initialPath,
+    onPathChange,
     ...drillInProps
 }: EntityDrillInViewProps<TEntity>) {
     // Read entity from controller's data selector (efficient: only subscribes to data)
@@ -126,6 +132,7 @@ export function EntityDrillInView<TEntity>({
             getRootItems={getRootItems}
             valueMode={entity.drillIn.valueMode}
             initialPath={initialPath}
+            onPathChange={onPathChange}
             {...drillInProps}
         />
     )

@@ -29,6 +29,8 @@ export interface TestcaseHeaderProps {
     revisionIdParam: string | undefined
     /** Whether this is a new testset (not yet saved) - disables server-dependent features */
     isNewTestset?: boolean
+    /** Whether an export is currently in progress */
+    isExporting?: boolean
     onCopyId: () => void
     onCopyRevisionSlug: () => void
     onOpenRenameModal: () => void
@@ -76,6 +78,7 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
         isIdCopied,
         isRevisionSlugCopied,
         isNewTestset = false,
+        isExporting = false,
         onCopyId,
         onCopyRevisionSlug,
         onOpenRenameModal,
@@ -169,6 +172,15 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
     const isDeleteDisabled =
         !revisionsRequested || loadingRevisions || validRevisions.length <= 1
 
+    // Tooltip explaining why delete is disabled
+    const deleteDisabledReason = !revisionsRequested
+        ? "Loading revisions..."
+        : loadingRevisions
+          ? "Loading revisions..."
+          : validRevisions.length <= 1
+            ? "Cannot delete the only revision"
+            : undefined
+
     // Header actions dropdown menu items
     const headerActionsMenuItems = useMemo(
         () => [
@@ -183,15 +195,17 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
             },
             {
                 key: "export-csv",
-                label: "Export as CSV",
+                label: isExporting ? "Exporting..." : "Export as CSV",
                 icon: <Export size={16} />,
                 onClick: () => onExport("csv"),
+                disabled: isExporting,
             },
             {
                 key: "export-json",
-                label: "Export as JSON",
+                label: isExporting ? "Exporting..." : "Export as JSON",
                 icon: <Export size={16} />,
                 onClick: () => onExport("json"),
+                disabled: isExporting,
             },
             {
                 type: "divider" as const,
@@ -202,10 +216,11 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                 icon: <Trash size={16} />,
                 danger: true,
                 disabled: isDeleteDisabled,
+                title: deleteDisabledReason,
                 onClick: onDeleteRevision,
             },
         ],
-        [onOpenRenameModal, onDeleteRevision, isDeleteDisabled, onExport, loadingRevisions],
+        [onOpenRenameModal, onDeleteRevision, isDeleteDisabled, deleteDisabledReason, onExport, loadingRevisions, isExporting],
     )
 
     // Handler to execute copy action and remember it

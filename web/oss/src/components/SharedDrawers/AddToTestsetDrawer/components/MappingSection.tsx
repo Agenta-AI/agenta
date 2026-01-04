@@ -3,7 +3,7 @@ import {useMemo} from "react"
 import {ArrowRight, Crosshair, Plus, Trash} from "@phosphor-icons/react"
 import {AutoComplete, Button, Select, Tooltip, Typography} from "antd"
 
-import {Mapping, TestsetColumn} from "../assets/types"
+import {createMappingId, Mapping, TestsetColumn} from "../assets/types"
 
 interface MappingSectionProps {
     mappingData: Mapping[]
@@ -98,7 +98,7 @@ export function MappingSection({
                     <div className="flex flex-col gap-2">
                         {mappingData.map((mapping, idx) => (
                             <div
-                                key={`mapping-${idx}-${mapping.data || ""}`}
+                                key={mapping.id}
                                 className="flex gap-2 items-center"
                             >
                                 {/* Inputs container - takes remaining space */}
@@ -221,7 +221,12 @@ export function MappingSection({
                         className="mt-1"
                         style={{width: elementWidth}}
                         icon={<Plus />}
-                        onClick={() => setMappingData([...mappingData, {data: "", column: ""}])}
+                        onClick={() =>
+                            setMappingData([
+                                ...mappingData,
+                                {id: createMappingId(), data: "", column: ""},
+                            ])
+                        }
                     >
                         Add field
                     </Button>

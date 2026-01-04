@@ -17,6 +17,8 @@ export const buildRevisionMenuItems = (
     onSelect?: (revisionId: string) => void,
 ): MenuProps["items"] => {
     return revisions
+        // Filter out v0 revisions - they are placeholders and should not be displayed
+        .filter((revision) => revision.version > 0)
         .sort((a, b) => b.version - a.version)
         .map((revision) => ({
             key: revision.id,

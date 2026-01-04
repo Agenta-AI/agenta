@@ -112,7 +112,11 @@ export function useSaveTestset() {
 
                     // Only compute export data for new testsets (API expects full data)
                     const exportData = getExportData()
-                    const response = await createNewTestset(newTestsetName, exportData)
+                    const response = await createNewTestset(
+                        newTestsetName,
+                        exportData,
+                        commitMessage || undefined,
+                    )
 
                     if (!response?.data?.revisionId || !response?.data?.testset?.id) {
                         throw new Error("Failed to create testset: no revision ID returned")
@@ -121,7 +125,11 @@ export function useSaveTestset() {
                     const newTestsetId = response.data.testset.id
                     const createdRevisionId = response.data.revisionId
 
-                    message.success("Testset created successfully")
+                    message.success(
+                        commitMessage
+                            ? `Testset created with message: "${commitMessage}"`
+                            : "Testset created successfully",
+                    )
 
                     // Refetch testsets list so the new testset appears
                     await revisionSelect.refetchTestsets()

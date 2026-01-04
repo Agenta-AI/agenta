@@ -1,4 +1,4 @@
-import {useCallback, useRef} from "react"
+import {useCallback, useRef, useState} from "react"
 
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -73,6 +73,8 @@ export interface UseTestcaseActionsResult {
 
     // Export actions
     handleExport: (fileType: ExportFileType) => Promise<void>
+    /** Whether an export is currently in progress */
+    isExporting: boolean
 }
 
 /**
@@ -133,6 +135,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         (editingTestcaseId: string | null, testcaseIds: string[]) => {
             if (!editingTestcaseId) return
             const currentIndex = testcaseIds.indexOf(editingTestcaseId)
+            // Only navigate if current testcase is found and has a previous
             if (currentIndex > 0) {
                 onSetEditingTestcaseId(testcaseIds[currentIndex - 1])
             }
@@ -144,7 +147,8 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         (editingTestcaseId: string | null, testcaseIds: string[]) => {
             if (!editingTestcaseId) return
             const currentIndex = testcaseIds.indexOf(editingTestcaseId)
-            if (currentIndex < testcaseIds.length - 1) {
+            // Only navigate if current testcase is found (not -1) and has a next
+            if (currentIndex >= 0 && currentIndex < testcaseIds.length - 1) {
                 onSetEditingTestcaseId(testcaseIds[currentIndex + 1])
             }
         },
@@ -384,6 +388,8 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
     // EXPORT ACTIONS
     // ========================================================================
 
+    const [isExporting, setIsExporting] = useState(false)
+
     const handleExport = useCallback(
         async (fileType: ExportFileType) => {
             if (!revisionIdParam) {
@@ -391,15 +397,33 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
                 return
             }
 
+            setIsExporting(true)
+            // Show immediate feedback that action was triggered
+            message.info(`Starting ${fileType.toUpperCase()} export...`)
+            // Show persistent loading message
+            message.loading({
+                content: "Preparing export. This may take a moment for large testsets...",
+                key: "export-loading",
+                duration: 0, // Don't auto-dismiss
+            })
+
             try {
                 const testsetName = metadata?.testsetName || "testset"
                 const version = metadata?.revisionVersion ?? "unknown"
                 const filename = `${testsetName}_v${version}.${fileType}`
                 await downloadRevision(revisionIdParam as string, fileType, filename)
-                message.success(`Exported as ${fileType.toUpperCase()}`)
+                message.success({
+                    content: `Exported as ${fileType.toUpperCase()}`,
+                    key: "export-loading",
+                })
             } catch (error) {
                 console.error("Failed to export:", error)
-                message.error(`Failed to export as ${fileType.toUpperCase()}`)
+                message.error({
+                    content: `Failed to export as ${fileType.toUpperCase()}`,
+                    key: "export-loading",
+                })
+            } finally {
+                setIsExporting(false)
             }
         },
         [revisionIdParam, metadata?.testsetName, metadata?.revisionVersion],
@@ -422,5 +446,6 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         handleCopyRevisionSlug,
         handleDeleteRevision,
         handleExport,
+        isExporting,
     }
 }

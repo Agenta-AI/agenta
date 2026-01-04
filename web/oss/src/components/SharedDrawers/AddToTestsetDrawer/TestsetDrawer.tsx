@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {WarningCircle} from "@phosphor-icons/react"
 import {Button, Input, Typography} from "antd"
@@ -57,6 +57,28 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
         }
     }, [spanIds, initializeWithSpanIds])
 
+    // Track if trace data has loaded to trigger entity sync
+    // When trace data entities finish loading (have non-empty data), sync local entities
+    const hasTraceDataLoaded = useRef(false)
+    useEffect(() => {
+        // Check if trace data has actually loaded (has non-empty data objects)
+        const hasData = drawer.traceData.some((t) => t.data && Object.keys(t.data).length > 0)
+
+        // If we haven't synced yet AND data has now loaded AND we have a revision selected
+        if (!hasTraceDataLoaded.current && hasData && drawer.selectedRevisionId) {
+            hasTraceDataLoaded.current = true
+            // Trigger entity sync by calling onNewColumnBlur which updates local entities
+            // with the now-loaded trace data
+            console.log("[TestsetDrawer] Trace data loaded, syncing local entities")
+            drawer.onNewColumnBlur()
+        }
+
+        // Reset the flag when drawer closes
+        if (!open) {
+            hasTraceDataLoaded.current = false
+        }
+    }, [drawer.traceData, drawer.selectedRevisionId, drawer.onNewColumnBlur, open])
+
     const elemRef = useResizeObserver<HTMLDivElement>((rect) => {
         drawer.setIsDrawerExtended(rect.width > 640)
     })
@@ -77,21 +99,19 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                 headerExtra="Add to testset"
                 footer={
                     <div className="flex flex-col gap-3 py-2 px-3">
-                        {/* Commit message input - only for existing testsets */}
-                        {!drawer.isNewTestset && drawer.testset.id && (
-                            <div className="flex flex-col gap-1">
-                                <Typography.Text className="text-gray-500">
-                                    Commit message (optional)
-                                </Typography.Text>
-                                <Input.TextArea
-                                    placeholder="Describe your changes..."
-                                    value={drawer.commitMessage}
-                                    onChange={(e) => drawer.setCommitMessage(e.target.value)}
-                                    rows={2}
-                                    maxLength={500}
-                                />
-                            </div>
-                        )}
+                        {/* Commit message input */}
+                        <div className="flex flex-col gap-1">
+                            <Typography.Text className="text-gray-500">
+                                Commit message (optional)
+                            </Typography.Text>
+                            <Input.TextArea
+                                placeholder="Describe your changes..."
+                                value={drawer.commitMessage}
+                                onChange={(e) => drawer.setCommitMessage(e.target.value)}
+                                rows={2}
+                                maxLength={500}
+                            />
+                        </div>
                         <div className="flex justify-end items-center gap-2">
                             <Button
                                 onClick={() => {
