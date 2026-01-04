@@ -381,8 +381,23 @@ const ConfigureEvaluator = ({
                 settings_values: editEvalEditValues.settings_values || {},
                 name: "",
             })
+        } else if (selectedEvaluator?.settings_template) {
+            // Create mode: apply default values from the evaluator template
+            // This is needed because form.resetFields() clears the form but Form.Item initialValue
+            // only works on first mount, not after resetFields()
+            const defaultSettings: Record<string, any> = {}
+            for (const [key, field] of Object.entries(selectedEvaluator.settings_template)) {
+                if (field && typeof field === "object" && "default" in field) {
+                    defaultSettings[key] = field.default
+                }
+            }
+            if (Object.keys(defaultSettings).length > 0) {
+                form.setFieldsValue({
+                    settings_values: defaultSettings,
+                })
+            }
         }
-    }, [editMode, cloneConfig, editEvalEditValues, form])
+    }, [editMode, cloneConfig, editEvalEditValues, form, selectedEvaluator])
 
     // Guard: if no evaluator selected, show nothing (shouldn't happen in normal flow)
     if (!selectedEvaluator) {
