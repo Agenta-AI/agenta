@@ -325,9 +325,6 @@ services:
             --maxmemory-policy noeviction
             --port 6381
 
-        ports:
-            - "6381:6381"
-
         volumes:
             - redis-durable-data:/data
 

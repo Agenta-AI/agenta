@@ -370,9 +370,6 @@ services:
             --maxmemory-policy noeviction
             --port 6381
 
-        ports:
-            - "6381:6381"
-
         networks:
             - agenta-network
 
