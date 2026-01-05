@@ -239,11 +239,7 @@ const SingleView = ({
                                     <div className="relative w-full">
                                         <div
                                             className={clsx(
-                                                "relative w-full transition-all duration-300 ease-linear overflow-hidden",
-                                                {
-                                                    "max-h-[120px]": isInputCollapsed,
-                                                    "h-fit": !isInputCollapsed,
-                                                },
+                                                "relative w-full transition-all duration-300 ease-linear",
                                             )}
                                         >
                                             <VariableControlAdapter
@@ -251,7 +247,13 @@ const SingleView = ({
                                                 propertyId={id}
                                                 key={id}
                                                 rowId={rowId}
-                                                className={clsx(["*:!border-none w-full"])}
+                                                className={clsx([
+                                                    "*:!border-none w-full",
+                                                    {
+                                                        "max-h-[120px] overflow-hidden":
+                                                            isInputCollapsed,
+                                                    },
+                                                ])}
                                                 editorProps={{enableTokens: false}}
                                             />
                                         </div>

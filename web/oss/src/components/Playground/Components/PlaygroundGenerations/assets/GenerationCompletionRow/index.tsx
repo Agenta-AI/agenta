@@ -12,8 +12,8 @@ import {
     displayedVariantsAtom,
 } from "../../../../state/atoms"
 import {
-    resolvedGenerationResultAtomFamily,
     generationRunStatusAtomFamily,
+    resolvedGenerationResultAtomFamily,
 } from "../../../../state/atoms/generationProperties"
 
 import DefaultView from "./DefaultView"
@@ -114,9 +114,7 @@ const GenerationCompletionRow = ({
             resultHash={resultHash}
             runRow={runRow}
             cancelRow={cancelRow}
-            containerClassName={
-                "border-0 border-t border-b border-solid border-colorBorderSecondary"
-            }
+            containerClassName={"border-0 border-b border-solid border-colorBorderSecondary"}
         />
     ) : (
         <DefaultView
