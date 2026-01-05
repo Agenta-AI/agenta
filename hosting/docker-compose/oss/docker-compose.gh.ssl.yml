@@ -2,37 +2,37 @@ name: agenta-gh-ssl
 
 services:
     web:
-        # === ACTIVATION ================================================ #
+        # === ACTIVATION =========================================== #
         profiles:
             - with-web
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         build:
             context: ../../../web
             dockerfile: oss/docker/Dockerfile.gh
-        # === EXECUTION ================================================= #
+        # === EXECUTION ============================================ #
         command: sh -c "node ./oss/server.js"
-        # === CONFIGURATION ============================================= #
+        # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
-        # === LABELS ==================================================== #
+        # === LABELS =============================================== #
         labels:
             - "traefik.http.routers.web.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/`)"
             - "traefik.http.routers.web.entrypoints=web,web-secure"
             - "traefik.http.services.web.loadbalancer.server.port=3000"
             - "traefik.http.routers.web.tls=true"
             - "traefik.http.routers.web.tls.certresolver=myResolver"
-        # === LIFECYCLE ================================================= #
+        # === LIFECYCLE ============================================ #
         restart: always
 
     api:
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
-        # === EXECUTION ================================================= #
+        # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn entrypoints.routers:app
             --bind 0.0.0.0:8000
@@ -45,20 +45,20 @@ services:
             --log-level info
             --access-logfile -
             --error-logfile -
-        # === STORAGE =================================================== #
+        # === STORAGE ============================================== #
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-        # === CONFIGURATION ============================================= #
+        # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/api
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ============================================= #
+        # === ORCHESTRATION ======================================== #
         depends_on:
             postgres:
                 condition: service_healthy
@@ -68,7 +68,7 @@ services:
                 condition: service_healthy
             redis-durable:
                 condition: service_healthy
-        # === LABELS ==================================================== #
+        # === LABELS =============================================== #
         labels:
             - "traefik.http.routers.api.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/api/`)"
             - "traefik.http.routers.api.entrypoints=web,web-secure"
@@ -79,15 +79,15 @@ services:
             - "traefik.http.routers.api.service=api"
             - "traefik.http.routers.api.tls=true"
             - "traefik.http.routers.api.tls.certresolver=myResolver"
-        # === LIFECYCLE ================================================= #
+        # === LIFECYCLE ============================================ #
         restart: always
 
     worker-evaluations:
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
-        # === EXECUTION ================================================= #
+        # === EXECUTION ============================================ #
         command:
             [
                 "newrelic-admin",
@@ -96,18 +96,18 @@ services:
                 "-m",
                 "entrypoints.worker_evaluations",
             ]
-        # === STORAGE =================================================== #
+        # === STORAGE ============================================== #
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-        # === CONFIGURATION ============================================= #
+        # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ============================================= #
+        # === ORCHESTRATION ======================================== #
         depends_on:
             postgres:
                 condition: service_healthy
@@ -115,15 +115,15 @@ services:
                 condition: service_healthy
             redis-durable:
                 condition: service_healthy
-        # === LIFECYCLE ================================================= #
+        # === LIFECYCLE ============================================ #
         restart: always
 
     worker-tracing:
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
-        # === EXECUTION ================================================= #
+        # === EXECUTION ============================================ #
         command:
             [
                 "newrelic-admin",
@@ -132,18 +132,18 @@ services:
                 "-m",
                 "entrypoints.worker_tracing",
             ]
-        # === STORAGE =================================================== #
+        # === STORAGE ============================================== #
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-        # === CONFIGURATION ============================================= #
+        # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ============================================= #
+        # === ORCHESTRATION ======================================== #
         depends_on:
             postgres:
                 condition: service_healthy
@@ -151,61 +151,61 @@ services:
                 condition: service_healthy
             redis-durable:
                 condition: service_healthy
-        # === LIFECYCLE ================================================= #
+        # === LIFECYCLE ============================================ #
         restart: always
 
     cron:
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
-        # === EXECUTION ================================================= #
+        # === EXECUTION ============================================ #
         command: cron -f
-        # === STORAGE =================================================== #
+        # === STORAGE ============================================== #
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-        # === CONFIGURATION ============================================= #
+        # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ============================================= #
+        # === ORCHESTRATION ======================================== #
         depends_on:
             - postgres
             - api
-        # === LIFECYCLE ================================================= #
+        # === LIFECYCLE ============================================ #
         restart: always
 
     alembic:
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
-        # === EXECUTION ================================================= #
+        # === EXECUTION ============================================ #
         command: sh -c "python -m oss.databases.postgres.migrations.runner"
-        # === STORAGE =================================================== #
+        # === STORAGE ============================================== #
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-        # === CONFIGURATION ============================================= #
+        # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
-        # === ORCHESTRATION ============================================= #
+        # === ORCHESTRATION ======================================== #
         depends_on:
             postgres:
                 condition: service_healthy
 
     completion:
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         build:
             context: ../../../services/completion
             dockerfile: oss/docker/Dockerfile.gh
-        # === EXECUTION ================================================= #
+        # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn oss.src.main:app
             --bind 0.0.0.0:80
@@ -218,21 +218,21 @@ services:
             --log-level info
             --access-logfile -
             --error-logfile -
-        # === STORAGE =================================================== #
+        # === STORAGE ============================================== #
         volumes:
             - ../../../services/completion:/app
             - ../../../sdk:/sdk
-        # === CONFIGURATION ============================================= #
+        # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/services/completion
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
-        # === LABELS ==================================================== #
+        # === LABELS =============================================== #
         labels:
             - "traefik.http.routers.completion.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/completion/`)"
             - "traefik.http.routers.completion.entrypoints=web,web-secure"
@@ -243,15 +243,15 @@ services:
             - "traefik.http.routers.completion.service=completion"
             - "traefik.http.routers.completion.tls=true"
             - "traefik.http.routers.completion.tls.certresolver=myResolver"
-        # === LIFECYCLE ================================================= #
+        # === LIFECYCLE ============================================ #
         restart: always
 
     chat:
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         build:
             context: ../../../services/chat
             dockerfile: oss/docker/Dockerfile.gh
-        # === EXECUTION ================================================= #
+        # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn oss.src.main:app
             --bind 0.0.0.0:80
@@ -264,21 +264,21 @@ services:
             --log-level info
             --access-logfile -
             --error-logfile -
-        # === STORAGE =================================================== #
+        # === STORAGE ============================================== #
         volumes:
             - ../../../services/chat:/app
             - ../../../sdk:/sdk
-        # === CONFIGURATION ============================================= #
+        # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/services/chat
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
-        # === LABELS ==================================================== #
+        # === LABELS =============================================== #
         labels:
             - "traefik.http.routers.chat.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/chat/`)"
             - "traefik.http.routers.chat.entrypoints=web,web-secure"
@@ -289,25 +289,25 @@ services:
             - "traefik.http.routers.chat.service=chat"
             - "traefik.http.routers.chat.tls=true"
             - "traefik.http.routers.chat.tls.certresolver=myResolver"
-        # === LIFECYCLE ================================================= #
+        # === LIFECYCLE ============================================ #
         restart: always
 
     postgres:
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         image: postgres:16
-        # === STORAGE =================================================== #
+        # === STORAGE ============================================== #
         volumes:
             - postgres-data:/var/lib/postgresql/data/
             - ../../../api/oss/databases/postgres/init-db-oss.sql:/docker-entrypoint-initdb.d/init-db.sql
-        # === CONFIGURATION ============================================= #
+        # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
         ports:
             - "${POSTGRES_PORT:-5432}:5432"
-        # === LIFECYCLE ================================================= #
+        # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -316,9 +316,9 @@ services:
             retries: 5
 
     redis-volatile:
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         image: redis:8
-        # === EXECUTION ================================================= #
+        # === EXECUTION ============================================ #
         command: >
             redis-server
             --appendonly no
@@ -326,16 +326,16 @@ services:
             --maxmemory 512mb
             --maxmemory-policy volatile-lru
             --port 6379
-        # === STORAGE =================================================== #
+        # === STORAGE ============================================== #
         volumes:
             - redis-volatile-data:/data
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
-        # === LABELS ==================================================== #
+        # === LABELS =============================================== #
         labels:
             - "traefik.enable=false"
-        # === LIFECYCLE ================================================= #
+        # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
             test: ["CMD", "redis-cli", "-p", "6379", "ping"]
@@ -345,9 +345,9 @@ services:
             start_period: 5s
 
     redis-durable:
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         image: redis:8
-        # === EXECUTION ================================================= #
+        # === EXECUTION ============================================ #
         command: >
             redis-server
             --appendonly yes
@@ -356,16 +356,16 @@ services:
             --maxmemory 512mb
             --maxmemory-policy noeviction
             --port 6381
-        # === STORAGE =================================================== #
+        # === STORAGE ============================================== #
         volumes:
             - redis-durable-data:/data
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
-        # === LABELS ==================================================== #
+        # === LABELS =============================================== #
         labels:
             - "traefik.enable=false"
-        # === LIFECYCLE ================================================= #
+        # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
             test: ["CMD", "redis-cli", "-p", "6381", "ping"]
@@ -375,39 +375,39 @@ services:
             start_period: 5s
 
     traefik:
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         image: traefik:2
-        # === STORAGE =================================================== #
+        # === STORAGE ============================================== #
         volumes:
             - ./ssl/traefik.yml:/traefik.yml
             - /var/run/docker.sock:/var/run/docker.sock
             - ${AGENTA_SSL_DIR:-/home/ubuntu/ssl_certificates}/acme.json:/acme.json
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
         ports:
             - "${TRAEFIK_PORT:-80}:80"
             - "${TRAEFIK_UI_PORT:-8080}:8080"
             - "${TRAEFIK_HTTPS_PORT:-443}:443"
-        # === LIFECYCLE ================================================= #
+        # === LIFECYCLE ============================================ #
         restart: always
 
     supertokens:
-        # === IMAGE ===================================================== #
+        # === IMAGE ================================================ #
         image: registry.supertokens.io/supertokens/supertokens-postgresql
-        # === CONFIGURATION ============================================= #
+        # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
-        # === NETWORK =================================================== #
+        # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
         ports:
             - "${SUPERTOKENS_PORT:-3567}:3567"
-        # === ORCHESTRATION ============================================= #
+        # === ORCHESTRATION ======================================== #
         depends_on:
             postgres:
                 condition: service_healthy
-        # === LIFECYCLE ================================================= #
+        # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
             test: >
