@@ -1293,14 +1293,26 @@ class GitDAO(GitDAOInterface):
         #
         revisions_log: RevisionsLog,
     ) -> List[Revision]:
+        # If only artifact_id is provided, fetch the default variant first
+        variant_id = revisions_log.variant_id
+        if revisions_log.artifact_id and not variant_id:
+            variant = await self.fetch_variant(
+                project_id=project_id,
+                artifact_ref=Reference(id=revisions_log.artifact_id),
+            )
+            if variant:
+                variant_id = variant.id
+            else:
+                return []
+
         revision = await self.fetch_revision(  # type: ignore
             project_id=project_id,
             #
             variant_ref=(
                 Reference(
-                    id=revisions_log.variant_id,
+                    id=variant_id,
                 )
-                if revisions_log.variant_id
+                if variant_id
                 else None
             ),
             revision_ref=(

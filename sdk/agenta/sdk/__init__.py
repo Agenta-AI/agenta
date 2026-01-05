@@ -73,7 +73,7 @@ from agenta.sdk.decorators.running import (
 )
 from agenta.sdk.decorators.serving import route, app
 from .tracing.conventions import Reference
-from .agenta_init import Config, AgentaSingleton, init as _init
+from .agenta_init import AgentaSingleton, init as _init
 from .utils.costs import calculate_token_usage
 from .managers.apps import AppManager
 from .managers.vault import VaultManager
@@ -83,9 +83,7 @@ from .managers.variant import VariantManager
 from .managers.deployment import DeploymentManager
 from .managers import testsets as testsets
 
-
-config = PreInitObject("agenta.config", Config)
-DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
+DEFAULT_AGENTA_SINGLETON_INSTANCE: AgentaSingleton = AgentaSingleton()
 
 types = client_types
 

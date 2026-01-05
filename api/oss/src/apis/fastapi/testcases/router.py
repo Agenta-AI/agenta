@@ -7,9 +7,15 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
+from oss.src.apis.fastapi.shared.utils import compute_next_windowing
+
 from oss.src.core.testcases.service import (
     TestcasesService,
 )
+from oss.src.core.testsets.service import (
+    TestsetsService,
+)
+from oss.src.core.shared.dtos import Reference
 
 from oss.src.apis.fastapi.testcases.models import (
     TestcasesQueryRequest,
@@ -34,8 +40,10 @@ class TestcasesRouter:
         self,
         *,
         testcases_service: TestcasesService,
+        testsets_service: TestsetsService,
     ):
         self.testcases_service = testcases_service
+        self.testsets_service = testsets_service
         self.router = APIRouter()
 
         # TESTCASES ------------------------------------------------------------
@@ -119,19 +127,50 @@ class TestcasesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        testcases = await self.testcases_service.fetch_testcases(
+        testset_id = testcases_query_request.testset_id
+        testcase_ids = testcases_query_request.testcase_ids
+
+        # If testset_revision_id is provided, fetch testcase_ids from the revision
+        if testcases_query_request.testset_revision_id:
+            testset_revision = await self.testsets_service.fetch_testset_revision(
+                project_id=UUID(request.state.project_id),
+                testset_revision_ref=Reference(
+                    id=testcases_query_request.testset_revision_id
+                ),
+                include_testcases=False,
+            )
+            if (
+                testset_revision
+                and testset_revision.data
+                and testset_revision.data.testcase_ids
+            ):
+                testset_id = testset_revision.testset_id
+                testcase_ids = testset_revision.data.testcase_ids
+            else:
+                # Revision not found or has no testcases
+                return TestcasesResponse()
+
+        testcases = await self.testcases_service.query_testcases(
             project_id=UUID(request.state.project_id),
             #
-            testcase_ids=testcases_query_request.testcase_ids,
+            testcase_ids=testcase_ids,
             #
-            testset_id=testcases_query_request.testset_id,
+            testset_id=testset_id,
             #
             windowing=testcases_query_request.windowing,
+        )
+
+        next_windowing = compute_next_windowing(
+            entities=testcases,
+            attribute="created_at",  # Testcase IDs are content-hashed (UUID5), use timestamp
+            windowing=testcases_query_request.windowing,
+            order="ascending",  # Must match order used in BlobsDAO.query_blobs
         )
 
         testcase_response = TestcasesResponse(
             count=len(testcases),
             testcases=testcases if testcases else [],
+            windowing=next_windowing,
         )
 
         return testcase_response

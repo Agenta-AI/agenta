@@ -377,6 +377,119 @@ export const createItemAtom = atom(
 
 ---
 
+### Entity Controller Pattern
+
+For entities requiring CRUD operations with draft state, loading indicators, and cache management, use the **Entity Controller Pattern**. This provides a unified API that abstracts multiple atoms into a single cohesive interface.
+
+**Full documentation:** `web/oss/src/state/entities/shared/README.md`
+
+**Quick Decision - Which API to Use:**
+
+| Need | API | Returns |
+|------|-----|---------|
+| Full state + actions | `entity.controller(id)` | `[state, dispatch]` |
+| Data only | `entity.selectors.data(id)` | `T \| null` |
+| Loading/error | `entity.selectors.query(id)` | `QueryState<T>` |
+| Dirty indicator | `entity.selectors.isDirty(id)` | `boolean` |
+| Single cell (tables) | `entity.selectors.cell({id, col})` | `unknown` |
+| Dispatch in atoms | `entity.actions.update/discard` | Write atom |
+
+**Basic Usage:**
+
+```typescript
+import {testcase} from "@/oss/state/entities/testcase"
+
+// Full controller - state + dispatch
+function TestcaseEditor({testcaseId}: {testcaseId: string}) {
+  const [state, dispatch] = useAtom(testcase.controller(testcaseId))
+
+  if (state.isPending) return <Skeleton />
+  if (!state.data) return <NotFound />
+
+  return (
+    <Input
+      value={state.data.input}
+      onChange={(e) => dispatch({
+        type: "update",
+        changes: {input: e.target.value}
+      })}
+    />
+  )
+}
+
+// Fine-grained selector - only re-renders on data change
+function TestcaseDisplay({testcaseId}: {testcaseId: string}) {
+  const data = useAtomValue(testcase.selectors.data(testcaseId))
+  if (!data) return null
+  return <div>{data.input}</div>
+}
+```
+
+**Reading Multiple Entities:**
+
+```typescript
+// Create a derived atom that subscribes to all selected entities
+const useMultipleTestcases = (ids: string[]) => {
+  const dataAtom = useMemo(
+    () => atom((get) => ids.map(id => get(testcase.selectors.data(id))).filter(Boolean)),
+    [ids.join(",")]
+  )
+  return useAtomValue(dataAtom)
+}
+```
+
+**Anti-Patterns to Avoid:**
+
+```typescript
+// BAD - No reactivity, snapshot read
+const globalStore = getDefaultStore()
+const data = globalStore.get(testcase.selectors.data(id))
+
+// GOOD - Proper subscription
+const data = useAtomValue(testcase.selectors.data(id))
+```
+
+```typescript
+// BAD - Variable shadowing
+import {testcase} from "@/oss/state/entities/testcase"
+const {testcase, ...rest} = entity  // Shadows import!
+
+// GOOD - Rename destructured variable
+const {testcase: testcaseField, ...rest} = entity
+```
+
+**Available Controllers:**
+
+| Entity | Import | Description |
+|--------|--------|-------------|
+| Testcase | `testcase` from `@/oss/state/entities/testcase` | Testcase with cell subscriptions + drill-in |
+| Trace Span | `traceSpan` from `@/oss/state/entities/trace` | Trace span with attribute drill-in |
+| Revision | `revision` from `@/oss/state/entities/testset` | Revision with column management |
+| Testset | `testset` from `@/oss/state/entities/testset` | Testset with list/detail queries |
+
+**Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       Controller                                 │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │   Query     │  │   Draft     │  │   isDirty   │              │
+│  │ (server)    │→ │  (local)    │→ │  (derived)  │              │
+│  └─────────────┘  └─────────────┘  └─────────────┘              │
+│         ↓               ↓                                        │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │                 Entity Atom (merged)                        ││
+│  └─────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+- **Query atoms** are the single source of truth for server data
+- **Draft atoms** store local changes only
+- **Entity atoms** merge: `query.data + draft → merged entity`
+- **Dirty detection** compares draft to server data
+
+---
+
 **Legacy: SWR Pattern (avoid for new code)**
 
 We previously used SWR with Axios for data fetching. This pattern is still present in older code but should not be used for new features.
