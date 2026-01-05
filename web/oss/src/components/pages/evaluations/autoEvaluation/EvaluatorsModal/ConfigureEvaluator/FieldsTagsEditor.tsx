@@ -17,7 +17,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {PlusOutlined, SearchOutlined} from "@ant-design/icons"
-import {Button, Input, Tag, Tooltip, Typography} from "antd"
+import {Button, Form, Input, Tag, Tooltip, Typography} from "antd"
 import type {FormInstance} from "antd/es/form"
 import {useAtomValue} from "jotai"
 
@@ -53,8 +53,9 @@ export const FieldsTagsEditor: React.FC<FieldsTagsEditorProps> = ({
     const testcaseSelection = useAtomValue(playgroundSelectedTestcaseAtom)
     const testcase = testcaseSelection?.testcase
 
-    // Get the correct_answer_key from form if available
-    const formCorrectAnswerKey = form?.getFieldValue(["settings_values", "correct_answer_key"])
+    // Watch the correct_answer_key from form to react to changes
+    // Using Form.useWatch instead of form.getFieldValue for reactivity
+    const formCorrectAnswerKey = Form.useWatch(["settings_values", "correct_answer_key"], form)
     const effectiveKey = formCorrectAnswerKey || correctAnswerKey
 
     // Check if we can detect fields from testcase
