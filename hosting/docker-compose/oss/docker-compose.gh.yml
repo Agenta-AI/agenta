@@ -412,8 +412,6 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
-        ports:
-            - "${SUPERTOKENS_PORT:-3567}:3567"
         # === ORCHESTRATION ======================================== #
         depends_on:
             postgres:

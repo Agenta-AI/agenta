@@ -401,8 +401,6 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
-        ports:
-            - "${SUPERTOKENS_PORT:-3567}:3567"
         # === ORCHESTRATION ======================================== #
         depends_on:
             postgres:

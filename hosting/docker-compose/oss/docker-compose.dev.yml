@@ -431,8 +431,6 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-network
-        ports:
-            - 3567:3567
         # === ORCHESTRATION ======================================== #
         depends_on:
             postgres:
