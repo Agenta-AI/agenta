@@ -162,7 +162,7 @@ class TestcasesRouter:
 
         next_windowing = compute_next_windowing(
             entities=testcases,
-            attribute="id",  # UUID7 - use id for cursor-based pagination
+            attribute="created_at",  # Testcase IDs are content-hashed (UUID5), use timestamp
             windowing=testcases_query_request.windowing,
         )
 

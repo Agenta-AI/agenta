@@ -452,7 +452,7 @@ class BlobsDAO(BlobsDAOInterface):
                 stmt = apply_windowing(
                     stmt=stmt,
                     DBE=self.BlobDBE,
-                    attribute="id",  # UUID7 - use id for cursor-based pagination
+                    attribute="created_at",  # Blob IDs are content-hashed (UUID5), use timestamp
                     order="ascending",  # data-style
                     windowing=windowing,
                 )
