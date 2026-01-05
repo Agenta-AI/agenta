@@ -14,13 +14,13 @@ import {
     newTestsetNameAtom,
     selectedTestsetInfoAtom,
 } from "../atoms/cascaderState"
-import {buildSelectedRevisionLabel} from "../components/RevisionLabel"
 import {selectedRevisionIdAtom} from "../atoms/drawerState"
 import {
     selectedTestsetIdAtom,
     testsetRevisionsQueryFamily,
     testsetsListQueryAtom,
 } from "../atoms/testsetQueries"
+import {buildSelectedRevisionLabel} from "../components/RevisionLabel"
 
 /**
  * Hook for testset/revision selection via cascader

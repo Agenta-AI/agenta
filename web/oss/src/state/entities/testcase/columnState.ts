@@ -472,7 +472,13 @@ function collectObjectSubKeysRecursive(
 
         // If this value is also an object (not array), recurse
         if (nestedObj && Object.keys(nestedObj).length > 0) {
-            collectObjectSubKeysRecursive(nestedObj, fullPath, objectSubKeys, currentDepth + 1, deletedCols)
+            collectObjectSubKeysRecursive(
+                nestedObj,
+                fullPath,
+                objectSubKeys,
+                currentDepth + 1,
+                deletedCols,
+            )
         }
     })
 }

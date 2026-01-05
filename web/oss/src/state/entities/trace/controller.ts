@@ -75,6 +75,7 @@
  */
 
 import {createEntityController, type PathItem} from "../shared/createEntityController"
+
 import type {TraceSpan} from "./schema"
 import {
     discardTraceSpanDraftAtom,

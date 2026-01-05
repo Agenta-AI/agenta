@@ -182,10 +182,7 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     // Note: Column reset and v0 draft init are handled by revisionChangeEffectAtom
     // Uses expandedColumns for dynamic object expansion (e.g., "event" -> "event.type", "event.date")
     // =========================================================================
-    const columnsAtom = useMemo(
-        () => revision.selectors.columns(revisionId ?? ""),
-        [revisionId],
-    )
+    const columnsAtom = useMemo(() => revision.selectors.columns(revisionId ?? ""), [revisionId])
     const expandedColumnsAtom = useMemo(
         () => revision.selectors.expandedColumns(revisionId ?? ""),
         [revisionId],

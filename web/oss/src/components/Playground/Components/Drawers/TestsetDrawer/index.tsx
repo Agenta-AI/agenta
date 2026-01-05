@@ -49,8 +49,7 @@ const TestsetDrawerButton = ({
                     (result?.response?.tree?.nodes?.[0]?.span_id as string) ||
                     result?.response?.span_id
                 // Validate that the span has data (successful generation)
-                const hasData =
-                    result?.response?.tree?.nodes?.[0]?.data || result?.response?.data
+                const hasData = result?.response?.tree?.nodes?.[0]?.data || result?.response?.data
                 return hasData ? spanId : null
             })
             .filter((id): id is string => !!id)

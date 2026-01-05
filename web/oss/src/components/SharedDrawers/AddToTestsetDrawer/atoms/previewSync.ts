@@ -1,7 +1,7 @@
 import {atom} from "jotai"
 
-import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {testcase} from "@/oss/state/entities/testcase"
+import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {currentRevisionIdAtom} from "@/oss/state/entities/testset"
 
 import type {TestsetTraceData} from "../assets/types"

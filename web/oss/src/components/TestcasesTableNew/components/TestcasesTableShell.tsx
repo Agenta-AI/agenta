@@ -168,7 +168,14 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                           ),
                   }
                 : undefined,
-        [enableSelection, selectedRowKeys, onSelectedRowKeysChange, globalStore, showRowIndex, mode],
+        [
+            enableSelection,
+            selectedRowKeys,
+            onSelectedRowKeysChange,
+            globalStore,
+            showRowIndex,
+            mode,
+        ],
     )
 
     // Max lines from row height config (already computed by useRowHeight)

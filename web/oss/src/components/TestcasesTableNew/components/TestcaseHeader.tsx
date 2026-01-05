@@ -169,8 +169,7 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
     // v0 is not a valid revision, so we filter it out when counting
     const validRevisions = availableRevisions.filter((r) => r.version > 0)
     // Disable delete if: revisions not loaded yet, still loading, or only one revision
-    const isDeleteDisabled =
-        !revisionsRequested || loadingRevisions || validRevisions.length <= 1
+    const isDeleteDisabled = !revisionsRequested || loadingRevisions || validRevisions.length <= 1
 
     // Tooltip explaining why delete is disabled
     const deleteDisabledReason = !revisionsRequested
@@ -220,7 +219,15 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                 onClick: onDeleteRevision,
             },
         ],
-        [onOpenRenameModal, onDeleteRevision, isDeleteDisabled, deleteDisabledReason, onExport, loadingRevisions, isExporting],
+        [
+            onOpenRenameModal,
+            onDeleteRevision,
+            isDeleteDisabled,
+            deleteDisabledReason,
+            onExport,
+            loadingRevisions,
+            isExporting,
+        ],
     )
 
     // Handler to execute copy action and remember it

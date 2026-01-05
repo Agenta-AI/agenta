@@ -100,7 +100,12 @@ export const saveTestsetAtom = atom(
         const testsetName = revisionData?.name ?? variant?.name ?? ""
 
         if (!testsetName.trim()) {
-            console.error("[saveTestsetAtom] Testset name is empty! revisionData:", revisionData, "variant:", variant)
+            console.error(
+                "[saveTestsetAtom] Testset name is empty! revisionData:",
+                revisionData,
+                "variant:",
+                variant,
+            )
             return {success: false, error: new Error("Testset name is required")}
         }
 

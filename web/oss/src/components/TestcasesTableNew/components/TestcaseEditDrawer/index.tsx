@@ -3,8 +3,8 @@ import {forwardRef, useCallback, useImperativeHandle, useState} from "react"
 import {Typography} from "antd"
 
 import {EntityDualViewEditor, type PropertyType} from "@/oss/components/DrillInView"
-import type {Column} from "@/oss/state/entities/testcase/columnState"
 import {testcase} from "@/oss/state/entities/testcase"
+import type {Column} from "@/oss/state/entities/testcase/columnState"
 
 import {type DataType} from "./fieldUtils"
 
@@ -64,7 +64,7 @@ const TestcaseEditDrawerContent = forwardRef<
     useImperativeHandle(ref, () => ({handleSave}), [handleSave])
 
     // We know testcase entity has drillIn configured, but TypeScript can't infer this
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const entityWithDrillIn = testcase as any
 
     return (

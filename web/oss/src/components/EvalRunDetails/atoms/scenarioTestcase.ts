@@ -11,8 +11,8 @@
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
-import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
 import {testcase} from "@/oss/state/entities/testcase"
+import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
 import {testcaseQueryAtomFamily} from "@/oss/state/entities/testcase/testcaseEntity"
 
 import {activePreviewRunIdAtom} from "./run"
