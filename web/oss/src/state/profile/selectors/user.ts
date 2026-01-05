@@ -1,5 +1,5 @@
 import type {AxiosError} from "axios"
-import {eagerAtom} from "jotai-eager"
+import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 import Router from "next/router"
 
@@ -33,7 +33,7 @@ export const profileQueryAtom = atomWithQuery<User | null>((get) => ({
 const logProfile = process.env.NEXT_PUBLIC_LOG_PROFILE_ATOMS === "true"
 logAtom(profileQueryAtom, "profileQueryAtom", logProfile)
 
-export const userAtom = eagerAtom<User | null>((get) => {
+export const userAtom = atom<User | null>((get) => {
     const res = get(profileQueryAtom).data
 
     // In test environment, provide a mock user if no real user is available

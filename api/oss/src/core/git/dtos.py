@@ -90,6 +90,7 @@ class RevisionCommit(Slug, Header, Metadata):
 
     artifact_id: Optional[UUID] = None
     variant_id: Optional[UUID] = None
+    revision_id: Optional[UUID] = None
 
 
 class RevisionsLog(BaseModel):

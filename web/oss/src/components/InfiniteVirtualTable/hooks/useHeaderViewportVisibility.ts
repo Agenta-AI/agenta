@@ -13,6 +13,7 @@ const useHeaderViewportVisibility = ({
     scopeId,
     containerRef,
     onVisibilityChange,
+    onColumnUnregister,
     enabled = true,
     viewportMargin,
     exitDebounceMs = 150,
@@ -23,6 +24,9 @@ const useHeaderViewportVisibility = ({
     scopeId: string | null
     containerRef: RefObject<HTMLDivElement | null>
     onVisibilityChange: ViewportVisibilityCallback | undefined
+    onColumnUnregister?:
+        | ((payload: {scopeId: string | null; columnKey: string}) => void)
+        | undefined
     enabled?: boolean
     viewportMargin?: string
     exitDebounceMs?: number
@@ -174,6 +178,10 @@ const useHeaderViewportVisibility = ({
             // Skip processing if updates are suspended (e.g., during resize or vertical scroll)
             if (suspendUpdatesRef.current) return
             if (!onVisibilityChange || !scopeId) return
+
+            // Batch process entries to reduce state updates during rapid scrolling
+            const updates: {columnKey: string; isVisible: boolean}[] = []
+
             entries.forEach((entry) => {
                 const columnKey = elementToKeyRef.current.get(entry.target as HTMLElement)
                 if (!columnKey) return
@@ -210,6 +218,12 @@ const useHeaderViewportVisibility = ({
                     intersectionWidth > 0 &&
                     intersectionHeight > 0 &&
                     boundingRect.width > 0
+
+                updates.push({columnKey, isVisible})
+            })
+
+            // Process all updates together to minimize re-renders
+            updates.forEach(({columnKey, isVisible}) => {
                 queueVisibilityUpdate(columnKey, isVisible)
             })
         },
@@ -365,7 +379,7 @@ const useHeaderViewportVisibility = ({
                 }
                 const wasFixed = fixedKeysRef.current.delete(columnKey)
                 if (wasFixed) {
-                    // emitVisibilityChanges([{columnKey, visible: false}])
+                    // Fixed columns don't need cleanup
                     return
                 }
                 const previousNode = keyToElementRef.current.get(columnKey)
@@ -374,20 +388,27 @@ const useHeaderViewportVisibility = ({
                     elementToKeyRef.current.delete(previousNode)
                 }
                 keyToElementRef.current.delete(columnKey)
-                const scheduleHide = () => {
+
+                // Clear visibility state to prevent stale values on re-mount
+                const scheduleCleanup = () => {
                     visibilityStateRef.current.delete(columnKey)
-                    emitVisibilityChanges([{columnKey, visible: false}])
+                    // Delete from atom instead of setting to false to prevent stale state
+                    // When column is re-registered, it will default to visible (true)
+                    if (onColumnUnregister && scopeId) {
+                        onColumnUnregister({scopeId, columnKey})
+                    }
                 }
+
                 if (typeof window !== "undefined") {
                     if (!pendingUnregisterTimeoutsRef.current.has(columnKey)) {
                         const timeoutId = window.setTimeout(() => {
                             pendingUnregisterTimeoutsRef.current.delete(columnKey)
-                            scheduleHide()
+                            scheduleCleanup()
                         }, exitDebounceMs ?? 150)
                         pendingUnregisterTimeoutsRef.current.set(columnKey, timeoutId)
                     }
                 } else {
-                    scheduleHide()
+                    scheduleCleanup()
                 }
             }
         },
@@ -399,6 +420,7 @@ const useHeaderViewportVisibility = ({
             exitDebounceMs,
             isFixedHeaderNode,
             onVisibilityChange,
+            onColumnUnregister,
             scopeId,
         ],
     )

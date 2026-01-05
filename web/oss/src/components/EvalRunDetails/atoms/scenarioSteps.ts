@@ -135,6 +135,8 @@ export const scenarioStepsQueryFamily = atomFamily(
                 refetchOnReconnect: false,
                 staleTime: 30_000,
                 gcTime: 5 * 60 * 1000,
+                // Enable structural sharing to prevent unnecessary re-renders when data hasn't changed
+                structuralSharing: true,
                 queryFn: async () => {
                     if (!batcher) {
                         throw new Error("Scenario steps batcher is not initialised")

@@ -18,30 +18,42 @@ import {
 
 import {variantReferenceQueryAtomFamily} from "../../atoms/references"
 import {effectiveProjectIdAtom} from "../../atoms/run"
+import {runTestsetRefsAtomFamily} from "../../atoms/runDerived"
 import useRunIdentifiers from "../../hooks/useRunIdentifiers"
 import useRunScopedUrls from "../../hooks/useRunScopedUrls"
 
 /**
  * Evaluation-scoped testset tag.
  * Gets projectId from evaluation context.
+ * Uses revision ID for URL if available from run data.
  */
 export const TestsetTag = memo(
     ({
         testsetId,
+        revisionId: explicitRevisionId,
         projectURL,
         runId,
     }: {
         testsetId: string
+        revisionId?: string | null
         projectURL?: string | null
         runId?: string | null
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
+        const testsetRefsAtom = useMemo(() => runTestsetRefsAtomFamily(runId ?? null), [runId])
+        const testsetRefs = useAtomValue(testsetRefsAtom)
         const {buildTestsetHref} = useRunScopedUrls(runId)
-        const href = buildTestsetHref(testsetId) ?? projectURL ?? undefined
+
+        // Find revision ID from run data if not explicitly provided
+        const runRevisionId = testsetRefs.find((ref) => ref.testsetId === testsetId)?.revisionId
+        const revisionId = explicitRevisionId ?? runRevisionId ?? null
+
+        const href = buildTestsetHref(testsetId, revisionId) ?? projectURL ?? undefined
 
         return (
             <GenericTestsetTag
                 testsetId={testsetId}
+                revisionId={revisionId}
                 projectId={projectId}
                 projectURL={href ? undefined : projectURL}
             />
@@ -52,6 +64,7 @@ export const TestsetTag = memo(
 /**
  * Evaluation-scoped testset tag list.
  * Gets projectId from evaluation context.
+ * Uses revision IDs for URLs if available from run data.
  */
 export const TestsetTagList = memo(
     ({
@@ -66,15 +79,33 @@ export const TestsetTagList = memo(
         className?: string
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
+        const testsetRefsAtom = useMemo(() => runTestsetRefsAtomFamily(runId ?? null), [runId])
+        const testsetRefs = useAtomValue(testsetRefsAtom)
         const {buildTestsetHref} = useRunScopedUrls(runId)
 
+        // Build a map of testsetId -> revisionId from run data
+        const revisionMap = useMemo(() => {
+            const map = new Map<string, string | null>()
+            for (const ref of testsetRefs) {
+                map.set(ref.testsetId, ref.revisionId)
+            }
+            return map
+        }, [testsetRefs])
+
         // Use the first testset's href as base projectURL if available
+        const firstRevisionId = ids.length > 0 ? revisionMap.get(ids[0]) : null
         const resolvedProjectURL =
-            ids.length > 0 ? buildTestsetHref(ids[0])?.replace(`/testsets/${ids[0]}`, "") : null
+            ids.length > 0
+                ? buildTestsetHref(ids[0], firstRevisionId)?.replace(
+                      `/testsets/${firstRevisionId ?? ids[0]}`,
+                      "",
+                  )
+                : null
 
         return (
             <GenericTestsetTagList
                 ids={ids}
+                revisionMap={revisionMap}
                 projectId={projectId}
                 projectURL={resolvedProjectURL ?? projectURL}
                 className={className}

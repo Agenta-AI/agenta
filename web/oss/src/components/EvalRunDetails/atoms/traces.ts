@@ -1,31 +1,18 @@
-import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
-import {atomWithQuery} from "jotai-tanstack-query"
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
 import type {TraceData, TraceNode, TraceTree} from "@/oss/lib/evaluations"
 import {uuidToTraceId} from "@/oss/lib/traces/helpers"
 import {transformTracesResponseToTree} from "@/oss/services/tracing/lib/helpers"
 import type {TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
-import {getProjectValues} from "@/oss/state/project"
-import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
+import {traceEntityAtomFamily, invalidateTraceEntityCache} from "@/oss/state/entities/trace/store"
 
 import {resolveInvocationTraceValue} from "../utils/traceValue"
 
-import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
-
-const traceBatcherCache = new Map<string, BatchFetcher<string, TraceData | null>>()
-
 /**
  * Invalidate the trace batcher cache.
- * Call this after running an invocation to force a fresh fetch of trace data.
+ * Now delegates to the shared trace entity cache invalidation.
  */
-export const invalidateTraceBatcherCache = () => {
-    traceBatcherCache.clear()
-}
-
-const resolveEffectiveRunId = (get: any, runId?: string | null) =>
-    runId ?? get(activePreviewRunIdAtom) ?? undefined
+export const invalidateTraceBatcherCache = invalidateTraceEntityCache
 
 const _debugTraceValue = (() => {
     const enabled = process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true"
@@ -196,113 +183,51 @@ const buildTraceDataFromEntry = (
     return traceData
 }
 
-export const evaluationTraceBatcherFamily = atomFamily(({runId}: {runId?: string | null} = {}) =>
-    atom((get) => {
-        const effectiveRunId = resolveEffectiveRunId(get, runId)
-        const {projectId: globalProjectId} = getProjectValues()
-        const projectId = globalProjectId ?? get(effectiveProjectIdAtom)
-        if (!projectId) return null
+/**
+ * Transforms raw trace entity response to TraceData format used by evaluation components.
+ * This bridges the gap between traceEntityAtomFamily (raw API response) and
+ * the TraceData format expected by evaluation atoms.
+ */
+const transformToTraceData = (
+    traceId: string,
+    response: {traces?: Record<string, {spans?: Record<string, unknown>}>} | null,
+): TraceData | null => {
+    if (!response?.traces) return null
 
-        const cacheKey = `${projectId}:${effectiveRunId ?? "preview"}`
-        let batcher = traceBatcherCache.get(cacheKey)
-        if (!batcher) {
-            traceBatcherCache.clear()
-            batcher = createBatchFetcher<string, TraceData | null>({
-                serializeKey: (key) => key,
-                batchFn: async (traceIds) => {
-                    const unique = Array.from(new Set(traceIds.filter(Boolean)))
-                    if (!unique.length) {
-                        return {}
-                    }
+    // Find the trace entry - try with and without dashes
+    const canonicalId = uuidToTraceId(traceId) ?? traceId.replace(/-/g, "")
+    const traceEntry = response.traces[canonicalId] ?? response.traces[traceId]
 
-                    const canonicalPairs = unique.map((id) => ({
-                        original: id,
-                        canonical: uuidToTraceId(id) ?? id.replace(/-/g, ""),
-                    }))
+    if (!traceEntry) return null
 
-                    const response = await axios.post(
-                        `/preview/tracing/spans/query`,
-                        {
-                            focus: "trace",
-                            format: "agenta",
-                            filter: {
-                                conditions: [
-                                    {
-                                        field: "trace_id",
-                                        operator: "in",
-                                        value: canonicalPairs.map((pair) => pair.canonical),
-                                    },
-                                ],
-                            },
-                        },
-                        {
-                            params: {
-                                project_id: projectId,
-                            },
-                        },
-                    )
+    return buildTraceDataFromEntry(canonicalId, traceId, traceEntry as any, undefined)
+}
 
-                    const traces = response.data?.traces ?? {}
-                    const version = response.data?.version
-                    const result: Record<string, TraceData | null> = Object.create(null)
-
-                    unique.forEach((originalId) => {
-                        const pair = canonicalPairs.find(
-                            (entry) => entry.original === originalId,
-                        ) ?? {
-                            original: originalId,
-                            canonical: uuidToTraceId(originalId) ?? originalId.replace(/-/g, ""),
-                        }
-                        const entry =
-                            traces?.[pair.canonical] ??
-                            traces?.[originalId] ??
-                            traces?.[originalId.replace(/-/g, "")] ??
-                            undefined
-                        const traceData = buildTraceDataFromEntry(
-                            pair.canonical,
-                            originalId,
-                            entry,
-                            version,
-                        )
-                        result[originalId] = traceData
-                    })
-
-                    return result
-                },
-            })
-            traceBatcherCache.set(cacheKey, batcher)
-        }
-
-        return batcher
-    }),
-)
-
-export const evaluationTraceBatcherAtom = atom((get) => get(evaluationTraceBatcherFamily()))
-
+/**
+ * Evaluation trace query atom family - uses the shared traceEntityAtomFamily
+ * and transforms the response to TraceData format for evaluation components.
+ */
 export const evaluationTraceQueryAtomFamily = atomFamily(
-    ({traceId, runId}: {traceId: string; runId?: string | null}) =>
-        atomWithQuery<TraceData | null>((get) => {
-            const batcher = get(evaluationTraceBatcherFamily({runId}))
-            const {projectId: globalProjectId} = getProjectValues()
-            const projectId = globalProjectId ?? get(effectiveProjectIdAtom)
-            const effectiveRunId = resolveEffectiveRunId(get, runId)
-
-            return {
-                queryKey: ["preview", "evaluation-trace", effectiveRunId, projectId, traceId],
-                enabled: Boolean(projectId && batcher && traceId),
-                staleTime: 30_000,
-                gcTime: 5 * 60 * 1000,
-                refetchOnWindowFocus: false,
-                refetchOnReconnect: false,
-                queryFn: async () => {
-                    if (!batcher) {
-                        throw new Error("Trace batcher is not initialised")
-                    }
-                    const value = await batcher(traceId)
-                    return value ?? null
-                },
-            }
-        }),
+    ({traceId, runId: _runId}: {traceId: string; runId?: string | null}) =>
+        selectAtom(
+            traceEntityAtomFamily(traceId),
+            (queryState) => {
+                const data = queryState.data
+                    ? transformToTraceData(traceId, queryState.data as any)
+                    : null
+                return {
+                    data,
+                    isLoading: !queryState.data && queryState.isLoading,
+                    isFetching: queryState.isFetching,
+                    error: queryState.error,
+                }
+            },
+            (a, b) =>
+                a.data === b.data &&
+                a.isLoading === b.isLoading &&
+                a.isFetching === b.isFetching &&
+                a.error === b.error,
+        ),
 )
 
 export const traceValueAtomFamily = atomFamily(
@@ -353,11 +278,15 @@ export const traceQueryMetaAtomFamily = atomFamily(
     ({traceId, runId}: {traceId: string; runId?: string | null}) =>
         selectAtom(
             evaluationTraceQueryAtomFamily({traceId, runId}),
-            (queryState) => ({
-                isLoading: queryState.isLoading,
-                isFetching: queryState.isFetching,
-                error: queryState.error,
-            }),
+            (queryState) => {
+                // Stale-while-revalidate: only show loading when there's no cached data
+                const hasData = Boolean(queryState.data)
+                return {
+                    isLoading: !hasData && queryState.isLoading,
+                    isFetching: queryState.isFetching,
+                    error: queryState.error,
+                }
+            },
             (a, b) =>
                 a.isLoading === b.isLoading && a.isFetching === b.isFetching && a.error === b.error,
         ),

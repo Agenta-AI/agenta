@@ -42,7 +42,7 @@ interface RunActionsCellProps {
     record: EvaluationRunTableRow
     onOpenDetails: (record: EvaluationRunTableRow) => void
     onVariantNavigation: (params: {revisionId: string; appId?: string | null}) => void
-    onTestsetNavigation: (testsetId: string) => void
+    onTestsetNavigation: (testsetId: string, revisionId?: string | null) => void
     onRequestDelete: (record: EvaluationRunTableRow) => void
     resolveAppId: (record: EvaluationRunTableRow) => string | null
     isVisible?: boolean
@@ -63,7 +63,7 @@ const RunActionsCell = ({
 }: RunActionsCellProps) => {
     const queryClient = useQueryClient()
     const runId = record.preview?.id ?? record.runId
-    const {summary, isLoading: summaryLoading} = useRunRowSummary(record, isVisible)
+    const {summary, stepReferences, isLoading: summaryLoading} = useRunRowSummary(record, isVisible)
     const referenceSequence = useRunRowReferences(record)
     const {
         camelRun,
@@ -85,6 +85,21 @@ const RunActionsCell = ({
     const effectiveVariantRevisionId = invocation?.revisionId ?? null
     const effectiveAppId = invocation?.appId ?? resolveAppId(record)
     const effectiveTestsetId = summary?.testsetIds?.[0] ?? null
+
+    // Extract testset revision ID from step references
+    const effectiveTestsetRevisionId = useMemo(() => {
+        if (!stepReferences || !effectiveTestsetId) return null
+        for (const stepKey of Object.keys(stepReferences)) {
+            const refs = (stepReferences as Record<string, any>)[stepKey]
+            if (!refs || typeof refs !== "object") continue
+            const testsetRef = refs.testset ?? refs.test_set ?? refs.testsetVariant
+            if (testsetRef?.id === effectiveTestsetId) {
+                const revisionRef = refs.testset_revision ?? refs.testsetRevision
+                return revisionRef?.id ?? null
+            }
+        }
+        return null
+    }, [stepReferences, effectiveTestsetId])
     const hasVariantReference = referenceSequence.some((slot) => slot.role === "variant")
     const hasTestsetReference = referenceSequence.some((slot) => slot.role === "testset")
 
@@ -260,7 +275,7 @@ const RunActionsCell = ({
                 onClick: (event) => {
                     event.domEvent.stopPropagation()
                     if (!canOpenTestset || !effectiveTestsetId) return
-                    onTestsetNavigation(effectiveTestsetId)
+                    onTestsetNavigation(effectiveTestsetId, effectiveTestsetRevisionId)
                 },
             })
         }
@@ -299,6 +314,7 @@ const RunActionsCell = ({
         effectiveVariantRevisionId,
         effectiveAppId,
         effectiveTestsetId,
+        effectiveTestsetRevisionId,
         onOpenDetails,
         onVariantNavigation,
         onTestsetNavigation,

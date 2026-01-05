@@ -1,80 +1,31 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
 import {useVirtualTableScrollContainer} from "@/oss/components/InfiniteVirtualTable"
 
-const COLUMN_LOOKAHEAD = 1.6
-const ROW_LOOKAHEAD = 2
-const MIN_HORIZONTAL_BUFFER = 120
-const MAX_HORIZONTAL_BUFFER = 800
-const MIN_VERTICAL_BUFFER = 160
-const MAX_VERTICAL_BUFFER = 400
+// Fixed buffer values - no need for dynamic calculation per cell
+// These provide generous lookahead for smooth scrolling
+const HORIZONTAL_BUFFER = 400
+const VERTICAL_BUFFER = 300
+const ROOT_MARGIN = `${VERTICAL_BUFFER}px ${HORIZONTAL_BUFFER}px ${VERTICAL_BUFFER}px ${HORIZONTAL_BUFFER}px`
 
+/**
+ * Optimized cell visibility hook.
+ * Uses a single IntersectionObserver per cell with fixed margins.
+ * Removed ResizeObserver to reduce overhead - uses fixed buffer instead.
+ *
+ * Returns `hasBeenVisible` to track if the cell has ever been visible,
+ * which prevents showing loading state when scrolling back to already-loaded cells.
+ */
 export const useCellVisibility = () => {
     const scrollContainer = useVirtualTableScrollContainer()
     const [element, setElement] = useState<HTMLDivElement | null>(null)
     const [isVisible, setIsVisible] = useState(false)
-    const [dimensions, setDimensions] = useState<{width: number; height: number}>({
-        width: 0,
-        height: 0,
-    })
+    // Track if cell has ever been visible - once true, stays true (use state for re-render)
+    const [hasBeenVisible, setHasBeenVisible] = useState(false)
 
     const ref = useCallback((node: HTMLDivElement | null) => {
         setElement(node)
     }, [])
-
-    useEffect(() => {
-        if (!element) {
-            setDimensions({width: 0, height: 0})
-            return undefined
-        }
-
-        if (typeof ResizeObserver === "undefined") {
-            const rect = element.getBoundingClientRect()
-            setDimensions({
-                width: rect.width,
-                height: rect.height,
-            })
-            return undefined
-        }
-
-        const resizeObserver = new ResizeObserver((entries) => {
-            entries.forEach((entry) => {
-                if (entry.target === element) {
-                    const {width, height} = entry.contentRect
-                    setDimensions({
-                        width: width || element.offsetWidth || 0,
-                        height: height || element.offsetHeight || 0,
-                    })
-                }
-            })
-        })
-
-        resizeObserver.observe(element)
-        return () => {
-            resizeObserver.disconnect()
-        }
-    }, [element])
-
-    const horizontalBuffer = useMemo(() => {
-        const base = dimensions.width ? dimensions.width * COLUMN_LOOKAHEAD : MIN_HORIZONTAL_BUFFER
-        return Math.max(
-            MIN_HORIZONTAL_BUFFER,
-            Math.min(base || MIN_HORIZONTAL_BUFFER, MAX_HORIZONTAL_BUFFER),
-        )
-    }, [dimensions.width])
-
-    const verticalBuffer = useMemo(() => {
-        const base = dimensions.height ? dimensions.height * ROW_LOOKAHEAD : MIN_VERTICAL_BUFFER
-        return Math.max(
-            MIN_VERTICAL_BUFFER,
-            Math.min(base || MIN_VERTICAL_BUFFER, MAX_VERTICAL_BUFFER),
-        )
-    }, [dimensions.height])
-
-    const rootMargin = useMemo(
-        () => `${verticalBuffer}px ${horizontalBuffer}px ${verticalBuffer}px ${horizontalBuffer}px`,
-        [horizontalBuffer, verticalBuffer],
-    )
 
     useEffect(() => {
         if (!element) {
@@ -90,20 +41,26 @@ export const useCellVisibility = () => {
 
         if (!root) {
             setIsVisible(true)
+            return undefined
         }
 
         const observer = new IntersectionObserver(
             (entries) => {
-                entries.forEach((entry) => {
-                    if (entry.target === element) {
-                        setIsVisible(entry.isIntersecting || !root)
+                // Only process the first entry since we observe a single element
+                const entry = entries[0]
+                if (entry) {
+                    const nowVisible = entry.isIntersecting
+                    setIsVisible(nowVisible)
+                    // Once visible, mark as having been visible (only set, never unset)
+                    if (nowVisible) {
+                        setHasBeenVisible(true)
                     }
-                })
+                }
             },
             {
                 root,
                 threshold: 0,
-                rootMargin,
+                rootMargin: ROOT_MARGIN,
             },
         )
 
@@ -111,9 +68,9 @@ export const useCellVisibility = () => {
         return () => {
             observer.disconnect()
         }
-    }, [element, scrollContainer, rootMargin])
+    }, [element, scrollContainer])
 
-    return {ref, isVisible}
+    return {ref, isVisible, hasBeenVisible}
 }
 
 export default useCellVisibility

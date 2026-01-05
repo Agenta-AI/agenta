@@ -140,6 +140,7 @@ export const evaluationAnnotationQueryAtomFamily = atomFamily(
                 gcTime: 5 * 60 * 1000,
                 refetchOnWindowFocus: false,
                 refetchOnReconnect: false,
+                structuralSharing: true,
                 queryFn: async () => {
                     if (!batcher) {
                         throw new Error("Annotation batcher is not initialised")
@@ -173,6 +174,7 @@ export const scenarioAnnotationsQueryAtomFamily = atomFamily(
                 gcTime: 5 * 60 * 1000,
                 refetchOnWindowFocus: false,
                 refetchOnReconnect: false,
+                structuralSharing: true,
                 queryFn: async () => {
                     if (!batcher || uniqueTraceIds.length === 0) return []
                     const results = await Promise.all(uniqueTraceIds.map((id) => batcher(id)))
