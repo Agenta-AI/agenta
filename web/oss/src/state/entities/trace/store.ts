@@ -7,12 +7,9 @@ import {isSpansResponse} from "@/oss/services/tracing/lib/helpers"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
-import {
-    createEntityDraftState,
-    normalizeValueForComparison,
-} from "../shared/createEntityDraftState"
+import {createEntityDraftState, normalizeValueForComparison} from "../shared/createEntityDraftState"
 
-import {traceSpanSchema, type TraceSpan, type TraceSpanNode} from "./schema"
+import {traceSpanSchema, type TraceSpan} from "./schema"
 import {extractAgData, extractInputs, extractOutputs} from "./selectors"
 
 /**
@@ -350,10 +347,7 @@ const findSpanInTree = (node: unknown, spanId: string): unknown | undefined => {
  * Convert playground ExecutionNode to TraceSpan format
  * This allows us to use playground data directly without re-fetching
  */
-const executionNodeToTraceSpan = (
-    node: any,
-    spanId: string,
-): TraceSpan | undefined => {
+const executionNodeToTraceSpan = (node: any, spanId: string): TraceSpan | undefined => {
     if (!node || !node.data) return undefined
 
     try {
@@ -386,11 +380,7 @@ const findSpanInCache = (
     spanId: string,
 ): TraceSpan | undefined => {
     // Check all potentially relevant TanStack Query caches
-    const cacheKeys = [
-        ["traces-list"],
-        ["trace-drawer"],
-        ["trace-entity"],
-    ]
+    const cacheKeys = [["traces-list"], ["trace-drawer"], ["trace-entity"]]
 
     for (const keyPrefix of cacheKeys) {
         const queries = queryClient.getQueriesData({queryKey: keyPrefix})

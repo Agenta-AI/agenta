@@ -265,7 +265,9 @@ function EntityDualViewEditorInner<TEntity>({
                     onPathChange={onPathChange}
                 />
             ) : (
-                <div className={`px-4 ${isDirty ? "[&_.agenta-shared-editor]:border-blue-400" : ""}`}>
+                <div
+                    className={`px-4 ${isDirty ? "[&_.agenta-shared-editor]:border-blue-400" : ""}`}
+                >
                     <JsonEditorWithLocalState
                         editorKey={`entity-${entityId}-json`}
                         initialValue={jsonValue}
@@ -278,4 +280,6 @@ function EntityDualViewEditorInner<TEntity>({
     )
 }
 
-export const EntityDualViewEditor = memo(EntityDualViewEditorInner) as typeof EntityDualViewEditorInner
+export const EntityDualViewEditor = memo(
+    EntityDualViewEditorInner,
+) as typeof EntityDualViewEditorInner

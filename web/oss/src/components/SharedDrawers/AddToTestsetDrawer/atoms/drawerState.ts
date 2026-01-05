@@ -6,7 +6,6 @@ import {
     extractAgData,
     filterDataPaths,
     matchColumnsWithSuggestions,
-    spanToTraceData,
     traceSpan,
     type TraceSpan,
 } from "@/oss/state/entities/trace"

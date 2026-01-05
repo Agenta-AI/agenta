@@ -30,7 +30,6 @@ export interface DisplayRowRef {
     [key: string]: unknown
 }
 
-
 /**
  * Derived atom: get display row references for the table
  * Returns only IDs/metadata - NOT full data
@@ -140,4 +139,3 @@ export const isRowDirtyAtomFamily = atomFamily((id: string) =>
         return get(testcaseHasDraftAtomFamily(id))
     }),
 )
-

@@ -51,11 +51,10 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
-// Note: QueryResult type is used by revisionWithTestcasesQueryResultAtomFamily
 import type {QueryResult} from "../shared"
-
 import {
     addColumnAtom,
     clearPendingAddedColumnsAtom,
@@ -75,6 +74,7 @@ import {
     renameColumnAtom,
     resetColumnsAtom,
 } from "../testcase/columnState"
+
 import {hasUnsavedChangesAtom, changesSummaryAtom, type ChangesSummary} from "./dirtyState"
 import {
     clearRevisionDraftAtom,
@@ -116,14 +116,6 @@ const SYSTEM_FIELDS = new Set([
 // REVISION WITH TESTCASES QUERY
 // Fetches revision with testcases included (for column derivation)
 // ============================================================================
-
-/**
- * Check if a string is a valid UUID
- */
-const isValidUUID = (id: string): boolean => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    return uuidRegex.test(id)
-}
 
 /**
  * Query atom family for fetching a revision WITH testcases included.
@@ -303,7 +295,12 @@ export type RevisionAction =
     | {type: "updateMetadata"; changes: Partial<Revision>}
     | {type: "addColumn"; name: string}
     | {type: "deleteColumn"; key: string}
-    | {type: "renameColumn"; oldName: string; newName: string; rowDataMap?: Map<string, Record<string, unknown>>}
+    | {
+          type: "renameColumn"
+          oldName: string
+          newName: string
+          rowDataMap?: Map<string, Record<string, unknown>>
+      }
     | {type: "discardDraft"}
     | {type: "resetColumns"}
 
@@ -456,9 +453,7 @@ const isDirtySelector = atomFamily((revisionId: string) =>
 /**
  * Selector: current columns
  */
-const columnsSelector = atomFamily((_revisionId: string) =>
-    atom((get) => get(currentColumnsAtom)),
-)
+const columnsSelector = atomFamily((_revisionId: string) => atom((get) => get(currentColumnsAtom)))
 
 /**
  * Selector: expanded columns (with object sub-columns)

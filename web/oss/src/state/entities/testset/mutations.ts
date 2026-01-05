@@ -1,9 +1,6 @@
 import {atom} from "jotai"
 
-import {
-    patchTestsetRevision,
-    type TestsetRevisionPatchOperations,
-} from "@/oss/services/testsets/api"
+import {patchTestsetRevision, type TestsetRevisionDelta} from "@/oss/services/testsets/api"
 
 import {
     clearPendingAddedColumnsAtom,
@@ -103,7 +100,12 @@ export const saveTestsetAtom = atom(
         const testsetName = revisionData?.name ?? variant?.name ?? ""
 
         if (!testsetName.trim()) {
-            console.error("[saveTestsetAtom] Testset name is empty! revisionData:", revisionData, "variant:", variant)
+            console.error(
+                "[saveTestsetAtom] Testset name is empty! revisionData:",
+                revisionData,
+                "variant:",
+                variant,
+            )
             return {success: false, error: new Error("Testset name is required")}
         }
 
@@ -118,7 +120,7 @@ export const saveTestsetAtom = atom(
             // not via the commit flow. See updateTestsetMetadata API.
 
             // Build patch operations from local changes
-            const operations: TestsetRevisionPatchOperations = {}
+            const operations: TestsetRevisionDelta = {}
             const currentColumnKeys = new Set(columns.map((c) => c.key))
 
             // Get pending column operations
@@ -131,8 +133,8 @@ export const saveTestsetAtom = atom(
                 operations.columns = {}
 
                 if (pendingRenames.size > 0) {
-                    operations.columns.rename = Array.from(pendingRenames.entries()).map(
-                        ([oldName, newName]) => ({old_name: oldName, new_name: newName}),
+                    operations.columns.replace = Array.from(pendingRenames.entries()).map(
+                        ([oldName, newName]) => [oldName, newName],
                     )
                 }
 
@@ -141,7 +143,7 @@ export const saveTestsetAtom = atom(
                 }
 
                 if (pendingDeleted.size > 0) {
-                    operations.columns.delete = Array.from(pendingDeleted)
+                    operations.columns.remove = Array.from(pendingDeleted)
                 }
             }
 
@@ -172,7 +174,10 @@ export const saveTestsetAtom = atom(
                 .filter(Boolean) as {id: string; data: Record<string, unknown>}[]
 
             if (updatedTestcases.length > 0) {
-                operations.update = updatedTestcases
+                operations.rows = {
+                    ...(operations.rows || {}),
+                    replace: updatedTestcases,
+                }
             }
 
             // 2. Collect new testcases (from newEntityIdsAtom)
@@ -194,24 +199,30 @@ export const saveTestsetAtom = atom(
                 .filter(Boolean) as {data: Record<string, unknown>}[]
 
             if (newTestcasesData.length > 0) {
-                operations.create = newTestcasesData
+                operations.rows = {
+                    ...(operations.rows || {}),
+                    add: newTestcasesData,
+                }
             }
 
             // 3. Collect deleted testcase IDs
             const deletedIdsArray = Array.from(deletedIds)
             if (deletedIdsArray.length > 0) {
-                operations.delete = deletedIdsArray
+                operations.rows = {
+                    ...(operations.rows || {}),
+                    remove: deletedIdsArray,
+                }
             }
 
             // Check if there are any operations to apply
             const hasColumnOperations =
-                (operations.columns?.rename?.length ?? 0) > 0 ||
+                (operations.columns?.replace?.length ?? 0) > 0 ||
                 (operations.columns?.add?.length ?? 0) > 0 ||
-                (operations.columns?.delete?.length ?? 0) > 0
+                (operations.columns?.remove?.length ?? 0) > 0
             const hasTestcaseOperations =
-                (operations.update?.length ?? 0) > 0 ||
-                (operations.create?.length ?? 0) > 0 ||
-                (operations.delete?.length ?? 0) > 0
+                (operations.rows?.replace?.length ?? 0) > 0 ||
+                (operations.rows?.add?.length ?? 0) > 0 ||
+                (operations.rows?.remove?.length ?? 0) > 0
 
             if (!hasColumnOperations && !hasTestcaseOperations) {
                 return {success: true, newRevisionId: revisionId || undefined}

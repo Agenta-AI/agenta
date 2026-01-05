@@ -1,5 +1,6 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {validateUUID} from "@/oss/lib/helpers/validators"
 import {Testset, PreviewTestset} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
@@ -171,7 +172,7 @@ export async function cloneTestset(sourceTestsetId: string, newName: string) {
     const baseSlug = newName.toLowerCase().replace(/\s+/g, "_")
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/testsets?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/preview/simple/testsets/?project_id=${projectId}`,
         {
             testset: {
                 slug: baseSlug,
@@ -248,6 +249,7 @@ export const uploadTestsets = async (formData: FormData) => {
 /**
  * Upload a testset file using the preview API (multipart file upload)
  * Sends the file to the backend for server-side parsing
+ * Creates a NEW testset
  */
 export const uploadTestsetPreview = async (
     file: File,
@@ -265,6 +267,39 @@ export const uploadTestsetPreview = async (
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/simple/testsets/upload?project_id=${projectId}`,
+        formData,
+        {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        },
+    )
+
+    return response
+}
+
+/**
+ * Upload a file to an EXISTING testset as a new revision
+ * Sends the file to the backend for server-side parsing
+ * Creates a new revision for the specified testset
+ */
+export const uploadTestsetRevisionPreview = async (
+    testsetId: string,
+    file: File,
+    fileType: "csv" | "json",
+    testsetName?: string,
+) => {
+    const {projectId} = getProjectValues()
+
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("file_type", fileType)
+    if (testsetName) {
+        formData.append("testset_name", testsetName)
+    }
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/simple/testsets/${testsetId}/upload?project_id=${projectId}`,
         formData,
         {
             headers: {
@@ -350,27 +385,32 @@ export async function commitTestsetRevision(
  * Column-level operations for testset revision
  * These operations are applied to ALL testcases in the revision
  */
-export interface TestsetColumnOperations {
-    /** Rename columns: array of {old_name, new_name} */
-    rename?: {old_name: string; new_name: string}[]
-    /** Add columns: array of column names to add (initialized to empty string) */
+export interface TestsetRevisionDeltaColumns {
+    /** Add columns: array of column names to add */
     add?: string[]
-    /** Delete columns: array of column names to remove */
-    delete?: string[]
+    /** Remove columns: array of column names to remove */
+    remove?: string[]
+    /** Replace columns: array of [old column name, new column name] to replace */
+    replace?: [string, string][]
+}
+
+export interface TestsetRevisionDeltaRows {
+    /** Add rows: array of testcases to add */
+    add?: {data: Record<string, unknown>}[]
+    /** Remove rows: array of testcase IDs to remove */
+    remove?: string[]
+    /** Replace rows: array of testcases to replace */
+    replace?: {id: string; data: Record<string, unknown>}[]
 }
 
 /**
  * Patch operations for testset revision
  */
-export interface TestsetRevisionPatchOperations {
-    /** Testcases to update (existing testcases with modified data) */
-    update?: {id: string; data: Record<string, unknown>}[]
-    /** New testcases to create */
-    create?: {data: Record<string, unknown>}[]
-    /** Testcase IDs to delete */
-    delete?: string[]
-    /** Column-level operations (applied to ALL testcases) */
-    columns?: TestsetColumnOperations
+export interface TestsetRevisionDelta {
+    /** Row-level operations */
+    rows?: TestsetRevisionDeltaRows
+    /** Column-level operations */
+    columns?: TestsetRevisionDeltaColumns
 }
 
 /**
@@ -383,7 +423,7 @@ export interface TestsetRevisionPatchOperations {
  */
 export async function patchTestsetRevision(
     testsetId: string,
-    operations: TestsetRevisionPatchOperations,
+    operations: TestsetRevisionDelta,
     message?: string,
     baseRevisionId?: string,
     description?: string,
@@ -392,25 +432,29 @@ export async function patchTestsetRevision(
     const {projectId} = getProjectValues()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/patch?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/preview/testsets/revisions/commit?project_id=${projectId}`,
         {
-            testset_revision_patch: {
+            testset_revision_commit: {
                 testset_id: testsetId,
-                base_revision_id: baseRevisionId,
+                revision_id: baseRevisionId,
                 message: message || null,
                 name,
                 description,
-                operations: {
-                    update: operations.update?.map((tc) => ({
-                        id: tc.id,
-                        data: tc.data,
-                        set_id: testsetId,
-                    })),
-                    create: operations.create?.map((tc) => ({
-                        data: tc.data,
-                        set_id: testsetId,
-                    })),
-                    delete: operations.delete,
+                delta: {
+                    rows: operations.rows
+                        ? {
+                              replace: operations.rows.replace?.map((tc) => ({
+                                  id: tc.id,
+                                  data: tc.data,
+                                  set_id: testsetId,
+                              })),
+                              add: operations.rows.add?.map((tc) => ({
+                                  data: tc.data,
+                                  set_id: testsetId,
+                              })),
+                              remove: operations.rows.remove,
+                          }
+                        : undefined,
                     // Column operations are applied to ALL testcases by the backend
                     columns: operations.columns,
                 },
@@ -427,6 +471,9 @@ export async function patchTestsetRevision(
  * @returns The archived revision data
  */
 export async function archiveTestsetRevision(revisionId: string) {
+    // Validate UUID to prevent SSRF attacks
+    validateUUID(revisionId, "revisionId")
+
     const {projectId} = getProjectValues()
 
     const response = await axios.post(
@@ -510,6 +557,9 @@ export async function downloadRevision(
     fileType: ExportFileType = "csv",
     filename?: string,
 ) {
+    // Validate UUID to prevent SSRF attacks
+    validateUUID(revisionId, "revisionId")
+
     const {projectId} = getProjectValues()
 
     const response = await axios.post(

@@ -150,7 +150,7 @@ class TestcasesRouter:
                 # Revision not found or has no testcases
                 return TestcasesResponse()
 
-        testcases = await self.testcases_service.fetch_testcases(
+        testcases = await self.testcases_service.query_testcases(
             project_id=UUID(request.state.project_id),
             #
             testcase_ids=testcase_ids,
@@ -162,8 +162,9 @@ class TestcasesRouter:
 
         next_windowing = compute_next_windowing(
             entities=testcases,
-            attribute="id",  # UUID7 - use id for cursor-based pagination
+            attribute="created_at",  # Testcase IDs are content-hashed (UUID5), use timestamp
             windowing=testcases_query_request.windowing,
+            order="ascending",  # Must match order used in BlobsDAO.query_blobs
         )
 
         testcase_response = TestcasesResponse(

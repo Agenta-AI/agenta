@@ -398,12 +398,13 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             if (typeof rawX === "number" || typeof rawX === "string") {
                 return rawX
             }
-            // Use the larger of computedScrollX or scrollX (container width)
-            // This ensures columns fill available space when total < container
-            // and enables horizontal scroll when total > container
             const computed =
                 Number.isFinite(computedScrollX) && computedScrollX > 0 ? computedScrollX : 0
             const container = scrollX > 0 ? scrollX : 0
+
+            // Always use the larger of computed or container width
+            // The sum constraint is enforced in computeSmartWidths,
+            // so computed should always >= container
             const maxWidth = Math.max(computed, container)
             return maxWidth > 0 ? maxWidth : undefined
         })()

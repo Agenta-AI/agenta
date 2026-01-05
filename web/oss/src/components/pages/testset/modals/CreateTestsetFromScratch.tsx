@@ -10,9 +10,8 @@ import {message} from "@/oss/components/AppMessageContext"
 import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import useURL from "@/oss/hooks/useURL"
 import {JSSTheme, KeyValuePair, TestsetCreationMode} from "@/oss/lib/Types"
-import type {TestsetTableRow} from "@/oss/state/entities/testset"
 import {cloneTestset, renameTestset} from "@/oss/services/testsets/api"
-import {invalidateTestsetsListCache} from "@/oss/state/entities/testset"
+import {invalidateTestsetsListCache, type TestsetTableRow} from "@/oss/state/entities/testset"
 
 const {Text} = Typography
 

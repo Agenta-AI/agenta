@@ -6,6 +6,7 @@ import {useRouter} from "next/router"
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import useURL from "@/oss/hooks/useURL"
+import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {
     currentRevisionIdAtom,
@@ -15,6 +16,7 @@ import {
 import {NEW_TESTSET_ID, testset} from "@/oss/state/entities/testset"
 
 import {setDebouncedSearchTermAtom, testcasesSearchTermAtom} from "./atoms/tableStore"
+import {ImportTestsetRevisionModal} from "./components/ImportTestsetRevisionModal"
 import {TestcaseActions} from "./components/TestcaseActions"
 import TestcaseEditDrawer from "./components/TestcaseEditDrawer"
 import {TestcaseHeader} from "./components/TestcaseHeader"
@@ -55,8 +57,18 @@ export interface TestcasesTableNewProps {
  */
 export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const router = useRouter()
-    const {testset_id: revisionIdParam} = router.query
     const {projectURL} = useURL()
+
+    // Normalize and validate revisionIdParam from URL
+    // Only allow "new" (special case) or valid UUIDs to prevent SSRF
+    const revisionIdParam = useMemo(() => {
+        const rawParam = router.query.testset_id
+        const param = Array.isArray(rawParam) ? rawParam[0] : rawParam
+        if (!param) return undefined
+        if (param === "new") return "new"
+        if (isValidUUID(param)) return param
+        return undefined // Invalid ID - treat as not provided
+    }, [router.query.testset_id])
 
     // Check if this is a new testset (not yet saved)
     const isNewTestset = revisionIdParam === "new"
@@ -78,6 +90,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false)
     const [isCommitModalOpen, setIsCommitModalOpen] = useState(false)
     const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false)
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false)
     const [isIdCopied, setIsIdCopied] = useState(false)
     const [isRevisionSlugCopied, setIsRevisionSlugCopied] = useState(false)
 
@@ -227,6 +240,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         onAddTestcase={actions.handleAddTestcase}
                         onDiscard={actions.handleDiscardChanges}
                         onCommit={() => setIsCommitModalOpen(true)}
+                        onImportCSV={() => setIsImportModalOpen(true)}
                         isNewTestset={isNewTestset}
                     />
                 }
@@ -272,6 +286,18 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 onAddColumn={(name) => {
                     actions.handleAddColumn(name, () => setIsAddColumnModalOpen(false))
                 }}
+            />
+
+            <ImportTestsetRevisionModal
+                open={isImportModalOpen}
+                onCancel={() => setIsImportModalOpen(false)}
+                onSuccess={(newRevisionId) => {
+                    setIsImportModalOpen(false)
+                    // Navigate to the new revision
+                    router.push(`${projectURL}/testsets/${newRevisionId}`)
+                }}
+                testsetId={metadata?.testsetId ?? ""}
+                testsetName={metadata?.testsetName ?? "Testset"}
             />
         </div>
     )

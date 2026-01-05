@@ -97,10 +97,7 @@ export function MappingSection({
                 <>
                     <div className="flex flex-col gap-2">
                         {mappingData.map((mapping, idx) => (
-                            <div
-                                key={mapping.id}
-                                className="flex gap-2 items-center"
-                            >
+                            <div key={mapping.id} className="flex gap-2 items-center">
                                 {/* Inputs container - takes remaining space */}
                                 <div className="flex-1 flex gap-2 items-center min-w-0">
                                     <AutoComplete

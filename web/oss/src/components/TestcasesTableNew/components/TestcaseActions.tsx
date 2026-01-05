@@ -1,5 +1,5 @@
-import {PlusOutlined} from "@ant-design/icons"
-import {Button, Space} from "antd"
+import {PlusOutlined, UploadOutlined} from "@ant-design/icons"
+import {Button, Space, Tooltip} from "antd"
 
 /**
  * Props for TestcaseActions component
@@ -11,6 +11,7 @@ export interface TestcaseActionsProps {
     onAddTestcase: () => void
     onDiscard: () => void
     onCommit: () => void
+    onImportCSV: () => void
     /** Whether this is a new testset (disables discard since there's no server state) */
     isNewTestset?: boolean
 }
@@ -20,6 +21,7 @@ export interface TestcaseActionsProps {
  *
  * Displays:
  * - Discard button (when there are unsaved changes and not a new testset)
+ * - Import CSV button
  * - Add Row button
  * - Commit button (primary, enabled when there are changes)
  *
@@ -35,6 +37,7 @@ export function TestcaseActions(props: TestcaseActionsProps) {
         onAddTestcase,
         onDiscard,
         onCommit,
+        onImportCSV,
         isNewTestset = false,
     } = props
 
@@ -45,6 +48,15 @@ export function TestcaseActions(props: TestcaseActionsProps) {
                     Discard
                 </Button>
             )}
+            <Tooltip title="Import CSV/JSON file as new revision">
+                <Button
+                    onClick={onImportCSV}
+                    icon={<UploadOutlined />}
+                    disabled={mode === "view" || isNewTestset}
+                >
+                    Import
+                </Button>
+            </Tooltip>
             <Button onClick={onAddTestcase} icon={<PlusOutlined />} disabled={mode === "view"}>
                 Row
             </Button>
