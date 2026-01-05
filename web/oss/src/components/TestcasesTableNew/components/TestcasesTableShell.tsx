@@ -465,7 +465,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                         <ColumnVisibilityMenuTrigger variant="icon" />
                     </div>
                 ),
-                key: "actions",
+                key: "__ui_actions__", // Use reserved key to avoid conflict with user data columns
                 width: 56,
                 fixed: "right",
                 align: "center",
