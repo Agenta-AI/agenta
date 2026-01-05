@@ -5,22 +5,22 @@ import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {appTypeAtom} from "@/oss/components/Playground/state/atoms/app"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {clearAllRunsMutationAtom} from "@/oss/components/Playground/state/atoms/utilityMutations"
 import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import RunButton from "../../../../assets/RunButton"
 import {usePlaygroundAtoms} from "../../../../hooks/usePlaygroundAtoms"
 import {generationHeaderDataAtomFamily, triggerWebWorkerTestAtom} from "../../../../state/atoms"
 
+import {allGenerationsCollapsedAtom} from "./store"
 import {useStyles} from "./styles"
 import TestSetMenu from "./TestSetMenu"
 import type {GenerationHeaderProps} from "./types"
 
 // Global atom to track collapse state for all generations
-import {allGenerationsCollapsedAtom} from "./store"
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const classes = useStyles()

@@ -5,11 +5,11 @@ import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {inputRowIdsWithPropertiesCompatAtom} from "@/oss/state/generation/compat"
 import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 import {triggerWebWorkerTestAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
 
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import RunButton from "../../../assets/RunButton"
 import {
     appChatModeAtom,
