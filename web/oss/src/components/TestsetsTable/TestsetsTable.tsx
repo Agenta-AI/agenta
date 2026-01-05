@@ -489,10 +489,15 @@ const TestsetsTable = ({
                         if (isRevision) {
                             const version = (record as any).__version
                             return (
-                                <div className="flex items-center gap-2 pl-6">
-                                    <span>{record.name}</span>
+                                <div className="flex items-center gap-2 pl-6 min-w-0">
+                                    <span className="truncate" title={record.name}>
+                                        {record.name}
+                                    </span>
                                     {version !== null && version !== undefined && (
-                                        <Tag className="bg-[rgba(5,23,41,0.06)]" variant="filled">
+                                        <Tag
+                                            className="bg-[rgba(5,23,41,0.06)] shrink-0"
+                                            variant="filled"
+                                        >
                                             v{version}
                                         </Tag>
                                     )}
@@ -502,10 +507,10 @@ const TestsetsTable = ({
 
                         // Testset rows (parent) - show expand icon
                         return (
-                            <div className="flex items-center gap-2 h-full">
+                            <div className="flex items-center gap-2 h-full min-w-0">
                                 {!isSkeleton && (
                                     <span
-                                        className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors"
+                                        className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors shrink-0"
                                         onClick={(e) => {
                                             e.stopPropagation()
                                             handleExpand(!isExpanded, record)
@@ -520,7 +525,9 @@ const TestsetsTable = ({
                                         )}
                                     </span>
                                 )}
-                                <span>{record.name}</span>
+                                <span className="truncate" title={record.name}>
+                                    {record.name}
+                                </span>
                             </div>
                         )
                     },

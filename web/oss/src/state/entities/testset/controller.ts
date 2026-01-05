@@ -53,7 +53,6 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
-// Note: QueryResult type is used by revisionWithTestcasesQueryResultAtomFamily
 import type {QueryResult} from "../shared"
 import {
     addColumnAtom,

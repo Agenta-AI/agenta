@@ -9,7 +9,7 @@ import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
 import {createEntityDraftState, normalizeValueForComparison} from "../shared/createEntityDraftState"
 
-import {traceSpanSchema, type TraceSpan, type TraceSpanNode} from "./schema"
+import {traceSpanSchema, type TraceSpan} from "./schema"
 import {extractAgData, extractInputs, extractOutputs} from "./selectors"
 
 /**

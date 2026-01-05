@@ -64,7 +64,6 @@ const TestcaseEditDrawerContent = forwardRef<
     useImperativeHandle(ref, () => ({handleSave}), [handleSave])
 
     // We know testcase entity has drillIn configured, but TypeScript can't infer this
-
     const entityWithDrillIn = testcase as any
 
     return (

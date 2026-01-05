@@ -87,6 +87,7 @@ import {
 import type {
     InfiniteTableFetchResult,
     InfiniteTableRowBase,
+    WindowingState,
 } from "@/oss/components/InfiniteVirtualTable/types"
 
 // ============================================================================
@@ -101,6 +102,7 @@ export interface PaginatedFetchParams<TMeta extends BaseTableMeta> {
     limit: number
     offset: number
     cursor: string | null
+    windowing: WindowingState | null
 }
 
 /**

@@ -1,9 +1,8 @@
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchTestsetsWindow} from "@/oss/components/TestsetsTable/atoms/fetchTestsets"
-import {revisionsListQueryAtomFamily, type RevisionListItem} from "@/oss/state/entities/testset"
+import {revisionsListQueryAtomFamily} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project"
 import {
     selectedTestsetIdAtom as sharedSelectedTestsetIdAtom,

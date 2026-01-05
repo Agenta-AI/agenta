@@ -11,8 +11,7 @@ import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/t
 import useURL from "@/oss/hooks/useURL"
 import {JSSTheme, KeyValuePair, TestsetCreationMode} from "@/oss/lib/Types"
 import {cloneTestset, renameTestset} from "@/oss/services/testsets/api"
-import type {TestsetTableRow} from "@/oss/state/entities/testset"
-import {invalidateTestsetsListCache} from "@/oss/state/entities/testset"
+import {invalidateTestsetsListCache, type TestsetTableRow} from "@/oss/state/entities/testset"
 
 const {Text} = Typography
 

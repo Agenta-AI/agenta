@@ -30,6 +30,7 @@ import type {BaseTableMeta} from "@/oss/components/InfiniteVirtualTable/helpers/
 import type {
     InfiniteTableFetchResult,
     InfiniteTableRowBase,
+    WindowingState,
 } from "@/oss/components/InfiniteVirtualTable/types"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
@@ -183,12 +184,13 @@ const excludedTestcaseIdsAtom = atom((get) => get(deletedEntityIdsAtom))
 async function fetchTestcasesPage({
     meta,
     limit,
-    cursor,
+    windowing,
 }: {
     meta: TestcasePaginatedMeta
     limit: number
     offset: number
     cursor: string | null
+    windowing: WindowingState | null
 }): Promise<InfiniteTableFetchResult<TestcaseTableRow>> {
     // Skip fetch if no project/revision or if "create" mode
     if (!meta.projectId || !meta.revisionId || meta.revisionId === "create") {
@@ -216,14 +218,21 @@ async function fetchTestcasesPage({
     }
 
     try {
+        // Build windowing payload - use full windowing object for time-based pagination
+        const windowingPayload: Record<string, unknown> = {limit}
+        if (windowing) {
+            // Pass oldest/newest for time-based cursor pagination
+            if (windowing.oldest) windowingPayload.oldest = windowing.oldest
+            if (windowing.newest) windowingPayload.newest = windowing.newest
+            if (windowing.next) windowingPayload.next = windowing.next
+            if (windowing.order) windowingPayload.order = windowing.order
+        }
+
         const response = await axios.post(
             `${getAgentaApiUrl()}/preview/testcases/query`,
             {
                 testset_revision_id: meta.revisionId,
-                windowing: {
-                    limit,
-                    ...(cursor && {next: cursor}),
-                },
+                windowing: windowingPayload,
             },
             {params: {project_id: meta.projectId}},
         )
@@ -252,13 +261,25 @@ async function fetchTestcasesPage({
             )
         }
 
+        // Build nextWindowing from response for proper cursor-based pagination
+        const responseWindowing = validated.windowing
+        const nextWindowing: WindowingState | null = responseWindowing?.next
+            ? {
+                  next: responseWindowing.next,
+                  oldest: responseWindowing.oldest ?? null,
+                  newest: responseWindowing.newest ?? null,
+                  order: responseWindowing.order ?? null,
+                  limit: responseWindowing.limit ?? null,
+              }
+            : null
+
         return {
             rows,
             totalCount: meta.searchTerm ? rows.length : validated.count,
-            hasMore: Boolean(validated.windowing?.next),
+            hasMore: Boolean(responseWindowing?.next),
             nextOffset: rows.length,
-            nextCursor: validated.windowing?.next || null,
-            nextWindowing: null,
+            nextCursor: responseWindowing?.next || null,
+            nextWindowing,
         }
     } catch (error) {
         console.error("[TestcasePaginatedStore] Failed to fetch testcases:", error)

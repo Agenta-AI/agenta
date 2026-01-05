@@ -2,7 +2,7 @@ import {useCallback} from "react"
 
 import {useAtomValue, useSetAtom} from "jotai"
 
-import type {EntityAPI, EntityDrillIn, PathItem} from "@/oss/state/entities/shared"
+import type {EntityAPI, EntityDrillIn} from "@/oss/state/entities/shared"
 
 import {DrillInContent} from "./DrillInContent"
 import type {DrillInContentProps} from "./DrillInContent"

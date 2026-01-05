@@ -12,7 +12,6 @@ import {
     saveTestsetAtom,
     testcase,
     testsetIdAtom,
-    testsetMetadataAtom,
     type FlattenedTestcase,
 } from "@/oss/state/entities/testcase"
 import {changesSummaryAtom, hasUnsavedChangesAtom, revision} from "@/oss/state/entities/testset"

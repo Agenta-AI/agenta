@@ -218,7 +218,9 @@ def _normalize_testcase_dedup_ids(testcases_data: List[Dict[str, Any]]) -> None:
             testcase_data["testcase_dedup_id"] = legacy_dedup_id
 
 
-def _normalize_testcase_dedup_ids_in_request(testcases: Optional[List[Testcase]]) -> None:
+def _normalize_testcase_dedup_ids_in_request(
+    testcases: Optional[List[Testcase]],
+) -> None:
     """Normalize CSV-style dedup keys in JSON body requests."""
     for testcase in testcases or []:
         testcase_data = testcase.data
@@ -1247,7 +1249,6 @@ class TestsetsRouter:
         )
 
         return testset_revision_response
-
 
     async def log_testset_revisions(
         self,
