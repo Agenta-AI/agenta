@@ -32,9 +32,6 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
-        ports:
-            - "3000:3000"
-
         restart: always
 
         networks:
