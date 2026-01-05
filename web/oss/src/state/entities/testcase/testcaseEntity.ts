@@ -5,6 +5,7 @@ import {get} from "lodash"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
@@ -114,14 +115,6 @@ interface TestcaseRequest {
     queryClient?: import("@tanstack/react-query").QueryClient
     /** Optional: revisionId for scoped cache lookup */
     revisionId?: string
-}
-
-/**
- * Check if a string is a valid UUID (new rows have temp IDs like "new-row-xxx")
- */
-const isValidUUID = (id: string): boolean => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    return uuidRegex.test(id)
 }
 
 /**

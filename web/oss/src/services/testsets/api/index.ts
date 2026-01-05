@@ -1,25 +1,10 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {validateUUID} from "@/oss/lib/helpers/validators"
 import {Testset, PreviewTestset} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
 import {PreviewTestsetsQueryPayload} from "./types"
-
-/**
- * UUID validation regex - validates standard UUID format
- * Used to prevent SSRF by ensuring IDs are valid UUIDs before using in URLs
- */
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function isValidUUID(id: string): boolean {
-    return UUID_REGEX.test(id)
-}
-
-function validateUUID(id: string, paramName: string): void {
-    if (!isValidUUID(id)) {
-        throw new Error(`Invalid ${paramName}: must be a valid UUID`)
-    }
-}
 
 //Prefix convention:
 //  - fetch: GET single entity from server
