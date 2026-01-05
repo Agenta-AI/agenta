@@ -248,6 +248,7 @@ export const uploadTestsets = async (formData: FormData) => {
 /**
  * Upload a testset file using the preview API (multipart file upload)
  * Sends the file to the backend for server-side parsing
+ * Creates a NEW testset
  */
 export const uploadTestsetPreview = async (
     file: File,
@@ -265,6 +266,39 @@ export const uploadTestsetPreview = async (
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/simple/testsets/upload?project_id=${projectId}`,
+        formData,
+        {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        },
+    )
+
+    return response
+}
+
+/**
+ * Upload a file to an EXISTING testset as a new revision
+ * Sends the file to the backend for server-side parsing
+ * Creates a new revision for the specified testset
+ */
+export const uploadTestsetRevisionPreview = async (
+    testsetId: string,
+    file: File,
+    fileType: "csv" | "json",
+    testsetName?: string,
+) => {
+    const {projectId} = getProjectValues()
+
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("file_type", fileType)
+    if (testsetName) {
+        formData.append("testset_name", testsetName)
+    }
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/simple/testsets/${testsetId}/upload?project_id=${projectId}`,
         formData,
         {
             headers: {
