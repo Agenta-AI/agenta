@@ -138,6 +138,48 @@ export const runTestsetIdsAtomFamily = atomFamily((runId: string | null) =>
     ),
 )
 
+export interface TestsetRevisionRef {
+    testsetId: string
+    revisionId: string | null
+}
+
+const shallowTestsetRefsEqual = (
+    a: TestsetRevisionRef[] | null,
+    b: TestsetRevisionRef[] | null,
+) => {
+    if (a === b) return true
+    if (!a || !b) return false
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i += 1) {
+        if (a[i].testsetId !== b[i].testsetId || a[i].revisionId !== b[i].revisionId) return false
+    }
+    return true
+}
+
+export const runTestsetRefsAtomFamily = atomFamily((runId: string | null) =>
+    selectAtom(
+        evaluationRunQueryAtomFamily(runId),
+        (query): TestsetRevisionRef[] => {
+            const runIndex = query.data?.runIndex
+            if (!runIndex) return []
+            const inputKeys = Array.from(runIndex.inputKeys ?? [])
+            const seen = new Set<string>()
+            const refs: TestsetRevisionRef[] = []
+            for (const key of inputKeys) {
+                const stepRefs = runIndex.steps?.[key]?.refs
+                const testsetId = stepRefs?.testset?.id
+                if (!testsetId || seen.has(testsetId)) continue
+                seen.add(testsetId)
+                const revisionId =
+                    stepRefs?.testset_revision?.id ?? stepRefs?.testsetRevision?.id ?? null
+                refs.push({testsetId, revisionId})
+            }
+            return refs
+        },
+        shallowTestsetRefsEqual,
+    ),
+)
+
 interface RunFlags {
     isLive?: boolean
     isClosed?: boolean

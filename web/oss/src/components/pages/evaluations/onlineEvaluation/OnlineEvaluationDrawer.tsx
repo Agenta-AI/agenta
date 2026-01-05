@@ -86,6 +86,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
         baseEvaluators,
     })
 
+    // Auto-generate name when evaluator is selected
     useEffect(() => {
         if (!selectedEvaluatorId) return
         const selectedOption = evaluatorOptions.find(
@@ -96,13 +97,31 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 ? matchedPreviewEvaluator
                 : selectedEvaluatorConfig
 
+        // Generate automatic name if name field is empty
+        const currentName = form.getFieldValue("name")
+        if (!currentName && selectedOption?.label) {
+            const evaluatorName =
+                typeof selectedOption.label === "string"
+                    ? selectedOption.label
+                    : fullEvaluator?.name || "Evaluation"
+            const randomSuffix = Math.random().toString(36).substring(2, 6)
+            const generatedName = `${evaluatorName}-${randomSuffix}`
+            form.setFieldsValue({name: generatedName})
+        }
+
         console.log("[OnlineEvaluationDrawer] Evaluator selected", {
             evaluatorId: selectedEvaluatorId,
             evaluatorLabel: selectedOption?.label,
             evaluatorOption: selectedOption,
             evaluatorConfig: fullEvaluator,
         })
-    }, [selectedEvaluatorId, evaluatorOptions, matchedPreviewEvaluator, selectedEvaluatorConfig])
+    }, [
+        selectedEvaluatorId,
+        evaluatorOptions,
+        matchedPreviewEvaluator,
+        selectedEvaluatorConfig,
+        form,
+    ])
 
     const evaluatorDetails = useEvaluatorDetails({
         evaluator: matchedPreviewEvaluator as any,

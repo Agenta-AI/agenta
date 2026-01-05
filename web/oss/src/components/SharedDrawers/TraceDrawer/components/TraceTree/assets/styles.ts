@@ -26,7 +26,10 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
     popover: {
         "& .ant-popover-container": {
             width: 200,
-            padding: 0,
+            padding: "0 !important",
+        },
+        "& .ant-popover-inner-content": {
+            padding: "0 !important",
         },
     },
 }))

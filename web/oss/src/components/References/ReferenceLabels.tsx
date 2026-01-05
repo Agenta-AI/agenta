@@ -4,6 +4,8 @@ import {Skeleton, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
+import {latestRevisionForTestsetAtomFamily, revision} from "@/oss/state/entities/testset"
+
 import {
     appReferenceAtomFamily,
     evaluatorReferenceAtomFamily,
@@ -20,10 +22,12 @@ const {Text} = Typography
 /**
  * Generic testset tag that fetches and displays a testset reference.
  * Requires projectId to be passed explicitly for reusability across contexts.
+ * If revisionId is provided, the link will point to the specific revision.
  */
 export const TestsetTag = memo(
     ({
         testsetId,
+        revisionId,
         projectId,
         projectURL,
         toneOverride,
@@ -31,6 +35,7 @@ export const TestsetTag = memo(
         openExternally = false,
     }: {
         testsetId: string
+        revisionId?: string | null
         projectId: string | null
         projectURL?: string | null
         toneOverride?: ReferenceTone | null
@@ -43,6 +48,21 @@ export const TestsetTag = memo(
         )
         const query = useAtomValue(queryAtom)
 
+        // Fetch revision entity to get version number (must be called before any early returns)
+        const revisionDataAtom = useMemo(
+            () => revision.selectors.data(revisionId ?? ""),
+            [revisionId],
+        )
+        const revisionEntity = useAtomValue(revisionDataAtom)
+        const revisionVersion = revisionId ? revisionEntity?.version : null
+
+        // Get latest revision for testset (used when revisionId is not provided)
+        const latestRevisionAtom = useMemo(
+            () => latestRevisionForTestsetAtomFamily(testsetId),
+            [testsetId],
+        )
+        const latestRevision = useAtomValue(latestRevisionAtom)
+
         if ((query.isPending || query.isFetching) && !query.isError) {
             return <Skeleton.Input active size="small" style={{width: 160}} />
         }
@@ -50,9 +70,18 @@ export const TestsetTag = memo(
         const ref = query.data
         // If we have an ID but no name, or query errored, the testset was likely deleted
         const isDeleted = Boolean(query.isError || (ref?.id && !ref?.name))
-        const label = isDeleted ? "Deleted" : (ref?.name ?? ref?.id ?? testsetId)
+        const baseName = ref?.name ?? ref?.id ?? testsetId
+        // Append version to label if available
+        const label = isDeleted
+            ? "Deleted"
+            : revisionVersion != null
+              ? `${baseName} v${revisionVersion}`
+              : baseName
         // Don't show link for deleted testsets
-        const href = isDeleted ? null : projectURL ? `${projectURL}/testsets/${testsetId}` : null
+        // Use revision ID for URL if available, then try latest revision, finally fall back to testset ID
+        // For old evaluations without revision info, we use testset ID which the page should handle
+        const targetId = revisionId ?? latestRevision?.id ?? testsetId
+        const href = isDeleted ? null : projectURL ? `${projectURL}/testsets/${targetId}` : null
 
         return (
             <ReferenceTag
@@ -168,10 +197,12 @@ export const EnvironmentReferenceLabel = memo(
 /**
  * Generic testset tag list that renders multiple testset tags.
  * Requires projectId to be passed explicitly for reusability across contexts.
+ * If revisionMap is provided, it maps testset IDs to revision IDs for direct linking.
  */
 export const TestsetTagList = memo(
     ({
         ids,
+        revisionMap,
         projectId,
         projectURL,
         className,
@@ -180,6 +211,7 @@ export const TestsetTagList = memo(
         openExternally = false,
     }: {
         ids: string[]
+        revisionMap?: Map<string, string | null>
         projectId: string | null
         projectURL?: string | null
         className?: string
@@ -197,6 +229,7 @@ export const TestsetTagList = memo(
                     <TestsetTag
                         key={id}
                         testsetId={id}
+                        revisionId={revisionMap?.get(id)}
                         projectId={projectId}
                         projectURL={projectURL}
                         toneOverride={toneOverride}

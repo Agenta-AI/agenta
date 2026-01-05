@@ -166,7 +166,6 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                 />
 
                 <Popover
-                    overlayClassName={classes.popover}
                     trigger="click"
                     content={
                         <TraceTreeSettings
@@ -175,6 +174,8 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                         />
                     }
                     placement="bottomRight"
+                    classNames={{body: "!p-0 w-[200px]"}}
+                    arrow={false}
                 >
                     <Button icon={<SlidersHorizontal size={14} />} type="text" size="small" />
                 </Popover>

@@ -108,6 +108,7 @@ export const evaluationTestcaseQueryAtomFamily = atomFamily(
                 gcTime: 5 * 60 * 1000,
                 refetchOnWindowFocus: false,
                 refetchOnReconnect: false,
+                structuralSharing: true,
                 queryFn: async () => {
                     if (!batcher) {
                         throw new Error("Testcase batcher is not initialised")

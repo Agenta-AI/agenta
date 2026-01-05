@@ -11,7 +11,7 @@ from oss.src.core.testsets.dtos import (
     TestsetCreate,
     TestsetEdit,
     TestsetQuery,
-    TestsetLog,
+    TestsetRevisionsLog,
     #
     TestsetVariant,
     TestsetVariantCreate,
@@ -23,6 +23,7 @@ from oss.src.core.testsets.dtos import (
     TestsetRevisionCreate,
     TestsetRevisionEdit,
     TestsetRevisionCommit,
+    TestsetRevisionPatch,
     #
     SimpleTestset,
     SimpleTestsetCreate,
@@ -52,10 +53,6 @@ class TestsetQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class TestsetLogRequest(BaseModel):
-    testset: TestsetLog
-
-
 class TestsetResponse(BaseModel):
     count: int = 0
     testset: Optional[Testset] = None
@@ -64,6 +61,7 @@ class TestsetResponse(BaseModel):
 class TestsetsResponse(BaseModel):
     count: int = 0
     testsets: List[Testset] = []
+    windowing: Optional[Windowing] = None
 
 
 # TESTSET VARIANTS -------------------------------------------------------------
@@ -103,10 +101,12 @@ class TestsetVariantsResponse(BaseModel):
 
 class TestsetRevisionCreateRequest(BaseModel):
     testset_revision: TestsetRevisionCreate
+    include_testcases: Optional[bool] = None
 
 
 class TestsetRevisionEditRequest(BaseModel):
     testset_revision: TestsetRevisionEdit
+    include_testcases: Optional[bool] = None
 
 
 class TestsetRevisionQueryRequest(BaseModel):
@@ -117,18 +117,30 @@ class TestsetRevisionQueryRequest(BaseModel):
     testset_revision_refs: Optional[List[Reference]] = None
     #
     include_archived: Optional[bool] = None
+    include_testcases: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
 
 
 class TestsetRevisionCommitRequest(BaseModel):
     testset_revision_commit: TestsetRevisionCommit
+    include_testcases: Optional[bool] = None
+
+
+class TestsetRevisionPatchRequest(BaseModel):
+    testset_revision_patch: TestsetRevisionPatch
 
 
 class TestsetRevisionRetrieveRequest(BaseModel):
     testset_ref: Optional[Reference] = None
     testset_variant_ref: Optional[Reference] = None
     testset_revision_ref: Optional[Reference] = None
+    include_testcases: Optional[bool] = None
+
+
+class TestsetRevisionsLogRequest(BaseModel):
+    testset_revision: TestsetRevisionsLog
+    include_testcases: Optional[bool] = None
 
 
 class TestsetRevisionResponse(BaseModel):
