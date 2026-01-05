@@ -21,7 +21,7 @@ import {
 import {clearAllRunsMutationAtom} from "../../../state/atoms/utilityMutations"
 import TestsetDrawerButton from "../../Drawers/TestsetDrawer"
 import LoadTestsetButton from "../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
-import {allGenerationsCollapsedAtom} from "../../PlaygroundGenerations/assets/GenerationHeader"
+import {allGenerationsCollapsedAtom} from "../../PlaygroundGenerations/assets/GenerationHeader/store"
 
 import {useStyles} from "./styles"
 import type {GenerationComparisonHeaderProps} from "./types"

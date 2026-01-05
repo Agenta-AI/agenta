@@ -3,7 +3,7 @@ import {useCallback, useEffect, useMemo} from "react"
 import {ArrowsInLineVerticalIcon, ArrowsOutLineVerticalIcon} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {appTypeAtom} from "@/oss/components/Playground/state/atoms/app"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
@@ -20,7 +20,7 @@ import TestSetMenu from "./TestSetMenu"
 import type {GenerationHeaderProps} from "./types"
 
 // Global atom to track collapse state for all generations
-export const allGenerationsCollapsedAtom = atom(false)
+import {allGenerationsCollapsedAtom} from "./store"
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const classes = useStyles()

@@ -17,7 +17,7 @@ import VariableControlAdapter from "@/oss/components/Playground/adapters/Variabl
 import RunButton from "@/oss/components/Playground/assets/RunButton"
 import TypingIndicator from "@/oss/components/Playground/assets/TypingIndicator"
 import TestsetDrawerButton from "@/oss/components/Playground/Components/Drawers/TestsetDrawer"
-import {allGenerationsCollapsedAtom} from "@/oss/components/Playground/Components/PlaygroundGenerations/assets/GenerationHeader"
+import {allGenerationsCollapsedAtom} from "@/oss/components/Playground/Components/PlaygroundGenerations/assets/GenerationHeader/store"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {deleteGenerationInputRowMutationAtom} from "@/oss/components/Playground/state/atoms/mutations/input/deleteInputRow"
 import {duplicateGenerationInputRowMutationAtom} from "@/oss/components/Playground/state/atoms/mutations/input/duplicateInputRow"
