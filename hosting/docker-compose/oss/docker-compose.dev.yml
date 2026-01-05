@@ -1,20 +1,38 @@
 name: agenta-oss-dev
 
 services:
+    .api:
+        image: agenta-oss-dev-api:latest
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.dev
+        command: ["true"]
+
+    .web:
+        image: agenta-oss-dev-web:latest
+        build:
+            context: ../../../web
+            dockerfile: oss/docker/Dockerfile.dev
+        command: ["true"]
+
     web:
         profiles:
             - with-web
 
-        build:
-            context: ../../../web
-            dockerfile: oss/docker/Dockerfile.dev
+        image: agenta-oss-dev-web:latest
 
         volumes:
+            #
+            #
             - ../../../web/oss/src:/app/oss/src
             - ../../../web/oss/public:/app/oss/public
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+
+        restart: always
 
         networks:
             - agenta-network
@@ -26,20 +44,19 @@ services:
 
         command: sh -c "pnpm dev-oss"
 
-        restart: always
-
     api:
-        build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.dev
+        image: agenta-oss-dev-api:latest
 
         volumes:
-            - ../../../api/entrypoints:/app/entrypoints
+            #
             - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         labels:
             - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
@@ -50,8 +67,11 @@ services:
             - "traefik.http.services.api.loadbalancer.server.port=8000"
             - "traefik.http.routers.api.service=api"
 
+        restart: always
+
         networks:
             - agenta-network
+
         extra_hosts:
             - "host.docker.internal:host-gateway"
 
@@ -73,24 +93,26 @@ services:
                 condition: service_healthy
             alembic:
                 condition: service_completed_successfully
+            supertokens:
+                condition: service_healthy
             redis-volatile:
                 condition: service_healthy
             redis-durable:
                 condition: service_healthy
-        restart: always
 
     worker-evaluations:
-        build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.dev
+        image: agenta-oss-dev-api:latest
 
         volumes:
-            - ../../../api/entrypoints:/app/entrypoints
+            #
             - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         depends_on:
             postgres:
@@ -100,28 +122,31 @@ services:
             redis-durable:
                 condition: service_healthy
 
+        restart: always
+
         extra_hosts:
+
             - "host.docker.internal:host-gateway"
         networks:
             - agenta-network
-        restart: always
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
             python -m entrypoints.worker_evaluations
 
     worker-tracing:
-        build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.dev
+        image: agenta-oss-dev-api:latest
 
         volumes:
-            - ../../../api/entrypoints:/app/entrypoints
+            #
             - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         depends_on:
             postgres:
@@ -131,20 +156,20 @@ services:
             redis-durable:
                 condition: service_healthy
 
+        restart: always
+
         extra_hosts:
             - "host.docker.internal:host-gateway"
+
         networks:
             - agenta-network
-        restart: always
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
             python -m entrypoints.worker_tracing
 
     cron:
-        build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.dev
+        image: agenta-oss-dev-api:latest
 
         volumes:
             #
@@ -152,37 +177,41 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
-        
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+
         depends_on:
             - postgres
             - api
 
+        restart: always
+
         extra_hosts:
             - "host.docker.internal:host-gateway"
-        
-        restart: always
-        
+
         networks:
             - agenta-network
 
         command: cron -f
 
     alembic:
-        build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.dev
+        image: agenta-oss-dev-api:latest
 
         volumes:
-            - ../../../api/routes.py:/app/routes.py
+            #
             - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         depends_on:
             postgres:
                 condition: service_healthy
+
         networks:
             - agenta-network
 
@@ -199,11 +228,9 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
-        networks:
-            - agenta-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
         labels:
             - "traefik.http.routers.completion.rule=PathPrefix(`/services/completion/`)"
             - "traefik.http.routers.completion.entrypoints=web"
@@ -212,6 +239,14 @@ services:
             - "traefik.http.routers.completion.middlewares=completion-strip"
             - "traefik.http.services.completion.loadbalancer.server.port=80"
             - "traefik.http.routers.completion.service=completion"
+
+        restart: always
+
+        networks:
+            - agenta-network
+
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
 
         command:
             [
@@ -226,8 +261,6 @@ services:
                 "/services/completion",
             ]
 
-        restart: always
-
     chat:
         build:
             context: ../../../services/chat
@@ -239,11 +272,9 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
-        networks:
-            - agenta-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
         labels:
             - "traefik.http.routers.chat.rule=PathPrefix(`/services/chat/`)"
             - "traefik.http.routers.chat.entrypoints=web"
@@ -252,6 +283,14 @@ services:
             - "traefik.http.routers.chat.middlewares=chat-strip"
             - "traefik.http.services.chat.loadbalancer.server.port=80"
             - "traefik.http.routers.chat.service=chat"
+
+        restart: always
+
+        networks:
+            - agenta-network
+
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
 
         command:
             [
@@ -266,8 +305,6 @@ services:
                 "/services/chat",
             ]
 
-        restart: always
-
     postgres:
         image: postgres:16
 
@@ -281,6 +318,9 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-username}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
 
         volumes:
             - postgres-data:/var/lib/postgresql/data/
@@ -382,12 +422,19 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+
+        ports:
+            - 3567:3567
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
 
         environment:
-            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS}
+            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS:-postgresql://username:password@postgres:5432/agenta_oss_supertokens}
+
+        restart: always
 
         networks:
             - agenta-network
@@ -399,7 +446,24 @@ services:
             timeout: 5s
             retries: 5
 
-        restart: always
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
 
 networks:
     agenta-network:

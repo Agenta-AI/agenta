@@ -1,7 +1,6 @@
 name: agenta-ee-dev
 
 services:
-    # Build services - keep for caching but not strictly needed
     .api:
         image: agenta-ee-dev-api:latest
         build:
@@ -30,6 +29,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         restart: always
 
@@ -47,11 +48,15 @@ services:
         image: agenta-ee-dev-api:latest
 
         volumes:
-            - ../../../api:/app
+            - ../../../api/ee:/app/ee
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         labels:
             - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
@@ -63,10 +68,10 @@ services:
             - "traefik.http.routers.api.service=api"
 
         restart: always
-        
+
         networks:
             - agenta-network
-            
+
         extra_hosts:
             - "host.docker.internal:host-gateway"
 
@@ -99,11 +104,15 @@ services:
         image: agenta-ee-dev-api:latest
 
         volumes:
-            - ../../../api:/app
+            - ../../../api/ee:/app/ee
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         depends_on:
             postgres:
@@ -113,10 +122,10 @@ services:
             redis-durable:
                 condition: service_healthy
 
+        restart: always
+
         extra_hosts:
             - "host.docker.internal:host-gateway"
-
-        restart: always
 
         networks:
             - agenta-network
@@ -129,11 +138,15 @@ services:
         image: agenta-ee-dev-api:latest
 
         volumes:
-            - ../../../api:/app
+            - ../../../api/ee:/app/ee
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         depends_on:
             postgres:
@@ -143,10 +156,10 @@ services:
             redis-durable:
                 condition: service_healthy
 
+        restart: always
+
         extra_hosts:
             - "host.docker.internal:host-gateway"
-
-        restart: always
 
         networks:
             - agenta-network
@@ -164,16 +177,18 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
-        
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+
         depends_on:
             - postgres
             - api
 
+        restart: always
+
         extra_hosts:
             - "host.docker.internal:host-gateway"
-        
-        restart: always
-        
+
         networks:
             - agenta-network
 
@@ -183,16 +198,20 @@ services:
         image: agenta-ee-dev-api:latest
 
         volumes:
-            - ../../../api:/app
+            - ../../../api/ee:/app/ee
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         depends_on:
             postgres:
                 condition: service_healthy
-                
+
         networks:
             - agenta-network
 
@@ -209,9 +228,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
-
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         labels:
             - "traefik.http.routers.completion.rule=PathPrefix(`/services/completion/`)"
@@ -226,6 +244,9 @@ services:
 
         networks:
             - agenta-network
+
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
 
         command:
             [
@@ -251,9 +272,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
-
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
 
         labels:
             - "traefik.http.routers.chat.rule=PathPrefix(`/services/chat/`)"
@@ -268,6 +288,9 @@ services:
 
         networks:
             - agenta-network
+
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
 
         command:
             [
@@ -285,16 +308,19 @@ services:
     postgres:
         image: postgres:16
 
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
+        restart: always
 
         ports:
             - "${POSTGRES_PORT:-5432}:5432"
 
-        restart: always
-
         networks:
             - agenta-network
+
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-username}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
 
         volumes:
             - postgres-data:/var/lib/postgresql/data/
@@ -399,11 +425,14 @@ services:
             alembic:
                 condition: service_completed_successfully
 
+        ports:
+            - "3567:3567"
+
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
 
         environment:
-            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS}
+            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS:-postgresql://username:password@postgres:5432/agenta_ee_supertokens}
 
         restart: always
 
@@ -432,7 +461,7 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
 
         restart: always
-        
+
         networks:
             - agenta-network
 
