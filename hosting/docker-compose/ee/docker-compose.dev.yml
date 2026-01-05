@@ -396,7 +396,7 @@ services:
             - --api.insecure=true
             - --providers.docker
             - --entrypoints.web.address=:${TRAEFIK_PORT:-80}
-            - --providers.docker.constraints=Label(`com.docker.compose.project`,`${DOCKER_COMPOSE_PROJECT_NAME:-agenta-ee-dev}`)
+            - --providers.docker.constraints=Label(`com.docker.compose.project`,`${COMPOSE_PROJECT_NAME:-agenta-ee-dev}`)
             - --ping=true
             - --accesslog=true
 
