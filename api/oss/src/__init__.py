@@ -190,6 +190,8 @@ async def _create_account(email: str, uid: str) -> None:
     - Organization assignment (OSS only)
     - Account creation
 
+    This function is idempotent - if user already exists, it returns early.
+
     Args:
         email: The user's normalized email address
         uid: The SuperTokens user ID
@@ -197,6 +199,11 @@ async def _create_account(email: str, uid: str) -> None:
     Raises:
         UnauthorizedException: If email is blocked or user not invited (OSS only)
     """
+    # Check if user already exists (idempotent - skip if adding new auth method)
+    existing_user = await get_user_with_email(email=email)
+    if existing_user is not None:
+        return
+
     # Check email blocking (EE only)
     if is_ee() and await _is_blocked(email):
         raise UnauthorizedException(detail="This email is not allowed.")
@@ -364,14 +371,27 @@ def override_password_apis(original: EmailPasswordAPIInterface):
         api_options: EmailPasswordAPIOptions,
         user_context: Dict[str, Any],
     ):
-        # FLOW 1: Sign in (redirect existing users)
+        # FLOW 1: Sign in (redirect existing users with emailpassword credential)
         email = form_fields[0].value.lower()
         if is_ee() and await _is_blocked(email):
             raise UnauthorizedException(detail="This email is not allowed.")
         user_info_from_st = await list_users_by_account_info(
             tenant_id="public", account_info=AccountInfo(email=email)
         )
-        if len(user_info_from_st) >= 1 or await get_user_with_email(email=email):
+
+        # Check if user has an emailpassword login method
+        has_emailpassword_method = False
+        for user in user_info_from_st:
+            for lm in user.login_methods:
+                if lm.recipe_id == "emailpassword":
+                    has_emailpassword_method = True
+                    break
+            if has_emailpassword_method:
+                break
+
+        # Only redirect to sign_in if user has emailpassword credential
+        # This allows users who signed up via OAuth to add email/password
+        if has_emailpassword_method:
             return await sign_in_post(
                 form_fields,
                 tenant_id,
@@ -391,20 +411,14 @@ def override_password_apis(original: EmailPasswordAPIInterface):
             user_context,
         )
 
-        # FLOW 3: Create application user (organization assignment is handled in create_accounts)
+        # FLOW 3: Create application user (idempotent - skips if user exists)
         if isinstance(response, EmailPasswordSignUpPostOkResult):
-            # sign up successful
             actual_email = ""
             for field in form_fields:
                 if field.id == "email":
                     actual_email = field.value
 
-            if actual_email == "":
-                # User did not provide an email.
-                # This is possible since we set optional: true
-                # in the form field config
-                pass
-            else:
+            if actual_email != "":
                 email = (
                     actual_email
                     if "@" in actual_email
