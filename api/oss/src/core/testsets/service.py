@@ -941,38 +941,27 @@ class TestsetsService:
                 tc.id: tc for tc in operations.rows.replace if tc.id is not None
             }
 
-        # 1) Replace in place (preserve base order).
-        replaced_testcases: List[Testcase] = []
+        # 1) Replace in place, 2) remove wherever it appears, 3) add at the end.
+        final_testcases: List[Testcase] = []
         for tc in current_testcases:
             if not tc.id:
                 continue
             updated_tc = replace_map.get(tc.id)
             if updated_tc is not None:
-                replaced_testcases.append(
-                    Testcase(
-                        id=None,
-                        set_id=testset_revision_commit.testset_id,
-                        data=updated_tc.data,
-                    )
+                candidate = Testcase(
+                    id=None,
+                    set_id=testset_revision_commit.testset_id,
+                    data=updated_tc.data,
                 )
             else:
-                replaced_testcases.append(
-                    Testcase(
-                        id=None,
-                        set_id=testset_revision_commit.testset_id,
-                        data=tc.data,
-                    )
+                candidate = Testcase(
+                    id=None,
+                    set_id=testset_revision_commit.testset_id,
+                    data=tc.data,
                 )
-
-        # 2) Remove wherever it appears.
-        final_testcases: List[Testcase] = []
-        if remove_set:
-            for tc in replaced_testcases:
-                if tc.id in remove_set:
-                    continue
-                final_testcases.append(tc)
-        else:
-            final_testcases = replaced_testcases
+            if tc.id in remove_set:
+                continue
+            final_testcases.append(candidate)
 
         # 3) Add at the end.
         if operations.rows and operations.rows.add:
