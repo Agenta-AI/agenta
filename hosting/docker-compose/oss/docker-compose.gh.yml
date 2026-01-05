@@ -295,9 +295,6 @@ services:
             --maxmemory-policy volatile-lru
             --port 6379
 
-        ports:
-            - "6379:6379"
-
         volumes:
             - redis-volatile-data:/data
 
