@@ -968,10 +968,9 @@ const CompareMetaRow = memo(
         const columnsCount = compareScenarios.length
         const rowGridStyle = useMemo(
             () => ({
-                gridTemplateColumns: `repeat(${columnsCount}, ${columnMinWidth}px)`,
-                minWidth: `${columnsCount * columnMinWidth}px`,
+                gridTemplateColumns: `repeat(${columnsCount}, 1fr)`,
             }),
-            [columnsCount, columnMinWidth],
+            [columnsCount],
         )
         const handleScroll = useCallback(() => {
             if (scrollRef.current) {
@@ -989,7 +988,7 @@ const CompareMetaRow = memo(
                     className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                     onScroll={handleScroll}
                 >
-                    <div className="grid gap-4" style={rowGridStyle}>
+                    <div className="grid" style={rowGridStyle}>
                         {compareScenarios.map(({runId, scenarioId, compareIndex}) => {
                             if (!runId || !scenarioId) {
                                 return (
@@ -1091,7 +1090,7 @@ const CompareSectionRow = memo(
                         className="overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                         onScroll={handleScroll}
                     >
-                        <div className="grid gap-4" style={rowGridStyle}>
+                        <div className="grid" style={rowGridStyle}>
                             {compareScenarios.map(({runId, scenarioId, compareIndex}) => {
                                 const section = sectionMapsPerRun[compareIndex]?.get(sectionId)
 
