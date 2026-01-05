@@ -8,6 +8,8 @@ import type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityH
 
 export interface WindowingState {
     next: string | null
+    oldest?: string | null
+    newest?: string | null
     stop?: string | null
     order?: string | null
     limit?: number | null
@@ -131,13 +133,15 @@ export interface ColumnVisibilityConfig<RecordType> {
 export interface InfiniteVirtualTableRowSelection<RecordType> {
     type?: "checkbox" | "radio"
     selectedRowKeys: Key[]
-    onChange: (selectedRowKeys: Key[], selectedRows: RecordType[]) => void
+    onChange?: (selectedRowKeys: Key[], selectedRows: RecordType[]) => void
     getCheckboxProps?: (record: RecordType) => {
         disabled?: boolean
         indeterminate?: boolean
     }
     columnWidth?: number
     fixed?: boolean
+    /** Custom title for the selection column header (replaces checkbox) */
+    columnTitle?: React.ReactNode
     /** Custom render for the selection cell */
     renderCell?: (
         value: boolean,
@@ -145,6 +149,8 @@ export interface InfiniteVirtualTableRowSelection<RecordType> {
         index: number,
         originNode: React.ReactNode,
     ) => React.ReactNode
+    /** Custom cell props for the selection column */
+    onCell?: (record: RecordType, index?: number) => React.TdHTMLAttributes<HTMLTableCellElement>
 }
 
 export interface InfiniteVirtualTableKeyboardSelectionShortcuts {
