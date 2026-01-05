@@ -3,7 +3,7 @@ import type {Atom} from "jotai"
 
 import {createInfiniteDatasetStore} from "../createInfiniteDatasetStore"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
-import type {InfiniteTableFetchResult, InfiniteTableRowBase} from "../types"
+import type {InfiniteTableFetchResult, InfiniteTableRowBase, WindowingState} from "../types"
 
 import {createTableRowHelpers} from "./createTableRowHelpers"
 import type {TableRowHelpersConfig} from "./createTableRowHelpers"
@@ -47,13 +47,14 @@ export interface SimpleTableStoreConfig<
     rowHelpers: TableRowHelpersConfig<TRow, TApiRow>
     /**
      * Fetch function that retrieves data from the API.
-     * Should handle pagination via limit/offset/cursor.
+     * Should handle pagination via limit/offset/cursor/windowing.
      */
     fetchData: (params: {
         meta: TMeta
         limit: number
         offset: number
         cursor: string | null
+        windowing: WindowingState | null
     }) => Promise<InfiniteTableFetchResult<TApiRow>>
     /**
      * Optional custom isEnabled check.
@@ -138,7 +139,7 @@ export function createSimpleTableStore<
         isEnabled: isEnabled ?? ((meta) => Boolean(meta?.projectId)),
         clientRowsAtom,
         excludeRowIdsAtom,
-        fetchPage: async ({limit, offset, cursor, meta}) => {
+        fetchPage: async ({limit, offset, cursor, windowing, meta}) => {
             if (!meta?.projectId) {
                 return {
                     rows: [],
@@ -150,7 +151,7 @@ export function createSimpleTableStore<
                 }
             }
 
-            return fetchData({meta, limit, offset, cursor})
+            return fetchData({meta, limit, offset, cursor, windowing})
         },
     })
 
