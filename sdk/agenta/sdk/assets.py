@@ -1,3 +1,8 @@
+from typing import Dict, Optional, Tuple
+
+from litellm import cost_calculator
+
+
 supported_llm_models = {
     "anthropic": [
         "anthropic/claude-sonnet-4-5",
@@ -205,6 +210,58 @@ supported_llm_models = {
 }
 
 providers_list = list(supported_llm_models.keys())
+
+
+def _get_model_costs(model: str) -> Optional[Tuple[float, float]]:
+    """
+    Get the input and output costs per 1M tokens for a model.
+
+    Uses litellm's cost_calculator (same as tracing/inline.py) for consistency.
+
+    Args:
+        model: The model name (e.g., "gpt-4o" or "anthropic/claude-3-opus-20240229")
+
+    Returns:
+        Tuple of (input_cost, output_cost) per 1M tokens, or None if not found.
+    """
+    try:
+        costs = cost_calculator.cost_per_token(
+            model=model,
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000_000,
+        )
+        if costs:
+            input_cost, output_cost = costs
+            if input_cost > 0 or output_cost > 0:
+                return (input_cost, output_cost)
+    except Exception:
+        pass
+    return None
+
+
+def _build_model_metadata() -> Dict[str, Dict[str, Dict[str, float]]]:
+    """
+    Build metadata dictionary with costs for all supported models.
+
+    Returns:
+        Nested dict: {provider: {model: {"input": cost, "output": cost}}}
+    """
+    metadata: Dict[str, Dict[str, Dict[str, float]]] = {}
+
+    for provider, models in supported_llm_models.items():
+        metadata[provider] = {}
+        for model in models:
+            costs = _get_model_costs(model)
+            if costs:
+                metadata[provider][model] = {
+                    "input": costs[0],
+                    "output": costs[1],
+                }
+
+    return metadata
+
+
+model_metadata = _build_model_metadata()
 
 model_to_provider_mapping = {
     model: provider
