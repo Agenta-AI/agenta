@@ -395,8 +395,8 @@ services:
             - --api.dashboard=true
             - --api.insecure=true
             - --providers.docker
-            - --entrypoints.web.address=:80
             - --providers.docker.constraints=Label(`com.docker.compose.project`,`${COMPOSE_PROJECT_NAME:-agenta-oss-dev}`)
+            - --entrypoints.web.address=:80
             - --ping=true
             - --accesslog=true
 
