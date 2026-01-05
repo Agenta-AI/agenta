@@ -32,163 +32,23 @@ class TracingService:
     ):
         self.tracing_dao = tracing_dao
 
-    async def create(
+    ## SPANS
+
+    async def ingest(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        span_dto: Optional[OTelFlatSpan] = None,
-        span_dtos: Optional[List[OTelFlatSpan]] = None,
+        span_dtos: List[OTelFlatSpan],
     ) -> List[OTelLink]:
-        if span_dto:
-            link = await self.tracing_dao.create_span(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                span_dto=span_dto,
-            )
-
-            return [link] if link else []
-
-        if span_dtos:
-            links = await self.tracing_dao.create_spans(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                span_dtos=span_dtos,
-            )
-
-            return links
-
-        return []
-
-    async def read(
-        self,
-        *,
-        project_id: UUID,
-        #
-        trace_id: Optional[UUID] = None,
-        trace_ids: Optional[List[UUID]] = None,
-        span_id: Optional[UUID] = None,
-        span_ids: Optional[List[UUID]] = None,
-    ) -> List[OTelFlatSpan]:
-        if trace_id:
-            span_dtos = await self.tracing_dao.read_trace(
-                project_id=project_id,
-                #
-                trace_id=trace_id,
-            )
-
-            return span_dtos
-
-        if trace_ids:
-            span_dtos = await self.tracing_dao.read_traces(
-                project_id=project_id,
-                #
-                trace_ids=trace_ids,
-            )
-
-            return span_dtos
-
-        if span_id:
-            span_dtos = await self.tracing_dao.read_span(
-                project_id=project_id,
-                #
-                span_id=span_id,
-            )
-
-            return [span_dtos] if span_dtos else []
-
-        if span_ids:
-            span_dtos = await self.tracing_dao.read_spans(
-                project_id=project_id,
-                #
-                span_ids=span_ids,
-            )
-
-            return span_dtos
-
-        return []
-
-    async def update(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        span_dto: Optional[OTelFlatSpan] = None,
-        span_dtos: Optional[List[OTelFlatSpan]] = None,
-    ) -> List[OTelLink]:
-        if span_dto:
-            link = await self.tracing_dao.update_span(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                span_dto=span_dto,
-            )
-
-            return [link] if link else []
-
-        if span_dtos:
-            links = await self.tracing_dao.update_spans(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                span_dtos=span_dtos,
-            )
-
-            return links
-
-        return []
-
-    async def delete(
-        self,
-        *,
-        project_id: UUID,
-        #
-        trace_id: Optional[UUID] = None,
-        trace_ids: Optional[List[UUID]] = None,
-        span_id: Optional[UUID] = None,
-        span_ids: Optional[List[UUID]] = None,
-    ) -> List[OTelLink]:
-        if trace_id:
-            links = await self.tracing_dao.delete_trace(
-                project_id=project_id,
-                #
-                trace_id=trace_id,
-            )
-
-            return links
-
-        if trace_ids:
-            links = await self.tracing_dao.delete_traces(
-                project_id=project_id,
-                #
-                trace_ids=trace_ids,
-            )
-
-            return links
-
-        if span_id:
-            link = await self.tracing_dao.delete_span(
-                project_id=project_id,
-                #
-                span_id=span_id,
-            )
-
-            return [link] if link else []
-
-        if span_ids:
-            links = await self.tracing_dao.delete_spans(
-                project_id=project_id,
-                #
-                span_ids=span_ids,
-            )
-
-            return links
-
-        return []
+        """Ingest spans (upsert: create if new, update if exists)."""
+        return await self.tracing_dao.ingest(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            span_dtos=span_dtos,
+        )
 
     async def query(
         self,
@@ -206,23 +66,6 @@ class TracingService:
         )
 
         return span_dtos
-
-    async def legacy_analytics(
-        self,
-        *,
-        project_id: UUID,
-        #
-        query: TracingQuery,
-    ) -> List[Bucket]:
-        parse_query(query)
-
-        bucket_dtos = await self.tracing_dao.legacy_analytics(
-            project_id=project_id,
-            #
-            query=query,
-        )
-
-        return bucket_dtos
 
     async def analytics(
         self,
@@ -242,6 +85,55 @@ class TracingService:
         )
 
         return bucket_dtos
+
+    async def legacy_analytics(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query: TracingQuery,
+    ) -> List[Bucket]:
+        parse_query(query)
+
+        bucket_dtos = await self.tracing_dao.legacy_analytics(
+            project_id=project_id,
+            #
+            query=query,
+        )
+
+        return bucket_dtos
+
+    ## TRACES
+
+    async def fetch(
+        self,
+        *,
+        project_id: UUID,
+        #
+        trace_ids: List[UUID],
+    ) -> List[OTelFlatSpan]:
+        """Fetch all spans for the given trace IDs."""
+        return await self.tracing_dao.fetch(
+            project_id=project_id,
+            #
+            trace_ids=trace_ids,
+        )
+
+    async def delete(
+        self,
+        *,
+        project_id: UUID,
+        #
+        trace_ids: List[UUID],
+    ) -> List[OTelLink]:
+        """Delete all spans for the given trace IDs."""
+        return await self.tracing_dao.delete(
+            project_id=project_id,
+            #
+            trace_ids=trace_ids,
+        )
+
+    ## SESSIONS & USERS
 
     async def sessions(
         self,

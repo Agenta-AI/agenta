@@ -58,13 +58,6 @@ export const useSidebarConfig = () => {
             disabled: !hasProjectURL,
         },
         {
-            key: "app-observability-link",
-            title: "Observability",
-            link: `${projectURL}/observability`,
-            icon: <ChartLineUp size={16} />,
-            disabled: !hasProjectURL,
-        },
-        {
             key: "project-evaluators-link",
             title: "Evaluators",
             link: `${projectURL}/evaluators`,
@@ -78,6 +71,13 @@ export const useSidebarConfig = () => {
             link: `${projectURL}/evaluations`,
             // isHidden: !isDemo(),
             icon: <ChartDonut size={16} />,
+            disabled: !hasProjectURL,
+        },
+        {
+            key: "app-observability-link",
+            title: "Observability",
+            link: `${projectURL}/observability`,
+            icon: <ChartLineUp size={16} />,
             disabled: !hasProjectURL,
         },
         {
@@ -120,7 +120,7 @@ export const useSidebarConfig = () => {
         },
         {
             key: "app-traces-link",
-            title: "Traces",
+            title: "Observability",
             icon: <TreeView size={16} />,
             isHidden: !currentApp && !recentlyVisitedAppId,
             link: `${appURL || recentlyVisitedAppURL}/traces`,

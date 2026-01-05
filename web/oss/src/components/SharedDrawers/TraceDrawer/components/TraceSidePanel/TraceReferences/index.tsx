@@ -39,6 +39,13 @@ const TraceReferences = () => {
         [references],
     )
 
+    // Find testset_revision reference to get the specific revision ID for testset navigation
+    // Evaluations store both testset (with testset ID) and testset_revision (with revision ID)
+    const testsetRevisionReference = useMemo(
+        () => references.find((ref) => ref?.key === "testset_revision"),
+        [references],
+    )
+
     const groupedReferences = useMemo(() => {
         const validReferences = references?.filter(
             (reference) => (reference as any)?.id || (reference as any)?.slug,
@@ -68,9 +75,9 @@ const TraceReferences = () => {
                 return (
                     <TestsetTag
                         testsetId={id}
+                        revisionId={testsetRevisionReference?.id}
                         projectId={projectId}
                         projectURL={projectURL}
-                        label={slug}
                         openExternally
                     />
                 )

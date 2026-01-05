@@ -1,248 +1,212 @@
 from typing import List, Dict, Any, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from agenta.sdk.utils.client import authed_api
 from agenta.sdk.utils.references import get_slug_from_name_and_id
 from agenta.sdk.models.testsets import (
-    LegacyTestset,
-    #
-    Testcase,
     TestsetRevisionData,
     TestsetRevision,
     #
     TestsetRevisionResponse,
+    #
+    SimpleTestsetResponse,
 )
 
 
-async def _create_legacy_testset(
+def _normalize_csvdata(
+    data: List[Dict[str, Any]] | TestsetRevisionData,
+) -> List[Dict[str, Any]]:
+    if isinstance(data, TestsetRevisionData) and data.testcases:
+        return [testcase.data for testcase in data.testcases]
+
+    if isinstance(data, list):
+        return data
+
+    return []
+
+
+async def _create_simple_testset(
     *,
     csvdata: List[Dict[str, Any]],
     name: str,
     testset_id: Optional[UUID] = None,
 ) -> Optional[TestsetRevision]:
+    slug_seed = testset_id or uuid4()
+
+    payload = {
+        "testset": {
+            "slug": get_slug_from_name_and_id(name, slug_seed),
+            "name": name,
+            "data": {
+                "testcases": [
+                    {"data": testcase_data}
+                    for testcase_data in csvdata
+                    if isinstance(testcase_data, dict)
+                ]
+            },
+        }
+    }
+
     response = authed_api()(
         method="POST",
-        endpoint="/testsets/",
-        json={
-            "testset_id": str(testset_id) if testset_id else None,
-            "name": name,
-            "csvdata": csvdata,
-        },
+        endpoint="/preview/simple/testsets/",
+        json=payload,
     )
 
     if response.status_code != 200:
         print("Failed to create testset:", response.status_code, response.text)
         return None
 
-    legacy_testset = LegacyTestset(**response.json())
+    simple_testset_response = SimpleTestsetResponse(**response.json())
+    simple_testset = simple_testset_response.testset
 
-    # print(" --- legacy_testset:", legacy_testset)
-
-    if not legacy_testset.id or not legacy_testset.name:
+    if not simple_testset or not simple_testset.id or not simple_testset.data:
         return None
 
-    testset_revision = TestsetRevision(
-        id=UUID(legacy_testset.id),
-        slug=get_slug_from_name_and_id(
-            name=legacy_testset.name,
-            id=UUID(legacy_testset.id),
-        ),
-        name=legacy_testset.name,
-        data=TestsetRevisionData(
-            testcases=[
-                Testcase(
-                    data=testcase_data,
-                    testset_id=UUID(legacy_testset.id),
-                )
-                for testcase_data in csvdata
-            ]
-        ),
+    retrieved = await _retrieve_testset(testset_id=simple_testset.id)
+
+    if retrieved:
+        return retrieved
+
+    return TestsetRevision(
+        id=simple_testset.id,
+        slug=simple_testset.slug,
+        name=simple_testset.name,
+        data=simple_testset.data,
+        testset_id=simple_testset.id,
     )
 
-    # print(" --- testset_revision:", testset_revision)
 
-    return testset_revision
-
-
-async def _fetch_legacy_testset(
+async def _fetch_simple_testset(
     testset_id: Optional[UUID] = None,
-    #
     name: Optional[str] = None,
 ) -> Optional[TestsetRevision]:
-    legacy_testset = None
+    if not testset_id and not name:
+        return None
 
     if testset_id:
         response = authed_api()(
             method="GET",
-            endpoint=f"/testsets/{testset_id}",
+            endpoint=f"/preview/simple/testsets/{testset_id}",
         )
 
-        if response.status_code != 200:
-            if response.status_code != 404:
-                print("Failed to fetch testset:", response.status_code, response.text)
+        if response.status_code == 200:
+            simple_testset_response = SimpleTestsetResponse(**response.json())
+            simple_testset = simple_testset_response.testset
+
+            if simple_testset and simple_testset.id and simple_testset.data:
+                retrieved = await _retrieve_testset(
+                    testset_id=UUID(str(simple_testset.id))
+                )
+
+                if retrieved:
+                    return retrieved
+
+                return TestsetRevision(
+                    id=simple_testset.id,
+                    slug=simple_testset.slug,
+                    name=simple_testset.name,
+                    data=simple_testset.data,
+                    testset_id=simple_testset.id,
+                )
+
+        elif response.status_code != 404:
+            print("Failed to fetch testset:", response.status_code, response.text)
             return None
 
-        legacy_testset = LegacyTestset(**response.json())
-    elif name:
+    if name:
         response = authed_api()(
-            method="GET",
-            endpoint="/testsets/",
-            params={"name": name},
+            method="POST",
+            endpoint="/preview/simple/testsets/query",
+            json={"testset": {"name": name}},
         )
 
         if response.status_code != 200:
             print("Failed to list testsets:", response.status_code, response.text)
             return None
 
-        _testsets = response.json()
+        testsets = response.json().get("testsets", [])
 
-        for testset in _testsets:
-            _id = testset.pop("_id", None)
-            testset["id"] = _id
+        if testsets:
+            first = testsets[0]
 
-        legacy_testsets = [LegacyTestset(**testset) for testset in _testsets]
+            if first.get("id"):
+                return await _fetch_simple_testset(testset_id=UUID(first["id"]))
 
-        if len(legacy_testsets) != 1:
-            print("Expected exactly one testset with name:", name)
-            return None
-
-        legacy_testset = legacy_testsets[0]
-
-    # print(" --- legacy_testset:", legacy_testset)
-
-    if not legacy_testset.id or not legacy_testset.name:
-        return None
-
-    testset_revision = TestsetRevision(
-        testset_id=UUID(legacy_testset.id),
-        slug=get_slug_from_name_and_id(
-            name=legacy_testset.name,
-            id=UUID(legacy_testset.id),
-        ),
-        name=legacy_testset.name,
-        data=(
-            TestsetRevisionData(
-                testcases=[
-                    Testcase(
-                        data=testcase_data,
-                        testset_id=UUID(legacy_testset.id),
-                    )
-                    for testcase_data in legacy_testset.csvdata
-                ]
-            )
-            if legacy_testset.csvdata
-            else None
-        ),
-    )
-
-    # print(" --- testset_revision:", testset_revision)
-
-    return testset_revision
+    return None
 
 
-async def _edit_legacy_testset(
+async def _edit_simple_testset(
     *,
     testset_id: UUID,
     csvdata: List[Dict[str, Any]],
     name: Optional[str] = None,
 ) -> Optional[TestsetRevision]:
+    payload = {
+        "testset": {
+            "id": str(testset_id),
+            "name": name,
+            "data": {
+                "testcases": [
+                    {"data": testcase_data}
+                    for testcase_data in csvdata
+                    if isinstance(testcase_data, dict)
+                ]
+            },
+        }
+    }
+
     response = authed_api()(
         method="PUT",
-        endpoint=f"/testsets/{testset_id}",
-        json={
-            "name": name,
-            "csvdata": csvdata,
-        },
+        endpoint=f"/preview/simple/testsets/{testset_id}",
+        json=payload,
     )
 
     if response.status_code != 200:
         print("Failed to edit testset:", response.status_code, response.text)
         return None
 
-    response = authed_api()(
-        method="GET",
-        endpoint=f"/testsets/{testset_id}",
-    )
+    simple_testset_response = SimpleTestsetResponse(**response.json())
+    simple_testset = simple_testset_response.testset
 
-    legacy_testset = LegacyTestset(**response.json())
-
-    # print(" --- legacy_testset:", legacy_testset)
-
-    if not legacy_testset.id or not legacy_testset.name:
+    if not simple_testset or not simple_testset.id or not simple_testset.data:
         return None
 
-    testset_revision = TestsetRevision(
-        id=UUID(legacy_testset.id),
-        slug=get_slug_from_name_and_id(
-            name=legacy_testset.name,
-            id=UUID(legacy_testset.id),
-        ),
-        name=legacy_testset.name,
-        data=(
-            TestsetRevisionData(
-                testcases=[
-                    Testcase(
-                        data=testcase_data,
-                        testset_id=UUID(legacy_testset.id),
-                    )
-                    for testcase_data in legacy_testset.csvdata
-                ]
-            )
-            if legacy_testset.csvdata
-            else None
-        ),
+    return TestsetRevision(
+        id=simple_testset.id,
+        slug=simple_testset.slug,
+        name=simple_testset.name,
+        data=simple_testset.data,
+        testset_id=simple_testset.id,
     )
 
-    # print(" --- testset_revision:", testset_revision)
 
-    return testset_revision
-
-
-async def _list_legacy_testsets(
+async def _list_simple_testsets(
     #
 ) -> List[TestsetRevision]:
     response = authed_api()(
-        method="GET",
-        endpoint="/testsets/",
+        method="POST",
+        endpoint="/preview/simple/testsets/query",
+        json={},
     )
 
     if response.status_code != 200:
         print("Failed to list testsets:", response.status_code, response.text)
         return []
 
-    legacy_testsets = [LegacyTestset(**testset) for testset in response.json()]
+    testsets = response.json().get("testsets", [])
+    revisions = []
 
-    # print(" --- legacy_testsets:", legacy_testsets)
+    for ts in testsets:
+        if not ts.get("id"):
+            continue
 
-    testset_revisions = [
-        TestsetRevision(
-            id=UUID(legacy_testset.id),
-            slug=get_slug_from_name_and_id(
-                name=legacy_testset.name,
-                id=UUID(legacy_testset.id),
-            ),
-            name=legacy_testset.name,
-            data=(
-                TestsetRevisionData(
-                    testcases=[
-                        Testcase(
-                            data=testcase_data,
-                            testset_id=UUID(legacy_testset.id),
-                        )
-                        for testcase_data in legacy_testset.csvdata
-                    ]
-                )
-                if legacy_testset.csvdata
-                else None
-            ),
-        )
-        for legacy_testset in legacy_testsets
-        if legacy_testset.id and legacy_testset.name
-    ]
+        fetched = await _fetch_simple_testset(testset_id=UUID(ts["id"]))
 
-    # print(" --- testset_revisions:", testset_revisions)
+        if fetched:
+            revisions.append(fetched)
 
-    return testset_revisions
+    return revisions
 
 
 async def _retrieve_testset(
@@ -266,8 +230,6 @@ async def _retrieve_testset(
         ),
     }
 
-    # print(" --- payload:", payload)
-
     response = authed_api()(
         method="POST",
         endpoint="/preview/testsets/revisions/retrieve",
@@ -277,14 +239,10 @@ async def _retrieve_testset(
 
     testset_revision_response = TestsetRevisionResponse(**response.json())
 
-    testset_revision = testset_revision_response.testset_revision
-
-    # print(" --- testset_revision:", testset_revision)
-
-    return testset_revision
+    return testset_revision_response.testset_revision
 
 
-async def _sync_legacy_testset(
+async def _sync_simple_testset(
     *,
     testset_id: Optional[UUID] = None,
     #
@@ -293,11 +251,7 @@ async def _sync_legacy_testset(
     name: Optional[str] = None,
 ) -> Optional[TestsetRevision]:
     try:
-        # print("\n---------   UPSERT TESTSET")
-
-        # print(" ---:", testset_revision_data.model_dump(mode="json", exclude_none=True))
-
-        testset_revision = await _fetch_legacy_testset(
+        testset_revision = await _fetch_simple_testset(
             testset_id=testset_id,
             name=name,
         )
@@ -306,34 +260,18 @@ async def _sync_legacy_testset(
         print("[ERROR]: Failed to prepare testset:", e)
         return None
 
-    # print("Fetch response:", testset_revision)
-
     if testset_revision and testset_revision.testset_id:
-        # print(" --- Editing testset...", testset_id)
-
-        testset_revision = await _edit_legacy_testset(
+        return await _edit_simple_testset(
             testset_id=testset_revision.testset_id,
             name=name,
             csvdata=csvdata,
         )
 
-        # print("Edit response:", testset_revision)
-
-    else:
-        # print(" --- Creating testset...", name, data)
-
-        testset_revision = await _create_legacy_testset(
-            testset_id=testset_id,
-            name=name,
-            csvdata=csvdata,
-        )
-
-    if not testset_revision or not testset_revision.id:
-        return None
-
-    # print(" --- testset_revision:", testset_revision)
-
-    return testset_revision
+    return await _create_simple_testset(
+        name=name or "Testset",
+        csvdata=csvdata,
+        testset_id=testset_id,
+    )
 
 
 async def aupsert(
@@ -344,15 +282,9 @@ async def aupsert(
     #
     data: List[Dict[str, Any]] | TestsetRevisionData,
 ) -> Optional[TestsetRevision]:
-    csvdata = list()
-    if isinstance(data, TestsetRevisionData) and data.testcases:
-        csvdata = [testcase.data for testcase in data.testcases]
-    elif isinstance(data, list):
-        csvdata = data
-    else:
-        csvdata = list()
+    csvdata = _normalize_csvdata(data)
 
-    return await _sync_legacy_testset(
+    return await _sync_simple_testset(
         testset_id=testset_id,
         name=name,
         csvdata=csvdata,  # type: ignore
@@ -367,15 +299,9 @@ async def acreate(
     #
     data: List[Dict[str, Any]] | TestsetRevisionData,
 ) -> Optional[TestsetRevision]:
-    csvdata = list()
-    if isinstance(data, TestsetRevisionData) and data.testcases:
-        csvdata = [testcase.data for testcase in data.testcases]
-    elif isinstance(data, list):
-        csvdata = data
-    else:
-        csvdata = list()
+    csvdata = _normalize_csvdata(data)
 
-    return await _create_legacy_testset(
+    return await _create_simple_testset(
         testset_id=(
             testset_id
             if isinstance(testset_id, UUID)
@@ -383,7 +309,7 @@ async def acreate(
             if testset_id
             else None
         ),
-        name=name,
+        name=name or "Testset",
         csvdata=csvdata,  # type: ignore
     )
 
@@ -396,15 +322,9 @@ async def aedit(
     #
     data: List[Dict[str, Any]] | TestsetRevisionData,
 ) -> Optional[TestsetRevision]:
-    csvdata = list()
-    if isinstance(data, TestsetRevisionData) and data.testcases:
-        csvdata = [testcase.data for testcase in data.testcases]
-    elif isinstance(data, list):
-        csvdata = data
-    else:
-        csvdata = list()
+    csvdata = _normalize_csvdata(data)
 
-    return await _edit_legacy_testset(
+    return await _edit_simple_testset(
         testset_id=testset_id if isinstance(testset_id, UUID) else UUID(testset_id),
         name=name,
         csvdata=csvdata,  # type: ignore
@@ -415,7 +335,7 @@ async def afetch(
     *,
     testset_id: UUID | str,
 ) -> Optional[TestsetRevision]:
-    return await _fetch_legacy_testset(
+    return await _fetch_simple_testset(
         testset_id=testset_id if isinstance(testset_id, UUID) else UUID(testset_id)
     )
 
@@ -423,7 +343,7 @@ async def afetch(
 async def alist(
     #
 ) -> List[TestsetRevision]:
-    return await _list_legacy_testsets()
+    return await _list_simple_testsets()
 
 
 async def aretrieve(
@@ -431,11 +351,7 @@ async def aretrieve(
     #
     testset_revision_id: Optional[UUID] = None,
 ) -> Optional[TestsetRevision]:
-    # print("\n--------- RETRIEVE TESTSET")
-
-    response = await _retrieve_testset(
+    return await _retrieve_testset(
         testset_id=testset_id,
         testset_revision_id=testset_revision_id,
     )
-
-    return response

@@ -577,6 +577,8 @@ def parse_testset_revision_retrieve_request_from_params(
     testset_revision_id: Optional[UUID] = Query(None),
     testset_revision_slug: Optional[str] = Query(None),
     testset_revision_version: Optional[str] = Query(None),
+    #
+    include_testcases: Optional[bool] = Query(None),
 ):
     testset_ref = (
         Reference(
@@ -610,6 +612,7 @@ def parse_testset_revision_retrieve_request_from_params(
         testset_ref=testset_ref,
         testset_variant_ref=testset_variant_ref,
         testset_revision_ref=testset_revision_ref,
+        include_testcases=include_testcases,
     )
 
 
@@ -617,11 +620,13 @@ def parse_testset_revision_retrieve_request_from_body(
     testset_ref: Optional[Reference] = None,
     testset_variant_ref: Optional[Reference] = None,
     testset_revision_ref: Optional[Reference] = None,
+    include_testcases: Optional[bool] = None,
 ) -> TestsetRevisionRetrieveRequest:
     return TestsetRevisionRetrieveRequest(
         testset_ref=testset_ref,
         testset_variant_ref=testset_variant_ref,
         testset_revision_ref=testset_revision_ref,
+        include_testcases=include_testcases,
     )
 
 
@@ -633,8 +638,8 @@ from json import loads, dumps
 from io import BytesIO
 from hashlib import blake2b as digest
 
-import orjson
-import pandas
+import orjson as oj
+import polars as pl
 
 from fastapi import HTTPException
 
@@ -690,10 +695,10 @@ async def json_file_to_json_array(
     try:
         if hasattr(json_file, "read"):  # Covers UploadFile or similar
             content = await json_file.read()  # Read async
-            return orjson.loads(content)
+            return oj.loads(content)
         else:
             raise TypeError("Unsupported file type")
-    except orjson.JSONDecodeError as e:
+    except oj.JSONDecodeError as e:
         print(f"Error: Invalid JSON format - {e}")
         raise e
     except Exception as e:
@@ -709,9 +714,9 @@ def json_array_to_json_file(
     try:
         with open(json_file, "wb") as f:
             f.write(
-                orjson.dumps(
+                oj.dumps(
                     data,
-                    option=orjson.OPT_INDENT_2,
+                    option=oj.OPT_INDENT_2,
                 )
             )  # Pretty-print JSON
     except Exception as e:
@@ -813,8 +818,10 @@ async def csv_file_to_json_array(
     try:
         try:
             data = await csv_file.read()
-            df = pandas.read_csv(BytesIO(data), dtype=str)
-            return df.to_dict(orient="records")
+            df = pl.read_csv(
+                BytesIO(data), infer_schema_length=0
+            )  # infer_schema_length=0 reads all as strings
+            return df.to_dicts()
         except Exception as e:
             print(f"Error: Could not read CSV file - {e}")
             raise e
@@ -843,16 +850,16 @@ def json_array_to_csv_file(
         return None
 
     try:
-        df = pandas.DataFrame(json_array)
+        df = pl.DataFrame(json_array)
 
         # Apply type conversion if specified
         if column_types:
             for col, dtype in column_types.items():
                 if col in df.columns:
-                    df[col] = df[col].astype(dtype)
+                    df = df.with_columns(pl.col(col).cast(dtype))
 
-        # Write directly to CSV using Pandas
-        df.to_csv(output_csv_file, index=False)
+        # Write directly to CSV using Polars
+        df.write_csv(output_csv_file)
 
     except Exception as e:
         print(f"Error: Could not convert JSON array to CSV file - {e}")

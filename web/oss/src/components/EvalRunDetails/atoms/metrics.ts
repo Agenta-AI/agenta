@@ -789,6 +789,8 @@ export const evaluationMetricQueryAtomFamily = atomFamily(
                 gcTime: 5 * 60 * 1000,
                 refetchOnWindowFocus: false,
                 refetchOnReconnect: false,
+                // Enable structural sharing to prevent unnecessary re-renders when data hasn't changed
+                structuralSharing: true,
                 queryFn: async () => {
                     if (!batcher) {
                         throw new Error("Metric batcher is not initialised")
@@ -844,11 +846,15 @@ export const scenarioMetricMetaAtomFamily = atomFamily(
     ({scenarioId, runId}: {scenarioId: string; runId?: string | null}) =>
         selectAtom(
             evaluationMetricQueryAtomFamily({scenarioId, runId}),
-            (queryState) => ({
-                isLoading: queryState.isLoading,
-                isFetching: queryState.isFetching,
-                error: queryState.error,
-            }),
+            (queryState) => {
+                // Stale-while-revalidate: only show loading when there's no cached data
+                const hasData = Boolean(queryState.data)
+                return {
+                    isLoading: !hasData && queryState.isLoading,
+                    isFetching: queryState.isFetching,
+                    error: queryState.error,
+                }
+            },
             (a, b) =>
                 a.isLoading === b.isLoading && a.isFetching === b.isFetching && a.error === b.error,
         ),

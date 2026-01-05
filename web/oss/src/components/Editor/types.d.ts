@@ -21,6 +21,8 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     id?: string
     initialEditorState?: LexicalEditor["_editorState"]
     initialValue?: string
+    /** Controlled value - when provided, editor re-hydrates when this changes (for undo/redo support) */
+    value?: string
     onChange?: (value: {textContent: string; tokens?: unknown[]; value?: string}) => void
     placeholder?: string
     singleLine?: boolean
@@ -49,6 +51,10 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     validationSchema?: unknown
     /** Additional plugins to include in code editor */
     additionalCodePlugins?: React.ReactNode[]
+    /** Callback when a JSON property key is Cmd/Meta+clicked (for drill-in navigation) */
+    onPropertyClick?: (path: string) => void
+    /** Disable long text node truncation (show full content instead of [N chars]) */
+    disableLongText?: boolean
 }
 
 export interface EditorPluginsProps {
@@ -63,10 +69,16 @@ export interface EditorPluginsProps {
     placeholder?: string
     /** Initial text value for the editor */
     initialValue: string
+    /** Controlled value - when provided, editor re-hydrates when this changes (for undo/redo support) */
+    value?: string
     validationSchema?: unknown
     tokens?: string[]
     templateFormat?: "curly" | "fstring" | "jinja2"
     handleUpdate: (editorState: EditorState, editor: LexicalEditor) => void
     /** Additional plugins to include in code editor */
     additionalCodePlugins?: React.ReactNode[]
+    /** Callback when a JSON property key is Cmd/Meta+clicked (for drill-in navigation) */
+    onPropertyClick?: (path: string) => void
+    /** Disable long text node truncation (show full content instead of [N chars]) */
+    disableLongText?: boolean
 }

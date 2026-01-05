@@ -1,62 +1,81 @@
-from asyncio import sleep
-from functools import wraps
+from typing import Type, Any, Callable, Dict, Optional, Tuple, List, TYPE_CHECKING
 from inspect import (
-    Parameter,
-    Signature,
-    isasyncgen,
     iscoroutinefunction,
     isgenerator,
+    isasyncgen,
     signature,
+    Signature,
+    Parameter,
 )
-from os import environ
+from functools import wraps
 from traceback import format_exception
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+from asyncio import sleep
 from uuid import UUID
+from pydantic import BaseModel, HttpUrl, ValidationError
+from os import environ
 
-import agenta as ag
+if TYPE_CHECKING:
+    from fastapi import Request, HTTPException, Body
+    from starlette.responses import Response as StarletteResponse, StreamingResponse
+else:
+    # Lazy imports - only loaded when @entrypoint or @route is used
+    Request = None
+    HTTPException = None
+    Body = None
+
 from agenta.sdk.contexts.routing import (
-    RoutingContext,
     routing_context_manager,
+    RoutingContext,
 )
 from agenta.sdk.contexts.tracing import (
-    TracingContext,
     tracing_context_manager,
+    TracingContext,
 )
-from agenta.sdk.middleware.auth import AuthHTTPMiddleware
-from agenta.sdk.middleware.config import ConfigMiddleware
-from agenta.sdk.middleware.cors import CORSMiddleware
-from agenta.sdk.middleware.inline import InlineMiddleware
-from agenta.sdk.middleware.mock import MockMiddleware
-from agenta.sdk.middleware.otel import OTelMiddleware
-from agenta.sdk.middleware.vault import VaultMiddleware
 from agenta.sdk.router import router
-from agenta.sdk.types import (
-    BaseResponse,
-    MultipleChoice,
-    StreamResponse,
-)
-from agenta.sdk.utils.exceptions import display_exception, suppress
-from agenta.sdk.utils.helpers import get_current_version
+from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.utils.logging import get_module_logger
-from fastapi import Body, FastAPI, HTTPException, Request
-from pydantic import BaseModel, HttpUrl, ValidationError
-from starlette.responses import (
-    Response as StarletteResponse,
+from agenta.sdk.utils.helpers import get_current_version
+from agenta.sdk.utils.lazy import _load_fastapi, _load_starlette_responses
+from agenta.sdk.types import (
+    MultipleChoice,
+    BaseResponse,
+    StreamResponse,
+    MCField,
 )
-from starlette.responses import (
-    StreamingResponse,
-)
+
+import agenta as ag
 
 log = get_module_logger(__name__)
 
 AGENTA_RUNTIME_PREFIX = environ.get("AGENTA_RUNTIME_PREFIX", "")
 
-app = FastAPI(
-    docs_url=f"{AGENTA_RUNTIME_PREFIX}/docs",  # Swagger UI
-    openapi_url=f"{AGENTA_RUNTIME_PREFIX}/openapi.json",  # OpenAPI schema
-)
 
-app.include_router(router, prefix=AGENTA_RUNTIME_PREFIX)
+# Lazy FastAPI initialization
+class _LazyApp:
+    """Lazy wrapper for FastAPI app - only imported when accessed."""
+
+    _app = None
+
+    def _get_app(self):
+        if self._app is None:
+            fastapi = _load_fastapi()
+            from agenta.sdk.router import get_router
+
+            self._app = fastapi.FastAPI(
+                docs_url=f"{AGENTA_RUNTIME_PREFIX}/docs",  # Swagger UI
+                openapi_url=f"{AGENTA_RUNTIME_PREFIX}/openapi.json",  # OpenAPI schema
+            )
+            self._app.include_router(get_router(), prefix=AGENTA_RUNTIME_PREFIX)
+        return self._app
+
+    def __getattr__(self, name):
+        return getattr(self._get_app(), name)
+
+    async def __call__(self, scope, receive, send):
+        return await self._get_app()(scope, receive, send)
+
+
+app = _LazyApp()  # type: ignore
 
 
 class PathValidator(BaseModel):
@@ -140,9 +159,17 @@ class entrypoint:
         route_path: str = "",
         config_schema: Optional[BaseModel] = None,
     ):
+        # Lazy import fastapi components - only loaded when decorator is used
+        fastapi = _load_fastapi()
+
         self.func = func
         self.route_path = route_path
         self.config_schema = config_schema
+
+        # Store for use in methods
+        self._Request = fastapi.Request
+        self._HTTPException = fastapi.HTTPException
+        self._Body = fastapi.Body
 
         signature_parameters = signature(func).parameters
         config, default_parameters = self.parse_config()
@@ -150,6 +177,14 @@ class entrypoint:
         ### --- Middleware --- #
         if not entrypoint._middleware:
             entrypoint._middleware = True
+            from agenta.sdk.middleware.mock import MockMiddleware
+            from agenta.sdk.middleware.inline import InlineMiddleware
+            from agenta.sdk.middleware.vault import VaultMiddleware
+            from agenta.sdk.middleware.config import ConfigMiddleware
+            from agenta.sdk.middleware.otel import OTelMiddleware
+            from agenta.sdk.middleware.auth import AuthHTTPMiddleware
+            from agenta.sdk.middleware.cors import CORSMiddleware
+
             app.add_middleware(MockMiddleware)
             app.add_middleware(InlineMiddleware)
             app.add_middleware(VaultMiddleware)
@@ -177,7 +212,7 @@ class entrypoint:
                 request.state.config["parameters"] is None
                 or request.state.config["references"] is None
             ):
-                raise HTTPException(
+                raise self._HTTPException(
                     status_code=400,
                     detail="Config not found based on provided references.",
                 )
@@ -318,12 +353,12 @@ class entrypoint:
 
     async def execute_wrapper(
         self,
-        request: Request,
+        request: "Request",  # type: ignore
         *args,
         **kwargs,
     ):
         if not request:
-            raise HTTPException(status_code=500, detail="Missing 'request'.")
+            raise self._HTTPException(status_code=500, detail="Missing 'request'.")
 
         state = request.state
         traceparent = state.otel.get("traceparent")
@@ -368,6 +403,8 @@ class entrypoint:
         result: Any,
         inline: bool,
     ):
+        StarletteResponse, StreamingResponse = _load_starlette_responses()
+
         data = None
         content_type = "text/plain"
 
@@ -472,7 +509,7 @@ class entrypoint:
                 span_id,
             ) = await self.fetch_inline_trace(inline)
 
-        raise HTTPException(
+        raise self._HTTPException(
             status_code=status_code,
             detail=dict(
                 message=str(error),
@@ -584,7 +621,7 @@ class entrypoint:
             Parameter(
                 "request",
                 kind=Parameter.POSITIONAL_OR_KEYWORD,
-                annotation=Request,
+                annotation=self._Request,
             ),
             *original_sig.parameters.values(),
         ]
@@ -647,7 +684,7 @@ class entrypoint:
                 name=self._config_key,
                 kind=Parameter.KEYWORD_ONLY,
                 annotation=type(config_instance),  # Get the actual class type
-                default=Body(config_instance),  # Use the instance directly
+                default=self._Body(config_instance),  # Use the instance directly
             )
         )
 
@@ -661,7 +698,7 @@ class entrypoint:
                 Parameter(
                     name,
                     Parameter.KEYWORD_ONLY,
-                    default=Body(..., embed=True),
+                    default=self._Body(..., embed=True),
                     annotation=param.default.__class__.__bases__[
                         0
                     ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
