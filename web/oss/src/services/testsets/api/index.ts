@@ -171,7 +171,7 @@ export async function cloneTestset(sourceTestsetId: string, newName: string) {
     const baseSlug = newName.toLowerCase().replace(/\s+/g, "_")
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/testsets?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/preview/simple/testsets/?project_id=${projectId}`,
         {
             testset: {
                 slug: baseSlug,

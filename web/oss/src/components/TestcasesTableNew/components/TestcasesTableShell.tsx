@@ -3,6 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {CaretDown, CaretRight, Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Input, Skeleton, Tooltip} from "antd"
+import type {MenuProps} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -40,6 +41,7 @@ export interface TestcasesTableShellProps {
         size: "small" | "medium" | "large"
         heightPx: number
         maxLines: number
+        menuItems: MenuProps["items"]
     }
     selectedRowKeys: React.Key[]
     onSelectedRowKeysChange: (keys: React.Key[]) => void
@@ -632,6 +634,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             tableProps={tableProps}
             rowSelection={rowSelection}
             useSettingsDropdown={!hideControls}
+            settingsDropdownMenuItems={hideControls ? undefined : rowHeight.menuItems}
             store={globalStore}
         />
     )
