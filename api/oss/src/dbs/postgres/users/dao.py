@@ -1,6 +1,7 @@
 from uuid import UUID
 from typing import Optional, List
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.users.dbes import UserIdentityDBE
@@ -16,9 +17,20 @@ class IdentitiesDAO:
         identity_dbe = map_create_dto_to_dbe(dto)
 
         async with engine.core_session() as session:
-            session.add(identity_dbe)
-            await session.commit()
-            await session.refresh(identity_dbe)
+            try:
+                session.add(identity_dbe)
+                await session.commit()
+                await session.refresh(identity_dbe)
+            except IntegrityError:
+                await session.rollback()
+                stmt = select(UserIdentityDBE).filter_by(
+                    method=dto.method,
+                    subject=dto.subject,
+                )
+                result = await session.execute(stmt)
+                identity_dbe = result.scalar()
+                if identity_dbe is None:
+                    raise
 
         return map_identity_dbe_to_dto(identity_dbe)
 
