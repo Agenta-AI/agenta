@@ -11,6 +11,9 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& > div": {
             height: "100%",
         },
+        "& .ant-modal-container": {
+            padding: 0,
+        },
         "& h1.ant-typography": {
             fontSize: theme.fontSizeHeading3,
             lineHeight: theme.lineHeightHeading3,
@@ -76,8 +79,8 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
     tabs: {
         height: "100%",
         overflowY: "auto",
-        "& .ant-tabs-nav": {
-            marginBottom: 24,
+        "& .ant-tabs-tab-btn": {
+            marginBottom: 12,
         },
         "& .ant-tabs-content-holder": {
             height: "100%",

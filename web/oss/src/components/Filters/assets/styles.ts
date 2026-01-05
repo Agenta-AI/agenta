@@ -1,12 +1,13 @@
-import {JSSTheme} from "@/oss/lib/Types"
 import {createUseStyles} from "react-jss"
+
+import {JSSTheme} from "@/oss/lib/Types"
 
 export const useStyles = createUseStyles((theme: JSSTheme) => ({
     popover: {
         "&.ant-popover": {
             maxWidth: "100vw",
         },
-        "& .ant-popover-inner": {
+        "& .ant-popover-container": {
             width: "clamp(320px, 60vw, 700px)",
             maxWidth: "calc(100vw - 24px)",
             maxHeight: "min(70vh, 640px)",

@@ -1,7 +1,5 @@
 import React, {useMemo} from "react"
 
-import deepEqual from "fast-deep-equal"
-
 import {getPromptById, getArrayVal} from "@/oss/components/Playground/context/promptShape"
 import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
 

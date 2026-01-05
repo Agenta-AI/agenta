@@ -14,7 +14,7 @@ import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/commo
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
-const UserAvatarTag = dynamic(() => import("@/oss/components/ui/UserAvatarTag"), {
+const UserAvatarTag = dynamic(() => import("@/oss/components/CustomUIs/UserAvatarTag"), {
     ssr: false,
 })
 
@@ -130,9 +130,9 @@ const PreviewCreatedByCellContent = ({
 
     const isCurrentUser = Boolean(
         currentUser &&
-            ((currentUser.id && candidateIds.includes(currentUser.id)) ||
-                (currentUsername && candidateNames.includes(currentUsername)) ||
-                (currentEmail && candidateNames.includes(currentEmail))),
+        ((currentUser.id && candidateIds.includes(currentUser.id)) ||
+            (currentUsername && candidateNames.includes(currentUsername)) ||
+            (currentEmail && candidateNames.includes(currentEmail))),
     )
 
     if (!createdBy) {

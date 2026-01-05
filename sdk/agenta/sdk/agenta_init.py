@@ -1,16 +1,15 @@
-import toml
-from os import getenv
-from typing import Optional, Callable, Any
 from importlib.metadata import version
+from os import getenv
+from typing import Any, Callable, Optional
 
-from agenta.sdk.utils.helpers import parse_url
-from agenta.sdk.utils.globals import set_global
-from agenta.sdk.utils.logging import get_module_logger
+import requests
+import toml
 from agenta.client.client import AgentaApi, AsyncAgentaApi
-
-from agenta.sdk.tracing import Tracing
 from agenta.sdk.contexts.routing import RoutingContext
-
+from agenta.sdk.tracing import Tracing
+from agenta.sdk.utils.globals import set_global
+from agenta.sdk.utils.helpers import parse_url
+from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
@@ -38,6 +37,11 @@ class AgentaSingleton:
 
         self.scope_type = None
         self.scope_id = None
+
+        # Cached scope information for URL building
+        self.organization_id: Optional[str] = None
+        self.workspace_id: Optional[str] = None
+        self.project_id: Optional[str] = None
 
     def __new__(cls):
         if not cls._instance:
@@ -110,7 +114,7 @@ class AgentaSingleton:
 
         try:
             assert _api_url and isinstance(_api_url, str), (
-                "API URL is required. Please provide a valid API URL or set AGENTA_API_URL environment variable."
+                "API URL is required. Please set AGENTA_API_URL environment variable or pass api_url parameter in ag.init()."
             )
             self.host = _host
             self.api_url = _api_url
@@ -127,6 +131,11 @@ class AgentaSingleton:
             or config.get("api_key")
             or None  # NO FALLBACK
         )
+
+        if self.api_key is None:
+            log.error(
+                "API key is required. Please set AGENTA_API_KEY environment variable or pass api_key parameter in ag.init()."
+            )
 
         log.info("Agenta -     API URL: %s", self.api_url)
 
@@ -168,6 +177,65 @@ class AgentaSingleton:
             host=self.host,
             api_key=self.api_key,
         )
+
+        # Reset cached scope info on re-init
+        self.organization_id = None
+        self.workspace_id = None
+        self.project_id = None
+
+    def resolve_scopes(self) -> Optional[tuple[str, str, str]]:
+        """Fetch and cache workspace_id and project_id from the API."""
+        if (
+            self.organization_id is not None
+            and self.workspace_id is not None
+            and self.project_id is not None
+        ):
+            return
+
+        if self.api_url is None or self.api_key is None:
+            log.error("API URL or API key is not set. Please call ag.init() first.")
+            return
+
+        try:
+            response = requests.get(
+                f"{self.api_url}/projects/current",
+                headers={"Authorization": f"ApiKey {self.api_key}"},
+                timeout=10,
+            )
+            response.raise_for_status()
+
+            project_info = response.json()
+
+            if not project_info:
+                log.error(
+                    "No project context found. Please ensure your API key is valid."
+                )
+
+            self.organization_id = project_info.get("organization_id")
+            self.workspace_id = project_info.get("workspace_id")
+            self.project_id = project_info.get("project_id")
+
+            if (
+                not self.organization_id
+                and not self.workspace_id
+                or not self.project_id
+            ):
+                log.error(
+                    "Could not determine organization/workspace/project from API response."
+                )
+
+        except Exception as e:
+            log.error(f"Failed to fetch scope information: {e}")
+            return
+
+        if self.organization_id and self.workspace_id and self.project_id:
+            return (
+                self.organization_id,
+                self.workspace_id,
+                self.project_id,
+            )
+
+        return None
 
 
 class Config:

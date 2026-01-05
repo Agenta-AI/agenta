@@ -27,18 +27,15 @@ services:
             - ../../../web/ee/public:/app/ee/public
             - ../../../web/oss/src:/app/oss/src
             - ../../../web/oss/public:/app/oss/public
-            
+
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
 
-        ports:
-            - "3000:3000"
-        
         restart: always
-        
+
         networks:
             - agenta-network
-            
+
         labels:
             - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
             - "traefik.http.routers.agenta-web.entrypoints=web"
@@ -126,7 +123,7 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python entrypoints/worker_evaluations.py
+            python -m entrypoints.worker_evaluations
 
     worker-tracing:
         image: agenta-ee-dev-api:latest
@@ -156,7 +153,7 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python entrypoints/worker_tracing.py
+            python -m entrypoints.worker_tracing
 
     cron:
         image: agenta-ee-dev-api:latest
@@ -287,22 +284,22 @@ services:
 
     postgres:
         image: postgres:16
-        
+
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
-            
+
         ports:
             - "5432:5432"
-        
+
         restart: always
-        
+
         networks:
             - agenta-network
-            
+
         volumes:
             - postgres-data:/var/lib/postgresql/data/
             - ../../../api/ee/databases/postgres/init-db-ee.sql:/docker-entrypoint-initdb.d/init-db.sql
-            
+
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U username -d agenta_ee_core"]
             interval: 10s
@@ -319,9 +316,6 @@ services:
             --maxmemory 512mb
             --maxmemory-policy volatile-lru
             --port 6379
-
-        ports:
-            - "6379:6379"
 
         networks:
             - agenta-network
@@ -349,9 +343,6 @@ services:
             --maxmemory 512mb
             --maxmemory-policy noeviction
             --port 6381
-
-        ports:
-            - "6381:6381"
 
         networks:
             - agenta-network
@@ -407,9 +398,6 @@ services:
             alembic:
                 condition: service_completed_successfully
 
-        ports:
-            - "3567:3567"
-
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
 
@@ -417,10 +405,10 @@ services:
             POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS}
 
         restart: always
-        
+
         networks:
             - agenta-network
-            
+
         healthcheck:
             test: >
                 bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'

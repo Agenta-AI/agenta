@@ -31,7 +31,7 @@ const VariantDrawerTitleMenu = ({onClose, onRename, onReset}: VariantDrawerTitle
     )
 
     return (
-        <Dropdown trigger={["click"]} overlayStyle={{width: 180}} menu={{items}}>
+        <Dropdown trigger={["click"]} styles={{root: {width: 180}}} menu={{items}}>
             <Button type="text" icon={<MoreOutlined />} size="small" />
         </Dropdown>
     )

@@ -7,7 +7,6 @@ import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {
     revisionsByVariantIdAtomFamily,
     variantsAtom,
-    appUriInfoAtom,
     userProfilesMapAtom,
     getEnhancedRevisionById,
     allRevisionsAtom,

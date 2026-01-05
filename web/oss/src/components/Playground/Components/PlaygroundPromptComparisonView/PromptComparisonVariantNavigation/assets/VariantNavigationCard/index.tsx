@@ -11,7 +11,7 @@ import {removeVariantFromSelectionMutationAtom} from "@/oss/components/Playgroun
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {generationLogicalTurnIdsAtom as compatRowIdsAtom} from "@/oss/state/generation/compat"
-import {logicalTurnIndexAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
+import {runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 
 import Version from "../../../../../assets/Version"
 import {

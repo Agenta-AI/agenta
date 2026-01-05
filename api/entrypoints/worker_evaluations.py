@@ -59,6 +59,15 @@ broker = RedisStreamBroker(
     url=env.REDIS_URI_DURABLE,
     queue_name="queues:evaluations",
     consumer_group_name="worker-evaluations",
+    # Disable automatic redelivery for long-running evaluation tasks
+    # Evaluations can run for hours, so we set idle_timeout to effectively infinity
+    # to prevent XAUTOCLAIM from redelivering tasks that are still processing.
+    # Default is 600,000ms (10 min) which causes duplicate processing every 10 minutes.
+    idle_timeout=1209600000,  # 14 days in milliseconds - effectively disabled for long evaluations
+    # Ensure socket doesn't timeout during blocking reads (xread_block defaults to 2000ms)
+    # socket_timeout must be >= xread_block / 1000 to avoid connection errors
+    socket_timeout=30,  # seconds - safely covers the 2000ms block time
+    socket_connect_timeout=30,  # seconds
 )
 
 

@@ -1,15 +1,17 @@
 import {FilterLeaf, FilterGroup, FilterMenuNode} from "@/oss/components/Filters/types"
 import {FilterConditions} from "@/oss/lib/Types"
+
 import {FILTER_COLUMNS} from "../constants"
+
 import {ScalarType, getOperatorsForType} from "./operatorRegistry"
 
-export type FieldConfig = {
+export interface FieldConfig {
     optionKey: string
     baseField: string
     label: string
     type: ScalarType
     operatorIds: FilterConditions[]
-    operatorOptions?: Array<{value: FilterConditions; label: string}>
+    operatorOptions?: {value: FilterConditions; label: string}[]
     keyInput?: {
         kind: "none" | "text" | "select"
         options?: any[]

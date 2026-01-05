@@ -34,18 +34,25 @@ const NewEvaluationModalContent = dynamic(() => import("./NewEvaluationModalCont
  * This component only mounts when the modal is open, preventing unnecessary
  * data fetching and state initialization when the modal is closed.
  */
+/** Determines which panel to show initially based on preselection and app scope */
+const getInitialPanel = (hasPreSelected: boolean, isAppScoped: boolean): string =>
+    hasPreSelected ? "testsetPanel" : isAppScoped ? "variantPanel" : "appPanel"
+
 const NewEvaluationModalInner = ({
     onSuccess,
     preview,
     evaluationType,
     onSubmitStateChange,
-    isOpen,
+    preSelectedVariantIds,
+    preSelectedAppId,
 }: NewEvaluationModalInnerProps) => {
     // Use appIdentifiersAtom directly to get the URL-derived appId without fallback to stale values
     const {appId} = useAtomValue(appIdentifiersAtom)
-    const isAppScoped = Boolean(appId)
+    // Consider pre-selected app ID from playground, fallback to URL-derived appId
+    const effectiveAppId = preSelectedAppId || appId || ""
+    const isAppScoped = Boolean(effectiveAppId)
     const {apps: availableApps = []} = useAppsData()
-    const [selectedAppId, setSelectedAppId] = useState<string>(appId || "")
+    const [selectedAppId, setSelectedAppId] = useState<string>(effectiveAppId)
     const appOptions = useMemo(() => {
         const options = availableApps.map((app) => ({
             label: app.app_name,
@@ -102,10 +109,16 @@ const NewEvaluationModalInner = ({
         ])
 
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
-    const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>([])
+    // Initialize with at most one pre-selected variant (e.g., from playground)
+    const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>(() => {
+        const first = preSelectedVariantIds?.[0]
+        return first ? [first] : []
+    })
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
-    const [activePanel, setActivePanel] = useState<string | null>(
-        isAppScoped ? "variantPanel" : "appPanel",
+    // If variants are pre-selected, start on testset panel; otherwise follow normal flow
+    const hasPreSelectedVariants = Boolean(preSelectedVariantIds?.[0])
+    const [activePanel, setActivePanel] = useState<string | null>(() =>
+        getInitialPanel(hasPreSelectedVariants, isAppScoped),
     )
     const [evaluationName, setEvaluationName] = useState("")
     const [nameFocused, setNameFocused] = useState(false)
@@ -114,9 +127,9 @@ const NewEvaluationModalInner = ({
 
     useEffect(() => {
         if (isAppScoped) {
-            setSelectedAppId(appId || "")
+            setSelectedAppId(effectiveAppId)
         }
-    }, [appId, isAppScoped])
+    }, [effectiveAppId, isAppScoped])
 
     useEffect(() => {
         if (!isAppScoped) return
@@ -158,6 +171,20 @@ const NewEvaluationModalInner = ({
     const handlePanelChange = useCallback((key: string | string[]) => {
         setActivePanel(key as string)
     }, [])
+
+    // Handler for when a new evaluator config is created via the inline drawer
+    const handleEvaluatorCreated = useCallback(
+        async (configId?: string) => {
+            // Refetch evaluator configs to get the newly created one
+            await evaluationData.refetchEvaluatorConfigs()
+
+            // Auto-select the newly created evaluator config
+            if (configId) {
+                setSelectedEvalConfigs((prev) => [...prev, configId])
+            }
+        },
+        [evaluationData],
+    )
 
     // Track focus on any input within modal to avoid overriding user typing
     useEffect(() => {
@@ -277,7 +304,7 @@ const NewEvaluationModalInner = ({
                 return false
             }
 
-            const variantInputs = revisions
+            const _variantInputs = revisions
                 .map((rev) => {
                     const store = getDefaultStore()
                     const flags = store.get(variantFlagsAtomFamily({revisionId: rev.id})) as any
@@ -435,7 +462,7 @@ const NewEvaluationModalInner = ({
                 }
             } else {
                 try {
-                    await createEvaluation(targetAppId, {
+                    const response = await createEvaluation(targetAppId, {
                         testset_id: selectedTestsetId,
                         revisions_ids: selectedVariantRevisionIds,
                         evaluators_configs: selectedEvalConfigs,
@@ -443,6 +470,38 @@ const NewEvaluationModalInner = ({
                         correct_answer_column: correct_answer_column,
                         name: evaluationName,
                     })
+
+                    // Extract run ID from response and build link to results
+                    const runId = response.data?.runs?.[0]?.id
+                    if (runId) {
+                        const scope = isAppScoped ? "app" : "project"
+                        const resultsUrl = buildEvaluationNavigationUrl({
+                            scope,
+                            baseAppURL,
+                            projectURL,
+                            appId: targetAppId,
+                            path: `/evaluations/results/${runId}`,
+                        })
+
+                        message.success(
+                            <span>
+                                Evaluation started.{" "}
+                                <a
+                                    href={resultsUrl}
+                                    onClick={(e) => {
+                                        e.preventDefault()
+                                        router.push(resultsUrl)
+                                    }}
+                                    className="underline font-medium"
+                                >
+                                    View progress
+                                </a>
+                            </span>,
+                        )
+                    } else {
+                        message.success("Evaluation started")
+                    }
+
                     // Trigger revalidation and close modal after successful creation
                     onSuccess?.()
                 } catch (error) {
@@ -509,7 +568,7 @@ const NewEvaluationModalInner = ({
             isLoading={
                 loadingEvaluators || loadingEvaluatorConfigs || testsetsLoading || variantsLoading
             }
-            isOpen={isOpen}
+            isOpen={true} // Always true since this component only renders when modal is open
             testsets={selectedAppId ? testsets || [] : []}
             variants={filteredVariants}
             variantsLoading={variantsLoading}
@@ -521,6 +580,7 @@ const NewEvaluationModalInner = ({
             selectedAppId={selectedAppId}
             onSelectApp={handleAppSelection}
             appSelectionDisabled={isAppScoped}
+            onEvaluatorCreated={handleEvaluatorCreated}
         />
     )
 }

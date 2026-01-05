@@ -1,7 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
-import {ArrowCounterClockwise, Copy, PencilSimple, Trash} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -64,39 +64,11 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
     const items: MenuProps["items"] = useMemo(
         () => [
             {
-                key: "history",
-                label: "History",
-                icon: <ArrowCounterClockwise size={14} />,
-                disabled: true,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                },
-            },
-            {
-                key: "rename",
-                label: "Rename",
-                icon: <PencilSimple size={16} />,
-                disabled: true,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                },
-            },
-            {type: "divider"},
-            {
                 key: "revert",
                 label: "Revert Changes",
                 icon: <ArrowCounterClockwise size={14} />,
                 onClick: handleDiscardDraft,
                 disabled: !variantId,
-            },
-            {
-                key: "clone",
-                label: "Clone",
-                icon: <Copy size={16} />,
-                disabled: true,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                },
             },
             {
                 key: "delete",
@@ -109,14 +81,6 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                 icon: <Trash size={16} />,
             },
             {type: "divider"},
-            {
-                key: "reset",
-                label: "Reset",
-                disabled: true,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                },
-            },
             {
                 key: "close",
                 label: "Close panel",
@@ -131,7 +95,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
     )
 
     return (
-        <Dropdown trigger={["click"]} overlayStyle={{width: 170}} menu={{items}} {...props}>
+        <Dropdown trigger={["click"]} styles={{root: {width: 170}}} menu={{items}} {...props}>
             <Button icon={<MoreOutlined size={14} />} type="text" />
         </Dropdown>
     )

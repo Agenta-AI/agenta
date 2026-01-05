@@ -8,25 +8,24 @@ services:
         build:
             context: ../../../web
             dockerfile: oss/docker/Dockerfile.dev
-         
+
         volumes:
             - ../../../web/oss/src:/app/oss/src
             - ../../../web/oss/public:/app/oss/public
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
-            
-        ports:
-            - "3000:3000"
+
         networks:
             - agenta-network
+
         labels:
             - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
             - "traefik.http.routers.agenta-web.entrypoints=web"
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
-        
+
         command: sh -c "pnpm dev-oss"
-        
+
         restart: always
 
     api:
@@ -109,7 +108,7 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python entrypoints/worker_evaluations.py
+            python -m entrypoints.worker_evaluations
 
     worker-tracing:
         build:
@@ -140,7 +139,7 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python entrypoints/worker_tracing.py
+            python -m entrypoints.worker_tracing
 
     cron:
         build:
@@ -299,9 +298,6 @@ services:
             --maxmemory-policy volatile-lru
             --port 6379
 
-        ports:
-            - "6379:6379"
-
         networks:
             - agenta-network
 
@@ -328,9 +324,6 @@ services:
             --maxmemory 512mb
             --maxmemory-policy noeviction
             --port 6381
-
-        ports:
-            - "6381:6381"
 
         networks:
             - agenta-network
@@ -366,9 +359,7 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
-        ports:
-            - 3567:3567
-        
+
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
 
@@ -377,12 +368,14 @@ services:
 
         networks:
             - agenta-network
+
         healthcheck:
             test: >
                 bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
             interval: 10s
             timeout: 5s
             retries: 5
+
         restart: always
 
 networks:

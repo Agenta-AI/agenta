@@ -6,12 +6,12 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {
     INVOCATION_METRIC_KEYS,
     INVOCATION_METRIC_LABELS,
-} from "@/oss/components/EvalRunDetails2/components/views/OverviewView/constants"
+} from "@/oss/components/EvalRunDetails/components/views/OverviewView/constants"
 import {
     ColumnVisibilityMenuTrigger,
-    createTableColumns,
     createColumnVisibilityAwareCell,
     createComponentCell,
+    createTableColumns,
 } from "@/oss/components/InfiniteVirtualTable"
 import type {TableColumnConfig} from "@/oss/components/InfiniteVirtualTable/columns/types"
 import {getEvaluatorMetricBlueprintAtom} from "@/oss/components/References/atoms/metricBlueprint"
@@ -68,13 +68,13 @@ import {
     normalizeString,
     resolveCreatedAtForExport,
     resolveEvaluationKindForExport,
+    resolveEvaluatorHandles,
+    resolveEvaluatorReferenceCandidate,
     resolveReferenceExportValue,
     resolveRunNameForExport,
     resolveStatusForExport,
     sanitizeGroupLabel,
     withColumnVisibilityHeader,
-    resolveEvaluatorHandles,
-    resolveEvaluatorReferenceCandidate,
 } from "./utils"
 
 export {
@@ -688,7 +688,7 @@ const useEvaluationRunsColumns = ({
             {
                 title: "Status",
                 key: "status",
-                width: 56,
+                width: 61,
                 fixed: "left",
                 visibilityLocked: true,
                 align: "left",
@@ -827,7 +827,7 @@ const useEvaluationRunsColumns = ({
         columnConfigs.push({
             title: <ColumnVisibilityMenuTrigger variant="icon" />,
             key: "actions",
-            width: 56,
+            width: 61,
             fixed: "right",
             visibilityLocked: true,
             align: "center",

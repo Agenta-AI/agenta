@@ -1,5 +1,6 @@
-import type {EditorProps} from "@/oss/components/Editor/types"
 import type {InputProps, TextAreaProps} from "antd/es/input"
+
+import type {EditorProps} from "@/oss/components/Editor/types"
 
 import type {BaseContainerProps} from "../types"
 

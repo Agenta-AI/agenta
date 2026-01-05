@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import {TestResult} from "@/oss/components/Playground/assets/utilities/transformer/types/testRun"
 
-import {TooltipButtonProps} from "../../../assets/EnhancedButton"
+import {TooltipButtonProps} from "../../../../EnhancedUIs/Button"
 
 export interface TestsetDrawerButtonProps extends TooltipButtonProps {
     icon?: boolean

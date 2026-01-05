@@ -198,8 +198,12 @@ const SetupTracingModal = (props: ModalProps) => {
             title={null}
             className={classes.modalContainer}
             width={720}
-            height={832}
             closeIcon={null}
+            styles={{
+                container: {
+                    height: 832,
+                },
+            }}
             {...props}
         >
             <SetupTracingModalContent classes={classes} onCancel={props.onCancel} />

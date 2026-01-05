@@ -1,9 +1,12 @@
+import React, {useMemo} from "react"
+
+import clsx from "clsx"
+
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import React, {useEffect, useMemo} from "react"
+
 import {LoadEvaluatorPresetProps} from "./assets/types"
 import LoadEvaluatorPresetContent from "./components/LoadEvaluatorPresetContent"
 import LoadEvaluatorPresetFooter from "./components/LoadEvaluatorPresetFooter"
-import clsx from "clsx"
 
 const LoadEvaluatorPreset = ({
     settingsPresets,
@@ -12,16 +15,16 @@ const LoadEvaluatorPreset = ({
     applySettingsValues,
     ...modalProps
 }: LoadEvaluatorPresetProps) => {
-    const [selectedPresetKey, setSelectedPresetKey] = React.useState<string>(
-        () => selectedSettingsPreset?.key ?? settingsPresets[0]?.key ?? "",
-    )
+    const [selectedPresetKey, setSelectedPresetKey] = React.useState<string>("")
+    const [prevOpen, setPrevOpen] = React.useState(modalProps.open)
 
-    useEffect(() => {
-        if (!modalProps.open) return
-        setSelectedPresetKey(
-            (prev) => prev || selectedSettingsPreset?.key || settingsPresets[0]?.key || "",
-        )
-    }, [modalProps.open, settingsPresets, selectedSettingsPreset])
+    // Update state during render when modal opens (React recommended pattern for derived state)
+    if (modalProps.open !== prevOpen) {
+        setPrevOpen(modalProps.open)
+        if (modalProps.open) {
+            setSelectedPresetKey(selectedSettingsPreset?.key || settingsPresets[0]?.key || "")
+        }
+    }
 
     const selectedPreset = useMemo(
         () => settingsPresets.find((p) => p.key === selectedPresetKey) ?? null,
