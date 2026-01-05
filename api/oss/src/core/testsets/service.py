@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from uuid import UUID, uuid4
 
 from oss.src.utils.logging import get_module_logger
@@ -897,9 +897,7 @@ class TestsetsService:
             )
             return None
 
-        # Load all current testcases from the base revision
-        # Note: testcases are already populated by _populate_testcases in fetch_testset_revision
-        # (which sets testcase_ids to None after populating testcases)
+        # Load all current testcases from the base revision, preserving order.
         current_testcases: List[Testcase] = []
         if base_revision.data and base_revision.data.testcases:
             current_testcases = list(base_revision.data.testcases)
@@ -912,18 +910,20 @@ class TestsetsService:
         # Apply column operations to ALL testcases first
         # This ensures column changes are applied even to testcases not in update list
         if operations.columns:
+            replace_map = {}
+            if operations.columns.replace:
+                replace_map = {old: new for old, new in operations.columns.replace}
+            remove_set = set(operations.columns.remove or [])
             for tc in current_testcases:
                 if tc.data:
-                    # Apply column replacements (rename)
-                    if operations.columns.replace:
-                        for old_name, new_name in operations.columns.replace:
-                            if old_name in tc.data:
-                                tc.data[new_name] = tc.data.pop(old_name)
-
-                    # Apply column removals
-                    if operations.columns.remove:
-                        for col_name in operations.columns.remove:
-                            tc.data.pop(col_name, None)
+                    # Preserve column order for replace/remove.
+                    updated_data: Dict[str, Any] = {}
+                    for key, value in tc.data.items():
+                        if key in remove_set:
+                            continue
+                        new_key = replace_map.get(key, key)
+                        updated_data[new_key] = value
+                    tc.data = updated_data
 
                     # Apply column additions (initialize to empty string)
                     if operations.columns.add:
@@ -931,60 +931,50 @@ class TestsetsService:
                             if col_name not in tc.data:
                                 tc.data[col_name] = ""
 
-        # Build a map of current testcases by ID for easy lookup
-        testcases_by_id: Dict[UUID, Testcase] = {
-            tc.id: tc for tc in current_testcases if tc.id
-        }
-
-        # Track IDs to delete
-        ids_to_delete: set[UUID] = set()
-        if operations.rows and operations.rows.remove:
-            ids_to_delete.update(operations.rows.remove)
-
-        # Apply update operations - replace data for matching IDs
+        # Build final testcases list, preserving base order.
+        remove_set: set[UUID] = (
+            set(operations.rows.remove or []) if operations.rows else set()
+        )
+        replace_map: Dict[UUID, Testcase] = {}
         if operations.rows and operations.rows.replace:
-            for updated_tc in operations.rows.replace:
-                if updated_tc.id and updated_tc.id in testcases_by_id:
-                    # Create a new Testcase with updated data
-                    testcases_by_id[updated_tc.id] = Testcase(
-                        id=None,  # Will be assigned by create_testcases
+            replace_map = {
+                tc.id: tc for tc in operations.rows.replace if tc.id is not None
+            }
+
+        # 1) Replace in place (preserve base order).
+        replaced_testcases: List[Testcase] = []
+        for tc in current_testcases:
+            if not tc.id:
+                continue
+            updated_tc = replace_map.get(tc.id)
+            if updated_tc is not None:
+                replaced_testcases.append(
+                    Testcase(
+                        id=None,
                         set_id=testset_revision_commit.testset_id,
                         data=updated_tc.data,
                     )
-                    # Mark old ID for removal (we'll create a new testcase)
-                    ids_to_delete.add(updated_tc.id)
-
-        # Build final testcases list:
-        # 1. Keep existing testcases that weren't deleted or updated
-        # 2. Add updated testcases (with new data)
-        # 3. Add new testcases from create operations
-        final_testcases: List[Testcase] = []
-
-        # Add existing testcases that weren't deleted
-        for tc_id, tc in testcases_by_id.items():
-            if tc_id not in ids_to_delete:
-                # Keep existing testcase data
-                final_testcases.append(
+                )
+            else:
+                replaced_testcases.append(
                     Testcase(
-                        id=None,  # Will be assigned by create_testcases
+                        id=None,
                         set_id=testset_revision_commit.testset_id,
                         data=tc.data,
                     )
                 )
 
-        # Add updated testcases
-        if operations.rows and operations.rows.replace:
-            for updated_tc in operations.rows.replace:
-                if updated_tc.id:
-                    final_testcases.append(
-                        Testcase(
-                            id=None,
-                            set_id=testset_revision_commit.testset_id,
-                            data=updated_tc.data,
-                        )
-                    )
+        # 2) Remove wherever it appears.
+        final_testcases: List[Testcase] = []
+        if remove_set:
+            for tc in replaced_testcases:
+                if tc.id in remove_set:
+                    continue
+                final_testcases.append(tc)
+        else:
+            final_testcases = replaced_testcases
 
-        # Add new testcases from create operations
+        # 3) Add at the end.
         if operations.rows and operations.rows.add:
             for new_tc in operations.rows.add:
                 final_testcases.append(
