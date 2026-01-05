@@ -23,7 +23,6 @@ from oss.src.core.testsets.dtos import (
     TestsetRevisionCreate,
     TestsetRevisionEdit,
     TestsetRevisionCommit,
-    TestsetRevisionPatch,
     #
     SimpleTestset,
     SimpleTestsetCreate,
@@ -125,10 +124,6 @@ class TestsetRevisionQueryRequest(BaseModel):
 class TestsetRevisionCommitRequest(BaseModel):
     testset_revision_commit: TestsetRevisionCommit
     include_testcases: Optional[bool] = None
-
-
-class TestsetRevisionPatchRequest(BaseModel):
-    testset_revision_patch: TestsetRevisionPatch
 
 
 class TestsetRevisionRetrieveRequest(BaseModel):

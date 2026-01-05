@@ -50,7 +50,6 @@ from oss.src.core.testsets.dtos import (
     TestsetRevisionEdit,
     TestsetRevisionQuery,
     TestsetRevisionCommit,
-    TestsetRevisionPatch,
 )
 from oss.src.apis.fastapi.testsets.utils import (
     csv_file_to_json_array,
@@ -779,6 +778,14 @@ class TestsetsService:
         #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
+        if testset_revision_commit.delta and not testset_revision_commit.data:
+            return await self._commit_testset_revision_delta(
+                project_id=project_id,
+                user_id=user_id,
+                testset_revision_commit=testset_revision_commit,
+                include_testcases=include_testcases,
+            )
+
         if testset_revision_commit.data and testset_revision_commit.data.testcases:
             if testset_revision_commit.data.testcases:
                 for testcase in testset_revision_commit.data.testcases:
@@ -862,43 +869,31 @@ class TestsetsService:
 
         return testset_revisions
 
-    async def patch_testset_revision(
+    async def _commit_testset_revision_delta(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        testset_revision_patch: TestsetRevisionPatch,
+        testset_revision_commit: TestsetRevisionCommit,
+        #
+        include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
-        """
-        Apply a patch to a testset revision.
-
-        This method:
-        1. Fetches the base revision (latest if not specified) with all testcases
-        2. Loads all current testcase data
-        3. Applies the patch operations to build a complete testcases list:
-           - update: Replace testcase data for matching IDs
-           - create: Add new testcases
-           - delete: Remove testcases by ID
-        4. Calls the regular commit flow with the full testcases data
-
-        This approach ensures consistency with the regular commit flow and
-        avoids any deduplication issues.
-        """
+        """Apply delta operations to a base revision and commit as a new revision."""
         # Get the base revision to patch
         base_revision = await self.fetch_testset_revision(
             project_id=project_id,
-            testset_ref=Reference(id=testset_revision_patch.testset_id),
+            testset_ref=Reference(id=testset_revision_commit.testset_id),
             testset_revision_ref=(
-                Reference(id=testset_revision_patch.base_revision_id)
-                if testset_revision_patch.base_revision_id
+                Reference(id=testset_revision_commit.revision_id)
+                if testset_revision_commit.revision_id
                 else None
             ),
         )
 
         if not base_revision:
             log.error(
-                f"Base revision not found for testset {testset_revision_patch.testset_id}"
+                f"Base revision not found for testset {testset_revision_commit.testset_id}"
             )
             return None
 
@@ -909,7 +904,7 @@ class TestsetsService:
         if base_revision.data and base_revision.data.testcases:
             current_testcases = list(base_revision.data.testcases)
 
-        operations = testset_revision_patch.operations
+        operations = testset_revision_commit.delta
         if not operations:
             # No operations, just return the base revision
             return base_revision
@@ -919,17 +914,15 @@ class TestsetsService:
         if operations.columns:
             for tc in current_testcases:
                 if tc.data:
-                    # Apply column renames
-                    if operations.columns.rename:
-                        for rename_op in operations.columns.rename:
-                            if rename_op.old_name in tc.data:
-                                tc.data[rename_op.new_name] = tc.data.pop(
-                                    rename_op.old_name
-                                )
+                    # Apply column replacements (rename)
+                    if operations.columns.replace:
+                        for old_name, new_name in operations.columns.replace:
+                            if old_name in tc.data:
+                                tc.data[new_name] = tc.data.pop(old_name)
 
-                    # Apply column deletions
-                    if operations.columns.delete:
-                        for col_name in operations.columns.delete:
+                    # Apply column removals
+                    if operations.columns.remove:
+                        for col_name in operations.columns.remove:
                             tc.data.pop(col_name, None)
 
                     # Apply column additions (initialize to empty string)
@@ -945,17 +938,17 @@ class TestsetsService:
 
         # Track IDs to delete
         ids_to_delete: set[UUID] = set()
-        if operations.delete:
-            ids_to_delete.update(operations.delete)
+        if operations.rows and operations.rows.remove:
+            ids_to_delete.update(operations.rows.remove)
 
         # Apply update operations - replace data for matching IDs
-        if operations.update:
-            for updated_tc in operations.update:
+        if operations.rows and operations.rows.replace:
+            for updated_tc in operations.rows.replace:
                 if updated_tc.id and updated_tc.id in testcases_by_id:
                     # Create a new Testcase with updated data
                     testcases_by_id[updated_tc.id] = Testcase(
                         id=None,  # Will be assigned by create_testcases
-                        set_id=testset_revision_patch.testset_id,
+                        set_id=testset_revision_commit.testset_id,
                         data=updated_tc.data,
                     )
                     # Mark old ID for removal (we'll create a new testcase)
@@ -974,52 +967,54 @@ class TestsetsService:
                 final_testcases.append(
                     Testcase(
                         id=None,  # Will be assigned by create_testcases
-                        set_id=testset_revision_patch.testset_id,
+                        set_id=testset_revision_commit.testset_id,
                         data=tc.data,
                     )
                 )
 
         # Add updated testcases
-        if operations.update:
-            for updated_tc in operations.update:
+        if operations.rows and operations.rows.replace:
+            for updated_tc in operations.rows.replace:
                 if updated_tc.id:
                     final_testcases.append(
                         Testcase(
                             id=None,
-                            set_id=testset_revision_patch.testset_id,
+                            set_id=testset_revision_commit.testset_id,
                             data=updated_tc.data,
                         )
                     )
 
         # Add new testcases from create operations
-        if operations.create:
-            for new_tc in operations.create:
+        if operations.rows and operations.rows.add:
+            for new_tc in operations.rows.add:
                 final_testcases.append(
                     Testcase(
                         id=None,
-                        set_id=testset_revision_patch.testset_id,
+                        set_id=testset_revision_commit.testset_id,
                         data=new_tc.data,
                     )
                 )
 
         # Get variant_id from base revision (required for commit)
         variant_id = (
-            testset_revision_patch.testset_variant_id
+            testset_revision_commit.testset_variant_id
             or base_revision.testset_variant_id
         )
 
-        # Generate a unique slug for the new revision
-        revision_slug = uuid4().hex[-12:]
+        # Generate a unique slug for the new revision if missing
+        revision_slug = testset_revision_commit.slug or uuid4().hex[-12:]
 
         # Create commit request with full testcases data
         # This will go through the regular commit flow
         testset_revision_commit = TestsetRevisionCommit(
             slug=revision_slug,
-            testset_id=testset_revision_patch.testset_id,
+            testset_id=testset_revision_commit.testset_id,
             testset_variant_id=variant_id,
-            message=testset_revision_patch.message or "Patched testset revision",
-            description=testset_revision_patch.description or base_revision.description,
-            flags=testset_revision_patch.flags,
+            message=testset_revision_commit.message or "Patched testset revision",
+            description=(
+                testset_revision_commit.description or base_revision.description
+            ),
+            flags=testset_revision_commit.flags,
             data=TestsetRevisionData(
                 testcases=final_testcases,
             ),
@@ -1030,6 +1025,7 @@ class TestsetsService:
             project_id=project_id,
             user_id=user_id,
             testset_revision_commit=testset_revision_commit,
+            include_testcases=include_testcases,
         )
 
     ## -------------------------------------------------------------------------
