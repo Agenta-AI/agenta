@@ -132,6 +132,8 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
             redis-volatile:
                 condition: service_healthy
             redis-durable:
@@ -166,6 +168,8 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
             redis-volatile:
                 condition: service_healthy
             redis-durable:

@@ -111,6 +111,8 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
             redis-volatile:
                 condition: service_healthy
             redis-durable:
@@ -147,6 +149,8 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
             redis-volatile:
                 condition: service_healthy
             redis-durable:
@@ -302,6 +306,9 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-username}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
         # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
@@ -310,7 +317,7 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss_core"]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -405,6 +412,8 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
