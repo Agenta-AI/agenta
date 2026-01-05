@@ -1066,10 +1066,9 @@ const CompareSectionRow = memo(
         const columnsCount = compareScenarios.length
         const rowGridStyle = useMemo(
             () => ({
-                gridTemplateColumns: `repeat(${columnsCount}, ${columnMinWidth}px)`,
-                minWidth: `${columnsCount * columnMinWidth}px`,
+                gridTemplateColumns: `repeat(${columnsCount}, 1fr)`,
             }),
-            [columnsCount, columnMinWidth],
+            [columnsCount],
         )
         const handleScroll = useCallback(() => {
             if (scrollRef.current) {
@@ -1394,7 +1393,7 @@ export const FocusDrawerContent = ({
     return (
         <div
             className={clsx(
-                "flex flex-col min-h-0 px-2 pb-6 bg-zinc-1",
+                "flex flex-col min-h-0 px-2 bg-zinc-1",
                 disableScroll ? "" : "h-full overflow-y-auto",
             )}
             data-focus-drawer-content
