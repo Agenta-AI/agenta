@@ -408,6 +408,17 @@
         color: var(--token-property);
     }
 
+    /* Clickable property keys - show pointer cursor on hover */
+    .token-property {
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+
+        &:hover {
+            background-color: rgba(111, 66, 193, 0.1);
+            border-radius: 2px;
+        }
+    }
+
     .token-boolean,
     .token-number {
         color: var(--token-number);

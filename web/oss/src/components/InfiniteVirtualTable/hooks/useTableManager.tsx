@@ -1,8 +1,7 @@
-import type {Key, MouseEvent, ReactNode, RefObject} from "react"
+import type {Key, MouseEvent, RefObject} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {Trash} from "@phosphor-icons/react"
-import {Button, Grid, Tooltip} from "antd"
+import {Grid} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 
@@ -11,6 +10,8 @@ import type {
     TableScopeConfig,
     TableFeaturePagination,
     InfiniteVirtualTableFeatureProps,
+    TableDeleteConfig,
+    TableExportConfig,
 } from "../features/InfiniteVirtualTableFeatureShell"
 import type {
     InfiniteTableRowBase,
@@ -127,14 +128,11 @@ export interface UseTableManagerReturn<T extends InfiniteTableRowBase> {
     /** Whether running on narrow screen (< lg breakpoint) */
     isNarrowScreen: boolean
 
-    /** Delete button for wide screens (null on narrow screens) */
-    deleteButton: ReactNode
+    /** Delete action config for the shell */
+    deleteAction: TableDeleteConfig | undefined
 
-    /** Settings dropdown delete config for narrow screens */
-    settingsDropdownDelete: InfiniteVirtualTableFeatureProps<T>["settingsDropdownDelete"]
-
-    /** Export button renderer */
-    renderExportButton: InfiniteVirtualTableFeatureProps<T>["renderExportButton"]
+    /** Export action config for the shell */
+    exportAction: TableExportConfig | undefined
 
     /** Handler to export a single row */
     handleExportRow: (record: T) => Promise<void>
@@ -153,9 +151,9 @@ export interface UseTableManagerReturn<T extends InfiniteTableRowBase> {
         | "pagination"
         | "rowSelection"
         | "tableProps"
-        | "renderExportButton"
+        | "deleteAction"
+        | "exportAction"
         | "useSettingsDropdown"
-        | "settingsDropdownDelete"
         | "rowKey"
     >
 }
@@ -325,68 +323,34 @@ export function useTableManager<T extends InfiniteTableRowBase>({
         setSelectedRowKeys([])
     }, [])
 
-    // Delete button for wide screens
-    const deleteButton = useMemo(() => {
-        if (isNarrowScreen || !onBulkDelete) return null
-        const disabled = !selectedRowKeys.length
-        const button = (
-            <Button
-                danger
-                type="text"
-                icon={<Trash size={14} className="mt-0.5" />}
-                className="flex items-center"
-                disabled={disabled}
-                onClick={() => onBulkDelete(getSelectedRecords())}
-            >
-                {deleteLabel}
-            </Button>
-        )
-        if (disabled && deleteDisabledTooltip) {
-            return <Tooltip title={deleteDisabledTooltip}>{button}</Tooltip>
-        }
-        return button
-    }, [
-        isNarrowScreen,
-        onBulkDelete,
-        selectedRowKeys.length,
-        getSelectedRecords,
-        deleteLabel,
-        deleteDisabledTooltip,
-    ])
-
-    // Settings dropdown delete config for narrow screens
-    const settingsDropdownDelete = useMemo(
+    // Delete action config - shell handles button rendering and narrow screen behavior
+    const deleteAction = useMemo<TableDeleteConfig | undefined>(
         () =>
-            isNarrowScreen && onBulkDelete
+            onBulkDelete
                 ? {
                       onDelete: () => onBulkDelete(getSelectedRecords()),
                       disabled: !selectedRowKeys.length,
-                      label: `${deleteLabel} selected`,
+                      disabledTooltip: deleteDisabledTooltip,
+                      label: deleteLabel,
                   }
                 : undefined,
-        [isNarrowScreen, onBulkDelete, selectedRowKeys.length, getSelectedRecords, deleteLabel],
+        [
+            onBulkDelete,
+            selectedRowKeys.length,
+            getSelectedRecords,
+            deleteDisabledTooltip,
+            deleteLabel,
+        ],
     )
 
-    // Export button renderer
-    const renderExportButton = useCallback(
-        ({onExport, loading}: {onExport: () => void; loading: boolean}) => {
-            if (isNarrowScreen) return null
-            const disabled = !selectedRowKeys.length
-            const button = (
-                <Button disabled={disabled} onClick={onExport} loading={loading}>
-                    {exportLabel}
-                </Button>
-            )
-            if (disabled && exportDisabledTooltip) {
-                return (
-                    <Tooltip title={exportDisabledTooltip}>
-                        <span>{button}</span>
-                    </Tooltip>
-                )
-            }
-            return button
-        },
-        [isNarrowScreen, selectedRowKeys.length, exportLabel, exportDisabledTooltip],
+    // Export action config - shell handles button rendering and narrow screen behavior
+    const exportAction = useMemo<TableExportConfig | undefined>(
+        () => ({
+            disabled: !selectedRowKeys.length,
+            disabledTooltip: exportDisabledTooltip,
+            label: exportLabel,
+        }),
+        [selectedRowKeys.length, exportDisabledTooltip, exportLabel],
     )
 
     // Handler to export a single row
@@ -426,9 +390,9 @@ export function useTableManager<T extends InfiniteTableRowBase>({
             pagination: tablePagination,
             rowSelection,
             tableProps,
-            renderExportButton,
+            deleteAction,
+            exportAction,
             useSettingsDropdown: isNarrowScreen,
-            settingsDropdownDelete,
             rowKey: rowKeyExtractor,
         }),
         [
@@ -437,9 +401,9 @@ export function useTableManager<T extends InfiniteTableRowBase>({
             tablePagination,
             rowSelection,
             tableProps,
-            renderExportButton,
+            deleteAction,
+            exportAction,
             isNarrowScreen,
-            settingsDropdownDelete,
             rowKeyExtractor,
         ],
     )
@@ -456,9 +420,8 @@ export function useTableManager<T extends InfiniteTableRowBase>({
         getSelectedRecords,
         clearSelection,
         isNarrowScreen,
-        deleteButton,
-        settingsDropdownDelete,
-        renderExportButton,
+        deleteAction,
+        exportAction,
         handleExportRow,
         rowExportingKey,
         columnsRef,
