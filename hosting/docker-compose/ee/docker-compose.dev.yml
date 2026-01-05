@@ -2,79 +2,57 @@ name: agenta-ee-dev
 
 services:
     .api:
+        # === IMAGE ========================================================== #
         image: agenta-ee-dev-api:latest
         build:
             context: ../../../api
             dockerfile: ee/docker/Dockerfile.dev
+        # === EXECUTION ====================================================== #
         command: ["true"]
 
     .web:
+        # === IMAGE ========================================================== #
         image: agenta-ee-dev-web:latest
         build:
             context: ../../../web
             dockerfile: ee/docker/Dockerfile.dev
+        # === EXECUTION ====================================================== #
         command: ["true"]
 
     web:
+        # === ACTIVATION ===================================================== #
         profiles:
             - with-web
-
+        # === IMAGE ========================================================== #
         image: agenta-ee-dev-web:latest
-
+        # === EXECUTION ====================================================== #
+        command: sh -c "pnpm dev-ee"
+        # === STORAGE ======================================================== #
         volumes:
             - ../../../web/ee/src:/app/ee/src
             - ../../../web/ee/public:/app/ee/public
             - ../../../web/oss/src:/app/oss/src
             - ../../../web/oss/public:/app/oss/public
-
+        # === CONFIGURATION ================================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-
-        restart: always
-
+        # === NETWORK ======================================================== #
         networks:
             - agenta-network
-
+        # === LABELS ========================================================= #
         labels:
             - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
             - "traefik.http.routers.agenta-web.entrypoints=web"
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
-
-        command: sh -c "pnpm dev-ee"
-
-    api:
-        image: agenta-ee-dev-api:latest
-
-        volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
-
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
-        environment:
-            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-
-        labels:
-            - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
-            - "traefik.http.routers.api.entrypoints=web"
-            - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
-            - "traefik.http.middlewares.api-strip.stripprefix.forceslash=true"
-            - "traefik.http.routers.api.middlewares=api-strip"
-            - "traefik.http.services.api.loadbalancer.server.port=8000"
-            - "traefik.http.routers.api.service=api"
-
+        # === LIFECYCLE ====================================================== #
         restart: always
 
-        networks:
-            - agenta-network
-
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-
+    api:
+        # === IMAGE ========================================================== #
+        image: agenta-ee-dev-api:latest
+        # === EXECUTION ====================================================== #
         command:
             [
                 "uvicorn",
@@ -87,7 +65,23 @@ services:
                 "--root-path",
                 "/api",
             ]
-
+        # === STORAGE ======================================================== #
+        volumes:
+            - ../../../api/ee:/app/ee
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
+            - ../../../sdk:/sdk
+        # === CONFIGURATION ================================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ======================================================== #
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ================================================== #
         depends_on:
             postgres:
                 condition: service_healthy
@@ -99,55 +93,42 @@ services:
                 condition: service_healthy
             redis-durable:
                 condition: service_healthy
-
-    worker-evaluations:
-        image: agenta-ee-dev-api:latest
-
-        volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
-
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
-        environment:
-            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-
-        depends_on:
-            postgres:
-                condition: service_healthy
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-
+        # === LABELS ========================================================= #
+        labels:
+            - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
+            - "traefik.http.routers.api.entrypoints=web"
+            - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
+            - "traefik.http.middlewares.api-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.api.middlewares=api-strip"
+            - "traefik.http.services.api.loadbalancer.server.port=8000"
+            - "traefik.http.routers.api.service=api"
+        # === LIFECYCLE ====================================================== #
         restart: always
 
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-
-        networks:
-            - agenta-network
-
+    worker-evaluations:
+        # === IMAGE ========================================================== #
+        image: agenta-ee-dev-api:latest
+        # === EXECUTION ====================================================== #
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
             python -m entrypoints.worker_evaluations
-
-    worker-tracing:
-        image: agenta-ee-dev-api:latest
-
+        # === STORAGE ======================================================== #
         volumes:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
-
+        # === CONFIGURATION ================================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-
+        # === NETWORK ======================================================== #
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ================================================== #
         depends_on:
             postgres:
                 condition: service_healthy
@@ -155,99 +136,99 @@ services:
                 condition: service_healthy
             redis-durable:
                 condition: service_healthy
-
+        # === LIFECYCLE ====================================================== #
         restart: always
 
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-
-        networks:
-            - agenta-network
-
+    worker-tracing:
+        # === IMAGE ========================================================== #
+        image: agenta-ee-dev-api:latest
+        # === EXECUTION ====================================================== #
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
             python -m entrypoints.worker_tracing
-
-    cron:
-        image: agenta-ee-dev-api:latest
-
-        volumes:
-            - ../../../api/ee/src/crons/meters.sh:/meters.sh
-            - ../../../api/oss/src/crons/queries.sh:/queries.sh
-
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
-        environment:
-            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-
-        depends_on:
-            - postgres
-            - api
-
-        restart: always
-
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-
-        networks:
-            - agenta-network
-
-        command: cron -f
-
-    alembic:
-        image: agenta-ee-dev-api:latest
-
+        # === STORAGE ======================================================== #
         volumes:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
-
+        # === CONFIGURATION ================================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ======================================================== #
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ================================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ====================================================== #
+        restart: always
 
+    cron:
+        # === IMAGE ========================================================== #
+        image: agenta-ee-dev-api:latest
+        # === EXECUTION ====================================================== #
+        command: cron -f
+        # === STORAGE ======================================================== #
+        volumes:
+            - ../../../api/ee/src/crons/meters.sh:/meters.sh
+            - ../../../api/oss/src/crons/queries.sh:/queries.sh
+        # === CONFIGURATION ================================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ======================================================== #
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ================================================== #
+        depends_on:
+            - postgres
+            - api
+        # === LIFECYCLE ====================================================== #
+        restart: always
+
+    alembic:
+        # === IMAGE ========================================================== #
+        image: agenta-ee-dev-api:latest
+        # === EXECUTION ====================================================== #
+        command: sh -c "python -m ee.databases.postgres.migrations.runner"
+        # === STORAGE ======================================================== #
+        volumes:
+            - ../../../api/ee:/app/ee
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
+            - ../../../sdk:/sdk
+        # === CONFIGURATION ================================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ======================================================== #
+        networks:
+            - agenta-network
+        # === ORCHESTRATION ================================================== #
         depends_on:
             postgres:
                 condition: service_healthy
 
-        networks:
-            - agenta-network
-
-        command: sh -c "python -m ee.databases.postgres.migrations.runner"
-
     completion:
+        # === IMAGE ========================================================== #
         build:
             context: ../../../services/completion
             dockerfile: ee/docker/Dockerfile.dev
-
-        volumes:
-            - ../../../services/completion:/app
-            - ../../../sdk:/sdk
-
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
-        environment:
-            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-
-        labels:
-            - "traefik.http.routers.completion.rule=PathPrefix(`/services/completion/`)"
-            - "traefik.http.routers.completion.entrypoints=web"
-            - "traefik.http.middlewares.completion-strip.stripprefix.prefixes=/services/completion"
-            - "traefik.http.middlewares.completion-strip.stripprefix.forceslash=true"
-            - "traefik.http.routers.completion.middlewares=completion-strip"
-            - "traefik.http.services.completion.loadbalancer.server.port=80"
-            - "traefik.http.routers.completion.service=completion"
-
-        restart: always
-
-        networks:
-            - agenta-network
-
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-
+        # === EXECUTION ====================================================== #
         command:
             [
                 "uvicorn",
@@ -260,38 +241,38 @@ services:
                 "--root-path",
                 "/services/completion",
             ]
-
-    chat:
-        build:
-            context: ../../../services/chat
-            dockerfile: ee/docker/Dockerfile.dev
-
+        # === STORAGE ======================================================== #
         volumes:
-            - ../../../services/chat:/app
+            - ../../../services/completion:/app
             - ../../../sdk:/sdk
-
+        # === CONFIGURATION ================================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-
-        labels:
-            - "traefik.http.routers.chat.rule=PathPrefix(`/services/chat/`)"
-            - "traefik.http.routers.chat.entrypoints=web"
-            - "traefik.http.middlewares.chat-strip.stripprefix.prefixes=/services/chat"
-            - "traefik.http.middlewares.chat-strip.stripprefix.forceslash=true"
-            - "traefik.http.routers.chat.middlewares=chat-strip"
-            - "traefik.http.services.chat.loadbalancer.server.port=80"
-            - "traefik.http.routers.chat.service=chat"
-
-        restart: always
-
+        # === NETWORK ======================================================== #
         networks:
             - agenta-network
-
         extra_hosts:
             - "host.docker.internal:host-gateway"
+        # === LABELS ========================================================= #
+        labels:
+            - "traefik.http.routers.completion.rule=PathPrefix(`/services/completion/`)"
+            - "traefik.http.routers.completion.entrypoints=web"
+            - "traefik.http.middlewares.completion-strip.stripprefix.prefixes=/services/completion"
+            - "traefik.http.middlewares.completion-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.completion.middlewares=completion-strip"
+            - "traefik.http.services.completion.loadbalancer.server.port=80"
+            - "traefik.http.routers.completion.service=completion"
+        # === LIFECYCLE ====================================================== #
+        restart: always
 
+    chat:
+        # === IMAGE ========================================================== #
+        build:
+            context: ../../../services/chat
+            dockerfile: ee/docker/Dockerfile.dev
+        # === EXECUTION ====================================================== #
         command:
             [
                 "uvicorn",
@@ -304,28 +285,52 @@ services:
                 "--root-path",
                 "/services/chat",
             ]
-
-    postgres:
-        image: postgres:16
-
-        restart: always
-
-        ports:
-            - "${POSTGRES_PORT:-5432}:5432"
-
+        # === STORAGE ======================================================== #
+        volumes:
+            - ../../../services/chat:/app
+            - ../../../sdk:/sdk
+        # === CONFIGURATION ================================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ======================================================== #
         networks:
             - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === LABELS ========================================================= #
+        labels:
+            - "traefik.http.routers.chat.rule=PathPrefix(`/services/chat/`)"
+            - "traefik.http.routers.chat.entrypoints=web"
+            - "traefik.http.middlewares.chat-strip.stripprefix.prefixes=/services/chat"
+            - "traefik.http.middlewares.chat-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.chat.middlewares=chat-strip"
+            - "traefik.http.services.chat.loadbalancer.server.port=80"
+            - "traefik.http.routers.chat.service=chat"
+        # === LIFECYCLE ====================================================== #
+        restart: always
 
+    postgres:
+        # === IMAGE ========================================================== #
+        image: postgres:16
+        # === STORAGE ======================================================== #
+        volumes:
+            - postgres-data:/var/lib/postgresql/data/
+            - ../../../api/ee/databases/postgres/init-db-ee.sql:/docker-entrypoint-initdb.d/init-db.sql
+        # === CONFIGURATION ================================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             POSTGRES_USER: ${POSTGRES_USER:-username}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
-
-        volumes:
-            - postgres-data:/var/lib/postgresql/data/
-            - ../../../api/ee/databases/postgres/init-db-ee.sql:/docker-entrypoint-initdb.d/init-db.sql
-
+        # === NETWORK ======================================================== #
+        networks:
+            - agenta-network
+        ports:
+            - "${POSTGRES_PORT:-5432}:5432"
+        # === LIFECYCLE ====================================================== #
+        restart: always
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U username -d agenta_ee_core"]
             interval: 10s
@@ -333,8 +338,9 @@ services:
             retries: 5
 
     redis-volatile:
+        # === IMAGE ========================================================== #
         image: redis:8
-
+        # === EXECUTION ====================================================== #
         command: >
             redis-server
             --appendonly no
@@ -342,15 +348,14 @@ services:
             --maxmemory 512mb
             --maxmemory-policy volatile-lru
             --port 6379
-
-        networks:
-            - agenta-network
-
+        # === STORAGE ======================================================== #
         volumes:
             - redis-volatile-data:/data
-
+        # === NETWORK ======================================================== #
+        networks:
+            - agenta-network
+        # === LIFECYCLE ====================================================== #
         restart: always
-
         healthcheck:
             test: ["CMD", "redis-cli", "-p", "6379", "ping"]
             interval: 10s
@@ -359,8 +364,9 @@ services:
             start_period: 5s
 
     redis-durable:
+        # === IMAGE ========================================================== #
         image: redis:8
-
+        # === EXECUTION ====================================================== #
         command: >
             redis-server
             --appendonly yes
@@ -369,15 +375,14 @@ services:
             --maxmemory 512mb
             --maxmemory-policy noeviction
             --port 6381
-
-        networks:
-            - agenta-network
-
+        # === STORAGE ======================================================== #
         volumes:
             - redis-durable-data:/data
-
+        # === NETWORK ======================================================== #
+        networks:
+            - agenta-network
+        # === LIFECYCLE ====================================================== #
         restart: always
-
         healthcheck:
             test: ["CMD", "redis-cli", "-p", "6381", "ping"]
             interval: 10s
@@ -386,8 +391,9 @@ services:
             start_period: 5s
 
     traefik:
+        # === IMAGE ========================================================== #
         image: traefik:2
-
+        # === EXECUTION ====================================================== #
         command:
             - --api.dashboard=true
             - --api.insecure=true
@@ -396,19 +402,17 @@ services:
             - --entrypoints.web.address=:80
             - --ping=true
             - --accesslog=true
-
+        # === STORAGE ======================================================== #
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        # === NETWORK ======================================================== #
+        networks:
+            - agenta-network
         ports:
             - "${TRAEFIK_PORT:-80}:80"
             - "${TRAEFIK_UI_PORT:-8080}:8080"
-
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
-
-        networks:
-            - agenta-network
-
+        # === LIFECYCLE ====================================================== #
         restart: always
-
         healthcheck:
             test: ["CMD", "traefik", "healthcheck", "--ping"]
             interval: 10s
@@ -417,28 +421,26 @@ services:
             start_period: 10s
 
     supertokens:
+        # === IMAGE ========================================================== #
         image: registry.supertokens.io/supertokens/supertokens-postgresql
-
+        # === CONFIGURATION ================================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS:-postgresql://username:password@postgres:5432/agenta_ee_supertokens}
+        # === NETWORK ======================================================== #
+        networks:
+            - agenta-network
+        ports:
+            - "3567:3567"
+        # === ORCHESTRATION ================================================== #
         depends_on:
             postgres:
                 condition: service_healthy
             alembic:
                 condition: service_completed_successfully
-
-        ports:
-            - "3567:3567"
-
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
-
-        environment:
-            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS:-postgresql://username:password@postgres:5432/agenta_ee_supertokens}
-
+        # === LIFECYCLE ====================================================== #
         restart: always
-
-        networks:
-            - agenta-network
-
         healthcheck:
             test: >
                 bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
@@ -447,23 +449,25 @@ services:
             retries: 5
 
     stripe:
+        # === IMAGE ========================================================== #
         image: stripe/stripe-cli:latest
-
-        command: [
-            listen,
-            --forward-to,
-            http://api:8000/billing/stripe/events/,
-            --events,
-            "customer.subscription.created,customer.subscription.deleted,invoice.updated,invoice.upcoming,invoice.payment_failed,invoice.payment_succeeded"
-        ]
-
+        # === EXECUTION ====================================================== #
+        command:
+            [
+                listen,
+                --forward-to,
+                http://api:8000/billing/stripe/events/,
+                --events,
+                "customer.subscription.created,customer.subscription.deleted,invoice.updated,invoice.upcoming,invoice.payment_failed,invoice.payment_succeeded",
+            ]
+        # === CONFIGURATION ================================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
-
-        restart: always
-
+        # === NETWORK ======================================================== #
         networks:
             - agenta-network
+        # === LIFECYCLE ====================================================== #
+        restart: always
 
 networks:
     agenta-network:
