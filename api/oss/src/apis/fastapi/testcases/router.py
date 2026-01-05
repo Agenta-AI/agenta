@@ -164,6 +164,7 @@ class TestcasesRouter:
             entities=testcases,
             attribute="created_at",  # Testcase IDs are content-hashed (UUID5), use timestamp
             windowing=testcases_query_request.windowing,
+            order="ascending",  # Must match order used in BlobsDAO.query_blobs
         )
 
         testcase_response = TestcasesResponse(
