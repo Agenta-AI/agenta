@@ -150,7 +150,7 @@ class TestcasesRouter:
                 # Revision not found or has no testcases
                 return TestcasesResponse()
 
-        testcases = await self.testcases_service.fetch_testcases(
+        testcases = await self.testcases_service.query_testcases(
             project_id=UUID(request.state.project_id),
             #
             testcase_ids=testcase_ids,

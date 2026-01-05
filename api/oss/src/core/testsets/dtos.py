@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict
+from typing import Optional, List, Tuple
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -171,74 +171,52 @@ class TestsetRevisionQuery(RevisionQuery):
     flags: Optional[TestsetFlags] = None
 
 
+class TestsetRevisionDeltaColumns(BaseModel):
+    """Column-level operations applied to ALL testcases in the revision."""
+
+    # Add columns: array of column names to add
+    add: Optional[List[str]] = None
+    # Remove columns: array of column names to remove
+    remove: Optional[List[str]] = None
+    # Replace columns: array of (old column name, new column name) to replace
+    replace: Optional[List[Tuple[str, str]]] = None
+
+
+class TestsetRevisionDeltaRows(BaseModel):
+    """Row-level operations applied to testcases in the revision."""
+
+    # Add rows: array of testcases to add
+    add: Optional[List[Testcase]] = None
+    # Remove rows: array of testcase IDs to remove
+    remove: Optional[List[UUID]] = None
+    # Replace rows: array of testcases to replace
+    replace: Optional[List[Testcase]] = None
+
+
+class TestsetRevisionDelta(BaseModel):
+    """Operations to apply to a testset revision."""
+
+    # Row-level operations
+    rows: Optional[TestsetRevisionDeltaRows] = None
+    # Column-level operations
+    columns: Optional[TestsetRevisionDeltaColumns] = None
+
+
 class TestsetRevisionCommit(
     RevisionCommit,
     TestsetIdAlias,
     TestsetVariantIdAlias,
+    TestsetRevisionIdAlias,
 ):
     flags: Optional[TestsetFlags] = None
 
     data: Optional[TestsetRevisionData] = None
+    delta: Optional[TestsetRevisionDelta] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("testset_id", "artifact_id", self)
         sync_alias("testset_variant_id", "variant_id", self)
-
-
-class TestsetColumnRename(BaseModel):
-    """Column rename operation"""
-
-    old_name: str
-    new_name: str
-
-
-class TestsetColumnOperations(BaseModel):
-    """Column-level operations applied to ALL testcases in the revision"""
-
-    # Rename columns: array of {old_name, new_name}
-    rename: Optional[List[TestsetColumnRename]] = None
-    # Add columns: array of column names to add (initialized to empty string)
-    add: Optional[List[str]] = None
-    # Delete columns: array of column names to remove
-    delete: Optional[List[str]] = None
-
-
-class TestsetRevisionPatchOperations(BaseModel):
-    """Operations to apply to a testset revision"""
-
-    # Testcases to update (existing testcases with modified data)
-    update: Optional[List[Testcase]] = None
-    # New testcases to create
-    create: Optional[List[Testcase]] = None
-    # Testcase IDs to delete
-    delete: Optional[List[UUID]] = None
-    # Column-level operations (applied to ALL testcases)
-    columns: Optional[TestsetColumnOperations] = None
-
-
-class TestsetRevisionPatch(
-    TestsetIdAlias,
-    TestsetVariantIdAlias,
-):
-    """Patch request for updating a testset revision with delta changes"""
-
-    flags: Optional[TestsetFlags] = None
-
-    # Base revision to apply patch to (defaults to latest if not specified)
-    base_revision_id: Optional[UUID] = None
-
-    # Commit message
-    message: Optional[str] = None
-
-    # Revision description (for the new revision)
-    description: Optional[str] = None
-
-    # Patch operations
-    operations: Optional[TestsetRevisionPatchOperations] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("testset_id", "artifact_id", self)
-        sync_alias("testset_variant_id", "variant_id", self)
+        sync_alias("testset_revision_id", "revision_id", self)
 
 
 class SimpleTestset(Identifier, Slug, Lifecycle, Header, Metadata):

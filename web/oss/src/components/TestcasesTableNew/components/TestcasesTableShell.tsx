@@ -3,9 +3,9 @@ import {useCallback, useMemo, useState} from "react"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {CaretDown, CaretRight, Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Input, Skeleton, Tooltip} from "antd"
+import type {MenuProps} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {
@@ -17,7 +17,6 @@ import {
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 import {testcaseIsDirtyAtom} from "@/oss/state/entities/testcase/dirtyState"
-import {testsetMetadataAtom} from "@/oss/state/entities/testcase/queries"
 
 import {message} from "../../AppMessageContext"
 import {testcasesDatasetStore, type TestcaseTableRow} from "../atoms/tableStore"
@@ -40,6 +39,7 @@ export interface TestcasesTableShellProps {
         size: "small" | "medium" | "large"
         heightPx: number
         maxLines: number
+        menuItems: MenuProps["items"]
     }
     selectedRowKeys: React.Key[]
     onSelectedRowKeysChange: (keys: React.Key[]) => void
@@ -100,9 +100,6 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         maxRows,
         onAddColumn,
     } = props
-
-    // Get metadata for export filename
-    const metadata = useAtomValue(testsetMetadataAtom)
 
     // Collapsed groups state (using useState for simplicity - persists only during session)
     const [collapsedGroups, setCollapsedGroups] = useState<string[]>([])
@@ -468,11 +465,12 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                         <ColumnVisibilityMenuTrigger variant="icon" />
                     </div>
                 ),
-                key: "actions",
+                key: "__ui_actions__", // Use reserved key to avoid conflict with user data columns
                 width: 56,
                 fixed: "right",
                 align: "center",
                 columnVisibilityLocked: true as any,
+                exportEnabled: false as any, // Exclude from client-side CSV export
                 render: (_, record) => {
                     if (record.__isSkeleton || isShowingSkeleton) return null
 
@@ -554,21 +552,6 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         handleGroupDelete,
     ])
 
-    // Export configuration
-    const exportOptions = useMemo(
-        () => ({
-            resolveValue: (args: {row: TestcaseTableRow; columnKey: string}) => {
-                return args.row[args.columnKey]
-            },
-            resolveColumnLabel: (context: {columnIndex: number}) => {
-                const col = table.columns[context.columnIndex]
-                return col?.name || col?.key
-            },
-            filename: `${metadata?.testsetName || "testset"}.csv`,
-        }),
-        [table.columns, metadata?.testsetName],
-    )
-
     // Delete action
     const deleteAction = useMemo(
         () =>
@@ -620,7 +603,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             filters={filters || undefined}
             primaryActions={hideControls ? undefined : actions}
             deleteAction={hideControls ? undefined : deleteAction}
-            exportOptions={exportOptions}
+            enableExport={false}
             autoHeight={autoHeight}
             rowHeight={rowHeight.heightPx}
             fallbackControlsHeight={96}
@@ -632,6 +615,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             tableProps={tableProps}
             rowSelection={rowSelection}
             useSettingsDropdown={!hideControls}
+            settingsDropdownMenuItems={hideControls ? undefined : rowHeight.menuItems}
             store={globalStore}
         />
     )
