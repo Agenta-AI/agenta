@@ -57,6 +57,8 @@ export interface UseSmartResizableColumnsResult<RowType> {
     } | null
     getTotalWidth: (cols?: ColumnsType<RowType>) => number
     isResizing: boolean
+    /** Whether any column has been manually resized by the user */
+    hasUserResizedAny: boolean
 }
 
 /**
@@ -116,26 +118,23 @@ export const useSmartResizableColumns = <RowType>({
     )
 
     // Compute smart widths based on available space
+    // KEY CONSTRAINT: Total width must always >= containerWidth
     const computeSmartWidths = useCallback(
         (columnsMeta: ColumnMeta[]): Record<string, number> => {
             const result: Record<string, number> = {}
-
-            // Check if ANY column has been user-resized
-            const hasAnyUserResize = columnsMeta.some((c) => userResizedWidths[c.key] !== undefined)
 
             // 1. Separate columns by type
             const fixedPositionCols = columnsMeta.filter((c) => c.isFixed)
             const constrainedCols = columnsMeta.filter((c) => !c.isFixed && c.hasMaxWidth)
             const flexibleCols = columnsMeta.filter((c) => !c.isFixed && !c.hasMaxWidth)
 
-            // 2. Calculate fixed widths (these never change)
+            // 2. Calculate fixed widths (these NEVER change)
             let fixedWidth = selectionColumnWidth
 
-            // Fixed position columns use their width (or user-resized width)
+            // Fixed position columns use their ORIGINAL width (never user-resized)
             for (const col of fixedPositionCols) {
-                const width = userResizedWidths[col.key] ?? col.width
-                result[col.key] = width
-                fixedWidth += width
+                result[col.key] = col.width
+                fixedWidth += col.width
             }
 
             // Constrained columns use their maxWidth
@@ -150,47 +149,56 @@ export const useSmartResizableColumns = <RowType>({
                 return result
             }
 
-            // Available space for flexible columns
-            const availableForFlexible = containerWidth - fixedWidth
+            // Available space for flexible columns (must be filled!)
+            const availableForFlexible = Math.max(0, containerWidth - fixedWidth)
 
-            // KEY BEHAVIOR CHANGE:
-            // Once ANY column has been user-resized, ALL flexible columns should use
-            // either their user-resized width or their default width (not redistribute).
-            // This prevents other columns from shrinking when one is expanded.
-            if (hasAnyUserResize) {
-                // Use user-resized width if available, otherwise use default width
-                for (const col of flexibleCols) {
-                    const width = userResizedWidths[col.key] ?? col.width
-                    result[col.key] = Math.max(width, col.minWidth)
+            // Separate user-resized and non-resized flexible columns
+            const userResizedFlexCols = flexibleCols.filter(
+                (c) => userResizedWidths[c.key] !== undefined,
+            )
+            const nonResizedFlexCols = flexibleCols.filter(
+                (c) => userResizedWidths[c.key] === undefined,
+            )
+
+            // Calculate space taken by user-resized columns
+            let userResizedTotal = 0
+            for (const col of userResizedFlexCols) {
+                const width = Math.max(userResizedWidths[col.key]!, col.minWidth)
+                result[col.key] = width
+                userResizedTotal += width
+            }
+
+            // Remaining space for non-resized columns
+            const remainingForNonResized = availableForFlexible - userResizedTotal
+
+            if (nonResizedFlexCols.length === 0) {
+                // All flexible columns have been user-resized
+                // If total < available, we need to expand the last resized column
+                // to maintain the sum constraint
+                if (userResizedTotal < availableForFlexible && userResizedFlexCols.length > 0) {
+                    const lastCol = userResizedFlexCols[userResizedFlexCols.length - 1]
+                    const deficit = availableForFlexible - userResizedTotal
+                    result[lastCol.key] = (result[lastCol.key] ?? 0) + deficit
                 }
                 return result
             }
 
-            // No user resizes yet - distribute space proportionally to fill container
-            // This is the initial state before any manual resizing
-            //
-            // KEY: Use default widths as the floor, not minWidth.
-            // This ensures columns don't shrink below their intended default size.
-            // If total default widths exceed container, allow horizontal scrolling.
-            const totalDefaultWidth = flexibleCols.reduce((sum, col) => sum + col.width, 0)
+            // Distribute remaining space among non-resized columns
+            // Ensure they fill the available space (sum constraint)
+            const totalDefaultWeight = nonResizedFlexCols.reduce((sum, col) => sum + col.width, 0)
 
-            // If there's not enough space for all columns at their default widths,
-            // use default widths and allow horizontal scrolling
-            if (availableForFlexible <= totalDefaultWidth) {
-                for (const col of flexibleCols) {
-                    result[col.key] = col.width
+            if (remainingForNonResized <= 0) {
+                // User-resized columns take all space, use minimum for others
+                for (const col of nonResizedFlexCols) {
+                    result[col.key] = col.minWidth
                 }
-                return result
-            }
-
-            // There's extra space - distribute it proportionally
-            const totalWeight = flexibleCols.reduce((sum, col) => sum + col.width, 0)
-
-            for (const col of flexibleCols) {
-                const proportion = col.width / totalWeight
-                const computedWidth = availableForFlexible * proportion
-                // Use default width as floor, not minWidth
-                result[col.key] = Math.max(computedWidth, col.width)
+            } else {
+                // Distribute remaining space proportionally
+                for (const col of nonResizedFlexCols) {
+                    const proportion = col.width / totalDefaultWeight
+                    const computedWidth = remainingForNonResized * proportion
+                    result[col.key] = Math.max(computedWidth, col.minWidth)
+                }
             }
 
             return result
@@ -355,11 +363,18 @@ export const useSmartResizableColumns = <RowType>({
         [minWidth, resizableColumns],
     )
 
+    // Check if any column has been user-resized
+    const hasUserResizedAny = useMemo(
+        () => Object.keys(userResizedWidths).length > 0,
+        [userResizedWidths],
+    )
+
     return {
         columns: resizableColumns,
         headerComponents: enabled ? {cell: ResizableTitle} : null,
         getTotalWidth,
         isResizing,
+        hasUserResizedAny,
     }
 }
 
