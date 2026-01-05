@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 class Organization(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: str
+    id: UUID
     slug: Optional[str] = None
     #
     name: Optional[str] = None

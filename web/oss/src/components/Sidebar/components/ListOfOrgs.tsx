@@ -356,7 +356,7 @@ const ListOfOrgs = ({
     const renameMutation = useMutation({
         mutationFn: async ({organizationId, name}: {organizationId: string; name: string}) => {
             const {updateOrganization} = await import("@/oss/services/organization/api")
-            return updateOrganization(organizationId, name)
+            return updateOrganization(organizationId, {name})
         },
         onSuccess: async () => {
             message.success("Organization renamed")

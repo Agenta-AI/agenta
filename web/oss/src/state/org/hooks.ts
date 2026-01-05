@@ -145,27 +145,26 @@ export const useOrgData = () => {
                 const lastUsedProjectId = getLastUsedProjectId(workspaceId)
                 if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
 
-                // Preserve current page route if on settings page
-                const isOnSettingsPage = router.pathname.includes("/settings")
-                const currentTab =
-                    (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ??
-                    (router.query.tab as string | undefined)
+                // Extract the current page path to preserve navigation context
+                const projectId = lastUsedProjectId ?? preferredProject?.project_id
+                const currentPathMatch = router.asPath.match(/\/p\/[^/]+\/(.*)/)
+                const currentPagePath = currentPathMatch?.[1]?.split("?")[0] ?? "apps"
 
                 let href: string
-                if (isOnSettingsPage && lastUsedProjectId) {
-                    // Keep settings page and tab when switching org
-                    const tabParam = currentTab ? `?tab=${encodeURIComponent(currentTab)}` : ""
-                    href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(lastUsedProjectId)}/settings${tabParam}`
-                } else if (isOnSettingsPage && preferredProject) {
-                    const tabParam = currentTab ? `?tab=${encodeURIComponent(currentTab)}` : ""
-                    href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(preferredProject.project_id)}/settings${tabParam}`
+                if (projectId) {
+                    // Preserve query params for settings tab
+                    const isOnSettingsPage = currentPagePath.startsWith("settings")
+                    const currentTab =
+                        (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ??
+                        (router.query.tab as string | undefined)
+                    const tabParam =
+                        isOnSettingsPage && currentTab
+                            ? `?tab=${encodeURIComponent(currentTab)}`
+                            : ""
+
+                    href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/${currentPagePath}${tabParam}`
                 } else {
-                    // Default behavior for non-settings pages
-                    href = lastUsedProjectId
-                        ? `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(lastUsedProjectId)}/apps`
-                        : preferredProject
-                          ? `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(preferredProject.project_id)}/apps`
-                          : `/w/${encodeURIComponent(workspaceId)}`
+                    href = `/w/${encodeURIComponent(workspaceId)}`
                 }
 
                 navigate({type: "href", href, method: "push", shallow: false})

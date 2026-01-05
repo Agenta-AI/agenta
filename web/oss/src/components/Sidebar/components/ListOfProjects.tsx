@@ -261,21 +261,19 @@ const ListOfProjects = ({
             cacheLastUsedProjectId(workspaceId, projectId)
             if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
 
-            // Preserve current page route if on settings page
-            const isOnSettingsPage = router.pathname.includes("/settings")
+            // Extract the current page path to preserve navigation context
+            const currentPathMatch = router.asPath.match(/\/p\/[^/]+\/(.*)/)
+            const currentPagePath = currentPathMatch?.[1]?.split("?")[0] ?? "apps"
+
+            // Preserve query params for settings tab
+            const isOnSettingsPage = currentPagePath.startsWith("settings")
             const currentTab =
                 (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ??
                 (router.query.tab as string | undefined)
+            const tabParam =
+                isOnSettingsPage && currentTab ? `?tab=${encodeURIComponent(currentTab)}` : ""
 
-            let href: string
-            if (isOnSettingsPage) {
-                // Keep settings page and tab when switching project
-                const tabParam = currentTab ? `?tab=${encodeURIComponent(currentTab)}` : ""
-                href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings${tabParam}`
-            } else {
-                // Default behavior for non-settings pages
-                href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
-            }
+            const href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/${currentPagePath}${tabParam}`
 
             void router.push(href)
         },
