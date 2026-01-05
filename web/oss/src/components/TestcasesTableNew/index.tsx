@@ -15,6 +15,7 @@ import {
 import {NEW_TESTSET_ID, testset} from "@/oss/state/entities/testset"
 
 import {setDebouncedSearchTermAtom, testcasesSearchTermAtom} from "./atoms/tableStore"
+import {ImportTestsetRevisionModal} from "./components/ImportTestsetRevisionModal"
 import {TestcaseActions} from "./components/TestcaseActions"
 import TestcaseEditDrawer from "./components/TestcaseEditDrawer"
 import {TestcaseHeader} from "./components/TestcaseHeader"
@@ -78,6 +79,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false)
     const [isCommitModalOpen, setIsCommitModalOpen] = useState(false)
     const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false)
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false)
     const [isIdCopied, setIsIdCopied] = useState(false)
     const [isRevisionSlugCopied, setIsRevisionSlugCopied] = useState(false)
 
@@ -227,6 +229,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         onAddTestcase={actions.handleAddTestcase}
                         onDiscard={actions.handleDiscardChanges}
                         onCommit={() => setIsCommitModalOpen(true)}
+                        onImportCSV={() => setIsImportModalOpen(true)}
                         isNewTestset={isNewTestset}
                     />
                 }
@@ -272,6 +275,18 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 onAddColumn={(name) => {
                     actions.handleAddColumn(name, () => setIsAddColumnModalOpen(false))
                 }}
+            />
+
+            <ImportTestsetRevisionModal
+                open={isImportModalOpen}
+                onCancel={() => setIsImportModalOpen(false)}
+                onSuccess={(newRevisionId) => {
+                    setIsImportModalOpen(false)
+                    // Navigate to the new revision
+                    router.push(`${projectURL}/testsets/${newRevisionId}`)
+                }}
+                testsetId={metadata?.testsetId ?? ""}
+                testsetName={metadata?.testsetName ?? "Testset"}
             />
         </div>
     )
