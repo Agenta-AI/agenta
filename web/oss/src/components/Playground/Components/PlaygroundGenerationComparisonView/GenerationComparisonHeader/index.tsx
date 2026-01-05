@@ -9,14 +9,14 @@ import {inputRowIdsWithPropertiesCompatAtom} from "@/oss/state/generation/compat
 import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 import {triggerWebWorkerTestAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
 
-import TooltipButton from "../../../assets/EnhancedButton"
+import TooltipButton from "@/oss/components/EnhancedUIs/Button"
 import RunButton from "../../../assets/RunButton"
 import {
     appChatModeAtom,
-    generationHeaderDataAtomFamily,
-    displayedVariantsAtom,
     cancelTestsMutationAtom,
     canRunAllChatComparisonAtom,
+    displayedVariantsAtom,
+    generationHeaderDataAtomFamily,
 } from "../../../state/atoms"
 import {clearAllRunsMutationAtom} from "../../../state/atoms/utilityMutations"
 import TestsetDrawerButton from "../../Drawers/TestsetDrawer"

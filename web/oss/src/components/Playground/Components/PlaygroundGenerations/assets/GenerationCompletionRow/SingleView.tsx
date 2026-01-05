@@ -1,19 +1,19 @@
-import {useMemo, useState, useCallback, useEffect, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     CaretDownIcon,
-    CaretRightIcon,
     CaretLineDownIcon,
     CaretLineUpIcon,
-    MinusCircleIcon,
+    CaretRightIcon,
     CopyIcon,
     DatabaseIcon,
+    MinusCircleIcon,
 } from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import TooltipButton from "@/oss/components/EnhancedUIs/Button"
 import VariableControlAdapter from "@/oss/components/Playground/adapters/VariableControlAdapter"
-import TooltipButton from "@/oss/components/Playground/assets/EnhancedButton"
 import RunButton from "@/oss/components/Playground/assets/RunButton"
 import TypingIndicator from "@/oss/components/Playground/assets/TypingIndicator"
 import TestsetDrawerButton from "@/oss/components/Playground/Components/Drawers/TestsetDrawer"
@@ -111,7 +111,7 @@ const SingleView = ({
                 <div className="w-full flex items-center gap-2">
                     <TooltipButton
                         icon={<CaretRightIcon size={14} />}
-                        type="textIcon"
+                        type="text"
                         onClick={() => setIsCollapsed(false)}
                         tooltipProps={{title: "Expand"}}
                         size="small"

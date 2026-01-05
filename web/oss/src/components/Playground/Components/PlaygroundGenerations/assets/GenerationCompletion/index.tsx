@@ -35,7 +35,7 @@ const GenerationCompletion = ({
 
     // Ensure is handled at MainLayout level to avoid write-on-render here
     return (
-        <div className={clsx(["flex flex-col", {"gap-2": viewType === "single"}], className)}>
+        <div className={clsx(["flex flex-col",], className)}>
             {viewType === "comparison" ? (
                 <GenerationCompletionRow
                     variantId={variantId}
