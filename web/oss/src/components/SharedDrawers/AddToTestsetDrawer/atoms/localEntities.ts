@@ -1,5 +1,6 @@
 import {atom} from "jotai"
 
+import {testcase} from "@/oss/state/entities/testcase"
 import {localEntitiesRevisionAtom} from "@/oss/state/entities/testcase/atomCleanup"
 import {
     addPendingAddedColumnAtom,
@@ -10,7 +11,6 @@ import {
     localColumnsAtomFamily,
 } from "@/oss/state/entities/testcase/columnState"
 import {newEntityIdsAtom} from "@/oss/state/entities/testcase/testcaseEntity"
-import {testcase} from "@/oss/state/entities/testcase"
 import {currentRevisionIdAtom} from "@/oss/state/entities/testset"
 
 import type {TestsetTraceData} from "../assets/types"

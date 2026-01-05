@@ -3,8 +3,8 @@ import {memo} from "react"
 import {testcase, type TestcaseColumn} from "@/oss/state/entities/testcase"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 
-import {EntityDrillInView} from "./EntityDrillInView"
 import type {DrillInContentProps} from "./DrillInContent"
+import {EntityDrillInView} from "./EntityDrillInView"
 
 // Re-export TestcaseColumn for convenience
 export type {TestcaseColumn} from "@/oss/state/entities/testcase"
@@ -13,8 +13,10 @@ export type {TestcaseColumn} from "@/oss/state/entities/testcase"
 // TYPES
 // ============================================================================
 
-export interface TestcaseDrillInViewProps
-    extends Omit<DrillInContentProps, "getValue" | "setValue" | "getRootItems" | "valueMode"> {
+export interface TestcaseDrillInViewProps extends Omit<
+    DrillInContentProps,
+    "getValue" | "setValue" | "getRootItems" | "valueMode"
+> {
     /** Testcase ID to display/edit */
     testcaseId: string
     /** Column definitions for the testcase (determines what fields to show) */

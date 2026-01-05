@@ -8,10 +8,7 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
-import {
-    createEntityDraftState,
-    normalizeValueForComparison,
-} from "../shared/createEntityDraftState"
+import {createEntityDraftState, normalizeValueForComparison} from "../shared/createEntityDraftState"
 
 import {atomFamilyRegistry} from "./atomCleanup"
 import {
@@ -192,12 +189,21 @@ const testcaseBatchFetcher = createBatchFetcher<
         // Group requests by revisionId for efficient cache lookup
         const cacheCheckGroups = new Map<
             string,
-            {queryClient: import("@tanstack/react-query").QueryClient; testcaseIds: string[]; keyMap: Map<string, string>}
+            {
+                queryClient: import("@tanstack/react-query").QueryClient
+                testcaseIds: string[]
+                keyMap: Map<string, string>
+            }
         >()
 
         requests.forEach((req, idx) => {
             const key = serializedKeys[idx]
-            if (req.queryClient && req.revisionId && req.testcaseId && isValidUUID(req.testcaseId)) {
+            if (
+                req.queryClient &&
+                req.revisionId &&
+                req.testcaseId &&
+                isValidUUID(req.testcaseId)
+            ) {
                 const groupKey = req.revisionId
                 const existing = cacheCheckGroups.get(groupKey)
                 if (existing) {

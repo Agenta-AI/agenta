@@ -39,11 +39,7 @@ import {createPaginatedEntityStore} from "../shared"
 
 import {currentRevisionIdAtom} from "./queries"
 import {flattenTestcase, testcasesResponseSchema} from "./schema"
-import {
-    deletedEntityIdsAtom,
-    newEntityIdsAtom,
-    testcaseDraftAtomFamily,
-} from "./testcaseEntity"
+import {deletedEntityIdsAtom, newEntityIdsAtom, testcaseDraftAtomFamily} from "./testcaseEntity"
 
 // ============================================================================
 // TYPES

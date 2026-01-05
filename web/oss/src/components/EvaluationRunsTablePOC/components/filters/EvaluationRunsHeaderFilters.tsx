@@ -11,7 +11,6 @@ import {
 } from "@/oss/components/References/referenceColors"
 import {testsetsListQueryAtomFamily} from "@/oss/state/entities/testset"
 
-import {evaluationRunsTableComponentSliceAtom} from "../../atoms/context"
 import {
     evaluationRunsFilterOptionsAtom,
     evaluationRunsFiltersSummaryAtom,
@@ -100,7 +99,6 @@ const isReferenceChipPending = (payload: {label?: string; value: string; loading
 
 const FiltersSummary = () => {
     const summary = useAtomValue(evaluationRunsFiltersSummaryAtom)
-    const {projectId} = useAtomValue(evaluationRunsTableComponentSliceAtom)
     const testsetsQuery = useAtomValue(testsetsListQueryAtomFamily(null))
     const testsets = testsetsQuery.data?.testsets ?? []
     const testsetsLoading = testsetsQuery.isPending

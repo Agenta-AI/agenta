@@ -101,12 +101,6 @@ import {
 } from "./paginatedStore"
 import type {FlattenedTestcase} from "./schema"
 import {
-    addTestcaseAtom,
-    appendTestcasesAtom,
-    createTestcasesAtom,
-    deleteTestcasesAtom,
-} from "./testcaseMutations"
-import {
     discardDraftAtom,
     testcaseCellAtomFamily,
     testcaseEntityAtomFamily,
@@ -114,6 +108,12 @@ import {
     testcaseQueryAtomFamily,
     updateTestcaseAtom,
 } from "./testcaseEntity"
+import {
+    addTestcaseAtom,
+    appendTestcasesAtom,
+    createTestcasesAtom,
+    deleteTestcasesAtom,
+} from "./testcaseMutations"
 
 // ============================================================================
 // TYPES
@@ -363,6 +363,7 @@ export const testcase = {
 export type {EntityAction, EntityControllerState} from "../shared/createEntityController"
 
 // Type alias for testcase-specific usage
-export type TestcaseAction = import("../shared/createEntityController").EntityAction<FlattenedTestcase>
+export type TestcaseAction =
+    import("../shared/createEntityController").EntityAction<FlattenedTestcase>
 export type TestcaseControllerState =
     import("../shared/createEntityController").EntityControllerState<FlattenedTestcase>

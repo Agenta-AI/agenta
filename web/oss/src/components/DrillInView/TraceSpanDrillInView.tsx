@@ -2,15 +2,17 @@ import {memo, type ReactNode} from "react"
 
 import {traceSpan} from "@/oss/state/entities/trace"
 
-import {EntityDrillInView} from "./EntityDrillInView"
 import type {DrillInContentProps} from "./DrillInContent"
+import {EntityDrillInView} from "./EntityDrillInView"
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-export interface TraceSpanDrillInViewProps
-    extends Omit<DrillInContentProps, "getValue" | "setValue" | "getRootItems" | "valueMode"> {
+export interface TraceSpanDrillInViewProps extends Omit<
+    DrillInContentProps,
+    "getValue" | "setValue" | "getRootItems" | "valueMode"
+> {
     /** The span ID to display */
     spanId: string
     /** Optional title for the root level */

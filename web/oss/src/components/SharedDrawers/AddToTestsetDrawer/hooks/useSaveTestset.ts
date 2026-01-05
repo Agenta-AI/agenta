@@ -10,7 +10,11 @@ import {projectIdAtom} from "@/oss/state/project"
 import {setRevisionsForTestsetAtom} from "@/oss/state/testsetSelection"
 
 import {isNewTestsetAtom, newTestsetNameAtom, selectedTestsetInfoAtom} from "../atoms/cascaderState"
-import {mappingDataAtom, selectedRevisionIdAtom, traceDataFromEntitiesAtom} from "../atoms/drawerState"
+import {
+    mappingDataAtom,
+    selectedRevisionIdAtom,
+    traceDataFromEntitiesAtom,
+} from "../atoms/drawerState"
 import {
     commitMessageAtom,
     convertTraceDataAtom,

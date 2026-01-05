@@ -73,17 +73,21 @@
  * ```
  */
 
-import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
-import type {Atom, PrimitiveAtom, WritableAtom} from "jotai"
 import type {Key} from "react"
+
+import {atom} from "jotai"
+import type {Atom, PrimitiveAtom, WritableAtom} from "jotai"
+import {atomFamily} from "jotai/utils"
 
 import {
     createSimpleTableStore,
     type BaseTableMeta,
     type SimpleTableStore,
 } from "@/oss/components/InfiniteVirtualTable/helpers/createSimpleTableStore"
-import type {InfiniteTableFetchResult, InfiniteTableRowBase} from "@/oss/components/InfiniteVirtualTable/types"
+import type {
+    InfiniteTableFetchResult,
+    InfiniteTableRowBase,
+} from "@/oss/components/InfiniteVirtualTable/types"
 
 // ============================================================================
 // TYPES
@@ -365,7 +369,9 @@ export function createPaginatedEntityStore<
     TRow extends InfiniteTableRowBase,
     TApiRow = TRow,
     TMeta extends BaseTableMeta = BaseTableMeta,
->(config: PaginatedEntityStoreConfig<TRow, TApiRow, TMeta>): PaginatedEntityStore<TRow, TApiRow, TMeta> {
+>(
+    config: PaginatedEntityStoreConfig<TRow, TApiRow, TMeta>,
+): PaginatedEntityStore<TRow, TApiRow, TMeta> {
     const {
         entityName,
         metaAtom,
@@ -446,7 +452,8 @@ export function createPaginatedEntityStore<
 
     // Selection atom family (uses underlying store's selection)
     const selectionAtomFamily = atomFamily(
-        (params: PaginatedControllerParams) => datasetStore.atoms.selectionAtom({scopeId: params.scopeId}),
+        (params: PaginatedControllerParams) =>
+            datasetStore.atoms.selectionAtom({scopeId: params.scopeId}),
         (a, b) => a.scopeId === b.scopeId,
     )
 
@@ -537,9 +544,11 @@ export function createPaginatedEntityStore<
 /**
  * Type helper for extracting row type from a paginated store
  */
-export type PaginatedEntityRow<T> = T extends PaginatedEntityStore<infer TRow, any, any> ? TRow : never
+export type PaginatedEntityRow<T> =
+    T extends PaginatedEntityStore<infer TRow, any, any> ? TRow : never
 
 /**
  * Type helper for extracting meta type from a paginated store
  */
-export type PaginatedEntityMeta<T> = T extends PaginatedEntityStore<any, any, infer TMeta> ? TMeta : never
+export type PaginatedEntityMeta<T> =
+    T extends PaginatedEntityStore<any, any, infer TMeta> ? TMeta : never

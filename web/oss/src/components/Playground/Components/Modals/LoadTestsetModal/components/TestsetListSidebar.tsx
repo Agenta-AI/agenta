@@ -22,7 +22,7 @@ type RevisionData = {
     message?: string | null
 }[]
 
-type QueryState = {
+interface QueryState {
     data: RevisionData
     isFetching: boolean
     isPending: boolean
@@ -174,7 +174,6 @@ export const TestsetListSidebar: React.FC<TestsetListSidebarProps> = ({
                 autoSelectLatest: true,
             })
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [modalOpen, testsets.length, isCreatingNew])
 
     if (isCreatingNew && selectedRevisionId) {
@@ -197,83 +196,86 @@ export const TestsetListSidebar: React.FC<TestsetListSidebarProps> = ({
 
             <Menu
                 selectable={false}
-                items={testsetMenuItems.map((ts: {key: string; label: string; hasRevisions: boolean}) => {
-                    const {hasRevisions: _hasRevisions, ...restTs} = ts
-                    const hasRevisions = _hasRevisions ?? true
-                    return {
-                        ...restTs,
-                        label: (
-                            <div className="flex items-center gap-2 pl-1 pr-1 w-full min-w-0">
-                                <span
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        onChangeTestset({key: ts.key})
-                                    }}
-                                    className="cursor-pointer flex-1 min-w-0 truncate text-left"
-                                    title={ts.label}
-                                >
-                                    {ts.label}
-                                </span>
-                                {hasRevisions && (
-                                    <Popover
-                                        placement="right"
-                                        trigger={["hover"]}
-                                        onOpenChange={(open) => {
-                                            if (open) {
-                                                setRevisionPanelTestsetId(ts.key)
-                                                // Enable lazy query for this testset
-                                                enableRevisionsListQuery(ts.key)
-                                            } else {
-                                                setRevisionPanelTestsetId("")
-                                            }
+                items={testsetMenuItems.map(
+                    (ts: {key: string; label: string; hasRevisions: boolean}) => {
+                        const {hasRevisions: _hasRevisions, ...restTs} = ts
+                        const hasRevisions = _hasRevisions ?? true
+                        return {
+                            ...restTs,
+                            label: (
+                                <div className="flex items-center gap-2 pl-1 pr-1 w-full min-w-0">
+                                    <span
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            onChangeTestset({key: ts.key})
                                         }}
-                                        content={
-                                            popoverRevisionsLoading ? (
-                                                <div className="flex items-center justify-center px-3 py-2">
-                                                    <Spin size="small" />
-                                                </div>
-                                            ) : popoverMenuItems.length ? (
-                                                <div className="max-h-80 overflow-y-auto">
-                                                    <Menu
-                                                        items={popoverMenuItems}
-                                                        onSelect={(info) => {
-                                                            setSelectedTestset(ts.key)
-                                                            onChangeRevision(info)
-                                                            setRevisionPanelTestsetId("")
-                                                        }}
-                                                        classNames={{
-                                                            root: "!m-0 !p-0",
-                                                        }}
-                                                        selectedKeys={revisionSelectedKeys}
-                                                        className="min-w-[220px] !border-none !p-0 !m-0 [&_.ant-menu-item]:h-auto [&_.ant-menu-item]:min-h-[32px] [&_.ant-menu-item]:leading-normal [&_.ant-menu-item]:!py-1 [&_.ant-menu-item]:!my-0 [&_.ant-menu-title-content]:whitespace-normal"
-                                                        rootClassName="!p-0 !m-0"
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div className="px-3 py-2 text-xs text-gray-500">
-                                                    No revisions
-                                                </div>
-                                            )
-                                        }
-                                        classNames={{
-                                            root: "!p-0",
-                                            content: "!p-0",
-                                            container: "load-testset-revision-popover !p-1",
-                                        }}
-                                        getPopupContainer={() =>
-                                            (document.querySelector(".ant-modal-body") as HTMLElement) ||
-                                            document.body
-                                        }
+                                        className="cursor-pointer flex-1 min-w-0 truncate text-left"
+                                        title={ts.label}
                                     >
-                                        <span className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded text-gray-400">
-                                            <RightOutlined className="text-xs" />
-                                        </span>
-                                    </Popover>
-                                )}
-                            </div>
-                        ),
-                    }
-                })}
+                                        {ts.label}
+                                    </span>
+                                    {hasRevisions && (
+                                        <Popover
+                                            placement="right"
+                                            trigger={["hover"]}
+                                            onOpenChange={(open) => {
+                                                if (open) {
+                                                    setRevisionPanelTestsetId(ts.key)
+                                                    // Enable lazy query for this testset
+                                                    enableRevisionsListQuery(ts.key)
+                                                } else {
+                                                    setRevisionPanelTestsetId("")
+                                                }
+                                            }}
+                                            content={
+                                                popoverRevisionsLoading ? (
+                                                    <div className="flex items-center justify-center px-3 py-2">
+                                                        <Spin size="small" />
+                                                    </div>
+                                                ) : popoverMenuItems.length ? (
+                                                    <div className="max-h-80 overflow-y-auto">
+                                                        <Menu
+                                                            items={popoverMenuItems}
+                                                            onSelect={(info) => {
+                                                                setSelectedTestset(ts.key)
+                                                                onChangeRevision(info)
+                                                                setRevisionPanelTestsetId("")
+                                                            }}
+                                                            classNames={{
+                                                                root: "!m-0 !p-0",
+                                                            }}
+                                                            selectedKeys={revisionSelectedKeys}
+                                                            className="min-w-[220px] !border-none !p-0 !m-0 [&_.ant-menu-item]:h-auto [&_.ant-menu-item]:min-h-[32px] [&_.ant-menu-item]:leading-normal [&_.ant-menu-item]:!py-1 [&_.ant-menu-item]:!my-0 [&_.ant-menu-title-content]:whitespace-normal"
+                                                            rootClassName="!p-0 !m-0"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="px-3 py-2 text-xs text-gray-500">
+                                                        No revisions
+                                                    </div>
+                                                )
+                                            }
+                                            classNames={{
+                                                root: "!p-0",
+                                                content: "!p-0",
+                                                container: "load-testset-revision-popover !p-1",
+                                            }}
+                                            getPopupContainer={() =>
+                                                (document.querySelector(
+                                                    ".ant-modal-body",
+                                                ) as HTMLElement) || document.body
+                                            }
+                                        >
+                                            <span className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded text-gray-400">
+                                                <RightOutlined className="text-xs" />
+                                            </span>
+                                        </Popover>
+                                    )}
+                                </div>
+                            ),
+                        }
+                    },
+                )}
                 selectedKeys={menuSelectedKeys}
                 className="flex-1 overflow-y-auto !border-none !p-0 [&_.ant-menu-item]:px-2 [&_.ant-menu-item]:py-1.5 [&_.ant-menu-item]:h-auto [&_.ant-menu-item]:min-h-[38px] [&_.ant-menu-title-content]:flex [&_.ant-menu-title-content]:items-center [&_.ant-menu-title-content]:w-full"
             />

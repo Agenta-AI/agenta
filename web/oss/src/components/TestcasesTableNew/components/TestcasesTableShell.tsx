@@ -9,14 +9,12 @@ import clsx from "clsx"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {
-    ColumnVisibilityHeader,
     ColumnVisibilityMenuTrigger,
     InfiniteVirtualTableFeatureShell,
     type TableScopeConfig,
 } from "@/oss/components/InfiniteVirtualTable"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
-import {testcaseIsDirtyAtom} from "@/oss/state/entities/testcase/dirtyState"
 
 import {message} from "../../AppMessageContext"
 import {testcasesDatasetStore, type TestcaseTableRow} from "../atoms/tableStore"
@@ -168,7 +166,14 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                           ),
                   }
                 : undefined,
-        [enableSelection, selectedRowKeys, onSelectedRowKeysChange, globalStore, showRowIndex, mode],
+        [
+            enableSelection,
+            selectedRowKeys,
+            onSelectedRowKeysChange,
+            globalStore,
+            showRowIndex,
+            mode,
+        ],
     )
 
     // Max lines from row height config (already computed by useRowHeight)

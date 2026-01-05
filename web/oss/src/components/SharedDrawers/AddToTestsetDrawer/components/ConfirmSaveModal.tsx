@@ -23,7 +23,9 @@ export function ConfirmSaveModal({
     testsetName,
     selectedTestsetColumns,
 }: ConfirmSaveModalProps) {
-    const newColumns = selectedTestsetColumns.filter((item) => item.isNew).map((item) => item.column)
+    const newColumns = selectedTestsetColumns
+        .filter((item) => item.isNew)
+        .map((item) => item.column)
 
     return (
         <Modal

@@ -278,7 +278,6 @@ const usePreviewEvaluations = ({
         // prefetchProjectVariantConfigs(references)
     }, [appId, projectId, rawRuns, setProjectVariantReferences])
 
-
     /**
      * Helper to create scenarios for a given run and testset.
      * Each CSV row becomes its own scenario.

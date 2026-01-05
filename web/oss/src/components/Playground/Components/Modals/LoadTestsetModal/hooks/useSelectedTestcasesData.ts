@@ -80,8 +80,6 @@ export const useSelectedTestcasesData = (
                     })
                     .filter((data): data is Record<string, unknown> => data !== null)
             }),
-        // Re-create atom when selection changes
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [revisionId, selectedRowKeys.join(",")],
     )
 

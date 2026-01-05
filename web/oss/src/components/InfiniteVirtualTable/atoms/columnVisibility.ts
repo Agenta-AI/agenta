@@ -89,7 +89,13 @@ export const setColumnViewportVisibilityAtom = atom(
  */
 export const deleteColumnViewportVisibilityAtom = atom(
     null,
-    (get, set, payload: {scopeId: string | null; columnKey: string} | Array<{scopeId: string | null; columnKey: string}>) => {
+    (
+        get,
+        set,
+        payload:
+            | {scopeId: string | null; columnKey: string}
+            | {scopeId: string | null; columnKey: string}[],
+    ) => {
         const deletions = Array.isArray(payload) ? payload : [payload]
         if (!deletions.length) {
             return

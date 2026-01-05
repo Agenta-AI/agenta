@@ -53,9 +53,7 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
-// Note: QueryResult type is used by revisionWithTestcasesQueryResultAtomFamily
 import type {QueryResult} from "../shared"
-
 import {
     addColumnAtom,
     clearPendingAddedColumnsAtom,
@@ -75,6 +73,7 @@ import {
     renameColumnAtom,
     resetColumnsAtom,
 } from "../testcase/columnState"
+
 import {hasUnsavedChangesAtom, changesSummaryAtom, type ChangesSummary} from "./dirtyState"
 import {
     clearRevisionDraftAtom,
@@ -303,7 +302,12 @@ export type RevisionAction =
     | {type: "updateMetadata"; changes: Partial<Revision>}
     | {type: "addColumn"; name: string}
     | {type: "deleteColumn"; key: string}
-    | {type: "renameColumn"; oldName: string; newName: string; rowDataMap?: Map<string, Record<string, unknown>>}
+    | {
+          type: "renameColumn"
+          oldName: string
+          newName: string
+          rowDataMap?: Map<string, Record<string, unknown>>
+      }
     | {type: "discardDraft"}
     | {type: "resetColumns"}
 
@@ -456,9 +460,7 @@ const isDirtySelector = atomFamily((revisionId: string) =>
 /**
  * Selector: current columns
  */
-const columnsSelector = atomFamily((_revisionId: string) =>
-    atom((get) => get(currentColumnsAtom)),
-)
+const columnsSelector = atomFamily((_revisionId: string) => atom((get) => get(currentColumnsAtom)))
 
 /**
  * Selector: expanded columns (with object sub-columns)
