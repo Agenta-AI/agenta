@@ -7,7 +7,7 @@ import {ResizableTitle} from "@/oss/components/EnhancedUIs/Table/assets/CustomCe
 
 import {getColumnWidthsAtom} from "../atoms/columnWidths"
 
-const DEFAULT_MIN_WIDTH = 48
+const DEFAULT_MIN_WIDTH = 150
 const DEFAULT_COLUMN_WIDTH = 200
 
 type ColumnEntry<RowType> = ColumnsType<RowType>[number]
@@ -184,20 +184,28 @@ export const useSmartResizableColumns = <RowType>({
             }
 
             // Distribute remaining space among non-resized columns
-            // Ensure they fill the available space (sum constraint)
+            // Use default width as floor to ensure readability, allow horizontal scroll if needed
             const totalDefaultWeight = nonResizedFlexCols.reduce((sum, col) => sum + col.width, 0)
 
             if (remainingForNonResized <= 0) {
-                // User-resized columns take all space, use minimum for others
+                // User-resized columns take all space, use default width for others
+                // This may cause total > container, enabling horizontal scroll
                 for (const col of nonResizedFlexCols) {
-                    result[col.key] = col.minWidth
+                    result[col.key] = col.width
+                }
+            } else if (remainingForNonResized < totalDefaultWeight) {
+                // Not enough space for all at default width - use default widths
+                // and allow horizontal scrolling rather than squeezing columns
+                for (const col of nonResizedFlexCols) {
+                    result[col.key] = col.width
                 }
             } else {
-                // Distribute remaining space proportionally
+                // Enough space - distribute proportionally
                 for (const col of nonResizedFlexCols) {
                     const proportion = col.width / totalDefaultWeight
                     const computedWidth = remainingForNonResized * proportion
-                    result[col.key] = Math.max(computedWidth, col.minWidth)
+                    // Use default width as floor, not minWidth
+                    result[col.key] = Math.max(computedWidth, col.width)
                 }
             }
 
