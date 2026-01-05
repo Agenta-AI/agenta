@@ -9,7 +9,7 @@ import {inputRowIdsWithPropertiesCompatAtom} from "@/oss/state/generation/compat
 import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 import {triggerWebWorkerTestAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
 
-import TooltipButton from "@/oss/components/EnhancedUIs/Button"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import RunButton from "../../../assets/RunButton"
 import {
     appChatModeAtom,
@@ -99,7 +99,7 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
             {isChatVariant ? (
                 <Typography className={classes.heading}>Generations</Typography>
             ) : (
-                <TooltipButton
+                <EnhancedButton
                     icon={
                         isAllCollapsed ? (
                             <ArrowsOutLineVertical size={16} />

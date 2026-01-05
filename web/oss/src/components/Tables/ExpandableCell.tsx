@@ -4,8 +4,9 @@ import {CaretLineDown, CaretLineUp} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {atom, useAtom} from "jotai"
 
-import TooltipButton, {TooltipButtonProps} from "@/oss/components/EnhancedUIs/Button"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import useResizeObserver from "@/oss/hooks/useResizeObserver"
+import {EnhancedButtonProps} from "../EnhancedUIs/Button/types"
 
 // Global jotai store that keeps the expanded/collapsed state for each individual cell.
 // The key must be STABLE between mounts (e.g. scenarioId + stepKey + path) so that when
@@ -19,7 +20,7 @@ interface ExpandableProps {
     expandKey?: string
     className?: string
     children: React.ReactNode
-    buttonProps?: TooltipButtonProps
+    buttonProps?: EnhancedButtonProps
 }
 
 export const ExpandableCell = forwardRef(
@@ -96,7 +97,7 @@ export const ExpandableCell = forwardRef(
 
                 {/* Expand/Collapse button */}
                 {(hasOverflow || expanded) && (
-                    <TooltipButton
+                    <EnhancedButton
                         {...buttonProps}
                         className={clsx([
                             "absolute top-0 right-0 z-[1] hidden group-hover:block",

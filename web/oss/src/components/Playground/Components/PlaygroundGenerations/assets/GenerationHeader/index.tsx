@@ -10,7 +10,7 @@ import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms
 import {clearAllRunsMutationAtom} from "@/oss/components/Playground/state/atoms/utilityMutations"
 import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 
-import TooltipButton from "@/oss/components/EnhancedUIs/Button"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import RunButton from "../../../../assets/RunButton"
 import {usePlaygroundAtoms} from "../../../../hooks/usePlaygroundAtoms"
 import {generationHeaderDataAtomFamily, triggerWebWorkerTestAtom} from "../../../../state/atoms"
@@ -80,7 +80,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                         Generations
                     </Typography>
                 ) : (
-                    <TooltipButton
+                    <EnhancedButton
                         icon={
                             isAllCollapsed ? (
                                 <ArrowsOutLineVerticalIcon size={16} />

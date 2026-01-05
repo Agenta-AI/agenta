@@ -12,7 +12,7 @@ import {
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import TooltipButton from "@/oss/components/EnhancedUIs/Button"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import VariableControlAdapter from "@/oss/components/Playground/adapters/VariableControlAdapter"
 import RunButton from "@/oss/components/Playground/assets/RunButton"
 import TypingIndicator from "@/oss/components/Playground/assets/TypingIndicator"
@@ -109,7 +109,7 @@ const SingleView = ({
         return (
             <div className={clsx(["flex flex-col", "p-4", "group/item", containerClassName])}>
                 <div className="w-full flex items-center gap-2">
-                    <TooltipButton
+                    <EnhancedButton
                         icon={<CaretRightIcon size={14} />}
                         type="text"
                         onClick={() => setIsCollapsed(false)}
@@ -121,7 +121,7 @@ const SingleView = ({
                     )}
                     <div className="flex-1" />
                     <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                        <TooltipButton
+                        <EnhancedButton
                             icon={<MinusCircleIcon size={14} />}
                             type="text"
                             onClick={() => deleteInputRow(rowId)}
@@ -129,7 +129,7 @@ const SingleView = ({
                             disabled={inputRowsLength === 1}
                             tooltipProps={{title: "Remove"}}
                         />
-                        <TooltipButton
+                        <EnhancedButton
                             icon={<CopyIcon size={14} />}
                             type="text"
                             onClick={() => duplicateInputRow(rowId)}
@@ -140,7 +140,7 @@ const SingleView = ({
                             resultHashes={resultHash ? [resultHash] : []}
                             icon={false}
                         >
-                            <TooltipButton
+                            <EnhancedButton
                                 icon={<DatabaseIcon size={14} />}
                                 type="text"
                                 size="small"
@@ -171,7 +171,7 @@ const SingleView = ({
         >
             {!inputOnly && (
                 <div className="w-full flex items-center gap-2 mb-0 group/header">
-                    <TooltipButton
+                    <EnhancedButton
                         icon={<CaretDownIcon size={14} />}
                         type="text"
                         onClick={() => setIsCollapsed(true)}
@@ -183,7 +183,7 @@ const SingleView = ({
                     )}
                     <div className="flex-1" />
                     <div className="flex items-center gap-1 opacity-0 group-hover/header:opacity-100 transition-opacity">
-                        <TooltipButton
+                        <EnhancedButton
                             icon={<MinusCircleIcon size={14} />}
                             type="text"
                             onClick={() => deleteInputRow(rowId)}
@@ -191,7 +191,7 @@ const SingleView = ({
                             disabled={inputRowsLength === 1}
                             tooltipProps={{title: "Remove"}}
                         />
-                        <TooltipButton
+                        <EnhancedButton
                             icon={<CopyIcon size={14} />}
                             type="text"
                             onClick={() => duplicateInputRow(rowId)}
@@ -202,7 +202,7 @@ const SingleView = ({
                             resultHashes={resultHash ? [resultHash] : []}
                             icon={false}
                         >
-                            <TooltipButton
+                            <EnhancedButton
                                 icon={<DatabaseIcon size={14} />}
                                 type="text"
                                 size="small"
@@ -257,7 +257,7 @@ const SingleView = ({
                                                 editorProps={{enableTokens: false}}
                                             />
                                         </div>
-                                        <TooltipButton
+                                        <EnhancedButton
                                             className={clsx([
                                                 "absolute top-2 right-2 z-[2] opacity-0 transition-opacity collapse-icon",
                                                 "group-hover/item:opacity-100",
