@@ -175,6 +175,14 @@
     background-color: inherit !important;
 }
 
+.agenta-scenario-table .scenario-row .ant-table-cell {
+    background-color: inherit !important;
+}
+
+.agenta-scenario-table .scenario-row:hover > .ant-table-cell {
+    background-color: inherit !important;
+}
+
 .scenario-table-cell {
     width: 100%;
     height: var(--scenario-row-height, 160px);
