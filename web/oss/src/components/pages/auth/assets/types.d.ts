@@ -5,6 +5,7 @@ export interface EmailPasswordAuthProps {
     setMessage: React.Dispatch<React.SetStateAction<AuthErrorMsgType>>
     authErrorMsg: (error: any) => void
     initialEmail?: string
+    lockEmail?: boolean
 }
 
 export interface SendOTPProps {
@@ -26,6 +27,7 @@ export interface PasswordlessAuthProps {
     setIsLoginCodeVisible: React.Dispatch<React.SetStateAction<boolean>>
     setIsLoading: React.Dispatch<React.SetStateAction<boolean>>
     disabled: boolean
+    lockEmail?: boolean
 }
 
 export interface SocialAuthProps {

@@ -185,7 +185,7 @@ async def create_accounts(
                 await create_organization_with_subscription(
                     user_id=UUID(str(user.id)),
                     organization_email=user_dict["email"],
-                    organization_name=organization_name,
+                    organization_name="Personal",
                     organization_description=None,
                     is_personal=is_personal,
                     use_reverse_trial=use_reverse_trial,

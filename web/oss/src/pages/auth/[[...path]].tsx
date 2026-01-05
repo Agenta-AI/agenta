@@ -374,17 +374,15 @@ const Auth = () => {
                     className={clsx(["absolute", "top-4 lg:top-14", "left-4 lg:left-14"])}
                 />
                 <div className="h-[680px] w-[400px] flex flex-col justify-center gap-8 mx-auto mt-10">
-                    {!isLoginCodeVisible && (
-                        <div>
-                            <Title level={2} className="font-bold">
-                                Welcome to Agenta AI
-                            </Title>
-                            <Text className="text-sm text-[#586673]">
-                                Your All-In-One LLM Development Platform. Collaborate on prompts,
-                                evaluate, and monitor LLM apps with confidence
-                            </Text>
-                        </div>
-                    )}
+                    <div>
+                        <Title level={2} className="font-bold">
+                            Welcome to Agenta AI
+                        </Title>
+                        <Text className="text-sm text-[#586673]">
+                            Your All-In-One LLM Development Platform. Collaborate on prompts,
+                            evaluate, and monitor LLM apps with confidence
+                        </Text>
+                    </div>
 
                     {!isDemo() && (
                         <Alert
@@ -418,10 +416,6 @@ const Auth = () => {
                             providers={providersToShow}
                             showDivider={authEmailEnabled}
                         />
-                    )}
-
-                    {socialAvailable && authEmailEnabled && !emailSubmitted && (
-                        <Divider className="!m-0">or</Divider>
                     )}
 
                     {/* Step 2: Email-first (if email auth is enabled and email not yet submitted) */}
@@ -469,7 +463,7 @@ const Auth = () => {
                                     isLoading={isSocialAuthLoading}
                                     setIsLoading={setIsSocialAuthLoading}
                                     providers={providersToShow}
-                                    showDivider={emailPasswordAvailable || emailOtpAvailable}
+                                    showDivider={false}
                                 />
                             )}
 
@@ -489,6 +483,7 @@ const Auth = () => {
                                     authErrorMsg={authErrorMsg}
                                     setIsLoginCodeVisible={setIsLoginCodeVisible}
                                     disabled={isSocialAuthLoading}
+                                    lockEmail
                                 />
                             )}
 
@@ -511,6 +506,7 @@ const Auth = () => {
                                     setMessage={setMessage}
                                     authErrorMsg={authErrorMsg}
                                     initialEmail={email}
+                                    lockEmail
                                 />
                             )}
 

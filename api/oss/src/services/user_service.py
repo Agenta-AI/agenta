@@ -73,16 +73,17 @@ async def create_new_user(payload: dict) -> UserDB:
 
             session.add(user)
 
+            await session.commit()
+
+            await session.refresh(user)
+
             log.info(
                 "[scopes] user created",
                 user_id=user.id,
             )
 
-            await session.commit()
-
-            await session.refresh(user)
-
             return user
+
     except IntegrityError:
         # Race condition: another request created user between check and create
         # Fetch and return the existing user

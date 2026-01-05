@@ -13,6 +13,7 @@ const EmailPasswordAuth = ({
     setMessage,
     authErrorMsg,
     initialEmail,
+    lockEmail = false,
 }: EmailPasswordAuthProps) => {
     const {handleAuthSuccess} = usePostAuthRedirect()
     const [form, setForm] = useState({email: initialEmail || "", password: ""})
@@ -80,6 +81,8 @@ const EmailPasswordAuth = ({
                         value={form.email}
                         placeholder="Enter valid email address"
                         status={message.type === "error" ? "error" : ""}
+                        disabled={lockEmail}
+                        className={lockEmail ? "auth-locked-input" : undefined}
                         onChange={(e) => setForm({...form, email: e.target.value})}
                     />
                 </Form.Item>

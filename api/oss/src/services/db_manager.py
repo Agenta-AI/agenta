@@ -1072,10 +1072,12 @@ async def check_if_user_exists_and_create_organization(user_email: str):
         )
 
         if user is None and (total_users == 0):
-            organization_name = user_email.split("@")[0]
-            organization_db = await create_organization(name=organization_name)
+            organization_db = await create_organization(
+                name="Organization",
+            )
             workspace_db = await create_workspace(
-                name=organization_name, organization_id=str(organization_db.id)
+                name="Default",
+                organization_id=str(organization_db.id),
             )
 
             # update default project with organization and workspace ids
@@ -1083,7 +1085,7 @@ async def check_if_user_exists_and_create_organization(user_email: str):
                 values_to_update={
                     "organization_id": organization_db.id,
                     "workspace_id": workspace_db.id,
-                    "project_name": organization_name,
+                    "project_name": "Default",
                 }
             )
             return organization_db
@@ -1344,7 +1346,6 @@ async def create_organization(
     name: str,
     owner_id: Optional[uuid.UUID] = None,
     created_by_id: Optional[uuid.UUID] = None,
-    is_personal: Optional[bool] = None,
 ):
     """Create a new organization in the database.
 
@@ -1366,7 +1367,7 @@ async def create_organization(
             name=name,
             flags={
                 "is_demo": False,
-                "is_personal": is_personal or False,
+                "is_personal": False,
                 "allow_email": env.auth.email_enabled,
                 "allow_social": env.auth.oidc_enabled,
                 "allow_sso": False,
@@ -1380,12 +1381,12 @@ async def create_organization(
 
         session.add(organization_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] organization created",
             organization_id=organization_db.id,
         )
-
-        await session.commit()
 
         return organization_db
 
@@ -1411,13 +1412,13 @@ async def create_workspace(name: str, organization_id: str):
 
         session.add(workspace_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] workspace created",
             organization_id=organization_id,
             workspace_id=workspace_db.id,
         )
-
-        await session.commit()
 
         return workspace_db
 

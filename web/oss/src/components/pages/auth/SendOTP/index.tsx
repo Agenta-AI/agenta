@@ -16,7 +16,7 @@ import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
 import {useStyles} from "../assets/style"
 import {SendOTPProps} from "../assets/types"
 
-const {Text, Title} = Typography
+const {Text} = Typography
 
 const SendOTP = ({
     message,
@@ -118,26 +118,34 @@ const SendOTP = ({
     }
 
     return (
-        <div className="h-[680px] flex flex-col justify-center gap-10 mx-auto mt-10 w-[235px]">
-            <div className="text-center gap-4">
-                <Title level={2} className="font-bold">
-                    Verify your email
-                </Title>
-                <Text>
-                    A 6 digit code has been sent to{" "}
-                    <span className="block font-medium">{email}</span> The code is valid for next 15
-                    minutes.
-                </Text>
-            </div>
-
-            <Form autoComplete="off" onFinish={submitOTP} className="w-full space-y-2">
+        <div className="w-full">
+            <Form
+                autoComplete="off"
+                onFinish={submitOTP}
+                className="w-full flex flex-col gap-4"
+                initialValues={{email}}
+            >
                 {message.type == "error" && <ShowErrorMessage info={message} />}
+
+                <Form.Item
+                    name="email"
+                    className="w-full mb-0 flex flex-col gap-1"
+                >
+                    <Input
+                        size="large"
+                        type="email"
+                        value={email}
+                        placeholder="Enter valid email address"
+                        disabled
+                        className="auth-locked-input"
+                    />
+                </Form.Item>
 
                 <Form.Item
                     name="otp"
                     className={`${
                         message.type == "error" && classes.inputOTP
-                    } w-full mb-2 ${classes.otpFormContainer}`}
+                    } w-full mb-0 ${classes.otpFormContainer}`}
                     rules={[
                         {
                             required: true,
@@ -160,42 +168,32 @@ const SendOTP = ({
                     className="w-full"
                     loading={isLoading}
                 >
-                    Next
+                    Continue with OTP
                 </Button>
             </Form>
 
-            <div className="grid gap-2 text-center">
-                {isResendDisabled ? (
-                    <div className="text-center *:whitespace-nowrap mb-1">
-                        <Typography.Paragraph>
-                            Check your email for the new code
-                        </Typography.Paragraph>
-                        <Text className={classes.textDisabled}>
-                            Please wait to request new code (60s)
-                        </Text>
-                    </div>
-                ) : (
-                    <Text>
-                        Didn’t receive the code?{" "}
-                        <Button
-                            type="link"
-                            disabled={isResendDisabled || isLoading}
-                            onClick={resendOTP}
-                            className="!p-0"
-                        >
-                            click here
-                        </Button>
-                    </Text>
-                )}
-
+            <div className="grid gap-2 text-center mt-4">
                 <Button
                     type="link"
                     className="w-full"
                     icon={<ArrowLeft size={14} className="mt-[3px]" />}
                     onClick={backToLogin}
                 >
-                    Back to Login
+                    Use a different email
                 </Button>
+                <Button
+                    type="link"
+                    className="w-full"
+                    disabled={isResendDisabled || isLoading}
+                    onClick={resendOTP}
+                >
+                    Resend one-time password
+                </Button>
+                {isResendDisabled && (
+                    <Text className={classes.textDisabled}>
+                        Please wait to request new code (60s)
+                    </Text>
+                )}
             </div>
         </div>
     )

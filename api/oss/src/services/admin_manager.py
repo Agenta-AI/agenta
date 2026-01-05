@@ -281,12 +281,12 @@ async def create_user(
 
         session.add(user_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] user created",
             user_id=user_db.id,
         )
-
-        await session.commit()
 
         response = Reference(id=user_db.id)
 
@@ -301,19 +301,19 @@ async def create_organization(
         organization_db = OrganizationDB(
             name=request.name,
             description=request.description,
-            flags={"is_demo": False, "is_personal": request.is_personal},
+            flags={"is_demo": False, "is_personal": False},
             owner_id=created_by_id,
             created_by_id=created_by_id,
         )
 
         session.add(organization_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] organization created",
             organization_id=organization_db.id,
         )
-
-        await session.commit()
 
         response = Reference(id=organization_db.id)
 
@@ -336,13 +336,13 @@ async def create_workspace(
 
         session.add(workspace_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] workspace created",
             organization_id=workspace_db.organization_id,
             workspace_id=workspace_db.id,
         )
-
-        await session.commit()
 
         response = Reference(id=workspace_db.id)
 
@@ -366,14 +366,14 @@ async def create_project(
 
         session.add(project_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] project created",
             organization_id=project_db.organization_id,
             workspace_id=project_db.workspace_id,
             project_id=project_db.id,
         )
-
-        await session.commit()
 
         response = Reference(id=project_db.id)
 

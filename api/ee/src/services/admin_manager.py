@@ -175,12 +175,12 @@ async def create_user(
 
         session.add(user_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] user created",
             user_id=user_db.id,
         )
-
-        await session.commit()
 
         response = Reference(id=user_db.id)
 
@@ -204,12 +204,12 @@ async def create_organization(
 
         session.add(organization_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] organization created",
             organization_id=organization_db.id,
         )
-
-        await session.commit()
 
         response = Reference(id=organization_db.id)
 
@@ -232,13 +232,13 @@ async def create_workspace(
 
         session.add(workspace_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] workspace created",
             organization_id=workspace_db.organization_id,
             workspace_id=workspace_db.id,
         )
-
-        await session.commit()
 
         response = Reference(id=workspace_db.id)
 
@@ -262,14 +262,14 @@ async def create_project(
 
         session.add(project_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] project created",
             organization_id=project_db.organization_id,
             workspace_id=project_db.workspace_id,
             project_id=project_db.id,
         )
-
-        await session.commit()
 
         response = Reference(id=project_db.id)
 
@@ -292,14 +292,14 @@ async def create_organization_membership(
 
         session.add(membership_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] organization membership created",
             organization_id=request.organization_ref.id,
             user_id=request.user_ref.id,
             membership_id=membership_db.id,
         )
-
-        await session.commit()
 
         if request.role == "owner":
             result = await session.execute(
@@ -342,6 +342,8 @@ async def create_workspace_membership(
 
         session.add(membership_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] workspace membership created",
             organization_id=workspace_db.organization_id,
@@ -349,8 +351,6 @@ async def create_workspace_membership(
             user_id=request.user_ref.id,
             membership_id=membership_db.id,
         )
-
-        await session.commit()
 
         response = Reference(id=membership_db.id)
 
@@ -380,6 +380,8 @@ async def create_project_membership(
 
         session.add(membership_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] project membership created",
             organization_id=project_db.organization_id,
@@ -388,8 +390,6 @@ async def create_project_membership(
             user_id=request.user_ref.id,
             membership_id=membership_db.id,
         )
-
-        await session.commit()
 
         response = Reference(id=membership_db.id)
 

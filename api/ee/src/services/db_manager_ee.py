@@ -203,14 +203,14 @@ async def create_project(
 
     session.add(project_db)
 
+    await session.commit()
+
     log.info(
         "[scopes] project created",
         organization_id=organization_id,
         workspace_id=workspace_id,
         project_id=project_db.id,
     )
-
-    await session.commit()
 
     return project_db
 
@@ -296,13 +296,11 @@ async def sync_workspace_members_to_project(
             member.user_id: member for member in existing_members_result.scalars().all()
         }
 
-        updated = False
         for member in workspace_members:
             project_member = existing_members.get(member.user_id)
             if project_member:
                 if project_member.role != member.role:
                     project_member.role = member.role
-                    updated = True
                 continue
 
             project_member = ProjectMemberDB(
@@ -311,6 +309,9 @@ async def sync_workspace_members_to_project(
                 role=member.role,
             )
             db_session.add(project_member)
+
+            await db_session.commit()
+
             log.info(
                 "[scopes] project membership created",
                 organization_id=str(project.organization_id),
@@ -319,10 +320,6 @@ async def sync_workspace_members_to_project(
                 user_id=str(member.user_id),
                 membership_id=project_member.id,
             )
-            updated = True
-
-        if updated:
-            await db_session.commit()
 
     if session is not None:
         await _sync(session)
@@ -422,6 +419,8 @@ async def create_project_member(
 
     session.add(project_member)
 
+    await session.commit()
+
     log.info(
         "[scopes] project membership created",
         organization_id=project.organization_id,
@@ -430,8 +429,6 @@ async def create_project_member(
         user_id=user_id,
         membership_id=project_member.id,
     )
-
-    await session.commit()
 
 
 async def fetch_project_memberships_by_user_id(
@@ -478,13 +475,13 @@ async def create_workspace_db_object(
 
     session.add(workspace)
 
+    await session.commit()
+
     log.info(
         "[scopes] workspace created",
         organization_id=organization.id,
         workspace_id=workspace.id,
     )
-
-    await session.commit()
 
     # add user as a member to the workspace with the owner role
     workspace_member = WorkspaceMemberDB(
@@ -494,6 +491,10 @@ async def create_workspace_db_object(
     )
 
     session.add(workspace_member)
+
+    await session.commit()
+    await session.refresh(workspace, attribute_names=["organization"])
+
     log.info(
         "[scopes] workspace membership created",
         organization_id=workspace.organization_id,
@@ -501,10 +502,6 @@ async def create_workspace_db_object(
         user_id=user.id,
         membership_id=workspace_member.id,
     )
-
-    await session.commit()
-
-    await session.refresh(workspace, attribute_names=["organization"])
 
     project_db = await create_default_project(
         organization_id=str(organization.id),
@@ -741,7 +738,10 @@ async def add_user_to_workspace_and_org(
         user_organization = OrganizationMemberDB(
             user_id=user.id, organization_id=organization.id
         )
+
         session.add(user_organization)
+
+        await session.commit()
 
         log.info(
             "[scopes] organization membership created",
@@ -758,6 +758,8 @@ async def add_user_to_workspace_and_org(
         )
 
         session.add(workspace_member)
+
+        await session.commit()
 
         log.info(
             "[scopes] workspace membership created",
@@ -793,7 +795,10 @@ async def add_user_to_workspace_and_org(
                 project_id=project.id,
                 role=role,
             )
+
             session.add(project_member)
+
+            await session.commit()
 
             log.info(
                 "[scopes] project membership created",
@@ -804,7 +809,6 @@ async def add_user_to_workspace_and_org(
                 membership_id=project_member.id,
             )
 
-        await session.commit()
         return True
 
 
@@ -992,12 +996,12 @@ async def create_organization(
         organization_db = OrganizationDB(**create_org_data)
         session.add(organization_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] organization created",
             organization_id=organization_db.id,
         )
-
-        await session.commit()
 
         # create joined organization for user
         user_organization = OrganizationMemberDB(
@@ -1007,6 +1011,8 @@ async def create_organization(
         )
         session.add(user_organization)
 
+        await session.commit()
+
         log.info(
             "[scopes] organization membership created",
             organization_id=organization_db.id,
@@ -1015,11 +1021,9 @@ async def create_organization(
             membership_id=user_organization.id,
         )
 
-        await session.commit()
-
         # construct workspace payload
         workspace_payload = CreateWorkspace(
-            name=payload.name,
+            name="Default",
             type="default",
         )
 
@@ -1490,6 +1494,8 @@ async def add_user_to_organization(
 
         session.add(organization_member)
 
+        await session.commit()
+
         log.info(
             "[scopes] organization membership created",
             organization_id=organization_id,
@@ -1497,8 +1503,6 @@ async def add_user_to_organization(
             role=role,
             membership_id=organization_member.id,
         )
-
-        await session.commit()
 
 
 async def add_user_to_workspace(
@@ -1524,7 +1528,8 @@ async def add_user_to_workspace(
 
         session.add(workspace_member)
 
-        # TODO: add organization_id
+        await session.commit()
+
         log.info(
             "[scopes] workspace membership created",
             organization_id=workspace.organization_id,
@@ -1532,8 +1537,6 @@ async def add_user_to_workspace(
             user_id=user_id,
             membership_id=workspace_member.id,
         )
-
-        await session.commit()
 
 
 async def add_user_to_project(
@@ -1559,6 +1562,8 @@ async def add_user_to_project(
 
         session.add(project_member)
 
+        await session.commit()
+
         log.info(
             "[scopes] project membership created",
             organization_id=project.organization_id,
@@ -1567,8 +1572,6 @@ async def add_user_to_project(
             user_id=user_id,
             membership_id=project_member.id,
         )
-
-        await session.commit()
 
 
 async def transfer_organization_ownership(
