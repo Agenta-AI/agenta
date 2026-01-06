@@ -1,4 +1,4 @@
-import requests
+import httpx
 
 BASE_TIMEOUT = 10
 
@@ -11,7 +11,7 @@ log = get_module_logger(__name__)
 
 def authed_api():
     """
-    Preconfigured requests for authenticated endpoints (supports all methods).
+    Preconfigured httpx client for authenticated endpoints (supports all methods).
     """
 
     api_url = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_url
@@ -27,12 +27,13 @@ def authed_api():
         headers = kwargs.pop("headers", {})
         headers.setdefault("Authorization", f"ApiKey {api_key}")
 
-        return requests.request(
-            method=method,
-            url=url,
-            headers=headers,
-            timeout=BASE_TIMEOUT,
-            **kwargs,
-        )
+        with httpx.Client() as client:
+            return client.request(
+                method=method,
+                url=url,
+                headers=headers,
+                timeout=BASE_TIMEOUT,
+                **kwargs,
+            )
 
     return _request

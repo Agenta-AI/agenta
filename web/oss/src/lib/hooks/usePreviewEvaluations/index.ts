@@ -11,15 +11,17 @@ import {useAppId} from "@/oss/hooks/useAppId"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {EvaluationType} from "@/oss/lib/enums"
 import {buildRunIndex} from "@/oss/lib/evaluations/buildRunIndex"
-import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {EvaluationStatus, SnakeToCamelCaseKeys, Testset} from "@/oss/lib/Types"
 import {slugify} from "@/oss/lib/utils/slugify"
 import {createEvaluationRunConfig} from "@/oss/services/evaluationRuns/api"
 import {CreateEvaluationRunInput} from "@/oss/services/evaluationRuns/api/types"
-import {fetchTestset} from "@/oss/services/testsets/api"
 import {getProjectValues} from "@/oss/state/project"
 import {setProjectVariantReferencesAtom} from "@/oss/state/projectVariantConfig"
-import {usePreviewTestsetsData, useTestsetsData} from "@/oss/state/testset"
+import {fetchRevision} from "@/oss/state/entities/testset"
+import {
+    testcasesResponseSchema,
+    type Testcase as PreviewTestcase,
+} from "@/oss/state/entities/testcase/schema"
 
 import {primePreviewRunCache} from "./assets/previewRunBatcher"
 import {fetchPreviewRunsShared} from "./assets/previewRunsRequest"
@@ -277,12 +279,6 @@ const usePreviewEvaluations = ({
     }, [appId, projectId, rawRuns, setProjectVariantReferences])
 
     /**
-     * Hook to fetch testsets data.
-     */
-    const {testsets} = useTestsetsData()
-    const {testsets: _previewTestsets} = usePreviewTestsetsData()
-
-    /**
      * Helper to create scenarios for a given run and testset.
      * Each CSV row becomes its own scenario.
      */
@@ -313,7 +309,7 @@ const usePreviewEvaluations = ({
             // Extract and return new scenario IDs
             return response.data.scenarios.map((s: any) => s.id)
         },
-        [testsets, debug],
+        [],
     )
 
     /**
@@ -352,34 +348,59 @@ const usePreviewEvaluations = ({
 
     const createNewRun = useCallback(
         async (paramInputs: CreateEvaluationRunInput) => {
-            // JIT migrate old testsets before creating a new run
-            if (!paramInputs.testset || !paramInputs.testset._id) {
-                throw new Error("Testset is required and must have an _id for migration.")
-            }
-            try {
-                // 1. Converts the old testset to the new format
-                const existingPreviewQuery = await axios.get(
-                    `/preview/simple/testsets/${paramInputs.testset._id}`,
-                )
-                const _existingQuery = await fetchTestset(paramInputs.testset._id, false)
-                const existingPreview = existingPreviewQuery.data?.testset
-                let testset
-                if (!existingPreview) {
-                    const result = await axios.post(
-                        `/preview/simple/testsets/${paramInputs.testset._id}/transfer`,
-                    )
-                    testset = result.data.testset
-                } else {
-                    testset = existingPreview
+            const rawTestset: any = paramInputs.testset
+
+            // Prefer revision-based hydration when a revisionId is provided
+            if (rawTestset?.revisionId) {
+                if (!projectId) {
+                    throw new Error("Project id is required to fetch testset revision.")
                 }
 
-                if (testset) {
-                    paramInputs.testset = snakeToCamelCaseKeys(testset)
+                const revision = await fetchRevision({id: rawTestset.revisionId, projectId})
+
+                // Fetch all testcases for this revision so we can derive columns and IDs
+                const allTestcases: PreviewTestcase[] = []
+                let cursor: string | null = null
+
+                // Paginate through /preview/testcases/query until no more pages
+                do {
+                    const response = await axios.post(
+                        "/preview/testcases/query",
+                        {
+                            testset_revision_id: revision.id,
+                            windowing: {
+                                limit: 500,
+                                ...(cursor ? {next: cursor} : {}),
+                            },
+                        },
+                        {params: {project_id: projectId}},
+                    )
+
+                    const parsed = testcasesResponseSchema.parse(response.data)
+                    allTestcases.push(...parsed.testcases)
+                    cursor = parsed.windowing?.next ?? null
+                } while (cursor)
+
+                const testcaseIds = allTestcases.map((tc) => tc.id).filter(Boolean)
+                const testcaseRows = allTestcases.map((tc) => ({
+                    id: tc.id,
+                    data: tc.data ?? {},
+                }))
+
+                const hydratedTestset: Testset = {
+                    ...(rawTestset as Testset),
+                    id: revision.testset_id,
+                    // Prefer explicit name from caller, then revision name, then fallback
+                    name: (rawTestset.name as string) ?? (revision.name as string) ?? "Testset",
+                    // Provide testcaseIds and testcases so mappings & scenarios can use them
+                    data: {
+                        ...(rawTestset.data ?? {}),
+                        testcaseIds,
+                        testcases: testcaseRows,
+                    } as any,
                 }
-            } catch (migrationErr: any) {
-                throw new Error(
-                    `Failed to migrate testset before creating run: ${migrationErr?.message || migrationErr}`,
-                )
+
+                paramInputs.testset = hydratedTestset
             }
 
             // 2. Create payload: invocation origin=auto, annotation origin=human (handled by helper)

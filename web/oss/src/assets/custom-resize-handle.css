@@ -2,8 +2,8 @@
     position: absolute;
     right: -9px;
     top: 50%;
-    width: 0px;
-    height: 50%;
+    width: 18px;
+    height: 100%;
     cursor: col-resize;
     z-index: 2;
     transform: translateY(-50%);
