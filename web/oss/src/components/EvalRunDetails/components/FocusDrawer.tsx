@@ -1,4 +1,4 @@
-import type {ReactNode} from "react"
+import type {KeyboardEvent, ReactNode} from "react"
 import {memo, useCallback, useMemo, useRef, useState} from "react"
 import {isValidElement} from "react"
 
@@ -766,17 +766,39 @@ const FocusSectionHeader = ({
     title: ReactNode
     collapsed: boolean
     onToggle: () => void
-}) => (
-    <div className="flex items-center justify-between py-1 px-3 h-10 sticky top-0 bg-zinc-1 z-10">
-        <Text className="text-sm font-semibold text-[#344054]">{title}</Text>
-        <Button
-            type="link"
-            size="small"
-            icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+}) => {
+    const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault()
+            onToggle()
+        }
+    }
+
+    return (
+        <div
+            className={clsx(
+                "flex items-center justify-between py-1 px-3 h-10 sticky top-0 bg-zinc-1 z-10 cursor-pointer",
+                "border-b border-b-[rgba(5,23,41,0.06)]",
+            )}
+            style={{borderBottomStyle: "solid"}}
+            role="button"
+            tabIndex={0}
             onClick={onToggle}
-        />
-    </div>
-)
+            onKeyDown={handleKeyDown}
+        >
+            <Text className="text-sm font-semibold text-[#344054]">{title}</Text>
+            <Button
+                type="link"
+                size="small"
+                icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+                onClick={(event) => {
+                    event.stopPropagation()
+                    onToggle()
+                }}
+            />
+        </div>
+    )
+}
 
 const FocusSectionContent = memo(
     ({
@@ -1392,7 +1414,7 @@ export const FocusDrawerContent = ({
     return (
         <div
             className={clsx(
-                "flex flex-col min-h-0 px-2 bg-zinc-1",
+                "flex flex-col min-h-0 bg-zinc-1",
                 disableScroll ? "" : "h-full overflow-y-auto",
             )}
             data-focus-drawer-content

@@ -1,5 +1,5 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
-import type {ReactNode, UIEvent} from "react"
+import type {KeyboardEvent, ReactNode, UIEvent} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Typography} from "antd"
@@ -503,7 +503,18 @@ const ConfigurationSectionRow = memo(
                         "py-1 px-3 h-10",
                         "sticky top-0",
                         "bg-zinc-1 z-10",
+                        "cursor-pointer border-b border-b-[rgba(5,23,41,0.06)]",
                     )}
+                    style={{borderBottomStyle: "solid"}}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setCollapsed((value) => !value)}
+                    onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault()
+                            setCollapsed((value) => !value)
+                        }
+                    }}
                 >
                     <Text className="text-sm font-semibold text-[#344054]">{section.title}</Text>
 
@@ -511,7 +522,10 @@ const ConfigurationSectionRow = memo(
                         type="link"
                         size="small"
                         icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
-                        onClick={() => setCollapsed((value) => !value)}
+                        onClick={(event) => {
+                            event.stopPropagation()
+                            setCollapsed((value) => !value)
+                        }}
                     />
                 </div>
                 {!collapsed ? grid : null}

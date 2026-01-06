@@ -167,7 +167,7 @@ const CustomTree = <TNode,>({
     defaultExpanded,
 }: TreeProps<TNode>) => {
     return (
-        <div className={"h-full overflow-y-auto p-2"}>
+        <div className={"overflow-y-auto p-2"}>
             <TreeNodeComponent
                 node={data}
                 isLast={false}
