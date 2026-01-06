@@ -512,6 +512,15 @@
         "doc",
         "example"
       ]
+    },
+    {
+      "login": "adityadewan22-hub",
+      "name": "adityadewan22-hub",
+      "avatar_url": "https://avatars.githubusercontent.com/u/225586510?v=4",
+      "profile": "https://github.com/adityadewan22-hub",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
