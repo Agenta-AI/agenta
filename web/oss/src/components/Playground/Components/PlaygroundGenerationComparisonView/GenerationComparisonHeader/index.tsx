@@ -11,10 +11,10 @@ import {triggerWebWorkerTestAtom} from "@/oss/state/newPlayground/mutations/webW
 import RunButton from "../../../assets/RunButton"
 import {
     appChatModeAtom,
-    generationHeaderDataAtomFamily,
-    displayedVariantsAtom,
     cancelTestsMutationAtom,
     canRunAllChatComparisonAtom,
+    displayedVariantsAtom,
+    generationHeaderDataAtomFamily,
 } from "../../../state/atoms"
 import {clearAllRunsMutationAtom} from "../../../state/atoms/utilityMutations"
 import TestsetDrawerButton from "../../Drawers/TestsetDrawer"
