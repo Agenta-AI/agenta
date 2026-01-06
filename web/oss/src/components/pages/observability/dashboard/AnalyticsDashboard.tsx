@@ -1,7 +1,6 @@
 import {useMemo, type ComponentProps} from "react"
 
-import {ChartLine} from "@phosphor-icons/react"
-import {AreaChart} from "@tremor/react"
+import {ChartLineIcon} from "@phosphor-icons/react"
 import {Spin} from "antd"
 import {useAtom} from "jotai"
 import {createUseStyles} from "react-jss"
@@ -12,6 +11,7 @@ import {JSSTheme} from "@/oss/lib/Types"
 import {useObservabilityDashboard} from "@/oss/state/observability"
 import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
 
+import CustomAreaChart from "./CustomAreaChart"
 import WidgetCard from "./widgetCard"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -66,7 +66,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const EmptyChart = ({className}: {className: string}) => (
     <div className={className}>
-        <ChartLine size={18} />
+        <ChartLineIcon size={18} />
         <span>No data</span>
     </div>
 )
@@ -83,22 +83,15 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
     const chartData = useMemo(() => (data?.data?.length ? data.data : []), [data])
     const hasData = (data?.total_count ?? 0) > 0
 
-    const defaultGraphProps = useMemo<ComponentProps<typeof AreaChart>>(
+    const defaultGraphProps = useMemo<ComponentProps<typeof CustomAreaChart>>(
         () => ({
             className: "h-[140px]",
             colors: ["cyan-600", "rose"],
-            connectNulls: true,
-            tickGap: 20,
-            curveType: "monotone",
-            showGridLines: true,
-            showLegend: false,
+            tickCount: 5,
             index: "timestamp",
             data: chartData,
             categories: [],
             valueFormatter: (value) => formatCompactNumber(value),
-            yAxisWidth: 48,
-            showXAxis: true,
-            showYAxis: true,
         }),
         [chartData],
     )
@@ -142,7 +135,7 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
                         }
                     >
                         {hasData ? (
-                            <AreaChart
+                            <CustomAreaChart
                                 {...defaultGraphProps}
                                 categories={
                                     (data?.failure_rate ?? 0) > 0
@@ -169,7 +162,7 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
                         }
                     >
                         {hasData ? (
-                            <AreaChart
+                            <CustomAreaChart
                                 {...defaultGraphProps}
                                 categories={["latency"]}
                                 valueFormatter={(value) => `${formatCompactNumber(value)}ms`}
@@ -199,7 +192,7 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
                         }
                     >
                         {hasData ? (
-                            <AreaChart
+                            <CustomAreaChart
                                 {...defaultGraphProps}
                                 categories={["cost"]}
                                 colors={["cyan-600"]}
@@ -230,7 +223,7 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
                         }
                     >
                         {hasData ? (
-                            <AreaChart
+                            <CustomAreaChart
                                 {...defaultGraphProps}
                                 categories={["total_tokens"]}
                                 colors={["cyan-600"]}
