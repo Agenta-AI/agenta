@@ -19,7 +19,7 @@ export interface RunScopedUrls {
         variantId?: string | null,
         revisionId?: string | null,
     ) => string | null
-    buildTestsetHref: (testsetId?: string | null) => string | null
+    buildTestsetHref: (testsetId?: string | null, revisionId?: string | null) => string | null
 }
 
 const normalizeBase = (value?: string | null) => {
@@ -92,8 +92,12 @@ const useRunScopedUrls = (
             return `${base}?${params.toString()}`
         }
 
-        const buildTestsetHref = (testsetId?: string | null) => {
+        const buildTestsetHref = (testsetId?: string | null, revisionId?: string | null) => {
             if (!testsetId || !projectURL) return null
+            // If revision ID is available, link directly to the revision
+            if (revisionId) {
+                return `${projectURL}/testsets/${encodeURIComponent(revisionId)}`
+            }
             return `${projectURL}/testsets/${encodeURIComponent(testsetId)}`
         }
 
