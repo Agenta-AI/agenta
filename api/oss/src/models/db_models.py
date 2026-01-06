@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Enum,
     JSON,
+    Text,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy_json import mutable_json_type
@@ -186,6 +187,11 @@ class AppDB(Base):
     )
     deployment = relationship(
         "oss.src.models.db_models.DeploymentDB",
+        cascade=CASCADE_ALL_DELETE,
+        back_populates="app",
+    )
+    webhooks = relationship(
+        "oss.src.models.db_models.WebhookDB",
         cascade=CASCADE_ALL_DELETE,
         back_populates="app",
     )
@@ -901,4 +907,125 @@ class EvaluationScenarioDB(Base):
         "oss.src.models.db_models.EvaluationScenarioResultDB",
         cascade=CASCADE_ALL_DELETE,
         backref="evaluation_scenario",
+    )
+
+
+class WebhookDB(Base):
+    """Webhook configuration for post-deployment actions"""
+
+    __tablename__ = "webhooks"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("app_db.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # Webhook configuration
+    name = Column(String, nullable=False)  # Webhook name
+    description = Column(String, nullable=True)  # Description
+    is_enabled = Column(Boolean, default=True)  # Enable/disable status
+
+    # Python script configuration
+    script_content = Column(Text, nullable=False)  # Python script content
+    script_timeout = Column(Integer, default=300)  # Timeout in seconds
+
+    # Docker image configuration
+    docker_image = Column(String, default="python:3.11-slim")  # Docker base image
+
+    # Environment variables (stored as JSONB)
+    environment_variables = Column(
+        mutable_json_type(dbtype=JSONB, nested=True), default=list
+    )  # [{"key": "API_KEY", "value": "xxx", "is_secret": false}]
+
+    # Execution options
+    retry_on_failure = Column(Boolean, default=False)
+    max_retries = Column(Integer, default=3)
+    retry_delay_seconds = Column(Integer, default=60)
+
+    # Trigger conditions
+    trigger_on_environments = Column(
+        mutable_json_type(dbtype=JSONB, nested=True), default=list
+    )  # ["production", "staging"]
+
+    # Timestamps
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    # Relationships
+    app = relationship("oss.src.models.db_models.AppDB", back_populates="webhooks")
+    executions = relationship(
+        "oss.src.models.db_models.WebhookExecutionDB",
+        cascade=CASCADE_ALL_DELETE,
+        backref="webhook",
+    )
+
+
+class WebhookExecutionDB(Base):
+    """Webhook execution records"""
+
+    __tablename__ = "webhook_executions"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    webhook_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("webhooks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # Deployment context
+    deployment_id = Column(
+        UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="SET NULL"), nullable=True
+    )
+    environment_name = Column(String)
+    variant_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL"), nullable=True
+    )
+    variant_revision_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Execution status
+    status = Column(String, nullable=False)  # "pending", "running", "success", "failed", "timeout"
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Execution results
+    exit_code = Column(Integer, nullable=True)
+    output = Column(Text, nullable=True)  # Standard output
+    error_output = Column(Text, nullable=True)  # Standard error
+    container_id = Column(String, nullable=True)  # Docker container ID
+
+    # Retry information
+    retry_count = Column(Integer, default=0)
+    is_retry = Column(Boolean, default=False)
+    parent_execution_id = Column(
+        UUID(as_uuid=True), ForeignKey("webhook_executions.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Timestamps
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

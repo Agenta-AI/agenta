@@ -1,7 +1,7 @@
 // @ts-nocheck
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {SwapOutlined} from "@ant-design/icons"
+import {SwapOutlined, BellOutlined} from "@ant-design/icons"
 import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
 import {Button, Flex, Input, Radio, Space, Typography} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
@@ -40,6 +40,7 @@ import {
     openComparisonModalAtom,
 } from "./Modals/VariantComparisonModal/store/comparisonModalStore"
 import VariantsTable from "./Table"
+import WebhooksList from "../Webhooks/WebhooksList"
 
 // Comparison modal is opened via atoms; no local deploy/delete modals here
 
@@ -76,7 +77,7 @@ const VariantsDashboard = () => {
         return `${baseAppURL}/${appId}/variants`
     }, [appId, baseAppURL])
 
-    const tabBreadcrumbLabel = activeTab === "deployments" ? "Deployments" : "Variants"
+    const tabBreadcrumbLabel = activeTab === "deployments" ? "Deployments" : activeTab === "webhooks" ? "Webhooks" : "Variants"
 
     useBreadcrumbsEffect(
         {
@@ -204,6 +205,15 @@ const VariantsDashboard = () => {
                     </span>
                 ),
             },
+            {
+                key: "webhooks",
+                label: (
+                    <span className="inline-flex items-center gap-2">
+                        <BellOutlined />
+                        Webhooks
+                    </span>
+                ),
+            },
         ],
         [],
     )
@@ -313,9 +323,15 @@ const VariantsDashboard = () => {
         </div>
     )
 
+    const webhooksContent = <WebhooksList appId={appId || ""} />
+
     return (
         <PageLayout title="Registry" headerTabsProps={headerTabsProps} className="grow min-h-0">
-            {activeTab === "deployments" ? deploymentsContent : variantContent}
+            {activeTab === "deployments"
+                ? deploymentsContent
+                : activeTab === "webhooks"
+                ? webhooksContent
+                : variantContent}
         </PageLayout>
     )
 }

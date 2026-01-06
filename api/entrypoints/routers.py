@@ -108,6 +108,7 @@ from oss.src.routers import (
     organization_router,
     workspace_router,
     container_router,
+    webhook_router,
 )
 
 from oss.src.utils.env import env
@@ -597,6 +598,12 @@ app.include_router(
     workspace_router.router,
     prefix="/workspaces",
     tags=["Workspace"],
+)
+
+app.include_router(
+    webhook_router.router,
+    prefix="/webhooks",
+    tags=["Webhooks"],
 )
 
 # ------------------------------------------------------------------------------

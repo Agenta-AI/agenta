@@ -9,6 +9,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.utils.env import env
 from oss.src.tasks.taskiq.evaluations.worker import EvaluationsWorker
+from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 from oss.src.dbs.postgres.queries.dbes import (
@@ -171,6 +172,10 @@ evaluations_worker = EvaluationsWorker(
     queries_service=queries_service,
     workflows_service=workflows_service,
     evaluations_service=evaluations_service,
+)
+
+webhooks_worker = WebhooksWorker(
+    broker=broker,
 )
 
 
