@@ -112,6 +112,8 @@ export interface EvaluationScenarioRow {
 
 export interface WindowingState {
     next: string | null
+    oldest?: string | null
+    newest?: string | null
     stop?: string | null
     order?: string | null
     limit?: number | null
