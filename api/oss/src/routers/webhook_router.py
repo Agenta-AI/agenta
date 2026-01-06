@@ -21,7 +21,7 @@ router = APIRouter()
 log = get_module_logger(__name__)
 
 
-@router.post("/webhooks/", operation_id="create_webhook")
+@router.post("/", operation_id="create_webhook")
 async def create_webhook(
     payload: WebhookCreate,
     request: Request,
@@ -86,7 +86,7 @@ async def list_webhooks(
     return webhooks
 
 
-@router.get("/webhooks/{webhook_id}/", operation_id="get_webhook")
+@router.get("/{webhook_id}/", operation_id="get_webhook")
 async def get_webhook(
     webhook_id: str,
     request: Request,
@@ -109,7 +109,7 @@ async def get_webhook(
     return webhook
 
 
-@router.put("/webhooks/{webhook_id}/", operation_id="update_webhook")
+@router.put("/{webhook_id}/", operation_id="update_webhook")
 async def update_webhook(
     webhook_id: str,
     payload: WebhookUpdate,
@@ -161,7 +161,7 @@ async def update_webhook(
     return webhook
 
 
-@router.delete("/webhooks/{webhook_id}/", operation_id="delete_webhook")
+@router.delete("/{webhook_id}/", operation_id="delete_webhook")
 async def delete_webhook(
     webhook_id: str,
     request: Request,
@@ -207,7 +207,7 @@ async def delete_webhook(
     return {"message": "Webhook deleted successfully"}
 
 
-@router.get("/webhooks/{webhook_id}/executions/", operation_id="list_webhook_executions")
+@router.get("/{webhook_id}/executions/", operation_id="list_webhook_executions")
 async def list_webhook_executions(
     webhook_id: str,
     limit: int = 50,
@@ -233,7 +233,7 @@ async def list_webhook_executions(
     return executions
 
 
-@router.get("/webhooks/executions/{execution_id}/", operation_id="get_webhook_execution")
+@router.get("/executions/{execution_id}/", operation_id="get_webhook_execution")
 async def get_webhook_execution(
     execution_id: str,
     request: Request,
