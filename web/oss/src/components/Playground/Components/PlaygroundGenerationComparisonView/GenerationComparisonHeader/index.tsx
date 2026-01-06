@@ -1,11 +1,9 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
-import {ArrowsInLineVertical, ArrowsOutLineVertical} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {inputRowIdsWithPropertiesCompatAtom} from "@/oss/state/generation/compat"
 import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 import {triggerWebWorkerTestAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
@@ -21,7 +19,6 @@ import {
 import {clearAllRunsMutationAtom} from "../../../state/atoms/utilityMutations"
 import TestsetDrawerButton from "../../Drawers/TestsetDrawer"
 import LoadTestsetButton from "../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
-import {allGenerationsCollapsedAtom} from "../../PlaygroundGenerations/assets/GenerationHeader/store"
 
 import {useStyles} from "./styles"
 import type {GenerationComparisonHeaderProps} from "./types"
@@ -38,7 +35,6 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
     const runAllChat = useSetAtom(runAllChatAtom)
     const cancelTests = useSetAtom(cancelTestsMutationAtom)
     const canRunAllChat = useAtomValue(canRunAllChatComparisonAtom)
-    const [isAllCollapsed, setIsAllCollapsed] = useAtom(allGenerationsCollapsedAtom)
 
     const headerDataAtom = useMemo(
         () =>
@@ -96,25 +92,7 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
                 className,
             )}
         >
-            {isChatVariant ? (
-                <Typography className={classes.heading}>Generations</Typography>
-            ) : (
-                <EnhancedButton
-                    icon={
-                        isAllCollapsed ? (
-                            <ArrowsOutLineVertical size={16} />
-                        ) : (
-                            <ArrowsInLineVertical size={16} />
-                        )
-                    }
-                    type="text"
-                    onClick={() => setIsAllCollapsed(!isAllCollapsed)}
-                    tooltipProps={{
-                        title: isAllCollapsed ? "Expand all" : "Collapse all",
-                    }}
-                    className={classes.heading}
-                />
-            )}
+            <Typography className={classes.heading}>Generations</Typography>
 
             <div className="flex items-center gap-2">
                 <Tooltip title="Clear all">
