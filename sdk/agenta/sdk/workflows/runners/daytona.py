@@ -16,6 +16,42 @@ if TYPE_CHECKING:
 log = get_module_logger(__name__)
 
 
+def _extract_error_message(error_text: str) -> str:
+    """Extract a clean error message from a Python traceback.
+
+    Given a full traceback string, extracts just the final error line
+    (e.g., "NameError: name 'foo' is not defined") instead of the full
+    noisy traceback with base64-encoded code.
+
+    Args:
+        error_text: Full error/traceback string
+
+    Returns:
+        Clean error message, or original text if extraction fails
+    """
+    if not error_text:
+        return "Unknown error"
+
+    lines = error_text.strip().split("\n")
+
+    # Look for common Python error patterns from the end
+    for line in reversed(lines):
+        line = line.strip()
+        # Match patterns like "NameError: ...", "ValueError: ...", etc.
+        if ": " in line and not line.startswith("File "):
+            # Check if it looks like an error line (ErrorType: message)
+            parts = line.split(": ", 1)
+            if parts[0].replace(".", "").replace("_", "").isalnum():
+                return line
+
+    # Fallback: return last non-empty line
+    for line in reversed(lines):
+        if line.strip():
+            return line.strip()
+
+    return error_text[:200] if len(error_text) > 200 else error_text
+
+
 class DaytonaRunner(CodeRunner):
     """Remote code runner using Daytona sandbox for execution."""
 
@@ -208,7 +244,7 @@ class DaytonaRunner(CodeRunner):
             try:
                 sandbox.delete()
             except Exception as e:
-                log.warning("Failed to delete sandbox: %s", e)
+                log.error("Failed to delete sandbox: %s", e)
 
     def run(
         self,
@@ -280,16 +316,16 @@ class DaytonaRunner(CodeRunner):
                 )
 
                 if response_exit_code and response_exit_code != 0:
-                    error_details = response_error or response_stdout or "Unknown error"
-                    log.error(
-                        "Sandbox execution error (exit_code=%s): %s",
-                        response_exit_code,
-                        error_details,
-                    )
-                    raise RuntimeError(
-                        f"Sandbox execution failed (exit_code={response_exit_code}): "
-                        f"{error_details}"
-                    )
+                    raw_error = response_error or response_stdout or "Unknown error"
+                    # Log full error for debugging
+                    # log.warning(
+                    #     "Sandbox execution error (exit_code=%s): %s",
+                    #     response_exit_code,
+                    #     raw_error,
+                    # )
+                    # Extract clean error message for user display
+                    clean_error = _extract_error_message(raw_error)
+                    raise RuntimeError(clean_error)
 
                 # Parse the result from stdout
                 output_lines = response_stdout.strip().split("\n")
@@ -322,16 +358,18 @@ class DaytonaRunner(CodeRunner):
                         if isinstance(result, (float, int, type(None))):
                             return float(result) if result is not None else None
 
-                log.error(
-                    "Evaluation output did not include JSON result: %s", response_stdout
-                )
+                # log.warning(
+                #     "Evaluation output did not include JSON result: %s", response_stdout
+                # )
                 raise ValueError(
                     "Could not parse evaluation result from Daytona output"
                 )
 
             except Exception as e:
-                log.error(f"Error during Daytona code execution: {e}", exc_info=True)
-                raise RuntimeError(f"Error during Daytona code execution: {e}")
+                # log.warning(
+                #     f"Error during Daytona code execution:\n {e}", exc_info=True
+                # )
+                raise RuntimeError(f"Error with custom code execution:\n\n {e}")
 
     def cleanup(self) -> None:
         """Clean up Daytona client resources."""

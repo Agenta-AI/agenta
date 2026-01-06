@@ -381,7 +381,7 @@ async def auto_webhook_test(
             type="error",
             value=None,
             error=Error(
-                message=f"[webhook evaluation] HTTP - {repr(e)}",
+                message=f"[webhook evaluator] HTTP - {repr(e)}",
                 stacktrace=traceback.format_exc(),
             ),
         )
@@ -390,7 +390,7 @@ async def auto_webhook_test(
             type="error",
             value=None,
             error=Error(
-                message=f"[webhook evaluation] JSON - {repr(e)}",
+                message=f"[webhook evaluator] JSON - {repr(e)}",
                 stacktrace=traceback.format_exc(),
             ),
         )
@@ -399,7 +399,7 @@ async def auto_webhook_test(
             type="error",
             value=None,
             error=Error(
-                message=f"[webhook evaluation] Exception - {repr(e)} ",
+                message=f"[webhook evaluator] Exception - {repr(e)} ",
                 stacktrace=traceback.format_exc(),
             ),
         )
@@ -417,6 +417,39 @@ async def webhook_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterfa
         response_data = response.json()
         score = response_data.get("score", None)
         return {"outputs": {"score": score}}
+
+
+async def auto_custom_code_run(
+    inputs: Dict[str, Any],
+    output: Union[str, Dict[str, Any]],
+    data_point: Dict[str, Any],
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
+) -> Result:
+    try:
+        output = validate_string_output("custom_code_run", output)
+        correct_answer = get_correct_answer(data_point, settings_values)
+        inputs = {
+            "app_config": app_params,
+            "prediction": output,
+            "ground_truth": correct_answer,
+        }
+        response = await sdk_custom_code_run(
+            input=EvaluatorInputInterface(
+                **{"inputs": inputs, "settings": settings_values}
+            )
+        )
+        return Result(type="number", value=response["outputs"]["score"])
+    except Exception as e:  # pylint: disable=broad-except
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Auto Custom Code Evaluation",
+                stacktrace=str(traceback.format_exc()),
+            ),
+        )
 
 
 async def sdk_custom_code_run(
@@ -457,6 +490,12 @@ async def sdk_custom_code_run(
     )
 
     response = await workflow.invoke(request=request)
+
+    # Check for error status and propagate it
+    if response.status and response.status.code and response.status.code >= 400:
+        error_message = response.status.message or "Custom code execution failed"
+        raise RuntimeError(error_message)
+
     result = response.data.outputs if response.data else None
 
     if isinstance(result, dict) and "score" in result:
@@ -2012,7 +2051,7 @@ EVALUATOR_FUNCTIONS = {
     "auto_regex_test": auto_regex_test,
     "field_match_test": auto_field_match_test,
     "auto_webhook_test": auto_webhook_test,
-    "auto_custom_code_run": sdk_custom_code_run,
+    "auto_custom_code_run": auto_custom_code_run,
     "auto_ai_critique": auto_ai_critique,
     "auto_starts_with": auto_starts_with,
     "auto_ends_with": auto_ends_with,
