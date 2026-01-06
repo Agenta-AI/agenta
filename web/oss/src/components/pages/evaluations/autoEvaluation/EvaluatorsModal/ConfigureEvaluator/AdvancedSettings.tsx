@@ -83,7 +83,7 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
                             ) : (field.type === "string" || field.type === "regex") &&
                               selectedTestcase.testcase ? (
                                 <AutoComplete
-                                    options={generatePaths(selectedTestcase)}
+                                    options={generatePaths(selectedTestcase.testcase)}
                                     filterOption={(inputValue, option) =>
                                         option!.value
                                             .toUpperCase()

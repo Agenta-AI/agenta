@@ -12,13 +12,12 @@ import {
     displayedVariantsAtom,
 } from "../../../../state/atoms"
 import {
-    resolvedGenerationResultAtomFamily,
     generationRunStatusAtomFamily,
+    resolvedGenerationResultAtomFamily,
 } from "../../../../state/atoms/generationProperties"
 
 import DefaultView from "./DefaultView"
 import SingleView from "./SingleView"
-import {useStyles} from "./styles"
 import type {GenerationCompletionRowProps} from "./types"
 
 // Keep dynamic imports local to presentational components
@@ -33,8 +32,6 @@ const GenerationCompletionRow = ({
     forceSingle,
     ...props
 }: GenerationCompletionRowProps) => {
-    const classes = useStyles()
-
     const isChat = useAtomValue(appChatModeAtom)
 
     // Only subscribe to generation result atoms in completion mode
@@ -117,7 +114,7 @@ const GenerationCompletionRow = ({
             resultHash={resultHash}
             runRow={runRow}
             cancelRow={cancelRow}
-            containerClassName={classes.container}
+            containerClassName={"border-0 border-b border-solid border-colorBorderSecondary"}
         />
     ) : (
         <DefaultView
