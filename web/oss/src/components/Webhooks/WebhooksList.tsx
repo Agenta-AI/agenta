@@ -42,8 +42,19 @@ const WebhooksList: FC<WebhooksListProps> = ({appId}) => {
 
     // Initial load
     useEffect(() => {
-        loadWebhooks()
-    }, [loadWebhooks])
+        if (appId) {
+            loadWebhooks()
+        }
+    }, [appId, loadWebhooks])
+
+    // Don't render if appId is not available
+    if (!appId) {
+        return (
+            <div style={{padding: "40px", textAlign: "center"}}>
+                <Typography.Text type="secondary">Application ID not found</Typography.Text>
+            </div>
+        )
+    }
 
     const handleCreate = () => {
         setSelectedWebhook(null)
