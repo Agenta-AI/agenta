@@ -2,7 +2,7 @@
  * Webhooks list component
  */
 
-import {FC, useState, useEffect} from "react"
+import {FC, useState, useEffect, useCallback} from "react"
 import {Table, Button, Space, Tag, Popconfirm, Typography, Tooltip} from "antd"
 import {PlayCircleOutlined, EditOutlined, DeleteOutlined, HistoryOutlined} from "@ant-design/icons"
 
@@ -27,7 +27,8 @@ const WebhooksList: FC<WebhooksListProps> = ({appId}) => {
     const [executionsModalVisible, setExecutionsModalVisible] = useState(false)
 
     // Load webhooks
-    const loadWebhooks = async () => {
+    const loadWebhooks = useCallback(async () => {
+        if (!appId) return
         setLoading(true)
         try {
             const data = await webhookService.listWebhooks(appId)
@@ -37,12 +38,12 @@ const WebhooksList: FC<WebhooksListProps> = ({appId}) => {
         } finally {
             setLoading(false)
         }
-    }
+    }, [appId])
 
     // Initial load
     useEffect(() => {
         loadWebhooks()
-    }, [appId])
+    }, [loadWebhooks])
 
     const handleCreate = () => {
         setSelectedWebhook(null)
