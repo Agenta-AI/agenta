@@ -1,5 +1,6 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {validateUUID} from "@/oss/lib/helpers/validators"
 import {Testset, PreviewTestset} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
@@ -470,6 +471,9 @@ export async function patchTestsetRevision(
  * @returns The archived revision data
  */
 export async function archiveTestsetRevision(revisionId: string) {
+    // Validate UUID to prevent SSRF attacks
+    validateUUID(revisionId, "revisionId")
+
     const {projectId} = getProjectValues()
 
     const response = await axios.post(
@@ -553,6 +557,9 @@ export async function downloadRevision(
     fileType: ExportFileType = "csv",
     filename?: string,
 ) {
+    // Validate UUID to prevent SSRF attacks
+    validateUUID(revisionId, "revisionId")
+
     const {projectId} = getProjectValues()
 
     const response = await axios.post(

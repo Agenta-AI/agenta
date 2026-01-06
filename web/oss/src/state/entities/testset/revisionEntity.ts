@@ -4,6 +4,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
@@ -39,14 +40,6 @@ export const setRevisionIdsAtom = atom(null, (get, set, ids: string[]) => {
 interface RevisionRequest {
     projectId: string
     revisionId: string
-}
-
-/**
- * Check if a string is a valid UUID
- */
-const isValidUUID = (id: string): boolean => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    return uuidRegex.test(id)
 }
 
 /**
