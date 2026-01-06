@@ -841,7 +841,7 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             if inputs and isinstance(inputs, dict) and correct_answer_key:
                 correct_answer = inputs[correct_answer_key]
 
-            secrets = await SecretsManager.retrieve_secrets()
+            secrets, _, _ = await SecretsManager.retrieve_secrets()
 
             openai_api_key = None  # secrets.get("OPENAI_API_KEY")
             anthropic_api_key = None  # secrets.get("ANTHROPIC_API_KEY")
@@ -1025,7 +1025,7 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             if inputs and isinstance(inputs, dict) and correct_answer_key:
                 correct_answer = inputs[correct_answer_key]
 
-            secrets = await SecretsManager.retrieve_secrets()
+            secrets, _, _ = await SecretsManager.retrieve_secrets()
 
             openai_api_key = None  # secrets.get("OPENAI_API_KEY")
             anthropic_api_key = None  # secrets.get("ANTHROPIC_API_KEY")
