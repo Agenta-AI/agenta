@@ -85,6 +85,17 @@ const WebhooksList: FC<WebhooksListProps> = ({appId}) => {
 
     const columns = [
         {
+            title: "Type",
+            dataIndex: "webhook_type",
+            key: "webhook_type",
+            width: 150,
+            render: (type: string) => (
+                <Tag color={type === "http_webhook" ? "blue" : "green"}>
+                    {type === "http_webhook" ? "HTTP Webhook" : "Python Script"}
+                </Tag>
+            ),
+        },
+        {
             title: "Name",
             dataIndex: "name",
             key: "name",
@@ -132,16 +143,22 @@ const WebhooksList: FC<WebhooksListProps> = ({appId}) => {
             ),
         },
         {
-            title: "Docker Image",
-            dataIndex: "docker_image",
-            key: "docker_image",
-            ellipsis: true,
-            render: (text: string) => (
-                <Tooltip title={text}>
-                    <Text ellipsis style={{maxWidth: 150}}>
-                        {text}
-                    </Text>
-                </Tooltip>
+            title: "Configuration",
+            key: "config",
+            render: (_: any, record: Webhook) => (
+                record.webhook_type === "http_webhook" ? (
+                    <Tooltip title={record.webhook_url}>
+                        <Text ellipsis style={{maxWidth: 200}}>
+                            {record.webhook_url}
+                        </Text>
+                    </Tooltip>
+                ) : (
+                    <Tooltip title={record.docker_image}>
+                        <Text ellipsis style={{maxWidth: 200}}>
+                            {record.docker_image}
+                        </Text>
+                    </Tooltip>
+                )
             ),
         },
         {

@@ -2,11 +2,13 @@
 
 import asyncio
 import json
+import re
 from typing import Any, Dict, Optional
 from datetime import datetime, timezone
 from uuid import UUID
 
 import docker
+import httpx
 from docker.errors import DockerException, APIError
 from taskiq import AsyncBroker
 
@@ -139,6 +141,172 @@ class WebhooksWorker:
             execution.started_at = datetime.now(timezone.utc)
             await session.commit()
 
+            # Route to appropriate execution method based on webhook type
+            if webhook.webhook_type == "http_webhook":
+                return await self._execute_http_webhook(
+                    webhook=webhook,
+                    execution=execution,
+                    deployment_context=deployment_context,
+                )
+            elif webhook.webhook_type == "python_script":
+                return await self._execute_python_script(
+                    webhook=webhook,
+                    execution=execution,
+                    deployment_context=deployment_context,
+                )
+            else:
+                execution.status = "failed"
+                execution.error_output = f"Unknown webhook type: {webhook.webhook_type}"
+                execution.completed_at = datetime.now(timezone.utc)
+                await session.commit()
+                return {"status": "error", "message": f"Unknown webhook type: {webhook.webhook_type}"}
+
+    async def _execute_http_webhook(
+        self,
+        webhook: WebhookDB,
+        execution: WebhookExecutionDB,
+        deployment_context: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Execute HTTP webhook request.
+
+        Args:
+            webhook: Webhook configuration
+            execution: Execution record
+            deployment_context: Deployment context information
+
+        Returns:
+            Execution result dict
+        """
+        async with engine.core_session() as session:
+            try:
+                # Prepare headers
+                headers = {
+                    "Content-Type": "application/json",
+                    **{
+                        h["key"]: h["value"]
+                        for h in (webhook.webhook_headers or [])
+                    }
+                }
+
+                # Prepare body with template substitution
+                body = None
+                if webhook.webhook_body_template:
+                    body_str = webhook.webhook_body_template
+
+                    # Substitute template variables
+                    template_vars = {
+                        "app_id": deployment_context.get("app_id", ""),
+                        "environment": deployment_context.get("environment_name", ""),
+                        "deployment_id": deployment_context.get("deployment_id", ""),
+                        "variant_id": deployment_context.get("variant_id", ""),
+                        "variant_revision_id": deployment_context.get("variant_revision_id", ""),
+                        "project_id": deployment_context.get("project_id", ""),
+                    }
+
+                    # Replace {{var}} patterns
+                    for key, value in template_vars.items():
+                        body_str = body_str.replace(f"{{{{{key}}}}}", str(value))
+
+                    body = json.loads(body_str) if body_str else None
+
+                # Execute HTTP request
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.request(
+                        method=webhook.webhook_method or "POST",
+                        url=webhook.webhook_url,
+                        headers=headers,
+                        json=body,
+                    )
+
+                # Update execution with results
+                execution.status = "success" if 200 <= response.status_code < 300 else "failed"
+                execution.output = response.text
+                execution.exit_code = 0 if 200 <= response.status_code < 300 else 1
+                execution.completed_at = datetime.now(timezone.utc)
+
+                await session.commit()
+
+                log.info(
+                    f"[WEBHOOK] HTTP webhook executed",
+                    webhook_id=str(webhook.id),
+                    status_code=response.status_code,
+                    execution_id=str(execution.id),
+                )
+
+                # Handle retries if failed
+                if execution.status == "failed" and webhook.retry_on_failure:
+                    await self._handle_retry(
+                        webhook=webhook,
+                        execution=execution,
+                        deployment_context=deployment_context,
+                    )
+
+                return {
+                    "status": execution.status,
+                    "status_code": response.status_code,
+                    "output": response.text,
+                }
+
+            except httpx.TimeoutException:
+                execution.status = "timeout"
+                execution.error_output = "HTTP request timed out"
+                execution.completed_at = datetime.now(timezone.utc)
+                await session.commit()
+
+                log.error(f"[WEBHOOK] HTTP webhook timed out", execution_id=str(execution.id))
+
+                # Handle retries on timeout
+                if webhook.retry_on_failure:
+                    await self._handle_retry(
+                        webhook=webhook,
+                        execution=execution,
+                        deployment_context=deployment_context,
+                    )
+
+                return {"status": "timeout", "message": "HTTP request timed out"}
+
+            except Exception as e:
+                execution.status = "failed"
+                execution.error_output = str(e)
+                execution.completed_at = datetime.now(timezone.utc)
+                await session.commit()
+
+                log.error(
+                    f"[WEBHOOK] HTTP webhook failed",
+                    execution_id=str(execution.id),
+                    error=str(e),
+                    exc_info=True,
+                )
+
+                # Handle retries on exception
+                if webhook.retry_on_failure:
+                    await self._handle_retry(
+                        webhook=webhook,
+                        execution=execution,
+                        deployment_context=deployment_context,
+                    )
+
+                return {"status": "error", "message": str(e)}
+
+    async def _execute_python_script(
+        self,
+        webhook: WebhookDB,
+        execution: WebhookExecutionDB,
+        deployment_context: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Execute Python script in Docker container.
+
+        Args:
+            webhook: Webhook configuration
+            execution: Execution record
+            deployment_context: Deployment context information
+
+        Returns:
+            Execution result dict
+        """
+        async with engine.core_session() as session:
             # Prepare environment variables
             environment_vars = {
                 **{
@@ -183,8 +351,8 @@ class WebhooksWorker:
                 await session.commit()
 
                 log.info(
-                    f"[WEBHOOK] Execution completed",
-                    execution_id=execution_id,
+                    f"[WEBHOOK] Python script execution completed",
+                    execution_id=str(execution.id),
                     status=execution.status,
                     exit_code=exit_code,
                 )
@@ -210,8 +378,8 @@ class WebhooksWorker:
                 await session.commit()
 
                 log.error(
-                    f"[WEBHOOK] Execution timed out",
-                    execution_id=execution_id,
+                    f"[WEBHOOK] Script execution timed out",
+                    execution_id=str(execution.id),
                     timeout=webhook.script_timeout,
                 )
 
@@ -232,8 +400,8 @@ class WebhooksWorker:
                 await session.commit()
 
                 log.error(
-                    f"[WEBHOOK] Execution failed with exception",
-                    execution_id=execution_id,
+                    f"[WEBHOOK] Script execution failed with exception",
+                    execution_id=str(execution.id),
                     error=str(e),
                     exc_info=True,
                 )

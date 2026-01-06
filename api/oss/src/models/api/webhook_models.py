@@ -1,9 +1,9 @@
 """Webhook API models for request/response validation"""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 
 
 class EnvironmentVariable(BaseModel):
@@ -14,15 +14,41 @@ class EnvironmentVariable(BaseModel):
     is_secret: bool = Field(default=False, description="Whether this is a sensitive value that should be encrypted")
 
 
+class HttpHeader(BaseModel):
+    """HTTP header configuration for webhook requests"""
+
+    key: str = Field(..., min_length=1, max_length=100, description="Header name")
+    value: str = Field(..., max_length=1000, description="Header value")
+    is_secret: bool = Field(default=False, description="Whether this is a sensitive value (e.g., Authorization)")
+
+
 class WebhookCreate(BaseModel):
     """Request model for creating a webhook"""
 
     app_id: str = Field(..., description="Application ID to associate webhook with")
     name: str = Field(..., min_length=1, max_length=100, description="Webhook name")
     description: Optional[str] = Field(None, max_length=500, description="Optional description")
-    script_content: str = Field(..., min_length=1, description="Python script to execute")
+    webhook_type: Literal["http_webhook", "python_script"] = Field(
+        default="python_script",
+        description="Type of webhook: http_webhook for HTTP callbacks, python_script for Docker script execution"
+    )
+
+    # HTTP Webhook fields
+    webhook_url: Optional[str] = Field(None, max_length=2048, description="HTTP webhook URL")
+    webhook_method: str = Field(default="POST", pattern="^(GET|POST|PUT|PATCH|DELETE)$", description="HTTP method")
+    webhook_headers: List[HttpHeader] = Field(
+        default_factory=list, description="Custom HTTP headers for the webhook request"
+    )
+    webhook_body_template: Optional[str] = Field(
+        None, description="JSON template for webhook body (supports {{deployment_id}}, {{environment}}, etc.)"
+    )
+
+    # Python Script fields
+    script_content: Optional[str] = Field(None, min_length=1, description="Python script to execute")
     script_timeout: int = Field(default=300, ge=10, le=3600, description="Script timeout in seconds")
     docker_image: str = Field(default="python:3.11-slim", description="Docker image to use for execution")
+
+    # Common fields
     environment_variables: List[EnvironmentVariable] = Field(
         default_factory=list, description="Environment variables to inject into script execution"
     )
@@ -40,9 +66,20 @@ class WebhookUpdate(BaseModel):
 
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
+    webhook_type: Optional[Literal["http_webhook", "python_script"]] = None
+
+    # HTTP Webhook fields
+    webhook_url: Optional[str] = Field(None, max_length=2048)
+    webhook_method: Optional[str] = Field(None, pattern="^(GET|POST|PUT|PATCH|DELETE)$")
+    webhook_headers: Optional[List[HttpHeader]] = None
+    webhook_body_template: Optional[str] = None
+
+    # Python Script fields
     script_content: Optional[str] = Field(None, min_length=1)
     script_timeout: Optional[int] = Field(None, ge=10, le=3600)
     docker_image: Optional[str] = None
+
+    # Common fields
     environment_variables: Optional[List[EnvironmentVariable]] = None
     retry_on_failure: Optional[bool] = None
     max_retries: Optional[int] = Field(None, ge=0, le=10)
@@ -58,9 +95,20 @@ class WebhookResponse(BaseModel):
     app_id: str
     name: str
     description: Optional[str]
+    webhook_type: str
     is_enabled: bool
-    script_timeout: int
-    docker_image: str
+
+    # HTTP Webhook fields
+    webhook_url: Optional[str]
+    webhook_method: Optional[str]
+    webhook_headers: List[HttpHeader]
+    webhook_body_template: Optional[str]
+
+    # Python Script fields
+    script_timeout: Optional[int]
+    docker_image: Optional[str]
+
+    # Common fields
     environment_variables: List[EnvironmentVariable]
     retry_on_failure: bool
     max_retries: int

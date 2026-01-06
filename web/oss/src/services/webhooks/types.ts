@@ -2,7 +2,15 @@
  * Webhook types for post-deployment webhooks
  */
 
+export type WebhookType = "http_webhook" | "python_script"
+
 export interface EnvironmentVariable {
+    key: string
+    value: string
+    is_secret: boolean
+}
+
+export interface HttpHeader {
     key: string
     value: string
     is_secret: boolean
@@ -13,9 +21,20 @@ export interface Webhook {
     app_id: string
     name: string
     description: string | null
+    webhook_type: WebhookType
     is_enabled: boolean
-    script_timeout: number
-    docker_image: string
+
+    // HTTP Webhook fields
+    webhook_url: string | null
+    webhook_method: string | null
+    webhook_headers: HttpHeader[]
+    webhook_body_template: string | null
+
+    // Python Script fields
+    script_timeout: number | null
+    docker_image: string | null
+
+    // Common fields
     environment_variables: EnvironmentVariable[]
     retry_on_failure: boolean
     max_retries: number
@@ -49,9 +68,20 @@ export interface CreateWebhookPayload {
     app_id: string
     name: string
     description?: string
-    script_content: string
+    webhook_type: WebhookType
+
+    // HTTP Webhook fields
+    webhook_url?: string
+    webhook_method?: string
+    webhook_headers?: HttpHeader[]
+    webhook_body_template?: string
+
+    // Python Script fields
+    script_content?: string
     script_timeout?: number
     docker_image?: string
+
+    // Common fields
     environment_variables?: EnvironmentVariable[]
     retry_on_failure?: boolean
     max_retries?: number
@@ -63,9 +93,20 @@ export interface CreateWebhookPayload {
 export interface UpdateWebhookPayload {
     name?: string
     description?: string
+    webhook_type?: WebhookType
+
+    // HTTP Webhook fields
+    webhook_url?: string
+    webhook_method?: string
+    webhook_headers?: HttpHeader[]
+    webhook_body_template?: string
+
+    // Python Script fields
     script_content?: string
     script_timeout?: number
     docker_image?: string
+
+    // Common fields
     environment_variables?: EnvironmentVariable[]
     retry_on_failure?: boolean
     max_retries?: number

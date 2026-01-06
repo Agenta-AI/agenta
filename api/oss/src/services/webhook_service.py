@@ -19,6 +19,7 @@ from oss.src.models.api.webhook_models import (
     WebhookResponse,
     WebhookExecutionResponse,
     EnvironmentVariable,
+    HttpHeader,
 )
 from oss.src.utils.logging import get_module_logger
 
@@ -59,9 +60,20 @@ class WebhookService:
                 name=webhook_data.name,
                 description=webhook_data.description,
                 is_enabled=webhook_data.is_enabled,
+                webhook_type=webhook_data.webhook_type,
+                # HTTP Webhook fields
+                webhook_url=webhook_data.webhook_url,
+                webhook_method=webhook_data.webhook_method,
+                webhook_headers=[
+                    {"key": h.key, "value": h.value, "is_secret": h.is_secret}
+                    for h in webhook_data.webhook_headers
+                ],
+                webhook_body_template=webhook_data.webhook_body_template,
+                # Python Script fields
                 script_content=webhook_data.script_content,
                 script_timeout=webhook_data.script_timeout,
                 docker_image=webhook_data.docker_image,
+                # Common fields
                 environment_variables=[
                     {"key": env.key, "value": env.value, "is_secret": env.is_secret}
                     for env in webhook_data.environment_variables
@@ -151,12 +163,31 @@ class WebhookService:
                 webhook.name = update_data.name
             if update_data.description is not None:
                 webhook.description = update_data.description
+            if update_data.webhook_type is not None:
+                webhook.webhook_type = update_data.webhook_type
+
+            # HTTP Webhook fields
+            if update_data.webhook_url is not None:
+                webhook.webhook_url = update_data.webhook_url
+            if update_data.webhook_method is not None:
+                webhook.webhook_method = update_data.webhook_method
+            if update_data.webhook_headers is not None:
+                webhook.webhook_headers = [
+                    {"key": h.key, "value": h.value, "is_secret": h.is_secret}
+                    for h in update_data.webhook_headers
+                ]
+            if update_data.webhook_body_template is not None:
+                webhook.webhook_body_template = update_data.webhook_body_template
+
+            # Python Script fields
             if update_data.script_content is not None:
                 webhook.script_content = update_data.script_content
             if update_data.script_timeout is not None:
                 webhook.script_timeout = update_data.script_timeout
             if update_data.docker_image is not None:
                 webhook.docker_image = update_data.docker_image
+
+            # Common fields
             if update_data.environment_variables is not None:
                 webhook.environment_variables = [
                     {"key": env.key, "value": env.value, "is_secret": env.is_secret}
@@ -361,9 +392,24 @@ class WebhookService:
             app_id=str(webhook.app_id),
             name=webhook.name,
             description=webhook.description,
+            webhook_type=webhook.webhook_type,
             is_enabled=webhook.is_enabled,
+            # HTTP Webhook fields
+            webhook_url=webhook.webhook_url,
+            webhook_method=webhook.webhook_method,
+            webhook_headers=[
+                HttpHeader(
+                    key=h["key"],
+                    value=h["value"],
+                    is_secret=h.get("is_secret", False),
+                )
+                for h in (webhook.webhook_headers or [])
+            ],
+            webhook_body_template=webhook.webhook_body_template,
+            # Python Script fields
             script_timeout=webhook.script_timeout,
             docker_image=webhook.docker_image,
+            # Common fields
             environment_variables=[
                 EnvironmentVariable(
                     key=env["key"],

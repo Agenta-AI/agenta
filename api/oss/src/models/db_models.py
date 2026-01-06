@@ -938,8 +938,19 @@ class WebhookDB(Base):
     description = Column(String, nullable=True)  # Description
     is_enabled = Column(Boolean, default=True)  # Enable/disable status
 
+    # Webhook type: "http_webhook" or "python_script"
+    webhook_type = Column(String, nullable=False, default="python_script")
+
+    # HTTP Webhook configuration
+    webhook_url = Column(String, nullable=True)  # HTTP webhook URL
+    webhook_method = Column(String, nullable=True, default="POST")  # HTTP method (GET, POST, etc.)
+    webhook_headers = Column(
+        mutable_json_type(dbtype=JSONB, nested=True), default=list
+    )  # Custom HTTP headers [{"key": "Authorization", "value": "Bearer xxx"}]
+    webhook_body_template = Column(Text, nullable=True)  # JSON template for webhook body
+
     # Python script configuration
-    script_content = Column(Text, nullable=False)  # Python script content
+    script_content = Column(Text, nullable=True)  # Python script content
     script_timeout = Column(Integer, default=300)  # Timeout in seconds
 
     # Docker image configuration
