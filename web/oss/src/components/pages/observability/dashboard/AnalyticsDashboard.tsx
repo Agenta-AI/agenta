@@ -1,17 +1,16 @@
 import {useMemo, type ComponentProps} from "react"
 
-import Sort from "@/oss/components/Filters/Sort"
-import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
-import {useAtom} from "jotai"
-
 import {ChartLine} from "@phosphor-icons/react"
 import {AreaChart} from "@tremor/react"
 import {Spin} from "antd"
+import {useAtom} from "jotai"
 import {createUseStyles} from "react-jss"
 
+import Sort from "@/oss/components/Filters/Sort"
 import {formatCompactNumber, formatCurrency, formatNumber} from "@/oss/lib/helpers/formatters"
 import {JSSTheme} from "@/oss/lib/Types"
 import {useObservabilityDashboard} from "@/oss/state/observability"
+import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
 
 import WidgetCard from "./widgetCard"
 
