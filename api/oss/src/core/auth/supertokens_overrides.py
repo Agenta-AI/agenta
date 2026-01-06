@@ -257,8 +257,10 @@ def override_thirdparty_functions(
             identities_array = [method]  # Fallback to current method only
 
         # Store identity context for session creation
+        # existing_identities = all known methods for user
+        # verified_identities = methods verified in this session (current method)
         user_context["existing_identities"] = identities_array
-        user_context["verified_identities"] = identities_array
+        user_context["verified_identities"] = [method]
         user_context["current_identity"] = method
         log.debug(
             "[AUTH-IDENTITY] session existing_identities",
@@ -477,8 +479,10 @@ def override_passwordless_functions(
             identities_array = [method]  # Fallback to current method only
 
         # Store identity context for session creation
+        # existing_identities = all known methods for user
+        # verified_identities = methods verified in this session (current method)
         user_context["existing_identities"] = identities_array
-        user_context["verified_identities"] = identities_array
+        user_context["verified_identities"] = [method]
         user_context["current_identity"] = method
 
         # Enforce domain-based policies (auto-join, domains-only)
@@ -585,8 +589,10 @@ def override_emailpassword_functions(
             identities_array = [method]  # Fallback to current method only
 
         # Store identity context for session creation
+        # existing_identities = all known methods for user
+        # verified_identities = methods verified in this session (current method)
         user_context["existing_identities"] = identities_array
-        user_context["verified_identities"] = identities_array
+        user_context["verified_identities"] = [method]
         user_context["current_identity"] = method
 
         # Enforce domain-based policies (auto-join, domains-only)
@@ -681,8 +687,10 @@ def override_emailpassword_functions(
             identities_array = [method]  # Fallback to current method only
 
         # Store identity context for session creation
+        # existing_identities = all known methods for user
+        # verified_identities = methods verified in this session (current method)
         user_context["existing_identities"] = identities_array
-        user_context["verified_identities"] = identities_array
+        user_context["verified_identities"] = [method]
         user_context["current_identity"] = method
 
         # Enforce domain-based policies (auto-join, domains-only)

@@ -1,6 +1,8 @@
 import {getDefaultStore} from "jotai"
 
 import {projectIdAtom} from "../../../state/project"
+import {requestNavigationAtom} from "@/oss/state/appState"
+import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {getAgentaApiUrl} from "../../helpers/api"
 
 // Lazily import to avoid circulars in non-test
@@ -81,6 +83,51 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
             (parsedBody as any)?.detail ||
             (parsedBody as any)?.error ||
             (typeof parsedBody === "string" ? parsedBody : undefined)
+
+        const detailObj = (parsedBody as any)?.detail
+        if (
+            res.status === 403 &&
+            detailObj?.error === "AUTH_UPGRADE_REQUIRED" &&
+            typeof window !== "undefined"
+        ) {
+            try {
+                const store = getDefaultStore()
+                const selectedOrgId = store.get(selectedOrgIdAtom)
+                const required = Array.isArray(detailObj?.required_methods)
+                    ? detailObj.required_methods
+                    : []
+                const currentIdentity =
+                    detailObj?.current_identity ||
+                    (Array.isArray(detailObj?.verified_identities)
+                        ? detailObj.verified_identities[0]
+                        : undefined) ||
+                    (Array.isArray(detailObj?.existing_identities)
+                        ? detailObj.existing_identities[0]
+                        : undefined)
+
+                const requiredText = required.length ? required.join(", ") : "an allowed method"
+                const identityText = currentIdentity
+                    ? ` You're signed in with ${currentIdentity}.`
+                    : ""
+                const message = `This organization requires ${requiredText}.${identityText}`
+
+                const query = new URLSearchParams({
+                    auth_error: "upgrade_required",
+                    auth_message: message,
+                })
+                if (selectedOrgId) {
+                    query.set("organization_id", selectedOrgId)
+                }
+
+                store.set(requestNavigationAtom, {
+                    type: "href",
+                    href: `/auth?${query.toString()}`,
+                    method: "replace",
+                })
+            } catch {
+                // no-op
+            }
+        }
 
         const errorMessage =
             detail && typeof detail === "string"

@@ -242,6 +242,11 @@ export const pickOwnedOrg = (userId: string | null, orgs?: Org[], nonDemoOnly = 
 export const resolvePreferredWorkspaceId = (userId: string | null, orgs?: Org[]) => {
     if (!Array.isArray(orgs) || orgs.length === 0) return null
 
+    const personal = orgs.find((org) => isPersonalOrg(org))
+    if (personal?.id) {
+        return personal.id
+    }
+
     const lastWorkspaceId = readLastUsedWorkspaceId()
     if (lastWorkspaceId) {
         const hasDirectOrgMatch = orgs.some((org) => org.id === lastWorkspaceId)

@@ -78,6 +78,7 @@ const Auth = () => {
     const projectId = firstString(router.query.project_id)
     const workspaceId = firstString(router.query.workspace_id)
     const emailFromQuery = firstString(router.query.email)
+    const authMessage = firstString(router.query.auth_message)
     const {redirectToPath, ...queries} = router.query
     const isInvitedUser = Object.keys(queries.token ? queries : invite).length > 0
 
@@ -104,6 +105,12 @@ const Auth = () => {
         workspaceId,
         emailFromQuery,
     ])
+
+    useEffect(() => {
+        if (authMessage) {
+            setMessage({message: authMessage, type: "error"})
+        }
+    }, [authMessage])
 
     const authErrorMsg = (error: any) => {
         if (error.isSuperTokensGeneralError === true) {

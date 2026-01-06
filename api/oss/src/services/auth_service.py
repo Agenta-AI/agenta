@@ -810,9 +810,11 @@ async def _check_organization_policy(request: Request):
     try:
         session = await get_session(request)  # type: ignore
         payload = session.get_access_token_payload() if session else {}  # type: ignore
-        verified_identities = payload.get("verified_identities", [])
+        verified_identities = payload.get("verified_identities")
         existing_identities = payload.get("existing_identities", [])
         current_identity = payload.get("current_identity")
+        if not verified_identities:
+            verified_identities = [current_identity] if current_identity else []
     except Exception:
         verified_identities = []
         existing_identities = []

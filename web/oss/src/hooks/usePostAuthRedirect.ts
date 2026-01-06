@@ -5,8 +5,10 @@ import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
 
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {queryClient} from "@/oss/lib/api/queryClient"
+import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
-import {resolvePreferredWorkspaceId} from "@/oss/state/org/selectors/org"
+import {isPersonalOrg, resolvePreferredWorkspaceId} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {useProjectData} from "@/oss/state/project"
@@ -75,14 +77,30 @@ const usePostAuthRedirect = () => {
 
             await resetAuthState()
 
+            const store = getDefaultStore()
+            const userId = (store.get(userAtom) as {id?: string} | null)?.id ?? null
+
+            try {
+                const freshOrgs = await queryClient.fetchQuery({
+                    queryKey: ["orgs", userId || ""],
+                    queryFn: () => fetchAllOrgsList(),
+                    staleTime: 60_000,
+                })
+                const personal = Array.isArray(freshOrgs)
+                    ? freshOrgs.find((org) => isPersonalOrg(org))
+                    : null
+                if (personal?.id) {
+                    await router.replace(`/w/${encodeURIComponent(personal.id)}`)
+                    return
+                }
+            } catch {
+                // fall back to workspace context
+            }
+
             let context = await waitForWorkspaceContext({requireProjectId: false})
 
             if (!context.workspaceId) {
-                const store = getDefaultStore()
-                const fallbackWorkspace = resolvePreferredWorkspaceId(
-                    (store.get(userAtom) as {id?: string} | null)?.id ?? null,
-                    store.get(orgsAtom),
-                )
+                const fallbackWorkspace = resolvePreferredWorkspaceId(userId, store.get(orgsAtom))
                 if (fallbackWorkspace) {
                     context = {workspaceId: fallbackWorkspace, projectId: null}
                 }

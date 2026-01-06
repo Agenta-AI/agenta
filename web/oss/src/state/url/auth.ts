@@ -7,7 +7,9 @@ import {
     navigationRequestAtom,
     requestNavigationAtom,
 } from "@/oss/state/appState"
-import {orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
+import {queryClient} from "@/oss/lib/api/queryClient"
+import {fetchAllOrgsList} from "@/oss/services/organization/api"
+import {isPersonalOrg, orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
 import {urlAtom} from "@/oss/state/url"
@@ -24,6 +26,7 @@ export interface InvitePayload {
 }
 
 const INVITE_STORAGE_KEY = "invite"
+let authOrgFetchInFlight = false
 
 export const protectedRouteReadyAtom = atom(false)
 export const activeInviteAtom = atom<InvitePayload | null>(null)
@@ -151,8 +154,70 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             }
 
             if (isAuthRoute) {
-                if (!path.startsWith(baseAppURL)) {
-                    void Router.replace(baseAppURL).catch((error) => {
+                const orgs = store.get(orgsAtom)
+                const personalOrg = Array.isArray(orgs) ? orgs.find((org) => isPersonalOrg(org)) : null
+                if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
+                    console.log("[auth-redirect] orgs snapshot", {
+                        count: Array.isArray(orgs) ? orgs.length : 0,
+                        personalOrgId: personalOrg?.id,
+                        orgs: Array.isArray(orgs)
+                            ? orgs.map((org) => ({
+                                  id: org.id,
+                                  is_personal: org.flags?.is_personal,
+                              }))
+                            : [],
+                    })
+                }
+                const targetWorkspaceId =
+                    personalOrg?.id || resolvePreferredWorkspaceId(user?.id ?? null, orgs)
+                const targetHref = targetWorkspaceId
+                    ? `/w/${encodeURIComponent(targetWorkspaceId)}`
+                    : "/w"
+                if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
+                    console.log("[auth-redirect] resolved", {
+                        targetWorkspaceId,
+                        targetHref,
+                        path,
+                        baseAppURL,
+                    })
+                }
+                if (!targetWorkspaceId && !authOrgFetchInFlight) {
+                    authOrgFetchInFlight = true
+                    void queryClient
+                        .fetchQuery({
+                            queryKey: ["orgs", user?.id || ""],
+                            queryFn: () => fetchAllOrgsList(),
+                            staleTime: 60_000,
+                        })
+                        .then((freshOrgs) => {
+                            const personal = Array.isArray(freshOrgs)
+                                ? freshOrgs.find((org) => isPersonalOrg(org))
+                                : null
+                            const resolved =
+                                personal?.id ||
+                                resolvePreferredWorkspaceId(user?.id ?? null, freshOrgs)
+                            if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
+                                console.log("[auth-redirect] fetched orgs", {
+                                    count: Array.isArray(freshOrgs) ? freshOrgs.length : 0,
+                                    personalOrgId: personal?.id,
+                                    resolved,
+                                })
+                            }
+                            if (resolved) {
+                                store.set(requestNavigationAtom, {
+                                    type: "href",
+                                    href: `/w/${encodeURIComponent(resolved)}`,
+                                    method: "replace",
+                                })
+                            }
+                        })
+                        .catch(() => null)
+                        .finally(() => {
+                            authOrgFetchInFlight = false
+                        })
+                }
+                if (!path.startsWith(targetHref)) {
+                    void Router.replace(targetHref).catch((error) => {
                         console.error("Failed to redirect authenticated user to app:", error)
                     })
                 }
