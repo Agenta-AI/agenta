@@ -40,5 +40,4 @@ export interface SocialAuthProps {
         label: string
         icon?: React.ReactNode
     }[]
-    showDivider?: boolean
 }

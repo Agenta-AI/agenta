@@ -406,126 +406,132 @@ const Auth = () => {
                         />
                     )}
 
-                    {/* Step 1: Show social auth options (if configured) */}
-                    {socialAvailable && !emailSubmitted && (
-                        <SocialAuth
-                            authErrorMsg={authErrorMsg}
-                            disabled={isAuthLoading}
-                            isLoading={isSocialAuthLoading}
-                            setIsLoading={setIsSocialAuthLoading}
-                            providers={providersToShow}
-                            showDivider={authEmailEnabled}
-                        />
-                    )}
-
-                    {/* Step 2: Email-first (if email auth is enabled and email not yet submitted) */}
-                    {authEmailEnabled && !emailSubmitted && !isLoginCodeVisible && (
-                        <EmailFirst
-                            email={email}
-                            setEmail={setEmail}
-                            onContinue={handleEmailContinue}
-                            message={message}
-                            disabled={isSocialAuthLoading}
-                        />
-                    )}
-
-                    {/* Step 3: After email discovery, show available methods */}
-                    {emailSubmitted && discoveryComplete && (
-                        <>
-                            {ssoAvailable && (
-                                <div className="flex flex-col gap-2">
-                                    {ssoProvidersToShow.map((provider) => (
-                                        <Button
-                                            key={provider.id}
-                                            icon={provider.icon}
-                                            size="large"
-                                            className="w-full"
-                                            onClick={() => redirectToSsoProvider(provider)}
-                                            loading={isSocialAuthLoading}
-                                            disabled={isAuthLoading}
-                                        >
-                                            Continue with SSO ({provider.slug})
-                                        </Button>
-                                    ))}
-                                </div>
-                            )}
-
-                            {ssoAvailable &&
-                                (socialAvailable ||
-                                    emailPasswordAvailable ||
-                                    emailOtpAvailable) && <Divider className="!m-0">or</Divider>}
-
-                            {/* Show OIDC options after discovery if available */}
-                            {socialAvailable && (
+                    <div className="flex flex-col gap-6 min-h-[360px]">
+                        {/* Step 1: Show social auth options (if configured) */}
+                        {socialAvailable && !emailSubmitted && (
+                            <>
                                 <SocialAuth
                                     authErrorMsg={authErrorMsg}
                                     disabled={isAuthLoading}
                                     isLoading={isSocialAuthLoading}
                                     setIsLoading={setIsSocialAuthLoading}
                                     providers={providersToShow}
-                                    showDivider={false}
                                 />
-                            )}
+                                {authEmailEnabled && <Divider className="!m-0">or</Divider>}
+                            </>
+                        )}
 
-                            {socialAvailable && (emailPasswordAvailable || emailOtpAvailable) && (
-                                <Divider className="!m-0">or</Divider>
-                            )}
+                        {/* Step 2: Email-first (if email auth is enabled and email not yet submitted) */}
+                        {authEmailEnabled && !emailSubmitted && !isLoginCodeVisible && (
+                            <EmailFirst
+                                email={email}
+                                setEmail={setEmail}
+                                onContinue={handleEmailContinue}
+                                message={message}
+                                disabled={isSocialAuthLoading}
+                            />
+                        )}
 
-                            {/* Show OTP flow if available */}
-                            {emailOtpAvailable && !isLoginCodeVisible && (
-                                <PasswordlessAuth
-                                    email={email}
-                                    setEmail={setEmail}
-                                    isLoading={isAuthLoading}
-                                    message={message}
-                                    setIsLoading={setIsAuthLoading}
-                                    setMessage={setMessage}
-                                    authErrorMsg={authErrorMsg}
-                                    setIsLoginCodeVisible={setIsLoginCodeVisible}
-                                    disabled={isSocialAuthLoading}
-                                    lockEmail
-                                />
-                            )}
+                        {/* Step 3: After email discovery, show available methods */}
+                        {emailSubmitted && discoveryComplete && (
+                            <>
+                                {ssoAvailable && (
+                                    <div className="flex flex-col gap-2">
+                                        {ssoProvidersToShow.map((provider) => (
+                                            <Button
+                                                key={provider.id}
+                                                icon={provider.icon}
+                                                size="large"
+                                                className="w-full"
+                                                onClick={() => redirectToSsoProvider(provider)}
+                                                loading={isSocialAuthLoading}
+                                                disabled={isAuthLoading}
+                                            >
+                                                Continue with SSO ({provider.slug})
+                                            </Button>
+                                        ))}
+                                    </div>
+                                )}
 
-                            {/* Show OTP input if OTP was sent */}
-                            {emailOtpAvailable && isLoginCodeVisible && (
-                                <SendOTP
-                                    message={message}
-                                    email={email}
-                                    setMessage={setMessage}
-                                    authErrorMsg={authErrorMsg}
-                                    setIsLoginCodeVisible={setIsLoginCodeVisible}
-                                    isInvitedUser={isInvitedUser}
-                                />
-                            )}
+                                {ssoAvailable &&
+                                    (socialAvailable ||
+                                        emailPasswordAvailable ||
+                                        emailOtpAvailable) && (
+                                        <Divider className="!m-0">or</Divider>
+                                    )}
 
-                            {/* Show password field if available */}
-                            {emailPasswordAvailable && !isLoginCodeVisible && (
-                                <EmailPasswordAuth
-                                    message={message}
-                                    setMessage={setMessage}
-                                    authErrorMsg={authErrorMsg}
-                                    initialEmail={email}
-                                    lockEmail
-                                />
-                            )}
+                                {/* Show OIDC options after discovery if available */}
+                                {socialAvailable && (
+                                    <SocialAuth
+                                        authErrorMsg={authErrorMsg}
+                                        disabled={isAuthLoading}
+                                        isLoading={isSocialAuthLoading}
+                                        setIsLoading={setIsSocialAuthLoading}
+                                        providers={providersToShow}
+                                    />
+                                )}
 
-                            {/* Show back button to change email */}
-                            {!isLoginCodeVisible && (
-                                <Button
-                                    type="link"
-                                    onClick={() => {
-                                        setEmailSubmitted(false)
-                                        setDiscoveryComplete(false)
-                                        setAvailableMethods({})
-                                    }}
-                                    className="text-center w-full"
-                                >
-                                    Use a different email
-                                </Button>
-                            )}
-                        </>
-                    )}
+                                {socialAvailable &&
+                                    (emailPasswordAvailable || emailOtpAvailable) && (
+                                        <Divider className="!m-0">or</Divider>
+                                    )}
+
+                                {/* Show OTP flow if available */}
+                                {emailOtpAvailable && !isLoginCodeVisible && (
+                                    <PasswordlessAuth
+                                        email={email}
+                                        setEmail={setEmail}
+                                        isLoading={isAuthLoading}
+                                        message={message}
+                                        setIsLoading={setIsAuthLoading}
+                                        setMessage={setMessage}
+                                        authErrorMsg={authErrorMsg}
+                                        setIsLoginCodeVisible={setIsLoginCodeVisible}
+                                        disabled={isSocialAuthLoading}
+                                        lockEmail
+                                    />
+                                )}
+
+                                {/* Show OTP input if OTP was sent */}
+                                {emailOtpAvailable && isLoginCodeVisible && (
+                                    <SendOTP
+                                        message={message}
+                                        email={email}
+                                        setMessage={setMessage}
+                                        authErrorMsg={authErrorMsg}
+                                        setIsLoginCodeVisible={setIsLoginCodeVisible}
+                                        isInvitedUser={isInvitedUser}
+                                    />
+                                )}
+
+                                {/* Show password field if available */}
+                                {emailPasswordAvailable && !isLoginCodeVisible && (
+                                    <EmailPasswordAuth
+                                        message={message}
+                                        setMessage={setMessage}
+                                        authErrorMsg={authErrorMsg}
+                                        initialEmail={email}
+                                        lockEmail
+                                    />
+                                )}
+
+                                {/* Show back button to change email */}
+                                {!isLoginCodeVisible && (
+                                    <Button
+                                        type="link"
+                                        onClick={() => {
+                                            setEmailSubmitted(false)
+                                            setDiscoveryComplete(false)
+                                            setAvailableMethods({})
+                                        }}
+                                        className="text-center w-full"
+                                    >
+                                        Use a different email
+                                    </Button>
+                                )}
+                            </>
+                        )}
+                    </div>
 
                     {isDemo() && !isLoginCodeVisible && (
                         <Text>

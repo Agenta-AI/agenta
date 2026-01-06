@@ -810,14 +810,18 @@ async def _check_organization_policy(request: Request):
     try:
         session = await get_session(request)  # type: ignore
         payload = session.get_access_token_payload() if session else {}  # type: ignore
-        identities = payload.get("identities", [])
+        verified_identities = payload.get("verified_identities", [])
+        existing_identities = payload.get("existing_identities", [])
+        current_identity = payload.get("current_identity")
     except Exception:
-        identities = []
+        verified_identities = []
+        existing_identities = []
+        current_identity = None
         return  # Skip policy check on session errors
 
     auth_service = AuthService()
     policy_error = await auth_service.check_organization_access(
-        UUID(user_id), UUID(organization_id), identities
+        UUID(user_id), UUID(organization_id), verified_identities
     )
 
     if policy_error:
@@ -825,10 +829,16 @@ async def _check_organization_policy(request: Request):
         # Skip membership errors - those should be handled by route handlers
         error_code = policy_error.get("error")
         if error_code == "AUTH_UPGRADE_REQUIRED":
-            raise HTTPException(
-                status_code=403,
-                detail=policy_error.get(
-                    "message", "Authentication method not allowed for this organization"
+            detail = {
+                "error": policy_error.get("error"),
+                "message": policy_error.get(
+                    "message",
+                    "Authentication method not allowed for this organization",
                 ),
-            )
+                "required_methods": policy_error.get("required_methods", []),
+                "current_identity": current_identity,
+                "verified_identities": verified_identities,
+                "existing_identities": existing_identities,
+            }
+            raise HTTPException(status_code=403, detail=detail)
         # If NOT_A_MEMBER, skip - let route handlers deal with it

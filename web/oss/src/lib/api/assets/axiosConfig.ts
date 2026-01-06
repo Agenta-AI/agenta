@@ -136,13 +136,16 @@ axios.interceptors.response.use(
         }
 
         if (error.response?.status === 403 && error.config.method !== "get") {
+            const detail = error.response?.data?.detail
+            const detailMessage =
+                typeof detail === "string" ? detail : detail?.message || PERMISSION_ERR_MSG
             AlertPopup({
                 title: "Permission Denied",
-                message: error.response?.data?.detail || PERMISSION_ERR_MSG,
+                message: detailMessage,
                 cancelText: null,
                 okText: "Ok",
             }) // Commented out for test environment
-            error.message = error.response?.data?.detail || PERMISSION_ERR_MSG
+            error.message = detailMessage
             throw error
         }
 

@@ -1,6 +1,6 @@
 import {useRef} from "react"
 
-import {Button, Divider} from "antd"
+import {Button} from "antd"
 import {useRouter} from "next/router"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
@@ -14,7 +14,6 @@ const SocialAuth = ({
     setIsLoading,
     disabled,
     providers,
-    showDivider = true,
 }: SocialAuthProps) => {
     const router = useRouter()
     const inFlight = useRef(false)
@@ -63,7 +62,6 @@ const SocialAuth = ({
                 ))}
             </div>
 
-            {showDivider && <Divider className="!m-0">or</Divider>}
         </>
     )
 }

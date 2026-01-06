@@ -53,7 +53,7 @@ async def oidc_authorize(request: Request, provider_id: str, redirect: str = "/"
     1. Building OIDC authorization URL (via our get_dynamic_oidc_provider)
     2. Redirecting user to IdP
     3. Handling callback at /auth/callback/sso:{organization_slug}:{provider_slug}
-    4. Creating session with identities (via our overrides)
+    4. Creating session with existing_identities (via our overrides)
     5. Redirecting to frontend
     """
     if not is_ee():
@@ -174,7 +174,7 @@ async def sso_callback_redirect(
     SuperTokens then handles:
     1. Exchange code for tokens (using our dynamic provider config)
     2. Get user info
-    3. Call our sign_in_up override (creates user_identity, adds identities to session)
+    3. Call our sign_in_up override (creates user_identity, adds existing_identities to session)
     4. Redirect to frontend with session cookie
     """
     if not is_ee():

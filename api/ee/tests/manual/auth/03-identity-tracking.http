@@ -177,7 +177,7 @@
 # The endpoint handler can access session like:
 # session = await verify_session(request)
 # payload = session.get_access_token_payload()
-# identities = payload.get("identities", [])
+# existing_identities = payload.get("existing_identities", [])
 
 
 ###
@@ -212,10 +212,10 @@
 # - User exists in users table
 # - No errors in backend logs
 
-# Issue: Session doesn't contain identities array
+# Issue: Session doesn't contain existing_identities array
 # Check:
 # - Session override function is registered
-# - user_context["identities"] is set in sign_in_up/consume_code
+# - user_context["existing_identities"] is set in sign_in_up/consume_code
 # - SuperTokens session.init includes override config
 
 # Issue: Wrong method format (e.g., 'sso:undefined:okta')

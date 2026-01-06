@@ -276,7 +276,7 @@ def override_passwordless_apis(
             email = response.user.emails[0].lower()
             await _create_account(email, response.user.id)
             # Note: Identity tracking is now handled by the recipe-level override (override_passwordless_functions)
-            # which runs before session creation and properly injects identities into the JWT payload
+            # which runs before session creation and properly injects existing_identities into the JWT payload
 
         return response
 
@@ -313,7 +313,7 @@ def override_thirdparty_apis(original_implementation: ThirdPartyAPIInterface):
             email = response.user.emails[0].lower()
             await _create_account(email, response.user.id)
             # Note: Identity tracking is now handled by the recipe-level override (override_thirdparty_functions)
-            # which runs before session creation and properly injects identities into the JWT payload
+            # which runs before session creation and properly injects existing_identities into the JWT payload
 
         return response
 

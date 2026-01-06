@@ -70,7 +70,9 @@ async def check_organization_policy(
     """
     # Get session identities
     payload = session.get_access_token_payload()
-    identities = payload.get("identities", [])
+    identities = payload.get(
+        "verified_identities", payload.get("existing_identities", [])
+    )
 
     # Get user ID
     user_id = UUID(session.get_user_id())

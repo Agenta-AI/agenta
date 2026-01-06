@@ -547,7 +547,7 @@ class AuthService:
     # ============================================================================
 
     async def check_organization_access(
-        self, user_id: UUID, organization_id: UUID, identities: List[str]
+        self, user_id: UUID, organization_id: UUID, verified_identities: List[str]
     ) -> Optional[Dict[str, Any]]:
         """
         Check if user's identities satisfy organization policy (EE only).
@@ -557,7 +557,7 @@ class AuthService:
         Args:
             user_id: User's UUID
             organization_id: Organization's UUID
-            identities: List of authentication methods from session
+            verified_identities: List of verified authentication methods from session
 
         Returns:
             None if access allowed
@@ -604,18 +604,18 @@ class AuthService:
                 "error": "AUTH_UPGRADE_REQUIRED",
                 "message": "No authentication methods are allowed for this organization",
                 "required_methods": [],
-                "current_identities": identities,
+                "current_identities": verified_identities,
             }
 
         # Check if identities satisfy allowed_methods
-        matches = self._matches_policy(identities, allowed_methods)
+        matches = self._matches_policy(verified_identities, allowed_methods)
 
         if not matches:
             return {
                 "error": "AUTH_UPGRADE_REQUIRED",
                 "message": "Additional authentication required",
                 "required_methods": allowed_methods,
-                "current_identities": identities,
+                "current_identities": verified_identities,
             }
 
         return None

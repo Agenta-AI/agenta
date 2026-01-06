@@ -402,7 +402,8 @@ body {
 .auth-locked-input.ant-input:disabled {
     color: #1c2a3b;
     background-color: #f3f4f6;
-    opacity: 0.5;
+    border-color: #d6dee6;
+    opacity: 0.75;
 }
 /* Force left alignment for all table headers */
 .agenta-testcase-table .ant-table-thead th {

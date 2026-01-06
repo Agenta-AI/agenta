@@ -160,7 +160,7 @@ def override_thirdparty_functions(
         """
         Override sign_in_up to:
         1. Create user_identity record after successful authentication
-        2. Populate session with identities array
+        2. Populate session with existing_identities array
         """
         internal_user = None
         # Call original implementation
@@ -256,13 +256,15 @@ def override_thirdparty_functions(
         except Exception:
             identities_array = [method]  # Fallback to current method only
 
-        # Store identities in user_context for session creation
-        user_context["identities"] = identities_array
+        # Store identity context for session creation
+        user_context["existing_identities"] = identities_array
+        user_context["verified_identities"] = identities_array
+        user_context["current_identity"] = method
         log.debug(
-            "[AUTH-IDENTITY] session identities",
+            "[AUTH-IDENTITY] session existing_identities",
             {
                 "user_id": str(internal_user.id) if internal_user else None,
-                "identities": identities_array,
+                "existing_identities": identities_array,
             },
         )
 
@@ -342,16 +344,22 @@ def override_session_functions(
         user_context: Dict[str, Any],
     ):
         """
-        Override create_new_session to inject identities array into access token payload.
+        Override create_new_session to inject existing_identities array into access token payload.
         """
-        # Get identities from user_context (populated by sign_in_up override)
-        identities = user_context.get("identities", [])
+        # Get identity context from user_context (populated by auth overrides)
+        existing_identities = user_context.get("existing_identities", [])
+        verified_identities = user_context.get(
+            "verified_identities", existing_identities
+        )
+        current_identity = user_context.get("current_identity")
 
         # Merge with existing payload
         if access_token_payload is None:
             access_token_payload = {}
 
-        access_token_payload["identities"] = identities
+        access_token_payload["existing_identities"] = existing_identities
+        access_token_payload["verified_identities"] = verified_identities
+        access_token_payload["current_identity"] = current_identity
 
         # Call original implementation
         result = await original_create_new_session(
@@ -390,7 +398,7 @@ def override_passwordless_functions(
         """
         Override consume_code to:
         1. Create user_identity record for email:otp after successful login
-        2. Populate session with identities array
+        2. Populate session with existing_identities array
         """
         # Call original implementation
         result = await original_consume_code(
@@ -415,7 +423,9 @@ def override_passwordless_functions(
 
         if not email:
             # Can't create identity without email
-            user_context["identities"] = [method]
+            user_context["existing_identities"] = [method]
+            user_context["verified_identities"] = [method]
+            user_context["current_identity"] = method
             return result
 
         # Extract domain from email
@@ -466,8 +476,10 @@ def override_passwordless_functions(
         except Exception:
             identities_array = [method]  # Fallback to current method only
 
-        # Store identities in user_context for session creation
-        user_context["identities"] = identities_array
+        # Store identity context for session creation
+        user_context["existing_identities"] = identities_array
+        user_context["verified_identities"] = identities_array
+        user_context["current_identity"] = method
 
         # Enforce domain-based policies (auto-join, domains-only)
         if internal_user:
@@ -504,7 +516,7 @@ def override_emailpassword_functions(
         """
         Override sign_in to:
         1. Create user_identity record for email:password after successful login
-        2. Populate session with identities array
+        2. Populate session with existing_identities array
         """
 
         # Call original implementation
@@ -572,8 +584,10 @@ def override_emailpassword_functions(
         except Exception:
             identities_array = [method]  # Fallback to current method only
 
-        # Store identities in user_context for session creation
-        user_context["identities"] = identities_array
+        # Store identity context for session creation
+        user_context["existing_identities"] = identities_array
+        user_context["verified_identities"] = identities_array
+        user_context["current_identity"] = method
 
         # Enforce domain-based policies (auto-join, domains-only)
         if internal_user:
@@ -598,7 +612,7 @@ def override_emailpassword_functions(
         """
         Override sign_up to:
         1. Create user_identity record for email:password after successful signup
-        2. Populate session with identities array
+        2. Populate session with existing_identities array
         """
 
         # Call original implementation
@@ -666,8 +680,10 @@ def override_emailpassword_functions(
         except Exception:
             identities_array = [method]  # Fallback to current method only
 
-        # Store identities in user_context for session creation
-        user_context["identities"] = identities_array
+        # Store identity context for session creation
+        user_context["existing_identities"] = identities_array
+        user_context["verified_identities"] = identities_array
+        user_context["current_identity"] = method
 
         # Enforce domain-based policies (auto-join, domains-only)
         if internal_user:
