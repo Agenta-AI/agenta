@@ -12,7 +12,6 @@ from openai import AsyncOpenAI
 # from autoevals.ragas import Faithfulness, ContextRelevancy
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.services.security import sandbox
 from oss.src.models.shared_models import Error, Result
 from oss.src.models.api.evaluation_model import (
     EvaluatorInputInterface,
@@ -21,7 +20,6 @@ from oss.src.models.api.evaluation_model import (
     EvaluatorMappingOutputInterface,
 )
 from oss.src.utils.traces import (
-    remove_trace_prefix,
     process_distributed_trace_into_trace_tree,
     get_field_value_from_trace_tree,
 )
@@ -419,51 +417,6 @@ async def webhook_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterfa
         response_data = response.json()
         score = response_data.get("score", None)
         return {"outputs": {"score": score}}
-
-
-async def auto_custom_code_run(
-    inputs: Dict[str, Any],
-    output: Union[str, Dict[str, Any]],
-    data_point: Dict[str, Any],
-    app_params: Dict[str, Any],
-    settings_values: Dict[str, Any],
-    lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
-) -> Result:
-    try:
-        output = validate_string_output("custom_code_run", output)
-        correct_answer = get_correct_answer(data_point, settings_values)
-        inputs = {
-            "app_config": app_params,
-            "prediction": output,
-            "ground_truth": correct_answer,
-        }
-        response = await custom_code_run(
-            input=EvaluatorInputInterface(
-                **{"inputs": inputs, "settings": settings_values}
-            )
-        )
-        return Result(type="number", value=response["outputs"]["score"])
-    except Exception as e:  # pylint: disable=broad-except
-        return Result(
-            type="error",
-            value=None,
-            error=Error(
-                message="Error during Auto Custom Code Evaluation",
-                stacktrace=str(traceback.format_exc()),
-            ),
-        )
-
-
-async def custom_code_run(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
-    result = sandbox.execute_code_safely(
-        app_params=input.inputs["app_config"],
-        inputs=input.inputs,
-        output=input.inputs["prediction"],
-        correct_answer=input.inputs["ground_truth"],
-        code=input.settings["code"],
-        datapoint=input.inputs["ground_truth"],
-    )
-    return {"outputs": {"score": result}}
 
 
 async def sdk_custom_code_run(
@@ -2059,7 +2012,7 @@ EVALUATOR_FUNCTIONS = {
     "auto_regex_test": auto_regex_test,
     "field_match_test": auto_field_match_test,
     "auto_webhook_test": auto_webhook_test,
-    "auto_custom_code_run": auto_custom_code_run,
+    "auto_custom_code_run": sdk_custom_code_run,
     "auto_ai_critique": auto_ai_critique,
     "auto_starts_with": auto_starts_with,
     "auto_ends_with": auto_ends_with,

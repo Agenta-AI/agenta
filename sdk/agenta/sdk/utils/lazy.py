@@ -10,9 +10,6 @@ if TYPE_CHECKING:
     from fastapi import APIRouter, Body, FastAPI, HTTPException, Request
     from jinja2 import Template, TemplateError
     from openai import AsyncOpenAI, OpenAIError
-    from RestrictedPython import safe_builtins, compile_restricted, utility_builtins
-    from RestrictedPython.Eval import default_guarded_getiter, default_guarded_getitem
-    from RestrictedPython.Guards import guarded_iter_unpack_sequence, full_write_guard
     from starlette.responses import Response as StarletteResponse, StreamingResponse
     from jsonpath import JSONPointer
     import jsonpath as jsonpath_module
@@ -49,19 +46,6 @@ _jsonpath_checked = False
 
 _openai_cached: Optional[Tuple[type["AsyncOpenAI"], type["OpenAIError"]]] = None
 _openai_checked = False
-
-_restrictedpython_cached: Optional[
-    Tuple[
-        dict,
-        Callable[..., Any],
-        dict,
-        Callable[..., Any],
-        Callable[..., Any],
-        Callable[..., Any],
-        Callable[..., Any],
-    ]
-] = None
-_restrictedpython_checked = False
 
 _yaml_module: Optional[_YamlModule] = None
 _yaml_checked = False
@@ -155,55 +139,6 @@ def _load_openai() -> Tuple[type["AsyncOpenAI"], type["OpenAIError"]]:
 
     _openai_cached = (AsyncOpenAI, OpenAIError)
     return _openai_cached
-
-
-def _load_restrictedpython() -> Tuple[
-    dict,
-    Callable[..., Any],
-    dict,
-    Callable[..., Any],
-    Callable[..., Any],
-    Callable[..., Any],
-    Callable[..., Any],
-]:
-    global _restrictedpython_cached, _restrictedpython_checked  # pylint: disable=global-statement
-
-    if _restrictedpython_checked:
-        if _restrictedpython_cached is None:
-            raise ImportError(
-                "RestrictedPython is required for local sandbox execution. "
-                "Install it with `pip install restrictedpython`."
-            )
-        return _restrictedpython_cached
-
-    _restrictedpython_checked = True
-    try:
-        from RestrictedPython import safe_builtins, compile_restricted, utility_builtins
-        from RestrictedPython.Eval import (
-            default_guarded_getiter,
-            default_guarded_getitem,
-        )
-        from RestrictedPython.Guards import (
-            guarded_iter_unpack_sequence,
-            full_write_guard,
-        )
-    except Exception as exc:
-        _restrictedpython_cached = None
-        raise ImportError(
-            "RestrictedPython is required for local sandbox execution. "
-            "Install it with `pip install restrictedpython`."
-        ) from exc
-
-    _restrictedpython_cached = (
-        safe_builtins,
-        compile_restricted,
-        utility_builtins,
-        default_guarded_getiter,
-        default_guarded_getitem,
-        guarded_iter_unpack_sequence,
-        full_write_guard,
-    )
-    return _restrictedpython_cached
 
 
 def _load_yaml() -> _YamlModule:
