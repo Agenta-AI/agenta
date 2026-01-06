@@ -1,7 +1,11 @@
+import dayjs from "dayjs"
+import utc from "dayjs/plugin/utc"
+
+import {SortResult} from "@/oss/components/Filters/Sort"
 import {ensureAppId, ensureProjectId, fetchJson, getBaseUrl} from "@/oss/lib/api/assets/fetchClient"
 import {getProjectValues} from "@/oss/state/project"
 
-import {rangeToIntervalMinutes, tracingToGeneration} from "../lib/helpers"
+import {calculateIntervalFromDuration, tracingToGeneration} from "../lib/helpers"
 import {GenerationDashboardData, TracingDashboardData} from "../types"
 
 export const fetchAllPreviewTraces = async (params: Record<string, any> = {}, appId: string) => {
@@ -109,7 +113,7 @@ export const fetchSessions = async (params: {
 export const fetchGenerationsDashboardData = async (
     appId: string | null | undefined,
     _options: {
-        range: string
+        range: SortResult
         environment?: string
         variant?: string
         projectId?: string
@@ -155,9 +159,34 @@ export const fetchGenerationsDashboardData = async (
         })
     }
 
+    dayjs.extend(utc)
+    let startTime: string
+    let endTime: string | undefined
+
+    if (options.range.type === "custom" && options.range.customRange) {
+        startTime = options.range.customRange.startTime || ""
+        endTime = options.range.customRange.endTime || undefined
+    } else {
+        startTime = options.range.sorted
+        endTime = undefined // implied "now" for standard ranges
+    }
+
+    const startDayjs = dayjs(startTime)
+    const endDayjs = endTime ? dayjs(endTime) : dayjs()
+    const durationMin = endDayjs.diff(startDayjs, "minute")
+    const interval = calculateIntervalFromDuration(durationMin)
+
+    // Determine rangeString for formatting ticks to maintain compatibility
+    let rangeString = "30_days"
+    const durationHours = durationMin / 60
+    if (durationHours <= 24) rangeString = "24_hours"
+    else if (durationHours <= 168) rangeString = "7_days"
+
     const payload: Record<string, any> = {
         focus: "trace",
-        interval: rangeToIntervalMinutes(options.range),
+        interval,
+        oldest: startTime,
+        newest: endTime,
         ...(conditions.length ? {filter: {conditions}} : {}),
     }
 
@@ -169,5 +198,5 @@ export const fetchGenerationsDashboardData = async (
     })
 
     const valTracing = response as TracingDashboardData
-    return tracingToGeneration(valTracing, options.range) as GenerationDashboardData
+    return tracingToGeneration(valTracing, rangeString) as GenerationDashboardData
 }

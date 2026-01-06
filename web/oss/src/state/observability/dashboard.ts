@@ -1,13 +1,23 @@
-import {useAtom} from "jotai"
+import dayjs from "dayjs"
+import utc from "dayjs/plugin/utc"
+import {atom, useAtom} from "jotai"
 import {eagerAtom} from "jotai-eager"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {SortResult} from "@/oss/components/Filters/Sort"
 import {GenerationDashboardData} from "@/oss/lib/types_ee"
 import {fetchGenerationsDashboardData} from "@/oss/services/tracing/api"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {projectIdAtom} from "@/oss/state/project"
 
-const DEFAULT_RANGE = "30_days"
+dayjs.extend(utc)
+
+export const observabilityDashboardTimeRangeAtom = atom<SortResult>({
+    type: "standard",
+    sorted: dayjs().utc().subtract(30, "days").toISOString().split(".")[0],
+    customRange: {},
+    label: "1 month",
+})
 
 export const observabilityDashboardQueryAtom = atomWithQuery<GenerationDashboardData | null>(
     (get) => {
@@ -20,12 +30,13 @@ export const observabilityDashboardQueryAtom = atomWithQuery<GenerationDashboard
                 "dashboard",
                 appId ?? "__global__",
                 projectId ?? null,
-                DEFAULT_RANGE,
+                get(observabilityDashboardTimeRangeAtom),
             ],
             queryFn: async ({signal}) => {
                 if (!projectId) return null
+                const timeRange = get(observabilityDashboardTimeRangeAtom)
                 return fetchGenerationsDashboardData(appId, {
-                    range: DEFAULT_RANGE,
+                    range: timeRange,
                     projectId,
                     signal,
                 })
