@@ -369,7 +369,7 @@ class DaytonaRunner(CodeRunner):
                 # log.warning(
                 #     f"Error during Daytona code execution:\n {e}", exc_info=True
                 # )
-                raise RuntimeError(f"Error with custom code execution:\n\n {e}")
+                raise RuntimeError(e)
 
     def cleanup(self) -> None:
         """Clean up Daytona client resources."""
