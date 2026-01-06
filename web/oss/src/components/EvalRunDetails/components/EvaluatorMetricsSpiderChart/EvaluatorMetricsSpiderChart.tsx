@@ -76,8 +76,8 @@ const EvaluatorMetricsSpiderChart = ({
         )
     }
 
-    const LABEL_OFFSET = 12
-    const NUDGE = 5
+    const LABEL_OFFSET = 10
+    const NUDGE = 0
     const RAD = Math.PI / 180
 
     return (

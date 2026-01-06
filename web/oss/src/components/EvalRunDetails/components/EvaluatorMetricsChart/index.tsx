@@ -612,9 +612,14 @@ const EvaluatorMetricsChart = ({
                     </div>
                 </div>
                 <div className="px-4 pb-3">
-                    <div className={clsx("grid gap-4 text-center sm:text-left", metricsGridClass)}>
+                    <div
+                        className={clsx(
+                            "grid gap-4 text-center justify-items-center",
+                            metricsGridClass,
+                        )}
+                    >
                         {summaryItems.map((entry) => (
-                            <div key={entry.key} className="flex flex-col gap-1">
+                            <div key={entry.key} className="flex flex-col items-center gap-1">
                                 <Typography.Text
                                     className="text-xl font-semibold"
                                     style={{color: entry.color}}

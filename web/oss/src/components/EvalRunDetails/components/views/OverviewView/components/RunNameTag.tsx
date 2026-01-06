@@ -59,12 +59,6 @@ const formatDateTime = (value: string | number | Date | null | undefined) => {
 
 const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
     const style = useMemo(() => buildAccentStyle(accentColor), [accentColor])
-    const tooltip = useMemo(() => {
-        if (!label) return runId
-        if (label === runId) return label
-        return `${label} (${runId})`
-    }, [label, runId])
-
     const runQuery = useAtomValueWithSchedule(
         useMemo(() => evaluationRunQueryAtomFamily(runId), [runId]),
         {priority: LOW_PRIORITY},
@@ -162,13 +156,7 @@ const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
 
     return (
         <Popover mouseEnterDelay={0.2} arrow content={popoverContent}>
-            <ReferenceTag
-                label={label || runId}
-                showIcon={false}
-                copyValue={runId}
-                tooltip={tooltip}
-                style={style}
-            />
+            <ReferenceTag label={label || runId} showIcon={false} copyValue={runId} style={style} />
         </Popover>
     )
 }
