@@ -22,8 +22,8 @@ const getConfig = async (appName: string, environmentSlug: string) => {
             },
         }, {
             headers: {
-                'Content-Type': 'application/json',    
-                'Authorization': "ApiKey ${apiKey}", // Add your API key here
+                'Content-Type': 'application/json',
+                'Authorization': "ApiKey ${apiKey}",
             },
         });
 

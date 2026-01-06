@@ -50,7 +50,7 @@ from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testcases.service import TestcasesService
-from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
+from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
@@ -59,7 +59,7 @@ from oss.src.core.annotations.service import AnnotationsService
 
 from oss.src.apis.fastapi.tracing.utils import make_hash_id
 from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
+from oss.src.apis.fastapi.testsets.router import TestsetsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 
@@ -132,7 +132,8 @@ async def setup_evaluation(
     name: Optional[str] = None,
     description: Optional[str] = None,
     #
-    testset_id: Optional[str] = None,
+    testset_revision_id: Optional[str] = None,
+    #
     query_id: Optional[str] = None,
     #
     revision_id: Optional[str] = None,
@@ -140,7 +141,7 @@ async def setup_evaluation(
     autoeval_ids: Optional[List[str]] = None,
     #
     tracing_router: TracingRouter,
-    simple_testsets_router: SimpleTestsetsRouter,
+    testsets_service: TestsetsService,
     simple_evaluators_router: SimpleEvaluatorsRouter,
     #
     queries_service: QueriesService,
@@ -155,7 +156,7 @@ async def setup_evaluation(
 
     # --------------------------------------------------------------------------
     log.info("[SETUP]     ", project_id=project_id, user_id=user_id)
-    log.info("[TESTSET]   ", ids=[testset_id])
+    log.info("[TESTSET]   ", ids=[testset_revision_id])
     log.info("[QUERY]     ", ids=[query_id])
     log.info("[INVOCATON] ", ids=[revision_id])
     log.info("[ANNOTATION]", ids=autoeval_ids)
@@ -190,32 +191,41 @@ async def setup_evaluation(
         assert run is not None, "Failed to create evaluation run."
         # ----------------------------------------------------------------------
 
-        # just-in-time transfer of testset -------------------------------------
+        # testset --------------------------------------------------------------
         testset_input_steps_keys = list()
 
         testset_references = dict()
         testset = None
 
-        if testset_id:
-            testset_ref = Reference(id=UUID(testset_id))
+        if testset_revision_id:
+            testset_revision_ref = Reference(id=UUID(testset_revision_id))
 
-            testset_response = await simple_testsets_router.transfer_simple_testset(
-                request=request,
-                testset_id=UUID(testset_id),
+            testset_revision = await testsets_service.fetch_testset_revision(
+                project_id=project_id,
+                testset_revision_ref=testset_revision_ref,
             )
 
-            assert testset_response.count != 0, (
-                f"Testset with id {testset_id} not found!"
+            assert testset_revision is not None, (
+                f"Testset revision with id {testset_revision_id} not found!"
             )
 
-            testset = testset_response.testset
-            testcases = testset.data.testcases
+            testset_ref = Reference(id=testset_revision.testset_id)
+
+            testset = await testsets_service.fetch_testset(
+                project_id=project_id,
+                testset_ref=testset_ref,
+            )
+
+            assert testset is not None, (
+                f"Testset with id {testset_revision.testset_id} not found!"
+            )
+
+            testcases = testset_revision.data.testcases
 
             testset_references["artifact"] = testset_ref
+            testset_references["revision"] = testset_revision_ref
 
-            testset_input_steps_keys.append(
-                get_slug_from_name_and_id(testset.name, testset.id)
-            )
+            testset_input_steps_keys.append(testset_revision.slug)
         # ----------------------------------------------------------------------
 
         # fetch query ----------------------------------------------------------
@@ -456,7 +466,7 @@ async def setup_evaluation(
                 references={
                     "testset": testset_references["artifact"],
                     # "testset_variant":
-                    # "testset_revision":
+                    "testset_revision": testset_references["revision"],
                 },
             )
             if testset and testset.id
@@ -517,7 +527,7 @@ async def setup_evaluation(
                             key=invocation_steps_keys[0],
                         ),
                     ]
-                    if testset_id and revision_id
+                    if testset_revision_id and revision_id
                     else [
                         EvaluationRunDataStepInput(
                             key=query_input_steps_keys[0],
@@ -530,7 +540,7 @@ async def setup_evaluation(
 
         steps: List[EvaluationRunDataStep] = list()
 
-        if testset_id and testset_input_step:
+        if testset_revision_id and testset_input_step:
             steps.append(testset_input_step)
         if query_id and query_input_step:
             steps.append(query_input_step)
@@ -553,7 +563,7 @@ async def setup_evaluation(
                 )
                 for key in testcases[0].data.keys()
             ]
-            if testset_id
+            if testset_revision_id
             else []
         )
 
@@ -668,14 +678,14 @@ async def evaluate_batch_testset(
     #
     run_id: UUID,
     #
-    testset_id: str,
+    testset_revision_id: Optional[str],
     revision_id: str,
     autoeval_ids: Optional[List[str]],
     #
     run_config: Dict[str, int],
     #
     tracing_router: TracingRouter,
-    simple_testsets_router: SimpleTestsetsRouter,
+    testsets_service: TestsetsService,
     simple_evaluators_router: SimpleEvaluatorsRouter,
     #
     queries_service: QueriesService,
@@ -690,7 +700,7 @@ async def evaluate_batch_testset(
         project_id (str): The ID of the project.
         user_id (str): The ID of the user.
         run_id (str): The ID of the evaluation run.
-        testset_id (str): The ID of the testset.
+        testset_revision_id (str): The ID of the testset revision.
         revision_id (str): The ID of the application revision.
         autoeval_ids (List[str]): The IDs of the evaluators configurations.
         run_config (Dict[str, int]): Configuration for evaluation run.
@@ -713,7 +723,7 @@ async def evaluate_batch_testset(
     try:
         # ----------------------------------------------------------------------
         log.info("[SCOPE]     ", run_id=run_id, project_id=project_id, user_id=user_id)
-        log.info("[TESTSET]   ", run_id=run_id, ids=[testset_id])
+        log.info("[TESTSET]   ", run_id=run_id, ids=[testset_revision_id])
         log.info("[INVOCATON] ", run_id=run_id, ids=[revision_id])
         log.info("[ANNOTATION]", run_id=run_id, ids=autoeval_ids)
         # ----------------------------------------------------------------------
@@ -766,22 +776,37 @@ async def evaluate_batch_testset(
         # ----------------------------------------------------------------------
 
         # fetch testset --------------------------------------------------------
-        testset_response = await simple_testsets_router.fetch_simple_testset(
-            request=request,
-            testset_id=testset_id,
+        testset_revision_ref = Reference(id=UUID(testset_revision_id))
+
+        testset_revision = await testsets_service.fetch_testset_revision(
+            project_id=project_id,
+            testset_revision_ref=testset_revision_ref,
         )
 
-        assert testset_response.count != 0, f"Testset with id {testset_id} not found!"
+        assert testset_revision is not None, (
+            f"Testset revision with id {testset_revision_id} not found!"
+        )
 
-        testset = testset_response.testset
+        testset_ref = Reference(id=testset_revision.testset_id)
 
-        testcases = testset.data.testcases
+        testset = await testsets_service.fetch_testset(
+            project_id=project_id,
+            testset_ref=testset_ref,
+        )
+
+        assert testset is not None, (
+            f"Testset with id {testset_revision.testset_id} not found!"
+        )
+
+        testset_id = testset_revision.testset_id
+
+        testcases = testset_revision.data.testcases
         testcases_data = [
             {**testcase.data, "id": str(testcase.id)} for testcase in testcases
         ]  # INEFFICIENT: might want to have testcase_id in testset data (caution with hashing)
         nof_testcases = len(testcases)
 
-        testset_step_key = get_slug_from_name_and_id(testset.name, testset.id)
+        testset_step_key = testset_revision.slug
         # ----------------------------------------------------------------------
 
         # fetch application ----------------------------------------------------
@@ -919,7 +944,7 @@ async def evaluate_batch_testset(
         log.info(
             "[BATCH]     ",
             run_id=run_id,
-            ids=[testset_id],
+            ids=[testset_revision_id],
             count=len(_testcases),
             size=len(dumps(_testcases).encode("utf-8")),
         )
@@ -935,7 +960,8 @@ async def evaluate_batch_testset(
             rate_limit_config=run_config,
             application_id=str(app.id),  # DO NOT REMOVE
             references={
-                "testset": {"id": testset_id},
+                "testset": {"id": str(testset_id)},
+                "testset_revision": {"id": str(testset_revision_id)},
                 "application": {"id": str(app.id)},
                 "application_variant": {"id": str(variant.id)},
                 "application_revision": {"id": str(revision.id)},
@@ -1073,8 +1099,9 @@ async def evaluate_batch_testset(
 
                     references: Dict[str, Any] = {
                         **evaluator_references[annotation_step_key],
-                        "testset": {"id": testset_id},
                         "testcase": {"id": str(testcase.id)},
+                        "testset": {"id": str(testset_id)},
+                        "testset_revision": {"id": str(testset_revision_id)},
                     }
                     links: Dict[str, Any] = {
                         invocation_steps_keys[0]: {

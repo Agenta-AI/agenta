@@ -68,7 +68,8 @@ async def acreate(
                 repeats=repeats,
             ),
             #
-            jit={"testsets": True, "evaluators": False},
+            # Default: expect callers to pass testset revision ids; no JIT migration
+            jit={"testsets": False, "evaluators": False},
         )
     )
 

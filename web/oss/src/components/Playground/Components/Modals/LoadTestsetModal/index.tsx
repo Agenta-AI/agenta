@@ -1,13 +1,19 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect} from "react"
 
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import {Testset} from "@/oss/lib/Types"
+import {resetSelectionAtom, selectedRevisionIdAtom} from "@/oss/state/testsetSelection"
 
-import {testsetCsvDataQueryAtomFamily} from "./assets/testsetCsvData"
 import {LoadTestsetModalProps} from "./assets/types"
+import {
+    isCreatingNewTestsetAtom,
+    newTestsetNameAtom,
+    resetModalStateAtom,
+    selectedTestcaseRowKeysAtom,
+} from "./atoms/modalState"
+import {useSelectedTestcasesData} from "./hooks/useSelectedTestcasesData"
 
 const LoadTestsetModalFooter = dynamic(() => import("./assets/LoadTestsetModalFooter"), {
     ssr: false,
@@ -16,73 +22,68 @@ const LoadTestsetModalContent = dynamic(() => import("./assets/LoadTestsetModalC
     ssr: false,
 })
 
-const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
-    testsetData,
-    setTestsetData,
-    isChat = false,
-    ...props
-}) => {
+const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({setTestsetData, ...props}) => {
     const {onCancel, afterClose, ...modalProps} = props
-    const [selectedTestset, setSelectedTestset] = useState("")
-    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
-    // Fetch testset CSV data via atomWithQuery
-    const testsetCsvQuery = useAtomValue(
-        useMemo(
-            () =>
-                testsetCsvDataQueryAtomFamily({
-                    testsetId: selectedTestset,
-                    enabled: modalProps.open && !!selectedTestset,
-                }),
-            [selectedTestset, modalProps.open],
-        ),
-    )
+    // Use atoms for all modal state
+    const selectedRevisionId = useAtomValue(selectedRevisionIdAtom)
+    const selectedRowKeys = useAtomValue(selectedTestcaseRowKeysAtom)
+    const isCreatingNew = useAtomValue(isCreatingNewTestsetAtom)
+    const newTestsetName = useAtomValue(newTestsetNameAtom)
+    const resetSelection = useSetAtom(resetSelectionAtom)
+    const resetModalState = useSetAtom(resetModalStateAtom)
 
-    const testsetCsvData: Testset["csvdata"] = useMemo(
-        () => ((testsetCsvQuery as any)?.data as Testset["csvdata"]) || [],
-        [testsetCsvQuery],
-    )
-    const isLoadingTestset = useMemo(
-        () => !!(testsetCsvQuery as any)?.isLoading || !!(testsetCsvQuery as any)?.isPending,
-        [testsetCsvQuery],
-    )
+    // Extract selected testcases from entity atoms in playground format
+    const selectedTestcasesData = useSelectedTestcasesData(selectedRevisionId, selectedRowKeys)
+
+    const isLoadingTestset = false
+
+    // Reset state when modal opens
+    useEffect(() => {
+        if (modalProps.open) {
+            resetModalState()
+        }
+    }, [modalProps.open, resetModalState])
 
     const onClose = useCallback(() => {
         onCancel?.({} as any)
-        setSelectedRowKeys([])
-    }, [])
+        resetModalState()
+    }, [onCancel, resetModalState])
 
     return (
         <EnhancedModal
             width={1150}
-            className={"[&_.ant-modal-body]:h-[600px]"}
+            styles={{
+                body: {
+                    flex: "1 1 auto",
+                    height: 620,
+                },
+            }}
             afterClose={() => {
-                setSelectedRowKeys([])
+                resetModalState()
+                resetSelection()
                 afterClose?.()
             }}
-            title="Load testset"
+            title={isCreatingNew ? "Create testset" : "Load testset"}
             footer={
                 <LoadTestsetModalFooter
                     onClose={onClose}
                     isLoadingTestset={isLoadingTestset}
                     selectedRowKeys={selectedRowKeys}
-                    testsetCsvData={testsetCsvData}
+                    testsetCsvData={selectedTestcasesData}
                     setTestsetData={setTestsetData}
+                    selectedRevisionId={selectedRevisionId}
+                    isCreatingNew={isCreatingNew}
+                    newTestsetName={newTestsetName}
                 />
             }
             onCancel={onClose}
+            classNames={{
+                body: "overflow-hidden !flex",
+            }}
             {...modalProps}
         >
-            <LoadTestsetModalContent
-                modalProps={modalProps}
-                selectedTestset={selectedTestset}
-                setSelectedTestset={setSelectedTestset}
-                testsetCsvData={testsetCsvData}
-                selectedRowKeys={selectedRowKeys}
-                setSelectedRowKeys={setSelectedRowKeys}
-                isChat={isChat}
-                isLoadingTestset={isLoadingTestset}
-            />
+            <LoadTestsetModalContent modalProps={modalProps} />
         </EnhancedModal>
     )
 }

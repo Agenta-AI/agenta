@@ -1361,7 +1361,8 @@ class SimpleEvaluationsService:
                 log.info("[EVAL] [failure] invalid simple evaluation flags")
                 return None
 
-            evaluation_jit = evaluation.jit or {"testsets": True, "evaluators": True}
+            # Default: expect callers to provide testset revision ids; keep evaluator JIT as-is
+            evaluation_jit = evaluation.jit or {"testsets": False, "evaluators": True}
 
             run_data = await self._make_evaluation_run_data(
                 project_id=project_id,

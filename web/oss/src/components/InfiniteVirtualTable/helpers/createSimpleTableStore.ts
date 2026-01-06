@@ -3,7 +3,7 @@ import type {Atom} from "jotai"
 
 import {createInfiniteDatasetStore} from "../createInfiniteDatasetStore"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
-import type {InfiniteTableFetchResult, InfiniteTableRowBase} from "../types"
+import type {InfiniteTableFetchResult, InfiniteTableRowBase, WindowingState} from "../types"
 
 import {createTableRowHelpers} from "./createTableRowHelpers"
 import type {TableRowHelpersConfig} from "./createTableRowHelpers"
@@ -47,19 +47,30 @@ export interface SimpleTableStoreConfig<
     rowHelpers: TableRowHelpersConfig<TRow, TApiRow>
     /**
      * Fetch function that retrieves data from the API.
-     * Should handle pagination via limit/offset/cursor.
+     * Should handle pagination via limit/offset/cursor/windowing.
      */
     fetchData: (params: {
         meta: TMeta
         limit: number
         offset: number
         cursor: string | null
+        windowing: WindowingState | null
     }) => Promise<InfiniteTableFetchResult<TApiRow>>
     /**
      * Optional custom isEnabled check.
      * Defaults to checking if projectId exists.
      */
     isEnabled?: (meta: TMeta | undefined) => boolean
+    /**
+     * Optional atom that provides client-side rows (e.g., unsaved drafts)
+     * These rows will be prepended to server rows
+     */
+    clientRowsAtom?: Atom<TRow[]>
+    /**
+     * Optional atom providing IDs of rows to exclude from display
+     * Useful for filtering out soft-deleted rows before save
+     */
+    excludeRowIdsAtom?: Atom<Set<string>>
 }
 
 /**
@@ -103,7 +114,15 @@ export function createSimpleTableStore<
     TApiRow,
     TMeta extends BaseTableMeta,
 >(config: SimpleTableStoreConfig<TRow, TApiRow, TMeta>): SimpleTableStore<TRow, TApiRow, TMeta> {
-    const {key, metaAtom, rowHelpers: rowHelpersConfig, fetchData, isEnabled} = config
+    const {
+        key,
+        metaAtom,
+        rowHelpers: rowHelpersConfig,
+        fetchData,
+        isEnabled,
+        clientRowsAtom,
+        excludeRowIdsAtom,
+    } = config
 
     // Create row helpers
     const rowHelpers = createTableRowHelpers<TRow, TApiRow>(rowHelpersConfig)
@@ -118,7 +137,9 @@ export function createSimpleTableStore<
         createSkeletonRow: rowHelpers.createSkeletonRow,
         mergeRow: rowHelpers.mergeRow,
         isEnabled: isEnabled ?? ((meta) => Boolean(meta?.projectId)),
-        fetchPage: async ({limit, offset, cursor, meta}) => {
+        clientRowsAtom,
+        excludeRowIdsAtom,
+        fetchPage: async ({limit, offset, cursor, windowing, meta}) => {
             if (!meta?.projectId) {
                 return {
                     rows: [],
@@ -130,7 +151,7 @@ export function createSimpleTableStore<
                 }
             }
 
-            return fetchData({meta, limit, offset, cursor})
+            return fetchData({meta, limit, offset, cursor, windowing})
         },
     })
 
