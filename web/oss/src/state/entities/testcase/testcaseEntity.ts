@@ -5,13 +5,11 @@ import {get} from "lodash"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
-import {
-    createEntityDraftState,
-    normalizeValueForComparison,
-} from "../shared/createEntityDraftState"
+import {createEntityDraftState, normalizeValueForComparison} from "../shared/createEntityDraftState"
 
 import {atomFamilyRegistry} from "./atomCleanup"
 import {
@@ -120,14 +118,6 @@ interface TestcaseRequest {
 }
 
 /**
- * Check if a string is a valid UUID (new rows have temp IDs like "new-row-xxx")
- */
-const isValidUUID = (id: string): boolean => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    return uuidRegex.test(id)
-}
-
-/**
  * Page structure from the paginated store cache
  */
 interface PaginatedCachePage {
@@ -192,12 +182,21 @@ const testcaseBatchFetcher = createBatchFetcher<
         // Group requests by revisionId for efficient cache lookup
         const cacheCheckGroups = new Map<
             string,
-            {queryClient: import("@tanstack/react-query").QueryClient; testcaseIds: string[]; keyMap: Map<string, string>}
+            {
+                queryClient: import("@tanstack/react-query").QueryClient
+                testcaseIds: string[]
+                keyMap: Map<string, string>
+            }
         >()
 
         requests.forEach((req, idx) => {
             const key = serializedKeys[idx]
-            if (req.queryClient && req.revisionId && req.testcaseId && isValidUUID(req.testcaseId)) {
+            if (
+                req.queryClient &&
+                req.revisionId &&
+                req.testcaseId &&
+                isValidUUID(req.testcaseId)
+            ) {
                 const groupKey = req.revisionId
                 const existing = cacheCheckGroups.get(groupKey)
                 if (existing) {

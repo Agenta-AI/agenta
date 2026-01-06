@@ -177,9 +177,7 @@ export interface EntityControllerConfig<T, TDraft = Partial<T>> {
      * Optional: Additional atoms to read for extended state
      * Values will be spread into the controller state
      */
-    extendState?: (
-        id: string,
-    ) => Atom<Record<string, unknown>>
+    extendState?: (id: string) => Atom<Record<string, unknown>>
 
     /**
      * Optional: Drill-in configuration for path-based navigation and editing
@@ -512,11 +510,7 @@ function createEntityDrillIn<T, TRootData>(
     // Write atom: set value at path
     const setValueAtPathAtom = atom(
         null,
-        (
-            get: Getter,
-            set: Setter,
-            params: {id: string; path: string[]; value: unknown},
-        ) => {
+        (get: Getter, set: Setter, params: {id: string; path: string[]; value: unknown}) => {
             const {id, path, value} = params
             if (path.length === 0) return
 
@@ -660,16 +654,12 @@ export function createEntityController<T, TDraft = Partial<T>>(
 
                     case "markDeleted":
                         // Optional: implement if entity supports soft delete
-                        console.warn(
-                            `[${config.name}Controller] markDeleted not implemented`,
-                        )
+                        console.warn(`[${config.name}Controller] markDeleted not implemented`)
                         break
 
                     case "restore":
                         // Optional: implement if entity supports restore
-                        console.warn(
-                            `[${config.name}Controller] restore not implemented`,
-                        )
+                        console.warn(`[${config.name}Controller] restore not implemented`)
                         break
 
                     case "setAtPath":
@@ -693,10 +683,7 @@ export function createEntityController<T, TDraft = Partial<T>>(
                             if (!entity) break
 
                             const rootData = drillInConfig.getRootData(entity)
-                            const updatedRootData = deleteAtPath(
-                                rootData,
-                                action.path,
-                            )
+                            const updatedRootData = deleteAtPath(rootData, action.path)
                             const updates = drillInConfig.setRootData(
                                 entity,
                                 updatedRootData as any,

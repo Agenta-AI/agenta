@@ -1002,6 +1002,7 @@ type ValueTypeOptions =
     | "messages"
     | "multiple_choice"
     | "llm_response_schema"
+    | "fields_checkbox_list"
 
 export interface EvaluationSettingsTemplate {
     type: ValueTypeOptions

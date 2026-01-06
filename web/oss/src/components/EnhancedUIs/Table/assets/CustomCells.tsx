@@ -18,35 +18,6 @@ export const ResizableTitle = memo((props: any) => {
         setLiveWidth(width)
     }, [width])
 
-    // const isSelectionColumn =
-    //     typeof restProps.className === "string" &&
-    //     restProps.className.includes("ant-table-selection-column")
-
-    // if (isSelectionColumn) {
-    //     const styleWidth =
-    //         typeof restProps.style?.width === "number" ? restProps.style.width : undefined
-    //     const targetWidth =
-    //         typeof width === "number" ? width : typeof styleWidth === "number" ? styleWidth : 48
-
-    //     return (
-    //         <th
-    //             {...restProps}
-    //             style={{
-    //                 ...restProps.style,
-    //                 width: targetWidth,
-    //                 minWidth: targetWidth,
-    //                 maxWidth: targetWidth,
-    //                 paddingLeft: 0,
-    //                 paddingRight: 0,
-    //             }}
-    //         >
-    //             <div style={{position: "relative", width: "100%", height: "100%"}}>
-    //                 {restProps.children}
-    //             </div>
-    //         </th>
-    //     )
-    // }
-
     // Only enable resizable behavior when a resize handler is provided.
     // This ensures non-resizable columns (e.g., selection or fixed columns)
     // are not wrapped in the Resizable component and keep their native layout.

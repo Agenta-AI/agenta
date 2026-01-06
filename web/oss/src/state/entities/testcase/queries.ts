@@ -8,7 +8,6 @@ import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {
     fetchRevision,
-    isNewTestsetId,
     NEW_TESTSET_ID,
     revisionsListQueryAtomFamily,
     testsetEntityAtomFamily,

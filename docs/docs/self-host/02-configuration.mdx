@@ -60,6 +60,20 @@ Optional Agenta-specific configurations:
 | `AGENTA_ALLOWED_DOMAINS` | Comma-separated list of email domains allowed to authenticate; when set, all other domains are rejected | _(empty)_ |
 | `AGENTA_OTLP_MAX_BATCH_BYTES` | Max OTLP batch size before requests are rejected with 413 | `10485760` (10MB) |
 
+### Sandbox Runner (Custom Evaluators)
+
+Agenta executes custom evaluator code in a sandboxed environment. You can choose between local execution or remote execution using Daytona sandboxes.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `AGENTA_SERVICES_SANDBOX_RUNNER` | Code execution backend for custom evaluators. Set to `local` or `daytona`. | `local` |
+| `DAYTONA_API_KEY` | Your Daytona API key. Required when using Daytona. Get one from https://app.daytona.io | _(empty)_ |
+| `DAYTONA_API_URL` | Daytona API endpoint. | `https://app.daytona.io/api` |
+| `DAYTONA_TARGET` | Daytona region for sandbox execution (e.g., `eu`, `us`). | Value of `AGENTA_REGION`, or `eu` |
+| `DAYTONA_SNAPSHOT` | Snapshot ID that defines the sandbox environment. Required when using Daytona. | _(empty)_ |
+
+**When to use Daytona**: Local execution runs code directly on the API server. This is simpler but runs in the same process as the API. Daytona runs code in isolated containers with their own dependencies. Use Daytona for production deployments or when you need stronger isolation.
+
 ### Third-party (Required)
 
 Essential third-party service configurations:

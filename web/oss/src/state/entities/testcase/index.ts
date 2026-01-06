@@ -86,15 +86,10 @@ export {
 } from "./columnState"
 
 // Display rows
-export {
-    displayRowRefsAtom,
-    type DisplayRowRef,
-} from "./displayRows"
+export {displayRowRefsAtom, type DisplayRowRef} from "./displayRows"
 
 // Edit session
-export {
-    initializeEmptyRevisionAtom,
-} from "./editSession"
+export {initializeEmptyRevisionAtom} from "./editSession"
 
 // Testcase mutations
 export {
@@ -119,9 +114,7 @@ export {
 } from "../testset/mutations"
 
 // Atom cleanup (for revision changes)
-export {
-    cleanupOnRevisionChangeAtom,
-} from "./atomCleanup"
+export {cleanupOnRevisionChangeAtom} from "./atomCleanup"
 
 // Paginated store exports
 export {

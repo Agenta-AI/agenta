@@ -6,9 +6,9 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
+import {testcase} from "@/oss/state/entities/testcase"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
-import {testcase} from "@/oss/state/entities/testcase"
 
 import TestcaseEditDrawerContent, {
     type TestcaseEditDrawerContentRef,
@@ -37,7 +37,10 @@ interface TestcaseEditDrawerProps {
     /** Callback to open the commit modal (for "Apply and Commit Changes") */
     onOpenCommitModal?: () => void
     /** Direct save callback (for contexts without commit modal, e.g., LoadTestsetModal) */
-    onSaveTestset?: (params?: {testsetName?: string; commitMessage?: string}) => Promise<string | null>
+    onSaveTestset?: (params?: {
+        testsetName?: string
+        commitMessage?: string
+    }) => Promise<string | null>
     /** Whether testset save is in progress */
     isSavingTestset?: boolean
 }
@@ -74,7 +77,9 @@ const TestcaseEditDrawer = ({
     const sessionStartDraftsRef = useRef<Map<string, FlattenedTestcase>>(new Map())
 
     // Get the session start draft for the current testcase (for Cancel functionality)
-    const sessionStartDraft = testcaseId ? sessionStartDraftsRef.current.get(testcaseId) ?? null : null
+    const sessionStartDraft = testcaseId
+        ? (sessionStartDraftsRef.current.get(testcaseId) ?? null)
+        : null
 
     const [editMode, setEditMode] = useState<EditMode>("fields")
     const [isIdCopied, setIsIdCopied] = useState(false)
@@ -115,7 +120,10 @@ const TestcaseEditDrawer = ({
             // Only capture if we haven't captured for this testcase yet in this session
             if (!sessionStartDraftsRef.current.has(testcaseId)) {
                 // Deep clone to avoid reference issues that could cause false dirty detection
-                sessionStartDraftsRef.current.set(testcaseId, JSON.parse(JSON.stringify(testcaseData)))
+                sessionStartDraftsRef.current.set(
+                    testcaseId,
+                    JSON.parse(JSON.stringify(testcaseData)),
+                )
             }
         } else if (!open) {
             // Clear all session drafts and reset drill-in path when drawer closes
@@ -303,7 +311,9 @@ const TestcaseEditDrawer = ({
                             <Button
                                 type="primary"
                                 icon={<CaretUp size={14} />}
-                                disabled={!hasSessionDirty || (!onOpenCommitModal && !onSaveTestset)}
+                                disabled={
+                                    !hasSessionDirty || (!onOpenCommitModal && !onSaveTestset)
+                                }
                             />
                         </Dropdown>
                     </Space.Compact>

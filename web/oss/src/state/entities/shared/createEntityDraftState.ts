@@ -1,4 +1,11 @@
-import {atom, type Atom, type Getter, type PrimitiveAtom, type Setter, type WritableAtom} from "jotai"
+import {
+    atom,
+    type Atom,
+    type Getter,
+    type PrimitiveAtom,
+    type Setter,
+    type WritableAtom,
+} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 // ============================================================================
@@ -148,11 +155,7 @@ export function normalizeValueForComparison(value: unknown): string {
 /**
  * Default dirty comparison - field-by-field comparison with normalization
  */
-function defaultIsDirty<T>(
-    draftData: T,
-    originalData: T,
-    excludeFields?: Set<string>,
-): boolean {
+function defaultIsDirty<T>(draftData: T, originalData: T, excludeFields?: Set<string>): boolean {
     const draftRecord = draftData as Record<string, unknown>
     const originalRecord = originalData as Record<string, unknown>
 
@@ -227,9 +230,7 @@ export function createEntityDraftState<TEntity, TDraftableData = TEntity>(
 
     // Draft atom family - stores complete merged data (not partial)
     // When we update, we merge updates into the current entity and store the full result
-    const draftAtomFamily = atomFamily((id: string) =>
-        atom<TDraftableData | null>(null),
-    )
+    const draftAtomFamily = atomFamily((id: string) => atom<TDraftableData | null>(null))
 
     // Combined entity + draft atom family
     // Since draft contains complete merged data, we can use it directly

@@ -14,7 +14,7 @@ import TestsetsFiltersSummary from "./TestsetsFiltersSummary"
 const TestsetsHeaderFilters = () => {
     const [searchTerm, setSearchTerm] = useAtom(testset.filters.searchTerm)
     const filtersButtonState = useAtomValue(testsetsFiltersButtonStateAtom)
-    const [_, setIsFiltersOpen] = useState(false)
+    const [, setIsFiltersOpen] = useState(false)
 
     const handleFiltersOpenChange = useCallback((open: boolean) => {
         setIsFiltersOpen(open)

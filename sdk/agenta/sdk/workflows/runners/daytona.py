@@ -1,6 +1,7 @@
 import os
 import json
-from typing import Any, Dict, Union, Optional, TYPE_CHECKING
+from contextlib import contextmanager
+from typing import Any, Dict, Generator, Union, Optional, TYPE_CHECKING
 
 import agenta as ag
 from agenta.sdk.workflows.runners.base import CodeRunner
@@ -13,6 +14,42 @@ if TYPE_CHECKING:
     from daytona import Sandbox
 
 log = get_module_logger(__name__)
+
+
+def _extract_error_message(error_text: str) -> str:
+    """Extract a clean error message from a Python traceback.
+
+    Given a full traceback string, extracts just the final error line
+    (e.g., "NameError: name 'foo' is not defined") instead of the full
+    noisy traceback with base64-encoded code.
+
+    Args:
+        error_text: Full error/traceback string
+
+    Returns:
+        Clean error message, or original text if extraction fails
+    """
+    if not error_text:
+        return "Unknown error"
+
+    lines = error_text.strip().split("\n")
+
+    # Look for common Python error patterns from the end
+    for line in reversed(lines):
+        line = line.strip()
+        # Match patterns like "NameError: ...", "ValueError: ...", etc.
+        if ": " in line and not line.startswith("File "):
+            # Check if it looks like an error line (ErrorType: message)
+            parts = line.split(": ", 1)
+            if parts[0].replace(".", "").replace("_", "").isalnum():
+                return line
+
+    # Fallback: return last non-empty line
+    for line in reversed(lines):
+        if line.strip():
+            return line.strip()
+
+    return error_text[:200] if len(error_text) > 200 else error_text
 
 
 class DaytonaRunner(CodeRunner):
@@ -186,6 +223,29 @@ class DaytonaRunner(CodeRunner):
         except Exception as e:
             raise RuntimeError(f"Failed to create sandbox from snapshot: {e}")
 
+    @contextmanager
+    def _sandbox_context(
+        self, runtime: Optional[str] = None
+    ) -> Generator["Sandbox", None, None]:
+        """Context manager for sandbox lifecycle.
+
+        Ensures sandbox is deleted even if an error occurs during execution.
+
+        Args:
+            runtime: Runtime environment (python, javascript, typescript), None = python
+
+        Yields:
+            Sandbox instance
+        """
+        sandbox = self._create_sandbox(runtime=runtime)
+        try:
+            yield sandbox
+        finally:
+            try:
+                sandbox.delete()
+            except Exception as e:
+                log.error("Failed to delete sandbox: %s", e)
+
     def run(
         self,
         code: str,
@@ -218,95 +278,98 @@ class DaytonaRunner(CodeRunner):
         runtime = runtime or "python"
 
         self._initialize_client()
-        sandbox: Sandbox = self._create_sandbox(runtime=runtime)
 
-        try:
-            # Prepare all parameters as a single dict
-            params = {
-                "app_params": app_params,
-                "inputs": inputs,
-                "output": output,
-                "correct_answer": correct_answer,
-            }
-            params_json = json.dumps(params)
+        with self._sandbox_context(runtime=runtime) as sandbox:
+            try:
+                # Prepare all parameters as a single dict
+                params = {
+                    "app_params": app_params,
+                    "inputs": inputs,
+                    "output": output,
+                    "correct_answer": correct_answer,
+                }
+                params_json = json.dumps(params)
 
-            if not templates:
-                raise RuntimeError("Missing evaluator templates for Daytona execution")
+                if not templates:
+                    raise RuntimeError(
+                        "Missing evaluator templates for Daytona execution"
+                    )
 
-            template = templates.get(runtime)
-            if template is None:
-                raise RuntimeError(
-                    f"Missing evaluator template for runtime '{runtime}'"
+                template = templates.get(runtime)
+                if template is None:
+                    raise RuntimeError(
+                        f"Missing evaluator template for runtime '{runtime}'"
+                    )
+
+                # Wrap the user code with the necessary context and evaluation
+                wrapped_code = template.format(
+                    params_json=params_json,
+                    user_code=code,
                 )
 
-            # Wrap the user code with the necessary context and evaluation
-            wrapped_code = template.format(
-                params_json=params_json,
-                user_code=code,
-            )
-
-            # Execute the code in the Daytona sandbox
-            response = sandbox.process.code_run(wrapped_code)
-            response_stdout = response.result if hasattr(response, "result") else ""
-            response_exit_code = getattr(response, "exit_code", 0)
-            response_error = getattr(response, "error", None) or getattr(
-                response, "stderr", None
-            )
-
-            sandbox.delete()
-
-            if response_exit_code and response_exit_code != 0:
-                error_details = response_error or response_stdout or "Unknown error"
-                log.error(
-                    "Sandbox execution error (exit_code=%s): %s",
-                    response_exit_code,
-                    error_details,
-                )
-                raise RuntimeError(
-                    f"Sandbox execution failed (exit_code={response_exit_code}): "
-                    f"{error_details}"
+                # Execute the code in the Daytona sandbox
+                response = sandbox.process.code_run(wrapped_code)
+                response_stdout = response.result if hasattr(response, "result") else ""
+                response_exit_code = getattr(response, "exit_code", 0)
+                response_error = getattr(response, "error", None) or getattr(
+                    response, "stderr", None
                 )
 
-            # Parse the result from stdout
-            output_lines = response_stdout.strip().split("\n")
-            for line in reversed(output_lines):
-                if not line.strip():
-                    continue
-                try:
-                    result_obj = json.loads(line)
+                if response_exit_code and response_exit_code != 0:
+                    raw_error = response_error or response_stdout or "Unknown error"
+                    # Log full error for debugging
+                    # log.warning(
+                    #     "Sandbox execution error (exit_code=%s): %s",
+                    #     response_exit_code,
+                    #     raw_error,
+                    # )
+                    # Extract clean error message for user display
+                    clean_error = _extract_error_message(raw_error)
+                    raise RuntimeError(clean_error)
+
+                # Parse the result from stdout
+                output_lines = response_stdout.strip().split("\n")
+                for line in reversed(output_lines):
+                    if not line.strip():
+                        continue
+                    try:
+                        result_obj = json.loads(line)
+                        if isinstance(result_obj, dict) and "result" in result_obj:
+                            result = result_obj["result"]
+                            if isinstance(result, (float, int, type(None))):
+                                return float(result) if result is not None else None
+                    except json.JSONDecodeError:
+                        continue
+
+                # Fallback: attempt to extract a JSON object containing "result"
+                for line in reversed(output_lines):
+                    if "result" not in line:
+                        continue
+                    start = line.find("{")
+                    end = line.rfind("}")
+                    if start == -1 or end == -1 or end <= start:
+                        continue
+                    try:
+                        result_obj = json.loads(line[start : end + 1])
+                    except json.JSONDecodeError:
+                        continue
                     if isinstance(result_obj, dict) and "result" in result_obj:
                         result = result_obj["result"]
                         if isinstance(result, (float, int, type(None))):
                             return float(result) if result is not None else None
-                except json.JSONDecodeError:
-                    continue
 
-            # Fallback: attempt to extract a JSON object containing "result"
-            for line in reversed(output_lines):
-                if "result" not in line:
-                    continue
-                start = line.find("{")
-                end = line.rfind("}")
-                if start == -1 or end == -1 or end <= start:
-                    continue
-                try:
-                    result_obj = json.loads(line[start : end + 1])
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(result_obj, dict) and "result" in result_obj:
-                    result = result_obj["result"]
-                    if isinstance(result, (float, int, type(None))):
-                        return float(result) if result is not None else None
+                # log.warning(
+                #     "Evaluation output did not include JSON result: %s", response_stdout
+                # )
+                raise ValueError(
+                    "Could not parse evaluation result from Daytona output"
+                )
 
-            log.error(
-                "Evaluation output did not include JSON result: %s", response_stdout
-            )
-            raise ValueError("Could not parse evaluation result from Daytona output")
-
-        except Exception as e:
-            log.error(f"Error during Daytona code execution: {e}", exc_info=True)
-            # print(f"Exception details: {type(e).__name__}: {e}")
-            raise RuntimeError(f"Error during Daytona code execution: {e}")
+            except Exception as e:
+                # log.warning(
+                #     f"Error during Daytona code execution:\n {e}", exc_info=True
+                # )
+                raise RuntimeError(e)
 
     def cleanup(self) -> None:
         """Clean up Daytona client resources."""

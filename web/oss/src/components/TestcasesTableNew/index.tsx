@@ -6,6 +6,7 @@ import {useRouter} from "next/router"
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import useURL from "@/oss/hooks/useURL"
+import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {
     currentRevisionIdAtom,
@@ -56,8 +57,18 @@ export interface TestcasesTableNewProps {
  */
 export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const router = useRouter()
-    const {testset_id: revisionIdParam} = router.query
     const {projectURL} = useURL()
+
+    // Normalize and validate revisionIdParam from URL
+    // Only allow "new" (special case) or valid UUIDs to prevent SSRF
+    const revisionIdParam = useMemo(() => {
+        const rawParam = router.query.testset_id
+        const param = Array.isArray(rawParam) ? rawParam[0] : rawParam
+        if (!param) return undefined
+        if (param === "new") return "new"
+        if (isValidUUID(param)) return param
+        return undefined // Invalid ID - treat as not provided
+    }, [router.query.testset_id])
 
     // Check if this is a new testset (not yet saved)
     const isNewTestset = revisionIdParam === "new"

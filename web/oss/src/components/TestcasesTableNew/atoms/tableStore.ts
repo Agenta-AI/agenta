@@ -50,13 +50,6 @@
 
 import {atom} from "jotai"
 
-import {cleanupOnRevisionChangeAtom} from "@/oss/state/entities/testcase/atomCleanup"
-import {
-    clearPendingAddedColumnsAtom,
-    clearPendingDeletedColumnsAtom,
-    clearPendingRenamesAtom,
-    resetColumnsAtom,
-} from "@/oss/state/entities/testcase/columnState"
 import {
     setDebouncedSearchTermAtom as setDebouncedSearchTermAtomFromEntity,
     testcase,
@@ -68,6 +61,13 @@ import {
     type TestcasePaginatedMeta,
     type TestcaseTableRow,
 } from "@/oss/state/entities/testcase"
+import {cleanupOnRevisionChangeAtom} from "@/oss/state/entities/testcase/atomCleanup"
+import {
+    clearPendingAddedColumnsAtom,
+    clearPendingDeletedColumnsAtom,
+    clearPendingRenamesAtom,
+    resetColumnsAtom,
+} from "@/oss/state/entities/testcase/columnState"
 import {setTestcaseIdsAtom} from "@/oss/state/entities/testcase/testcaseEntity"
 
 // ============================================================================
