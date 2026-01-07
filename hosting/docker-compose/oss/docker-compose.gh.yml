@@ -174,10 +174,10 @@ services:
 
     alembic:
         # === IMAGE ================================================ #
-        # build:
-            # context: ../../../api
-            # dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: sh -c "python -m oss.databases.postgres.migrations.runner"
         # === CONFIGURATION ======================================== #
