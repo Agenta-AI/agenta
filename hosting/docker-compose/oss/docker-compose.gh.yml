@@ -92,6 +92,10 @@ services:
                 "-m",
                 "entrypoints.worker_evaluations",
             ]
+        # === STORAGE ============================================== #
+        volumes:
+            # Docker socket for webhook python script execution
+            - /var/run/docker.sock:/var/run/docker.sock
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}

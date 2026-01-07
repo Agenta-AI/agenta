@@ -118,6 +118,8 @@ services:
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
+            # Docker socket for webhook python script execution
+            - /var/run/docker.sock:/var/run/docker.sock
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}

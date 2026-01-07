@@ -48,9 +48,22 @@ class WebhooksWorker:
         if self._docker_client is None:
             try:
                 self._docker_client = docker.from_env()
-            except DockerException as e:
-                log.error(f"Failed to create Docker client: {e}")
-                raise
+                # Verify connection works
+                self._docker_client.ping()
+            except Exception as e:
+                error_msg = str(e)
+                log.error(
+                    f"[WEBHOOK] Failed to connect to Docker daemon: {error_msg}",
+                    details=(
+                        "Possible causes:\n"
+                        "1. Docker daemon is not running (run 'docker info' to check)\n"
+                        "2. Docker socket is not accessible (usually at /var/run/docker.sock)\n"
+                        "3. If running in a container, Docker socket must be mounted with -v /var/run/docker.sock:/var/run/docker.sock"
+                    ),
+                )
+                raise DockerException(
+                    f"Cannot connect to Docker daemon. Please ensure Docker is running and accessible. Error: {error_msg}"
+                ) from e
         return self._docker_client
 
     def _register_tasks(self):
