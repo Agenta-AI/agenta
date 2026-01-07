@@ -348,7 +348,8 @@ class WebhookService:
                 log.info(f"No webhooks to trigger for deployment", deployment_id=deployment_id)
                 return
 
-            # Create execution records and send tasks
+            # First, create all execution records and commit them to the database
+            executions_to_trigger = []
             for webhook in triggered_webhooks:
                 execution = WebhookExecutionDB(
                     webhook_id=webhook.id,
@@ -358,11 +359,15 @@ class WebhookService:
                     variant_revision_id=UUID(variant_revision_id) if variant_revision_id else None,
                     status="pending",
                 )
-
                 session.add(execution)
-                await session.flush()  # Get execution.id
+                executions_to_trigger.append((webhook, execution))
 
-                # Send task to worker
+            # Commit all executions to database BEFORE sending tasks
+            # This ensures worker can find the execution records
+            await session.commit()
+
+            # Now send tasks to worker for each committed execution
+            for webhook, execution in executions_to_trigger:
                 try:
                     await self.webhooks_worker.execute_webhook_task.kiq(
                         execution_id=str(execution.id),
@@ -394,11 +399,16 @@ class WebhookService:
                         error=str(e),
                     )
                     # Update execution status to failed
-                    execution.status = "failed"
-                    execution.error_output = f"Failed to queue task: {str(e)}"
-                    execution.completed_at = datetime.now(timezone.utc)
-
-            await session.commit()
+                    async with engine.core_session() as update_session:
+                        update_execution = await update_session.execute(
+                            select(WebhookExecutionDB).filter_by(id=execution.id)
+                        )
+                        execution_obj = update_execution.scalars().first()
+                        if execution_obj:
+                            execution_obj.status = "failed"
+                            execution_obj.error_output = f"Failed to queue task: {str(e)}"
+                            execution_obj.completed_at = datetime.now(timezone.utc)
+                            await update_session.commit()
 
     async def list_executions(
         self,
