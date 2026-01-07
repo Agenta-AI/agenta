@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo} from "react"
 
+import {CaretDown} from "@phosphor-icons/react"
 import {Button, InputNumber, Popover, Slider, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -17,7 +18,6 @@ import {generationHeaderDataAtomFamily, triggerWebWorkerTestAtom} from "../../..
 import {useStyles} from "./styles"
 import TestSetMenu from "./TestSetMenu"
 import type {GenerationHeaderProps} from "./types"
-import {CaretDown} from "@phosphor-icons/react"
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const classes = useStyles()

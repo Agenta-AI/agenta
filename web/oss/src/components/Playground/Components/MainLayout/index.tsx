@@ -1,7 +1,6 @@
-import React from "react"
 import {memo, useCallback, useEffect, useRef} from "react"
 
-import {Typography, Button, Splitter} from "antd"
+import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -14,11 +13,12 @@ import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
 import {
+    appChatModeAtom,
     displayedVariantsAtom,
     isComparisonViewAtom,
-    appChatModeAtom,
     selectedVariantsAtom,
 } from "../../state/atoms"
+import PlaygroundFocusDrawer from "../Drawers/FocusDrawer"
 import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"
 import PlaygroundComparisonGenerationInputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonInputHeader/index."
 import GenerationComparisonOutputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonOutputHeader"
@@ -275,6 +275,7 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
                         </section>
                     </SplitterPanel>
                 </Splitter>
+                <PlaygroundFocusDrawer />
             </div>
         </main>
     )

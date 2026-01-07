@@ -175,6 +175,8 @@ const SingleView = ({
                                         key={safeIndex}
                                         result={currentResult}
                                         repetitionProps={repetitionProps}
+                                        rowId={rowId}
+                                        variantId={variantId}
                                     />
                                 ) : null}
                             </div>
