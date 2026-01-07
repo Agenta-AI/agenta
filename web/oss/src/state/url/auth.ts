@@ -117,6 +117,7 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         const path = resolvedPath
         const asPath = resolvedAsPath
         const isAuthRoute = path.startsWith("/auth")
+        const isAuthCallbackRoute = path.startsWith("/auth/callback")
         const isAcceptRoute = path.startsWith("/workspaces/accept")
         const baseAppURL = urlState.baseAppURL || "/w"
 
@@ -137,11 +138,24 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         }
 
         if (isSignedIn) {
+            if (isAuthCallbackRoute) {
+                store.set(protectedRouteReadyAtom, false)
+                return
+            }
             if (typeof window !== "undefined") {
                 const upgradeOrgId = window.localStorage.getItem("authUpgradeOrgId")
                 const identifiers = store.get(appIdentifiersAtom)
                 const currentWorkspaceId = identifiers.workspaceId
-                if (upgradeOrgId && upgradeOrgId !== currentWorkspaceId) {
+                const upgradePath = upgradeOrgId
+                    ? `/w/${encodeURIComponent(upgradeOrgId)}`
+                    : null
+                const alreadyOnUpgradePath =
+                    Boolean(upgradePath) && path.startsWith(upgradePath as string)
+
+                if (upgradeOrgId && alreadyOnUpgradePath) {
+                    window.localStorage.removeItem("authUpgradeOrgId")
+                    window.localStorage.removeItem("authUpgradeSessionIdentities")
+                } else if (upgradeOrgId && upgradeOrgId !== currentWorkspaceId) {
                     void Router.replace(`/w/${encodeURIComponent(upgradeOrgId)}`).catch(
                         (error) => {
                             console.error(

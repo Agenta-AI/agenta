@@ -33,32 +33,34 @@ export const useSession: () => {
         loading: res.loading,
         doesSessionExist: (res as any).doesSessionExist,
         logout: async () => {
-            signOut()
-                .then(async () => {
-                    // Clear React Query cache to prevent unauthorized requests
-                    queryClient.clear()
+            try {
+                await signOut()
+            } catch (error) {
+                console.error(error)
+            }
 
-                    // Reset Jotai atoms
-                    resetProfileData()
-                    resetOrgData()
-                    resetProjectData()
+            // Clear React Query cache to prevent unauthorized requests
+            queryClient.clear()
 
-                    // Reset analytics
-                    const posthog = (await import("posthog-js")).default
-                    posthog.reset()
+            // Reset Jotai atoms
+            resetProfileData()
+            resetOrgData()
+            resetProjectData()
 
-                    if (typeof window !== "undefined") {
-                        window.localStorage.removeItem("authUpgradeOrgId")
-                        window.localStorage.removeItem("authUpgradeSessionIdentities")
-                    }
+            // Reset analytics
+            const posthog = (await import("posthog-js")).default
+            posthog.reset()
 
-                    // Update session state
-                    setSessionExists(false)
+            if (typeof window !== "undefined") {
+                window.localStorage.removeItem("authUpgradeOrgId")
+                window.localStorage.removeItem("authUpgradeSessionIdentities")
+            }
 
-                    // Redirect to auth page
-                    router.push("/auth")
-                })
-                .catch(console.error)
+            // Update session state
+            setSessionExists(false)
+
+            // Redirect to auth page
+            await router.replace("/auth")
         },
     }
 }

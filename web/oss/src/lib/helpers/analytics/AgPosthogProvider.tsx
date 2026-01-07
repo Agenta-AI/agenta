@@ -17,6 +17,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     const [loadingPosthog, setLoadingPosthog] = useState(false)
     const [posthogClient, setPosthogClient] = useAtom(posthogAtom)
     const failedAttemptsRef = useRef(0)
+    const isAuthRoute = (router.asPath || router.pathname || "").startsWith("/auth")
 
     const initPosthog = useCallback(async () => {
         if (posthogClient) return
@@ -54,8 +55,10 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     }, [loadingPosthog, posthogClient, setPosthogClient])
 
     useEffect(() => {
-        initPosthog()
-    }, [initPosthog])
+        if (!isAuthRoute) {
+            initPosthog()
+        }
+    }, [initPosthog, isAuthRoute])
 
     const handleRouteChange = useCallback(() => {
         posthogClient?.capture("$pageview", {$current_url: window.location.href})

@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {Alert, Spin} from "antd"
 import dynamic from "next/dynamic"
@@ -18,6 +18,7 @@ const Callback = () => {
     const router = useRouter()
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
     const {handleAuthSuccess} = usePostAuthRedirect()
+    const hasHandledCallback = useRef(false)
 
     const state = router.query.state as string
     const code = router.query.code as string
@@ -40,6 +41,10 @@ const Callback = () => {
     }
 
     const handleThirdPartyCallback = async () => {
+        if (hasHandledCallback.current) {
+            return
+        }
+        hasHandledCallback.current = true
         try {
             console.log("[AUTH-CALLBACK] Starting third-party callback", {
                 path: window.location.pathname,

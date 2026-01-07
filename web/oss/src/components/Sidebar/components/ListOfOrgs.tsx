@@ -1,13 +1,6 @@
 import {memo, useEffect, useMemo, useState} from "react"
 
-import {
-    ArrowsLeftRight,
-    CaretDown,
-    PencilSimple,
-    SignOut,
-    Trash,
-    CopyIcon,
-} from "@phosphor-icons/react"
+import {ArrowsLeftRight, CaretDown, PencilSimple, Trash, CopyIcon} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
     Button,
@@ -28,7 +21,6 @@ import {useRouter} from "next/router"
 import Session from "supertokens-auth-react/recipe/session"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {useSession} from "@/oss/hooks/useSession"
 import {isEE} from "@/oss/lib/helpers/isEE"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {checkOrganizationAccess} from "@/oss/services/organization/api"
@@ -64,7 +56,7 @@ interface ListOfOrgsProps extends Omit<DropdownProps, "menu" | "children"> {
      */
     overrideOrganizationId?: string
     /**
-     * When false, organization items remain visible but are not actionable. Logout remains actionable.
+     * When false, organization items remain visible but are not actionable.
      */
     organizationSelectionEnabled?: boolean
 }
@@ -84,7 +76,6 @@ const ListOfOrgs = ({
     }
     const router = useRouter()
     const {user} = useProfileData()
-    const {logout} = useSession()
     const {
         selectedOrg: selectedOrganization,
         orgs: organizations,
@@ -255,19 +246,6 @@ const ListOfOrgs = ({
                 ),
             })
         }
-
-        items.push({type: "divider", key: "logout-divider"})
-
-        items.push({
-            key: "logout",
-            danger: true,
-            label: (
-                <div className="flex items-center gap-2">
-                    <SignOut size={16} />
-                    Logout
-                </div>
-            ),
-        })
 
         return items
     }, [effectiveSelectedId, interactive, organizationSelectionEnabled, organizations, user?.id])
@@ -465,16 +443,6 @@ const ListOfOrgs = ({
 
     const handleOrganizationMenuClick: MenuProps["onClick"] = ({key}) => {
         const keyString = key as string
-
-        if (keyString === "logout") {
-            setOrganizationDropdownOpen(false)
-            AlertPopup({
-                title: "Logout",
-                message: "Are you sure you want to logout?",
-                onOk: logout,
-            })
-            return
-        }
 
         if (keyString === "create-organization") {
             setOrganizationDropdownOpen(false)
