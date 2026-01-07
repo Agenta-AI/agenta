@@ -1,44 +1,55 @@
 import os
 import json
-from typing import Any, Dict, Union, Optional, TYPE_CHECKING
+from contextlib import contextmanager
+from typing import Any, Dict, Generator, Union, Optional, TYPE_CHECKING
 
+import agenta as ag
 from agenta.sdk.workflows.runners.base import CodeRunner
+from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.utils.lazy import _load_daytona
 
 from agenta.sdk.utils.logging import get_module_logger
 
 if TYPE_CHECKING:
-    from daytona import Daytona, Sandbox
+    from daytona import Sandbox
 
 log = get_module_logger(__name__)
 
-# Template for wrapping user code with evaluation context
-EVALUATION_CODE_TEMPLATE = """
-import json
 
-# Parse all parameters from a single dict
-params = json.loads({params_json!r})
-app_params = params['app_params']
-inputs = params['inputs']
-output = params['output']
-correct_answer = params['correct_answer']
+def _extract_error_message(error_text: str) -> str:
+    """Extract a clean error message from a Python traceback.
 
-# User-provided evaluation code
-{user_code}
+    Given a full traceback string, extracts just the final error line
+    (e.g., "NameError: name 'foo' is not defined") instead of the full
+    noisy traceback with base64-encoded code.
 
-# Execute and capture result
-result = evaluate(app_params, inputs, output, correct_answer)
+    Args:
+        error_text: Full error/traceback string
 
-# Ensure result is a float
-if isinstance(result, (float, int, str)):
-    try:
-        result = float(result)
-    except (ValueError, TypeError):
-        result = None
+    Returns:
+        Clean error message, or original text if extraction fails
+    """
+    if not error_text:
+        return "Unknown error"
 
-# Print result for capture
-print(json.dumps({{"result": result}}))
-"""
+    lines = error_text.strip().split("\n")
+
+    # Look for common Python error patterns from the end
+    for line in reversed(lines):
+        line = line.strip()
+        # Match patterns like "NameError: ...", "ValueError: ...", etc.
+        if ": " in line and not line.startswith("File "):
+            # Check if it looks like an error line (ErrorType: message)
+            parts = line.split(": ", 1)
+            if parts[0].replace(".", "").replace("_", "").isalnum():
+                return line
+
+    # Fallback: return last non-empty line
+    for line in reversed(lines):
+        if line.strip():
+            return line.strip()
+
+    return error_text[:200] if len(error_text) > 200 else error_text
 
 
 class DaytonaRunner(CodeRunner):
@@ -96,26 +107,114 @@ class DaytonaRunner(CodeRunner):
         except Exception as e:
             raise RuntimeError(f"Failed to initialize Daytona client: {e}")
 
-    def _create_sandbox(self) -> "Sandbox":
-        """Create a new sandbox for this run from snapshot."""
+    def _get_provider_env_vars(self) -> Dict[str, str]:
+        """
+        Fetch user secrets and extract standard provider keys as environment variables.
+
+        Returns:
+            Dictionary of environment variables for standard providers
+        """
+        env_vars = {}
+
+        # Get secrets from context (set by vault middleware)
+        ctx = RunningContext.get()
+        secrets = getattr(ctx, "vault_secrets", [])
+
+        # Standard provider keys mapping
+        provider_env_mapping = {
+            "openai": "OPENAI_API_KEY",
+            "cohere": "COHERE_API_KEY",
+            "anyscale": "ANYSCALE_API_KEY",
+            "deepinfra": "DEEPINFRA_API_KEY",
+            "alephalpha": "ALEPHALPHA_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "mistralai": "MISTRALAI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+            "perplexityai": "PERPLEXITYAI_API_KEY",
+            "togetherai": "TOGETHERAI_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY",
+            "gemini": "GEMINI_API_KEY",
+        }
+
+        # Extract provider keys from secrets
+        for secret in secrets:
+            if secret.get("kind") == "provider_key":
+                secret_data = secret.get("data", {})
+                provider_kind = secret_data.get("kind")
+
+                if provider_kind in provider_env_mapping:
+                    provider_settings = secret_data.get("provider", {})
+                    api_key = provider_settings.get("key")
+
+                    if api_key:
+                        env_var_name = provider_env_mapping[provider_kind]
+                        env_vars[env_var_name] = api_key
+
+        return env_vars
+
+    def _create_sandbox(self, runtime: Optional[str] = None) -> Any:
+        """Create a new sandbox for this run from snapshot.
+
+        Args:
+            runtime: Runtime environment (python, javascript, typescript), None = python
+        """
         try:
             if self.daytona is None:
                 raise RuntimeError("Daytona client not initialized")
 
-            snapshot_id = os.getenv("AGENTA_SERVICES_SANDBOX_SNAPSHOT_PYTHON")
+            # Normalize runtime: None means python
+            runtime = runtime or "python"
+
+            # Select general snapshot
+            snapshot_id = os.getenv("DAYTONA_SNAPSHOT")
 
             if not snapshot_id:
                 raise RuntimeError(
-                    "AGENTA_SERVICES_SANDBOX_SNAPSHOT_PYTHON environment variable is required. "
-                    "Set it to the Daytona sandbox ID or snapshot name you want to use."
+                    f"No Daytona snapshot configured for runtime '{runtime}'. "
+                    f"Set DAYTONA_SNAPSHOT environment variable."
                 )
 
             _, _, _, CreateSandboxFromSnapshotParams = _load_daytona()
+
+            agenta_host = (
+                ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
+                #
+                or ""
+            )
+            agenta_api_url = (
+                ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_url
+                #
+                or ""
+            )
+            agenta_credentials = (
+                RunningContext.get().credentials
+                #
+                or ""
+            )
+            agenta_api_key = (
+                agenta_credentials[7:]
+                if agenta_credentials.startswith("ApiKey ")
+                else ""
+            )
+
+            # Get provider API keys from user secrets
+            provider_env_vars = self._get_provider_env_vars()
+
+            # Combine base env vars with provider keys
+            env_vars = {
+                "AGENTA_HOST": agenta_host,
+                "AGENTA_API_URL": agenta_api_url,
+                "AGENTA_API_KEY": agenta_api_key,
+                "AGENTA_CREDENTIALS": agenta_credentials,
+                **provider_env_vars,  # Add provider API keys
+            }
 
             sandbox = self.daytona.create(
                 CreateSandboxFromSnapshotParams(
                     snapshot=snapshot_id,
                     ephemeral=True,
+                    env_vars=env_vars,
+                    language=runtime,
                 )
             )
 
@@ -124,6 +223,29 @@ class DaytonaRunner(CodeRunner):
         except Exception as e:
             raise RuntimeError(f"Failed to create sandbox from snapshot: {e}")
 
+    @contextmanager
+    def _sandbox_context(
+        self, runtime: Optional[str] = None
+    ) -> Generator["Sandbox", None, None]:
+        """Context manager for sandbox lifecycle.
+
+        Ensures sandbox is deleted even if an error occurs during execution.
+
+        Args:
+            runtime: Runtime environment (python, javascript, typescript), None = python
+
+        Yields:
+            Sandbox instance
+        """
+        sandbox = self._create_sandbox(runtime=runtime)
+        try:
+            yield sandbox
+        finally:
+            try:
+                sandbox.delete()
+            except Exception as e:
+                log.error("Failed to delete sandbox: %s", e)
+
     def run(
         self,
         code: str,
@@ -131,130 +253,123 @@ class DaytonaRunner(CodeRunner):
         inputs: Dict[str, Any],
         output: Union[dict, str],
         correct_answer: Any,
+        runtime: Optional[str] = None,
+        templates: Optional[Dict[str, str]] = None,
     ) -> Union[float, None]:
         """
-        Execute provided Python code in Daytona sandbox.
+        Execute provided code in Daytona sandbox.
 
         The code must define an `evaluate()` function that takes
         (app_params, inputs, output, correct_answer) and returns a float (0-1).
 
         Args:
-            code: The Python code to be executed
+            code: The code to be executed
             app_params: The parameters of the app variant
             inputs: Inputs to be used during code execution
             output: The output of the app variant after being called
             correct_answer: The correct answer (or target) for comparison
+            runtime: Runtime environment (python, javascript, typescript), None = python
+            templates: Wrapper templates keyed by runtime.
 
         Returns:
             Float score between 0 and 1, or None if execution fails
         """
+        # Normalize runtime: None means python
+        runtime = runtime or "python"
+
         self._initialize_client()
-        sandbox = self._create_sandbox()
 
-        try:
-            # Prepare all parameters as a single dict
-            params = {
-                "app_params": app_params,
-                "inputs": inputs,
-                "output": output,
-                "correct_answer": correct_answer,
-            }
-            params_json = json.dumps(params)
+        with self._sandbox_context(runtime=runtime) as sandbox:
+            try:
+                # Prepare all parameters as a single dict
+                params = {
+                    "app_params": app_params,
+                    "inputs": inputs,
+                    "output": output,
+                    "correct_answer": correct_answer,
+                }
+                params_json = json.dumps(params)
 
-            # Wrap the user code with the necessary context and evaluation
-            wrapped_code = EVALUATION_CODE_TEMPLATE.format(
-                params_json=params_json,
-                user_code=code,
-            )
+                if not templates:
+                    raise RuntimeError(
+                        "Missing evaluator templates for Daytona execution"
+                    )
 
-            # Log the input parameters for debugging
-            # log.debug("Input parameters to evaluation:")
-            # print("\n" + "=" * 80)
-            # print("INPUT PARAMETERS:")
-            # print("=" * 80)
-            # print(f"app_params: {app_params}")
-            # print(f"inputs: {inputs}")
-            # print(f"output: {output}")
-            # print(f"correct_answer: {correct_answer}")
-            # print("=" * 80 + "\n")
+                template = templates.get(runtime)
+                if template is None:
+                    raise RuntimeError(
+                        f"Missing evaluator template for runtime '{runtime}'"
+                    )
 
-            # Log the generated code for debugging
-            # log.debug("Generated code to send to Daytona:")
-            # print("=" * 80)
-            # print("GENERATED CODE TO SEND TO DAYTONA:")
-            # print("=" * 80)
-            # code_lines = wrapped_code.split("\n")
-            # for i, line in enumerate(code_lines, 1):
-            #     log.debug(f"  {i:3d}: {line}")
-            #     print(f"  {i:3d}: {line}")
-            # print("=" * 80)
-            # print(f"Total lines: {len(code_lines)}")
-            # print("=" * 80 + "\n")
+                # Wrap the user code with the necessary context and evaluation
+                wrapped_code = template.format(
+                    params_json=params_json,
+                    user_code=code,
+                )
 
-            # Callback functions to capture output and errors
-            stdout_lines = []
-            stderr_lines = []
+                # Execute the code in the Daytona sandbox
+                response = sandbox.process.code_run(wrapped_code)
+                response_stdout = response.result if hasattr(response, "result") else ""
+                response_exit_code = getattr(response, "exit_code", 0)
+                response_error = getattr(response, "error", None) or getattr(
+                    response, "stderr", None
+                )
 
-            def on_stdout(line: str) -> None:
-                """Capture stdout output."""
-                # log.debug(f"[STDOUT] {line}")
-                # print(f"[STDOUT] {line}")
-                stdout_lines.append(line)
+                if response_exit_code and response_exit_code != 0:
+                    raw_error = response_error or response_stdout or "Unknown error"
+                    # Log full error for debugging
+                    # log.warning(
+                    #     "Sandbox execution error (exit_code=%s): %s",
+                    #     response_exit_code,
+                    #     raw_error,
+                    # )
+                    # Extract clean error message for user display
+                    clean_error = _extract_error_message(raw_error)
+                    raise RuntimeError(clean_error)
 
-            def on_stderr(line: str) -> None:
-                """Capture stderr output."""
-                # log.warning(f"[STDERR] {line}")
-                # print(f"[STDERR] {line}")
-                stderr_lines.append(line)
+                # Parse the result from stdout
+                output_lines = response_stdout.strip().split("\n")
+                for line in reversed(output_lines):
+                    if not line.strip():
+                        continue
+                    try:
+                        result_obj = json.loads(line)
+                        if isinstance(result_obj, dict) and "result" in result_obj:
+                            result = result_obj["result"]
+                            if isinstance(result, (float, int, type(None))):
+                                return float(result) if result is not None else None
+                    except json.JSONDecodeError:
+                        continue
 
-            def on_error(error: Exception) -> None:
-                """Capture errors."""
-                log.error(f"[ERROR] {type(error).__name__}: {error}")
-                # print(f"[ERROR] {type(error).__name__}: {error}")
-
-            # Execute the code in the Daytona sandbox
-            # log.debug("Executing code in Daytona sandbox")
-            response = sandbox.code_interpreter.run_code(
-                wrapped_code,
-                on_stdout=on_stdout,
-                on_stderr=on_stderr,
-                on_error=on_error,
-            )
-
-            # log.debug(f"Raw response: {response}")
-            # print(f"Raw response: {response}")
-
-            # Parse the result from the response object
-            # Response has stdout, stderr, and error fields
-            response_stdout = response.stdout if hasattr(response, "stdout") else ""
-            response_error = response.error if hasattr(response, "error") else None
-
-            sandbox.delete()
-
-            if response_error:
-                log.error(f"Sandbox execution error: {response_error}")
-                raise RuntimeError(f"Sandbox execution failed: {response_error}")
-
-            # Parse the result from stdout
-            output_lines = response_stdout.strip().split("\n")
-            for line in reversed(output_lines):
-                if not line.strip():
-                    continue
-                try:
-                    result_obj = json.loads(line)
+                # Fallback: attempt to extract a JSON object containing "result"
+                for line in reversed(output_lines):
+                    if "result" not in line:
+                        continue
+                    start = line.find("{")
+                    end = line.rfind("}")
+                    if start == -1 or end == -1 or end <= start:
+                        continue
+                    try:
+                        result_obj = json.loads(line[start : end + 1])
+                    except json.JSONDecodeError:
+                        continue
                     if isinstance(result_obj, dict) and "result" in result_obj:
                         result = result_obj["result"]
                         if isinstance(result, (float, int, type(None))):
                             return float(result) if result is not None else None
-                except json.JSONDecodeError:
-                    continue
 
-            raise ValueError("Could not parse evaluation result from Daytona output")
+                # log.warning(
+                #     "Evaluation output did not include JSON result: %s", response_stdout
+                # )
+                raise ValueError(
+                    "Could not parse evaluation result from Daytona output"
+                )
 
-        except Exception as e:
-            log.error(f"Error during Daytona code execution: {e}", exc_info=True)
-            # print(f"Exception details: {type(e).__name__}: {e}")
-            raise RuntimeError(f"Error during Daytona code execution: {e}")
+            except Exception as e:
+                # log.warning(
+                #     f"Error during Daytona code execution:\n {e}", exc_info=True
+                # )
+                raise RuntimeError(e)
 
     def cleanup(self) -> None:
         """Clean up Daytona client resources."""
