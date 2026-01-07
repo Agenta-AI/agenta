@@ -61,7 +61,7 @@ interface ControlledSharedEditorProps {
     value?: unknown
     onChange?: (value: string) => void
     className?: string
-    language?: "json" | "yaml" | "code"
+    language?: "json" | "yaml" | "code" | "python" | "javascript" | "typescript"
 }
 
 const ControlledSharedEditor = ({
@@ -105,6 +105,7 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     form,
 }) => {
     const settingsValue = Form.useWatch(name, form)
+    const runtime = Form.useWatch(["settings_values", "runtime"], form)
 
     const classes = useStyles()
     const {token} = theme.useToken()
@@ -121,6 +122,11 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
         },
         [form, name],
     )
+
+    const runtimeLanguage =
+        runtime === "python" || runtime === "javascript" || runtime === "typescript"
+            ? runtime
+            : "code"
 
     const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
 
@@ -197,7 +203,7 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                             className={classes.codeEditor}
                             value={settingsValue}
                             onChange={handleValueChange}
-                            language="code"
+                            language={runtimeLanguage}
                         />
                     ) : type === "object" ? (
                         <ControlledSharedEditor

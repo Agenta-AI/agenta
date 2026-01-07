@@ -298,6 +298,41 @@ evaluators = [
         "name": "Code Evaluation",
         "key": "auto_custom_code_run",
         "direct_use": False,
+        "settings_presets": [
+            {
+                "key": "python_default",
+                "name": "Exact Match (Python)",
+                "values": {
+                    "requires_llm_api_keys": False,
+                    "runtime": "python",
+                    "correct_answer_key": "correct_answer",
+                    "code": "from typing import Dict, Union, Any\n\n\ndef evaluate(\n    app_params: Dict[str, str],  # deprecated; currently receives {}\n    inputs: Dict[str, str],\n    output: Union[str, Dict[str, Any]],\n    correct_answer: str,\n) -> float:\n    if output == correct_answer:\n        return 1.0\n    return 0.0\n",
+                },
+                "description": "Exact match evaluator implemented in Python.",
+            },
+            {
+                "key": "javascript_default",
+                "name": "Exact Match (JavaScript)",
+                "values": {
+                    "requires_llm_api_keys": False,
+                    "runtime": "javascript",
+                    "correct_answer_key": "correct_answer",
+                    "code": 'function evaluate(appParams, inputs, output, correctAnswer) {\n  void appParams\n  void inputs\n\n  const outputStr =\n    typeof output === "string" ? output : JSON.stringify(output)\n\n  return outputStr === String(correctAnswer) ? 1.0 : 0.0\n}\n',
+                },
+                "description": "Exact match evaluator implemented in JavaScript.",
+            },
+            {
+                "key": "typescript_default",
+                "name": "Exact Match (TypeScript)",
+                "values": {
+                    "requires_llm_api_keys": False,
+                    "runtime": "typescript",
+                    "correct_answer_key": "correct_answer",
+                    "code": 'type OutputValue = string | Record<string, unknown>\n\nfunction evaluate(\n  app_params: Record<string, string>,\n  inputs: Record<string, string>,\n  output: OutputValue,\n  correct_answer: string\n): number {\n  void app_params\n  void inputs\n\n  const outputStr =\n    (typeof output === "string" ? output : JSON.stringify(output)) as string\n\n  return outputStr === String(correct_answer) ? 1.0 : 0.0\n}\n',
+                },
+                "description": "Exact match evaluator implemented in TypeScript.",
+            },
+        ],
         "settings_template": {
             "requires_llm_api_keys": {
                 "label": "Requires LLM API Key(s)",
@@ -310,9 +345,17 @@ evaluators = [
             "code": {
                 "label": "Evaluation Code",
                 "type": "code",
-                "default": "from typing import Dict, Union, Any\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: Union[str, Dict[str, Any]], # output of the llm app\n    correct_answer: str # contains the testset row \n) -> float:\n    if output in correct_answer:\n        return 1.0\n    else:\n        return 0.0\n",
+                "default": "from typing import Dict, Union, Any\n\n\ndef evaluate(\n    app_params: Dict[str, str],  # deprecated; currently receives {}\n    inputs: Dict[str, str],\n    output: Union[str, Dict[str, Any]],\n    correct_answer: str,\n) -> float:\n    if output == correct_answer:\n        return 1.0\n    return 0.0\n",
                 "description": "Code for evaluating submissions",
                 "required": True,
+            },
+            "runtime": {
+                "label": "Runtime",
+                "type": "multiple_choice",
+                "default": "python",
+                "options": ["python", "javascript", "typescript"],
+                "advanced": True,
+                "description": "Runtime environment used to execute the evaluator code.",
             },
             "correct_answer_key": {
                 "label": "Expected Answer Column",
