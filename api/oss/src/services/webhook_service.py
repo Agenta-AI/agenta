@@ -1,6 +1,6 @@
 """Webhook service for managing post-deployment webhooks"""
 
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -25,9 +25,24 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
+if TYPE_CHECKING:
+    from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
+
 
 class WebhookService:
     """Service for managing webhook configuration and execution"""
+
+    def __init__(
+        self,
+        webhooks_worker: Optional["WebhooksWorker"] = None,
+    ):
+        """
+        Initialize the webhook service.
+
+        Args:
+            webhooks_worker: Optional webhooks worker instance for async task execution
+        """
+        self.webhooks_worker = webhooks_worker
 
     async def create_webhook(
         self,
@@ -262,8 +277,12 @@ class WebhookService:
             variant_revision_id: Variant revision ID
             project_id: Project ID
         """
-        # Import here to avoid circular dependency
-        from oss.src.tasks.taskiq.webhooks.worker import webhooks_worker
+        if not self.webhooks_worker:
+            log.warning(
+                "Webhooks worker not available, skipping webhook triggers",
+                deployment_id=deployment_id,
+            )
+            return
 
         async with engine.core_session() as session:
             # Find enabled webhooks for this app
@@ -305,7 +324,7 @@ class WebhookService:
 
                 # Send task to worker
                 try:
-                    await webhooks_worker.execute_webhook_task.kiq(
+                    await self.webhooks_worker.execute_webhook_task.kiq(
                         execution_id=str(execution.id),
                         webhook_id=str(webhook.id),
                         deployment_context={

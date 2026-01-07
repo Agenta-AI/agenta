@@ -178,6 +178,10 @@ webhooks_worker = WebhooksWorker(
     broker=broker,
 )
 
+# Inject webhooks_worker into webhook_service singleton
+from oss.src.services.webhook_service import webhook_service as webhook_service_singleton
+webhook_service_singleton.webhooks_worker = webhooks_worker
+
 
 def main() -> int:
     """

@@ -79,10 +79,10 @@ services:
 
     worker-evaluations:
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
             [
@@ -115,10 +115,10 @@ services:
 
     worker-tracing:
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
             [
@@ -151,10 +151,10 @@ services:
 
     cron:
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: cron -f
         # === CONFIGURATION ======================================== #
@@ -193,10 +193,10 @@ services:
 
     completion:
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../services/completion
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_COMPLETION_IMAGE_NAME:-agenta-completion}:${AGENTA_COMPLETION_IMAGE_TAG:-latest}
+        build:
+            context: ../../../services/completion
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_COMPLETION_IMAGE_NAME:-agenta-completion}:${AGENTA_COMPLETION_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn oss.src.main:app
@@ -234,10 +234,10 @@ services:
 
     chat:
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../services/chat
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_CHAT_IMAGE_NAME:-agenta-chat}:${AGENTA_CHAT_IMAGE_TAG:-latest}
+        build:
+            context: ../../../services/chat
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_CHAT_IMAGE_NAME:-agenta-chat}:${AGENTA_CHAT_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn oss.src.main:app

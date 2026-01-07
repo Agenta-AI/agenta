@@ -68,24 +68,6 @@ async def create_webhook(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/apps/{app_id}/webhooks/", operation_id="list_webhooks")
-async def list_webhooks(
-    app_id: str,
-    request: Request,
-):
-    """List all webhooks for an application
-
-    Args:
-        app_id: Application ID
-        request: FastAPI request
-
-    Returns:
-        List of webhooks
-    """
-    webhooks = await webhook_service.list_webhooks(app_id=app_id)
-    return webhooks
-
-
 @router.get("/{webhook_id}/", operation_id="get_webhook")
 async def get_webhook(
     webhook_id: str,

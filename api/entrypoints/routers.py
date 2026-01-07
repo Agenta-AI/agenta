@@ -112,7 +112,11 @@ from oss.src.routers import (
 )
 
 from oss.src.utils.env import env
-from entrypoints.worker_evaluations import evaluations_worker
+from entrypoints.worker_evaluations import evaluations_worker, webhooks_worker
+from oss.src.services.webhook_service import webhook_service as webhook_service_singleton
+
+# Inject webhooks_worker into webhook_service singleton
+webhook_service_singleton.webhooks_worker = webhooks_worker
 
 from redis.asyncio import Redis
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
