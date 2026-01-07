@@ -1,5 +1,6 @@
 import {atom, getDefaultStore} from "jotai"
 import Router from "next/router"
+import {signOut} from "supertokens-auth-react/recipe/session"
 
 import {
     appIdentifiersAtom,
@@ -119,6 +120,8 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         const isAuthRoute = path.startsWith("/auth")
         const isAuthCallbackRoute = path.startsWith("/auth/callback")
         const isAcceptRoute = path.startsWith("/workspaces/accept")
+        const authError =
+            typeof appState.query?.auth_error === "string" ? appState.query.auth_error : null
         const baseAppURL = urlState.baseAppURL || "/w"
 
         let invite = parseInviteFromUrl(url)
@@ -186,6 +189,13 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             }
 
             if (isAuthRoute) {
+                if (authError === "sso_disabled") {
+                    if (typeof window !== "undefined") {
+                        signOut().catch(() => null)
+                    }
+                    store.set(protectedRouteReadyAtom, true)
+                    return
+                }
                 if (typeof window !== "undefined") {
                     const upgradeOrgId = window.localStorage.getItem("authUpgradeOrgId")
                     if (upgradeOrgId) {

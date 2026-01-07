@@ -591,11 +591,47 @@ class AuthService:
         # Build allowed methods from flags
         # Default to True if not explicitly set
         allowed_methods = []
-        if org_flags.get("allow_email", env.auth.email_enabled):
+
+        allow_email = org_flags.get("allow_email", env.auth.email_enabled)
+        allow_social = org_flags.get("allow_social", env.auth.oidc_enabled)
+        allow_sso = org_flags.get("allow_sso", False)
+
+        # If the session used SSO but the org doesn't allow it (or provider inactive),
+        # block and instruct user to re-auth with allowed methods.
+        sso_identity = next(
+            (identity for identity in session_identities if identity.startswith("sso:")),
+            None,
+        )
+        if sso_identity and self.providers_dao:
+            org_slug = await self._get_organization_slug(organization_id)
+            provider_slug = sso_identity.split(":")[2] if len(sso_identity.split(":")) > 2 else None
+            providers = await self.providers_dao.list_by_organization(
+                str(organization_id)
+            )
+            active_provider_slugs = {
+                p.slug for p in providers if p.flags and p.flags.get("is_active", False)
+            }
+            sso_matches_org = bool(org_slug and sso_identity.startswith(f"sso:{org_slug}:"))
+            sso_provider_active = bool(provider_slug and provider_slug in active_provider_slugs)
+
+            if not allow_sso or not sso_matches_org or not sso_provider_active:
+                required_methods = []
+                if allow_email:
+                    required_methods.append("email:*")
+                if allow_social:
+                    required_methods.append("social:*")
+                return {
+                    "error": "AUTH_SSO_DISABLED",
+                    "message": "SSO is not enabled for this organization",
+                    "required_methods": required_methods,
+                    "current_identities": session_identities,
+                }
+
+        if allow_email:
             allowed_methods.append("email:*")
-        if org_flags.get("allow_social", env.auth.oidc_enabled):
+        if allow_social:
             allowed_methods.append("social:*")
-        if org_flags.get("allow_sso", False):
+        if allow_sso:
             allowed_methods.append("sso:*")
 
         # If no methods are allowed, deny access
@@ -666,6 +702,18 @@ class AuthService:
             result = await session.execute(stmt)
             flags = result.scalar()
             return flags or {}
+
+    async def _get_organization_slug(self, organization_id: UUID) -> Optional[str]:
+        if not is_ee():
+            return None
+
+        async with db_manager.engine.core_session() as session:
+            stmt = select(OrganizationDB.slug).where(
+                OrganizationDB.id == organization_id
+            )
+            result = await session.execute(stmt)
+            slug = result.scalar()
+            return slug or None
 
     async def _is_organization_member(
         self, user_id: UUID, organization_id: UUID

@@ -81,7 +81,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
                         </Link>
                     ) : (
-                        <span className="w-full block" onClick={item.onClick}>
+                        <span className="w-full block">
                             {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
                         </span>
                     )

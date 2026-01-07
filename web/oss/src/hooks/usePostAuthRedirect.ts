@@ -2,6 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import {getDefaultStore} from "jotai"
 import {useRouter} from "next/router"
+import {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
 import {isDemo} from "@/oss/lib/helpers/utils"
@@ -33,6 +34,7 @@ const usePostAuthRedirect = () => {
     const {reset: resetProjectData} = useProjectData()
     const [invite] = useLocalStorage<Record<string, unknown>>("invite", {})
     const authUpgradeOrgKey = "authUpgradeOrgId"
+    const lastSsoOrgSlugKey = "lastSsoOrgSlug"
 
     const hasInviteFromQuery = useMemo(() => {
         const token = router.query?.token
@@ -129,6 +131,35 @@ const usePostAuthRedirect = () => {
                     queryFn: () => fetchAllOrgsList(),
                     staleTime: 60_000,
                 })
+                const lastSsoSlug =
+                    typeof window !== "undefined"
+                        ? window.localStorage.getItem(lastSsoOrgSlugKey)
+                        : null
+                if (lastSsoSlug) {
+                    const match = Array.isArray(freshOrgs)
+                        ? freshOrgs.find((org) => org.slug === lastSsoSlug)
+                        : null
+                    if (match?.id && match.flags?.allow_sso) {
+                        window.localStorage.removeItem(lastSsoOrgSlugKey)
+                        await router.replace(`/w/${encodeURIComponent(match.id)}`)
+                        return
+                    }
+                    if (match?.id && !match.flags?.allow_sso) {
+                        window.localStorage.removeItem(lastSsoOrgSlugKey)
+                        const orgLabel = match?.name || match?.slug || "this organization"
+                        const query = new URLSearchParams({
+                            auth_error: "sso_disabled",
+                            auth_message: `SSO was successful but is currently disabled for this organization. Please sign in using another method or contact your administrator.`,
+                        })
+                        try {
+                            await signOut()
+                        } catch {
+                            // ignore sign-out failures
+                        }
+                        await router.replace(`/auth?${query.toString()}`)
+                        return
+                    }
+                }
                 const personal = Array.isArray(freshOrgs)
                     ? freshOrgs.find((org) => isPersonalOrg(org))
                     : null

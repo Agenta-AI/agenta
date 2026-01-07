@@ -488,39 +488,44 @@ const Organization: FC = () => {
         {
             title: "Actions",
             key: "actions",
-            render: (_: any, record: OrganizationProvider) => (
-                <Space>
-                    <Button
-                        type="primary"
-                        size="small"
-                        onClick={() => testProviderMutation.mutate(record.id)}
-                        loading={testProviderMutation.isPending}
-                    >
-                        Enable
-                    </Button>
-                    <Button
-                        size="small"
-                        icon={<EditOutlined />}
-                        aria-label="Edit provider"
-                        onClick={() => handleEditProvider(record)}
-                    ></Button>
-                    <Popconfirm
-                        title="Delete SSO provider"
-                        description="Are you sure you want to delete this SSO provider?"
-                        onConfirm={() => deleteProviderMutation.mutate(record.id)}
-                        okText="Delete"
-                        okType="danger"
-                        cancelText="Cancel"
-                    >
+            render: (_: any, record: OrganizationProvider) => {
+                const isEnabled = record.flags?.is_enabled !== false
+                return (
+                    <Space>
+                        {!isEnabled && (
+                            <Button
+                                type="primary"
+                                size="small"
+                                onClick={() => testProviderMutation.mutate(record.id)}
+                                loading={testProviderMutation.isPending}
+                            >
+                                Enable
+                            </Button>
+                        )}
                         <Button
-                            danger
                             size="small"
-                            icon={<DeleteOutlined />}
-                            loading={deleteProviderMutation.isPending}
-                        />
-                    </Popconfirm>
-                </Space>
-            ),
+                            icon={<EditOutlined />}
+                            aria-label="Edit provider"
+                            onClick={() => handleEditProvider(record)}
+                        ></Button>
+                        <Popconfirm
+                            title="Delete SSO provider"
+                            description="Are you sure you want to delete this SSO provider?"
+                            onConfirm={() => deleteProviderMutation.mutate(record.id)}
+                            okText="Delete"
+                            okType="danger"
+                            cancelText="Cancel"
+                        >
+                            <Button
+                                danger
+                                size="small"
+                                icon={<DeleteOutlined />}
+                                loading={deleteProviderMutation.isPending}
+                            />
+                        </Popconfirm>
+                    </Space>
+                )
+            },
         },
     ]
 

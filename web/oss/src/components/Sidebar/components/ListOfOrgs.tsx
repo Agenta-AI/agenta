@@ -552,12 +552,15 @@ const ListOfOrgs = ({
                     }
                     console.error("[org] switch failed", result.response)
                     const detail = result.response?.data?.detail
-                        if (detail?.error === "AUTH_UPGRADE_REQUIRED") {
-                            setAuthUpgradeDetail(detail)
-                            setAuthUpgradeOrgId(organizationId)
-                            if (typeof window !== "undefined") {
-                                window.localStorage.setItem(authUpgradeOrgKey, organizationId)
-                                Session.getAccessTokenPayloadSecurely()
+                    if (
+                        detail?.error === "AUTH_UPGRADE_REQUIRED" ||
+                        detail?.error === "AUTH_SSO_DISABLED"
+                    ) {
+                        setAuthUpgradeDetail(detail)
+                        setAuthUpgradeOrgId(organizationId)
+                        if (typeof window !== "undefined") {
+                            window.localStorage.setItem(authUpgradeOrgKey, organizationId)
+                            Session.getAccessTokenPayloadSecurely()
                                     .then((payload) => {
                                         const sessionIdentities =
                                             payload?.session_identities ||

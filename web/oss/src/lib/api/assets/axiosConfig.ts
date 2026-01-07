@@ -144,7 +144,8 @@ axios.interceptors.response.use(
         const upgradeDetail = error.response?.data?.detail
         if (
             error.response?.status === 403 &&
-            upgradeDetail?.error === "AUTH_UPGRADE_REQUIRED" &&
+            (upgradeDetail?.error === "AUTH_UPGRADE_REQUIRED" ||
+                upgradeDetail?.error === "AUTH_SSO_DISABLED") &&
             !error.config?._skipAuthUpgradeRedirect
         ) {
             if (typeof window === "undefined") {
@@ -175,10 +176,17 @@ axios.interceptors.response.use(
                     ? ` You're signed in with ${currentIdentity}.`
                     : ""
                 const message = `This organization requires ${requiredText}.${identityText}`
-                const query = new URLSearchParams({
-                    auth_error: "upgrade_required",
-                    auth_message: message,
-                })
+            const authError =
+                upgradeDetail?.error === "AUTH_SSO_DISABLED"
+                    ? "sso_disabled"
+                    : "upgrade_required"
+            if (upgradeDetail?.error === "AUTH_SSO_DISABLED") {
+                signOut().catch(() => null)
+            }
+            const query = new URLSearchParams({
+                auth_error: authError,
+                auth_message: message,
+            })
                 if (selectedOrgId) {
                     query.set("organization_id", selectedOrgId)
                 }

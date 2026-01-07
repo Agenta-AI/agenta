@@ -1,4 +1,5 @@
 import {getDefaultStore} from "jotai"
+import {signOut} from "supertokens-auth-react/recipe/session"
 
 import {projectIdAtom} from "../../../state/project"
 import {requestNavigationAtom} from "@/oss/state/appState"
@@ -87,7 +88,8 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
         const detailObj = (parsedBody as any)?.detail
         if (
             res.status === 403 &&
-            detailObj?.error === "AUTH_UPGRADE_REQUIRED" &&
+            (detailObj?.error === "AUTH_UPGRADE_REQUIRED" ||
+                detailObj?.error === "AUTH_SSO_DISABLED") &&
             typeof window !== "undefined"
         ) {
             try {
@@ -110,8 +112,15 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
                     : ""
                 const message = `This organization requires ${requiredText}.${identityText}`
 
+                const authError =
+                    detailObj?.error === "AUTH_SSO_DISABLED"
+                        ? "sso_disabled"
+                        : "upgrade_required"
+                if (detailObj?.error === "AUTH_SSO_DISABLED") {
+                    signOut().catch(() => null)
+                }
                 const query = new URLSearchParams({
-                    auth_error: "upgrade_required",
+                    auth_error: authError,
                     auth_message: message,
                 })
                 if (selectedOrgId) {
