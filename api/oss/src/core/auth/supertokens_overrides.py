@@ -54,6 +54,19 @@ else:
 # Auth service for domain policy enforcement
 auth_service = AuthService()
 
+def _merge_session_identities(session: Optional[Any], method: Optional[str]) -> List[str]:
+    session_identities: List[str] = []
+    if session is not None:
+        try:
+            payload = session.get_access_token_payload()
+            session_identities = payload.get("session_identities") or []
+        except Exception:
+            session_identities = []
+    if method:
+        if method not in session_identities:
+            session_identities = list(session_identities) + [method]
+    return session_identities or ([method] if method else [])
+
 
 async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInput]:
     """
@@ -160,7 +173,7 @@ def override_thirdparty_functions(
         """
         Override sign_in_up to:
         1. Create user_identity record after successful authentication
-        2. Populate session with existing_identities array
+        2. Populate session with user_identities array
         """
         internal_user = None
         # Call original implementation
@@ -257,16 +270,20 @@ def override_thirdparty_functions(
             identities_array = [method]  # Fallback to current method only
 
         # Store identity context for session creation
-        # existing_identities = all known methods for user
-        # verified_identities = methods verified in this session (current method)
-        user_context["existing_identities"] = identities_array
-        user_context["verified_identities"] = [method]
-        user_context["current_identity"] = method
+        # user_identities = all known methods for user
+        # session_identities = methods verified in this session (accumulated)
+        user_context["user_identities"] = identities_array
+        session_identities = _merge_session_identities(session, method)
+        user_context["session_identities"] = session_identities
         log.debug(
-            "[AUTH-IDENTITY] session existing_identities",
+            "[AUTH-IDENTITY] session_identities merge",
+            {"method": method, "session_identities": session_identities, "user_identities": identities_array},
+        )
+        log.debug(
+            "[AUTH-IDENTITY] session user_identities",
             {
                 "user_id": str(internal_user.id) if internal_user else None,
-                "existing_identities": identities_array,
+                "user_identities": identities_array,
             },
         )
 
@@ -346,22 +363,20 @@ def override_session_functions(
         user_context: Dict[str, Any],
     ):
         """
-        Override create_new_session to inject existing_identities array into access token payload.
+        Override create_new_session to inject user_identities array into access token payload.
         """
         # Get identity context from user_context (populated by auth overrides)
-        existing_identities = user_context.get("existing_identities", [])
-        verified_identities = user_context.get(
-            "verified_identities", existing_identities
+        user_identities = user_context.get("user_identities", [])
+        session_identities = user_context.get(
+            "session_identities", user_identities
         )
-        current_identity = user_context.get("current_identity")
 
         # Merge with existing payload
         if access_token_payload is None:
             access_token_payload = {}
 
-        access_token_payload["existing_identities"] = existing_identities
-        access_token_payload["verified_identities"] = verified_identities
-        access_token_payload["current_identity"] = current_identity
+        access_token_payload["user_identities"] = user_identities
+        access_token_payload["session_identities"] = session_identities
 
         # Call original implementation
         result = await original_create_new_session(
@@ -400,7 +415,7 @@ def override_passwordless_functions(
         """
         Override consume_code to:
         1. Create user_identity record for email:otp after successful login
-        2. Populate session with existing_identities array
+        2. Populate session with user_identities array
         """
         # Call original implementation
         result = await original_consume_code(
@@ -425,9 +440,13 @@ def override_passwordless_functions(
 
         if not email:
             # Can't create identity without email
-            user_context["existing_identities"] = [method]
-            user_context["verified_identities"] = [method]
-            user_context["current_identity"] = method
+            user_context["user_identities"] = [method]
+            session_identities = _merge_session_identities(session, method)
+            user_context["session_identities"] = session_identities
+            log.debug(
+                "[AUTH-IDENTITY] session_identities merge",
+                {"method": method, "session_identities": session_identities, "user_identities": [method]},
+            )
             return result
 
         # Extract domain from email
@@ -479,11 +498,15 @@ def override_passwordless_functions(
             identities_array = [method]  # Fallback to current method only
 
         # Store identity context for session creation
-        # existing_identities = all known methods for user
-        # verified_identities = methods verified in this session (current method)
-        user_context["existing_identities"] = identities_array
-        user_context["verified_identities"] = [method]
-        user_context["current_identity"] = method
+        # user_identities = all known methods for user
+        # session_identities = methods verified in this session (accumulated)
+        user_context["user_identities"] = identities_array
+        session_identities = _merge_session_identities(session, method)
+        user_context["session_identities"] = session_identities
+        log.debug(
+            "[AUTH-IDENTITY] session_identities merge",
+            {"method": method, "session_identities": session_identities, "user_identities": identities_array},
+        )
 
         # Enforce domain-based policies (auto-join, domains-only)
         if internal_user:
@@ -520,7 +543,7 @@ def override_emailpassword_functions(
         """
         Override sign_in to:
         1. Create user_identity record for email:password after successful login
-        2. Populate session with existing_identities array
+        2. Populate session with user_identities array
         """
 
         # Call original implementation
@@ -589,11 +612,15 @@ def override_emailpassword_functions(
             identities_array = [method]  # Fallback to current method only
 
         # Store identity context for session creation
-        # existing_identities = all known methods for user
-        # verified_identities = methods verified in this session (current method)
-        user_context["existing_identities"] = identities_array
-        user_context["verified_identities"] = [method]
-        user_context["current_identity"] = method
+        # user_identities = all known methods for user
+        # session_identities = methods verified in this session (accumulated)
+        user_context["user_identities"] = identities_array
+        session_identities = _merge_session_identities(session, method)
+        user_context["session_identities"] = session_identities
+        log.debug(
+            "[AUTH-IDENTITY] session_identities merge",
+            {"method": method, "session_identities": session_identities, "user_identities": identities_array},
+        )
 
         # Enforce domain-based policies (auto-join, domains-only)
         if internal_user:
@@ -618,7 +645,7 @@ def override_emailpassword_functions(
         """
         Override sign_up to:
         1. Create user_identity record for email:password after successful signup
-        2. Populate session with existing_identities array
+        2. Populate session with user_identities array
         """
 
         # Call original implementation
@@ -687,11 +714,15 @@ def override_emailpassword_functions(
             identities_array = [method]  # Fallback to current method only
 
         # Store identity context for session creation
-        # existing_identities = all known methods for user
-        # verified_identities = methods verified in this session (current method)
-        user_context["existing_identities"] = identities_array
-        user_context["verified_identities"] = [method]
-        user_context["current_identity"] = method
+        # user_identities = all known methods for user
+        # session_identities = methods verified in this session (accumulated)
+        user_context["user_identities"] = identities_array
+        session_identities = _merge_session_identities(session, method)
+        user_context["session_identities"] = session_identities
+        log.debug(
+            "[AUTH-IDENTITY] session_identities merge",
+            {"method": method, "session_identities": session_identities, "user_identities": identities_array},
+        )
 
         # Enforce domain-based policies (auto-join, domains-only)
         if internal_user:

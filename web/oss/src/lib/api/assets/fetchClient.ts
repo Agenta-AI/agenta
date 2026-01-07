@@ -97,12 +97,11 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
                     ? detailObj.required_methods
                     : []
                 const currentIdentity =
-                    detailObj?.current_identity ||
-                    (Array.isArray(detailObj?.verified_identities)
-                        ? detailObj.verified_identities[0]
+                    (Array.isArray(detailObj?.session_identities)
+                        ? detailObj.session_identities[0]
                         : undefined) ||
-                    (Array.isArray(detailObj?.existing_identities)
-                        ? detailObj.existing_identities[0]
+                    (Array.isArray(detailObj?.user_identities)
+                        ? detailObj.user_identities[0]
                         : undefined)
 
                 const requiredText = required.length ? required.join(", ") : "an allowed method"

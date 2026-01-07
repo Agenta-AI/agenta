@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
+from supertokens_python.recipe.session.asyncio import get_session
 
 from oss.src.apis.fastapi.auth.models import (
     DiscoverRequest,
@@ -7,10 +9,16 @@ from oss.src.apis.fastapi.auth.models import (
 )
 from oss.src.core.auth.service import AuthService
 from oss.src.utils.common import is_ee
+from oss.src.utils.logging import get_module_logger
 
 
 auth_router = APIRouter()
 auth_service = AuthService()
+log = get_module_logger(__name__)
+
+
+class SessionIdentitiesUpdate(BaseModel):
+    session_identities: list[str]
 
 
 @auth_router.post("/discover", response_model=DiscoverResponse)
@@ -36,6 +44,79 @@ async def discover(request: DiscoverRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@auth_router.get("/organization/access")
+async def check_organization_access(request: Request, organization_id: str):
+    """
+    Check if the current session satisfies the organization's auth policy.
+
+    Returns 200 when access is allowed, 403 with AUTH_UPGRADE_REQUIRED when not.
+    """
+    try:
+        session = await get_session(request)  # type: ignore
+    except Exception:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    payload = session.get_access_token_payload() if session else {}
+    session_identities = payload.get("session_identities") or []
+    user_identities = payload.get("user_identities", [])
+
+    try:
+        from uuid import UUID
+
+        user_id = UUID(session.get_user_id())
+        org_id = UUID(organization_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid organization_id")
+
+    policy_error = await auth_service.check_organization_access(
+        user_id, org_id, session_identities
+    )
+
+    if policy_error and policy_error.get("error") == "AUTH_UPGRADE_REQUIRED":
+        detail = {
+            "error": policy_error.get("error"),
+            "message": policy_error.get("message"),
+            "required_methods": policy_error.get("required_methods", []),
+            "session_identities": session_identities,
+            "user_identities": user_identities,
+        }
+        raise HTTPException(status_code=403, detail=detail)
+
+    return {"ok": True}
+
+
+@auth_router.post("/session/identities")
+async def update_session_identities(
+    request: Request, payload: SessionIdentitiesUpdate
+):
+    try:
+        session = await get_session(request)  # type: ignore
+    except Exception:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    access_payload = session.get_access_token_payload() if session else {}
+    current = access_payload.get("session_identities") or []
+    merged = list(dict.fromkeys(current + payload.session_identities))
+    log.debug(
+        "[AUTH-IDENTITY] session_identities update",
+        {
+            "user_id": session.get_user_id() if session else None,
+            "current": current,
+            "incoming": payload.session_identities,
+            "merged": merged,
+        },
+    )
+
+    if hasattr(session, "update_access_token_payload"):
+        access_payload["session_identities"] = merged
+        await session.update_access_token_payload(access_payload)
+    elif hasattr(session, "merge_into_access_token_payload"):
+        await session.merge_into_access_token_payload({"session_identities": merged})
+    else:
+        raise HTTPException(status_code=500, detail="Session payload update not supported")
+    return {"session_identities": merged, "previous": current}
+
+
 @auth_router.get("/authorize/oidc")
 async def oidc_authorize(request: Request, provider_id: str, redirect: str = "/"):
     """
@@ -53,7 +134,7 @@ async def oidc_authorize(request: Request, provider_id: str, redirect: str = "/"
     1. Building OIDC authorization URL (via our get_dynamic_oidc_provider)
     2. Redirecting user to IdP
     3. Handling callback at /auth/callback/sso:{organization_slug}:{provider_slug}
-    4. Creating session with existing_identities (via our overrides)
+    4. Creating session with user_identities (via our overrides)
     5. Redirecting to frontend
     """
     if not is_ee():
@@ -174,7 +255,7 @@ async def sso_callback_redirect(
     SuperTokens then handles:
     1. Exchange code for tokens (using our dynamic provider config)
     2. Get user info
-    3. Call our sign_in_up override (creates user_identity, adds existing_identities to session)
+    3. Call our sign_in_up override (creates user_identity, adds user_identities to session)
     4. Redirect to frontend with session cookie
     """
     if not is_ee():

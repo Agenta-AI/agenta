@@ -25,11 +25,13 @@ import {
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
+import Session from "supertokens-auth-react/recipe/session"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useSession} from "@/oss/hooks/useSession"
 import {isEE} from "@/oss/lib/helpers/isEE"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
+import {checkOrganizationAccess} from "@/oss/services/organization/api"
 import {useOrgData} from "@/oss/state/org"
 import {resetOrgData} from "@/oss/state/org"
 import {
@@ -46,6 +48,7 @@ import {useWorkspaceMembers} from "@/oss/state/workspace"
 
 import Avatar from "../../Avatar/Avatar"
 
+import AuthUpgradeModal, {AuthUpgradeDetail} from "./AuthUpgradeModal"
 import ListOfProjects from "./ListOfProjects"
 
 interface ListOfOrgsProps extends Omit<DropdownProps, "menu" | "children"> {
@@ -74,6 +77,11 @@ const ListOfOrgs = ({
     organizationSelectionEnabled = true,
     ...dropdownProps
 }: ListOfOrgsProps) => {
+    const formatErrorMessage = (detail: any, fallback: string) => {
+        if (typeof detail === "string") return detail
+        if (detail && typeof detail.message === "string") return detail.message
+        return fallback
+    }
     const router = useRouter()
     const {user} = useProfileData()
     const {logout} = useSession()
@@ -111,6 +119,10 @@ const ListOfOrgs = ({
     const [isTransferModalOpen, setTransferModalOpen] = useState(false)
     const [orgToTransfer, setOrgToTransfer] = useState<string | null>(null)
     const [newOwnerId, setNewOwnerId] = useState<string | null>(null)
+    const [authUpgradeOpen, setAuthUpgradeOpen] = useState(false)
+    const [authUpgradeDetail, setAuthUpgradeDetail] = useState<AuthUpgradeDetail | null>(null)
+    const [authUpgradeOrgId, setAuthUpgradeOrgId] = useState<string | null>(null)
+    const authUpgradeOrgKey = "authUpgradeOrgId"
     const transferOwnerOptions = useMemo(() => {
         const options = workspaceMembers
             .filter((member) => {
@@ -273,6 +285,23 @@ const ListOfOrgs = ({
         }
     }, [])
 
+    useEffect(() => {
+        if (
+            authUpgradeOpen &&
+            authUpgradeOrgId &&
+            effectiveSelectedId &&
+            authUpgradeOrgId === effectiveSelectedId
+        ) {
+            setAuthUpgradeOpen(false)
+            setAuthUpgradeDetail(null)
+            setAuthUpgradeOrgId(null)
+            if (typeof window !== "undefined") {
+                window.localStorage.removeItem(authUpgradeOrgKey)
+                window.localStorage.removeItem("authUpgradeSessionIdentities")
+            }
+        }
+    }, [authUpgradeOpen, authUpgradeOrgId, effectiveSelectedId])
+
     const organizationButtonLabel = organizationDisplayName
 
     const sharedButtonProps = useMemo(() => {
@@ -347,9 +376,9 @@ const ListOfOrgs = ({
             }
         },
         onError: (error: any) => {
-            const detail =
-                error?.response?.data?.detail || error?.message || "Unable to create organization"
-            message.error(detail)
+            console.error("[org] create failed", error)
+            const detail = error?.response?.data?.detail || error?.message
+            message.error(formatErrorMessage(detail, "Unable to create organization"))
         },
     })
 
@@ -366,9 +395,9 @@ const ListOfOrgs = ({
             await refetch()
         },
         onError: (error: any) => {
-            const detail =
-                error?.response?.data?.detail || error?.message || "Unable to rename organization"
-            message.error(detail)
+            console.error("[org] rename failed", error)
+            const detail = error?.response?.data?.detail || error?.message
+            message.error(formatErrorMessage(detail, "Unable to rename organization"))
         },
     })
 
@@ -384,9 +413,9 @@ const ListOfOrgs = ({
             await refetch()
         },
         onError: (error: any) => {
-            const detail =
-                error?.response?.data?.detail || error?.message || "Unable to delete organization"
-            message.error(detail)
+            console.error("[org] delete failed", error)
+            const detail = error?.response?.data?.detail || error?.message
+            message.error(formatErrorMessage(detail, "Unable to delete organization"))
         },
     })
 
@@ -429,9 +458,8 @@ const ListOfOrgs = ({
                 data: error?.response?.data,
                 detail: error?.response?.data?.detail,
             })
-            const detail =
-                error?.response?.data?.detail || error?.message || "Unable to transfer ownership"
-            message.error(detail)
+            const detail = error?.response?.data?.detail || error?.message
+            message.error(formatErrorMessage(detail, "Unable to transfer ownership"))
         },
     })
 
@@ -542,8 +570,55 @@ const ListOfOrgs = ({
 
         const [, organizationId] = keyString.split(":")
         if (organizationId) {
+            if (organizationId === effectiveSelectedId) {
+                setOrganizationDropdownOpen(false)
+                return
+            }
             setOrganizationDropdownOpen(false)
-            void changeSelectedOrg(organizationId)
+            void (async () => {
+                try {
+                    const result = await checkOrganizationAccess(organizationId)
+                    if (result.ok) {
+                        await changeSelectedOrg(organizationId)
+                        return
+                    }
+                    console.error("[org] switch failed", result.response)
+                    const detail = result.response?.data?.detail
+                        if (detail?.error === "AUTH_UPGRADE_REQUIRED") {
+                            setAuthUpgradeDetail(detail)
+                            setAuthUpgradeOrgId(organizationId)
+                            if (typeof window !== "undefined") {
+                                window.localStorage.setItem(authUpgradeOrgKey, organizationId)
+                                Session.getAccessTokenPayloadSecurely()
+                                    .then((payload) => {
+                                        const sessionIdentities =
+                                            payload?.session_identities ||
+                                            payload?.sessionIdentities ||
+                                            []
+                                        console.debug("[auth-upgrade] captured session identities", {
+                                            organizationId,
+                                            sessionIdentities,
+                                        })
+                                        window.localStorage.setItem(
+                                            "authUpgradeSessionIdentities",
+                                            JSON.stringify(sessionIdentities),
+                                        )
+                                    })
+                                    .catch(() => null)
+                            }
+                        setAuthUpgradeOpen(true)
+                        return
+                    }
+                    const fallback = formatErrorMessage(
+                        result.response?.data?.detail || result.response?.statusText,
+                        "Unable to switch organization",
+                    )
+                    message.error(fallback)
+                } catch (error: any) {
+                    console.error("[org] switch failed", error)
+                    message.error("Unable to switch organization")
+                }
+            })()
         }
     }
 
@@ -607,6 +682,23 @@ const ListOfOrgs = ({
                     )}
                 </>
             ) : null}
+
+            <AuthUpgradeModal
+                open={authUpgradeOpen}
+                organizationName={
+                    organizations.find((org) => org.id === authUpgradeOrgId)?.name
+                }
+                detail={authUpgradeDetail}
+                onCancel={() => {
+                    setAuthUpgradeOpen(false)
+                    setAuthUpgradeDetail(null)
+                    setAuthUpgradeOrgId(null)
+                    if (typeof window !== "undefined") {
+                        window.localStorage.removeItem(authUpgradeOrgKey)
+                        window.localStorage.removeItem("authUpgradeSessionIdentities")
+                    }
+                }}
+            />
 
             <Modal
                 title="Create Organization"

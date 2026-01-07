@@ -6,6 +6,7 @@ import {useLocalStorage} from "usehooks-ts"
 
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {queryClient} from "@/oss/lib/api/queryClient"
+import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
 import {isPersonalOrg, resolvePreferredWorkspaceId} from "@/oss/state/org/selectors/org"
@@ -31,6 +32,7 @@ const usePostAuthRedirect = () => {
     const {refetch: resetOrgData} = useOrgData()
     const {reset: resetProjectData} = useProjectData()
     const [invite] = useLocalStorage<Record<string, unknown>>("invite", {})
+    const authUpgradeOrgKey = "authUpgradeOrgId"
 
     const hasInviteFromQuery = useMemo(() => {
         const token = router.query?.token
@@ -73,6 +75,47 @@ const usePostAuthRedirect = () => {
             if (isInvitedUser) {
                 await router.push("/workspaces/accept")
                 return
+            }
+
+            if (typeof window !== "undefined") {
+                const upgradeOrgId = window.localStorage.getItem(authUpgradeOrgKey)
+                const rawSessionIdentities = window.localStorage.getItem(
+                    "authUpgradeSessionIdentities",
+                )
+                if (upgradeOrgId || rawSessionIdentities) {
+                    console.debug("[auth-upgrade] redirect target", {
+                        upgradeOrgId,
+                        hasSessionIdentities: Boolean(rawSessionIdentities),
+                    })
+                }
+                if (rawSessionIdentities) {
+                    try {
+                        const parsed = JSON.parse(rawSessionIdentities)
+                        const list = Array.isArray(parsed) ? parsed : []
+                        if (list.length > 0) {
+                            try {
+                                const result = await mergeSessionIdentities(list)
+                                console.debug("[auth-upgrade] session identities merged", {
+                                    list,
+                                    result,
+                                })
+                                window.localStorage.removeItem("authUpgradeSessionIdentities")
+                            } catch (error) {
+                                console.error(
+                                    "[auth-upgrade] session identities merge failed",
+                                    error,
+                                )
+                            }
+                        }
+                    } catch {
+                        // ignore parse failures
+                    }
+                }
+                if (upgradeOrgId) {
+                    await resetAuthState()
+                    await router.replace(`/w/${encodeURIComponent(upgradeOrgId)}`)
+                    return
+                }
             }
 
             await resetAuthState()

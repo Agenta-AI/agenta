@@ -47,6 +47,11 @@ export const useSession: () => {
                     const posthog = (await import("posthog-js")).default
                     posthog.reset()
 
+                    if (typeof window !== "undefined") {
+                        window.localStorage.removeItem("authUpgradeOrgId")
+                        window.localStorage.removeItem("authUpgradeSessionIdentities")
+                    }
+
                     // Update session state
                     setSessionExists(false)
 

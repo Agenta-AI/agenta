@@ -142,7 +142,11 @@ axios.interceptors.response.use(
         }
 
         const upgradeDetail = error.response?.data?.detail
-        if (error.response?.status === 403 && upgradeDetail?.error === "AUTH_UPGRADE_REQUIRED") {
+        if (
+            error.response?.status === 403 &&
+            upgradeDetail?.error === "AUTH_UPGRADE_REQUIRED" &&
+            !error.config?._skipAuthUpgradeRedirect
+        ) {
             if (typeof window === "undefined") {
                 return Promise.reject(error)
             }
@@ -155,12 +159,11 @@ axios.interceptors.response.use(
                 ? upgradeDetail.required_methods
                 : []
             const currentIdentity =
-                upgradeDetail?.current_identity ||
-                (Array.isArray(upgradeDetail?.verified_identities)
-                    ? upgradeDetail.verified_identities[0]
+                (Array.isArray(upgradeDetail?.session_identities)
+                    ? upgradeDetail.session_identities[0]
                     : undefined) ||
-                (Array.isArray(upgradeDetail?.existing_identities)
-                    ? upgradeDetail.existing_identities[0]
+                (Array.isArray(upgradeDetail?.user_identities)
+                    ? upgradeDetail.user_identities[0]
                     : undefined)
 
             const store = getDefaultStore()

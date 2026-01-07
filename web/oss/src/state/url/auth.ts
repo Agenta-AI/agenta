@@ -137,6 +137,24 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         }
 
         if (isSignedIn) {
+            if (typeof window !== "undefined") {
+                const upgradeOrgId = window.localStorage.getItem("authUpgradeOrgId")
+                const identifiers = store.get(appIdentifiersAtom)
+                const currentWorkspaceId = identifiers.workspaceId
+                if (upgradeOrgId && upgradeOrgId !== currentWorkspaceId) {
+                    void Router.replace(`/w/${encodeURIComponent(upgradeOrgId)}`).catch(
+                        (error) => {
+                            console.error(
+                                "Failed to redirect authenticated user to upgrade org:",
+                                error,
+                            )
+                        },
+                    )
+                    store.set(protectedRouteReadyAtom, false)
+                    return
+                }
+            }
+
             if (invite && !isAcceptRoute) {
                 const inviteEmail = invite.email ?? undefined
                 const userEmail = user?.email?.toLowerCase()
@@ -154,6 +172,21 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             }
 
             if (isAuthRoute) {
+                if (typeof window !== "undefined") {
+                    const upgradeOrgId = window.localStorage.getItem("authUpgradeOrgId")
+                    if (upgradeOrgId) {
+                        void Router.replace(`/w/${encodeURIComponent(upgradeOrgId)}`).catch(
+                            (error) => {
+                                console.error(
+                                    "Failed to redirect authenticated user to upgrade org:",
+                                    error,
+                                )
+                            },
+                        )
+                        store.set(protectedRouteReadyAtom, false)
+                        return
+                    }
+                }
                 const orgs = store.get(orgsAtom)
                 const personalOrg = Array.isArray(orgs) ? orgs.find((org) => isPersonalOrg(org)) : null
                 if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
