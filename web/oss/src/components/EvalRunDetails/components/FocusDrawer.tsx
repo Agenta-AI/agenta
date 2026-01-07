@@ -15,6 +15,7 @@ import GenericDrawer from "@/oss/components/GenericDrawer"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 
 import ReadOnlyBox from "../../pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
+import {compareRunIdsAtom, MAX_COMPARISON_RUNS} from "../atoms/compare"
 import {invocationTraceSummaryAtomFamily} from "../atoms/invocationTraceSummary"
 import {
     applicationReferenceQueryAtomFamily,
@@ -1159,25 +1160,24 @@ const FocusDrawerCompareContentInner = ({
         compareIndex: number
     }[]
 }) => {
-    // Get sections for base run (index 0)
-    const baseRunId = compareScenarios[0]?.runId ?? null
-    const {sections: baseSections} = useFocusDrawerSections(baseRunId)
+    const expectedColumns = Math.min(compareScenarios.length, MAX_COMPARISON_RUNS + 1)
+    const runId0 = compareScenarios[0]?.runId ?? null
+    const runId1 = compareScenarios[1]?.runId ?? null
+    const runId2 = compareScenarios[2]?.runId ?? null
+    const runId3 = compareScenarios[3]?.runId ?? null
+    const runId4 = compareScenarios[4]?.runId ?? null
 
-    // Get sections for comparison run 1 (index 1)
-    const compare1RunId = compareScenarios[1]?.runId ?? null
-    const {sections: compare1Sections} = useFocusDrawerSections(compare1RunId)
-
-    // Get sections for comparison run 2 (index 2)
-    const compare2RunId = compareScenarios[2]?.runId ?? null
-    const {sections: compare2Sections} = useFocusDrawerSections(compare2RunId)
+    const {sections: sections0} = useFocusDrawerSections(runId0)
+    const {sections: sections1} = useFocusDrawerSections(runId1)
+    const {sections: sections2} = useFocusDrawerSections(runId2)
+    const {sections: sections3} = useFocusDrawerSections(runId3)
+    const {sections: sections4} = useFocusDrawerSections(runId4)
 
     // Collect all sections per run
     const sectionsPerRun = useMemo(() => {
-        const result: FocusDrawerSection[][] = [baseSections]
-        if (compareScenarios.length > 1) result.push(compare1Sections)
-        if (compareScenarios.length > 2) result.push(compare2Sections)
-        return result
-    }, [baseSections, compare1Sections, compare2Sections, compareScenarios.length])
+        const all = [sections0, sections1, sections2, sections3, sections4]
+        return all.slice(0, expectedColumns)
+    }, [expectedColumns, sections0, sections1, sections2, sections3, sections4])
 
     // Normalize section key for matching across runs
     // Use group.kind for invocation/input sections (which have run-specific IDs)
@@ -1349,6 +1349,12 @@ export const FocusDrawerContent = ({
     const runIndex = useAtomValue(
         useMemo(() => evaluationRunIndexAtomFamily(runId ?? null), [runId]),
     )
+    const compareRunIds = useAtomValue(compareRunIdsAtom)
+    const compareIndex = useMemo(() => {
+        if (!runId) return 0
+        const idx = compareRunIds.findIndex((id) => id === runId)
+        return idx === -1 ? 0 : idx + 1
+    }, [compareRunIds, runId])
 
     const groups = columnResult.groups ?? []
     const columnMap = useMemo(() => {
@@ -1424,7 +1430,11 @@ export const FocusDrawerContent = ({
                     return (
                         <div key={section.id} className="flex flex-col">
                             <SectionCard className="!p-0">
-                                <EvalOutputMetaRow runId={runId} scenarioId={scenarioId} />
+                                <EvalOutputMetaRow
+                                    runId={runId}
+                                    scenarioId={scenarioId}
+                                    compareIndex={compareIndex}
+                                />
                             </SectionCard>
                             <FocusDrawerSectionCard
                                 section={section}

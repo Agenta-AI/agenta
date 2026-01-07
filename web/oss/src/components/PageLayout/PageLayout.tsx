@@ -22,6 +22,7 @@ const PageLayout = ({
     className,
     headerClassName,
 }: PageLayoutProps) => {
+    const titleText = typeof title === "string" || typeof title === "number" ? String(title) : ""
     const headerTabsContent = headerTabsProps ? (
         <Tabs {...headerTabsProps} className={classNames(headerTabsProps.className)} />
     ) : (
@@ -37,9 +38,15 @@ const PageLayout = ({
                         headerClassName,
                     )}
                 >
-                    <Typography.Title className="!m-0 font-medium" level={titleLevel}>
-                        {title}
-                    </Typography.Title>
+                    <div className="min-w-0 flex-1">
+                        <Typography.Title
+                            className="!m-0 font-medium truncate"
+                            level={titleLevel}
+                            title={titleText || undefined}
+                        >
+                            {title}
+                        </Typography.Title>
+                    </div>
                     {headerTabsContent ? (
                         <div className="flex items-center justify-end [&_.ant-tabs-nav]:mb-0 [&_.ant-tabs-tab-btn]:font-medium [&_.ant-tabs-tab-btn]:text-[14px] [&_.ant-tabs-tab-btn]:leading-[1.5714285714] [&_.ant-tabs-tab-btn]:inline-flex [&_.ant-tabs-tab-btn]:items-center [&_.ant-tabs-tab-btn]:gap-2">
                             {headerTabsContent}

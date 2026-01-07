@@ -87,25 +87,12 @@ const EvalRunDetailsTable = ({
 
     const previewColumns = usePreviewColumns({columnResult, evaluationType})
 
-    // Inject synthetic columns for comparison exports (hidden in table display)
-    const columnsWithSyntheticColumns = useMemo(() => {
+    // Inject synthetic columns for comparison exports (do not render in UI)
+    const exportColumns = useMemo(() => {
         const hasCompareRuns = compareSlots.some(Boolean)
         if (!hasCompareRuns) {
             return previewColumns.columns
         }
-
-        const hiddenColumnStyle = {
-            display: "none",
-            width: 0,
-            minWidth: 0,
-            maxWidth: 0,
-            padding: 0,
-            margin: 0,
-            border: "none",
-            visibility: "hidden",
-            position: "absolute",
-            left: "-9999px",
-        } as const
 
         // Create synthetic "Run" column for export only (completely hidden in table)
         const runColumn = {
@@ -118,8 +105,6 @@ const EvalRunDetailsTable = ({
             render: () => null,
             exportEnabled: true,
             exportLabel: "Run",
-            onHeaderCell: () => ({style: hiddenColumnStyle}),
-            onCell: () => ({style: hiddenColumnStyle}),
         }
 
         // Create synthetic "Run ID" column for export only (completely hidden in table)
@@ -133,8 +118,6 @@ const EvalRunDetailsTable = ({
             render: () => null,
             exportEnabled: true,
             exportLabel: "Run ID",
-            onHeaderCell: () => ({style: hiddenColumnStyle}),
-            onCell: () => ({style: hiddenColumnStyle}),
         }
 
         return [runColumn, runIdColumn, ...previewColumns.columns]
@@ -830,9 +813,19 @@ const EvalRunDetailsTable = ({
             resolveColumnLabel,
             filename: `${runDisplayName || runId}-scenarios.csv`,
             beforeExport: loadAllPagesBeforeExport,
+            columnsOverride: exportColumns,
         }),
-        [exportResolveValue, resolveColumnLabel, runId, runDisplayName, loadAllPagesBeforeExport],
+        [
+            exportResolveValue,
+            resolveColumnLabel,
+            runId,
+            runDisplayName,
+            loadAllPagesBeforeExport,
+            exportColumns,
+        ],
     )
+
+    const hasCompareRuns = compareSlots.some(Boolean)
 
     return (
         <section className="bg-zinc-1 w-full h-full overflow-scroll flex flex-col px-2">
@@ -840,7 +833,7 @@ const EvalRunDetailsTable = ({
                 <InfiniteVirtualTableFeatureShell<TableRowData>
                     datasetStore={evaluationPreviewDatasetStore}
                     tableScope={tableScope}
-                    columns={columnsWithSyntheticColumns}
+                    columns={previewColumns.columns}
                     rowKey={(record) => record.key}
                     tableClassName={clsx(
                         "agenta-scenario-table",
@@ -877,10 +870,13 @@ const EvalRunDetailsTable = ({
                         bordered: true,
                         tableLayout: "fixed",
                         onRow: (record) => {
-                            // Always tint rows: base run uses index 0; comparisons use their index.
-                            const backgroundColor = getComparisonColor(
-                                typeof record.compareIndex === "number" ? record.compareIndex : 0,
-                            )
+                            const backgroundColor = hasCompareRuns
+                                ? getComparisonColor(
+                                      typeof record.compareIndex === "number"
+                                          ? record.compareIndex
+                                          : 0,
+                                  )
+                                : "#fff"
 
                             return {
                                 onClick: (event) => {

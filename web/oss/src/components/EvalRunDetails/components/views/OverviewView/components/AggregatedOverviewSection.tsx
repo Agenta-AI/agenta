@@ -34,7 +34,7 @@ const AggregatedOverviewSection = ({runIds}: AggregatedOverviewSectionProps) => 
                         <div className="w-full lg:w-7/12">
                             <MetadataSummaryTable runIds={orderedRunIds} projectURL={projectURL} />
                         </div>
-                        <div className="grow flex items-center justify-center h-[320px] min-h-[320px] lg:h-auto lg:w-5/12">
+                        <div className="grow flex items-center justify-center h-[480px] min-h-[480px] lg:h-auto lg:w-5/12">
                             <OverviewSpiderChart runIds={orderedRunIds} />
                         </div>
                     </div>

@@ -91,10 +91,12 @@ const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
     const popoverContent = (
         <div className="min-w-[280px] max-w-[340px]">
             <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-2">
-                    <Typography.Text strong className="truncate">
-                        {label || runId}
-                    </Typography.Text>
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                    <div className="min-w-0 flex-1">
+                        <Typography.Text strong className="truncate block" title={label || runId}>
+                            {label || runId}
+                        </Typography.Text>
+                    </div>
                     <Typography.Text type="secondary">Run details</Typography.Text>
                 </div>
                 {isLoading ? (

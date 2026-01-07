@@ -159,8 +159,11 @@
     border-right: 1px solid #eaeff5;
 }
 
+.metadata-summary-table .ant-table .ant-table-content {
+    border-radius: inherit !important;
+}
 .metadata-summary-table .ant-table-tbody > tr:last-child > td {
-    border-bottom: none;
+    border-bottom: 1px solid #eaeff5;
 }
 
 .metadata-summary-table .ant-tag {

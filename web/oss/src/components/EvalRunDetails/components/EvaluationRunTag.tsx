@@ -33,13 +33,14 @@ const EvaluationRunTag = ({
     return (
         <Tag
             className={clsx(
-                "m-0 inline-flex shrink-0 min-w-0 items-center gap-1 max-w-[200px] px-2 overflow-hidden",
+                "m-0 inline-flex min-w-0 items-center gap-1 max-w-[240px] px-2 overflow-hidden",
                 className,
             )}
             style={{
                 backgroundColor: tagBg,
                 borderColor: "transparent",
                 color: tagColor,
+                maxWidth: 240,
             }}
             icon={
                 resolvedIsBaseRun ? (
@@ -50,7 +51,12 @@ const EvaluationRunTag = ({
             closeIcon={closeIcon}
             onClose={onClose}
         >
-            <span className="min-w-0 flex-1 truncate">{label}</span>
+            <span
+                className="min-w-0 flex-1 truncate inline-block max-w-[180px] align-middle"
+                title={label}
+            >
+                {label}
+            </span>
         </Tag>
     )
 }

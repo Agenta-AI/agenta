@@ -304,6 +304,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         beforeExport,
         resolveValue,
         resolveColumnLabel,
+        columnsOverride: exportColumnsOverride,
     } = exportOptions ?? {}
     const resolvedExportFilename = exportOptionsFilename ?? exportFilename ?? "table-export.csv"
     const exportHandler = useCallback(async () => {
@@ -321,7 +322,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                       })
                     : pagination.rows
             await tableExport({
-                columns,
+                columns: exportColumnsOverride ?? columns,
                 rows: rowsToExport,
                 filename: resolvedExportFilename,
                 isColumnExportable,

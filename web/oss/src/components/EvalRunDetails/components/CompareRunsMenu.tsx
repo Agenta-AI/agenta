@@ -2,8 +2,10 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import Image from "next/image"
 
 import {message} from "@/oss/components/AppMessageContext"
+import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
@@ -104,7 +106,7 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
         <Popover
             open={open && availability.canCompare}
             onOpenChange={handlePopoverOpenChange}
-            trigger={[]}
+            trigger={["click"]}
             placement="bottomRight"
             destroyOnHidden
             styles={{root: {minWidth: 360, maxHeight: 440}}}
@@ -211,6 +213,10 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
         })
     }, [candidates, searchTerm, statusFilter])
 
+    const hasLoadedRuns = Boolean((swrData as any)?.data)
+    const showLoading = Boolean(swrData.isLoading && !hasLoadedRuns)
+    const showEmptyState = !showLoading && filteredCandidates.length === 0
+
     const handleToggle = useCallback(
         (targetId: string) => {
             setCompareIds((prev) => {
@@ -234,10 +240,11 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
 
     return (
         <Space orientation="vertical" style={{width: "100%"}} size="small">
-            <div className="flex items-center justify-between">
-                <Space orientation="vertical" size={2} style={{width: "100%"}}>
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                    <Text className="whitespace-nowrap text-[#475467]">Testset:</Text>
                     {availability.testsetIds.length ? (
-                        <Space size={[6, 6]} wrap className="compare-runs-match-tags">
+                        <div className="flex flex-wrap gap-1 min-w-0 compare-runs-match-tags">
                             {availability.testsetIds.map((id) => {
                                 const label = matchingTestsetNameMap[id] ?? id
                                 const copyValue = id
@@ -252,12 +259,14 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                                     />
                                 )
                             })}
-                        </Space>
-                    ) : null}
-                </Space>
-                <Space size={0}>
+                        </div>
+                    ) : (
+                        <Text type="secondary">—</Text>
+                    )}
+                </div>
+                <Space size={8}>
                     <Text className="whitespace-nowrap">
-                        Selected {compareIds.length}/{MAX_COMPARISON_RUNS}
+                        Selected: {compareIds.length}/{MAX_COMPARISON_RUNS}
                     </Text>
                     {compareIds.length ? (
                         <Button
@@ -273,7 +282,7 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
             </div>
 
             <Input
-                placeholder="Search evaluations"
+                placeholder="Search"
                 allowClear
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
@@ -285,75 +294,101 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                 availableCandidates={candidates}
             />
 
-            <List
-                size="small"
-                dataSource={filteredCandidates}
-                split={false}
-                className="compare-runs-list"
-                style={{maxHeight: 360, overflowY: "auto"}}
-                locale={{
-                    emptyText: swrData.isLoading
-                        ? "Loading evaluations…"
-                        : "No matching evaluations",
-                }}
-                renderItem={(item) => {
-                    const isChecked = compareIds.includes(item.id)
-                    const createdLabel = item.createdAt
-                        ? dayjs(item.createdAt).format("DD MMM YYYY")
-                        : ""
-                    const _resolvedTestsetNames =
-                        item.testsetNames.length > 0
-                            ? item.testsetNames
-                            : item.structure.testsetIds
-                                  .map((id) => candidateTestsetNameMap[id])
-                                  .filter((name): name is string => Boolean(name))
-                    return (
-                        <List.Item
-                            key={item.id}
-                            onClick={() => handleToggle(item.id)}
-                            className="compare-run-row flex flex-col !items-start justify-start"
-                        >
-                            <div className="compare-run-row__main">
-                                <Checkbox
-                                    checked={isChecked}
-                                    onClick={(event) => event.stopPropagation()}
-                                    onChange={(event) => {
-                                        event.stopPropagation()
-                                        handleToggle(item.id)
-                                    }}
-                                >
-                                    <div className="flex flex-col gap-1">
-                                        <Text>{item.name}</Text>
-                                        <Text
-                                            type="secondary"
-                                            style={{fontSize: 12}}
-                                            className="text-left"
-                                        >
-                                            {item.description?.trim()
-                                                ? item.description
-                                                : "No description"}
-                                        </Text>
-                                    </div>
-                                </Checkbox>
-
-                                <Space
-                                    size={4}
-                                    align="end"
-                                    className="compare-run-row__meta"
-                                    orientation="vertical"
-                                >
-                                    {item.status ? <StatusChip status={item.status} /> : null}
-                                    {createdLabel ? (
-                                        <Text type="secondary" style={{fontSize: 12}}>
-                                            {createdLabel}
-                                        </Text>
-                                    ) : null}
-                                </Space>
+            {showLoading ? (
+                <div className="flex items-center justify-center py-10 text-[#98A2B3] text-sm">
+                    Loading evaluations...
+                </div>
+            ) : showEmptyState ? (
+                <div className="py-12">
+                    <EmptyComponent
+                        image={
+                            <Image
+                                src="/assets/not-found.png"
+                                alt="No evaluations to compare"
+                                width={200}
+                                height={160}
+                            />
+                        }
+                        description={
+                            <div className="flex flex-col items-center gap-2 text-center">
+                                <div className="text-base font-medium text-[#101828]">
+                                    No evaluations to compare
+                                </div>
+                                <div className="text-sm text-[#667085] max-w-[280px]">
+                                    Run another evaluation using the same test set to enable
+                                    comparison.
+                                </div>
                             </div>
-                        </List.Item>
-                    )
-                }}
-            />
+                        }
+                    />
+                </div>
+            ) : (
+                <List
+                    size="small"
+                    dataSource={filteredCandidates}
+                    split={false}
+                    className="compare-runs-list"
+                    style={{maxHeight: 360, overflowY: "auto"}}
+                    locale={{emptyText: "No matching evaluations"}}
+                    renderItem={(item) => {
+                        const isChecked = compareIds.includes(item.id)
+                        const createdLabel = item.createdAt
+                            ? dayjs(item.createdAt).format("DD MMM YYYY")
+                            : ""
+                        const _resolvedTestsetNames =
+                            item.testsetNames.length > 0
+                                ? item.testsetNames
+                                : item.structure.testsetIds
+                                      .map((id) => candidateTestsetNameMap[id])
+                                      .filter((name): name is string => Boolean(name))
+                        return (
+                            <List.Item
+                                key={item.id}
+                                onClick={() => handleToggle(item.id)}
+                                className="compare-run-row flex flex-col !items-start justify-start"
+                            >
+                                <div className="compare-run-row__main">
+                                    <Checkbox
+                                        checked={isChecked}
+                                        onClick={(event) => event.stopPropagation()}
+                                        onChange={(event) => {
+                                            event.stopPropagation()
+                                            handleToggle(item.id)
+                                        }}
+                                    >
+                                        <div className="flex flex-col gap-1">
+                                            <Text>{item.name}</Text>
+                                            <Text
+                                                type="secondary"
+                                                style={{fontSize: 12}}
+                                                className="text-left"
+                                            >
+                                                {item.description?.trim()
+                                                    ? item.description
+                                                    : "No description"}
+                                            </Text>
+                                        </div>
+                                    </Checkbox>
+
+                                    <Space
+                                        size={4}
+                                        align="end"
+                                        className="compare-run-row__meta"
+                                        orientation="vertical"
+                                    >
+                                        {item.status ? <StatusChip status={item.status} /> : null}
+                                        {createdLabel ? (
+                                            <Text type="secondary" style={{fontSize: 12}}>
+                                                {createdLabel}
+                                            </Text>
+                                        ) : null}
+                                    </Space>
+                                </div>
+                            </List.Item>
+                        )
+                    }}
+                />
+            )}
         </Space>
     )
 })
