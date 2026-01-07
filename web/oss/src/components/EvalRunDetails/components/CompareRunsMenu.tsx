@@ -1,6 +1,7 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip, Typography} from "antd"
+import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -109,6 +110,8 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
             trigger={["click"]}
             placement="bottomRight"
             destroyOnHidden
+            className="[&_.ant-popover-container]:p-0"
+            overlayClassName="[&_.ant-popover-container]:p-0"
             styles={{root: {minWidth: 360, maxHeight: 440}}}
             content={
                 open && availability.canCompare ? (
@@ -239,60 +242,68 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
     }, [setCompareIds])
 
     return (
-        <Space orientation="vertical" style={{width: "100%"}} size="small">
-            <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                    <Text className="whitespace-nowrap text-[#475467]">Testset:</Text>
-                    {availability.testsetIds.length ? (
-                        <div className="flex flex-wrap gap-1 min-w-0 compare-runs-match-tags">
-                            {availability.testsetIds.map((id) => {
-                                const label = matchingTestsetNameMap[id] ?? id
-                                const copyValue = id
-                                const href = buildTestsetHref(id)
+        <Space
+            orientation="vertical"
+            style={{width: "100%"}}
+            size="small"
+            className="compare-runs-popover"
+        >
+            <div className="compare-runs-header">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Text className="whitespace-nowrap text-[#475467]">Testset:</Text>
+                        {availability.testsetIds.length ? (
+                            <div className="flex flex-wrap gap-1 min-w-0 compare-runs-match-tags">
+                                {availability.testsetIds.map((id) => {
+                                    const label = matchingTestsetNameMap[id] ?? id
+                                    const copyValue = id
+                                    const href = buildTestsetHref(id)
 
-                                return (
-                                    <TestsetReferenceTag
-                                        key={id}
-                                        label={label}
-                                        copyValue={copyValue}
-                                        href={href ?? undefined}
-                                    />
-                                )
-                            })}
-                        </div>
-                    ) : (
-                        <Text type="secondary">—</Text>
-                    )}
+                                    return (
+                                        <TestsetReferenceTag
+                                            key={id}
+                                            label={label}
+                                            copyValue={copyValue}
+                                            href={href ?? undefined}
+                                        />
+                                    )
+                                })}
+                            </div>
+                        ) : (
+                            <Text type="secondary">—</Text>
+                        )}
+                    </div>
+                    <Space size={8}>
+                        <Text className="whitespace-nowrap">
+                            Selected: {compareIds.length}/{MAX_COMPARISON_RUNS}
+                        </Text>
+                        {compareIds.length ? (
+                            <Button
+                                size="small"
+                                type="link"
+                                className="underline hover:no-underline"
+                                onClick={handleClearAll}
+                            >
+                                Clear all
+                            </Button>
+                        ) : null}
+                    </Space>
                 </div>
-                <Space size={8}>
-                    <Text className="whitespace-nowrap">
-                        Selected: {compareIds.length}/{MAX_COMPARISON_RUNS}
-                    </Text>
-                    {compareIds.length ? (
-                        <Button
-                            size="small"
-                            type="link"
-                            className="underline hover:no-underline"
-                            onClick={handleClearAll}
-                        >
-                            Clear all
-                        </Button>
-                    ) : null}
-                </Space>
+
+                <Input
+                    placeholder="Search"
+                    allowClear
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    bordered={false}
+                />
+
+                <StatusFilterChips
+                    activeFilter={statusFilter}
+                    onChange={setStatusFilter}
+                    availableCandidates={candidates}
+                />
             </div>
-
-            <Input
-                placeholder="Search"
-                allowClear
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-            />
-
-            <StatusFilterChips
-                activeFilter={statusFilter}
-                onChange={setStatusFilter}
-                availableCandidates={candidates}
-            />
 
             {showLoading ? (
                 <div className="flex items-center justify-center py-10 text-[#98A2B3] text-sm">
@@ -335,20 +346,23 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                         const createdLabel = item.createdAt
                             ? dayjs(item.createdAt).format("DD MMM YYYY")
                             : ""
-                        const _resolvedTestsetNames =
-                            item.testsetNames.length > 0
-                                ? item.testsetNames
-                                : item.structure.testsetIds
-                                      .map((id) => candidateTestsetNameMap[id])
-                                      .filter((name): name is string => Boolean(name))
+
                         return (
                             <List.Item
                                 key={item.id}
                                 onClick={() => handleToggle(item.id)}
-                                className="compare-run-row flex flex-col !items-start justify-start"
+                                className={clsx(
+                                    "compare-run-row flex flex-col !items-start justify-start",
+                                    "!py-1 !px-2",
+                                    "border-b border-[#EAEFF5]",
+                                    "last:border-b-0",
+                                    isChecked && "compare-run-row--selected",
+                                )}
+                                style={{borderBottomStyle: "solid"}}
                             >
                                 <div className="compare-run-row__main">
                                     <Checkbox
+                                        className="compare-run-checkbox"
                                         checked={isChecked}
                                         onClick={(event) => event.stopPropagation()}
                                         onChange={(event) => {
