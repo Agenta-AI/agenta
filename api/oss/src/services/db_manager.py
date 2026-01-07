@@ -2479,6 +2479,9 @@ async def deploy_to_environment(
             variant_id=variant_id,
             variant_revision_id=str(app_variant_revision_db.id),
             project_id=str(app_variant_db.project_id),
+            app_slug=app_variant_db.app.app_name if app_variant_db.app else None,
+            variant_slug=app_variant_db.config_name,
+            variant_version=app_variant_revision_db.revision,
         )
     except Exception as e:
         # Log error but don't fail the deployment

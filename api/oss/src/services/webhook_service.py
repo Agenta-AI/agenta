@@ -60,18 +60,32 @@ class WebhookService:
             Created webhook response
         """
         async with engine.core_session() as session:
-            # Verify app exists
-            app_result = await session.execute(
-                select(AppDB).filter_by(id=UUID(webhook_data.app_id))
+            # Verify project exists
+            from oss.src.models.db_models import ProjectDB
+
+            project_result = await session.execute(
+                select(ProjectDB).filter_by(id=UUID(webhook_data.project_id))
             )
-            app = app_result.scalars().first()
-            if not app:
-                raise ValueError("App not found")
+            project = project_result.scalars().first()
+            if not project:
+                raise ValueError("Project not found")
+
+            # If app_id is provided, verify it exists and belongs to the project
+            app = None
+            if webhook_data.app_id:
+                app_result = await session.execute(
+                    select(AppDB).filter_by(id=UUID(webhook_data.app_id))
+                )
+                app = app_result.scalars().first()
+                if not app:
+                    raise ValueError("App not found")
+                if str(app.project_id) != webhook_data.project_id:
+                    raise ValueError("App does not belong to the specified project")
 
             # Create webhook
             webhook_db = WebhookDB(
-                app_id=UUID(webhook_data.app_id),
-                project_id=app.project_id,
+                app_id=UUID(webhook_data.app_id) if webhook_data.app_id else None,
+                project_id=UUID(webhook_data.project_id),
                 name=webhook_data.name,
                 description=webhook_data.description,
                 is_enabled=webhook_data.is_enabled,
@@ -106,28 +120,42 @@ class WebhookService:
             log.info(
                 f"Webhook created",
                 webhook_id=str(webhook_db.id),
+                project_id=webhook_data.project_id,
                 app_id=webhook_data.app_id,
                 name=webhook_data.name,
             )
 
             return self._to_response(webhook_db)
 
-    async def list_webhooks(self, app_id: str) -> List[WebhookResponse]:
+    async def list_webhooks(
+        self,
+        project_id: str,
+        app_id: Optional[str] = None,
+    ) -> List[WebhookResponse]:
         """
-        List all webhooks for an application
+        List all webhooks for a project
 
         Args:
-            app_id: Application ID
+            project_id: Project ID
+            app_id: Optional App ID to filter by
 
         Returns:
             List of webhook responses
         """
         async with engine.core_session() as session:
-            result = await session.execute(
-                select(WebhookDB)
-                .filter_by(app_id=UUID(app_id))
-                .order_by(WebhookDB.created_at.desc())
+            query = select(WebhookDB).filter_by(
+                project_id=UUID(project_id)
             )
+
+            # If app_id is provided, filter by it
+            if app_id:
+                query = query.filter(
+                    (WebhookDB.app_id == UUID(app_id)) | (WebhookDB.app_id.is_(None))
+                )
+
+            query = query.order_by(WebhookDB.created_at.desc())
+
+            result = await session.execute(query)
             webhooks = result.scalars().all()
             return [self._to_response(wh) for wh in webhooks]
 
@@ -261,6 +289,9 @@ class WebhookService:
         variant_id: str,
         variant_revision_id: str,
         project_id: str,
+        app_slug: Optional[str] = None,
+        variant_slug: Optional[str] = None,
+        variant_version: Optional[int] = None,
     ):
         """
         Trigger webhooks after a successful deployment
@@ -276,6 +307,9 @@ class WebhookService:
             variant_id: Variant ID
             variant_revision_id: Variant revision ID
             project_id: Project ID
+            app_slug: Optional app slug (app_name)
+            variant_slug: Optional variant slug (config_name)
+            variant_version: Optional variant version (revision)
         """
         if not self.webhooks_worker:
             log.warning(
@@ -285,18 +319,24 @@ class WebhookService:
             return
 
         async with engine.core_session() as session:
-            # Find enabled webhooks for this app
+            # Find enabled webhooks for this project
+            # Webhooks can be project-wide (app_id is NULL) or app-specific
             result = await session.execute(
                 select(WebhookDB).filter(
-                    WebhookDB.app_id == UUID(app_id),
+                    WebhookDB.project_id == UUID(project_id),
                     WebhookDB.is_enabled == True,
                 )
             )
             webhooks = result.scalars().all()
 
-            # Filter by trigger environment
+            # Filter by app if webhook is app-specific
             triggered_webhooks = []
             for webhook in webhooks:
+                # If webhook is app-specific, check if it matches the deployed app
+                if webhook.app_id is not None:
+                    if str(webhook.app_id) != app_id:
+                        continue
+
                 # Check environment trigger conditions
                 if webhook.trigger_on_environments:
                     if environment_name not in webhook.trigger_on_environments:
@@ -329,9 +369,12 @@ class WebhookService:
                         webhook_id=str(webhook.id),
                         deployment_context={
                             "app_id": app_id,
+                            "app_slug": app_slug,
                             "environment_name": environment_name,
                             "deployment_id": deployment_id,
                             "variant_id": variant_id,
+                            "variant_slug": variant_slug,
+                            "variant_version": variant_version,
                             "variant_revision_id": variant_revision_id,
                             "project_id": project_id,
                         },
@@ -408,7 +451,8 @@ class WebhookService:
         """Convert database model to API response"""
         return WebhookResponse(
             id=str(webhook.id),
-            app_id=str(webhook.app_id),
+            project_id=str(webhook.project_id),
+            app_id=str(webhook.app_id) if webhook.app_id else None,
             name=webhook.name,
             description=webhook.description,
             webhook_type=webhook.webhook_type,

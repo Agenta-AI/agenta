@@ -4,7 +4,6 @@
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {getProjectValues} from "@/oss/state/project"
 
 import type {
     Webhook,
@@ -21,20 +20,30 @@ export const webhookService = {
      * Create a new webhook
      */
     async createWebhook(payload: CreateWebhookPayload): Promise<Webhook> {
-        const {projectId} = getProjectValues()
         const response = await axios.post(
-            `${getAgentaApiUrl()}/webhooks/?project_id=${projectId}`,
+            `${getAgentaApiUrl()}/webhooks/`,
             payload
         )
         return response.data
     },
 
     /**
-     * List all webhooks for an application
+     * List all webhooks for a project
+     * Optionally filter by app_id
      */
-    async listWebhooks(appId: string): Promise<Webhook[]> {
+    async listWebhooks(
+        projectId: string,
+        appId?: string
+    ): Promise<Webhook[]> {
+        const params: {project_id: string; app_id?: string} = {
+            project_id: projectId,
+        }
+        if (appId) {
+            params.app_id = appId
+        }
         const response = await axios.get(
-            `${getAgentaApiUrl()}/apps/${appId}/webhooks/`
+            `${getAgentaApiUrl()}/webhooks/`,
+            {params}
         )
         return response.data
     },
@@ -56,9 +65,8 @@ export const webhookService = {
         webhookId: string,
         payload: UpdateWebhookPayload
     ): Promise<Webhook> {
-        const {projectId} = getProjectValues()
         const response = await axios.put(
-            `${getAgentaApiUrl()}/webhooks/${webhookId}/?project_id=${projectId}`,
+            `${getAgentaApiUrl()}/webhooks/${webhookId}/`,
             payload
         )
         return response.data
@@ -68,9 +76,8 @@ export const webhookService = {
      * Delete a webhook
      */
     async deleteWebhook(webhookId: string): Promise<void> {
-        const {projectId} = getProjectValues()
         await axios.delete(
-            `${getAgentaApiUrl()}/webhooks/${webhookId}/?project_id=${projectId}`
+            `${getAgentaApiUrl()}/webhooks/${webhookId}/`
         )
     },
 

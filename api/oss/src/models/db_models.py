@@ -911,7 +911,11 @@ class EvaluationScenarioDB(Base):
 
 
 class WebhookDB(Base):
-    """Webhook configuration for post-deployment actions"""
+    """Webhook configuration for post-deployment actions
+
+    Webhooks are now scoped at the project level, not the app level.
+    This allows webhooks to be triggered for any app/prompt deployment within the project.
+    """
 
     __tablename__ = "webhooks"
 
@@ -922,10 +926,11 @@ class WebhookDB(Base):
         unique=True,
         nullable=False,
     )
+    # app_id is now optional - webhooks are project-scoped but can optionally filter by app
     app_id = Column(
         UUID(as_uuid=True),
         ForeignKey("app_db.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
     project_id = Column(
         UUID(as_uuid=True),

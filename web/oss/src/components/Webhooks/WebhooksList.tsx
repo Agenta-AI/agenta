@@ -15,10 +15,11 @@ import WebhookExecutionsModal from "./WebhookExecutionsModal"
 const {Text} = Typography
 
 interface WebhooksListProps {
-    appId: string
+    projectId: string
+    appId?: string
 }
 
-const WebhooksList: FC<WebhooksListProps> = ({appId}) => {
+const WebhooksList: FC<WebhooksListProps> = ({projectId, appId}) => {
     const [webhooks, setWebhooks] = useState<Webhook[]>([])
     const [loading, setLoading] = useState(false)
     const [selectedWebhook, setSelectedWebhook] = useState<Webhook | null>(null)
@@ -28,30 +29,30 @@ const WebhooksList: FC<WebhooksListProps> = ({appId}) => {
 
     // Load webhooks
     const loadWebhooks = useCallback(async () => {
-        if (!appId) return
+        if (!projectId) return
         setLoading(true)
         try {
-            const data = await webhookService.listWebhooks(appId)
+            const data = await webhookService.listWebhooks(projectId, appId)
             setWebhooks(data)
         } catch (error: any) {
             message.error("Failed to load webhooks")
         } finally {
             setLoading(false)
         }
-    }, [appId])
+    }, [projectId, appId])
 
     // Initial load
     useEffect(() => {
-        if (appId) {
+        if (projectId) {
             loadWebhooks()
         }
-    }, [appId, loadWebhooks])
+    }, [projectId, appId, loadWebhooks])
 
-    // Don't render if appId is not available
-    if (!appId) {
+    // Don't render if projectId is not available
+    if (!projectId) {
         return (
             <div style={{padding: "40px", textAlign: "center"}}>
-                <Typography.Text type="secondary">Application ID not found</Typography.Text>
+                <Typography.Text type="secondary">Project ID not found</Typography.Text>
             </div>
         )
     }
@@ -230,7 +231,7 @@ const WebhooksList: FC<WebhooksListProps> = ({appId}) => {
                         setModalVisible(false)
                         loadWebhooks()
                     }}
-                    appId={appId}
+                    projectId={projectId}
                     webhook={selectedWebhook}
                     mode={modalMode}
                 />

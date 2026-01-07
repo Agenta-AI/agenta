@@ -22,7 +22,7 @@ const {Text} = Typography
 interface WebhookConfigModalProps {
     visible: boolean
     onClose: () => void
-    appId: string
+    projectId: string
     webhook?: Webhook | null
     mode: "create" | "edit"
 }
@@ -30,7 +30,7 @@ interface WebhookConfigModalProps {
 const WebhookConfigModal: FC<WebhookConfigModalProps> = ({
     visible,
     onClose,
-    appId,
+    projectId,
     webhook,
     mode,
 }) => {
@@ -61,7 +61,7 @@ const WebhookConfigModal: FC<WebhookConfigModalProps> = ({
             if (mode === "create") {
                 await webhookService.createWebhook({
                     ...payload,
-                    app_id: appId,
+                    project_id: projectId,
                 } as CreateWebhookPayload)
             } else {
                 await webhookService.updateWebhook(webhook!.id, payload as UpdateWebhookPayload)

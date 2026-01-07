@@ -18,7 +18,8 @@ export interface HttpHeader {
 
 export interface Webhook {
     id: string
-    app_id: string
+    project_id: string
+    app_id: string | null
     name: string
     description: string | null
     webhook_type: WebhookType
@@ -65,7 +66,8 @@ export interface WebhookExecution {
 }
 
 export interface CreateWebhookPayload {
-    app_id: string
+    project_id: string
+    app_id?: string | null
     name: string
     description?: string
     webhook_type: WebhookType
@@ -91,6 +93,8 @@ export interface CreateWebhookPayload {
 }
 
 export interface UpdateWebhookPayload {
+    project_id?: string
+    app_id?: string | null
     name?: string
     description?: string
     webhook_type?: WebhookType

@@ -25,7 +25,8 @@ class HttpHeader(BaseModel):
 class WebhookCreate(BaseModel):
     """Request model for creating a webhook"""
 
-    app_id: str = Field(..., description="Application ID to associate webhook with")
+    project_id: str = Field(..., description="Project ID to associate webhook with")
+    app_id: Optional[str] = Field(None, description="Optional Application ID to filter webhook (if not specified, webhook triggers for all apps in project)")
     name: str = Field(..., min_length=1, max_length=100, description="Webhook name")
     description: Optional[str] = Field(None, max_length=500, description="Optional description")
     webhook_type: Literal["http_webhook", "python_script"] = Field(
@@ -64,6 +65,8 @@ class WebhookCreate(BaseModel):
 class WebhookUpdate(BaseModel):
     """Request model for updating a webhook"""
 
+    project_id: Optional[str] = None
+    app_id: Optional[str] = None
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
     webhook_type: Optional[Literal["http_webhook", "python_script"]] = None
@@ -92,7 +95,8 @@ class WebhookResponse(BaseModel):
     """Response model for webhook data"""
 
     id: str
-    app_id: str
+    project_id: str
+    app_id: Optional[str]
     name: str
     description: Optional[str]
     webhook_type: str

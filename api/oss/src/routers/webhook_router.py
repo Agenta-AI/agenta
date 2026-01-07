@@ -1,7 +1,7 @@
 """Webhook router for managing post-deployment webhooks"""
 
 from fastapi import APIRouter, Request, HTTPException
-from typing import List
+from typing import List, Optional
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import APIRouter, is_ee
@@ -21,6 +21,29 @@ router = APIRouter()
 log = get_module_logger(__name__)
 
 
+@router.get("/", operation_id="list_webhooks")
+async def list_webhooks(
+    project_id: str,
+    app_id: Optional[str] = None,
+    request: Request = None,
+):
+    """List all webhooks for a project
+
+    Args:
+        project_id: Project ID
+        app_id: Optional App ID to filter by
+        request: FastAPI request
+
+    Returns:
+        List of webhooks
+    """
+    webhooks = await webhook_service.list_webhooks(
+        project_id=project_id,
+        app_id=app_id,
+    )
+    return webhooks
+
+
 @router.post("/", operation_id="create_webhook")
 async def create_webhook(
     payload: WebhookCreate,
@@ -36,23 +59,12 @@ async def create_webhook(
         Created webhook
 
     Raises:
-        HTTPException: If user lacks permissions or app not found
+        HTTPException: If user lacks permissions or project not found
     """
     if is_ee():
-        # Get project_id from app_id
-        from oss.src.dbs.postgres.shared.engine import engine
-        from sqlalchemy import select
-        from oss.src.models.db_models import AppDB
-
-        async with engine.core_session() as session:
-            result = await session.execute(
-                select(AppDB.project_id).filter_by(id=payload.app_id)
-            )
-            project_id = result.scalars().first()
-
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(project_id),
+            project_id=payload.project_id,
             permission=Permission.MANAGE_WEBHOOKS,
         )
         if not has_permission:
@@ -116,19 +128,9 @@ async def update_webhook(
         if not webhook:
             raise HTTPException(status_code=404, detail="Webhook not found")
 
-        from oss.src.dbs.postgres.shared.engine import engine
-        from sqlalchemy import select
-        from oss.src.models.db_models import AppDB
-
-        async with engine.core_session() as session:
-            result = await session.execute(
-                select(AppDB.project_id).filter_by(id=webhook.app_id)
-            )
-            project_id = result.scalars().first()
-
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(project_id),
+            project_id=webhook.project_id,
             permission=Permission.MANAGE_WEBHOOKS,
         )
         if not has_permission:
@@ -165,19 +167,9 @@ async def delete_webhook(
         if not webhook:
             raise HTTPException(status_code=404, detail="Webhook not found")
 
-        from oss.src.dbs.postgres.shared.engine import engine
-        from sqlalchemy import select
-        from oss.src.models.db_models import AppDB
-
-        async with engine.core_session() as session:
-            result = await session.execute(
-                select(AppDB.project_id).filter_by(id=webhook.app_id)
-            )
-            project_id = result.scalars().first()
-
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(project_id),
+            project_id=webhook.project_id,
             permission=Permission.MANAGE_WEBHOOKS,
         )
         if not has_permission:

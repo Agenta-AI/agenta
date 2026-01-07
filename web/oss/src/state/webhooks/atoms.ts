@@ -11,12 +11,13 @@ import {webhookService} from "@/oss/services/webhooks/api"
 import type {CreateWebhookPayload, UpdateWebhookPayload} from "@/oss/services/webhooks/types"
 
 /**
- * Query atom for fetching webhooks for an app
+ * Query atom for fetching webhooks for a project
+ * Optionally filter by app_id
  */
-export const webhooksQueryAtom = (appId: string) =>
+export const webhooksQueryAtom = (projectId: string, appId?: string) =>
     atomWithQuery(() => ({
-        queryKey: ["webhooks", appId],
-        queryFn: () => webhookService.listWebhooks(appId),
+        queryKey: ["webhooks", projectId, appId],
+        queryFn: () => webhookService.listWebhooks(projectId, appId),
         staleTime: 30_000, // 30 seconds
     }))
 
@@ -24,11 +25,11 @@ export const webhooksQueryAtom = (appId: string) =>
  * Mutation atom for creating a webhook
  */
 export const createWebhookMutationAtom = atomWithMutation(() => ({
-    mutationFn: async (payload: {appId: string; data: CreateWebhookPayload}) => {
+    mutationFn: async (payload: {projectId: string; data: CreateWebhookPayload}) => {
         return await webhookService.createWebhook(payload.data)
     },
     onSuccess: (_, payload) => {
-        queryClient.invalidateQueries({queryKey: ["webhooks", payload.appId]})
+        queryClient.invalidateQueries({queryKey: ["webhooks", payload.projectId]})
         message.success("Webhook created successfully")
     },
     onError: (error: Error) => {
@@ -40,11 +41,11 @@ export const createWebhookMutationAtom = atomWithMutation(() => ({
  * Mutation atom for updating a webhook
  */
 export const updateWebhookMutationAtom = atomWithMutation(() => ({
-    mutationFn: async (payload: {webhookId: string; data: UpdateWebhookPayload; appId: string}) => {
+    mutationFn: async (payload: {webhookId: string; data: UpdateWebhookPayload; projectId: string}) => {
         return await webhookService.updateWebhook(payload.webhookId, payload.data)
     },
     onSuccess: (_, payload) => {
-        queryClient.invalidateQueries({queryKey: ["webhooks", payload.appId]})
+        queryClient.invalidateQueries({queryKey: ["webhooks", payload.projectId]})
         message.success("Webhook updated successfully")
     },
     onError: (error: Error) => {
@@ -56,11 +57,11 @@ export const updateWebhookMutationAtom = atomWithMutation(() => ({
  * Mutation atom for deleting a webhook
  */
 export const deleteWebhookMutationAtom = atomWithMutation(() => ({
-    mutationFn: async (payload: {webhookId: string; appId: string}) => {
+    mutationFn: async (payload: {webhookId: string; projectId: string}) => {
         await webhookService.deleteWebhook(payload.webhookId)
     },
     onSuccess: (_, payload) => {
-        queryClient.invalidateQueries({queryKey: ["webhooks", payload.appId]})
+        queryClient.invalidateQueries({queryKey: ["webhooks", payload.projectId]})
         message.success("Webhook deleted successfully")
     },
     onError: (error: Error) => {

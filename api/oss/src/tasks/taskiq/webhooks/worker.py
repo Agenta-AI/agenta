@@ -197,9 +197,12 @@ class WebhooksWorker:
                     # Substitute template variables
                     template_vars = {
                         "app_id": deployment_context.get("app_id", ""),
+                        "app_slug": deployment_context.get("app_slug", ""),
                         "environment": deployment_context.get("environment_name", ""),
                         "deployment_id": deployment_context.get("deployment_id", ""),
                         "variant_id": deployment_context.get("variant_id", ""),
+                        "variant_slug": deployment_context.get("variant_slug", ""),
+                        "variant_version": deployment_context.get("variant_version", ""),
                         "variant_revision_id": deployment_context.get("variant_revision_id", ""),
                         "project_id": deployment_context.get("project_id", ""),
                     }
@@ -315,6 +318,7 @@ class WebhooksWorker:
                 },
                 # Add deployment context as environment variables
                 "AGENTA_DEPLOYMENT_APP_ID": deployment_context.get("app_id", ""),
+                "AGENTA_DEPLOYMENT_APP_SLUG": deployment_context.get("app_slug", ""),
                 "AGENTA_DEPLOYMENT_ENVIRONMENT": deployment_context.get(
                     "environment_name", ""
                 ),
@@ -322,6 +326,8 @@ class WebhooksWorker:
                     "deployment_id", ""
                 ),
                 "AGENTA_DEPLOYMENT_VARIANT_ID": deployment_context.get("variant_id", ""),
+                "AGENTA_DEPLOYMENT_VARIANT_SLUG": deployment_context.get("variant_slug", ""),
+                "AGENTA_DEPLOYMENT_VARIANT_VERSION": str(deployment_context.get("variant_version", "")),
                 "AGENTA_DEPLOYMENT_VARIANT_REVISION_ID": deployment_context.get(
                     "variant_revision_id", ""
                 ),

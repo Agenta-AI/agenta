@@ -20,6 +20,7 @@ import {useQueryParamState} from "@/oss/state/appState"
 import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
 import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {
     selectedVariantsCountAtom,
     variantTableSelectionAtomFamily,
@@ -46,6 +47,7 @@ import WebhooksList from "../Webhooks/WebhooksList"
 
 const VariantsDashboard = () => {
     const appId = useAppId()
+    const projectId = useAtomValue(projectIdAtom) || ""
     const router = useRouter()
     const [, setQueryVariant] = useQueryParamState("revisionId")
     const [activeTab, setActiveTab] = useQueryParam("tab", "variants")
@@ -323,7 +325,13 @@ const VariantsDashboard = () => {
         </div>
     )
 
-    const webhooksContent = <WebhooksList appId={appId || ""} />
+    const webhooksContent = projectId ? (
+        <WebhooksList projectId={projectId} appId={appId} />
+    ) : (
+        <div style={{padding: "40px", textAlign: "center"}}>
+            <Typography.Text type="secondary">Loading project information...</Typography.Text>
+        </div>
+    )
 
     return (
         <PageLayout title="Registry" headerTabsProps={headerTabsProps} className="grow min-h-0">
