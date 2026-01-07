@@ -192,15 +192,6 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
             })
     }, [availability.canCompare, availability.testsetIds, availability.evaluatorIds, runs, runId])
 
-    const candidateTestsetIds = useMemo(() => {
-        const ids = new Set<string>()
-        candidates.forEach((candidate) => {
-            candidate.structure.testsetIds.forEach((id) => ids.add(id))
-        })
-        return Array.from(ids)
-    }, [candidates])
-    const candidateTestsetNameMap = useTestsetNameMap(candidateTestsetIds)
-
     const filteredCandidates = useMemo(() => {
         const query = searchTerm.trim().toLowerCase()
         return candidates.filter((candidate) => {

@@ -828,8 +828,8 @@ const EvalRunDetailsTable = ({
     const hasCompareRuns = compareSlots.some(Boolean)
 
     return (
-        <section className="bg-zinc-1 w-full h-full overflow-scroll flex flex-col px-2">
-            <div className="w-full grow min-h-0 overflow-scroll">
+        <section className="bg-zinc-1 w-full h-full overflow-hidden flex flex-col px-2">
+            <div className="w-full grow min-h-0 overflow-auto">
                 <InfiniteVirtualTableFeatureShell<TableRowData>
                     datasetStore={evaluationPreviewDatasetStore}
                     tableScope={tableScope}

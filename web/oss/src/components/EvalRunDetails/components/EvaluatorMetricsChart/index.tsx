@@ -429,13 +429,13 @@ const EvaluatorMetricsChart = ({
                     key: baseSeriesKey,
                     name: resolvedRunName,
                     color: resolvedBaseColor,
-                    barProps: {radius: [8, 8, 0, 0]},
+                    barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
                 },
                 ...comparisonBooleanHistograms.map((entry) => ({
                     key: entry.runId,
                     name: entry.runName,
                     color: entry.color,
-                    barProps: {radius: [8, 8, 0, 0]},
+                    barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
                 })),
             ]
 
@@ -449,8 +449,8 @@ const EvaluatorMetricsChart = ({
                     yDomain={[0, 100]}
                     series={series}
                     barCategoryGap="20%"
-                    showLegend={stableComparisons.length > 0}
-                    reserveLegendSpace={stableComparisons.length > 0}
+                    showLegend={false}
+                    reserveLegendSpace={false}
                 />
             )
         }
@@ -515,13 +515,13 @@ const EvaluatorMetricsChart = ({
                     key: baseSeriesKey,
                     name: resolvedRunName,
                     color: resolvedBaseColor,
-                    barProps: {radius: [8, 8, 0, 0]},
+                    barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
                 },
                 ...comparisonMaps.map((entry) => ({
                     key: entry.runId,
                     name: entry.runName,
                     color: entry.color,
-                    barProps: {radius: [8, 8, 0, 0]},
+                    barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
                 })),
             ]
 
@@ -535,8 +535,8 @@ const EvaluatorMetricsChart = ({
                     yDomain={[0, "auto"]}
                     series={series}
                     barCategoryGap="20%"
-                    showLegend={stableComparisons.length > 0}
-                    reserveLegendSpace={stableComparisons.length > 0}
+                    showLegend={false}
+                    reserveLegendSpace={false}
                 />
             )
         }
