@@ -1,5 +1,5 @@
 from typing import Type, Any, Callable, Dict, Optional, Tuple, List, TYPE_CHECKING
-from asyncio import gather, sleep
+from asyncio import sleep
 from functools import wraps
 from inspect import (
     iscoroutinefunction,
@@ -243,7 +243,7 @@ class entrypoint:
 
         ### --- Test --- #
         @wraps(func)
-        async def test_wrapper(request: Request, repetitions: int = 1, *args, **kwargs) -> Any:
+        async def test_wrapper(request: Request, *args, **kwargs) -> Any:
             kwargs, config = self.process_kwargs(kwargs, default_parameters)
             request.state.inline = True
             request.state.config["parameters"] = config
@@ -253,14 +253,6 @@ class entrypoint:
                     for k, v in request.state.config["references"].items()
                     if k.startswith("application")
                 } or None
-
-            if repetitions > 1:
-                tasks = [
-                    self.execute_wrapper(request, *args, **kwargs)
-                    for _ in range(repetitions)
-                ]
-                results = await gather(*tasks)
-                return list(results)
 
             return await self.execute_wrapper(request, *args, **kwargs)
 
@@ -666,14 +658,7 @@ class entrypoint:
         updated_params: List[Parameter] = []
         self.add_config_params_to_parser(updated_params, config_instance)
         self.add_func_params_to_parser(updated_params)
-        updated_params.append(
-            Parameter(
-                "repetitions",
-                kind=Parameter.KEYWORD_ONLY,
-                annotation=int,
-                default=Body(1),
-            )
-        )
+
         self.update_wrapper_signature(wrapper, updated_params)
         self.add_request_to_signature(wrapper)
 
