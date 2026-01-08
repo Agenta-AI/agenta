@@ -148,6 +148,15 @@ axios.interceptors.response.use(
                 upgradeDetail?.error === "AUTH_SSO_DISABLED") &&
             !error.config?._skipAuthUpgradeRedirect
         ) {
+            if (
+                typeof window !== "undefined" &&
+                window.localStorage.getItem("authUpgradeOrgId")
+            ) {
+                if (error.config) {
+                    error.config._ignoreError = true
+                }
+                return Promise.reject(error)
+            }
             if (typeof window === "undefined") {
                 return Promise.reject(error)
             }

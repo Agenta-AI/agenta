@@ -72,13 +72,17 @@ async def check_organization_access(request: Request, organization_id: str):
         user_id, org_id, session_identities
     )
 
-    if policy_error and policy_error.get("error") == "AUTH_UPGRADE_REQUIRED":
+    if policy_error and policy_error.get("error") in {
+        "AUTH_UPGRADE_REQUIRED",
+        "AUTH_SSO_DISABLED",
+    }:
         detail = {
             "error": policy_error.get("error"),
             "message": policy_error.get("message"),
             "required_methods": policy_error.get("required_methods", []),
             "session_identities": session_identities,
             "user_identities": user_identities,
+            "sso_providers": policy_error.get("sso_providers", []),
         }
         raise HTTPException(status_code=403, detail=detail)
 

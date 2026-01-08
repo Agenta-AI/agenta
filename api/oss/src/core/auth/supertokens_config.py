@@ -132,6 +132,7 @@ def get_thirdparty_providers() -> List[ProviderInput]:
             provider_id="github",
             client_id=env.auth.github_oauth_client_id,
             client_secret=env.auth.github_oauth_client_secret,
+            additional_config={"scope": ["user:email"]},
         )
 
     # Facebook OAuth

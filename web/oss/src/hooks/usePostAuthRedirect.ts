@@ -1,8 +1,8 @@
 import {useCallback, useMemo} from "react"
 
-import {getDefaultStore} from "jotai"
+import {getDefaultStore, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
-import {signOut} from "supertokens-auth-react/recipe/session"
+import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
 import {isDemo} from "@/oss/lib/helpers/utils"
@@ -15,6 +15,7 @@ import {useProfileData} from "@/oss/state/profile"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {useProjectData} from "@/oss/state/project"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
+import {authFlowAtom} from "@/oss/state/session"
 
 interface AuthUserLike {
     createdNewRecipeUser?: boolean
@@ -32,6 +33,7 @@ const usePostAuthRedirect = () => {
     const {refetch: resetProfileData} = useProfileData()
     const {refetch: resetOrgData} = useOrgData()
     const {reset: resetProjectData} = useProjectData()
+    const setAuthFlow = useSetAtom(authFlowAtom)
     const [invite] = useLocalStorage<Record<string, unknown>>("invite", {})
     const authUpgradeOrgKey = "authUpgradeOrgId"
     const lastSsoOrgSlugKey = "lastSsoOrgSlug"
@@ -59,6 +61,8 @@ const usePostAuthRedirect = () => {
 
     const handleAuthSuccess = useCallback(
         async (authResult: AuthUserLike, options?: HandleAuthSuccessOptions) => {
+            // Auth completed successfully; resume normal data fetching.
+            setAuthFlow("authed")
             const isInvitedUser = options?.isInvitedUser ?? derivedIsInvitedUser
             const loginMethodCount = authResult?.user?.loginMethods?.length ?? 0
             const isNewUser =
@@ -131,25 +135,49 @@ const usePostAuthRedirect = () => {
                     queryFn: () => fetchAllOrgsList(),
                     staleTime: 60_000,
                 })
-                const lastSsoSlug =
+                let lastSsoSlug =
                     typeof window !== "undefined"
                         ? window.localStorage.getItem(lastSsoOrgSlugKey)
                         : null
+                if (!lastSsoSlug) {
+                    try {
+                        const payload = await Session.getAccessTokenPayloadSecurely()
+                        const sessionIdentities =
+                            payload?.session_identities || payload?.sessionIdentities || []
+                        const ssoIdentity = Array.isArray(sessionIdentities)
+                            ? sessionIdentities.find((identity: string) =>
+                                  identity.startsWith("sso:"),
+                              )
+                            : null
+                        if (ssoIdentity) {
+                            const [, orgSlug] = ssoIdentity.split(":")
+                            if (orgSlug) {
+                                lastSsoSlug = orgSlug
+                            }
+                        }
+                    } catch {
+                        // ignore payload lookup failures
+                    }
+                }
                 if (lastSsoSlug) {
                     const match = Array.isArray(freshOrgs)
                         ? freshOrgs.find((org) => org.slug === lastSsoSlug)
                         : null
                     if (match?.id && match.flags?.allow_sso) {
+                        // If we just completed an SSO flow, prefer the SSO org over Personal.
+                        // This avoids a brief redirect to Personal that can trigger
+                        // "requires email/social" when the session only has sso:*.
                         window.localStorage.removeItem(lastSsoOrgSlugKey)
                         await router.replace(`/w/${encodeURIComponent(match.id)}`)
                         return
                     }
                     if (match?.id && !match.flags?.allow_sso) {
+                        // SSO succeeded but the org is not SSO-enabled: sign out and return to /auth.
                         window.localStorage.removeItem(lastSsoOrgSlugKey)
-                        const orgLabel = match?.name || match?.slug || "this organization"
                         const query = new URLSearchParams({
                             auth_error: "sso_disabled",
-                            auth_message: `SSO was successful but is currently disabled for this organization. Please sign in using another method or contact your administrator.`,
+                            auth_message:
+                                "SSO was successful but is currently disabled for this organization. Please sign in using another method or contact your administrator.",
                         })
                         try {
                             await signOut()
@@ -164,6 +192,7 @@ const usePostAuthRedirect = () => {
                     ? freshOrgs.find((org) => isPersonalOrg(org))
                     : null
                 if (personal?.id) {
+                    // Fallback only if no SSO-specific org was selected above.
                     await router.replace(`/w/${encodeURIComponent(personal.id)}`)
                     return
                 }

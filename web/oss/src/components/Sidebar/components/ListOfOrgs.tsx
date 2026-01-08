@@ -16,7 +16,7 @@ import {
     message,
 } from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import Session from "supertokens-auth-react/recipe/session"
 
@@ -36,6 +36,7 @@ import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
 import {resetProjectData} from "@/oss/state/project"
 import {clearLastUsedProjectId} from "@/oss/state/project/selectors/project"
+import {authFlowAtom} from "@/oss/state/session"
 import {useWorkspaceMembers} from "@/oss/state/workspace"
 
 import Avatar from "../../Avatar/Avatar"
@@ -84,14 +85,18 @@ const ListOfOrgs = ({
     } = useOrgData()
     const {members: workspaceMembers} = useWorkspaceMembers()
     const selectedOrganizationId = useAtomValue(selectedOrgIdAtom)
+    const setAuthFlow = useSetAtom(authFlowAtom)
     const effectiveSelectedId =
         overrideOrganizationId || selectedOrganization?.id || selectedOrganizationId
     const organizationList = useAtomValue(organizationsAtom)
+    const safeOrganizationList = Array.isArray(organizationList) ? organizationList : []
     const selectedBasicOrganization = useMemo(
         () =>
-            organizationList.find((organization) => organization.id === effectiveSelectedId) ||
+            safeOrganizationList.find(
+                (organization) => organization.id === effectiveSelectedId,
+            ) ||
             null,
-        [organizationList, effectiveSelectedId],
+        [safeOrganizationList, effectiveSelectedId],
     )
     const {project} = useProjectData()
     const organizationDisplayName =
@@ -273,6 +278,7 @@ const ListOfOrgs = ({
             setAuthUpgradeOpen(false)
             setAuthUpgradeDetail(null)
             setAuthUpgradeOrgId(null)
+            setAuthFlow("authed")
             if (typeof window !== "undefined") {
                 window.localStorage.removeItem(authUpgradeOrgKey)
                 window.localStorage.removeItem("authUpgradeSessionIdentities")
@@ -558,6 +564,7 @@ const ListOfOrgs = ({
                     ) {
                         setAuthUpgradeDetail(detail)
                         setAuthUpgradeOrgId(organizationId)
+                        setAuthFlow("authing")
                         if (typeof window !== "undefined") {
                             window.localStorage.setItem(authUpgradeOrgKey, organizationId)
                             Session.getAccessTokenPayloadSecurely()
@@ -664,6 +671,7 @@ const ListOfOrgs = ({
                     setAuthUpgradeOpen(false)
                     setAuthUpgradeDetail(null)
                     setAuthUpgradeOrgId(null)
+                    setAuthFlow("authed")
                     if (typeof window !== "undefined") {
                         window.localStorage.removeItem(authUpgradeOrgKey)
                         window.localStorage.removeItem("authUpgradeSessionIdentities")

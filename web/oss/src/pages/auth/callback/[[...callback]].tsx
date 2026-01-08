@@ -10,6 +10,7 @@ import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
+import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
@@ -61,6 +62,26 @@ const Callback = () => {
                     console.log("[AUTH-CALLBACK] session payload", payload)
                 } catch (payloadErr) {
                     console.warn("[AUTH-CALLBACK] session payload fetch failed", payloadErr)
+                }
+                if (typeof window !== "undefined") {
+                    const rawSessionIdentities = window.localStorage.getItem(
+                        "authUpgradeSessionIdentities",
+                    )
+                    if (rawSessionIdentities) {
+                        try {
+                            const parsed = JSON.parse(rawSessionIdentities)
+                            const list = Array.isArray(parsed) ? parsed : []
+                            if (list.length > 0) {
+                                await mergeSessionIdentities(list)
+                            }
+                            window.localStorage.removeItem("authUpgradeSessionIdentities")
+                        } catch (mergeError) {
+                            console.warn(
+                                "[AUTH-CALLBACK] session identities merge failed",
+                                mergeError,
+                            )
+                        }
+                    }
                 }
                 setMessage({message: "Verification successful", type: "success"})
                 const {createdNewRecipeUser, user} = response

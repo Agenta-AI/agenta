@@ -179,6 +179,8 @@ const Auth = () => {
                 throw new Error("SSO provider is missing a third_party_id")
             }
 
+            // Store the org slug so the post-auth redirect can land in the SSO org,
+            // not Personal, after the callback completes.
             const orgSlug = parseSsoOrgSlug(provider.third_party_id)
             if (orgSlug && typeof window !== "undefined") {
                 window.localStorage.setItem(LAST_SSO_ORG_SLUG_KEY, orgSlug)

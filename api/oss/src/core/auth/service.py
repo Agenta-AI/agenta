@@ -596,37 +596,6 @@ class AuthService:
         allow_social = org_flags.get("allow_social", env.auth.oidc_enabled)
         allow_sso = org_flags.get("allow_sso", False)
 
-        # If the session used SSO but the org doesn't allow it (or provider inactive),
-        # block and instruct user to re-auth with allowed methods.
-        sso_identity = next(
-            (identity for identity in session_identities if identity.startswith("sso:")),
-            None,
-        )
-        if sso_identity and self.providers_dao:
-            org_slug = await self._get_organization_slug(organization_id)
-            provider_slug = sso_identity.split(":")[2] if len(sso_identity.split(":")) > 2 else None
-            providers = await self.providers_dao.list_by_organization(
-                str(organization_id)
-            )
-            active_provider_slugs = {
-                p.slug for p in providers if p.flags and p.flags.get("is_active", False)
-            }
-            sso_matches_org = bool(org_slug and sso_identity.startswith(f"sso:{org_slug}:"))
-            sso_provider_active = bool(provider_slug and provider_slug in active_provider_slugs)
-
-            if not allow_sso or not sso_matches_org or not sso_provider_active:
-                required_methods = []
-                if allow_email:
-                    required_methods.append("email:*")
-                if allow_social:
-                    required_methods.append("social:*")
-                return {
-                    "error": "AUTH_SSO_DISABLED",
-                    "message": "SSO is not enabled for this organization",
-                    "required_methods": required_methods,
-                    "current_identities": session_identities,
-                }
-
         if allow_email:
             allowed_methods.append("email:*")
         if allow_social:
@@ -647,11 +616,51 @@ class AuthService:
         matches = self._matches_policy(session_identities, allowed_methods)
 
         if not matches:
+            # If the session used SSO but the org doesn't allow it (or provider inactive),
+            # block and instruct user to re-auth with allowed methods.
+            sso_identity = next(
+                (identity for identity in session_identities if identity.startswith("sso:")),
+                None,
+            )
+            if sso_identity and self.providers_dao:
+                org_slug = await self._get_organization_slug(organization_id)
+                provider_slug = (
+                    sso_identity.split(":")[2] if len(sso_identity.split(":")) > 2 else None
+                )
+                providers = await self.providers_dao.list_by_organization(
+                    str(organization_id)
+                )
+                active_provider_slugs = {
+                    p.slug for p in providers if p.flags and p.flags.get("is_active", False)
+                }
+                sso_matches_org = bool(
+                    org_slug and sso_identity.startswith(f"sso:{org_slug}:")
+                )
+                sso_provider_active = bool(
+                    provider_slug and provider_slug in active_provider_slugs
+                )
+
+                if not allow_sso or not sso_matches_org or not sso_provider_active:
+                    required_methods = []
+                    if allow_email:
+                        required_methods.append("email:*")
+                    if allow_social:
+                        required_methods.append("social:*")
+                    return {
+                        "error": "AUTH_SSO_DISABLED",
+                        "message": "SSO is not enabled for this organization",
+                        "required_methods": required_methods,
+                        "current_identities": session_identities,
+                    }
+            sso_providers = []
+            if "sso:*" in allowed_methods:
+                sso_providers = await self._get_active_sso_providers(organization_id)
             return {
                 "error": "AUTH_UPGRADE_REQUIRED",
                 "message": "Additional authentication required",
                 "required_methods": allowed_methods,
                 "current_identities": session_identities,
+                "sso_providers": sso_providers,
             }
 
         return None
@@ -683,6 +692,29 @@ class AuthService:
                         return True
 
         return False
+
+    async def _get_active_sso_providers(
+        self, organization_id: UUID
+    ) -> List[Dict[str, str]]:
+        if not is_ee() or not self.providers_dao:
+            return []
+
+        organization = await db_manager.get_organization_by_id(str(organization_id))
+        if not organization or not organization.slug:
+            return []
+
+        providers = await self.providers_dao.list_by_organization(str(organization_id))
+        results = []
+        for provider in providers:
+            if provider.flags and provider.flags.get("is_active", False):
+                results.append(
+                    {
+                        "id": str(provider.id),
+                        "slug": provider.slug,
+                        "third_party_id": f"sso:{organization.slug}:{provider.slug}",
+                    }
+                )
+        return results
 
     async def _get_organization_flags(
         self, organization_id: UUID
