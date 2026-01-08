@@ -1,6 +1,4 @@
-from typing import Type, Any, Callable, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
-from asyncio import sleep
-from functools import wraps
+from typing import Type, Any, Callable, Dict, Optional, Tuple, List, TYPE_CHECKING
 from inspect import (
     iscoroutinefunction,
     isgenerator,
@@ -9,7 +7,9 @@ from inspect import (
     Signature,
     Parameter,
 )
+from functools import wraps
 from traceback import format_exception
+from asyncio import sleep
 from uuid import UUID
 from pydantic import BaseModel, HttpUrl, ValidationError
 from os import environ
@@ -253,7 +253,6 @@ class entrypoint:
                     for k, v in request.state.config["references"].items()
                     if k.startswith("application")
                 } or None
-
             return await self.execute_wrapper(request, *args, **kwargs)
 
         self.update_test_wrapper_signature(wrapper=test_wrapper, config_instance=config)
@@ -261,7 +260,7 @@ class entrypoint:
         test_route = f"{route_path}{entrypoint._test_path}"
         app.post(
             test_route,
-            response_model=Union[BaseResponse, List[BaseResponse]],
+            response_model=BaseResponse,
             response_model_exclude_none=True,
         )(test_wrapper)
 
@@ -272,7 +271,7 @@ class entrypoint:
             test_route = entrypoint._legacy_generate_path
             app.post(
                 test_route,
-                response_model=Union[BaseResponse, List[BaseResponse]],
+                response_model=BaseResponse,
                 response_model_exclude_none=True,
             )(test_wrapper)
         # LEGACY
@@ -662,7 +661,6 @@ class entrypoint:
         updated_params: List[Parameter] = []
         self.add_config_params_to_parser(updated_params, config_instance)
         self.add_func_params_to_parser(updated_params)
-
         self.update_wrapper_signature(wrapper, updated_params)
         self.add_request_to_signature(wrapper)
 
