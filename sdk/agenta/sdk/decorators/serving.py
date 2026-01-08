@@ -368,6 +368,8 @@ class entrypoint:
         parameters = state.config.get("parameters")
         references = state.config.get("references")
         secrets = state.vault.get("secrets")
+        local_secrets = state.vault.get("local_secrets")
+        vault_secrets = state.vault.get("vault_secrets")
         inline = state.inline
         mock = state.mock
 
@@ -375,6 +377,8 @@ class entrypoint:
             context=RoutingContext(
                 parameters=parameters,
                 secrets=secrets,
+                local_secrets=local_secrets,
+                vault_secrets=vault_secrets,
                 mock=mock,
             )
         ):

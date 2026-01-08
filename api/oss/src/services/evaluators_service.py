@@ -1,32 +1,37 @@
-import re
 import json
+import re
 import traceback
-from typing import Any, Dict, Union, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-import litellm
 import httpx
+import litellm
+from agenta.sdk.managers.secrets import SecretsManager
 from fastapi import HTTPException
 from openai import AsyncOpenAI
+from oss.src.models.api.evaluation_model import (
+    EvaluatorInputInterface,
+    EvaluatorMappingInputInterface,
+    EvaluatorMappingOutputInterface,
+    EvaluatorOutputInterface,
+)
+from oss.src.models.shared_models import Error, Result
 
 # COMMENTED OUT: autoevals dependency removed
 # from autoevals.ragas import Faithfulness, ContextRelevancy
-
 from oss.src.utils.logging import get_module_logger
-from oss.src.services.security import sandbox
-from oss.src.models.shared_models import Error, Result
-from oss.src.models.api.evaluation_model import (
-    EvaluatorInputInterface,
-    EvaluatorOutputInterface,
-    EvaluatorMappingInputInterface,
-    EvaluatorMappingOutputInterface,
-)
 from oss.src.utils.traces import (
-    remove_trace_prefix,
     process_distributed_trace_into_trace_tree,
     get_field_value_from_trace_tree,
 )
 
-from agenta.sdk.managers.secrets import SecretsManager
+from agenta.sdk.contexts.running import RunningContext
+from agenta.sdk.models.workflows import (
+    WorkflowServiceRequest,
+    WorkflowServiceRequestData,
+)
+from agenta.sdk.workflows.builtin import (
+    auto_custom_code_run as sdk_auto_custom_code_run,
+)
 
 
 log = get_module_logger(__name__)
@@ -253,7 +258,7 @@ async def auto_exact_match(
                 message=str(e),
             ),
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -352,6 +357,139 @@ async def field_match_test(input: EvaluatorInputInterface) -> EvaluatorOutputInt
     return {"outputs": {"success": result}}
 
 
+def get_nested_value(obj: Any, path: str) -> Any:
+    """
+    Get value from nested object using resolve_any() with graceful None on failure.
+
+    Supports multiple path formats:
+        - Dot notation: "user.address.city", "items.0.name"
+        - JSON Path: "$.user.address.city", "$.items[0].name"
+        - JSON Pointer: "/user/address/city", "/items/0/name"
+
+    Args:
+        obj: The object to traverse (dict or nested structure)
+        path: Path expression in any supported format
+
+    Returns:
+        The value at the specified path, or None if path doesn't exist or resolution fails
+    """
+    if obj is None:
+        return None
+
+    try:
+        return resolve_any(path, obj)
+    except (KeyError, IndexError, ValueError, TypeError, ImportError):
+        return None
+
+
+async def auto_json_multi_field_match(
+    inputs: Dict[str, Any],  # pylint: disable=unused-argument
+    output: Union[str, Dict[str, Any]],
+    data_point: Dict[str, Any],
+    app_params: Dict[str, Any],  # pylint: disable=unused-argument
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
+) -> Result:
+    """
+    Evaluator that compares multiple configured fields in expected JSON against LLM output JSON.
+    Each configured field becomes a separate score in the output.
+
+    Returns a Result with:
+    - type="object" containing one score per configured field plus overall score
+    - Each field score is 1.0 (match) or 0.0 (no match)
+    - Overall 'score' is the average of all field scores
+    """
+    try:
+        output = validate_string_output("json_multi_field_match", output)
+        correct_answer = get_correct_answer(data_point, settings_values)
+        eval_inputs = {"ground_truth": correct_answer, "prediction": output}
+        response = await json_multi_field_match(
+            input=EvaluatorInputInterface(
+                **{"inputs": eval_inputs, "settings": settings_values}
+            )
+        )
+        return Result(type="object", value=response["outputs"])
+    except ValueError as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message=str(e),
+            ),
+        )
+    except Exception:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during JSON Multi-Field Match evaluation",
+                stacktrace=str(traceback.format_exc()),
+            ),
+        )
+
+
+async def json_multi_field_match(
+    input: EvaluatorInputInterface,
+) -> EvaluatorOutputInterface:
+    """
+    Compare configured fields in expected JSON against LLM output JSON.
+    Each configured field becomes a separate score in the output.
+
+    Args:
+        input: EvaluatorInputInterface with:
+            - inputs.prediction: JSON string from LLM output
+            - inputs.ground_truth: JSON string from test data column
+            - settings.fields: List of field paths (strings) e.g., ["name", "email", "user.address.city"]
+
+    Returns:
+        EvaluatorOutputInterface with one score per configured field plus overall score
+    """
+    fields = input.settings.get("fields", [])
+
+    if not fields:
+        raise ValueError("No fields configured for comparison")
+
+    # Parse both JSON objects
+    prediction = input.inputs.get("prediction", "")
+    ground_truth = input.inputs.get("ground_truth", "")
+
+    try:
+        if isinstance(ground_truth, str):
+            expected = json.loads(ground_truth)
+        else:
+            expected = ground_truth
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in ground truth: {str(e)}")
+
+    try:
+        if isinstance(prediction, str):
+            actual = json.loads(prediction)
+        else:
+            actual = prediction
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in prediction: {str(e)}")
+
+    results: Dict[str, Any] = {}
+    matches = 0
+
+    for field_path in fields:
+        # Support nested fields with dot notation
+        expected_val = get_nested_value(expected, field_path)
+        actual_val = get_nested_value(actual, field_path)
+
+        # Exact match comparison (v1 - always exact)
+        match = expected_val == actual_val
+
+        results[field_path] = 1.0 if match else 0.0
+        if match:
+            matches += 1
+
+    # Aggregate score is the percentage of matching fields
+    results["aggregate_score"] = matches / len(fields) if fields else 0.0
+
+    return {"outputs": results}
+
+
 async def auto_webhook_test(
     inputs: Dict[str, Any],
     output: Union[str, Dict[str, Any]],
@@ -375,7 +513,7 @@ async def auto_webhook_test(
             type="error",
             value=None,
             error=Error(
-                message=f"[webhook evaluation] HTTP - {repr(e)}",
+                message=f"[webhook evaluator] HTTP - {repr(e)}",
                 stacktrace=traceback.format_exc(),
             ),
         )
@@ -384,7 +522,7 @@ async def auto_webhook_test(
             type="error",
             value=None,
             error=Error(
-                message=f"[webhook evaluation] JSON - {repr(e)}",
+                message=f"[webhook evaluator] JSON - {repr(e)}",
                 stacktrace=traceback.format_exc(),
             ),
         )
@@ -393,7 +531,7 @@ async def auto_webhook_test(
             type="error",
             value=None,
             error=Error(
-                message=f"[webhook evaluation] Exception - {repr(e)} ",
+                message=f"[webhook evaluator] Exception - {repr(e)} ",
                 stacktrace=traceback.format_exc(),
             ),
         )
@@ -429,13 +567,13 @@ async def auto_custom_code_run(
             "prediction": output,
             "ground_truth": correct_answer,
         }
-        response = await custom_code_run(
+        response = await sdk_custom_code_run(
             input=EvaluatorInputInterface(
                 **{"inputs": inputs, "settings": settings_values}
             )
         )
         return Result(type="number", value=response["outputs"]["score"])
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -446,16 +584,58 @@ async def auto_custom_code_run(
         )
 
 
-async def custom_code_run(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
-    result = sandbox.execute_code_safely(
-        app_params=input.inputs["app_config"],
-        inputs=input.inputs,
-        output=input.inputs["prediction"],
-        correct_answer=input.inputs["ground_truth"],
-        code=input.settings["code"],
-        datapoint=input.inputs["ground_truth"],
+async def sdk_custom_code_run(
+    input: EvaluatorInputInterface,
+) -> EvaluatorOutputInterface:
+    inputs = input.inputs or {}
+    settings = input.settings or {}
+
+    code = settings.get("code")
+    if code is None:
+        raise ValueError("Missing evaluator setting: code")
+
+    correct_answer_key = settings.get("correct_answer_key")
+    if not correct_answer_key:
+        correct_answer_key = (
+            "ground_truth" if "ground_truth" in inputs else "correct_answer"
+        )
+
+    threshold = settings.get("threshold", 0.5)
+    runtime = settings.get("runtime", "python")
+
+    workflow = sdk_auto_custom_code_run(
+        code=str(code),
+        correct_answer_key=str(correct_answer_key),
+        threshold=float(threshold),
+        runtime=runtime,
     )
-    return {"outputs": {"score": result}}
+
+    credentials = RunningContext.get().credentials
+
+    outputs = inputs.get("prediction", inputs.get("output"))
+    request = WorkflowServiceRequest(
+        data=WorkflowServiceRequestData(
+            inputs=inputs,
+            outputs=outputs,
+        ),
+        credentials=credentials,
+    )
+
+    response = await workflow.invoke(request=request)
+
+    # Check for error status and propagate it
+    if response.status and response.status.code and response.status.code >= 400:
+        error_message = response.status.message or "Custom code execution failed"
+        raise RuntimeError(error_message)
+
+    result = response.data.outputs if response.data else None
+
+    if isinstance(result, dict) and "score" in result:
+        score = result["score"]
+    else:
+        score = result
+
+    return {"outputs": {"score": score}}
 
 
 async def auto_ai_critique(
@@ -504,7 +684,7 @@ async def auto_ai_critique(
             )
         )
         return Result(type="number", value=response["outputs"]["score"])
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -515,9 +695,7 @@ async def auto_ai_critique(
         )
 
 
-import json
-import re
-from typing import Any, Dict, Iterable, Tuple, Optional
+from typing import Any, Dict, Iterable, Tuple
 
 try:
     import jsonpath  # ✅ use module API
@@ -785,7 +963,7 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             if inputs and isinstance(inputs, dict) and correct_answer_key:
                 correct_answer = inputs[correct_answer_key]
 
-            secrets = await SecretsManager.retrieve_secrets()
+            secrets, _, _ = await SecretsManager.retrieve_secrets()
 
             openai_api_key = None  # secrets.get("OPENAI_API_KEY")
             anthropic_api_key = None  # secrets.get("ANTHROPIC_API_KEY")
@@ -969,7 +1147,7 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             if inputs and isinstance(inputs, dict) and correct_answer_key:
                 correct_answer = inputs[correct_answer_key]
 
-            secrets = await SecretsManager.retrieve_secrets()
+            secrets, _, _ = await SecretsManager.retrieve_secrets()
 
             openai_api_key = None  # secrets.get("OPENAI_API_KEY")
             anthropic_api_key = None  # secrets.get("ANTHROPIC_API_KEY")
@@ -1154,7 +1332,7 @@ async def auto_starts_with(
             )
         )
         return Result(type="bool", value=response["outputs"]["success"])
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1196,7 +1374,7 @@ async def auto_ends_with(
         )
         result = Result(type="bool", value=response["outputs"]["success"])
         return result
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1238,7 +1416,7 @@ async def auto_contains(
         )
         result = Result(type="bool", value=response["outputs"]["success"])
         return result
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1280,7 +1458,7 @@ async def auto_contains_any(
         )
         result = Result(type="bool", value=response["outputs"]["success"])
         return result
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1323,7 +1501,7 @@ async def auto_contains_all(
         )
         result = Result(type="bool", value=response["outputs"]["success"])
         return result
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1371,7 +1549,7 @@ async def auto_contains_json(
             input=EvaluatorInputInterface(**{"inputs": {"prediction": output}})
         )
         return Result(type="bool", value=response["outputs"]["success"])
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1389,7 +1567,7 @@ async def contains_json(input: EvaluatorInputInterface) -> EvaluatorOutputInterf
         potential_json = str(input.inputs["prediction"])[start_index:end_index]
         json.loads(potential_json)
         contains_json = True
-    except (ValueError, json.JSONDecodeError) as e:
+    except (ValueError, json.JSONDecodeError):
         contains_json = False
 
     return {"outputs": {"success": contains_json}}
@@ -1852,7 +2030,7 @@ async def auto_levenshtein_distance(
                 message=str(e),
             ),
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -1892,7 +2070,7 @@ async def auto_similarity_match(
                 message=str(e),
             ),
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -2002,6 +2180,7 @@ EVALUATOR_FUNCTIONS = {
     "auto_exact_match": auto_exact_match,
     "auto_regex_test": auto_regex_test,
     "field_match_test": auto_field_match_test,
+    "json_multi_field_match": auto_json_multi_field_match,
     "auto_webhook_test": auto_webhook_test,
     "auto_custom_code_run": auto_custom_code_run,
     "auto_ai_critique": auto_ai_critique,
@@ -2024,8 +2203,9 @@ RUN_EVALUATOR_FUNCTIONS = {
     "auto_exact_match": exact_match,
     "auto_regex_test": regex_test,
     "field_match_test": field_match_test,
+    "json_multi_field_match": json_multi_field_match,
     "auto_webhook_test": webhook_test,
-    "auto_custom_code_run": custom_code_run,
+    "auto_custom_code_run": sdk_custom_code_run,
     "auto_ai_critique": ai_critique,
     "auto_starts_with": starts_with,
     "auto_ends_with": ends_with,
