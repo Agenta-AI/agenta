@@ -64,11 +64,24 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                 })
                 .catch((error: any) => {
                     const detail = error?.response?.data?.detail
+                    const rawError =
+                        typeof error?.response?.data?.error === "string"
+                            ? error.response.data.error
+                            : undefined
                     const detailMessage =
                         typeof detail === "string"
                             ? detail
-                            : detail?.message || "Failed to send invitations"
-                    message.error(detailMessage)
+                            : detail?.message ||
+                              rawError ||
+                              "Failed to send invitations"
+                    const isDomainRestricted =
+                        typeof detailMessage === "string" &&
+                        detailMessage.toLowerCase().includes("domain")
+                    message.error(
+                        isDomainRestricted
+                            ? "Only verified domains are allowed in this organization."
+                            : detailMessage,
+                    )
                 })
                 .finally(() => setLoading(false))
         },
