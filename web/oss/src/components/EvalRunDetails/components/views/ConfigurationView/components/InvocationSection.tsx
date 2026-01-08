@@ -233,7 +233,11 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
 
     const headerContent = (
         <div className="flex flex-wrap items-center gap-2">
-            <ApplicationReferenceLabel runId={runId} applicationId={applicationId} />
+            <ApplicationReferenceLabel
+                runId={runId}
+                applicationId={applicationId}
+                toneOverride={null}
+            />
             {variantId || revisionId ? (
                 <VariantRevisionLabel
                     variantId={variantId}
@@ -242,6 +246,7 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
                     runId={runId}
                     fallbackVariantName={variantLabel}
                     fallbackRevision={variantVersion}
+                    toneOverride={null}
                 />
             ) : variantLabel ? (
                 <span className="text-sm text-[#475467]">{variantLabel}</span>

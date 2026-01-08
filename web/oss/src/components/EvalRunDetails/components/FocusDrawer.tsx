@@ -3,7 +3,7 @@ import {memo, useCallback, useMemo, useRef, useState} from "react"
 import {isValidElement} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Popover, Skeleton, Tag, Typography} from "antd"
+import {Button, Popover, Skeleton, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AlertCircle} from "lucide-react"
@@ -14,7 +14,6 @@ import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components
 import GenericDrawer from "@/oss/components/GenericDrawer"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 
-import ReadOnlyBox from "../../pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
 import {compareRunIdsAtom, MAX_COMPARISON_RUNS} from "../atoms/compare"
 import {invocationTraceSummaryAtomFamily} from "../atoms/invocationTraceSummary"
 import {
@@ -54,9 +53,6 @@ import FocusDrawerSidePanel from "./FocusDrawerSidePanel"
 import {SectionCard} from "./views/ConfigurationView/components/SectionPrimitives"
 
 const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
-
-// Color palette for category tags (same as MetricCell)
-const TAG_COLORS = ["green", "blue", "purple", "orange", "cyan", "magenta", "gold", "lime"]
 
 const toSectionAnchorId = (value: string) =>
     `focus-section-${value
@@ -129,6 +125,32 @@ const resolveRunMetricScalar = (stats: any): unknown => {
 
     return undefined
 }
+
+const FocusValueCard = ({
+    label,
+    children,
+    className,
+}: {
+    label: ReactNode
+    children: ReactNode
+    className?: string
+}) => (
+    <div className={clsx("rounded-xl bg-[#F8FAFC] px-4 py-3 text-[#1D2939]", className)}>
+        <Text className="text-xs font-medium text-[#101828]">{label}</Text>
+        <div className="mt-2 text-sm whitespace-pre-wrap break-words">{children}</div>
+    </div>
+)
+
+const MetricValuePill = ({value, muted}: {value: ReactNode; muted?: boolean}) => (
+    <span
+        className={clsx(
+            "inline-flex w-fit rounded-md bg-[#F2F4F7] px-2 py-1 text-xs font-medium",
+            muted ? "text-[#98A2B3]" : "text-[#344054]",
+        )}
+    >
+        {value}
+    </span>
+)
 
 interface FocusDrawerContentProps {
     runId: string
@@ -362,32 +384,23 @@ const RunMetricValue = memo(
         return (
             <div className="flex flex-col gap-1">
                 <Text strong>{column.displayLabel ?? column.label ?? column.id}</Text>
-                <ReadOnlyBox>
-                    {isLoading ? (
-                        <Skeleton active paragraph={{rows: 1}} />
-                    ) : (
-                        <MetricDetailsPreviewPopover
-                            runId={runId}
-                            metricKey={
-                                descriptor.metricKey ?? descriptor.valueKey ?? descriptor.path
-                            }
-                            metricPath={descriptor.path}
-                            metricLabel={column.displayLabel ?? column.label}
-                            stepKey={descriptor.stepKey}
-                            highlightValue={resolvedValue}
-                            fallbackValue={resolvedValue}
-                            stepType={descriptor.stepType}
-                        >
-                            <span
-                                className={`${
-                                    isPlaceholder ? "text-neutral-500" : "text-neutral-900"
-                                }`}
-                            >
-                                {formattedValue}
-                            </span>
-                        </MetricDetailsPreviewPopover>
-                    )}
-                </ReadOnlyBox>
+                {isLoading ? (
+                    <Skeleton.Input active size="small" style={{width: 120}} />
+                ) : (
+                    <MetricDetailsPreviewPopover
+                        runId={runId}
+                        metricKey={descriptor.metricKey ?? descriptor.valueKey ?? descriptor.path}
+                        metricPath={descriptor.path}
+                        metricLabel={column.displayLabel ?? column.label}
+                        stepKey={descriptor.stepKey}
+                        highlightValue={resolvedValue}
+                        fallbackValue={resolvedValue}
+                        stepType={descriptor.stepType}
+                        fullWidth={false}
+                    >
+                        <MetricValuePill value={formattedValue} muted={isPlaceholder} />
+                    </MetricDetailsPreviewPopover>
+                )}
             </div>
         )
     },
@@ -538,52 +551,57 @@ const ScenarioColumnValue = memo(
             })()
 
             // Render array metrics as tags in a vertical stack
+            const isLongTextMetric =
+                !arrayTags.length &&
+                typeof formattedValue === "string" &&
+                (formattedValue.length > 80 || formattedValue.includes("\n"))
+
             const renderMetricContent = () => {
                 if (arrayTags.length > 0) {
                     return (
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-wrap gap-2">
                             {arrayTags.map((tag, index) => (
-                                <Tag
-                                    key={`${tag}-${index}`}
-                                    color={TAG_COLORS[index % TAG_COLORS.length]}
-                                    className="m-0 w-fit"
-                                >
-                                    {tag}
-                                </Tag>
+                                <MetricValuePill key={`${tag}-${index}`} value={tag} />
                             ))}
                         </div>
                     )
                 }
-                return (
-                    <span className={`${isPlaceholder ? "text-neutral-500" : "text-neutral-900"}`}>
-                        {formattedValue}
-                    </span>
-                )
+                if (isLongTextMetric) {
+                    return (
+                        <span className={isPlaceholder ? "text-[#98A2B3]" : "text-[#1D2939]"}>
+                            {formattedValue}
+                        </span>
+                    )
+                }
+                return <MetricValuePill value={formattedValue} muted={isPlaceholder} />
+            }
+
+            const metricContent = showSkeleton ? (
+                <Skeleton.Input active size="small" style={{width: 120}} />
+            ) : (
+                <MetricDetailsPreviewPopover
+                    runId={runId}
+                    metricKey={descriptor.metricKey ?? descriptor.valueKey ?? descriptor.path}
+                    metricPath={descriptor.path}
+                    metricLabel={displayLabel}
+                    stepKey={descriptor.stepKey}
+                    highlightValue={value}
+                    fallbackValue={value ?? displayValue ?? formattedValue}
+                    stepType={descriptor.stepType}
+                    fullWidth={false}
+                >
+                    {renderMetricContent()}
+                </MetricDetailsPreviewPopover>
+            )
+
+            if (isLongTextMetric) {
+                return <FocusValueCard label={displayLabel}>{metricContent}</FocusValueCard>
             }
 
             return (
-                <div className="flex flex-col gap-1">
-                    <Text strong>{displayLabel}</Text>
-                    <ReadOnlyBox>
-                        {showSkeleton ? (
-                            <Skeleton active paragraph={{rows: 1}} />
-                        ) : (
-                            <MetricDetailsPreviewPopover
-                                runId={runId}
-                                metricKey={
-                                    descriptor.metricKey ?? descriptor.valueKey ?? descriptor.path
-                                }
-                                metricPath={descriptor.path}
-                                metricLabel={displayLabel}
-                                stepKey={descriptor.stepKey}
-                                highlightValue={value}
-                                fallbackValue={value ?? displayValue ?? formattedValue}
-                                stepType={descriptor.stepType}
-                            >
-                                {renderMetricContent()}
-                            </MetricDetailsPreviewPopover>
-                        )}
-                    </ReadOnlyBox>
+                <div className="flex flex-col gap-2">
+                    <Text className="text-xs font-medium text-[#475467]">{displayLabel}</Text>
+                    {metricContent}
                 </div>
             )
         }
@@ -711,12 +729,7 @@ const ScenarioColumnValue = memo(
             }
         }
 
-        return (
-            <div className="flex flex-col gap-1">
-                <Text strong>{displayLabel}</Text>
-                <ReadOnlyBox>{renderValue()}</ReadOnlyBox>
-            </div>
-        )
+        return <FocusValueCard label={displayLabel}>{renderValue()}</FocusValueCard>
     },
 )
 
@@ -778,7 +791,7 @@ const FocusSectionHeader = ({
     return (
         <div
             className={clsx(
-                "flex items-center justify-between py-1 px-3 h-10 sticky top-0 bg-zinc-1 z-10 cursor-pointer",
+                "flex items-center justify-between py-1 px-3 h-10 sticky top-0 bg-zinc-1 z-20 cursor-pointer",
                 "border-b border-b-[rgba(5,23,41,0.06)]",
             )}
             style={{borderBottomStyle: "solid"}}
@@ -865,15 +878,13 @@ const FocusDrawerSectionCard = memo(
                     onToggle={() => setCollapsed((value) => !value)}
                 />
                 {!collapsed ? (
-                    <div className="pb-2">
-                        <SectionCard className="gap-4">
-                            <FocusSectionContent
-                                section={section}
-                                runId={runId}
-                                scenarioId={scenarioId}
-                            />
-                        </SectionCard>
-                    </div>
+                    <SectionCard className="gap-4">
+                        <FocusSectionContent
+                            section={section}
+                            runId={runId}
+                            scenarioId={scenarioId}
+                        />
+                    </SectionCard>
                 ) : null}
             </div>
         )
@@ -1110,7 +1121,7 @@ const CompareSectionRow = memo(
                             scrollRef.current = node
                             registerScrollContainer(node)
                         }}
-                        className="overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                        className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                         onScroll={handleScroll}
                     >
                         <div className="grid" style={rowGridStyle}>

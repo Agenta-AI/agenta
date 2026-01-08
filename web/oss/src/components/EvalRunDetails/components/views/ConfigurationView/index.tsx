@@ -1,5 +1,5 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
-import type {KeyboardEvent, ReactNode, UIEvent} from "react"
+import type {CSSProperties, KeyboardEvent, ReactNode, UIEvent} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Typography} from "antd"
@@ -259,13 +259,7 @@ const sectionDefinitions: SectionDefinition[] = [
         title: "General",
         alwaysVisible: true,
         hasData: () => true,
-        render: (runId, context) => (
-            <GeneralSection
-                runId={runId}
-                showActions={(context?.compareIndex ?? 0) === 0}
-                showHeader={false}
-            />
-        ),
+        render: (runId, context) => <GeneralSection runId={runId} showActions showHeader={false} />,
     },
     {
         key: "testsets",
@@ -377,7 +371,7 @@ const EvaluationRunTagsRow = memo(
         )
 
         return (
-            <SectionCard className="!p-0">
+            <SectionCard className="!p-0 sticky top-0 z-20">
                 <div
                     ref={handleRef}
                     onScroll={handleScroll}
@@ -503,9 +497,12 @@ const ConfigurationSectionRow = memo(
                         "py-1 px-3 h-10",
                         "sticky top-0",
                         "bg-zinc-1 z-10",
-                        "cursor-pointer border-b border-b-[rgba(5,23,41,0.06)]",
+                        "cursor-pointer",
                     )}
-                    style={{borderBottomStyle: "solid"}}
+                    style={{
+                        top: "40px",
+                        borderBottom: "1px solid #EAEFF5",
+                    }}
                     role="button"
                     tabIndex={0}
                     onClick={() => setCollapsed((value) => !value)}
@@ -539,7 +536,10 @@ const ConfigurationLayout = memo(({runIds}: {runIds: string[]}) => {
     const {register, syncScroll} = useScrollSync()
 
     return (
-        <div className="flex flex-col pb-6">
+        <div
+            className="flex flex-col pb-6"
+            style={{"--config-header-offset": "40px"} as CSSProperties}
+        >
             <EvaluationRunTagsRow
                 runIds={runIds}
                 registerScrollContainer={register}

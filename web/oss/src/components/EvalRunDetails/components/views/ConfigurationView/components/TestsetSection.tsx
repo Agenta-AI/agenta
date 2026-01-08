@@ -73,7 +73,14 @@ const TestsetCard = ({
     return (
         <SectionCard>
             <SectionHeaderRow
-                left={<TestsetTagList ids={[testsetId]} runId={runId} className="-mt-2" />}
+                left={
+                    <TestsetTagList
+                        ids={[testsetId]}
+                        runId={runId}
+                        className="-mt-2"
+                        toneOverride={null}
+                    />
+                }
                 right={
                     <Button
                         type="text"

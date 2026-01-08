@@ -530,6 +530,8 @@ export const EvaluatorReferenceLabel = memo(
         href: explicitHref,
         openExternally = false,
         label: customLabel,
+        toneOverride,
+        className,
     }: {
         evaluatorId?: string | null
         evaluatorSlug?: string | null
@@ -537,6 +539,8 @@ export const EvaluatorReferenceLabel = memo(
         href?: string | null
         openExternally?: boolean
         label?: string
+        toneOverride?: ReferenceTone | null
+        className?: string
     }) => {
         const queryAtom = useMemo(
             () => evaluatorReferenceAtomFamily({projectId, slug: evaluatorSlug, id: evaluatorId}),
@@ -550,7 +554,7 @@ export const EvaluatorReferenceLabel = memo(
                     <ReferenceTag
                         label={customLabel}
                         className="max-w-[220px] w-fit"
-                        tone="evaluator"
+                        tone={toneOverride === null ? undefined : (toneOverride ?? "evaluator")}
                     />
                 )
             }
@@ -583,8 +587,8 @@ export const EvaluatorReferenceLabel = memo(
                 href={href ?? undefined}
                 tooltip={isDeleted ? `Evaluator ${displayId} was deleted` : label}
                 copyValue={displayId}
-                className="max-w-[220px] w-fit"
-                tone="evaluator"
+                className={clsx("max-w-[220px] w-fit", className)}
+                tone={toneOverride === null ? undefined : (toneOverride ?? "evaluator")}
                 openExternally={openExternally}
             />
         )

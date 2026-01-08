@@ -212,7 +212,6 @@ const PreviewEvalRunMeta = ({
                     <Tooltip title={canStopOnline ? "Pause evaluation" : "Resume evaluation"}>
                         <Button
                             type={canStopOnline ? "default" : "primary"}
-                            size="small"
                             icon={canStopOnline ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
                             loading={onlineAction !== null}
                             onClick={handleOnlineAction}

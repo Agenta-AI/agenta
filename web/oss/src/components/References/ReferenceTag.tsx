@@ -76,7 +76,7 @@ const ReferenceTag = ({
                     aria-label="Open link"
                     size={14}
                     className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 cursor-pointer"
-                    style={{color: toneColors?.text ?? "#2563eb"}}
+                    style={{color: toneColors?.text ?? "currentColor"}}
                     onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
