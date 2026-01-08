@@ -100,6 +100,18 @@ const Organization: FC = () => {
     const handleFlagChange = useCallback(
         (flagName: string, value: boolean) => {
             if (!selectedOrg) return
+            if (flagName === "domains_only" && value && !hasVerifiedDomain) {
+                message.error("Domains-only requires at least one verified domain.")
+                return
+            }
+            if (flagName === "auto_join" && value && !hasVerifiedDomain) {
+                message.error("Auto-join requires at least one verified domain.")
+                return
+            }
+            if (flagName === "allow_sso" && value && !hasActiveVerifiedProvider) {
+                message.error("SSO requires at least one active and verified provider.")
+                return
+            }
 
             // Check if this change would disable all auth methods
             const wouldDisableAllAuth = () => {
@@ -141,7 +153,7 @@ const Organization: FC = () => {
                             flags: {
                                 [flagName]: value,
                             },
-                        })
+                        }, {ignoreAxiosError: true})
                     },
                 })
             } else {
@@ -149,10 +161,10 @@ const Organization: FC = () => {
                     flags: {
                         [flagName]: value,
                     },
-                })
+                }, {ignoreAxiosError: true})
             }
         },
-        [handleUpdateOrganization, selectedOrg],
+        [handleUpdateOrganization, hasActiveVerifiedProvider, hasVerifiedDomain, selectedOrg],
     )
 
     const handleSlugSave = useCallback(() => {
@@ -438,6 +450,18 @@ const Organization: FC = () => {
     const pendingProviderRowKeys = providers
         .filter((provider) => provider.flags?.is_valid === false)
         .map((provider) => provider.id)
+    const hasVerifiedDomain = useMemo(
+        () => domains.some((domain) => domain.flags?.is_verified),
+        [domains],
+    )
+    const hasActiveVerifiedProvider = useMemo(
+        () =>
+            providers.some(
+                (provider) =>
+                    provider.flags?.is_active && provider.flags?.is_valid,
+            ),
+        [providers],
+    )
 
     const providerColumns = [
         {
@@ -618,6 +642,24 @@ const Organization: FC = () => {
                                 }
                                 disabled={updating}
                             >
+                                <Radio.Button
+                                    value="yes"
+                                    disabled={!hasActiveVerifiedProvider}
+                                >
+                                    Allow
+                                </Radio.Button>
+                                <Radio.Button value="no">Deny</Radio.Button>
+                            </Radio.Group>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Owner bypasses authentication controls">
+                            <Radio.Group
+                                value={selectedOrg.flags.allow_root ? "yes" : "no"}
+                                size="small"
+                                onChange={(e) =>
+                                    handleFlagChange("allow_root", e.target.value === "yes")
+                                }
+                                disabled={updating}
+                            >
                                 <Radio.Button value="yes">Allow</Radio.Button>
                                 <Radio.Button value="no">Deny</Radio.Button>
                             </Radio.Group>
@@ -632,7 +674,12 @@ const Organization: FC = () => {
                                 disabled={updating}
                             >
                                 <Radio.Button value="yes">Allow</Radio.Button>
-                                <Radio.Button value="no">Deny</Radio.Button>
+                                <Radio.Button
+                                    value="no"
+                                    disabled={!hasVerifiedDomain}
+                                >
+                                    Deny
+                                </Radio.Button>
                             </Radio.Group>
                         </Descriptions.Item>
                         <Descriptions.Item label="Auto-join from verified domains">
@@ -644,20 +691,12 @@ const Organization: FC = () => {
                                 }
                                 disabled={updating}
                             >
-                                <Radio.Button value="yes">Allow</Radio.Button>
-                                <Radio.Button value="no">Deny</Radio.Button>
-                            </Radio.Group>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Owner can bypass controls">
-                            <Radio.Group
-                                value={selectedOrg.flags.allow_root ? "yes" : "no"}
-                                size="small"
-                                onChange={(e) =>
-                                    handleFlagChange("allow_root", e.target.value === "yes")
-                                }
-                                disabled={updating}
-                            >
-                                <Radio.Button value="yes">Allow</Radio.Button>
+                                <Radio.Button
+                                    value="yes"
+                                    disabled={!hasVerifiedDomain}
+                                >
+                                    Allow
+                                </Radio.Button>
                                 <Radio.Button value="no">Deny</Radio.Button>
                             </Radio.Group>
                         </Descriptions.Item>

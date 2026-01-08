@@ -144,9 +144,7 @@ const usePostAuthRedirect = () => {
                     const sessionIdentities =
                         payload?.session_identities || payload?.sessionIdentities || []
                     const ssoIdentity = Array.isArray(sessionIdentities)
-                        ? sessionIdentities.find((identity: string) =>
-                              identity.startsWith("sso:"),
-                          )
+                        ? sessionIdentities.find((identity: string) => identity.startsWith("sso:"))
                         : null
                     if (!ssoIdentity) {
                         // Social/email logins should not reuse a stale SSO target from storage.
@@ -179,7 +177,7 @@ const usePostAuthRedirect = () => {
                         // SSO succeeded but the org is not SSO-enabled: sign out and return to /auth.
                         window.localStorage.removeItem(lastSsoOrgSlugKey)
                         const query = new URLSearchParams({
-                            auth_error: "sso_disabled",
+                            auth_error: "sso_denied",
                             auth_message:
                                 "SSO was successful but is currently disabled for this organization. Please sign in using another method or contact your administrator.",
                         })

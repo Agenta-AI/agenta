@@ -74,7 +74,7 @@ async def check_organization_access(request: Request, organization_id: str):
 
     if policy_error and policy_error.get("error") in {
         "AUTH_UPGRADE_REQUIRED",
-        "AUTH_SSO_DISABLED",
+        "AUTH_SSO_DENIED",
     }:
         detail = {
             "error": policy_error.get("error"),
@@ -90,9 +90,7 @@ async def check_organization_access(request: Request, organization_id: str):
 
 
 @auth_router.post("/session/identities")
-async def update_session_identities(
-    request: Request, payload: SessionIdentitiesUpdate
-):
+async def update_session_identities(request: Request, payload: SessionIdentitiesUpdate):
     try:
         session = await get_session(request)  # type: ignore
     except Exception:
@@ -117,7 +115,9 @@ async def update_session_identities(
     elif hasattr(session, "merge_into_access_token_payload"):
         await session.merge_into_access_token_payload({"session_identities": merged})
     else:
-        raise HTTPException(status_code=500, detail="Session payload update not supported")
+        raise HTTPException(
+            status_code=500, detail="Session payload update not supported"
+        )
     return {"session_identities": merged, "previous": current}
 
 

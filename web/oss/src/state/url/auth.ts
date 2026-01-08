@@ -149,9 +149,7 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                 const upgradeOrgId = window.localStorage.getItem("authUpgradeOrgId")
                 const identifiers = store.get(appIdentifiersAtom)
                 const currentWorkspaceId = identifiers.workspaceId
-                const upgradePath = upgradeOrgId
-                    ? `/w/${encodeURIComponent(upgradeOrgId)}`
-                    : null
+                const upgradePath = upgradeOrgId ? `/w/${encodeURIComponent(upgradeOrgId)}` : null
                 const alreadyOnUpgradePath =
                     Boolean(upgradePath) && path.startsWith(upgradePath as string)
 
@@ -159,14 +157,12 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     window.localStorage.removeItem("authUpgradeOrgId")
                     window.localStorage.removeItem("authUpgradeSessionIdentities")
                 } else if (upgradeOrgId && upgradeOrgId !== currentWorkspaceId) {
-                    void Router.replace(`/w/${encodeURIComponent(upgradeOrgId)}`).catch(
-                        (error) => {
-                            console.error(
-                                "Failed to redirect authenticated user to upgrade org:",
-                                error,
-                            )
-                        },
-                    )
+                    void Router.replace(`/w/${encodeURIComponent(upgradeOrgId)}`).catch((error) => {
+                        console.error(
+                            "Failed to redirect authenticated user to upgrade org:",
+                            error,
+                        )
+                    })
                     store.set(protectedRouteReadyAtom, false)
                     return
                 }
@@ -189,7 +185,7 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             }
 
             if (isAuthRoute) {
-                if (authError === "sso_disabled") {
+                if (authError === "sso_denied") {
                     if (typeof window !== "undefined") {
                         signOut().catch(() => null)
                     }
@@ -212,7 +208,9 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     }
                 }
                 const orgs = store.get(orgsAtom)
-                const personalOrg = Array.isArray(orgs) ? orgs.find((org) => isPersonalOrg(org)) : null
+                const personalOrg = Array.isArray(orgs)
+                    ? orgs.find((org) => isPersonalOrg(org))
+                    : null
                 if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
                     console.log("[auth-redirect] orgs snapshot", {
                         count: Array.isArray(orgs) ? orgs.length : 0,

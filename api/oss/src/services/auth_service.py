@@ -838,7 +838,7 @@ async def _check_organization_policy(request: Request):
     if policy_error:
         # Only enforce auth policy errors; skip membership errors (route handlers handle those)
         error_code = policy_error.get("error")
-        if error_code in {"AUTH_UPGRADE_REQUIRED", "AUTH_SSO_DISABLED"}:
+        if error_code in {"AUTH_UPGRADE_REQUIRED", "AUTH_SSO_DENIED"}:
             detail = {
                 "error": policy_error.get("error"),
                 "message": policy_error.get(

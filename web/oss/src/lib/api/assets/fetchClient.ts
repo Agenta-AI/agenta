@@ -100,7 +100,8 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
         if (
             res.status === 403 &&
             (detailObj?.error === "AUTH_UPGRADE_REQUIRED" ||
-                detailObj?.error === "AUTH_SSO_DISABLED") &&
+                detailObj?.error === "AUTH_SSO_DENIED" ||
+                detailObj?.error === "AUTH_DOMAIN_DENIED") &&
             typeof window !== "undefined"
         ) {
             try {
@@ -126,13 +127,21 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
                 const identityText = currentIdentity
                     ? ` You're signed in with ${currentIdentity}.`
                     : ""
-                const message = `This organization requires ${requiredText}.${identityText}`
+                const message =
+                    detailObj?.error === "AUTH_DOMAIN_DENIED"
+                        ? detailObj.message
+                        : `This organization requires ${requiredText}.${identityText}`
 
                 const authError =
-                    detailObj?.error === "AUTH_SSO_DISABLED"
-                        ? "sso_disabled"
-                        : "upgrade_required"
-                if (detailObj?.error === "AUTH_SSO_DISABLED") {
+                    detailObj?.error === "AUTH_SSO_DENIED"
+                        ? "sso_denied"
+                        : detailObj?.error === "AUTH_DOMAIN_DENIED"
+                          ? "domain_denied"
+                          : "upgrade_required"
+                if (
+                    detailObj?.error === "AUTH_SSO_DENIED" ||
+                    detailObj?.error === "AUTH_DOMAIN_DENIED"
+                ) {
                     signOut().catch(() => null)
                 }
                 const query = new URLSearchParams({

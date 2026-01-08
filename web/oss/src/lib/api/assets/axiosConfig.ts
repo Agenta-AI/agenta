@@ -145,13 +145,11 @@ axios.interceptors.response.use(
         if (
             error.response?.status === 403 &&
             (upgradeDetail?.error === "AUTH_UPGRADE_REQUIRED" ||
-                upgradeDetail?.error === "AUTH_SSO_DISABLED") &&
+                upgradeDetail?.error === "AUTH_SSO_DENIED" ||
+                upgradeDetail?.error === "AUTH_DOMAIN_DENIED") &&
             !error.config?._skipAuthUpgradeRedirect
         ) {
-            if (
-                typeof window !== "undefined" &&
-                window.localStorage.getItem("authUpgradeOrgId")
-            ) {
+            if (typeof window !== "undefined" && window.localStorage.getItem("authUpgradeOrgId")) {
                 if (error.config) {
                     error.config._ignoreError = true
                 }
@@ -184,18 +182,26 @@ axios.interceptors.response.use(
                 const identityText = currentIdentity
                     ? ` You're signed in with ${currentIdentity}.`
                     : ""
-                const message = `This organization requires ${requiredText}.${identityText}`
-            const authError =
-                upgradeDetail?.error === "AUTH_SSO_DISABLED"
-                    ? "sso_disabled"
-                    : "upgrade_required"
-            if (upgradeDetail?.error === "AUTH_SSO_DISABLED") {
-                signOut().catch(() => null)
-            }
-            const query = new URLSearchParams({
-                auth_error: authError,
-                auth_message: message,
-            })
+                const message =
+                    upgradeDetail?.error === "AUTH_DOMAIN_DENIED"
+                        ? upgradeDetail.message
+                        : `This organization requires ${requiredText}.${identityText}`
+                const authError =
+                    upgradeDetail?.error === "AUTH_SSO_DENIED"
+                        ? "sso_denied"
+                        : upgradeDetail?.error === "AUTH_DOMAIN_DENIED"
+                          ? "domain_denied"
+                          : "upgrade_required"
+                if (
+                    upgradeDetail?.error === "AUTH_SSO_DENIED" ||
+                    upgradeDetail?.error === "AUTH_DOMAIN_DENIED"
+                ) {
+                    signOut().catch(() => null)
+                }
+                const query = new URLSearchParams({
+                    auth_error: authError,
+                    auth_message: message,
+                })
                 if (selectedOrgId) {
                     query.set("organization_id", selectedOrgId)
                 }

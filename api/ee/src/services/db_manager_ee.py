@@ -42,6 +42,10 @@ from oss.src.models.db_models import (
     UserDB,
     InvitationDB,
 )
+from ee.src.dbs.postgres.organizations.dao import (
+    OrganizationProvidersDAO,
+    OrganizationDomainsDAO,
+)
 from ee.src.services.converters import get_workspace_in_format
 from ee.src.services.selectors import get_org_default_workspace
 
@@ -1132,6 +1136,55 @@ async def update_organization(
                 allow_social = merged_flags.get("allow_social", False)
                 allow_sso = merged_flags.get("allow_sso", False)
                 allow_root = merged_flags.get("allow_root", False)
+
+                changing_auth_flags = any(
+                    key in new_flags for key in ("allow_email", "allow_social", "allow_sso")
+                )
+                changing_auto_join = "auto_join" in new_flags
+                changing_domains_only = "domains_only" in new_flags
+
+                if changing_auth_flags and allow_sso:
+                    providers_dao = OrganizationProvidersDAO(session)
+                    providers = await providers_dao.list_by_organization(organization_id)
+                    active_valid = [
+                        provider
+                        for provider in providers
+                        if (provider.flags or {}).get("is_active")
+                        and (provider.flags or {}).get("is_valid")
+                    ]
+                    if not active_valid:
+                        raise ValueError(
+                            "SSO cannot be enabled until at least one SSO provider is "
+                            "active and verified."
+                        )
+                    if not allow_email and not allow_social:
+                        if not active_valid:
+                            raise ValueError(
+                                "SSO-only authentication requires at least one SSO provider to "
+                                "be active and verified."
+                            )
+
+                if changing_auto_join and merged_flags.get("auto_join", False):
+                    domains_dao = OrganizationDomainsDAO(session)
+                    domains = await domains_dao.list_by_organization(organization_id)
+                    has_verified_domain = any(
+                        (domain.flags or {}).get("is_verified") for domain in domains
+                    )
+                    if not has_verified_domain:
+                        raise ValueError(
+                            "Auto-join requires at least one verified domain."
+                        )
+
+                if changing_domains_only and merged_flags.get("domains_only", False):
+                    domains_dao = OrganizationDomainsDAO(session)
+                    domains = await domains_dao.list_by_organization(organization_id)
+                    has_verified_domain = any(
+                        (domain.flags or {}).get("is_verified") for domain in domains
+                    )
+                    if not has_verified_domain:
+                        raise ValueError(
+                            "Domains-only requires at least one verified domain."
+                        )
 
                 # Check if all auth methods are disabled
                 all_auth_disabled = not (allow_email or allow_social or allow_sso)

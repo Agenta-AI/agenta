@@ -30,6 +30,7 @@ from ee.src.apis.fastapi.organizations.models import (
     OrganizationProviderUpdate,
     OrganizationProviderResponse,
 )
+from ee.src.services import db_manager_ee
 
 logger = logging.getLogger(__name__)
 
@@ -659,6 +660,26 @@ class SSOProviderService:
             provider = await dao.get_by_id(provider_id, organization_id)
             if not provider:
                 raise HTTPException(status_code=404, detail="Provider not found")
+
+            organization = await db_manager_ee.get_organization(organization_id)
+            flags = organization.flags or {}
+            if flags.get("allow_sso"):
+                providers = await dao.list_by_organization(organization_id)
+                remaining = [
+                    p
+                    for p in providers
+                    if str(p.id) != str(provider_id)
+                    and (p.flags or {}).get("is_active")
+                    and (p.flags or {}).get("is_valid")
+                ]
+                if not remaining:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            "Cannot delete the last active and verified SSO provider while "
+                            "SSO is enabled."
+                        ),
+                    )
 
             await self._vault_service().delete_secret(
                 secret_id=provider.secret_id,

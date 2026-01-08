@@ -532,15 +532,9 @@ class AuthService:
                 print(f"Error during auto-join: {e}")
 
         # 2. Domains-only enforcement: Check if user has access
-        # This is enforced at the organization level, not during login
-        # It's checked when user tries to access organization resources
-        # For now, we just validate that the domain matches
-        domains_only = org_flags.get("domains_only", False)
-        if domains_only:
-            # If domains_only is enabled, user MUST have matching domain
-            # Since we already verified the domain matches (domain_dto exists),
-            # the user is allowed. If domain didn't match, domain_dto would be None.
-            pass
+        # This is enforced at the organization level via check_organization_access()
+        # when the user tries to access organization resources through the middleware.
+        # No action needed here during login - enforcement happens at access time.
 
     # ============================================================================
     # AUTHORIZATION: Validate access based on policies
@@ -619,19 +613,27 @@ class AuthService:
             # If the session used SSO but the org doesn't allow it (or provider inactive),
             # block and instruct user to re-auth with allowed methods.
             sso_identity = next(
-                (identity for identity in session_identities if identity.startswith("sso:")),
+                (
+                    identity
+                    for identity in session_identities
+                    if identity.startswith("sso:")
+                ),
                 None,
             )
             if sso_identity and self.providers_dao:
                 org_slug = await self._get_organization_slug(organization_id)
                 provider_slug = (
-                    sso_identity.split(":")[2] if len(sso_identity.split(":")) > 2 else None
+                    sso_identity.split(":")[2]
+                    if len(sso_identity.split(":")) > 2
+                    else None
                 )
                 providers = await self.providers_dao.list_by_organization(
                     str(organization_id)
                 )
                 active_provider_slugs = {
-                    p.slug for p in providers if p.flags and p.flags.get("is_active", False)
+                    p.slug
+                    for p in providers
+                    if p.flags and p.flags.get("is_active", False)
                 }
                 sso_matches_org = bool(
                     org_slug and sso_identity.startswith(f"sso:{org_slug}:")
@@ -647,8 +649,8 @@ class AuthService:
                     if allow_social:
                         required_methods.append("social:*")
                     return {
-                        "error": "AUTH_SSO_DISABLED",
-                        "message": "SSO is not enabled for this organization",
+                        "error": "AUTH_SSO_DENIED",
+                        "message": "SSO is denied for this organization",
                         "required_methods": required_methods,
                         "current_identities": session_identities,
                     }
@@ -662,6 +664,33 @@ class AuthService:
                 "current_identities": session_identities,
                 "sso_providers": sso_providers,
             }
+
+        # Check domains_only enforcement
+        domains_only = org_flags.get("domains_only", False)
+        if domains_only and self.domains_dao:
+            # Get user's email to check domain
+            user = await db_manager.get_user(str(user_id))
+            if user and user.email:
+                email_domain = user.email.split("@")[-1].lower()
+
+                # Get verified domains for this organization
+                org_domains = await self.domains_dao.list_by_organization(
+                    str(organization_id)
+                )
+                verified_domain_slugs = {
+                    d.slug.lower()
+                    for d in org_domains
+                    if d.flags and d.flags.get("is_verified", False)
+                }
+
+                # If user's domain is not in the verified domains, deny access
+                if email_domain not in verified_domain_slugs:
+                    return {
+                        "error": "AUTH_DOMAIN_DENIED",
+                        "message": f"Your email domain '{email_domain}' is not allowed for this organization",
+                        "current_domain": email_domain,
+                        "allowed_domains": list(verified_domain_slugs),
+                    }
 
         return None
 

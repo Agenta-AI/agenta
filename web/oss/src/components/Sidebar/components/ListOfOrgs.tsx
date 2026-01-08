@@ -560,7 +560,8 @@ const ListOfOrgs = ({
                     const detail = result.response?.data?.detail
                     if (
                         detail?.error === "AUTH_UPGRADE_REQUIRED" ||
-                        detail?.error === "AUTH_SSO_DISABLED"
+                        detail?.error === "AUTH_SSO_DENIED" ||
+                        detail?.error === "AUTH_DOMAIN_DENIED"
                     ) {
                         setAuthUpgradeDetail(detail)
                         setAuthUpgradeOrgId(organizationId)

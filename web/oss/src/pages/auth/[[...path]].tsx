@@ -114,7 +114,7 @@ const Auth = () => {
         if (authMessage) {
             setMessage({
                 message: authMessage,
-                type: authError === "sso_disabled" ? "info" : "error",
+                type: authError === "sso_denied" ? "info" : "error",
             })
         }
     }, [authMessage, authError])

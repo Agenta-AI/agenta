@@ -16,6 +16,7 @@ from ee.src.services.organization_security_service import (
     DomainVerificationService,
     SSOProviderService,
 )
+from ee.src.services import db_manager_ee
 from ee.src.utils.permissions import check_user_org_access
 from ee.src.services.selectors import get_user_org_and_workspace_id
 
@@ -32,6 +33,36 @@ async def verify_user_org_access(user_id: str, organization_id: str) -> None:
     if not has_access:
         raise HTTPException(
             status_code=403, detail="You do not have access to this organization"
+        )
+
+
+async def require_email_or_social_or_root_enabled(organization_id: str) -> None:
+    """Block domain/provider changes when SSO is the only allowed method."""
+    organization = await db_manager_ee.get_organization(organization_id)
+    flags = organization.flags or {}
+    allow_email = flags.get("allow_email", False)
+    allow_social = flags.get("allow_social", False)
+    allow_root = flags.get("allow_root", False)
+    if not (allow_email or allow_social or allow_root):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "To modify domains or SSO providers, enable email or social authentication "
+                "for this organization, or enable root access for owners."
+            ),
+        )
+
+
+async def require_domains_and_auto_join_disabled(organization_id: str) -> None:
+    """Block edits to verified domains when domains-only or auto-join is enabled."""
+    organization = await db_manager_ee.get_organization(organization_id)
+    flags = organization.flags or {}
+    if flags.get("domains_only") or flags.get("auto_join"):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Disable domains-only and auto-join before modifying verified domains."
+            ),
         )
 
 
@@ -81,6 +112,7 @@ async def verify_domain(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+    await require_domains_and_auto_join_disabled(organization_id)
 
     return await domain_service.verify_domain(
         organization_id, payload.domain_id, user_id
@@ -115,6 +147,7 @@ async def refresh_domain_token(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+    await require_domains_and_auto_join_disabled(organization_id)
 
     return await domain_service.refresh_token(organization_id, domain_id, user_id)
 
@@ -134,6 +167,7 @@ async def reset_domain(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+    await require_domains_and_auto_join_disabled(organization_id)
 
     return await domain_service.reset_domain(organization_id, domain_id, user_id)
 
@@ -148,6 +182,7 @@ async def delete_domain(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+    await require_domains_and_auto_join_disabled(organization_id)
 
     await domain_service.delete_domain(organization_id, domain_id, user_id)
     return Response(status_code=204)
@@ -172,6 +207,7 @@ async def create_provider(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+    await require_email_or_social_or_root_enabled(organization_id)
 
     return await provider_service.create_provider(organization_id, payload, user_id)
 
@@ -187,6 +223,7 @@ async def update_provider(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+    await require_email_or_social_or_root_enabled(organization_id)
 
     return await provider_service.update_provider(
         organization_id, provider_id, payload, user_id
@@ -225,6 +262,7 @@ async def test_provider(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+    await require_email_or_social_or_root_enabled(organization_id)
 
     return await provider_service.test_provider(organization_id, provider_id, user_id)
 
@@ -239,6 +277,7 @@ async def delete_provider(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+    await require_email_or_social_or_root_enabled(organization_id)
 
     await provider_service.delete_provider(organization_id, provider_id, user_id)
     return Response(status_code=204)
