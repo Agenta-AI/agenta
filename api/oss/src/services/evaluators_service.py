@@ -15,15 +15,24 @@ from oss.src.models.api.evaluation_model import (
     EvaluatorOutputInterface,
 )
 from oss.src.models.shared_models import Error, Result
-from oss.src.services.security import sandbox
 
 # COMMENTED OUT: autoevals dependency removed
 # from autoevals.ragas import Faithfulness, ContextRelevancy
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.traces import (
-    get_field_value_from_trace_tree,
     process_distributed_trace_into_trace_tree,
+    get_field_value_from_trace_tree,
 )
+
+from agenta.sdk.contexts.running import RunningContext
+from agenta.sdk.models.workflows import (
+    WorkflowServiceRequest,
+    WorkflowServiceRequestData,
+)
+from agenta.sdk.workflows.builtin import (
+    auto_custom_code_run as sdk_auto_custom_code_run,
+)
+
 
 log = get_module_logger(__name__)
 
@@ -504,7 +513,7 @@ async def auto_webhook_test(
             type="error",
             value=None,
             error=Error(
-                message=f"[webhook evaluation] HTTP - {repr(e)}",
+                message=f"[webhook evaluator] HTTP - {repr(e)}",
                 stacktrace=traceback.format_exc(),
             ),
         )
@@ -513,7 +522,7 @@ async def auto_webhook_test(
             type="error",
             value=None,
             error=Error(
-                message=f"[webhook evaluation] JSON - {repr(e)}",
+                message=f"[webhook evaluator] JSON - {repr(e)}",
                 stacktrace=traceback.format_exc(),
             ),
         )
@@ -522,7 +531,7 @@ async def auto_webhook_test(
             type="error",
             value=None,
             error=Error(
-                message=f"[webhook evaluation] Exception - {repr(e)} ",
+                message=f"[webhook evaluator] Exception - {repr(e)} ",
                 stacktrace=traceback.format_exc(),
             ),
         )
@@ -558,7 +567,7 @@ async def auto_custom_code_run(
             "prediction": output,
             "ground_truth": correct_answer,
         }
-        response = await custom_code_run(
+        response = await sdk_custom_code_run(
             input=EvaluatorInputInterface(
                 **{"inputs": inputs, "settings": settings_values}
             )
@@ -575,16 +584,58 @@ async def auto_custom_code_run(
         )
 
 
-async def custom_code_run(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
-    result = sandbox.execute_code_safely(
-        app_params=input.inputs["app_config"],
-        inputs=input.inputs,
-        output=input.inputs["prediction"],
-        correct_answer=input.inputs["ground_truth"],
-        code=input.settings["code"],
-        datapoint=input.inputs["ground_truth"],
+async def sdk_custom_code_run(
+    input: EvaluatorInputInterface,
+) -> EvaluatorOutputInterface:
+    inputs = input.inputs or {}
+    settings = input.settings or {}
+
+    code = settings.get("code")
+    if code is None:
+        raise ValueError("Missing evaluator setting: code")
+
+    correct_answer_key = settings.get("correct_answer_key")
+    if not correct_answer_key:
+        correct_answer_key = (
+            "ground_truth" if "ground_truth" in inputs else "correct_answer"
+        )
+
+    threshold = settings.get("threshold", 0.5)
+    runtime = settings.get("runtime", "python")
+
+    workflow = sdk_auto_custom_code_run(
+        code=str(code),
+        correct_answer_key=str(correct_answer_key),
+        threshold=float(threshold),
+        runtime=runtime,
     )
-    return {"outputs": {"score": result}}
+
+    credentials = RunningContext.get().credentials
+
+    outputs = inputs.get("prediction", inputs.get("output"))
+    request = WorkflowServiceRequest(
+        data=WorkflowServiceRequestData(
+            inputs=inputs,
+            outputs=outputs,
+        ),
+        credentials=credentials,
+    )
+
+    response = await workflow.invoke(request=request)
+
+    # Check for error status and propagate it
+    if response.status and response.status.code and response.status.code >= 400:
+        error_message = response.status.message or "Custom code execution failed"
+        raise RuntimeError(error_message)
+
+    result = response.data.outputs if response.data else None
+
+    if isinstance(result, dict) and "score" in result:
+        score = result["score"]
+    else:
+        score = result
+
+    return {"outputs": {"score": score}}
 
 
 async def auto_ai_critique(
@@ -912,7 +963,7 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             if inputs and isinstance(inputs, dict) and correct_answer_key:
                 correct_answer = inputs[correct_answer_key]
 
-            secrets = await SecretsManager.retrieve_secrets()
+            secrets, _, _ = await SecretsManager.retrieve_secrets()
 
             openai_api_key = None  # secrets.get("OPENAI_API_KEY")
             anthropic_api_key = None  # secrets.get("ANTHROPIC_API_KEY")
@@ -1096,7 +1147,7 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             if inputs and isinstance(inputs, dict) and correct_answer_key:
                 correct_answer = inputs[correct_answer_key]
 
-            secrets = await SecretsManager.retrieve_secrets()
+            secrets, _, _ = await SecretsManager.retrieve_secrets()
 
             openai_api_key = None  # secrets.get("OPENAI_API_KEY")
             anthropic_api_key = None  # secrets.get("ANTHROPIC_API_KEY")
@@ -2154,7 +2205,7 @@ RUN_EVALUATOR_FUNCTIONS = {
     "field_match_test": field_match_test,
     "json_multi_field_match": json_multi_field_match,
     "auto_webhook_test": webhook_test,
-    "auto_custom_code_run": custom_code_run,
+    "auto_custom_code_run": sdk_custom_code_run,
     "auto_ai_critique": ai_critique,
     "auto_starts_with": starts_with,
     "auto_ends_with": ends_with,

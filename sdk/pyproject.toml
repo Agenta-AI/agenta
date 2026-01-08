@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.74.0"
+version = "0.75.0"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = [
@@ -42,7 +42,6 @@ openai = "^2"
 jinja2 = "^3"
 orjson = "^3"
 python-jsonpath = "^2"
-restrictedpython = { version = "^8", python = ">=3.11, <3.14" }
 daytona = "^0.128"
 
 
