@@ -1,7 +1,7 @@
 // @ts-nocheck
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {SwapOutlined} from "@ant-design/icons"
+import {SwapOutlined, BellOutlined} from "@ant-design/icons"
 import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
 import {Button, Flex, Input, Radio, Space, Typography} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
@@ -20,6 +20,7 @@ import {useQueryParamState} from "@/oss/state/appState"
 import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
 import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {
     selectedVariantsCountAtom,
     variantTableSelectionAtomFamily,
@@ -40,11 +41,13 @@ import {
     openComparisonModalAtom,
 } from "./Modals/VariantComparisonModal/store/comparisonModalStore"
 import VariantsTable from "./Table"
+import WebhooksList from "../Webhooks/WebhooksList"
 
 // Comparison modal is opened via atoms; no local deploy/delete modals here
 
 const VariantsDashboard = () => {
     const appId = useAppId()
+    const projectId = useAtomValue(projectIdAtom) || ""
     const router = useRouter()
     const [, setQueryVariant] = useQueryParamState("revisionId")
     const [activeTab, setActiveTab] = useQueryParam("tab", "variants")
@@ -76,7 +79,7 @@ const VariantsDashboard = () => {
         return `${baseAppURL}/${appId}/variants`
     }, [appId, baseAppURL])
 
-    const tabBreadcrumbLabel = activeTab === "deployments" ? "Deployments" : "Variants"
+    const tabBreadcrumbLabel = activeTab === "deployments" ? "Deployments" : activeTab === "webhooks" ? "Webhooks" : "Variants"
 
     useBreadcrumbsEffect(
         {
@@ -204,6 +207,15 @@ const VariantsDashboard = () => {
                     </span>
                 ),
             },
+            {
+                key: "webhooks",
+                label: (
+                    <span className="inline-flex items-center gap-2">
+                        <BellOutlined />
+                        Webhooks
+                    </span>
+                ),
+            },
         ],
         [],
     )
@@ -313,9 +325,21 @@ const VariantsDashboard = () => {
         </div>
     )
 
+    const webhooksContent = projectId ? (
+        <WebhooksList projectId={projectId} appId={appId} />
+    ) : (
+        <div style={{padding: "40px", textAlign: "center"}}>
+            <Typography.Text type="secondary">Loading project information...</Typography.Text>
+        </div>
+    )
+
     return (
         <PageLayout title="Registry" headerTabsProps={headerTabsProps} className="grow min-h-0">
-            {activeTab === "deployments" ? deploymentsContent : variantContent}
+            {activeTab === "deployments"
+                ? deploymentsContent
+                : activeTab === "webhooks"
+                ? webhooksContent
+                : variantContent}
         </PageLayout>
     )
 }

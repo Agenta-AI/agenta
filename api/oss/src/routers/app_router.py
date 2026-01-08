@@ -55,6 +55,13 @@ else:
 from oss.src.models.shared_models import AppType
 
 
+# Webhook imports
+from oss.src.services.webhook_service import webhook_service
+from oss.src.models.api.webhook_models import (
+    WebhookResponse,
+)
+
+
 router = APIRouter()
 
 log = get_module_logger(__name__)
@@ -689,3 +696,25 @@ async def list_app_environment_revisions(
     return await converters.environment_db_and_revision_to_extended_output(
         app_environment, app_environment_revisions
     )
+
+
+@router.get(
+    "/{app_id}/webhooks/",
+    response_model=List[WebhookResponse],
+    operation_id="list_webhooks",
+)
+async def list_webhooks(
+    app_id: str,
+    request: Request,
+):
+    """List all webhooks for an application
+
+    Args:
+        app_id: Application ID
+        request: FastAPI request
+
+    Returns:
+        List of webhooks
+    """
+    webhooks = await webhook_service.list_webhooks(app_id=app_id)
+    return webhooks

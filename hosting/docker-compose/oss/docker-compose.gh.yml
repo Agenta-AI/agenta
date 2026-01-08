@@ -6,10 +6,10 @@ services:
         profiles:
             - with-web
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../web
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_WEB_IMAGE_NAME:-agenta-web}:${AGENTA_WEB_IMAGE_TAG:-latest}
+        build:
+            context: ../../../web
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_WEB_IMAGE_NAME:-agenta-web}:${AGENTA_WEB_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: sh -c "node ./oss/server.js"
         # === CONFIGURATION ======================================== #
@@ -28,10 +28,10 @@ services:
 
     api:
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn entrypoints.routers:app
@@ -79,10 +79,10 @@ services:
 
     worker-evaluations:
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
             [
@@ -92,6 +92,10 @@ services:
                 "-m",
                 "entrypoints.worker_evaluations",
             ]
+        # === STORAGE ============================================== #
+        volumes:
+            # Docker socket for webhook python script execution
+            - /var/run/docker.sock:/var/run/docker.sock
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
@@ -115,10 +119,10 @@ services:
 
     worker-tracing:
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
             [
@@ -151,10 +155,10 @@ services:
 
     cron:
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: cron -f
         # === CONFIGURATION ======================================== #
@@ -174,10 +178,10 @@ services:
 
     alembic:
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: sh -c "python -m oss.databases.postgres.migrations.runner"
         # === CONFIGURATION ======================================== #
@@ -193,10 +197,10 @@ services:
 
     completion:
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../services/completion
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_COMPLETION_IMAGE_NAME:-agenta-completion}:${AGENTA_COMPLETION_IMAGE_TAG:-latest}
+        build:
+            context: ../../../services/completion
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_COMPLETION_IMAGE_NAME:-agenta-completion}:${AGENTA_COMPLETION_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn oss.src.main:app
@@ -234,10 +238,10 @@ services:
 
     chat:
         # === IMAGE ================================================ #
-        # build:
-        #     context: ../../../services/chat
-        #     dockerfile: oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_CHAT_IMAGE_NAME:-agenta-chat}:${AGENTA_CHAT_IMAGE_TAG:-latest}
+        build:
+            context: ../../../services/chat
+            dockerfile: oss/docker/Dockerfile.gh
+        # image: ghcr.io/agenta-ai/${AGENTA_CHAT_IMAGE_NAME:-agenta-chat}:${AGENTA_CHAT_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn oss.src.main:app

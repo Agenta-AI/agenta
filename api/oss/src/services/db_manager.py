@@ -2468,6 +2468,30 @@ async def deploy_to_environment(
 
         await session.commit()
 
+    # Trigger webhooks after successful deployment
+    from oss.src.services.webhook_service import webhook_service
+
+    try:
+        await webhook_service.trigger_webhooks_for_deployment(
+            app_id=str(app_variant_db.app_id),
+            environment_name=environment_name,
+            deployment_id=str(deployment.id),
+            variant_id=variant_id,
+            variant_revision_id=str(app_variant_revision_db.id),
+            project_id=str(app_variant_db.project_id),
+            app_slug=app_variant_db.app.app_name if app_variant_db.app else None,
+            variant_slug=app_variant_db.config_name,
+            variant_version=app_variant_revision_db.revision,
+        )
+    except Exception as e:
+        # Log error but don't fail the deployment
+        log = get_module_logger(__name__)
+        log.warning(
+            f"Failed to trigger webhooks for deployment",
+            deployment_id=str(deployment.id),
+            error=str(e),
+        )
+
     return environment_db.name, environment_db.revision
 
 

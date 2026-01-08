@@ -52,6 +52,12 @@ taskiq-redis = "^1"
 redis = "^7"
 cachetools = "^6"
 
+# Sandbox
+restrictedpython = { version = "^8", python = ">=3.11,<3.14" }
+
+# Docker for webhook execution
+docker = "^7"
+
 # Integrations & external services
 supertokens-python = "^0.29"
 openai = "^2"
