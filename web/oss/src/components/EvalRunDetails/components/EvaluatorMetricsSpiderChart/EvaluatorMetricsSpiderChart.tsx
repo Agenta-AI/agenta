@@ -106,9 +106,28 @@ const EvaluatorMetricsSpiderChart = ({
                             const nudgeX = cos * NUDGE
                             const nudgeY = sin * NUDGE
 
+                            const truncateText = (text: string, max = 18) => {
+                                if (text.length <= max) return text
+                                return `${text.slice(0, Math.max(1, max - 1))}…`
+                            }
+
                             const clampLines = (s: string, max = 18) => {
-                                const parts = s.includes(" - ") ? s.split(" - ") : [s]
-                                if (parts.length >= 2) return parts.slice(0, 2)
+                                const separator = s.includes(": ")
+                                    ? ": "
+                                    : s.includes(" - ")
+                                      ? " - "
+                                      : null
+
+                                if (separator) {
+                                    const parts = s.split(separator)
+                                    const evaluator = truncateText(parts[0]?.trim() ?? "", 16)
+                                    const metric = truncateText(
+                                        parts.slice(1).join(separator).trim(),
+                                        max,
+                                    )
+                                    return metric ? [evaluator, metric] : [evaluator]
+                                }
+
                                 const words = s.split(/\s+/)
                                 let line1 = ""
                                 let line2 = ""
