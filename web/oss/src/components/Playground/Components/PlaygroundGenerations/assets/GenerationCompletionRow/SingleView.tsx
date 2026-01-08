@@ -18,12 +18,12 @@ import RunButton from "@/oss/components/Playground/assets/RunButton"
 import TypingIndicator from "@/oss/components/Playground/assets/TypingIndicator"
 import TestsetDrawerButton from "@/oss/components/Playground/Components/Drawers/TestsetDrawer"
 import {allGenerationsCollapsedAtom} from "@/oss/components/Playground/Components/PlaygroundGenerations/assets/GenerationHeader/store"
+import {useRepetitionResult} from "@/oss/components/Playground/hooks/useRepetitionResult"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {deleteGenerationInputRowMutationAtom} from "@/oss/components/Playground/state/atoms/mutations/input/deleteInputRow"
 import {duplicateGenerationInputRowMutationAtom} from "@/oss/components/Playground/state/atoms/mutations/input/duplicateInputRow"
 import {inputRowIdsAtom} from "@/oss/state/generation/entities"
 import {variableIdsUnifiedAtomFamily} from "@/oss/state/newPlayground/generation/selectors"
-import {repetitionIndexAtomFamily} from "@/oss/state/newPlayground/generation/uiState"
 
 import {ClickRunPlaceholder} from "../ResultPlaceholder"
 
@@ -58,9 +58,6 @@ const SingleView = ({
     containerClassName,
 }: Props) => {
     // UI State for repetition index
-    const [repetitionIndex, setRepetitionIndex] = useAtom(
-        useMemo(() => repetitionIndexAtomFamily(`${rowId}:${variantId}`), [rowId, variantId]),
-    )
 
     const variableIds = useAtom(
         useMemo(
@@ -69,30 +66,11 @@ const SingleView = ({
         ),
     )[0] as string[]
 
-    useEffect(() => {
-        setRepetitionIndex(0)
-    }, [resultHash, setRepetitionIndex])
-
-    const totalRepetitions = Array.isArray(result) ? result.length : result ? 1 : 0
-    const safeIndex =
-        repetitionIndex >= totalRepetitions ? Math.max(0, totalRepetitions - 1) : repetitionIndex
-    const currentResult =
-        Array.isArray(result) && totalRepetitions > 0
-            ? result[safeIndex]
-            : totalRepetitions === 1
-              ? result
-              : null
-
-    const repetitionProps =
-        totalRepetitions > 1
-            ? {
-                  current: safeIndex + 1,
-                  total: totalRepetitions,
-                  onNext: () =>
-                      setRepetitionIndex((prev) => Math.min(totalRepetitions - 1, prev + 1)),
-                  onPrev: () => setRepetitionIndex((prev) => Math.max(0, prev - 1)),
-              }
-            : undefined
+    const {currentResult, repetitionProps} = useRepetitionResult({
+        rowId,
+        variantId,
+        result,
+    })
 
     const inputRowIds = useAtomValue(generationInputRowIdsAtom) as string[]
     const allInputRowIds = useAtomValue(inputRowIdsAtom) as string[]
@@ -335,7 +313,7 @@ const SingleView = ({
                                     <ErrorPanel result={currentResult} />
                                 ) : currentResult.response ? (
                                     <GenerationResponsePanel
-                                        key={safeIndex}
+                                        key={repetitionProps?.current || 0}
                                         result={currentResult}
                                         repetitionProps={repetitionProps}
                                         rowId={rowId}

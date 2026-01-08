@@ -1,9 +1,9 @@
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
 import {ArrowsOutLineHorizontal} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import clsx from "clsx"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
@@ -14,6 +14,7 @@ import {ClickRunPlaceholder} from "@/oss/components/Playground/Components/Playgr
 import {useAssistantDisplayValue} from "@/oss/components/Playground/hooks/chat/useAssistant"
 import useEffectiveRevisionId from "@/oss/components/Playground/hooks/chat/useEffectiveRevisionId"
 import useHasAssistantContent from "@/oss/components/Playground/hooks/chat/useHasAssistantContent"
+import {useRepetitionResult} from "@/oss/components/Playground/hooks/useRepetitionResult"
 import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 import {resolvedGenerationResultAtomFamily} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {messageSchemaMetadataAtom} from "@/oss/state/generation/entities"
@@ -23,7 +24,6 @@ import {
     cancelChatTurnAtom,
     runChatTurnAtom,
 } from "@/oss/state/newPlayground/chat/actions"
-import {repetitionIndexAtomFamily} from "@/oss/state/newPlayground/generation/uiState"
 import {buildAssistantMessage} from "@/oss/state/newPlayground/helpers/messageFactory"
 import {openPlaygroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
 
@@ -69,27 +69,11 @@ const GenerationChatTurnNormalized = ({
     const {isRunning, result: inlineResult} = useAtomValue(genResultAtom) as any
     const result = inlineResult
 
-    const [repetitionIndex, setRepetitionIndex] = useAtom(
-        useMemo(
-            () => repetitionIndexAtomFamily(`${resolvedTurnId || turnId}:${variantId}`),
-            [resolvedTurnId, turnId, variantId],
-        ),
-    )
-
-    useEffect(() => {
-        setRepetitionIndex(0)
-    }, [result, setRepetitionIndex])
-
-    const totalRepetitions = Array.isArray(result) ? result.length : result ? 1 : 0
-    const safeIndex =
-        repetitionIndex >= totalRepetitions ? Math.max(0, totalRepetitions - 1) : repetitionIndex
-
-    const currentResult = useMemo(() => {
-        if (Array.isArray(result) && totalRepetitions > 0) {
-            return result[safeIndex]
-        }
-        return result
-    }, [result, safeIndex, totalRepetitions])
+    const {currentResult, repetitionIndex, repetitionProps} = useRepetitionResult({
+        rowId: resolvedTurnId || turnId,
+        variantId: variantId as string,
+        result,
+    })
 
     const messageSchema = useAtomValue(messageSchemaMetadataAtom)
 
@@ -149,20 +133,6 @@ const GenerationChatTurnNormalized = ({
         toolMessages.length > 0,
     )
 
-    const repetitionProps = useMemo(
-        () =>
-            totalRepetitions > 1
-                ? {
-                      current: safeIndex + 1,
-                      total: totalRepetitions,
-                      onNext: () =>
-                          setRepetitionIndex((prev) => Math.min(totalRepetitions - 1, prev + 1)),
-                      onPrev: () => setRepetitionIndex((prev) => Math.max(0, prev - 1)),
-                  }
-                : undefined,
-        [totalRepetitions, safeIndex, setRepetitionIndex],
-    )
-
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
             {!hideUserMessage ? (
@@ -192,7 +162,7 @@ const GenerationChatTurnNormalized = ({
                 <>
                     <div className="flex gap-2 justify-between items-center">
                         <Typography.Text type="secondary" className="text-[10px] text-nowrap">
-                            Total repetitions: {repetitionProps?.total}
+                            {repetitionProps ? `Total repetitions: ${repetitionProps.total}` : ""}
                         </Typography.Text>
 
                         <div className="flex gap-2 items-center">
@@ -203,7 +173,7 @@ const GenerationChatTurnNormalized = ({
                                 onClick={() => openFocusDrawer({rowId: sessionRowId, variantId})}
                                 tooltipProps={{title: "View all repetitions"}}
                             />
-                            <RepetitionNavigation {...repetitionProps} />
+                            {repetitionProps && <RepetitionNavigation {...repetitionProps} />}
                         </div>
                     </div>
                     <TurnMessageAdapter
