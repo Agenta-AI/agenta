@@ -25,6 +25,7 @@ import {
     Tag,
     Popconfirm,
     Alert,
+    Tooltip,
 } from "antd"
 
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
@@ -642,12 +643,22 @@ const Organization: FC = () => {
                                 }
                                 disabled={updating}
                             >
-                                <Radio.Button
-                                    value="yes"
-                                    disabled={!hasActiveVerifiedProvider}
+                                <Tooltip
+                                    title={
+                                        !hasActiveVerifiedProvider
+                                            ? "Enable at least one SSO provider first."
+                                            : null
+                                    }
                                 >
-                                    Allow
-                                </Radio.Button>
+                                    <span>
+                                        <Radio.Button
+                                            value="yes"
+                                            disabled={!hasActiveVerifiedProvider}
+                                        >
+                                            Allow
+                                        </Radio.Button>
+                                    </span>
+                                </Tooltip>
                                 <Radio.Button value="no">Deny</Radio.Button>
                             </Radio.Group>
                         </Descriptions.Item>
@@ -674,12 +685,22 @@ const Organization: FC = () => {
                                 disabled={updating}
                             >
                                 <Radio.Button value="yes">Allow</Radio.Button>
-                                <Radio.Button
-                                    value="no"
-                                    disabled={!hasVerifiedDomain}
+                                <Tooltip
+                                    title={
+                                        !hasVerifiedDomain
+                                            ? "Verify at least one domain first."
+                                            : null
+                                    }
                                 >
-                                    Deny
-                                </Radio.Button>
+                                    <span>
+                                        <Radio.Button
+                                            value="no"
+                                            disabled={!hasVerifiedDomain}
+                                        >
+                                            Deny
+                                        </Radio.Button>
+                                    </span>
+                                </Tooltip>
                             </Radio.Group>
                         </Descriptions.Item>
                         <Descriptions.Item label="Auto-join from verified domains">
@@ -691,12 +712,22 @@ const Organization: FC = () => {
                                 }
                                 disabled={updating}
                             >
-                                <Radio.Button
-                                    value="yes"
-                                    disabled={!hasVerifiedDomain}
+                                <Tooltip
+                                    title={
+                                        !hasVerifiedDomain
+                                            ? "Verify at least one domain first."
+                                            : null
+                                    }
                                 >
-                                    Allow
-                                </Radio.Button>
+                                    <span>
+                                        <Radio.Button
+                                            value="yes"
+                                            disabled={!hasVerifiedDomain}
+                                        >
+                                            Allow
+                                        </Radio.Button>
+                                    </span>
+                                </Tooltip>
                                 <Radio.Button value="no">Deny</Radio.Button>
                             </Radio.Group>
                         </Descriptions.Item>
