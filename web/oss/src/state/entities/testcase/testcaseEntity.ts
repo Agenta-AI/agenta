@@ -976,12 +976,19 @@ export const testcaseCellAtomFamily = atomFamily(
                     return undefined
                 }
 
+                // First, try direct key access (handles flat keys with dots like "agents.md")
+                // This is important because column names can legitimately contain dots
+                const directValue = (entity as Record<string, unknown>)[column]
+                if (directValue !== undefined) {
+                    return directValue
+                }
+
                 // Handle nested paths (e.g., "VMs_previous_RFP.event")
                 // We need to parse JSON strings for nested access
                 const parts = column.split(".")
 
                 if (parts.length === 1) {
-                    // Simple top-level access
+                    // Simple top-level access - already tried above, return undefined
                     return get(entity, column)
                 }
 
