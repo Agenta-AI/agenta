@@ -1,16 +1,15 @@
 import {useMemo} from "react"
 
 import {Collapse} from "antd"
+import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
-
 import {
     extractMessageArray,
     normalizeMessages,
     tryParseJson,
 } from "@/oss/components/EvalRunDetails/utils/chatMessages"
-
 import {inputRowsByIdFamilyAtom} from "@/oss/state/generation/entities"
 import {
     PlaygroundTestResult,
@@ -18,7 +17,6 @@ import {
 } from "@/oss/state/newPlayground/generation/runtime"
 import {playgroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
 
-import clsx from "clsx"
 import GenerationResultUtils from "../../../PlaygroundGenerations/assets/GenerationResultUtils"
 
 const getOutputContent = (
@@ -152,7 +150,7 @@ const FocusDrawerContent = () => {
                                 {repetitions.map((rep: PlaygroundTestResult, index: number) => {
                                     const {type, content} = getOutputContent(rep, index)
                                     let contentToRender: React.ReactNode = null
-console.log("rep", rep)
+                                    console.log("rep", rep)
                                     if (type === "chat" && Array.isArray(content)) {
                                         contentToRender = (
                                             <div className="flex flex-col gap-2">

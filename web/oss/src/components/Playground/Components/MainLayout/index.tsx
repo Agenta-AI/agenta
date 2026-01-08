@@ -3,6 +3,7 @@ import {memo, useCallback, useEffect, useRef} from "react"
 import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {chatTurnIdsAtom} from "@/oss/state/generation/entities"
@@ -18,7 +19,6 @@ import {
     isComparisonViewAtom,
     selectedVariantsAtom,
 } from "../../state/atoms"
-import PlaygroundFocusDrawer from "../Drawers/FocusDrawer"
 import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"
 import PlaygroundComparisonGenerationInputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonInputHeader/index."
 import GenerationComparisonOutputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonOutputHeader"
@@ -27,6 +27,9 @@ import PlaygroundGenerations from "../PlaygroundGenerations"
 import PromptComparisonVariantNavigation from "../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import type {BaseContainerProps} from "../types"
+const PlaygroundFocusDrawer = dynamic(() => import("../Drawers/FocusDrawer"), {
+    ssr: false,
+})
 
 import ComparisonVariantConfigSkeleton from "./assets/ComparisonVariantConfigSkeleton"
 import ComparisonVariantNavigationSkeleton from "./assets/ComparisonVariantNavigationSkeleton"

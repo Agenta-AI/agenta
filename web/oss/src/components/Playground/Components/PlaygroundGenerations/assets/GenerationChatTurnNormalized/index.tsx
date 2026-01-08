@@ -6,6 +6,7 @@ import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import TurnMessageAdapter from "@/oss/components/Playground/adapters/TurnMessageAdapter"
 import TypingIndicator from "@/oss/components/Playground/assets/TypingIndicator"
 import ControlsBar from "@/oss/components/Playground/Components/ChatCommon/ControlsBar"
@@ -27,7 +28,6 @@ import {buildAssistantMessage} from "@/oss/state/newPlayground/helpers/messageFa
 import {openPlaygroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
 
 import RepetitionNavigation from "../RepetitionNavigation"
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 
 interface Props {
     turnId: string

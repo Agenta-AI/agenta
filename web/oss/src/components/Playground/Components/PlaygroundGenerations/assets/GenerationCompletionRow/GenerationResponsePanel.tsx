@@ -5,13 +5,13 @@ import {Typography} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import ToolCallView from "@/oss/components/Playground/Components/ToolCallView"
 import {deriveToolViewModelFromResult} from "@/oss/state/newPlayground/chat/parsers"
 import {openPlaygroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
 
 import SharedEditor from "../../../SharedEditor"
 import RepetitionNavigation from "../RepetitionNavigation"
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {ssr: false})
 

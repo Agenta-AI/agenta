@@ -6,9 +6,7 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-
 import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
-
 import {
     closePlaygroundFocusDrawerAtom,
     playgroundFocusDrawerAtom,
@@ -46,7 +44,12 @@ const PlaygroundFocusDrawer = () => {
             closeIcon={null}
             title={
                 <div className="flex items-center gap-2">
-                    <Button icon={<CaretDoubleRight size={14} />} size="small" type="text" onClick={closeDrawer} />
+                    <Button
+                        icon={<CaretDoubleRight size={14} />}
+                        size="small"
+                        type="text"
+                        onClick={closeDrawer}
+                    />
                     <div className="flex items-center">
                         <Button
                             type="text"
