@@ -5,8 +5,8 @@ import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {queryClient} from "@/oss/lib/api/queryClient"
+import {isDemo} from "@/oss/lib/helpers/utils"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
@@ -14,8 +14,8 @@ import {isPersonalOrg, resolvePreferredWorkspaceId} from "@/oss/state/org/select
 import {useProfileData} from "@/oss/state/profile"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {useProjectData} from "@/oss/state/project"
-import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 import {authFlowAtom} from "@/oss/state/session"
+import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 interface AuthUserLike {
     createdNewRecipeUser?: boolean

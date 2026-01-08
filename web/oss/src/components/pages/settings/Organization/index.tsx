@@ -386,11 +386,7 @@ const Organization: FC = () => {
         .filter((provider) => provider.flags?.is_valid === false)
         .map((provider) => provider.id)
     const hasActiveVerifiedProvider = useMemo(
-        () =>
-            providers.some(
-                (provider) =>
-                    provider.flags?.is_active && provider.flags?.is_valid,
-            ),
+        () => providers.some((provider) => provider.flags?.is_active && provider.flags?.is_valid),
         [providers],
     )
     const allAuthMethodsDisabled = useMemo(
@@ -443,8 +439,8 @@ const Organization: FC = () => {
                             </p>
                             <p>
                                 <strong>
-                                    To prevent lockout, the "Owner can bypass controls"
-                                    flag will be enabled automatically.
+                                    To prevent lockout, the "Owner can bypass controls" flag will be
+                                    enabled automatically.
                                 </strong>
                             </p>
                             <p>Do you want to continue?</p>
@@ -455,22 +451,14 @@ const Organization: FC = () => {
                     okType: "danger",
                     cancelText: "Cancel",
                     onOk: () => {
-                        handleUpdateOrganization(
-                            {flags: {[flag]: value}},
-                            {ignoreAxiosError: true},
-                        )
+                        handleUpdateOrganization({flags: {[flag]: value}}, {ignoreAxiosError: true})
                     },
                 })
             } else {
                 handleUpdateOrganization({flags: {[flag]: value}})
             }
         },
-        [
-            handleUpdateOrganization,
-            hasActiveVerifiedProvider,
-            hasVerifiedDomain,
-            selectedOrg,
-        ],
+        [handleUpdateOrganization, hasActiveVerifiedProvider, hasVerifiedDomain, selectedOrg],
     )
 
     const providerColumns = [
@@ -689,10 +677,7 @@ const Organization: FC = () => {
                                     }
                                 >
                                     <span>
-                                        <Radio.Button
-                                            value="no"
-                                            disabled={allAuthMethodsDisabled}
-                                        >
+                                        <Radio.Button value="no" disabled={allAuthMethodsDisabled}>
                                             Deny
                                         </Radio.Button>
                                     </span>
@@ -717,10 +702,7 @@ const Organization: FC = () => {
                                     }
                                 >
                                     <span>
-                                        <Radio.Button
-                                            value="no"
-                                            disabled={!hasVerifiedDomain}
-                                        >
+                                        <Radio.Button value="no" disabled={!hasVerifiedDomain}>
                                             Deny
                                         </Radio.Button>
                                     </span>
@@ -744,10 +726,7 @@ const Organization: FC = () => {
                                     }
                                 >
                                     <span>
-                                        <Radio.Button
-                                            value="yes"
-                                            disabled={!hasVerifiedDomain}
-                                        >
+                                        <Radio.Button value="yes" disabled={!hasVerifiedDomain}>
                                             Allow
                                         </Radio.Button>
                                     </span>

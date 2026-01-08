@@ -6,10 +6,10 @@ import {signOut} from "supertokens-auth-react/recipe/session"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {getJWT} from "@/oss/services/api"
+// import {requestNavigationAtom} from "@/oss/state/appState"
+import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {projectIdAtom} from "@/oss/state/project"
-import {requestNavigationAtom} from "@/oss/state/appState"
-import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 
 import {getAgentaApiUrl} from "../../helpers/api"
 import {getErrorMessage, globalErrorHandler} from "../../helpers/errorHandler"
@@ -181,12 +181,9 @@ axios.interceptors.response.use(
                 const identityText = currentIdentity
                     ? ` You're signed in with ${currentIdentity}.`
                     : ""
-                const message =
-                    `This organization requires ${requiredText}.${identityText}`
+                const message = `This organization requires ${requiredText}.${identityText}`
                 const authError =
-                    upgradeDetail?.error === "AUTH_SSO_DENIED"
-                        ? "sso_denied"
-                        : "upgrade_required"
+                    upgradeDetail?.error === "AUTH_SSO_DENIED" ? "sso_denied" : "upgrade_required"
                 if (upgradeDetail?.error === "AUTH_SSO_DENIED") {
                     signOut().catch(() => null)
                 }
@@ -229,10 +226,7 @@ axios.interceptors.response.use(
         if (error.config?._ignoreError) throw error
 
         const domainDeniedDetail = error.response?.data?.detail
-        if (
-            error.response?.status === 403 &&
-            domainDeniedDetail?.error === "AUTH_DOMAIN_DENIED"
-        ) {
+        if (error.response?.status === 403 && domainDeniedDetail?.error === "AUTH_DOMAIN_DENIED") {
             if (error.config) {
                 error.config._ignoreError = true
             }

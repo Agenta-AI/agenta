@@ -92,9 +92,7 @@ const ListOfOrgs = ({
     const safeOrganizationList = Array.isArray(organizationList) ? organizationList : []
     const selectedBasicOrganization = useMemo(
         () =>
-            safeOrganizationList.find(
-                (organization) => organization.id === effectiveSelectedId,
-            ) ||
+            safeOrganizationList.find((organization) => organization.id === effectiveSelectedId) ||
             null,
         [safeOrganizationList, effectiveSelectedId],
     )
@@ -570,22 +568,22 @@ const ListOfOrgs = ({
                         if (typeof window !== "undefined") {
                             window.localStorage.setItem(authUpgradeOrgKey, organizationId)
                             Session.getAccessTokenPayloadSecurely()
-                                    .then((payload) => {
-                                        const sessionIdentities =
-                                            payload?.session_identities ||
-                                            payload?.sessionIdentities ||
-                                            []
-                                        console.debug("[auth-upgrade] captured session identities", {
-                                            organizationId,
-                                            sessionIdentities,
-                                        })
-                                        window.localStorage.setItem(
-                                            "authUpgradeSessionIdentities",
-                                            JSON.stringify(sessionIdentities),
-                                        )
+                                .then((payload) => {
+                                    const sessionIdentities =
+                                        payload?.session_identities ||
+                                        payload?.sessionIdentities ||
+                                        []
+                                    console.debug("[auth-upgrade] captured session identities", {
+                                        organizationId,
+                                        sessionIdentities,
                                     })
-                                    .catch(() => null)
-                            }
+                                    window.localStorage.setItem(
+                                        "authUpgradeSessionIdentities",
+                                        JSON.stringify(sessionIdentities),
+                                    )
+                                })
+                                .catch(() => null)
+                        }
                         setAuthUpgradeOpen(true)
                         return
                     }
@@ -684,9 +682,7 @@ const ListOfOrgs = ({
 
             <AuthUpgradeModal
                 open={authUpgradeOpen}
-                organizationName={
-                    organizations.find((org) => org.id === authUpgradeOrgId)?.name
-                }
+                organizationName={organizations.find((org) => org.id === authUpgradeOrgId)?.name}
                 detail={authUpgradeDetail}
                 onCancel={() => {
                     setAuthUpgradeOpen(false)

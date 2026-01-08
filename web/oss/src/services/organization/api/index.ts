@@ -179,13 +179,9 @@ export const createOrganizationDomain = async (payload: {
     name: string
     description?: string
 }): Promise<OrganizationDomain> => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/organizations/domains`,
-        payload,
-        {
-            _ignoreError: true,
-        } as any,
-    )
+    const response = await axios.post(`${getAgentaApiUrl()}/organizations/domains`, payload, {
+        _ignoreError: true,
+    } as any)
     return response.data
 }
 
@@ -278,13 +274,9 @@ export const createOrganizationProvider = async (payload: {
         scopes?: string[]
     }
 }): Promise<OrganizationProvider> => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/organizations/providers`,
-        payload,
-        {
-            _ignoreError: true,
-        } as any,
-    )
+    const response = await axios.post(`${getAgentaApiUrl()}/organizations/providers`, payload, {
+        _ignoreError: true,
+    } as any)
     return response.data
 }
 

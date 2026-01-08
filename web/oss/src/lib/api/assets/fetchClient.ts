@@ -1,10 +1,11 @@
 import {getDefaultStore} from "jotai"
 import {signOut} from "supertokens-auth-react/recipe/session"
 
-import {projectIdAtom} from "../../../state/project"
 import {requestNavigationAtom} from "@/oss/state/appState"
 import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {authFlowAtom} from "@/oss/state/session"
+
+import {projectIdAtom} from "../../../state/project"
 import {getAgentaApiUrl} from "../../helpers/api"
 
 // Lazily import to avoid circulars in non-test

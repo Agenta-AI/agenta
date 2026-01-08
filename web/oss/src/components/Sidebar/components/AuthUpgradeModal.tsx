@@ -166,17 +166,9 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
         >
             <div className="flex flex-col gap-4">
                 {organizationName && (
-                    <Text>
-                        {organizationName} requires additional authentication to continue.
-                    </Text>
+                    <Text>{organizationName} requires additional authentication to continue.</Text>
                 )}
-                {detailMessage && (
-                    <Alert
-                        showIcon
-                        message={detailMessage}
-                        type="warning"
-                    />
-                )}
+                {detailMessage && <Alert showIcon message={detailMessage} type="warning" />}
                 {showSso && (
                     <>
                         <div className="flex flex-col gap-2">

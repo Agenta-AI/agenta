@@ -155,10 +155,7 @@ const Auth = () => {
         return orgSlug || null
     }
 
-    const formatSsoProviderLabel = (provider: {
-        slug: string
-        third_party_id?: string
-    }) => {
+    const formatSsoProviderLabel = (provider: {slug: string; third_party_id?: string}) => {
         const suffix = provider.third_party_id?.startsWith("sso:")
             ? provider.third_party_id.replace(/^sso:/, "")
             : provider.slug
@@ -343,9 +340,6 @@ const Auth = () => {
     ]
 
     const configuredProviderIds = new Set(oidcProviders.map((provider) => provider.id))
-    const socialMethodsReported = Object.keys(availableMethods).some((key) =>
-        key.startsWith("social:"),
-    )
     const providersToShow = oidcProviderMeta.filter((provider) =>
         configuredProviderIds.has(provider.id),
     )
@@ -469,42 +463,42 @@ const Auth = () => {
                         )}
 
                         {/* Step 2: Email-first (if email auth is enabled and email not yet submitted) */}
-                        {showEmailEntry && !emailSubmitted && !socialAvailable && !isLoginCodeVisible && (
-                            <EmailFirst
-                                email={email}
-                                setEmail={setEmail}
-                                onContinue={handleEmailContinue}
-                                message={message}
-                                disabled={isSocialAuthLoading}
-                            />
-                        )}
-
                         {showEmailEntry &&
                             !emailSubmitted &&
-                            socialAvailable &&
-                            !showEmailForm && (
-                                <Button
-                                    type="link"
-                                    onClick={() => setShowEmailForm(true)}
-                                    className="text-center w-full"
-                                >
-                                    Use a different email
-                                </Button>
+                            !socialAvailable &&
+                            !isLoginCodeVisible && (
+                                <EmailFirst
+                                    email={email}
+                                    setEmail={setEmail}
+                                    onContinue={handleEmailContinue}
+                                    message={message}
+                                    disabled={isSocialAuthLoading}
+                                />
                             )}
+
+                        {showEmailEntry && !emailSubmitted && socialAvailable && !showEmailForm && (
+                            <Button
+                                type="link"
+                                onClick={() => setShowEmailForm(true)}
+                                className="text-center w-full"
+                            >
+                                Use a different email
+                            </Button>
+                        )}
 
                         {showEmailEntry &&
                             !emailSubmitted &&
                             socialAvailable &&
                             showEmailForm &&
                             !isLoginCodeVisible && (
-                            <EmailFirst
-                                email={email}
-                                setEmail={setEmail}
-                                onContinue={handleEmailContinue}
-                                message={message}
-                                disabled={isSocialAuthLoading}
-                            />
-                        )}
+                                <EmailFirst
+                                    email={email}
+                                    setEmail={setEmail}
+                                    onContinue={handleEmailContinue}
+                                    message={message}
+                                    disabled={isSocialAuthLoading}
+                                />
+                            )}
 
                         {/* Step 3: After email discovery, show available methods */}
                         {emailSubmitted && discoveryComplete && (
@@ -564,7 +558,8 @@ const Auth = () => {
                                                 loading={isSocialAuthLoading}
                                                 disabled={isAuthLoading}
                                             >
-                                                Continue with SSO ({formatSsoProviderLabel(provider)})
+                                                Continue with SSO (
+                                                {formatSsoProviderLabel(provider)})
                                             </Button>
                                         ))}
                                     </div>

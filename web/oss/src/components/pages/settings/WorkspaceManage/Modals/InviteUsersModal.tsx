@@ -40,14 +40,17 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
 
             setLoading(true)
 
-            inviteToWorkspace({
-                data: emails.map((email) => ({
-                    email,
-                    ...(role ? {roles: [role]} : {}),
-                })),
-                organizationId,
-                workspaceId,
-            }, true)
+            inviteToWorkspace(
+                {
+                    data: emails.map((email) => ({
+                        email,
+                        ...(role ? {roles: [role]} : {}),
+                    })),
+                    organizationId,
+                    workspaceId,
+                },
+                true,
+            )
                 .then((responses) => {
                     if (!isEmailInvitationsEnabled() && typeof responses.url === "string") {
                         onSuccess?.({
@@ -71,9 +74,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                     const detailMessage =
                         typeof detail === "string"
                             ? detail
-                            : detail?.message ||
-                              rawError ||
-                              "Failed to send invitations"
+                            : detail?.message || rawError || "Failed to send invitations"
                     const isDomainRestricted =
                         typeof detailMessage === "string" &&
                         detailMessage.toLowerCase().includes("domain")

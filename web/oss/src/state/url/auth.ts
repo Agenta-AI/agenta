@@ -2,14 +2,14 @@ import {atom, getDefaultStore} from "jotai"
 import Router from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 
+import {queryClient} from "@/oss/lib/api/queryClient"
+import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {
     appIdentifiersAtom,
     appStateSnapshotAtom,
     navigationRequestAtom,
     requestNavigationAtom,
 } from "@/oss/state/appState"
-import {queryClient} from "@/oss/lib/api/queryClient"
-import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {isPersonalOrg, orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
