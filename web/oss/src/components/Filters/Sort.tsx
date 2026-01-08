@@ -48,8 +48,9 @@ export interface SortResult {
     type: "custom" | "standard"
     sorted: string
     customRange?: {startTime?: string; endTime?: string}
+    label?: SortTypes
 }
-type SortTypes =
+export type SortTypes =
     | "30 mins"
     | "1 hour"
     | "6 hours"
@@ -69,9 +70,12 @@ interface CustomTimeRange {
 interface Props {
     onSortApply: ({type, sorted, customRange}: SortResult) => void
     defaultSortValue: SortTypes
+    type?: "link" | "text" | "default" | "primary" | "dashed"
+    disabled?: boolean
+    exclude?: SortTypes[]
 }
 
-const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
+const Sort: React.FC<Props> = ({onSortApply, defaultSortValue, type, disabled, exclude}) => {
     const classes = useStyles()
 
     const [sort, setSort] = useState<SortTypes>(defaultSortValue)
@@ -121,6 +125,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
             type: sortData == "custom" ? "custom" : "standard",
             sorted: sortedTime as string,
             customRange: customRangeTime,
+            label: sortData,
         })
     }
 
@@ -178,32 +183,42 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
                     <section className="flex gap-2">
                         <div className="flex-1">
                             <div>
-                                {options.map((item) => (
-                                    <div
-                                        key={item.value}
-                                        onClick={() => onSelectItem(item)}
-                                        className={`${classes.popupItems} ${sort === item.value && classes.popupSelectedItem}`}
-                                    >
-                                        {item.label}
-                                    </div>
-                                ))}
+                                {options
+                                    .filter(
+                                        (item) =>
+                                            !exclude?.includes(item.value as SortTypes) &&
+                                            !exclude?.includes(item.label as SortTypes),
+                                    )
+                                    .map((item) => (
+                                        <div
+                                            key={item.value}
+                                            onClick={() => onSelectItem(item)}
+                                            className={`${classes.popupItems} ${sort === item.value && classes.popupSelectedItem}`}
+                                        >
+                                            {item.label}
+                                        </div>
+                                    ))}
 
-                                <div className="-ml-1 -mr-1.5">
-                                    <Divider className="!my-1" />
-                                </div>
+                                {!exclude?.includes("custom") && (
+                                    <>
+                                        <div className="-ml-1 -mr-1.5">
+                                            <Divider className="!my-1" />
+                                        </div>
 
-                                <div
-                                    className={`${classes.popupItems} ${sort === "custom" && classes.popupSelectedItem}`}
-                                    onClick={() => {
-                                        setCustomOptionSelected(true)
-                                        setSort("custom")
-                                    }}
-                                >
-                                    <Typography.Text className="flex items-center gap-2">
-                                        <Clock size={12} /> Define start and end time
-                                    </Typography.Text>
-                                    <CaretRight size={12} />
-                                </div>
+                                        <div
+                                            className={`${classes.popupItems} ${sort === "custom" && classes.popupSelectedItem}`}
+                                            onClick={() => {
+                                                setCustomOptionSelected(true)
+                                                setSort("custom")
+                                            }}
+                                        >
+                                            <Typography.Text className="flex items-center gap-2">
+                                                <Clock size={12} /> Define start and end time
+                                            </Typography.Text>
+                                            <CaretRight size={12} />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -276,6 +291,8 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
                 }
             >
                 <Button
+                    type={type}
+                    disabled={disabled}
                     icon={<Calendar size={14} className="mt-0.5" />}
                     onClick={() => setDropdownVisible(true)}
                     className="flex items-center gap-2"

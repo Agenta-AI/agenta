@@ -1,11 +1,10 @@
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, Optional
 
 from agenta.sdk.workflows.runners.base import CodeRunner
-from agenta.sdk.utils.lazy import _load_restrictedpython
 
 
 class LocalRunner(CodeRunner):
-    """Local code runner using RestrictedPython for safe execution."""
+    """Local code runner using direct Python execution."""
 
     def run(
         self,
@@ -14,9 +13,11 @@ class LocalRunner(CodeRunner):
         inputs: Dict[str, Any],
         output: Union[dict, str],
         correct_answer: Any,
+        runtime: Optional[str] = None,
+        templates: Optional[Dict[str, str]] = None,
     ) -> Union[float, None]:
         """
-        Execute provided Python code safely using RestrictedPython.
+        Execute provided Python code directly.
 
         Args:
             code: The Python code to be executed
@@ -24,65 +25,29 @@ class LocalRunner(CodeRunner):
             inputs: Inputs to be used during code execution
             output: The output of the app variant after being called
             correct_answer: The correct answer (or target) for comparison
-            code: The Python code to be executed
+            runtime: Runtime environment (only "python" is supported for local runner)
+            templates: Wrapper templates keyed by runtime (unused for local runner).
 
         Returns:
             Float score between 0 and 1, or None if execution fails
         """
-        (
-            safe_builtins,
-            compile_restricted,
-            utility_builtins,
-            default_guarded_getiter,
-            default_guarded_getitem,
-            guarded_iter_unpack_sequence,
-            full_write_guard,
-        ) = _load_restrictedpython()
+        # Normalize runtime: None means python
+        runtime = runtime or "python"
 
-        # Define the available built-ins
-        local_builtins = safe_builtins.copy()
+        # Local runner only supports Python
+        if runtime != "python":
+            raise ValueError(
+                f"LocalRunner only supports 'python' runtime, got: {runtime}"
+            )
 
-        # Add the __import__ built-in function to the local builtins
-        local_builtins["__import__"] = __import__
+        # Define the environment for code execution
+        environment: dict[str, Any] = dict()
 
-        # Define supported packages
-        allowed_imports = [
-            "math",
-            "random",
-            "datetime",
-            "json",
-            "requests",
-            "typing",
-        ]
-
-        # Create a dictionary to simulate allowed imports
-        allowed_modules = {}
-        for package_name in allowed_imports:
-            allowed_modules[package_name] = __import__(package_name)
-
-        # Add the allowed modules to the local built-ins
-        local_builtins.update(allowed_modules)
-        local_builtins.update(utility_builtins)
-
-        # Define the environment for the code execution
-        environment = {
-            "_getiter_": default_guarded_getiter,
-            "_getitem_": default_guarded_getitem,
-            "_iter_unpack_sequence_": guarded_iter_unpack_sequence,
-            "_write_": full_write_guard,
-            "__builtins__": local_builtins,
-        }
-
-        # Compile the code in a restricted environment
-        byte_code = compile_restricted(code, filename="<inline>", mode="exec")
-
-        # Call the evaluation function, extract the result if it exists
-        # and is a float between 0 and 1
+        # Execute the code directly
         try:
-            # Execute the code
-            exec(byte_code, environment)
+            exec(code, environment)
 
-            # Call the evaluation function, extract the result
+            # Call the evaluation function
             result = environment["evaluate"](app_params, inputs, output, correct_answer)
 
             # Attempt to convert result to float

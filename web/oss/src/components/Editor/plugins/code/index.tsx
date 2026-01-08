@@ -589,15 +589,19 @@ function InsertInitialCodeBlockPlugin({
     }, [])
 
     useEffect(() => {
-        // For JSON/YAML content, use semantic comparison
+        // For JSON content, use semantic comparison. YAML should be treated as raw text.
         if (prevInitialRef.current) {
-            if (
-                isEqual(
-                    safeJson5Parse(prevInitialRef.current as string),
-                    safeJson5Parse(initialValue),
-                )
-            ) {
-                return // no semantic change
+            if (language === "json") {
+                if (
+                    isEqual(
+                        safeJson5Parse(prevInitialRef.current as string),
+                        safeJson5Parse(initialValue),
+                    )
+                ) {
+                    return // no semantic change
+                }
+            } else if (prevInitialRef.current === initialValue) {
+                return
             }
         }
 
