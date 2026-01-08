@@ -62,9 +62,24 @@ async def check_organization_access(request: Request, organization_id: str):
 
     try:
         from uuid import UUID
+        from oss.src.services import db_manager
 
-        user_id = UUID(session.get_user_id())
+        user_uid = session.get_user_id()
+        user = await db_manager.get_user_with_uid(user_uid)
+        if not user:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "AUTH_DOMAIN_DENIED",
+                    "message": "Organization available but access restricted to verified domain(s).",
+                    "required_methods": [],
+                },
+            )
+
+        user_id = UUID(str(user.id))
         org_id = UUID(organization_id)
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid organization_id")
 

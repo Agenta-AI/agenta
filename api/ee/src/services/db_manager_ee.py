@@ -1140,14 +1140,17 @@ async def update_organization(
                 allow_root = merged_flags.get("allow_root", False)
 
                 changing_auth_flags = any(
-                    key in new_flags for key in ("allow_email", "allow_social", "allow_sso")
+                    key in new_flags
+                    for key in ("allow_email", "allow_social", "allow_sso")
                 )
                 changing_auto_join = "auto_join" in new_flags
                 changing_domains_only = "domains_only" in new_flags
 
                 if changing_auth_flags and allow_sso:
                     providers_dao = OrganizationProvidersDAO(session)
-                    providers = await providers_dao.list_by_organization(organization_id)
+                    providers = await providers_dao.list_by_organization(
+                        organization_id
+                    )
                     active_valid = [
                         provider
                         for provider in providers

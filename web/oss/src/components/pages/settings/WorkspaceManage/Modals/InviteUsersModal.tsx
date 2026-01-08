@@ -47,7 +47,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                 })),
                 organizationId,
                 workspaceId,
-            })
+            }, true)
                 .then((responses) => {
                     if (!isEmailInvitationsEnabled() && typeof responses.url === "string") {
                         onSuccess?.({
@@ -62,7 +62,14 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
 
                     form.resetFields()
                 })
-                .catch(console.error)
+                .catch((error: any) => {
+                    const detail = error?.response?.data?.detail
+                    const detailMessage =
+                        typeof detail === "string"
+                            ? detail
+                            : detail?.message || "Failed to send invitations"
+                    message.error(detailMessage)
+                })
                 .finally(() => setLoading(false))
         },
         [organizationId],

@@ -443,7 +443,7 @@ const Organization: FC = () => {
                             </p>
                             <p>
                                 <strong>
-                                    To prevent lockout, the "Owner bypasses authentication controls"
+                                    To prevent lockout, the "Owner can bypass controls"
                                     flag will be enabled automatically.
                                 </strong>
                             </p>
@@ -671,7 +671,7 @@ const Organization: FC = () => {
                                 <Radio.Button value="no">Deny</Radio.Button>
                             </Radio.Group>
                         </Descriptions.Item>
-                        <Descriptions.Item label="Owner bypasses authentication controls">
+                        <Descriptions.Item label="Owner can bypass controls">
                             <Radio.Group
                                 value={selectedOrg.flags.allow_root ? "yes" : "no"}
                                 size="small"

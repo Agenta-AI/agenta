@@ -12,7 +12,8 @@ export const checkOrganizationAccess = async (organizationId: string) => {
         validateStatus: () => true,
     } as any)
 
-    if (response.status >= 200 && response.status < 300) {
+    const detailError = response.data?.detail?.error
+    if (response.status >= 200 && response.status < 300 && !detailError) {
         return {ok: true, response}
     }
 

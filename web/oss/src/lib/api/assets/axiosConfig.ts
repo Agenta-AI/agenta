@@ -182,15 +182,11 @@ axios.interceptors.response.use(
                     ? ` You're signed in with ${currentIdentity}.`
                     : ""
                 const message =
-                    upgradeDetail?.error === "AUTH_DOMAIN_DENIED"
-                        ? upgradeDetail.message
-                        : `This organization requires ${requiredText}.${identityText}`
+                    `This organization requires ${requiredText}.${identityText}`
                 const authError =
                     upgradeDetail?.error === "AUTH_SSO_DENIED"
                         ? "sso_denied"
-                        : upgradeDetail?.error === "AUTH_DOMAIN_DENIED"
-                          ? "domain_denied"
-                          : "upgrade_required"
+                        : "upgrade_required"
                 if (upgradeDetail?.error === "AUTH_SSO_DENIED") {
                     signOut().catch(() => null)
                 }
@@ -231,6 +227,17 @@ axios.interceptors.response.use(
 
         // if axios config has _ignoreError set to true, then don't handle error
         if (error.config?._ignoreError) throw error
+
+        const domainDeniedDetail = error.response?.data?.detail
+        if (
+            error.response?.status === 403 &&
+            domainDeniedDetail?.error === "AUTH_DOMAIN_DENIED"
+        ) {
+            if (error.config) {
+                error.config._ignoreError = true
+            }
+            throw error
+        }
 
         let msg = getErrorMessage(error.response?.data?.error || error.response?.data, "")
         if (!msg)

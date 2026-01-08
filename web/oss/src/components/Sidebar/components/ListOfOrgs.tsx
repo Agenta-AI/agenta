@@ -119,6 +119,7 @@ const ListOfOrgs = ({
     const [authUpgradeDetail, setAuthUpgradeDetail] = useState<AuthUpgradeDetail | null>(null)
     const [authUpgradeOrgId, setAuthUpgradeOrgId] = useState<string | null>(null)
     const lastDomainDeniedOrgIdRef = useRef<string | null>(null)
+    const lastDomainDeniedAtRef = useRef<number>(0)
     const authUpgradeOrgKey = "authUpgradeOrgId"
     const transferOwnerOptions = useMemo(() => {
         const options = workspaceMembers
@@ -593,8 +594,13 @@ const ListOfOrgs = ({
                             typeof detail?.message === "string"
                                 ? detail.message
                                 : "Your email domain is not allowed for this organization."
-                        if (lastDomainDeniedOrgIdRef.current !== organizationId) {
+                        const now = Date.now()
+                        const recentlyNotified =
+                            lastDomainDeniedOrgIdRef.current === organizationId &&
+                            now - lastDomainDeniedAtRef.current < 2000
+                        if (!recentlyNotified) {
                             lastDomainDeniedOrgIdRef.current = organizationId
+                            lastDomainDeniedAtRef.current = now
                             message.error({
                                 content,
                                 key: "domain-denied",

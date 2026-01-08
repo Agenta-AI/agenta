@@ -417,6 +417,6 @@ body {
 
 /* Danger dropdown menu item hover state */
 .ant-dropdown-menu-item-danger:hover {
-    background-color: #fff1f0 !important;
+    background-color: #d0574e !important;
     border-color: #ffccc7 !important;
 }
