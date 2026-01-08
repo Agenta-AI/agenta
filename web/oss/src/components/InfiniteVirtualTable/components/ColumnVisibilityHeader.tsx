@@ -35,7 +35,10 @@ const ColumnVisibilityHeader = forwardRef<HTMLSpanElement, ColumnVisibilityHeade
         )
 
         return (
-            <span className="whitespace-nowrap" ref={mergedRef}>
+            <span
+                className="block w-full min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
+                ref={mergedRef}
+            >
                 {children}
             </span>
         )

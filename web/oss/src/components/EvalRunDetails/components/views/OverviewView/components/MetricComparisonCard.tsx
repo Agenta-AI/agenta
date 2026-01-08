@@ -12,6 +12,7 @@ import {
     YAxis,
 } from "recharts"
 
+import {buildHistogramChartData} from "@/oss/components/EvalRunDetails/components/EvaluatorMetricsChart/utils/chartData"
 import {
     buildBooleanHistogram,
     isBooleanMetricStats,
@@ -111,13 +112,7 @@ const buildComparisonChartConfig = (
 
     const histogramEntries = entries.map((entry) => ({
         entry,
-        data:
-            entry.stats?.distribution ??
-            entry.stats?.hist?.map((h: any) => ({
-                x: h?.interval?.[0] ?? h?.value ?? h?.bin ?? 0,
-                y: h?.count ?? h?.value ?? 0,
-            })) ??
-            [],
+        data: buildHistogramChartData(entry.stats as Record<string, any>).data,
     }))
     if (histogramEntries.some(({data}) => Array.isArray(data) && data.length > 0)) {
         const rowMap = new Map<

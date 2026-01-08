@@ -14,6 +14,7 @@ import {
     queryReferenceAtomFamily,
     variantConfigAtomFamily,
 } from "./atoms/entityReferences"
+import type {ReferenceTone} from "./referenceColors"
 import ReferenceTag from "./ReferenceTag"
 
 const {Text} = Typography
@@ -29,12 +30,16 @@ export const TestsetTag = memo(
         revisionId,
         projectId,
         projectURL,
+        toneOverride,
+        showIconOverride,
         openExternally = false,
     }: {
         testsetId: string
         revisionId?: string | null
         projectId: string | null
         projectURL?: string | null
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
         openExternally?: boolean
     }) => {
         const queryAtom = useMemo(
@@ -85,7 +90,8 @@ export const TestsetTag = memo(
                 tooltip={isDeleted ? `Testset ${testsetId} was deleted` : label}
                 copyValue={testsetId}
                 className="max-w-[220px] w-fit"
-                tone="testset"
+                tone={toneOverride === null ? undefined : (toneOverride ?? "testset")}
+                showIcon={showIconOverride ?? true}
                 openExternally={openExternally}
             />
         )
@@ -200,6 +206,8 @@ export const TestsetTagList = memo(
         projectId,
         projectURL,
         className,
+        toneOverride,
+        showIconOverride,
         openExternally = false,
     }: {
         ids: string[]
@@ -207,6 +215,8 @@ export const TestsetTagList = memo(
         projectId: string | null
         projectURL?: string | null
         className?: string
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
         openExternally?: boolean
     }) => {
         if (!ids.length) {
@@ -222,6 +232,8 @@ export const TestsetTagList = memo(
                         revisionId={revisionMap?.get(id)}
                         projectId={projectId}
                         projectURL={projectURL}
+                        toneOverride={toneOverride}
+                        showIconOverride={showIconOverride}
                         openExternally={openExternally}
                     />
                 ))}
@@ -242,6 +254,8 @@ export const ApplicationReferenceLabel = memo(
         href: explicitHref,
         openExternally = false,
         label: customLabel,
+        toneOverride,
+        showIconOverride,
     }: {
         applicationId: string | null
         projectId: string | null
@@ -249,6 +263,8 @@ export const ApplicationReferenceLabel = memo(
         href?: string | null
         openExternally?: boolean
         label?: string
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         const queryAtom = useMemo(
             () => appReferenceAtomFamily({projectId, appId: applicationId}),
@@ -288,7 +304,8 @@ export const ApplicationReferenceLabel = memo(
                 tooltip={isDeleted ? `Application ${applicationId} was deleted` : label}
                 copyValue={applicationId ?? undefined}
                 className="max-w-[220px] w-fit"
-                tone="app"
+                tone={toneOverride === null ? undefined : (toneOverride ?? "app")}
+                showIcon={showIconOverride ?? true}
                 openExternally={openExternally}
             />
         )
@@ -310,6 +327,8 @@ export const VariantReferenceLabel = memo(
         href: explicitHref,
         openExternally = false,
         label: customLabel,
+        toneOverride,
+        showIconOverride,
     }: {
         revisionId?: string | null
         projectId: string | null
@@ -319,6 +338,8 @@ export const VariantReferenceLabel = memo(
         href?: string | null
         openExternally?: boolean
         label?: string
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         const queryAtom = useMemo(
             () => variantConfigAtomFamily({projectId, revisionId}),
@@ -362,7 +383,8 @@ export const VariantReferenceLabel = memo(
                     tooltip={isDeleted ? `Variant ${revisionId} was deleted` : label}
                     copyValue={revisionId ?? undefined}
                     className="max-w-[220px]"
-                    tone="variant"
+                    tone={toneOverride === null ? undefined : (toneOverride ?? "variant")}
+                    showIcon={showIconOverride ?? true}
                     openExternally={openExternally}
                 />
                 {showVersionPill && resolvedVersion ? (
@@ -388,6 +410,8 @@ export const VariantRevisionLabel = memo(
         fallbackVariantName,
         fallbackRevision,
         href: explicitHref,
+        toneOverride,
+        showIconOverride,
     }: {
         variantId?: string | null
         revisionId?: string | null
@@ -395,6 +419,8 @@ export const VariantRevisionLabel = memo(
         fallbackVariantName?: string | null
         fallbackRevision?: number | string | null
         href?: string | null
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         // Fetch variant config using revisionId to get revision number
         const configQueryAtom = useMemo(
@@ -444,7 +470,8 @@ export const VariantRevisionLabel = memo(
                 tooltip={isDeleted ? `Variant ${revisionId ?? variantId} was deleted` : label}
                 copyValue={revisionId ?? variantId ?? undefined}
                 className="max-w-[220px]"
-                tone="variant"
+                tone={toneOverride === null ? undefined : (toneOverride ?? "variant")}
+                showIcon={showIconOverride ?? true}
             />
         )
     },
@@ -503,6 +530,8 @@ export const EvaluatorReferenceLabel = memo(
         href: explicitHref,
         openExternally = false,
         label: customLabel,
+        toneOverride,
+        className,
     }: {
         evaluatorId?: string | null
         evaluatorSlug?: string | null
@@ -510,6 +539,8 @@ export const EvaluatorReferenceLabel = memo(
         href?: string | null
         openExternally?: boolean
         label?: string
+        toneOverride?: ReferenceTone | null
+        className?: string
     }) => {
         const queryAtom = useMemo(
             () => evaluatorReferenceAtomFamily({projectId, slug: evaluatorSlug, id: evaluatorId}),
@@ -523,7 +554,7 @@ export const EvaluatorReferenceLabel = memo(
                     <ReferenceTag
                         label={customLabel}
                         className="max-w-[220px] w-fit"
-                        tone="evaluator"
+                        tone={toneOverride === null ? undefined : (toneOverride ?? "evaluator")}
                     />
                 )
             }
@@ -556,8 +587,8 @@ export const EvaluatorReferenceLabel = memo(
                 href={href ?? undefined}
                 tooltip={isDeleted ? `Evaluator ${displayId} was deleted` : label}
                 copyValue={displayId}
-                className="max-w-[220px] w-fit"
-                tone="evaluator"
+                className={clsx("max-w-[220px] w-fit", className)}
+                tone={toneOverride === null ? undefined : (toneOverride ?? "evaluator")}
                 openExternally={openExternally}
             />
         )

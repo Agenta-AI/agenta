@@ -10,9 +10,7 @@ export const SectionCard = ({
     style,
 }: PropsWithChildren<{className?: string; style?: CSSProperties}>) => (
     <div
-        className={`flex flex-col gap-3 rounded-lg border border-[#E4E7EC] bg-white p-4 shadow-[0_6px_18px_rgba(16,24,40,0.06)] ${
-            className ?? ""
-        }`}
+        className={`flex flex-col gap-6 border-[0.5px] border-solid border-[#EAEFF5] bg-white p-4 ${className ?? ""}`}
         style={style}
     >
         {children}
