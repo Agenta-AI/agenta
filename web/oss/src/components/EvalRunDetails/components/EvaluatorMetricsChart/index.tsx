@@ -141,9 +141,10 @@ const EvaluatorMetricsChart = ({
         return {} as BasicStats
     }, [resolvedStats])
 
-    const {data: numericHistogramData} = useMemo(() => {
-        return buildHistogramChartData(stats as unknown as Record<string, any>)
-    }, [stats])
+    const {data: numericHistogramData} = useMemo(
+        () => buildHistogramChartData(stats as unknown as Record<string, any>),
+        [stats],
+    )
 
     const hasNumericHistogram = numericHistogramData.length > 0
     const categoricalFrequencyData = useMemo(
@@ -414,6 +415,79 @@ const EvaluatorMetricsChart = ({
         return "grid-cols-2 sm:grid-cols-4"
     }, [summaryItems.length])
 
+    const numericSeries = useMemo(
+        () => [
+            {
+                key: baseSeriesKey,
+                name: resolvedRunName,
+                color: resolvedBaseColor,
+                barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
+            },
+            ...comparisonSeries.map((entry) => ({
+                key: entry.runId,
+                name: entry.runName,
+                color: entry.color,
+                barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
+            })),
+        ],
+        [baseSeriesKey, comparisonSeries, resolvedBaseColor, resolvedRunName],
+    )
+
+    const numericHistogramRows = useMemo(() => {
+        if (!numericHistogramAvailable || !hasNumericHistogram) return []
+        const rowMap = new Map<
+            string,
+            {label: string; order: number; [key: string]: number | string}
+        >()
+
+        numericHistogramData.forEach((bin, idx) => {
+            const order = typeof bin.edge === "number" && Number.isFinite(bin.edge) ? bin.edge : idx
+            const key =
+                typeof bin.edge === "number" && Number.isFinite(bin.edge)
+                    ? String(bin.edge)
+                    : `${idx}-${bin.x}`
+            const existing =
+                rowMap.get(key) ??
+                ({
+                    label: String(bin.x),
+                    order,
+                } as {label: string; order: number; [key: string]: number | string})
+            existing[baseSeriesKey] = Number(bin.y ?? 0)
+            rowMap.set(key, existing)
+        })
+
+        comparisonSeries.forEach((entry) => {
+            if (!entry.stats) return
+            const {data} = buildHistogramChartData(entry.stats as Record<string, any>)
+            data.forEach((bin, idx) => {
+                const order =
+                    typeof bin.edge === "number" && Number.isFinite(bin.edge) ? bin.edge : idx
+                const key =
+                    typeof bin.edge === "number" && Number.isFinite(bin.edge)
+                        ? String(bin.edge)
+                        : `${idx}-${bin.x}`
+                const existing =
+                    rowMap.get(key) ??
+                    ({
+                        label: String(bin.x),
+                        order,
+                    } as {label: string; order: number; [key: string]: number | string})
+                existing[entry.runId] = Number(bin.y ?? 0)
+                rowMap.set(key, existing)
+            })
+        })
+
+        return Array.from(rowMap.values())
+            .sort((a, b) => a.order - b.order)
+            .map(({order, ...rest}) => rest)
+    }, [
+        baseSeriesKey,
+        comparisonSeries,
+        hasNumericHistogram,
+        numericHistogramAvailable,
+        numericHistogramData,
+    ])
+
     const chartContent = () => {
         if (isBooleanMetric) {
             if (!booleanChartData.length) {
@@ -550,35 +624,16 @@ const EvaluatorMetricsChart = ({
         }
 
         if (numericHistogramAvailable && hasNumericHistogram) {
-            const referenceLines = [] as {value: number; color?: string; label?: string}[]
-            if (typeof stats.mean === "number" && Number.isFinite(stats.mean)) {
-                referenceLines.push({
-                    value: stats.mean,
-                    color: resolvedBaseColor,
-                    label: `${resolvedRunName} mean ${format3Sig(stats.mean)}`,
-                })
-            }
-            comparisonSeries.forEach((entry) => {
-                if (!entry.stats) return
-                const mean = typeof entry.stats.mean === "number" ? entry.stats.mean : NaN
-                if (Number.isFinite(mean)) {
-                    referenceLines.push({
-                        value: mean,
-                        color: entry.color,
-                        label: `${entry.runName} mean ${format3Sig(mean)}`,
-                    })
-                }
-            })
-
             return (
                 <HistogramChart
-                    data={numericHistogramData}
-                    xKey="x"
-                    yKey="y"
+                    data={numericHistogramRows}
+                    xKey="label"
+                    yKey={baseSeriesKey}
                     tooltipLabel={metricLabel}
                     tooltipFormatter={(value) => format3Sig(value)}
                     yDomain={[0, "auto"]}
-                    referenceLines={referenceLines}
+                    series={numericSeries}
+                    barCategoryGap="20%"
                     showLegend={false}
                     reserveLegendSpace={stableComparisons.length > 0}
                 />
