@@ -1,7 +1,7 @@
 import {FC, useMemo} from "react"
 
-import {ApartmentOutlined, KeyOutlined} from "@ant-design/icons"
-import {ArrowLeft, Sparkle, Receipt} from "@phosphor-icons/react"
+import {ApartmentOutlined} from "@ant-design/icons"
+import {ArrowLeftIcon, SparkleIcon, ReceiptIcon, KeyIcon} from "@phosphor-icons/react"
 import {Button, Divider} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
@@ -34,19 +34,19 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             {
                 key: "secrets",
                 title: "Model Hub",
-                icon: <Sparkle size={16} className="mt-0.5" />,
+                icon: <SparkleIcon size={16} className="mt-0.5" />,
             },
             {
                 key: "apiKeys",
                 title: "API Keys",
-                icon: <KeyOutlined />,
+                icon: <KeyIcon size={16} />,
             },
         ]
         if (isDemo()) {
             list.push({
                 key: "billing",
                 title: "Usage & Billing",
-                icon: <Receipt size={16} className="mt-0.5" />,
+                icon: <ReceiptIcon size={16} className="mt-0.5" />,
             })
         }
         return list
@@ -70,7 +70,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 <Button
                     className={"gap-2 flex items-center justify-center"}
                     type="text"
-                    icon={<ArrowLeft size={14} />}
+                    icon={<ArrowLeftIcon size={14} />}
                     onClick={() => {
                         if (lastPath) router.push(lastPath)
                         else router.back()

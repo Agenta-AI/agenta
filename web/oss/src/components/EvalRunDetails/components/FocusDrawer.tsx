@@ -1,7 +1,10 @@
-import {memo, useCallback, useMemo} from "react"
+import type {KeyboardEvent, ReactNode} from "react"
+import {memo, useCallback, useMemo, useRef, useState} from "react"
 import {isValidElement} from "react"
 
-import {Popover, Skeleton, Tag, Typography} from "antd"
+import {DownOutlined} from "@ant-design/icons"
+import {Button, Popover, Skeleton, Typography} from "antd"
+import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AlertCircle} from "lucide-react"
 import dynamic from "next/dynamic"
@@ -9,9 +12,10 @@ import dynamic from "next/dynamic"
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 import GenericDrawer from "@/oss/components/GenericDrawer"
+import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 
-import ReadOnlyBox from "../../pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
-import {getComparisonSolidColor} from "../atoms/compare"
+import {compareRunIdsAtom, MAX_COMPARISON_RUNS} from "../atoms/compare"
+import {invocationTraceSummaryAtomFamily} from "../atoms/invocationTraceSummary"
 import {
     applicationReferenceQueryAtomFamily,
     testsetReferenceQueryAtomFamily,
@@ -43,15 +47,12 @@ import {clearFocusDrawerQueryParams} from "../state/urlFocusDrawer"
 import {renderScenarioChatMessages} from "../utils/chatMessages"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../utils/metricFormatter"
 
+import EvaluationRunTag from "./EvaluationRunTag"
 import FocusDrawerHeader from "./FocusDrawerHeader"
 import FocusDrawerSidePanel from "./FocusDrawerSidePanel"
+import {SectionCard} from "./views/ConfigurationView/components/SectionPrimitives"
 
 const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
-
-const SECTION_CARD_CLASS = "rounded-xl border border-[#EAECF0] bg-white"
-
-// Color palette for category tags (same as MetricCell)
-const TAG_COLORS = ["green", "blue", "purple", "orange", "cyan", "magenta", "gold", "lime"]
 
 const toSectionAnchorId = (value: string) =>
     `focus-section-${value
@@ -81,7 +82,7 @@ const buildStaticMetricColumn = (
     } as EvaluationTableColumn & {__source: "runMetric"}
 }
 
-const {Text, Title} = Typography
+const {Text} = Typography
 
 type FocusDrawerColumn = EvaluationTableColumn & {__source?: "runMetric"}
 
@@ -124,6 +125,32 @@ const resolveRunMetricScalar = (stats: any): unknown => {
 
     return undefined
 }
+
+const FocusValueCard = ({
+    label,
+    children,
+    className,
+}: {
+    label: ReactNode
+    children: ReactNode
+    className?: string
+}) => (
+    <div className={clsx("rounded-xl bg-[#F8FAFC] px-4 py-3 text-[#1D2939]", className)}>
+        <Text className="text-xs font-medium text-[#101828]">{label}</Text>
+        <div className="mt-2 text-sm whitespace-pre-wrap break-words">{children}</div>
+    </div>
+)
+
+const MetricValuePill = ({value, muted}: {value: ReactNode; muted?: boolean}) => (
+    <span
+        className={clsx(
+            "inline-flex w-fit rounded-md bg-[#F2F4F7] px-2 py-1 text-xs font-medium",
+            muted ? "text-[#98A2B3]" : "text-[#344054]",
+        )}
+    >
+        {value}
+    </span>
+)
 
 interface FocusDrawerContentProps {
     runId: string
@@ -170,12 +197,11 @@ const useFocusDrawerSections = (runId: string | null) => {
 
         return groups
             .map((group) => {
-                if (group.kind === "metric" && group.id === "metrics:human") {
+                if (group.kind === "metric") {
                     return null
                 }
 
-                const sectionLabel =
-                    group.kind === "metric" && group.id === "metrics:auto" ? "Metrics" : group.label
+                const sectionLabel = group.label
 
                 const dynamicColumns: SectionColumnEntry[] = group.columnIds
                     .map((columnId) => columnMap.get(columnId))
@@ -285,14 +311,14 @@ const FocusGroupLabel = ({
     )
 
     if (group?.kind === "input" && testsetId && testsetQuery.data?.name) {
-        return <>{`Testset ${testsetQuery.data.name}`}</>
+        return "Input"
     }
 
     if (group?.kind === "invocation") {
         const applicationLabel =
             appQuery.data?.name ?? appQuery.data?.slug ?? appQuery.data?.id ?? applicationId ?? null
 
-        if (applicationLabel) return <>{`Application ${applicationLabel}`}</>
+        if (applicationLabel) return "Outputs"
     }
 
     return <>{label}</>
@@ -358,32 +384,23 @@ const RunMetricValue = memo(
         return (
             <div className="flex flex-col gap-1">
                 <Text strong>{column.displayLabel ?? column.label ?? column.id}</Text>
-                <ReadOnlyBox>
-                    {isLoading ? (
-                        <Skeleton active paragraph={{rows: 1}} />
-                    ) : (
-                        <MetricDetailsPreviewPopover
-                            runId={runId}
-                            metricKey={
-                                descriptor.metricKey ?? descriptor.valueKey ?? descriptor.path
-                            }
-                            metricPath={descriptor.path}
-                            metricLabel={column.displayLabel ?? column.label}
-                            stepKey={descriptor.stepKey}
-                            highlightValue={resolvedValue}
-                            fallbackValue={resolvedValue}
-                            stepType={descriptor.stepType}
-                        >
-                            <span
-                                className={`${
-                                    isPlaceholder ? "text-neutral-500" : "text-neutral-900"
-                                }`}
-                            >
-                                {formattedValue}
-                            </span>
-                        </MetricDetailsPreviewPopover>
-                    )}
-                </ReadOnlyBox>
+                {isLoading ? (
+                    <Skeleton.Input active size="small" style={{width: 120}} />
+                ) : (
+                    <MetricDetailsPreviewPopover
+                        runId={runId}
+                        metricKey={descriptor.metricKey ?? descriptor.valueKey ?? descriptor.path}
+                        metricPath={descriptor.path}
+                        metricLabel={column.displayLabel ?? column.label}
+                        stepKey={descriptor.stepKey}
+                        highlightValue={resolvedValue}
+                        fallbackValue={resolvedValue}
+                        stepType={descriptor.stepType}
+                        fullWidth={false}
+                    >
+                        <MetricValuePill value={formattedValue} muted={isPlaceholder} />
+                    </MetricDetailsPreviewPopover>
+                )}
             </div>
         )
     },
@@ -534,52 +551,57 @@ const ScenarioColumnValue = memo(
             })()
 
             // Render array metrics as tags in a vertical stack
+            const isLongTextMetric =
+                !arrayTags.length &&
+                typeof formattedValue === "string" &&
+                (formattedValue.length > 80 || formattedValue.includes("\n"))
+
             const renderMetricContent = () => {
                 if (arrayTags.length > 0) {
                     return (
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-wrap gap-2">
                             {arrayTags.map((tag, index) => (
-                                <Tag
-                                    key={`${tag}-${index}`}
-                                    color={TAG_COLORS[index % TAG_COLORS.length]}
-                                    className="m-0 w-fit"
-                                >
-                                    {tag}
-                                </Tag>
+                                <MetricValuePill key={`${tag}-${index}`} value={tag} />
                             ))}
                         </div>
                     )
                 }
-                return (
-                    <span className={`${isPlaceholder ? "text-neutral-500" : "text-neutral-900"}`}>
-                        {formattedValue}
-                    </span>
-                )
+                if (isLongTextMetric) {
+                    return (
+                        <span className={isPlaceholder ? "text-[#98A2B3]" : "text-[#1D2939]"}>
+                            {formattedValue}
+                        </span>
+                    )
+                }
+                return <MetricValuePill value={formattedValue} muted={isPlaceholder} />
+            }
+
+            const metricContent = showSkeleton ? (
+                <Skeleton.Input active size="small" style={{width: 120}} />
+            ) : (
+                <MetricDetailsPreviewPopover
+                    runId={runId}
+                    metricKey={descriptor.metricKey ?? descriptor.valueKey ?? descriptor.path}
+                    metricPath={descriptor.path}
+                    metricLabel={displayLabel}
+                    stepKey={descriptor.stepKey}
+                    highlightValue={value}
+                    fallbackValue={value ?? displayValue ?? formattedValue}
+                    stepType={descriptor.stepType}
+                    fullWidth={false}
+                >
+                    {renderMetricContent()}
+                </MetricDetailsPreviewPopover>
+            )
+
+            if (isLongTextMetric) {
+                return <FocusValueCard label={displayLabel}>{metricContent}</FocusValueCard>
             }
 
             return (
-                <div className="flex flex-col gap-1">
-                    <Text strong>{displayLabel}</Text>
-                    <ReadOnlyBox>
-                        {showSkeleton ? (
-                            <Skeleton active paragraph={{rows: 1}} />
-                        ) : (
-                            <MetricDetailsPreviewPopover
-                                runId={runId}
-                                metricKey={
-                                    descriptor.metricKey ?? descriptor.valueKey ?? descriptor.path
-                                }
-                                metricPath={descriptor.path}
-                                metricLabel={displayLabel}
-                                stepKey={descriptor.stepKey}
-                                highlightValue={value}
-                                fallbackValue={value ?? displayValue ?? formattedValue}
-                                stepType={descriptor.stepType}
-                            >
-                                {renderMetricContent()}
-                            </MetricDetailsPreviewPopover>
-                        )}
-                    </ReadOnlyBox>
+                <div className="flex flex-col gap-2">
+                    <Text className="text-xs font-medium text-[#475467]">{displayLabel}</Text>
+                    {metricContent}
                 </div>
             )
         }
@@ -707,16 +729,169 @@ const ScenarioColumnValue = memo(
             }
         }
 
+        return <FocusValueCard label={displayLabel}>{renderValue()}</FocusValueCard>
+    },
+)
+
+ScenarioColumnValue.displayName = "ScenarioColumnValue"
+
+const EvalOutputMetaRow = memo(
+    ({
+        runId,
+        scenarioId,
+        compareIndex,
+    }: {
+        runId: string
+        scenarioId: string
+        compareIndex?: number
+    }) => {
+        const runDisplayNameAtom = useMemo(() => runDisplayNameAtomFamily(runId), [runId])
+        const runDisplayName = useAtomValue(runDisplayNameAtom)
+        const traceSummaryAtom = useMemo(
+            () => invocationTraceSummaryAtomFamily({scenarioId, runId}),
+            [runId, scenarioId],
+        )
+        const traceSummary = useAtomValue(traceSummaryAtom)
+        const resolvedCompareIndex = compareIndex ?? 0
+
         return (
-            <div className="flex flex-col gap-1">
-                <Text strong>{displayLabel}</Text>
-                <ReadOnlyBox>{renderValue()}</ReadOnlyBox>
+            <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-4 min-w-[480px] border-[0.5px] border-solid border-[#EAEFF5]">
+                <EvaluationRunTag
+                    label={runDisplayName || "Evaluation"}
+                    compareIndex={resolvedCompareIndex}
+                />
+                <SharedGenerationResultUtils
+                    traceId={traceSummary.traceId}
+                    showStatus={false}
+                    className="flex items-center gap-1"
+                />
             </div>
         )
     },
 )
 
-ScenarioColumnValue.displayName = "ScenarioColumnValue"
+EvalOutputMetaRow.displayName = "EvalOutputMetaRow"
+
+const FocusSectionHeader = ({
+    title,
+    collapsed,
+    onToggle,
+}: {
+    title: ReactNode
+    collapsed: boolean
+    onToggle: () => void
+}) => {
+    const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault()
+            onToggle()
+        }
+    }
+
+    return (
+        <div
+            className={clsx(
+                "flex items-center justify-between py-1 px-3 h-10 sticky top-0 bg-zinc-1 z-20 cursor-pointer",
+                "border-b border-b-[rgba(5,23,41,0.06)]",
+            )}
+            style={{borderBottomStyle: "solid"}}
+            role="button"
+            tabIndex={0}
+            onClick={onToggle}
+            onKeyDown={handleKeyDown}
+        >
+            <Text className="text-sm font-semibold text-[#344054]">{title}</Text>
+            <Button
+                type="link"
+                size="small"
+                icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+                onClick={(event) => {
+                    event.stopPropagation()
+                    onToggle()
+                }}
+            />
+        </div>
+    )
+}
+
+const FocusSectionContent = memo(
+    ({
+        section,
+        runId,
+        scenarioId,
+    }: {
+        section: FocusDrawerSection
+        runId: string
+        scenarioId: string
+    }) => {
+        const isInputSection = section.group?.kind === "input"
+
+        return (
+            <div
+                className={clsx(
+                    "flex flex-col gap-3",
+                    isInputSection && "max-h-[240px] overflow-auto",
+                )}
+            >
+                {section.group?.kind === "invocation" ? (
+                    <InvocationMetaChips group={section.group} runId={runId} />
+                ) : null}
+
+                {section.columns.map(({column, descriptor}) => (
+                    <ScenarioColumnValue
+                        key={column.id}
+                        runId={runId}
+                        scenarioId={scenarioId}
+                        column={column}
+                        descriptor={descriptor}
+                        groupLabel={section.label}
+                    />
+                ))}
+            </div>
+        )
+    },
+)
+
+FocusSectionContent.displayName = "FocusSectionContent"
+
+const FocusDrawerSectionCard = memo(
+    ({
+        section,
+        runId,
+        scenarioId,
+    }: {
+        section: FocusDrawerSection
+        runId: string
+        scenarioId: string
+    }) => {
+        const [collapsed, setCollapsed] = useState(false)
+        const sectionLabelNode = useMemo(
+            () => <FocusGroupLabel group={section.group} label={section.label} runId={runId} />,
+            [runId, section.group, section.label],
+        )
+
+        return (
+            <div id={section.anchorId} className="flex flex-col">
+                <FocusSectionHeader
+                    title={sectionLabelNode}
+                    collapsed={collapsed}
+                    onToggle={() => setCollapsed((value) => !value)}
+                />
+                {!collapsed ? (
+                    <SectionCard className="gap-4">
+                        <FocusSectionContent
+                            section={section}
+                            runId={runId}
+                            scenarioId={scenarioId}
+                        />
+                    </SectionCard>
+                ) : null}
+            </div>
+        )
+    },
+)
+
+FocusDrawerSectionCard.displayName = "FocusDrawerSectionCard"
 
 const InvocationMetaChips = memo(
     ({group, runId}: {group: EvaluationTableColumnGroup | null; runId: string | null}) => {
@@ -765,7 +940,7 @@ const InvocationMetaChips = memo(
                 : null
 
         return (
-            <div className="flex flex-col gap-1 px-4 pb-1">
+            <div className="flex flex-col">
                 {appLabel ? <span className="font-medium text-[#101828]">{appLabel}</span> : null}
                 {variantLabel ? (
                     <div className="flex items-center gap-2 text-[#475467]">
@@ -792,65 +967,105 @@ const CompareRunColumnContent = memo(
         runId,
         scenarioId,
         section,
-        compareIndex,
     }: {
         runId: string
         scenarioId: string
         section: FocusDrawerSection
-        compareIndex: number
     }) => {
-        const runDisplayNameAtom = useMemo(() => runDisplayNameAtomFamily(runId), [runId])
-        const runDisplayName = useAtomValue(runDisplayNameAtom)
-
         return (
-            <div className="flex-1 min-w-[280px] shrink-0 flex flex-col gap-3">
-                {/* Run header with color indicator */}
-                <div className="flex items-center gap-2 pb-2 border-b border-[#EAECF0]">
-                    <div
-                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                        style={{backgroundColor: getComparisonSolidColor(compareIndex)}}
-                    />
-                    <Text strong className="text-sm truncate">
-                        {runDisplayName ||
-                            (compareIndex === 0 ? "Base Run" : `Comparison ${compareIndex}`)}
-                    </Text>
-                </div>
-
-                {/* Invocation meta chips if applicable */}
-                {section.group?.kind === "invocation" ? (
-                    <InvocationMetaChips group={section.group} runId={runId} />
-                ) : null}
-
-                {/* Column values */}
-                <div className="flex flex-col gap-3">
-                    {section.columns.map(({column, descriptor}) => (
-                        <ScenarioColumnValue
-                            key={column.id}
-                            runId={runId}
-                            scenarioId={scenarioId}
-                            column={column}
-                            descriptor={descriptor}
-                            groupLabel={section.label}
-                        />
-                    ))}
-                </div>
-            </div>
+            <SectionCard className="flex-1 min-w-[480px] shrink-0 gap-4">
+                <FocusSectionContent section={section} runId={runId} scenarioId={scenarioId} />
+            </SectionCard>
         )
     },
 )
 
 CompareRunColumnContent.displayName = "CompareRunColumnContent"
 
+const CompareMetaRow = memo(
+    ({
+        compareScenarios,
+        columnMinWidth,
+        registerScrollContainer,
+        onScrollSync,
+    }: {
+        compareScenarios: {
+            runId: string | null
+            scenarioId: string | null
+            compareIndex: number
+        }[]
+        columnMinWidth: number
+        registerScrollContainer: (node: HTMLDivElement | null) => void
+        onScrollSync: (node: HTMLDivElement) => void
+    }) => {
+        const scrollRef = useRef<HTMLDivElement | null>(null)
+        const columnsCount = compareScenarios.length
+        const rowGridStyle = useMemo(
+            () => ({
+                gridTemplateColumns: `repeat(${columnsCount}, 1fr)`,
+            }),
+            [columnsCount],
+        )
+        const handleScroll = useCallback(() => {
+            if (scrollRef.current) {
+                onScrollSync(scrollRef.current)
+            }
+        }, [onScrollSync])
+
+        return (
+            <SectionCard className="!p-0">
+                <div
+                    ref={(node) => {
+                        scrollRef.current = node
+                        registerScrollContainer(node)
+                    }}
+                    className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    onScroll={handleScroll}
+                >
+                    <div className="grid" style={rowGridStyle}>
+                        {compareScenarios.map(({runId, scenarioId, compareIndex}) => {
+                            if (!runId || !scenarioId) {
+                                return (
+                                    <div
+                                        key={`meta-empty-${compareIndex}`}
+                                        className="min-w-[480px] flex items-center justify-center p-3 bg-gray-50 rounded-lg"
+                                    >
+                                        <Text type="secondary">—</Text>
+                                    </div>
+                                )
+                            }
+
+                            return (
+                                <EvalOutputMetaRow
+                                    key={`meta-${runId}`}
+                                    runId={runId}
+                                    scenarioId={scenarioId}
+                                    compareIndex={compareIndex}
+                                />
+                            )
+                        })}
+                    </div>
+                </div>
+            </SectionCard>
+        )
+    },
+)
+
+CompareMetaRow.displayName = "CompareMetaRow"
+
 /**
- * A single section card containing all runs side-by-side
+ * A single compare section rendered as a collapsible row, aligned to shared columns.
  */
-const CompareSectionCard = memo(
+const CompareSectionRow = memo(
     ({
         sectionId,
         sectionLabel,
         sectionGroup,
         compareScenarios,
         sectionMapsPerRun,
+        columnMinWidth,
+        registerScrollContainer,
+        onScrollSync,
     }: {
         sectionId: string
         sectionLabel: string
@@ -861,60 +1076,87 @@ const CompareSectionCard = memo(
             compareIndex: number
         }[]
         sectionMapsPerRun: Map<string, FocusDrawerSection>[]
+        columnMinWidth: number
+        registerScrollContainer: (node: HTMLDivElement | null) => void
+        onScrollSync: (node: HTMLDivElement) => void
     }) => {
-        // Get the first available section for the label
+        const [collapsed, setCollapsed] = useState(false)
+        const scrollRef = useRef<HTMLDivElement | null>(null)
         const firstSection = sectionMapsPerRun.find((map) => map.get(sectionId))?.get(sectionId)
-
+        const sectionLabelNode = (
+            <>
+                {sectionGroup && firstSection ? (
+                    <FocusGroupLabel
+                        group={sectionGroup}
+                        label={sectionLabel}
+                        runId={compareScenarios[0]?.runId ?? ""}
+                    />
+                ) : (
+                    sectionLabel
+                )}
+            </>
+        )
+        const columnsCount = compareScenarios.length
+        const rowGridStyle = useMemo(
+            () => ({
+                gridTemplateColumns: `repeat(${columnsCount}, 1fr)`,
+            }),
+            [columnsCount],
+        )
+        const handleScroll = useCallback(() => {
+            if (scrollRef.current) {
+                onScrollSync(scrollRef.current)
+            }
+        }, [onScrollSync])
         return (
-            <section className={`${SECTION_CARD_CLASS} flex flex-col`}>
-                {/* Section header */}
-                <div className="border-b border-[#EAECF0] px-4 py-3">
-                    <Title level={5} className="!mb-0 text-[#1D2939]">
-                        {sectionGroup && firstSection ? (
-                            <FocusGroupLabel
-                                group={sectionGroup}
-                                label={sectionLabel}
-                                runId={compareScenarios[0]?.runId ?? ""}
-                            />
-                        ) : (
-                            sectionLabel
-                        )}
-                    </Title>
-                </div>
+            <div id={toSectionAnchorId(sectionId)} className="flex flex-col">
+                <FocusSectionHeader
+                    title={sectionLabelNode}
+                    collapsed={collapsed}
+                    onToggle={() => setCollapsed((value) => !value)}
+                />
+                {!collapsed ? (
+                    <div
+                        ref={(node) => {
+                            scrollRef.current = node
+                            registerScrollContainer(node)
+                        }}
+                        className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                        onScroll={handleScroll}
+                    >
+                        <div className="grid" style={rowGridStyle}>
+                            {compareScenarios.map(({runId, scenarioId, compareIndex}) => {
+                                const section = sectionMapsPerRun[compareIndex]?.get(sectionId)
 
-                {/* Run columns side by side */}
-                <div className="flex gap-4 p-4 overflow-x-auto">
-                    {compareScenarios.map(({runId, scenarioId, compareIndex}) => {
-                        const section = sectionMapsPerRun[compareIndex]?.get(sectionId)
+                                if (!runId || !scenarioId || !section) {
+                                    return (
+                                        <div
+                                            key={`empty-${compareIndex}`}
+                                            className="min-w-[480px] flex items-center justify-center p-4 bg-gray-50 rounded-lg"
+                                        >
+                                            <Text type="secondary">—</Text>
+                                        </div>
+                                    )
+                                }
 
-                        if (!runId || !scenarioId || !section) {
-                            return (
-                                <div
-                                    key={`empty-${compareIndex}`}
-                                    className="flex-1 min-w-[280px] shrink-0 flex items-center justify-center p-4 bg-gray-50 rounded-lg"
-                                >
-                                    <Text type="secondary">—</Text>
-                                </div>
-                            )
-                        }
-
-                        return (
-                            <CompareRunColumnContent
-                                key={`${runId}-${sectionId}`}
-                                runId={runId}
-                                scenarioId={scenarioId}
-                                section={section}
-                                compareIndex={compareIndex}
-                            />
-                        )
-                    })}
-                </div>
-            </section>
+                                return (
+                                    <CompareRunColumnContent
+                                        key={`${runId}-${sectionId}`}
+                                        runId={runId}
+                                        scenarioId={scenarioId}
+                                        section={section}
+                                    />
+                                )
+                            })}
+                        </div>
+                    </div>
+                ) : null}
+            </div>
         )
     },
 )
 
-CompareSectionCard.displayName = "CompareSectionCard"
+CompareSectionRow.displayName = "CompareSectionRow"
 
 /**
  * Inner component that handles the section data fetching for compare mode
@@ -929,29 +1171,28 @@ const FocusDrawerCompareContentInner = ({
         compareIndex: number
     }[]
 }) => {
-    // Get sections for base run (index 0)
-    const baseRunId = compareScenarios[0]?.runId ?? null
-    const {sections: baseSections} = useFocusDrawerSections(baseRunId)
+    const expectedColumns = Math.min(compareScenarios.length, MAX_COMPARISON_RUNS + 1)
+    const runId0 = compareScenarios[0]?.runId ?? null
+    const runId1 = compareScenarios[1]?.runId ?? null
+    const runId2 = compareScenarios[2]?.runId ?? null
+    const runId3 = compareScenarios[3]?.runId ?? null
+    const runId4 = compareScenarios[4]?.runId ?? null
 
-    // Get sections for comparison run 1 (index 1)
-    const compare1RunId = compareScenarios[1]?.runId ?? null
-    const {sections: compare1Sections} = useFocusDrawerSections(compare1RunId)
-
-    // Get sections for comparison run 2 (index 2)
-    const compare2RunId = compareScenarios[2]?.runId ?? null
-    const {sections: compare2Sections} = useFocusDrawerSections(compare2RunId)
+    const {sections: sections0} = useFocusDrawerSections(runId0)
+    const {sections: sections1} = useFocusDrawerSections(runId1)
+    const {sections: sections2} = useFocusDrawerSections(runId2)
+    const {sections: sections3} = useFocusDrawerSections(runId3)
+    const {sections: sections4} = useFocusDrawerSections(runId4)
 
     // Collect all sections per run
     const sectionsPerRun = useMemo(() => {
-        const result: FocusDrawerSection[][] = [baseSections]
-        if (compareScenarios.length > 1) result.push(compare1Sections)
-        if (compareScenarios.length > 2) result.push(compare2Sections)
-        return result
-    }, [baseSections, compare1Sections, compare2Sections, compareScenarios.length])
+        const all = [sections0, sections1, sections2, sections3, sections4]
+        return all.slice(0, expectedColumns)
+    }, [expectedColumns, sections0, sections1, sections2, sections3, sections4])
 
     // Normalize section key for matching across runs
     // Use group.kind for invocation/input sections (which have run-specific IDs)
-    // Use section.id for metric sections (which have stable IDs like "metrics:auto")
+    // Use section.id for other stable sections
     const getNormalizedSectionKey = (section: FocusDrawerSection): string => {
         const kind = section.group?.kind
         if (kind === "invocation" || kind === "input") {
@@ -992,18 +1233,96 @@ const FocusDrawerCompareContentInner = ({
         })
     }, [sectionsPerRun])
 
+    const inputSectionEntry = useMemo(() => {
+        for (let index = 0; index < sectionMapsPerRun.length; index += 1) {
+            const section = sectionMapsPerRun[index]?.get("input")
+            const runId = compareScenarios[index]?.runId ?? null
+            const scenarioId = compareScenarios[index]?.scenarioId ?? null
+            if (section && runId && scenarioId) {
+                return {section, runId, scenarioId}
+            }
+        }
+        return null
+    }, [compareScenarios, sectionMapsPerRun])
+
+    const compareSections = useMemo(
+        () =>
+            allSections.filter(
+                (section) =>
+                    section.normalizedKey !== "input" && section.normalizedKey !== "invocation",
+            ),
+        [allSections],
+    )
+    const invocationSectionEntry = useMemo(
+        () => allSections.find((section) => section.normalizedKey === "invocation") ?? null,
+        [allSections],
+    )
+
+    const compareColumnMinWidth = 480
+    const scrollContainersRef = useRef<HTMLDivElement[]>([])
+    const isSyncingRef = useRef(false)
+    const registerScrollContainer = useCallback((node: HTMLDivElement | null) => {
+        if (!node) return
+        const list = scrollContainersRef.current
+        if (list.includes(node)) return
+        list.push(node)
+    }, [])
+    const onScrollSync = useCallback((source: HTMLDivElement) => {
+        if (isSyncingRef.current) return
+        isSyncingRef.current = true
+        const left = source.scrollLeft
+        scrollContainersRef.current.forEach((node) => {
+            if (node !== source && node.scrollLeft !== left) {
+                node.scrollLeft = left
+            }
+        })
+        isSyncingRef.current = false
+    }, [])
+
     return (
-        <div className="flex flex-col gap-4 p-4 overflow-auto h-full">
-            {allSections.map(({normalizedKey, label, group}) => (
-                <CompareSectionCard
-                    key={normalizedKey}
-                    sectionId={normalizedKey}
-                    sectionLabel={label}
-                    sectionGroup={group}
-                    compareScenarios={compareScenarios}
-                    sectionMapsPerRun={sectionMapsPerRun}
+        <div className="flex flex-col pb-6">
+            {inputSectionEntry ? (
+                <FocusDrawerSectionCard
+                    section={inputSectionEntry.section}
+                    runId={inputSectionEntry.runId}
+                    scenarioId={inputSectionEntry.scenarioId}
                 />
-            ))}
+            ) : null}
+            <div className="flex flex-col">
+                {invocationSectionEntry ? (
+                    <CompareMetaRow
+                        compareScenarios={compareScenarios}
+                        columnMinWidth={compareColumnMinWidth}
+                        registerScrollContainer={registerScrollContainer}
+                        onScrollSync={onScrollSync}
+                    />
+                ) : null}
+                {invocationSectionEntry ? (
+                    <CompareSectionRow
+                        sectionId={invocationSectionEntry.normalizedKey}
+                        sectionLabel={invocationSectionEntry.label}
+                        sectionGroup={invocationSectionEntry.group}
+                        compareScenarios={compareScenarios}
+                        sectionMapsPerRun={sectionMapsPerRun}
+                        columnMinWidth={compareColumnMinWidth}
+                        registerScrollContainer={registerScrollContainer}
+                        onScrollSync={onScrollSync}
+                    />
+                ) : null}
+                {compareSections.map(({normalizedKey, label, group}) => (
+                    <CompareSectionRow
+                        key={normalizedKey}
+                        sectionId={normalizedKey}
+                        sectionLabel={label}
+                        sectionGroup={group}
+                        compareScenarios={compareScenarios}
+                        sectionMapsPerRun={sectionMapsPerRun}
+                        columnMinWidth={compareColumnMinWidth}
+                        registerScrollContainer={registerScrollContainer}
+                        onScrollSync={onScrollSync}
+                    />
+                ))}
+            </div>
         </div>
     )
 }
@@ -1023,7 +1342,7 @@ const FocusDrawerCompareContent = () => {
     }
 
     return (
-        <div className="flex flex-col h-full bg-[#F8FAFC]">
+        <div className="flex h-full min-h-0 flex-col bg-zinc-1 overflow-y-auto">
             <FocusDrawerCompareContentInner compareScenarios={compareScenarios} />
         </div>
     )
@@ -1041,6 +1360,12 @@ export const FocusDrawerContent = ({
     const runIndex = useAtomValue(
         useMemo(() => evaluationRunIndexAtomFamily(runId ?? null), [runId]),
     )
+    const compareRunIds = useAtomValue(compareRunIdsAtom)
+    const compareIndex = useMemo(() => {
+        if (!runId) return 0
+        const idx = compareRunIds.findIndex((id) => id === runId)
+        return idx === -1 ? 0 : idx + 1
+    }, [compareRunIds, runId])
 
     const groups = columnResult.groups ?? []
     const columnMap = useMemo(() => {
@@ -1057,12 +1382,11 @@ export const FocusDrawerContent = ({
 
         return groups
             .map((group) => {
-                if (group.kind === "metric" && group.id === "metrics:human") {
+                if (group.kind === "metric") {
                     return null
                 }
 
-                const sectionLabel =
-                    group.kind === "metric" && group.id === "metrics:auto" ? "Metrics" : group.label
+                const sectionLabel = group.label
 
                 const dynamicColumns: SectionColumnEntry[] = group.columnIds
                     .map((columnId) => columnMap.get(columnId))
@@ -1106,41 +1430,40 @@ export const FocusDrawerContent = ({
 
     return (
         <div
-            className={`flex flex-col gap-4 bg-[#F8FAFC] p-4 ${disableScroll ? "" : "h-full overflow-auto"}`}
+            className={clsx(
+                "flex flex-col min-h-0 bg-zinc-1",
+                disableScroll ? "" : "h-full overflow-y-auto",
+            )}
             data-focus-drawer-content
         >
-            {sections.map((section) => (
-                <section
-                    key={section.id}
-                    id={section.anchorId}
-                    className={`${SECTION_CARD_CLASS} flex flex-col gap-3`}
-                >
-                    <div className="border-b border-[#EAECF0] px-4 py-3">
-                        <Title level={5} className="!mb-0 text-[#1D2939]">
-                            <FocusGroupLabel
-                                group={section.group}
-                                label={section.label}
-                                runId={runId}
-                            />
-                        </Title>
-                    </div>
-                    {section.group?.kind === "invocation" ? (
-                        <InvocationMetaChips group={section.group} runId={runId} />
-                    ) : null}
-                    <div className="flex flex-col gap-3 px-4 pb-4">
-                        {section.columns.map(({column, descriptor}) => (
-                            <ScenarioColumnValue
-                                key={column.id}
+            {sections.map((section) => {
+                if (section.group?.kind === "invocation") {
+                    return (
+                        <div key={section.id} className="flex flex-col">
+                            <SectionCard className="!p-0">
+                                <EvalOutputMetaRow
+                                    runId={runId}
+                                    scenarioId={scenarioId}
+                                    compareIndex={compareIndex}
+                                />
+                            </SectionCard>
+                            <FocusDrawerSectionCard
+                                section={section}
                                 runId={runId}
                                 scenarioId={scenarioId}
-                                column={column}
-                                descriptor={descriptor}
-                                groupLabel={section.label}
                             />
-                        ))}
-                    </div>
-                </section>
-            ))}
+                        </div>
+                    )
+                }
+                return (
+                    <FocusDrawerSectionCard
+                        key={section.id}
+                        section={section}
+                        runId={runId}
+                        scenarioId={scenarioId}
+                    />
+                )
+            })}
         </div>
     )
 }
@@ -1182,7 +1505,7 @@ const FocusDrawer = () => {
             afterOpenChange={handleAfterOpenChange}
             closeOnLayoutClick={false}
             expandable
-            className="[&_.ant-drawer-body]:p-0 [&_.ant-drawer-body]:bg-[#F8FAFC]"
+            className="[&_.ant-drawer-body]:p-0 [&_.ant-drawer-header]:p-4"
             sideContentDefaultSize={240}
             headerExtra={
                 shouldRenderContent ? (

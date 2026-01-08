@@ -1,7 +1,7 @@
 import type {CSSProperties, Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Trash} from "@phosphor-icons/react"
+import {TrashIcon} from "@phosphor-icons/react"
 import {Button, Grid, Tabs, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
@@ -304,6 +304,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         beforeExport,
         resolveValue,
         resolveColumnLabel,
+        columnsOverride: exportColumnsOverride,
     } = exportOptions ?? {}
     const resolvedExportFilename = exportOptionsFilename ?? exportFilename ?? "table-export.csv"
     const exportHandler = useCallback(async () => {
@@ -321,7 +322,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                       })
                     : pagination.rows
             await tableExport({
-                columns,
+                columns: exportColumnsOverride ?? columns,
                 rows: rowsToExport,
                 filename: resolvedExportFilename,
                 isColumnExportable,
@@ -371,7 +372,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             <Button
                 danger
                 type="text"
-                icon={<Trash size={14} className="mt-0.5" />}
+                icon={<TrashIcon size={14} className="mt-0.5" />}
                 className="flex items-center"
                 disabled={disabled}
                 onClick={onDelete}
@@ -390,7 +391,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         if (!enableExport || !exportAction || isNarrowScreen) return null
         const {disabled, disabledTooltip, label = "Export CSV"} = exportAction
         const button = (
-            <Button disabled={disabled} onClick={exportHandler} loading={isExporting}>
+            <Button disabled={disabled} onClick={exportHandler} type="text" loading={isExporting}>
                 {label}
             </Button>
         )

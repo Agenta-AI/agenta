@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {Card} from "antd"
+import {Card, Typography} from "antd"
 
 import useURL from "@/oss/hooks/useURL"
 
@@ -19,14 +19,24 @@ const AggregatedOverviewSection = ({runIds}: AggregatedOverviewSectionProps) => 
     }
 
     return (
-        <Card variant="outlined">
+        <Card variant="outlined" className="[&_.ant-card-body]:p-0">
             <div className="flex flex-col">
-                <div className="flex flex-col gap-2 lg:flex-row lg:items-stretch">
-                    <div className="w-7/12">
-                        <MetadataSummaryTable runIds={orderedRunIds} projectURL={projectURL} />
+                <div className="border border-solid border-[#EAEFF5] rounded h-full">
+                    <div className="py-2 px-3 flex flex-col justify-center border-0 border-b border-solid border-[#EAEFF5]">
+                        <Typography.Text className="font-medium">
+                            Evaluator Scores Overview
+                        </Typography.Text>
+                        <Typography.Text className="text-[#758391]">
+                            Average evaluator score across evaluations
+                        </Typography.Text>
                     </div>
-                    <div className="grow flex items-center justify-center min-h-[320px] w-5/12">
-                        <OverviewSpiderChart runIds={orderedRunIds} />
+                    <div className="flex flex-col gap-2 p-2 lg:flex-row lg:items-stretch">
+                        <div className="w-full lg:w-7/12">
+                            <MetadataSummaryTable runIds={orderedRunIds} projectURL={projectURL} />
+                        </div>
+                        <div className="grow flex items-center justify-center h-[480px] min-h-[480px] lg:h-auto lg:w-5/12">
+                            <OverviewSpiderChart runIds={orderedRunIds} />
+                        </div>
                     </div>
                 </div>
             </div>
