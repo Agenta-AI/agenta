@@ -57,8 +57,6 @@ const SingleView = ({
     cancelRow,
     containerClassName,
 }: Props) => {
-    // UI State for repetition index
-
     const variableIds = useAtom(
         useMemo(
             () => variableIdsUnifiedAtomFamily({rowId, revisionId: variantId}),
