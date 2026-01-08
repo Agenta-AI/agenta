@@ -13,8 +13,10 @@ export type {TestcaseColumn} from "@/oss/state/entities/testcase"
 // TYPES
 // ============================================================================
 
-export interface TestcaseDrillInViewProps
-    extends Omit<DrillInContentProps, "getValue" | "setValue" | "getRootItems" | "valueMode"> {
+export interface TestcaseDrillInViewProps extends Omit<
+    DrillInContentProps,
+    "getValue" | "setValue" | "getRootItems" | "valueMode"
+> {
     /** Testcase ID to display/edit */
     testcaseId: string
     /** Column definitions for the testcase (determines what fields to show) */

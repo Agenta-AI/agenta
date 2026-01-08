@@ -20,11 +20,10 @@ export type {PathItem} from "@/oss/state/entities/shared"
  * Uses the unified EntityAPI for all state management.
  * Pass the entity controller and ID - the component handles the rest.
  */
-export interface EntityDrillInViewProps<TEntity>
-    extends Omit<
-        DrillInContentProps,
-        "getValue" | "setValue" | "getRootItems" | "valueMode" | "initialPath"
-    > {
+export interface EntityDrillInViewProps<TEntity> extends Omit<
+    DrillInContentProps,
+    "getValue" | "setValue" | "getRootItems" | "valueMode" | "initialPath"
+> {
     /**
      * The entity ID to read/write
      */

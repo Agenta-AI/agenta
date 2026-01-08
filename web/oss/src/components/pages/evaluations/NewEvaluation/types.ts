@@ -114,8 +114,10 @@ export interface AdvancedSettingsProps {
     preview?: boolean
 }
 
-export interface NewEvaluationModalGenericProps<Preview extends boolean = true>
-    extends Omit<NewEvaluationModalProps, "preview"> {
+export interface NewEvaluationModalGenericProps<Preview extends boolean = true> extends Omit<
+    NewEvaluationModalProps,
+    "preview"
+> {
     preview?: Preview
 }
 

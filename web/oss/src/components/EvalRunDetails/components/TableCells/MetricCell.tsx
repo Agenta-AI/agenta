@@ -133,9 +133,9 @@ const PreviewEvaluationMetricCell = ({
         column.stepType === "annotation" &&
         Boolean(
             statsValue &&
-                (Array.isArray((statsValue as any)?.frequency) ||
-                    Array.isArray((statsValue as any)?.freq) ||
-                    Array.isArray((statsValue as any)?.rank)),
+            (Array.isArray((statsValue as any)?.frequency) ||
+                Array.isArray((statsValue as any)?.freq) ||
+                Array.isArray((statsValue as any)?.rank)),
         )
 
     // Parse array values into individual tags (handles comma-separated strings)
