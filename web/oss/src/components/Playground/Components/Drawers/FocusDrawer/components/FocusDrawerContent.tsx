@@ -5,7 +5,11 @@ import {useAtomValue} from "jotai"
 
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 
-import {renderScenarioChatMessages} from "@/oss/components/EvalRunDetails/utils/chatMessages"
+import {
+    extractMessageArray,
+    normalizeMessages,
+    tryParseJson,
+} from "@/oss/components/EvalRunDetails/utils/chatMessages"
 
 import {inputRowsByIdFamilyAtom} from "@/oss/state/generation/entities"
 import {
@@ -14,15 +18,15 @@ import {
 } from "@/oss/state/newPlayground/generation/runtime"
 import {playgroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
 
-import GenerationResultUtils from "../../../PlaygroundGenerations/assets/GenerationResultUtils"
 import clsx from "clsx"
+import GenerationResultUtils from "../../../PlaygroundGenerations/assets/GenerationResultUtils"
 
 const getOutputContent = (
     rep: PlaygroundTestResult,
     index: number,
 ): {
     type: "error" | "chat" | "text"
-    content: string | React.ReactNode
+    content: string | React.ReactNode | {role: string; content: any; tool_calls?: any[]}[]
 } => {
     const error = rep.error || rep.response?.error
 
@@ -40,10 +44,14 @@ const getOutputContent = (
                 ? potentialChatValue
                 : JSON.stringify(potentialChatValue)
 
-        const chatNodes = renderScenarioChatMessages(chatValueString, `focus-drawer-rep-${index}`)
+        const parsed = tryParseJson(chatValueString)
+        const messageArray = extractMessageArray(parsed)
 
-        if (chatNodes) {
-            return {type: "chat", content: chatNodes}
+        if (messageArray) {
+            const normalized = normalizeMessages(messageArray)
+            if (normalized.length > 0) {
+                return {type: "chat", content: normalized}
+            }
         }
     } catch (e) {
         console.error("Error rendering output:", e)
@@ -140,14 +148,37 @@ const FocusDrawerContent = () => {
                         key: "output",
                         label: "Outputs",
                         children: (
-                            <div className="flex flex-row gap-2 overflow-x-auto">
+                            <div className="flex flex-row gap-2 overflow-x-auto pb-5">
                                 {repetitions.map((rep: PlaygroundTestResult, index: number) => {
                                     const {type, content} = getOutputContent(rep, index)
                                     let contentToRender: React.ReactNode = null
-
-                                    if (type === "chat") {
+console.log("rep", rep)
+                                    if (type === "chat" && Array.isArray(content)) {
                                         contentToRender = (
-                                            <div className="flex flex-col gap-2">{content}</div>
+                                            <div className="flex flex-col gap-2">
+                                                {content.map((msg: any, msgIndex: number) => {
+                                                    const role = msg.role
+                                                        ? msg.role.charAt(0).toUpperCase() +
+                                                          msg.role.slice(1)
+                                                        : "Unknown"
+                                                    const value =
+                                                        typeof msg.content === "string"
+                                                            ? msg.content
+                                                            : JSON.stringify(msg.content, null, 2)
+                                                    return (
+                                                        <SimpleSharedEditor
+                                                            key={msgIndex}
+                                                            value={value}
+                                                            initialValue={value}
+                                                            editorType="border"
+                                                            isMinimizeVisible
+                                                            headerName={role}
+                                                            minimizedHeight={150}
+                                                            // headerClassName="text-[#1677FF]"
+                                                        />
+                                                    )
+                                                })}
+                                            </div>
                                         )
                                     } else {
                                         const isError = type === "error"
@@ -195,7 +226,7 @@ const FocusDrawerContent = () => {
                                     )
                                 })}
                                 {repetitions.length === 0 && (
-                                    <div className="text-gray-400 p-4">No outputs available</div>
+                                    <div className="text-gray-400 p-2">No outputs available</div>
                                 )}
                             </div>
                         ),

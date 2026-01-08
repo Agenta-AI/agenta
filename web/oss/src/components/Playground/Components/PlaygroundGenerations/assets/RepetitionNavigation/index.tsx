@@ -1,4 +1,4 @@
-import {LeftOutlined, RightOutlined} from "@ant-design/icons"
+import {CaretLeft, CaretRight} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 
 interface RepetitionNavigationProps {
@@ -19,21 +19,23 @@ const RepetitionNavigation = ({
     if (total <= 1) return null
 
     return (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
             <Button
-                icon={<LeftOutlined />}
+                icon={<CaretLeft size={12} />}
                 size="small"
                 onClick={onPrev}
                 disabled={disabled || current <= 1}
+                className="!w-5 !h-5"
             />
             <Typography.Text type="secondary" className="text-[10px] text-nowrap">
                 {current} / {total}
             </Typography.Text>
             <Button
-                icon={<RightOutlined />}
+                icon={<CaretRight size={12} />}
                 size="small"
                 onClick={onNext}
                 disabled={disabled || current >= total}
+                className="!w-5 !h-5"
             />
         </div>
     )

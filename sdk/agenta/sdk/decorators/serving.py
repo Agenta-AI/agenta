@@ -1,4 +1,4 @@
-from typing import Type, Any, Callable, Dict, Optional, Tuple, List, TYPE_CHECKING
+from typing import Type, Any, Callable, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
 from asyncio import sleep
 from functools import wraps
 from inspect import (

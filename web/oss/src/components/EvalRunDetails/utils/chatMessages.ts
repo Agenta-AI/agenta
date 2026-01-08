@@ -13,7 +13,7 @@ const CHAT_ARRAY_KEYS = [
     "output_messages",
 ]
 
-const tryParseJson = (value: unknown): unknown => {
+export const tryParseJson = (value: unknown): unknown => {
     if (typeof value !== "string") return value
     try {
         return JSON.parse(value)
@@ -42,7 +42,7 @@ const isChatEntry = (entry: any): boolean => {
     return false
 }
 
-const extractMessageArray = (value: any): any[] | null => {
+export const extractMessageArray = (value: any): any[] | null => {
     if (!value) return null
     if (Array.isArray(value)) return value
     if (typeof value !== "object") return null
@@ -67,7 +67,9 @@ const extractMessageArray = (value: any): any[] | null => {
     return null
 }
 
-const normalizeMessages = (messages: any[]): {role: string; content: any; tool_calls?: any[]}[] => {
+export const normalizeMessages = (
+    messages: any[],
+): {role: string; content: any; tool_calls?: any[]}[] => {
     return messages
         .map((entry) => {
             if (!entry) return null
