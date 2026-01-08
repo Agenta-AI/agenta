@@ -73,9 +73,20 @@ export function getLeafColumnName(key: string): string {
 }
 
 /**
+ * Check if a column is an expanded column (came from object expansion)
+ * Expanded columns have parentKey property set
+ */
+function isExpandedColumn(col: Column): boolean {
+    return "parentKey" in col && typeof (col as any).parentKey === "string"
+}
+
+/**
  * Recursively group columns into nested structure
  * This handles deeply nested paths like "a.b.c.d" by creating nested group headers
  * Respects maxDepth to limit nesting for performance
+ *
+ * IMPORTANT: Only groups columns that came from object expansion (have parentKey).
+ * Columns with dots in their flat key names (e.g., "agents.md") are NOT grouped.
  */
 function groupColumnsRecursive<T>(
     columns: Column[],
@@ -98,6 +109,17 @@ function groupColumnsRecursive<T>(
 
     // First pass: categorize columns into groups or standalone (leaf columns)
     columns.forEach((col) => {
+        // Only group columns that came from object expansion (have parentKey)
+        // Flat columns with dots in their names (e.g., "agents.md") should NOT be grouped
+        if (!isExpandedColumn(col) && currentDepth === 0) {
+            // Top-level flat column - render as-is, even if it has dots
+            result.push({
+                ...createColumnDef(col, col.name),
+                __order: orderCounter++,
+            } as ColumnType<T> & {__order: number})
+            return
+        }
+
         // Get the relative key (remove parent path prefix if present)
         const relativeKey = parentPath ? col.key.substring(parentPath.length + 1) : col.key
         const parsed = parseGroupedColumnKey(relativeKey)

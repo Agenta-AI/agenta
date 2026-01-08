@@ -17,7 +17,7 @@ const LoadEvaluatorPresetContent = ({
     const [searchTerm, setSearchTerm] = useState("")
     const [format, setFormat] = useState<"yaml" | "json">("yaml")
 
-    const filteredTestset = !searchTerm
+    const filteredPresets = !searchTerm
         ? settingsPresets
         : settingsPresets.filter((preset: SettingsPreset) =>
               preset.name.toLowerCase().includes(searchTerm.toLowerCase()),
@@ -45,7 +45,7 @@ const LoadEvaluatorPresetContent = ({
                 <Divider className="m-0" />
 
                 <Menu
-                    items={filteredTestset.map((preset) => ({
+                    items={filteredPresets.map((preset) => ({
                         key: preset.key,
                         label: preset.name,
                     }))}

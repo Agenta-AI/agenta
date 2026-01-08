@@ -1,10 +1,11 @@
-import {memo, useCallback, useMemo} from "react"
-import type {Key} from "react"
+import {memo, useCallback, useMemo, useState} from "react"
+import type {ReactNode} from "react"
 
 import {TreeStructure, Download, Sparkle, Speedometer} from "@phosphor-icons/react"
-import {Skeleton, Tree, type TreeDataNode} from "antd"
+import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
+import CustomTreeComponent from "@/oss/components/CustomUIs/CustomTreeComponent"
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
 import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
@@ -16,7 +17,14 @@ const toSectionAnchorId = (value: string) =>
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "")}`
 
-type AnchorTreeNode = TreeDataNode & {anchorId?: string}
+interface FocusTreeNode {
+    id: string
+    title: string
+    icon?: ReactNode
+    anchorId?: string
+    children?: FocusTreeNode[]
+    expanded?: boolean
+}
 
 interface FocusDrawerSidePanelProps {
     runId: string
@@ -26,6 +34,7 @@ interface FocusDrawerSidePanelProps {
 const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) => {
     const {columnResult} = usePreviewTableData({runId})
     const evalType = useAtomValue(previewEvalTypeAtom)
+    const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
     const {rows} = useInfiniteTablePagination({
         store: evaluationPreviewTableStore,
@@ -57,11 +66,11 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
         return map
     }, [columnResult?.groups])
 
-    const evaluatorNodes = useMemo<AnchorTreeNode[]>(() => {
+    const evaluatorNodes = useMemo<FocusTreeNode[]>(() => {
         if (!columnResult?.evaluators?.length) return []
         return columnResult.evaluators.map((evaluator) => ({
             title: evaluator.name ?? evaluator.slug ?? "Evaluator",
-            key: `evaluator:${evaluator.id ?? evaluator.slug ?? evaluator.name}`,
+            id: `evaluator:${evaluator.id ?? evaluator.slug ?? evaluator.name}`,
             icon: <Speedometer size={14} className="text-[#758391]" />,
             anchorId:
                 (evaluator.id && groupAnchorMap.get(`annotation:${evaluator.id}`)) ??
@@ -70,25 +79,13 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
         }))
     }, [columnResult?.evaluators, groupAnchorMap])
 
-    const metricNodes = useMemo<AnchorTreeNode[]>(() => {
-        if (!columnResult?.groups?.length) return []
-        return columnResult.groups
-            .filter((group) => group.kind === "metric" && group.id !== "metrics:human")
-            .map((group) => ({
-                title: group.label,
-                key: `metric:${group.id}`,
-                icon: <Speedometer size={14} className="text-[#1677FF]" />,
-                anchorId: groupAnchorMap.get(group.id) ?? toSectionAnchorId(group.id),
-            }))
-    }, [columnResult?.groups, groupAnchorMap])
+    const treeData = useMemo<FocusTreeNode | null>(() => {
+        if (!columnResult) return null
 
-    const treeData = useMemo<AnchorTreeNode[]>(() => {
-        if (!columnResult) return []
-
-        const children: AnchorTreeNode[] = [
+        const children: FocusTreeNode[] = [
             {
                 title: "Input",
-                key: "input",
+                id: "input",
                 icon: <Download size={14} className="text-[#1677FF]" />,
                 anchorId:
                     groupAnchorMap.get("inputs") ??
@@ -97,7 +94,7 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
             },
             {
                 title: "Output",
-                key: "output",
+                id: "output",
                 icon: <Sparkle size={14} className="text-[#13C2C2]" />,
                 anchorId:
                     groupAnchorMap.get("outputs") ??
@@ -109,7 +106,7 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
         if (evaluatorNodes.length) {
             children.push({
                 title: "Evaluator",
-                key: "evaluator",
+                id: "evaluator",
                 icon: <Speedometer size={14} className="text-[#758391]" />,
                 children: evaluatorNodes,
                 anchorId:
@@ -119,32 +116,17 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
             })
         }
 
-        if (metricNodes.length) {
-            children.push({
-                title: "Metrics",
-                key: "metrics",
-                icon: <Speedometer size={14} className="text-[#1677FF]" />,
-                children: metricNodes,
-                anchorId:
-                    groupAnchorMap.get("metrics:auto") ??
-                    groupAnchorMap.get("metric") ??
-                    toSectionAnchorId("metrics-auto"),
-            })
+        return {
+            title: parentTitle,
+            id: "evaluation",
+            icon: <TreeStructure size={14} className="text-[#758391]" />,
+            children,
+            expanded: true,
         }
+    }, [columnResult, evaluatorNodes, groupAnchorMap, parentTitle])
 
-        return [
-            {
-                title: parentTitle,
-                key: "evaluation",
-                icon: <TreeStructure size={14} className="text-[#758391]" />,
-                children,
-            },
-        ]
-    }, [columnResult, parentTitle, metricNodes, evaluatorNodes])
-
-    const handleSelect = useCallback((_selectedKeys: Key[], info: any) => {
+    const handleSelect = useCallback((key: string, node: FocusTreeNode) => {
         if (typeof window === "undefined") return
-        const node = info?.node as AnchorTreeNode | undefined
         const anchorId = node?.anchorId
         if (!anchorId) return
         const target = document.getElementById(anchorId)
@@ -161,20 +143,25 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
         )
     }
 
-    return (
-        <div className="p-4">
-            <div className="rounded-xl border border-[#EAECF0] bg-white p-2">
-                <Tree
-                    treeData={treeData}
-                    showIcon
-                    defaultExpandAll
-                    selectable
-                    onSelect={handleSelect}
-                    className="[&_.ant-tree-node-content-wrapper]:!flex [&_.ant-tree-node-content-wrapper]:!items-center [&_.ant-tree-node-content-wrapper]:!gap-1 [&_.ant-tree-node-content-wrapper]:!px-2 [&_.ant-tree]:!bg-transparent [&_.ant-tree-treenode]:!py-1 [&_.ant-tree-iconEle]:!h-[20px] [&_.ant-tree-title]:text-nowrap"
-                />
-            </div>
-        </div>
-    )
+    return treeData ? (
+        <CustomTreeComponent
+            data={treeData}
+            getKey={(node) => node.id}
+            getChildren={(node) => node.children}
+            renderLabel={(node) => (
+                <div className="flex items-center gap-2 text-xs text-[#344054]">
+                    {node.icon}
+                    <span className="truncate">{node.title}</span>
+                </div>
+            )}
+            selectedKey={selectedKey}
+            onSelect={(key, node) => {
+                setSelectedKey(key)
+                handleSelect(key, node)
+            }}
+            defaultExpanded
+        />
+    ) : null
 }
 
 export default memo(FocusDrawerSidePanel)

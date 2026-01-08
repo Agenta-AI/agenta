@@ -69,7 +69,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             list.push({
                 key: "billing",
                 title: "Usage & Billing",
-                icon: <Receipt size={16} className="mt-0.5" />,
+                icon: <ReceiptIcon size={16} className="mt-0.5" />,
             })
         }
         return list
@@ -93,7 +93,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 <Button
                     className={"gap-2 flex items-center justify-center"}
                     type="text"
-                    icon={<ArrowLeft size={14} />}
+                    icon={<ArrowLeftIcon size={14} />}
                     onClick={() => {
                         if (lastPath) router.push(lastPath)
                         else router.back()

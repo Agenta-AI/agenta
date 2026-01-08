@@ -119,6 +119,81 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
     const [previewData, setPreviewData] = useState<GenericObject[]>([])
     const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
 
+    /**
+     * Parse CSV text properly handling quoted fields with embedded newlines and commas
+     */
+    const parseCSVRows = (text: string): string[][] => {
+        const rows: string[][] = []
+        let currentRow: string[] = []
+        let currentField = ""
+        let inQuotes = false
+        let i = 0
+
+        while (i < text.length) {
+            const char = text[i]
+
+            if (inQuotes) {
+                if (char === '"') {
+                    // Check for escaped quote ("")
+                    if (i + 1 < text.length && text[i + 1] === '"') {
+                        currentField += '"'
+                        i += 2
+                        continue
+                    }
+                    // End of quoted field
+                    inQuotes = false
+                    i++
+                    continue
+                }
+                // Inside quotes - add character as-is (including newlines)
+                currentField += char
+                i++
+            } else {
+                if (char === '"') {
+                    // Start of quoted field
+                    inQuotes = true
+                    i++
+                } else if (char === ",") {
+                    // Field separator
+                    currentRow.push(currentField.trim())
+                    currentField = ""
+                    i++
+                } else if (char === "\n" || (char === "\r" && text[i + 1] === "\n")) {
+                    // Row separator
+                    currentRow.push(currentField.trim())
+                    if (currentRow.some((field) => field !== "")) {
+                        rows.push(currentRow)
+                    }
+                    currentRow = []
+                    currentField = ""
+                    i += char === "\r" ? 2 : 1
+                } else if (char === "\r") {
+                    // Handle standalone \r as row separator
+                    currentRow.push(currentField.trim())
+                    if (currentRow.some((field) => field !== "")) {
+                        rows.push(currentRow)
+                    }
+                    currentRow = []
+                    currentField = ""
+                    i++
+                } else {
+                    currentField += char
+                    i++
+                }
+            }
+        }
+
+        // Handle last field and row
+        if (currentField || currentRow.length > 0) {
+            currentRow.push(currentField.trim())
+            if (currentRow.some((field) => field !== "")) {
+                rows.push(currentRow)
+            }
+        }
+
+        return rows
+    }
+
     const parseFileForPreview = async (
         file: File,
         fileType: "CSV" | "JSON",
@@ -132,12 +207,12 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                     return parsed.slice(0, maxPreviewRows)
                 }
             } else {
-                const lines = text.split("\n").filter((line) => line.trim())
-                if (lines.length > 0) {
-                    const headers = lines[0].split(",").map((h) => h.trim())
+                const csvRows = parseCSVRows(text)
+                if (csvRows.length > 0) {
+                    const headers = csvRows[0]
                     const rows: GenericObject[] = []
-                    for (let i = 1; i < Math.min(lines.length, maxPreviewRows + 1); i++) {
-                        const values = lines[i].split(",").map((v) => v.trim())
+                    for (let i = 1; i < Math.min(csvRows.length, maxPreviewRows + 1); i++) {
+                        const values = csvRows[i]
                         const row: GenericObject = {}
                         headers.forEach((header, idx) => {
                             row[header] = values[idx] || ""

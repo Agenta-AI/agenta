@@ -35,22 +35,6 @@ const TestsetSection = ({runId}: TestsetSectionProps) => {
     )
 }
 
-const TestsetHeader = ({
-    runId,
-    testsetId,
-    index,
-}: {
-    runId: string
-    testsetId: string
-    index: number
-}) => {
-    return (
-        <div className="flex flex-col gap-1">
-            <Text className="text-sm font-semibold text-[#344054]">Test set</Text>
-        </div>
-    )
-}
-
 const TestsetCard = ({
     runId,
     testsetId,
@@ -89,7 +73,14 @@ const TestsetCard = ({
     return (
         <SectionCard>
             <SectionHeaderRow
-                left={<TestsetHeader runId={runId} testsetId={testsetId} index={index} />}
+                left={
+                    <TestsetTagList
+                        ids={[testsetId]}
+                        runId={runId}
+                        className="-mt-2"
+                        toneOverride={null}
+                    />
+                }
                 right={
                     <Button
                         type="text"
@@ -99,7 +90,6 @@ const TestsetCard = ({
                     />
                 }
             />
-            <TestsetTagList ids={[testsetId]} runId={runId} className="-mt-2" />
             {!collapsed ? (
                 <div className="flex flex-col gap-3 mt-1">
                     {simple?.description ? (

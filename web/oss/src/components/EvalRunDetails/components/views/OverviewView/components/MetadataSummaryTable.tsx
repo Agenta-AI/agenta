@@ -10,7 +10,6 @@ import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluato
 import type {BasicStats} from "@/oss/lib/metricUtils"
 import {useProjectData} from "@/oss/state/project"
 
-import {getComparisonColor} from "../../../../atoms/compare"
 import {evaluationQueryRevisionAtomFamily} from "../../../../atoms/query"
 import {
     runCreatedAtAtomFamily,
@@ -206,14 +205,19 @@ const StatusCell = ({runId}: MetadataCellProps) => {
 }
 
 const ApplicationCell = ({runId, projectURL}: MetadataCellProps) => (
-    <div className="inline-flex">
-        <ApplicationReferenceLabel runId={runId} projectURL={projectURL} />
+    <div className="flex min-h-[28px] items-center">
+        <ApplicationReferenceLabel
+            runId={runId}
+            projectURL={projectURL}
+            toneOverride={null}
+            showIconOverride={false}
+        />
     </div>
 )
 
 const LegacyVariantCell = memo(({runId}: MetadataCellProps) => (
-    <div className="inline-flex">
-        <VariantRevisionLabel runId={runId} />
+    <div className="flex min-h-[28px] items-center">
+        <VariantRevisionLabel runId={runId} toneOverride={null} showIconOverride={false} />
     </div>
 ))
 
@@ -235,8 +239,10 @@ const MetadataRunNameCell = memo(
             runId ??
             "—"
         const accent =
-            accentColor ??
-            (typeof runData?.accentColor === "string" ? (runData as any).accentColor : null)
+            accentColor === null
+                ? null
+                : (accentColor ??
+                  (typeof runData?.accentColor === "string" ? (runData as any).accentColor : null))
         return (
             <div className="group flex items-center justify-between gap-2 w-full">
                 <RunNameTag runId={runId} label={resolvedName} accentColor={accent} />
@@ -248,7 +254,18 @@ const MetadataRunNameCell = memo(
 const LegacyTestsetsCell = memo(({runId, projectURL}: MetadataCellProps) => {
     const testsetAtom = useMemo(() => runTestsetIdsAtomFamily(runId), [runId])
     const testsetIds = useAtomValueWithSchedule(testsetAtom, {priority: LOW_PRIORITY}) ?? []
-    return <TestsetTagList ids={testsetIds} projectURL={projectURL ?? undefined} runId={runId} />
+    return (
+        <div className="flex min-h-[28px] items-center">
+            <TestsetTagList
+                ids={testsetIds}
+                projectURL={projectURL ?? undefined}
+                runId={runId}
+                className="items-center"
+                toneOverride={null}
+                showIconOverride={false}
+            />
+        </div>
+    )
 })
 
 const formatCurrency = (value: number | undefined | null) => {
@@ -362,7 +379,14 @@ const InvocationErrorsCell = makeMetricCell("attributes.ag.metrics.errors.cumula
 })
 
 const METADATA_ROWS: MetadataRowRecord[] = [
-    {key: "evaluations", label: "Evaluations", Cell: MetadataRunNameCell},
+    {
+        key: "testsets",
+        label: "Test set",
+        Cell: LegacyTestsetsCell,
+        shouldDisplay: ({snapshots}) =>
+            snapshots.some(({testsetIds}) => (testsetIds?.length ?? 0) > 0),
+    },
+    {key: "evaluation", label: "Evaluation", Cell: MetadataRunNameCell},
     {key: "status", label: "Status", Cell: StatusCell},
     {key: "created", label: "Created at", Cell: CreatedCell},
     {key: "updated", label: "Updated at", Cell: UpdatedCell},
@@ -400,13 +424,6 @@ const METADATA_ROWS: MetadataRowRecord[] = [
                 )
             }),
     },
-    {
-        key: "testsets",
-        label: "Test sets",
-        Cell: LegacyTestsetsCell,
-        shouldDisplay: ({snapshots}) =>
-            snapshots.some(({testsetIds}) => (testsetIds?.length ?? 0) > 0),
-    },
     // {key: "scenarios", label: "Scenarios evaluated", Cell: ScenarioCountCell},
     {key: "invocation_cost", label: "Cost (Total)", Cell: InvocationCostCell},
     {key: "invocation_duration", label: "Duration (Total)", Cell: InvocationDurationCell},
@@ -422,7 +439,7 @@ const EvaluatorNameLabel = ({evaluatorId}: {evaluatorId: string}) => {
 
 const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) => {
     const orderedRunIds = useMemo(() => runIds.filter((id): id is string => Boolean(id)), [runIds])
-    const {metricSelections, runColorMap, runDescriptors} = useRunMetricData(orderedRunIds)
+    const {metricSelections, runDescriptors} = useRunMetricData(orderedRunIds)
     const runReferenceSnapshotsAtom = useMemo(
         () =>
             atom((get) =>
@@ -605,8 +622,6 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
         return rows
     }, [anyHasQuery, evaluatorMetricRows, rowContext])
 
-    const isComparison = orderedRunIds.length > 1
-
     const columns = useMemo<ColumnsType<MetadataRowRecord>>(() => {
         const baseColumn = {
             title: null,
@@ -625,47 +640,44 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
             key: runId,
             width: 160,
             onCell: (record: MetadataRowRecord) => {
-                if (!isComparison || record.key === "query_config") {
-                    return {}
+                if (record.key === "testsets") {
+                    return index === 0 ? {colSpan: orderedRunIds.length} : {colSpan: 0}
                 }
-                const tone = getComparisonColor(index)
-                return tone ? {style: {backgroundColor: tone}} : {}
+                return {}
             },
-            render: (_: unknown, record: MetadataRowRecord) => (
-                <record.Cell
-                    runId={runId}
-                    compareIndex={index}
-                    projectURL={projectURL}
-                    runName={runNameMap.get(runId)}
-                    accentColor={runColorMap.get(runId)}
-                />
-            ),
+            render: (_: unknown, record: MetadataRowRecord) => {
+                if (record.key === "testsets" && index !== 0) {
+                    return null
+                }
+                return (
+                    <record.Cell
+                        runId={runId}
+                        compareIndex={index}
+                        projectURL={projectURL}
+                        runName={runNameMap.get(runId)}
+                        accentColor={null}
+                    />
+                )
+            },
         }))
 
         return [baseColumn, ...runColumns]
-    }, [isComparison, orderedRunIds, projectURL, runColorMap, runNameMap])
+    }, [orderedRunIds, projectURL, runNameMap])
 
     return (
-        <div className="border border-solid border-[#EAEFF5] rounded h-full">
-            <div className="py-2 px-3 flex flex-col justify-center border-0 border-b border-solid border-[#EAEFF5]">
-                <Typography.Text className="font-medium">Evaluator Scores Overview</Typography.Text>
-                <Typography.Text className="text-[#758391]">
-                    Average evaluator score across evaluations
-                </Typography.Text>
-            </div>
-            <div className="p-2 w-full flex gap-2 shrink-0">
-                <div className="w-full overflow-y-auto">
-                    <Table<MetadataRowRecord>
-                        className="metadata-summary-table"
-                        rowKey="key"
-                        size="small"
-                        pagination={false}
-                        columns={columns}
-                        dataSource={dataSource}
-                        scroll={{x: "max-content"}}
-                        showHeader={false}
-                    />
-                </div>
+        <div className="w-full flex gap-2 shrink-0">
+            <div className="w-full overflow-y-auto">
+                <Table<MetadataRowRecord>
+                    className="metadata-summary-table"
+                    rowKey="key"
+                    size="small"
+                    pagination={false}
+                    columns={columns}
+                    dataSource={dataSource}
+                    scroll={{x: "max-content"}}
+                    showHeader={false}
+                    bordered={true}
+                />
             </div>
         </div>
     )

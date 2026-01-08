@@ -176,6 +176,7 @@ export interface TableExportOptions<Row extends InfiniteTableRowBase> {
     beforeExport?: (rows: Row[]) => void | Row[] | Promise<void | Row[]>
     resolveValue?: (args: TableExportResolveArgs<Row>) => unknown | Promise<unknown>
     resolveColumnLabel?: (context: TableExportColumnContext<Row>) => string | undefined
+    columnsOverride?: ColumnsType<Row>
 }
 
 export interface TableExportParams<Row extends InfiniteTableRowBase>
