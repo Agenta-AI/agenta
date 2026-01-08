@@ -139,25 +139,29 @@ const usePostAuthRedirect = () => {
                     typeof window !== "undefined"
                         ? window.localStorage.getItem(lastSsoOrgSlugKey)
                         : null
-                if (!lastSsoSlug) {
-                    try {
-                        const payload = await Session.getAccessTokenPayloadSecurely()
-                        const sessionIdentities =
-                            payload?.session_identities || payload?.sessionIdentities || []
-                        const ssoIdentity = Array.isArray(sessionIdentities)
-                            ? sessionIdentities.find((identity: string) =>
-                                  identity.startsWith("sso:"),
-                              )
-                            : null
-                        if (ssoIdentity) {
-                            const [, orgSlug] = ssoIdentity.split(":")
-                            if (orgSlug) {
-                                lastSsoSlug = orgSlug
-                            }
+                try {
+                    const payload = await Session.getAccessTokenPayloadSecurely()
+                    const sessionIdentities =
+                        payload?.session_identities || payload?.sessionIdentities || []
+                    const ssoIdentity = Array.isArray(sessionIdentities)
+                        ? sessionIdentities.find((identity: string) =>
+                              identity.startsWith("sso:"),
+                          )
+                        : null
+                    if (!ssoIdentity) {
+                        // Social/email logins should not reuse a stale SSO target from storage.
+                        if (typeof window !== "undefined") {
+                            window.localStorage.removeItem(lastSsoOrgSlugKey)
                         }
-                    } catch {
-                        // ignore payload lookup failures
+                        lastSsoSlug = null
+                    } else if (!lastSsoSlug) {
+                        const [, orgSlug] = ssoIdentity.split(":")
+                        if (orgSlug) {
+                            lastSsoSlug = orgSlug
+                        }
                     }
+                } catch {
+                    // ignore payload lookup failures
                 }
                 if (lastSsoSlug) {
                     const match = Array.isArray(freshOrgs)

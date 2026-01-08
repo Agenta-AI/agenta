@@ -56,29 +56,50 @@ class DomainVerificationService:
         try:
             txt_record_name = f"_agenta-verification.{domain}"
             logger.info(f"Attempting DNS verification for {txt_record_name}")
+            resolvers = [
+                ("system", None),
+                ("cloudflare+google", ["1.1.1.1", "8.8.8.8"]),
+            ]
 
-            answers = dns.resolver.resolve(txt_record_name, "TXT")
-            logger.info(f"Found {len(answers)} TXT records for {txt_record_name}")
+            def _resolve_txt(resolver_label: str, nameservers: list[str] | None):
+                resolver = dns.resolver.Resolver()
+                if nameservers:
+                    resolver.nameservers = nameservers
+                logger.info(
+                    f"DNS lookup using {resolver_label} resolver for {txt_record_name}"
+                )
+                return resolver.resolve(txt_record_name, "TXT")
 
-            for rdata in answers:
-                txt_value = rdata.to_text().strip('"')
-                logger.info(f"TXT record value: {txt_value}")
+            for resolver_label, nameservers in resolvers:
+                try:
+                    answers = _resolve_txt(resolver_label, nameservers)
+                except Exception as exc:
+                    logger.warning(
+                        f"DNS lookup failed via {resolver_label} resolver: {exc}"
+                    )
+                    continue
 
-                # Extract the token value from "_agenta-verification=TOKEN" format
-                if txt_value.startswith("_agenta-verification="):
-                    token = txt_value.split("=", 1)[1]
-                    logger.info(f"Extracted token from DNS: {token}")
-                    logger.info(f"Expected token from DB: {expected_token}")
-                    logger.info(f"Tokens match: {token == expected_token}")
-                    if token == expected_token:
-                        logger.info(f"Domain verification successful for {domain}")
-                        return True
-                    else:
-                        logger.warning(
-                            f"Token mismatch for {domain}. Expected length: {len(expected_token)}, Got length: {len(token)}"
-                        )
-                        logger.warning(f"Expected: {expected_token}")
-                        logger.warning(f"Got: {token}")
+                logger.info(f"Found {len(answers)} TXT records for {txt_record_name}")
+
+                for rdata in answers:
+                    txt_value = rdata.to_text().strip('"')
+                    logger.info(f"TXT record value: {txt_value}")
+
+                    # Extract the token value from "_agenta-verification=TOKEN" format
+                    if txt_value.startswith("_agenta-verification="):
+                        token = txt_value.split("=", 1)[1]
+                        logger.info(f"Extracted token from DNS: {token}")
+                        logger.info(f"Expected token from DB: {expected_token}")
+                        logger.info(f"Tokens match: {token == expected_token}")
+                        if token == expected_token:
+                            logger.info(f"Domain verification successful for {domain}")
+                            return True
+                        else:
+                            logger.warning(
+                                f"Token mismatch for {domain}. Expected length: {len(expected_token)}, Got length: {len(token)}"
+                            )
+                            logger.warning(f"Expected: {expected_token}")
+                            logger.warning(f"Got: {token}")
 
             logger.warning(
                 f"No matching verification token found in DNS records for {domain}"

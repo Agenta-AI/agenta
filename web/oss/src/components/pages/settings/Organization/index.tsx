@@ -490,9 +490,10 @@ const Organization: FC = () => {
             key: "actions",
             render: (_: any, record: OrganizationProvider) => {
                 const isEnabled = record.flags?.is_enabled !== false
+                const isValid = record.flags?.is_valid !== false
                 return (
                     <Space>
-                        {!isEnabled && (
+                        {(!isEnabled || !isValid) && (
                             <Button
                                 type="primary"
                                 size="small"
