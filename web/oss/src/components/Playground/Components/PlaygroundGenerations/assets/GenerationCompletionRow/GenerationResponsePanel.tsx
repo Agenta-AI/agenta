@@ -2,11 +2,12 @@ import {useMemo} from "react"
 
 import {ArrowsOutLineHorizontal} from "@phosphor-icons/react"
 import {Typography} from "antd"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import ToolCallView from "@/oss/components/Playground/Components/ToolCallView"
+import {isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
 import {deriveToolViewModelFromResult} from "@/oss/state/newPlayground/chat/parsers"
 import {openPlaygroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
 
@@ -45,13 +46,15 @@ export default function GenerationResponsePanel({
         </div>
     )
 
+    const isComparisonView = useAtomValue(isComparisonViewAtom)
+
     if (toolData) {
         return <ToolCallView resultData={toolData} className="w-full" footer={footerNode} />
     }
 
     return (
         <div>
-            {repetitionProps && (
+            {repetitionProps && !isComparisonView && (
                 <div className="flex gap-2 justify-between items-center mb-1">
                     <Typography.Text type="secondary" className="text-[10px] text-nowrap">
                         Total repetitions: {repetitionProps.total}

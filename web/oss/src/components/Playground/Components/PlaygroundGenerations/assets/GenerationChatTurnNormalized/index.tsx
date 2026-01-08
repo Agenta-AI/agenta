@@ -15,7 +15,7 @@ import {useAssistantDisplayValue} from "@/oss/components/Playground/hooks/chat/u
 import useEffectiveRevisionId from "@/oss/components/Playground/hooks/chat/useEffectiveRevisionId"
 import useHasAssistantContent from "@/oss/components/Playground/hooks/chat/useHasAssistantContent"
 import {useRepetitionResult} from "@/oss/components/Playground/hooks/useRepetitionResult"
-import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
+import {displayedVariantsAtom, isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
 import {resolvedGenerationResultAtomFamily} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {messageSchemaMetadataAtom} from "@/oss/state/generation/entities"
 import {assistantMessageAtomFamily, chatTurnAtomFamily} from "@/oss/state/generation/selectors"
@@ -133,6 +133,8 @@ const GenerationChatTurnNormalized = ({
         toolMessages.length > 0,
     )
 
+    const isComparisonView = useAtomValue(isComparisonViewAtom)
+
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
             {!hideUserMessage ? (
@@ -162,18 +164,26 @@ const GenerationChatTurnNormalized = ({
                 <>
                     <div className="flex gap-2 justify-between items-center">
                         <Typography.Text type="secondary" className="text-[10px] text-nowrap">
-                            {repetitionProps ? `Total repetitions: ${repetitionProps.total}` : ""}
+                            {repetitionProps && !isComparisonView
+                                ? `Total repetitions: ${repetitionProps.total}`
+                                : ""}
                         </Typography.Text>
 
                         <div className="flex gap-2 items-center">
-                            <EnhancedButton
-                                icon={<ArrowsOutLineHorizontal size={12} />}
-                                size="small"
-                                className="!w-5 !h-5"
-                                onClick={() => openFocusDrawer({rowId: sessionRowId, variantId})}
-                                tooltipProps={{title: "View all repetitions"}}
-                            />
-                            {repetitionProps && <RepetitionNavigation {...repetitionProps} />}
+                            {repetitionProps && !isComparisonView && (
+                                <>
+                                    <EnhancedButton
+                                        icon={<ArrowsOutLineHorizontal size={12} />}
+                                        size="small"
+                                        className="!w-5 !h-5"
+                                        onClick={() =>
+                                            openFocusDrawer({rowId: sessionRowId, variantId})
+                                        }
+                                        tooltipProps={{title: "View all repetitions"}}
+                                    />
+                                    <RepetitionNavigation {...repetitionProps} />
+                                </>
+                            )}
                         </div>
                     </div>
                     <TurnMessageAdapter

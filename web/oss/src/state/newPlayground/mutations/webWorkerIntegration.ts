@@ -464,7 +464,8 @@ export const triggerWebWorkerTestAtom = atom(
         const {appType} = (get(currentAppContextAtom) as any) || {}
         const jwt = await getJWT()
         const uri = get(appUriInfoAtom) || ({} as any)
-        const repetitions = get(repetitionCountAtom)
+        const rawRepetitions = get(repetitionCountAtom)
+        const repetitions = Array.isArray(displayed) && displayed.length > 1 ? 1 : rawRepetitions
 
         // Build headers for worker fetch
         const headers: Record<string, string> = {}
