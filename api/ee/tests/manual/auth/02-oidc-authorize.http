@@ -6,12 +6,13 @@
 # 1. Ensure AGENTA_LICENSE=ee
 # 2. Create organization with SSO provider:
 #    - Add organization_providers record with OIDC settings
-#    - Configure issuer, client_id, client_secret
+#    - Configure issuer, client_id, client_secret in settings
+#    - Set flags.is_active=true
 # 3. Update variables below with actual UUIDs
 ###
 
 @baseUrl = http://localhost
-@apiUrl = {{apiUrl}}
+@apiUrl = {{baseUrl}}/api
 @contentType = application/json
 
 # REPLACE THESE WITH ACTUAL VALUES FROM YOUR DATABASE
@@ -34,8 +35,8 @@ Accept: application/json
 GET {{apiUrl}}/auth/authorize/oidc?provider_id=99999999-9999-9999-9999-999999999999&redirect=/
 Accept: application/json
 
-### Test 4: Disabled Provider
-# Prerequisites: Provider exists but enabled=false
+### Test 4: Disabled Provider (flags.is_active=false)
+# Prerequisites: Provider exists but flags.is_active=false
 # Expected: 403 Forbidden or 404
 GET {{apiUrl}}/auth/authorize/oidc?provider_id={{providerId}}&redirect=/
 Accept: application/json
@@ -69,9 +70,9 @@ Accept: application/json
 # Testing OIDC Provider Configuration:
 # You can verify provider config is loaded correctly by checking:
 # - Provider record exists in organization_providers table
-# - Config JSONB contains: issuer, client_id, client_secret, scopes
-# - Provider is enabled (enabled=true)
-# - Organization exists and has policies configured
+# - settings JSONB contains: issuer, client_id, client_secret, scopes
+# - Provider is active (flags.is_active=true)
+# - Organization exists and has allow_sso=true in flags
 ###
 
 ###
@@ -81,12 +82,18 @@ Accept: application/json
 #   "organization_id": "uuid",
 #   "slug": "okta",
 #   "name": "Okta SSO",
-#   "enabled": true,
-#   "config": {
+#   "settings": {
 #     "issuer": "https://dev-12345.okta.com",
 #     "client_id": "0oa...",
 #     "client_secret": "xxx",
 #     "scopes": ["openid", "profile", "email"]
+#   },
+#   "flags": {
+#     "is_active": true
 #   }
 # }
+#
+# Note:
+# - 'config' renamed to 'settings'
+# - 'enabled' moved to 'flags.is_active'
 ###

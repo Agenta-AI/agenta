@@ -217,6 +217,16 @@ async def create_accounts(
 
         log.info("[scopes] User [%s] authenticated", user.id)
 
+        try:
+            from oss.src.core.auth.service import AuthService
+
+            await AuthService().enforce_domain_policies(
+                email=user_dict["email"],
+                user_id=user.id,
+            )
+        except Exception as e:
+            log.debug("Error enforcing domain policies after signup: %s", e)
+
         if is_ee():
             try:
                 # Adds contact to loops for marketing emails. TODO: Add opt-in checkbox to supertokens

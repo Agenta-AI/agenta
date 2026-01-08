@@ -145,8 +145,7 @@ axios.interceptors.response.use(
         if (
             error.response?.status === 403 &&
             (upgradeDetail?.error === "AUTH_UPGRADE_REQUIRED" ||
-                upgradeDetail?.error === "AUTH_SSO_DENIED" ||
-                upgradeDetail?.error === "AUTH_DOMAIN_DENIED") &&
+                upgradeDetail?.error === "AUTH_SSO_DENIED") &&
             !error.config?._skipAuthUpgradeRedirect
         ) {
             if (typeof window !== "undefined" && window.localStorage.getItem("authUpgradeOrgId")) {
@@ -192,10 +191,7 @@ axios.interceptors.response.use(
                         : upgradeDetail?.error === "AUTH_DOMAIN_DENIED"
                           ? "domain_denied"
                           : "upgrade_required"
-                if (
-                    upgradeDetail?.error === "AUTH_SSO_DENIED" ||
-                    upgradeDetail?.error === "AUTH_DOMAIN_DENIED"
-                ) {
+                if (upgradeDetail?.error === "AUTH_SSO_DENIED") {
                     signOut().catch(() => null)
                 }
                 const query = new URLSearchParams({

@@ -75,6 +75,7 @@ async def check_organization_access(request: Request, organization_id: str):
     if policy_error and policy_error.get("error") in {
         "AUTH_UPGRADE_REQUIRED",
         "AUTH_SSO_DENIED",
+        "AUTH_DOMAIN_DENIED",
     }:
         detail = {
             "error": policy_error.get("error"),
@@ -83,6 +84,8 @@ async def check_organization_access(request: Request, organization_id: str):
             "session_identities": session_identities,
             "user_identities": user_identities,
             "sso_providers": policy_error.get("sso_providers", []),
+            "current_domain": policy_error.get("current_domain"),
+            "allowed_domains": policy_error.get("allowed_domains", []),
         }
         raise HTTPException(status_code=403, detail=detail)
 

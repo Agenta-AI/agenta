@@ -838,7 +838,7 @@ async def _check_organization_policy(request: Request):
     if policy_error:
         # Only enforce auth policy errors; skip membership errors (route handlers handle those)
         error_code = policy_error.get("error")
-        if error_code in {"AUTH_UPGRADE_REQUIRED", "AUTH_SSO_DENIED"}:
+        if error_code in {"AUTH_UPGRADE_REQUIRED", "AUTH_SSO_DENIED", "AUTH_DOMAIN_DENIED"}:
             detail = {
                 "error": policy_error.get("error"),
                 "message": policy_error.get(
@@ -849,6 +849,8 @@ async def _check_organization_policy(request: Request):
                 "session_identities": session_identities,
                 "user_identities": user_identities,
                 "sso_providers": policy_error.get("sso_providers", []),
+                "current_domain": policy_error.get("current_domain"),
+                "allowed_domains": policy_error.get("allowed_domains", []),
             }
             raise HTTPException(status_code=403, detail=detail)
         # If NOT_A_MEMBER, skip - let route handlers deal with it

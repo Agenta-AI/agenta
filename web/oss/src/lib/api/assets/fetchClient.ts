@@ -100,8 +100,7 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
         if (
             res.status === 403 &&
             (detailObj?.error === "AUTH_UPGRADE_REQUIRED" ||
-                detailObj?.error === "AUTH_SSO_DENIED" ||
-                detailObj?.error === "AUTH_DOMAIN_DENIED") &&
+                detailObj?.error === "AUTH_SSO_DENIED") &&
             typeof window !== "undefined"
         ) {
             try {
@@ -138,10 +137,7 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
                         : detailObj?.error === "AUTH_DOMAIN_DENIED"
                           ? "domain_denied"
                           : "upgrade_required"
-                if (
-                    detailObj?.error === "AUTH_SSO_DENIED" ||
-                    detailObj?.error === "AUTH_DOMAIN_DENIED"
-                ) {
+                if (detailObj?.error === "AUTH_SSO_DENIED") {
                     signOut().catch(() => null)
                 }
                 const query = new URLSearchParams({

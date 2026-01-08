@@ -13,6 +13,7 @@ from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.services import db_manager
 from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import InvitationDB, ProjectDB
 from oss.src.dbs.postgres.shared.engine import engine
 from sqlalchemy import select
@@ -25,6 +26,8 @@ if is_ee():
     )
     from oss.src.models.db_models import OrganizationDB
     from ee.src.models.db_models import OrganizationMemberDB
+
+log = get_module_logger(__name__)
 
 
 class AuthService:
@@ -513,23 +516,95 @@ class AuthService:
                 is_member = any(org.id == org_id for org in user_orgs)
 
                 if not is_member:
-                    # Import EE-specific models and managers
-                    from ee.src.models.db_models import OrganizationMemberDB
+                    from ee.src.services import db_manager_ee
+                    from ee.src.models.db_models import (
+                        OrganizationMemberDB,
+                        WorkspaceMemberDB,
+                        ProjectMemberDB,
+                    )
                     from oss.src.dbs.postgres.shared.engine import engine as db_engine
+                    from sqlalchemy import select
 
-                    # Add user to organization
-                    async with db_engine.core_session() as session:
-                        org_member = OrganizationMemberDB(
-                            user_id=user_id,
-                            organization_id=org_id,
-                            role="member",
+                    organization = await db_manager.get_organization_by_id(str(org_id))
+                    user = await db_manager.get_user_with_id(user_id=str(user_id))
+                    workspaces = await db_manager_ee.get_organization_workspaces(
+                        str(org_id)
+                    )
+
+                    if not organization or not user or not workspaces:
+                        raise ValueError(
+                            "Auto-join requires organization, user, and at least one workspace"
                         )
-                        session.add(org_member)
+
+                    async with db_engine.core_session() as session:
+                        existing_org_member = await session.execute(
+                            select(OrganizationMemberDB).filter_by(
+                                user_id=user.id, organization_id=organization.id
+                            )
+                        )
+                        if not existing_org_member.scalars().first():
+                            session.add(
+                                OrganizationMemberDB(
+                                    user_id=user.id,
+                                    organization_id=organization.id,
+                                    role="member",
+                                )
+                            )
+
+                        for workspace in workspaces:
+                            existing_workspace_member = await session.execute(
+                                select(WorkspaceMemberDB).filter_by(
+                                    user_id=user.id, workspace_id=workspace.id
+                                )
+                            )
+                            if not existing_workspace_member.scalars().first():
+                                session.add(
+                                    WorkspaceMemberDB(
+                                        user_id=user.id,
+                                        workspace_id=workspace.id,
+                                        role="editor",
+                                    )
+                                )
+
+                            projects = await db_manager.fetch_projects_by_workspace(
+                                str(workspace.id)
+                            )
+                            if not projects:
+                                continue
+
+                            existing_project_members = await session.execute(
+                                select(ProjectMemberDB).filter(
+                                    ProjectMemberDB.project_id.in_(
+                                        [project.id for project in projects]
+                                    ),
+                                    ProjectMemberDB.user_id == user.id,
+                                )
+                            )
+                            existing_project_ids = {
+                                member.project_id
+                                for member in existing_project_members.scalars().all()
+                            }
+
+                            for project in projects:
+                                if project.id in existing_project_ids:
+                                    continue
+                                session.add(
+                                    ProjectMemberDB(
+                                        user_id=user.id,
+                                        project_id=project.id,
+                                        role="editor",
+                                    )
+                                )
+
                         await session.commit()
 
-                    print(f"Auto-join: Added user {user_id} to organization {org_id}")
+                    log.info(
+                        "Auto-join: added user to organization with editor access",
+                        user_id=str(user_id),
+                        organization_id=str(org_id),
+                    )
             except Exception as e:
-                print(f"Error during auto-join: {e}")
+                log.error("Error during auto-join: %s", e)
 
         # 2. Domains-only enforcement: Check if user has access
         # This is enforced at the organization level via check_organization_access()

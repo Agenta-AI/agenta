@@ -1,4 +1,4 @@
-import {type FC, useState, useCallback} from "react"
+import {type FC, useState, useCallback, useMemo} from "react"
 
 import {
     PlusOutlined,
@@ -98,74 +98,15 @@ const Organization: FC = () => {
         [selectedOrg?.id, queryClient, refetch],
     )
 
-    const handleFlagChange = useCallback(
-        (flagName: string, value: boolean) => {
-            if (!selectedOrg) return
-            if (flagName === "domains_only" && value && !hasVerifiedDomain) {
-                message.error("Domains-only requires at least one verified domain.")
-                return
-            }
-            if (flagName === "auto_join" && value && !hasVerifiedDomain) {
-                message.error("Auto-join requires at least one verified domain.")
-                return
-            }
-            if (flagName === "allow_sso" && value && !hasActiveVerifiedProvider) {
-                message.error("SSO requires at least one active and verified provider.")
-                return
-            }
-
-            // Check if this change would disable all auth methods
-            const wouldDisableAllAuth = () => {
-                const currentFlags = selectedOrg.flags
-
-                const allowEmail = flagName === "allow_email" ? value : currentFlags.allow_email
-                const allowSocial = flagName === "allow_social" ? value : currentFlags.allow_social
-                const allowSso = flagName === "allow_sso" ? value : currentFlags.allow_sso
-
-                return !allowEmail && !allowSocial && !allowSso
-            }
-
-            // If disabling all auth, show confirmation
-            if (wouldDisableAllAuth() && !value) {
-                Modal.confirm({
-                    title: "Disable all authentication methods?",
-
-                    content: (
-                        <div>
-                            <p>
-                                You are about to disable all authentication methods, for this
-                                organization.
-                            </p>
-                            <p>
-                                <strong>
-                                    To prevent lockout, the "Allow organization owner to bypass
-                                    controls" flag will be enabled.
-                                </strong>
-                            </p>
-                            <p>Do you want to continue?</p>
-                        </div>
-                    ),
-                    width: 420,
-                    okText: "Confirm",
-                    okType: "danger",
-                    cancelText: "Cancel",
-                    onOk: () => {
-                        handleUpdateOrganization({
-                            flags: {
-                                [flagName]: value,
-                            },
-                        }, {ignoreAxiosError: true})
-                    },
-                })
-            } else {
-                handleUpdateOrganization({
-                    flags: {
-                        [flagName]: value,
-                    },
-                }, {ignoreAxiosError: true})
-            }
-        },
-        [handleUpdateOrganization, hasActiveVerifiedProvider, hasVerifiedDomain, selectedOrg],
+    // Domain Verification queries and mutations
+    const {data: domains = [], refetch: refetchDomains} = useQuery({
+        queryKey: ["organization-domains", selectedOrg?.id],
+        queryFn: fetchOrganizationDomains,
+        enabled: !!selectedOrg?.id,
+    })
+    const hasVerifiedDomain = useMemo(
+        () => domains.some((domain) => domain.flags?.is_verified),
+        [domains],
     )
 
     const handleSlugSave = useCallback(() => {
@@ -173,13 +114,6 @@ const Organization: FC = () => {
         handleUpdateOrganization({slug: slugValue.trim()}, {ignoreAxiosError: true})
         setSlugModalVisible(false)
     }, [slugValue, handleUpdateOrganization])
-
-    // Domain Verification queries and mutations
-    const {data: domains = [], refetch: refetchDomains} = useQuery({
-        queryKey: ["organization-domains", selectedOrg?.id],
-        queryFn: fetchOrganizationDomains,
-        enabled: !!selectedOrg?.id,
-    })
 
     const createDomainMutation = useMutation({
         mutationFn: createOrganizationDomain,
@@ -451,10 +385,6 @@ const Organization: FC = () => {
     const pendingProviderRowKeys = providers
         .filter((provider) => provider.flags?.is_valid === false)
         .map((provider) => provider.id)
-    const hasVerifiedDomain = useMemo(
-        () => domains.some((domain) => domain.flags?.is_verified),
-        [domains],
-    )
     const hasActiveVerifiedProvider = useMemo(
         () =>
             providers.some(
@@ -462,6 +392,85 @@ const Organization: FC = () => {
                     provider.flags?.is_active && provider.flags?.is_valid,
             ),
         [providers],
+    )
+    const allAuthMethodsDisabled = useMemo(
+        () =>
+            !selectedOrg?.flags?.allow_email &&
+            !selectedOrg?.flags?.allow_social &&
+            !selectedOrg?.flags?.allow_sso,
+        [selectedOrg?.flags],
+    )
+    const handleFlagChange = useCallback(
+        (flag: string, value: boolean) => {
+            if (!selectedOrg?.id) return
+
+            if (flag === "allow_sso" && value && !hasActiveVerifiedProvider) {
+                message.error("Enable at least one active SSO provider before allowing SSO.")
+                return
+            }
+
+            if (flag === "domains_only" && value && !hasVerifiedDomain) {
+                message.error("Verify at least one domain before enforcing verified domains only.")
+                return
+            }
+
+            if (flag === "auto_join" && value && !hasVerifiedDomain) {
+                message.error("Auto-join requires at least one verified domain.")
+                return
+            }
+
+            // Check if this change would disable all auth methods without owner bypass
+            const wouldDisableAllAuthWithoutBypass = () => {
+                const currentFlags = selectedOrg.flags
+
+                const allowEmail = flag === "allow_email" ? value : currentFlags.allow_email
+                const allowSocial = flag === "allow_social" ? value : currentFlags.allow_social
+                const allowSso = flag === "allow_sso" ? value : currentFlags.allow_sso
+                const allowRoot = currentFlags.allow_root
+
+                return !allowEmail && !allowSocial && !allowSso && !allowRoot
+            }
+
+            // If disabling all auth without owner bypass, show confirmation
+            if (wouldDisableAllAuthWithoutBypass() && !value) {
+                Modal.confirm({
+                    title: "Disable all authentication methods?",
+                    content: (
+                        <div>
+                            <p>
+                                You are about to disable all authentication methods for this
+                                organization.
+                            </p>
+                            <p>
+                                <strong>
+                                    To prevent lockout, the "Owner bypasses authentication controls"
+                                    flag will be enabled automatically.
+                                </strong>
+                            </p>
+                            <p>Do you want to continue?</p>
+                        </div>
+                    ),
+                    width: 420,
+                    okText: "Confirm",
+                    okType: "danger",
+                    cancelText: "Cancel",
+                    onOk: () => {
+                        handleUpdateOrganization(
+                            {flags: {[flag]: value}},
+                            {ignoreAxiosError: true},
+                        )
+                    },
+                })
+            } else {
+                handleUpdateOrganization({flags: {[flag]: value}})
+            }
+        },
+        [
+            handleUpdateOrganization,
+            hasActiveVerifiedProvider,
+            hasVerifiedDomain,
+            selectedOrg,
+        ],
     )
 
     const providerColumns = [
@@ -672,7 +681,22 @@ const Organization: FC = () => {
                                 disabled={updating}
                             >
                                 <Radio.Button value="yes">Allow</Radio.Button>
-                                <Radio.Button value="no">Deny</Radio.Button>
+                                <Tooltip
+                                    title={
+                                        allAuthMethodsDisabled
+                                            ? "Enable at least one authentication method first."
+                                            : null
+                                    }
+                                >
+                                    <span>
+                                        <Radio.Button
+                                            value="no"
+                                            disabled={allAuthMethodsDisabled}
+                                        >
+                                            Deny
+                                        </Radio.Button>
+                                    </span>
+                                </Tooltip>
                             </Radio.Group>
                         </Descriptions.Item>
                         <Descriptions.Item label="Join from non-verified domains">

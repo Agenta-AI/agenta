@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo, useState} from "react"
+import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {ArrowsLeftRight, CaretDown, PencilSimple, Trash, CopyIcon} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
@@ -118,6 +118,7 @@ const ListOfOrgs = ({
     const [authUpgradeOpen, setAuthUpgradeOpen] = useState(false)
     const [authUpgradeDetail, setAuthUpgradeDetail] = useState<AuthUpgradeDetail | null>(null)
     const [authUpgradeOrgId, setAuthUpgradeOrgId] = useState<string | null>(null)
+    const lastDomainDeniedOrgIdRef = useRef<string | null>(null)
     const authUpgradeOrgKey = "authUpgradeOrgId"
     const transferOwnerOptions = useMemo(() => {
         const options = workspaceMembers
@@ -560,8 +561,7 @@ const ListOfOrgs = ({
                     const detail = result.response?.data?.detail
                     if (
                         detail?.error === "AUTH_UPGRADE_REQUIRED" ||
-                        detail?.error === "AUTH_SSO_DENIED" ||
-                        detail?.error === "AUTH_DOMAIN_DENIED"
+                        detail?.error === "AUTH_SSO_DENIED"
                     ) {
                         setAuthUpgradeDetail(detail)
                         setAuthUpgradeOrgId(organizationId)
@@ -586,6 +586,20 @@ const ListOfOrgs = ({
                                     .catch(() => null)
                             }
                         setAuthUpgradeOpen(true)
+                        return
+                    }
+                    if (detail?.error === "AUTH_DOMAIN_DENIED") {
+                        const content =
+                            typeof detail?.message === "string"
+                                ? detail.message
+                                : "Your email domain is not allowed for this organization."
+                        if (lastDomainDeniedOrgIdRef.current !== organizationId) {
+                            lastDomainDeniedOrgIdRef.current = organizationId
+                            message.error({
+                                content,
+                                key: "domain-denied",
+                            })
+                        }
                         return
                     }
                     const fallback = formatErrorMessage(

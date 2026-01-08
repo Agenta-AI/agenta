@@ -131,7 +131,9 @@ async def get_organization_workspaces(organization_id: str):
         result = await session.execute(
             select(WorkspaceDB)
             .filter_by(organization_id=uuid.UUID(organization_id))
-            .options(load_only(WorkspaceDB.organization_id))  # type: ignore
+            .options(  # type: ignore
+                load_only(WorkspaceDB.id, WorkspaceDB.organization_id)
+            )
         )
         workspaces = result.scalars().all()
         return workspaces
