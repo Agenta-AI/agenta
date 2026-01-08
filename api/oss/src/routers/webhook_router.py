@@ -23,16 +23,16 @@ log = get_module_logger(__name__)
 
 @router.get("/", operation_id="list_webhooks")
 async def list_webhooks(
+    request: Request,
     project_id: str,
     app_id: Optional[str] = None,
-    request: Request = None,
 ):
     """List all webhooks for a project
 
     Args:
+        request: FastAPI request
         project_id: Project ID
         app_id: Optional App ID to filter by
-        request: FastAPI request
 
     Returns:
         List of webhooks
@@ -184,9 +184,9 @@ async def delete_webhook(
 @router.get("/{webhook_id}/executions/", operation_id="list_webhook_executions")
 async def list_webhook_executions(
     webhook_id: str,
+    request: Request,
     limit: int = 50,
     offset: int = 0,
-    request: Request = None,
 ):
     """List webhook execution history
 

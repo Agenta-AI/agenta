@@ -29,13 +29,19 @@ const WebhooksList: FC<WebhooksListProps> = ({projectId, appId}) => {
 
     // Load webhooks
     const loadWebhooks = useCallback(async () => {
-        if (!projectId) return
+        if (!projectId) {
+            console.log('[WebhooksList] No projectId provided')
+            return
+        }
         setLoading(true)
         try {
+            console.log('[WebhooksList] Loading webhooks for project:', projectId, 'app:', appId)
             const data = await webhookService.listWebhooks(projectId, appId)
+            console.log('[WebhooksList] Loaded webhooks:', data)
             setWebhooks(data)
         } catch (error: any) {
-            message.error("Failed to load webhooks")
+            console.error('[WebhooksList] Failed to load webhooks:', error)
+            message.error(error.response?.data?.detail || error.message || "Failed to load webhooks")
         } finally {
             setLoading(false)
         }

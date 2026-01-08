@@ -2,7 +2,7 @@
  * Webhook configuration modal
  */
 
-import {FC, useState} from "react"
+import {FC, useState, useEffect} from "react"
 import {Modal, Form, Input, Switch, Select, Button, Space, Typography, message, Tabs} from "antd"
 import {PlusOutlined, DeleteOutlined, InfoCircleOutlined} from "@ant-design/icons"
 
@@ -13,7 +13,6 @@ import type {
     UpdateWebhookPayload,
     EnvironmentVariable,
     HttpHeader,
-    WebhookType,
 } from "@/oss/services/webhooks/types"
 
 const {TextArea} = Input
@@ -37,6 +36,30 @@ const WebhookConfigModal: FC<WebhookConfigModalProps> = ({
     const [form] = Form.useForm()
     const [loading, setLoading] = useState(false)
     const webhookType = Form.useWatch("webhook_type", form)
+
+    // Reset form when webhook changes or modal opens
+    useEffect(() => {
+        if (visible) {
+            if (mode === "edit" && webhook) {
+                form.setFieldsValue(webhook)
+            } else {
+                form.resetFields()
+                form.setFieldsValue({
+                    webhook_type: "python_script",
+                    is_enabled: true,
+                    script_timeout: 300,
+                    docker_image: "python:3.11-slim",
+                    webhook_method: "POST",
+                    retry_on_failure: false,
+                    max_retries: 3,
+                    retry_delay_seconds: 60,
+                    trigger_on_environments: [],
+                    environment_variables: [],
+                    webhook_headers: [],
+                })
+            }
+        }
+    }, [visible, webhook, mode, form])
 
     const handleSubmit = async () => {
         try {
@@ -94,19 +117,6 @@ const WebhookConfigModal: FC<WebhookConfigModalProps> = ({
             <Form
                 form={form}
                 layout="vertical"
-                initialValues={webhook || {
-                    webhook_type: "python_script" as WebhookType,
-                    is_enabled: true,
-                    script_timeout: 300,
-                    docker_image: "python:3.11-slim",
-                    webhook_method: "POST",
-                    retry_on_failure: false,
-                    max_retries: 3,
-                    retry_delay_seconds: 60,
-                    trigger_on_environments: [],
-                    environment_variables: [],
-                    webhook_headers: [],
-                }}
             >
                 <Form.Item
                     label="Webhook Name"

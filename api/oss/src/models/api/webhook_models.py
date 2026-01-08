@@ -109,6 +109,7 @@ class WebhookResponse(BaseModel):
     webhook_body_template: Optional[str]
 
     # Python Script fields
+    script_content: Optional[str]
     script_timeout: Optional[int]
     docker_image: Optional[str]
 

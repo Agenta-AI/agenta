@@ -480,6 +480,7 @@ class WebhookService:
             ],
             webhook_body_template=webhook.webhook_body_template,
             # Python Script fields
+            script_content=webhook.script_content,
             script_timeout=webhook.script_timeout,
             docker_image=webhook.docker_image,
             # Common fields
