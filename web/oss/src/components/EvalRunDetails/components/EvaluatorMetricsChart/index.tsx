@@ -408,13 +408,6 @@ const EvaluatorMetricsChart = ({
         resolvedStats,
     ])
 
-    const metricsGridClass = useMemo(() => {
-        if (summaryItems.length <= 1) return "grid-cols-1"
-        if (summaryItems.length === 2) return "grid-cols-2"
-        if (summaryItems.length === 3) return "grid-cols-3"
-        return "grid-cols-2 sm:grid-cols-4"
-    }, [summaryItems.length])
-
     const numericSeries = useMemo(
         () => [
             {
@@ -667,14 +660,12 @@ const EvaluatorMetricsChart = ({
                     </div>
                 </div>
                 <div className="px-4 pb-3">
-                    <div
-                        className={clsx(
-                            "grid gap-4 text-center justify-items-center",
-                            metricsGridClass,
-                        )}
-                    >
+                    <div className="flex flex-nowrap items-center justify-center gap-6 overflow-x-auto pb-1 text-center [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         {summaryItems.map((entry) => (
-                            <div key={entry.key} className="flex flex-col items-center gap-1">
+                            <div
+                                key={entry.key}
+                                className="flex shrink-0 flex-col items-center gap-1"
+                            >
                                 <Typography.Text
                                     className="text-xl font-semibold"
                                     style={{color: entry.color}}
