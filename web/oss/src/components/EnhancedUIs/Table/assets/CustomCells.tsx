@@ -10,7 +10,7 @@ export const ResizableTitle = memo((props: any) => {
     // Local live width to avoid forcing parent re-renders on every drag frame
     const [liveWidth, setLiveWidth] = useState<number | undefined>(width)
     const resolvedMinWidth = useMemo(
-        () => (typeof minWidth === "number" ? minWidth : 80),
+        () => (typeof minWidth === "number" ? minWidth : 48),
         [minWidth],
     )
 
@@ -18,7 +18,10 @@ export const ResizableTitle = memo((props: any) => {
         setLiveWidth(width)
     }, [width])
 
-    if (!width) {
+    // Only enable resizable behavior when a resize handler is provided.
+    // This ensures non-resizable columns (e.g., selection or fixed columns)
+    // are not wrapped in the Resizable component and keep their native layout.
+    if (!width || !onResize) {
         return <th {...restProps} />
     }
     return (

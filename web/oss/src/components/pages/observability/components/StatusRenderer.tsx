@@ -34,13 +34,17 @@ const StatusRenderer = ({
     const {label, color, icon} = statusMapper(status || StatusCode.STATUS_CODE_UNSET)
     const errorMsg = status === StatusCode.STATUS_CODE_ERROR ? message : null
 
+    const {bordered, variant, ...restTagProps} = tagProps || {}
+    const resolvedVariant = variant ?? (bordered === false ? "filled" : undefined)
+
     return (
         <Space>
             <Tag
                 color={color === "default" ? undefined : color}
                 icon={icon}
                 className="font-mono"
-                {...tagProps}
+                variant={resolvedVariant}
+                {...restTagProps}
             >
                 {label}
             </Tag>

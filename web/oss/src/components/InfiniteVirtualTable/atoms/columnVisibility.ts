@@ -83,6 +83,36 @@ export const setColumnViewportVisibilityAtom = atom(
     },
 )
 
+/**
+ * Delete column visibility state from the atom
+ * Use when columns are removed from DOM to prevent stale visibility state
+ */
+export const deleteColumnViewportVisibilityAtom = atom(
+    null,
+    (
+        get,
+        set,
+        payload:
+            | {scopeId: string | null; columnKey: string}
+            | {scopeId: string | null; columnKey: string}[],
+    ) => {
+        const deletions = Array.isArray(payload) ? payload : [payload]
+        if (!deletions.length) {
+            return
+        }
+
+        set(columnVisibilityStateAtom, (draft) => {
+            deletions.forEach((deletion) => {
+                const scopeKey = resolveScopeKey(deletion.scopeId)
+                const scopeMap = draft.get(scopeKey)
+                if (scopeMap) {
+                    scopeMap.delete(deletion.columnKey)
+                }
+            })
+        })
+    },
+)
+
 const viewportStateAtomFamily = atomFamily(
     (scopeId: string | null) =>
         atom(
@@ -96,7 +126,12 @@ const columnViewportVisibilityAtomFamily = atomFamily(
     ({scopeId, columnKey}: {scopeId: string | null; columnKey: string}) =>
         selectAtom(
             viewportStateAtomFamily(scopeId),
-            (state) => (state.get(columnKey) ?? false) as boolean,
+            // Always default to true (visible) for columns not yet tracked
+            // This ensures:
+            // 1. Cells render immediately on scope change (e.g., revision switch)
+            // 2. Newly expanded column groups show content immediately
+            // 3. IntersectionObserver will set to false if outside viewport
+            (state) => state.get(columnKey) ?? true,
             (a, b) => a === b,
         ),
     (a, b) =>

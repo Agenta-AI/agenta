@@ -8,7 +8,7 @@ from .sdk import assets as assets
 # evaluations
 from .sdk import testsets as testsets
 from .sdk import tracer
-from .sdk.agenta_init import AgentaSingleton, Config
+from .sdk.agenta_init import AgentaSingleton
 from .sdk.agenta_init import init as _init
 from .sdk.context.running import workflow_mode_enabled
 from .sdk.decorators.running import (
@@ -18,7 +18,6 @@ from .sdk.decorators.running import (
 )
 from .sdk.decorators.serving import app, route
 from .sdk.decorators.tracing import instrument
-from .sdk.litellm import litellm as callbacks
 from .sdk.managers.apps import AppManager
 from .sdk.managers.config import ConfigManager
 from .sdk.managers.deployment import DeploymentManager
@@ -46,7 +45,6 @@ from .sdk.utils.costs import calculate_token_usage
 from .sdk.utils.logging import get_module_logger
 from .sdk.utils.preinit import PreInitObject
 
-config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
 
 types = client_types
@@ -56,6 +54,14 @@ async_api = AsyncAgentaApi
 
 tracing = DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing  # type: ignore
 tracer = get_tracer(tracing)
+
+
+def __getattr__(name: str):
+    if name == "callbacks":
+        from .sdk.litellm import litellm as callbacks
+
+        return callbacks
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
 def init(

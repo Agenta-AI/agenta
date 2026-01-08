@@ -17,6 +17,7 @@ const SharedEditor = ({
     state = "filled",
     placeholder,
     initialValue,
+    value,
     editorClassName,
     disabled,
     handleChange,
@@ -32,25 +33,33 @@ const SharedEditor = ({
     baseProperty,
     variantId,
     syncWithInitialValueChanges = false,
+    disableDebounce = false,
     antdInputProps,
+    onPropertyClick,
     ...props
 }: SharedEditorProps) => {
     const normalizedInitialValue = initialValue ?? ""
+    // Use controlled value if provided, otherwise fall back to initialValue
+    const controlledValue = value !== undefined ? value : normalizedInitialValue
 
     const [isEditorFocused, setIsEditorFocused] = useState(false)
 
     const [localValue, setLocalValue] = useDebounceInput<string>(
-        normalizedInitialValue,
-        handleChange,
-        300,
+        controlledValue,
+        disableDebounce ? () => {} : handleChange || (() => {}),
+        disableDebounce ? 0 : 300,
         "",
     )
 
     const handleLocalValueChange = useCallback(
         (value: string) => {
             setLocalValue(value)
+            // When debounce is disabled, call handleChange directly for immediate updates
+            if (disableDebounce && handleChange) {
+                handleChange(value)
+            }
         },
-        [setLocalValue],
+        [setLocalValue, disableDebounce, handleChange],
     )
 
     // Stable editor id to prevent remounts that reset cursor position
@@ -81,6 +90,7 @@ const SharedEditor = ({
                 "[&_.agenta-rich-text-editor]:w-full",
                 "[&_.agenta-editor-wrapper]:w-full",
                 "p-[11px]",
+                "[&_.ant-dropdown-trigger]:pl-0",
                 {
                     "border-[#BDC7D1]": editorType === "border",
                     "hover:border-[#394857] focus:border-[#BDC7D1]": editorType === "border",
@@ -139,18 +149,22 @@ const SharedEditor = ({
                     placeholder={placeholder}
                     showToolbar={false}
                     enableTokens={!editorProps?.codeOnly}
-                    // Use mount-time initial value to prevent re-hydrates moving cursor
+                    // Use mount-time initial value for first render
                     initialValue={mountInitialValueRef.current}
+                    // Pass controlled value for undo/redo support - this triggers re-hydration when value changes
+                    value={value}
                     className={editorClassName}
-                    onChange={(value: any) => {
-                        handleLocalValueChange(value.textContent)
+                    onChange={(val: any) => {
+                        handleLocalValueChange(val.textContent)
                     }}
                     debug={debug}
                     autoFocus={autoFocus}
                     disabled={disabled}
                     showBorder={false}
                     id={editorId}
+                    noProvider={noProvider}
                     {...editorProps}
+                    onPropertyClick={onPropertyClick}
                 />
             )}
 

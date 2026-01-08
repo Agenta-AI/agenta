@@ -20,6 +20,7 @@ class LegacyEvaluator(BaseModel):
     oss: Optional[bool] = False
     requires_llm_api_keys: Optional[bool] = False
     tags: List[str]
+    archived: Optional[bool] = False
 
 
 class EvaluatorConfig(BaseModel):
@@ -297,7 +298,7 @@ class NewEvaluation(BaseModel):
     name: Optional[str] = None
     revisions_ids: List[str]
     evaluators_configs: List[str]
-    testset_id: str
+    testset_revision_id: str
     rate_limit: LLMRunRateLimit
     correct_answer_column: Optional[str] = None
 
