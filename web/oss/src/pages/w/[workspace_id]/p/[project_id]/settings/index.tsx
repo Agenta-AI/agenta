@@ -80,15 +80,16 @@ const Settings: React.FC = () => {
     }, [selectedOrg?.default_workspace?.id])
 
     const breadcrumbs = useMemo(() => {
-            return {
-                settings: {
-                    label: (() => {
-                        switch (resolvedTab) {
-                            case "organization":
-                                return "Organization"
-                            case "workspace":
-                                return "Project"
-                            case "projects":
+        const organizationLabel = isEE() ? "Organization" : "Agenta"
+        return {
+            settings: {
+                label: (() => {
+                    switch (resolvedTab) {
+                        case "organization":
+                            return organizationLabel
+                        case "workspace":
+                            return "Project"
+                        case "projects":
                             return "Projects"
                         case "secrets":
                             return "Providers & Models"
@@ -110,13 +111,14 @@ const Settings: React.FC = () => {
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 
     const {content, title} = useMemo(() => {
+        const organizationLabel = isEE() ? "Organization" : "Agenta"
         switch (resolvedTab) {
             case "organization":
                 return {
                     content: <Organization />,
                     title: (
                         <div className="flex items-center gap-2">
-                            <span>Organization</span>
+                            <span>{organizationLabel}</span>
                             <Tooltip title={isOrgIdCopied ? "Copied!" : "Click to copy ID"}>
                                 <Tag
                                     className="cursor-pointer flex items-center gap-1"

@@ -97,12 +97,13 @@ const ListOfOrgs = ({
         [safeOrganizationList, effectiveSelectedId],
     )
     const {project} = useProjectData()
+    const organizationLabel = isEE() ? "Organization" : "Agenta"
     const organizationDisplayName = isEE()
         ? selectedBasicOrganization?.name ||
           selectedOrganization?.name ||
           organizations?.[0]?.name ||
-          "Organization"
-        : "Organization"
+          organizationLabel
+        : organizationLabel
 
     const [isCreateModalOpen, setCreateModalOpen] = useState(false)
     const [createForm] = Form.useForm<{name: string; description?: string}>()
@@ -630,7 +631,7 @@ const ListOfOrgs = ({
                             <div data-org-selector>
                                 {renderSelectionButton(
                                     organizationButtonLabel,
-                                    "Organization",
+                                    organizationLabel,
                                     organizationDropdownOpen,
                                     true,
                                     false,
@@ -641,7 +642,7 @@ const ListOfOrgs = ({
                         <div className={clsx({"flex items-center justify-center": collapsed})}>
                             {renderSelectionButton(
                                 organizationButtonLabel,
-                                "Organization",
+                                organizationLabel,
                                 false,
                                 false,
                                 true,
