@@ -136,7 +136,7 @@ const SingleView = ({
                             size="small"
                             type="text"
                             onClick={() => openFocusDrawer({rowId, variantId})}
-                            tooltipProps={{title: "View all repeats"}}
+                            tooltipProps={{title: "Expand results"}}
                         />
                         <EnhancedButton
                             icon={<MinusCircleIcon size={14} />}

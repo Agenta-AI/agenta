@@ -146,10 +146,22 @@ const FocusDrawerContent = () => {
                         key: "output",
                         label: "Outputs",
                         children: (
-                            <div className="flex flex-row gap-2 overflow-x-auto pb-5">
+                            <div className="flex flex-row gap-2 overflow-x-auto pb-5 @container">
                                 {repetitions.map((rep: PlaygroundTestResult, index: number) => {
                                     const {type, content} = getOutputContent(rep, index)
                                     let contentToRender: React.ReactNode = null
+                                    const isError = type === "error"
+                                    const header = (
+                                        <div className="flex justify-between items-center">
+                                            <span className="">
+                                                {isError
+                                                    ? `Repeat ${index + 1} (Error)`
+                                                    : `Repeat ${index + 1}`}
+                                            </span>
+                                            <GenerationResultUtils result={rep as any} showStatus />
+                                        </div>
+                                    )
+
                                     if (type === "chat" && Array.isArray(content)) {
                                         contentToRender = (
                                             <div className="flex flex-col gap-2">
@@ -178,30 +190,16 @@ const FocusDrawerContent = () => {
                                             </div>
                                         )
                                     } else {
-                                        const isError = type === "error"
                                         contentToRender = (
-                                            <div className="flex flex-col gap-3">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="">
-                                                        {isError
-                                                            ? `Repeat ${index + 1} (Error)`
-                                                            : `Repeat ${index + 1}`}
-                                                    </span>
-                                                    <GenerationResultUtils
-                                                        result={rep as any}
-                                                        showStatus
-                                                    />
-                                                </div>
-                                                <SimpleSharedEditor
-                                                    value={content as string}
-                                                    initialValue={content as string}
-                                                    editorType="border"
-                                                    isMinimizeVisible
-                                                    headerName="Output"
-                                                    minimizedHeight={150}
-                                                    headerClassName="mb-1"
-                                                />
-                                            </div>
+                                            <SimpleSharedEditor
+                                                value={content as string}
+                                                initialValue={content as string}
+                                                editorType="border"
+                                                isMinimizeVisible
+                                                headerName="Output"
+                                                minimizedHeight={150}
+                                                headerClassName="mb-1"
+                                            />
                                         )
                                     }
 
@@ -209,17 +207,12 @@ const FocusDrawerContent = () => {
                                         <div
                                             key={index}
                                             className={clsx(
-                                                {
-                                                    "min-w-[400px] max-w-[400px]":
-                                                        repetitions.length > 1,
-                                                },
-                                                {
-                                                    "w-full": repetitions.length === 1,
-                                                },
+                                                "flex-1 min-w-[400px]",
                                                 "border-0 border-r border-b border-solid border-gray-200 p-3",
-                                                "flex flex-col",
+                                                "flex flex-col gap-3",
                                             )}
                                         >
+                                            {header}
                                             {contentToRender}
                                         </div>
                                     )

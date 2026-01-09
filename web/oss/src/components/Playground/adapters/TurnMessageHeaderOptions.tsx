@@ -26,6 +26,7 @@ import TestsetDrawerButton from "@/oss/components/Playground/Components/Drawers/
 import RepetitionNavigation from "@/oss/components/Playground/Components/PlaygroundGenerations/assets/RepetitionNavigation"
 
 export interface TurnMessageHeaderOptionsProps {
+    id: string
     className?: string
     messageId?: string
     text?: any
@@ -173,7 +174,7 @@ const TurnMessageHeaderOptions = ({
                 type="text"
                 className="!w-5 !h-5"
                 onClick={onViewAllRepeats}
-                tooltipProps={{title: "View all repeats"}}
+                tooltipProps={{title: "Expand results"}}
             />
             {onRerun ? (
                 <EnhancedButton
