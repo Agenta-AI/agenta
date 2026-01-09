@@ -1,0 +1,74 @@
+# Universal Ingress Configuration
+# Works with NGINX Ingress Controller on all Kubernetes distributions
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agenta-web-ingress
+  namespace: agenta-oss
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: web
+            port:
+              number: 3000
+---
+# API and Services - with path rewriting
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agenta-services-ingress
+  namespace: agenta-oss
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      # API endpoints
+      - path: /api/(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: api
+            port:
+              number: 8000
+      # Chat service
+      - path: /services/chat/(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: chat
+            port:
+              number: 80
+      # Completion service
+      - path: /services/completion/(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: completion
+            port:
+              number: 80
+      # SuperTokens auth
+      - path: /auth/(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: supertokens
+            port:
+              number: 3567
