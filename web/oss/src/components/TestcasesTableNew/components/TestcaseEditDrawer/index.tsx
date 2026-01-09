@@ -67,7 +67,7 @@ const TestcaseEditDrawerContent = forwardRef<
     const entityWithDrillIn = testcase as any
 
     return (
-        <div className="flex flex-col h-full overflow-hidden w-full [&_.agenta-shared-editor]:w-[calc(100%-24px)]">
+        <div className="flex flex-col h-full overflow-hidden w-full [&_.drill-in-breadcrumb]:pl-4 [&_.drill-in-field-content]:px-4 [&_.drill-in-field-content]:pt-2">
             <div className="flex-1 overflow-y-auto overflow-x-hidden">
                 <EntityDualViewEditor
                     entityId={testcaseId}
