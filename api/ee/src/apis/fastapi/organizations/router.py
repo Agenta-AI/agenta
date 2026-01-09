@@ -7,9 +7,9 @@ from ee.src.utils.permissions import check_user_org_access
 
 from ee.src.services import db_manager_ee
 from ee.src.services.selectors import get_user_org_and_workspace_id
-from ee.src.services.organization_security_service import (
-    DomainVerificationService,
-    SSOProviderService,
+from ee.src.services.organization_service import (
+    OrganizationDomainsService,
+    OrganizationProvidersService,
 )
 
 from ee.src.apis.fastapi.organizations.models import (
@@ -23,8 +23,8 @@ from ee.src.apis.fastapi.organizations.models import (
 
 
 router = APIRouter()
-domain_service = DomainVerificationService()
-provider_service = SSOProviderService()
+domain_service = OrganizationDomainsService()
+provider_service = OrganizationProvidersService()
 
 
 async def verify_user_org_access(user_id: str, organization_id: str) -> None:

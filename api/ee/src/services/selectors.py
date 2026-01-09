@@ -85,28 +85,6 @@ async def user_exists(user_email: str) -> bool:
     return False if not user else True
 
 
-async def get_user_own_org(user_uid: str) -> OrganizationDB:
-    """Get's the default users' organization from the database.
-
-    Arguments:
-        user_uid (str): The uid of the user
-
-    Returns:
-        Organization: Instance of OrganizationDB
-    """
-
-    user = await db_manager.get_user_with_id(user_id=user_uid)
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(OrganizationDB).filter_by(
-                owner=str(user.id),
-                type="default",
-            )
-        )
-        org = result.scalars().first()
-        return org
-
-
 async def get_org_default_workspace(organization: Organization) -> WorkspaceDB:
     """Get's the default workspace for an organization from the database.
 
@@ -120,7 +98,8 @@ async def get_org_default_workspace(organization: Organization) -> WorkspaceDB:
     async with engine.core_session() as session:
         result = await session.execute(
             select(WorkspaceDB).filter_by(
-                organization_id=organization.id, type="default"
+                organization_id=organization.id,
+                type="default",
             )
         )
         workspace = result.scalars().first()

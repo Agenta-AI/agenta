@@ -1,25 +1,29 @@
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 
-from oss.src.utils.logging import get_module_logger
-from oss.src.services import db_manager
-from ee.src.services import db_manager_ee
 from oss.src.utils.common import APIRouter
-from ee.src.services import workspace_manager
-from ee.src.models.shared_models import Permission
-from ee.src.services.selectors import (
-    get_user_own_org,
-    get_user_org_and_workspace_id,
+from oss.src.utils.logging import get_module_logger
+
+from oss.src.services import db_manager
+
+from ee.src.utils.permissions import (
+    check_user_org_access,
+    check_rbac_permission,
 )
+
+from ee.src.services import (
+    db_manager_ee,
+    workspace_manager,
+)
+from ee.src.services.selectors import get_user_org_and_workspace_id
+from ee.src.models.shared_models import Permission
+
 from ee.src.models.api.workspace_models import (
     CreateWorkspace,
     UpdateWorkspace,
     WorkspaceResponse,
 )
-from ee.src.utils.permissions import (
-    check_user_org_access,
-    check_rbac_permission,
-)
+
 from ee.src.models.api.organization_models import (
     Organization,
     OrganizationUpdate,
@@ -31,10 +35,8 @@ from ee.src.services.organization_service import (
     get_organization_details,
     transfer_organization_ownership as transfer_ownership_service,
 )
-from ee.src.services.organization_security_service import SSOProviderService
-from ee.src.dbs.postgres.organizations.dao import (
-    OrganizationDomainsDAO,
-)
+from ee.src.services.organization_service import OrganizationProvidersService
+from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 from ee.src.core.organizations.types import (
     OrganizationDomainCreate,
     OrganizationProviderCreate,
@@ -47,24 +49,10 @@ router = APIRouter()
 log = get_module_logger(__name__)
 
 
-@router.get("/own/", response_model=OrganizationOutput, operation_id="get_own_org")
-async def get_user_organization(
-    request: Request,
-):
-    try:
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        org_db = await get_user_own_org(user_uid=user_org_workspace_data["uid"])
-        if org_db is None:
-            raise HTTPException(404, detail="User does not have an organization")
-
-        return OrganizationOutput(id=str(org_db.id), name=org_db.name)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/{organization_id}/", operation_id="fetch_ee_organization_details")
+@router.get(
+    "/{organization_id}/",
+    operation_id="fetch_ee_organization_details",
+)
 async def fetch_organization_details(
     organization_id: str,
     request: Request,
@@ -469,7 +457,9 @@ async def list_organization_domains(
         from uuid import UUID
 
         domains_dao = OrganizationDomainsDAO()
-        domains = await domains_dao.list_by_organization(organization_id=str(organization_id))
+        domains = await domains_dao.list_by_organization(
+            organization_id=str(organization_id)
+        )
 
         return [
             {
@@ -516,8 +506,11 @@ async def create_organization_domain(
 
         from uuid import UUID
 
-        from ee.src.services.organization_security_service import DomainVerificationService
-        domain_service = DomainVerificationService()
+        from ee.src.services.organization_service import (
+            OrganizationDomainsService,
+        )
+
+        domain_service = OrganizationDomainsService()
         created_domain = await domain_service.create_domain(
             organization_id=organization_id,
             payload=OrganizationDomainCreate(domain=domain),
@@ -569,7 +562,9 @@ async def get_organization_domain(
         from uuid import UUID
 
         domains_dao = OrganizationDomainsDAO()
-        domain = await domains_dao.get_by_id(domain_id=domain_id, organization_id=organization_id)
+        domain = await domains_dao.get_by_id(
+            domain_id=domain_id, organization_id=organization_id
+        )
 
         if not domain:
             return JSONResponse(
@@ -658,8 +653,11 @@ async def verify_organization_domain(
 
         from uuid import UUID
 
-        from ee.src.services.organization_security_service import DomainVerificationService
-        domain_service = DomainVerificationService()
+        from ee.src.services.organization_service import (
+            OrganizationDomainsService,
+        )
+
+        domain_service = OrganizationDomainsService()
         verified_domain = await domain_service.verify_domain(
             organization_id=organization_id,
             domain_id=domain_id,
@@ -718,7 +716,7 @@ async def list_organization_providers(
 
         from uuid import UUID
 
-        provider_service = SSOProviderService()
+        provider_service = OrganizationProvidersService()
         return await provider_service.list_providers(organization_id)
 
     except Exception as e:
@@ -752,7 +750,7 @@ async def create_organization_provider(
 
         from uuid import UUID
 
-        provider_service = SSOProviderService()
+        provider_service = OrganizationProvidersService()
         provider_create = OrganizationProviderCreate(
             slug=payload.get("slug"),
             organization_id=UUID(organization_id),
@@ -803,7 +801,7 @@ async def get_organization_provider(
 
         from uuid import UUID
 
-        provider_service = SSOProviderService()
+        provider_service = OrganizationProvidersService()
         return await provider_service.get_provider(
             organization_id=organization_id,
             provider_id=provider_id,
@@ -842,7 +840,7 @@ async def update_organization_provider(
 
         from uuid import UUID
 
-        provider_service = SSOProviderService()
+        provider_service = OrganizationProvidersService()
         provider_update = OrganizationProviderUpdate(
             name=payload.get("name"),
             description=payload.get("description"),
@@ -892,7 +890,7 @@ async def delete_organization_provider(
 
         from uuid import UUID
 
-        provider_service = SSOProviderService()
+        provider_service = OrganizationProvidersService()
         await provider_service.delete_provider(
             organization_id=organization_id,
             provider_id=provider_id,
