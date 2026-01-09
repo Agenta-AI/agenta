@@ -11,6 +11,34 @@ import Image from "@theme/IdealImage";
 <section class="changelog">
 
 
+
+### [Chat Sessions in Observability](/changelog/chat-sessions-observability)
+
+_9 January 2026_
+
+**v0.73.0**
+
+You can now track multi-turn conversations with chat sessions. All traces with the same session ID are automatically grouped together, letting you analyze complete conversations instead of individual requests.
+
+The new session browser shows key metrics like total cost, latency, and token usage per conversation. Open any session to see all traces with their parent-child relationships. This makes debugging chatbots and AI assistants much easier. Add session tracking with one line of code using either our Python SDK or OpenTelemetry.
+
+**Minor improvements:**
+
+- Added time filtering to the analytics dashboard. You can now view metrics for the last 6 hours, 24 hours, 7 days, or 30 days.
+- Added the ability to batch delete multiple traces at once. Select traces using checkboxes and delete them in a single operation.
+
+---
+
+### [JSON Multi-Field Match Evaluator](/changelog/json-multi-field-match)
+
+_31 December 2025_
+
+**v0.73.0**
+
+The new JSON Multi-Field Match evaluator validates multiple fields between JSON objects. Configure any number of field paths using dot notation, JSON Path, or JSON Pointer formats. Each field gets its own score (0 or 1), and an aggregate score shows the percentage of matching fields. This evaluator is ideal for entity extraction tasks like validating extracted names, emails, and addresses. The UI automatically detects fields from your test data for quick setup. This replaces the old JSON Field Match evaluator, which only supported single fields.
+
+---
+
 ### [PDF Support in the Playground](/changelog/pdf-support-in-playground)
 
 _17 December 2025_
