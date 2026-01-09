@@ -209,7 +209,6 @@ def upgrade() -> None:
     conn.execute(
         text("""
         INSERT INTO organizations (
-            id,
             name,
             slug,
             description,
@@ -222,7 +221,6 @@ def upgrade() -> None:
             flags
         )
         SELECT
-            gen_random_uuid(),
             'Personal',
             NULL,
             NULL,
@@ -293,9 +291,8 @@ def upgrade() -> None:
     # Step 11: Add users as members to their new personal orgs
     conn.execute(
         text("""
-        INSERT INTO organization_members (id, user_id, organization_id, role)
+        INSERT INTO organization_members (user_id, organization_id, role)
         SELECT
-            gen_random_uuid(),
             o.owner_id,
             o.id,
             'owner'
@@ -313,7 +310,6 @@ def upgrade() -> None:
     conn.execute(
         text("""
         INSERT INTO workspaces (
-            id,
             name,
             type,
             description,
@@ -322,7 +318,6 @@ def upgrade() -> None:
             updated_at
         )
         SELECT
-            gen_random_uuid(),
             'Default',
             'default',
             NULL,
@@ -341,7 +336,6 @@ def upgrade() -> None:
     conn.execute(
         text("""
         INSERT INTO projects (
-            id,
             project_name,
             is_default,
             created_at,
@@ -350,7 +344,6 @@ def upgrade() -> None:
             workspace_id
         )
         SELECT
-            gen_random_uuid(),
             'Default',
             true,
             NOW(),
@@ -369,7 +362,6 @@ def upgrade() -> None:
     conn.execute(
         text("""
         INSERT INTO workspace_members (
-            id,
             user_id,
             workspace_id,
             role,
@@ -377,7 +369,6 @@ def upgrade() -> None:
             updated_at
         )
         SELECT
-            gen_random_uuid(),
             om.user_id,
             w.id,
             CASE WHEN om.user_id = o.owner_id THEN 'owner' ELSE 'viewer' END,
@@ -398,7 +389,6 @@ def upgrade() -> None:
     conn.execute(
         text("""
         INSERT INTO project_members (
-            id,
             user_id,
             project_id,
             role,
@@ -407,7 +397,6 @@ def upgrade() -> None:
             updated_at
         )
         SELECT
-            gen_random_uuid(),
             om.user_id,
             p.id,
             CASE WHEN om.user_id = o.owner_id THEN 'owner' ELSE 'viewer' END,
