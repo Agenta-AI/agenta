@@ -26,6 +26,20 @@ export const shippedFeatures: ShippedFeature[] = [
   // Evaluation: 86B7FF
   // Integration: FFA500
   {
+    id: "chat-session-view",
+    title: "Chat Sessions in Observability",
+    description:
+      "Track multi-turn conversations with session grouping. All traces with the same session ID are automatically grouped together, showing complete conversation flows with cost, latency, and token metrics per session.",
+    changelogPath: "/docs/changelog/chat-sessions-observability",
+    shippedAt: "2026-01-09",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+  {
     id: "pdf-support-playground",
     title: "PDF Support in the Playground",
     description:
@@ -294,19 +308,6 @@ export const shippedFeatures: ShippedFeature[] = [
   },
 ];
 export const inProgressFeatures: PlannedFeature[] = [
-  {
-    id: "chat-session-view",
-    title: "Chat Session View in Observability",
-    description:
-      "Display entire chat sessions in one consolidated view. Currently, each trace in a chat session appears in a separate tab. This feature will group traces by session ID and show the complete conversation in a single view.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3052",
-    labels: [
-      {
-        name: "Observability",
-        color: "DE74FF",
-      },
-    ],
-  },
   {
     id: "trace-linking",
     title: "Navigation Links from Traces to App/Environment/Variant",
