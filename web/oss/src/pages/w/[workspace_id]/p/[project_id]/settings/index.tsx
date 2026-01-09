@@ -13,6 +13,8 @@ import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useOrgData} from "@/oss/state/org"
 import {useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
+import {isEE} from "@/oss/lib/helpers/isEE"
+import {useProfileData} from "@/oss/state/profile"
 
 const Secrets = dynamic(() => import("@/oss/components/pages/settings/Secrets/Secrets"), {
     ssr: false,
@@ -40,8 +42,17 @@ const Settings: React.FC = () => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
     const tab = tabQuery ?? settingsTab ?? "workspace"
-    const {project} = useProjectData()
+    const canShowOrganization = isEE()
+    const {user} = useProfileData()
     const {selectedOrg} = useOrgData()
+    const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
+    const canShowBilling = isEE() && isOwner
+    const resolvedTab =
+        (tab === "organization" && !canShowOrganization) ||
+        (tab === "billing" && !canShowBilling)
+            ? "workspace"
+            : tab
+    const {project} = useProjectData()
     const {redirectUrl} = useURL()
     const [isOrgIdCopied, setIsOrgIdCopied] = useState(false)
     const [isProjectIdCopied, setIsProjectIdCopied] = useState(false)
@@ -69,15 +80,15 @@ const Settings: React.FC = () => {
     }, [selectedOrg?.default_workspace?.id])
 
     const breadcrumbs = useMemo(() => {
-        return {
-            settings: {
-                label: (() => {
-                    switch (tab) {
-                        case "organization":
-                            return "Organization"
-                        case "workspace":
-                            return "Project"
-                        case "projects":
+            return {
+                settings: {
+                    label: (() => {
+                        switch (resolvedTab) {
+                            case "organization":
+                                return "Organization"
+                            case "workspace":
+                                return "Project"
+                            case "projects":
                             return "Projects"
                         case "secrets":
                             return "Providers & Models"
@@ -86,12 +97,12 @@ const Settings: React.FC = () => {
                         case "billing":
                             return "Usage & Billing"
                         default:
-                            return tab
+                            return resolvedTab
                     }
                 })(),
             },
         }
-    }, [tab])
+    }, [resolvedTab])
 
     useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [tab])
 
@@ -99,7 +110,7 @@ const Settings: React.FC = () => {
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 
     const {content, title} = useMemo(() => {
-        switch (tab) {
+        switch (resolvedTab) {
             case "organization":
                 return {
                     content: <Organization />,
@@ -152,13 +163,14 @@ const Settings: React.FC = () => {
                 }
         }
     }, [
-        tab,
+        resolvedTab,
         isOrgIdCopied,
         isProjectIdCopied,
         handleCopyOrgId,
         handleCopyProjectId,
         isPersonalOrg,
         isDemoOrg,
+        isOwner,
     ])
 
     return (

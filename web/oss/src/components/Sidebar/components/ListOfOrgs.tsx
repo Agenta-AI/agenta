@@ -97,11 +97,12 @@ const ListOfOrgs = ({
         [safeOrganizationList, effectiveSelectedId],
     )
     const {project} = useProjectData()
-    const organizationDisplayName =
-        selectedBasicOrganization?.name ||
-        selectedOrganization?.name ||
-        organizations?.[0]?.name ||
-        "Organization"
+    const organizationDisplayName = isEE()
+        ? selectedBasicOrganization?.name ||
+          selectedOrganization?.name ||
+          organizations?.[0]?.name ||
+          "Organization"
+        : "Organization"
 
     const [isCreateModalOpen, setCreateModalOpen] = useState(false)
     const [createForm] = Form.useForm<{name: string; description?: string}>()
@@ -272,6 +273,8 @@ const ListOfOrgs = ({
     }, [authUpgradeOpen, authUpgradeOrgId, effectiveSelectedId])
 
     const organizationButtonLabel = organizationDisplayName
+    const organizationCount = Array.isArray(organizations) ? organizations.length : 0
+    const canSelectOrganizations = isEE() && organizationCount > 1
 
     const sharedButtonProps = useMemo(() => {
         if (!buttonProps) {
@@ -605,7 +608,7 @@ const ListOfOrgs = ({
         <div className={clsx("flex flex-col gap-2 px-2 py-3", {"items-center": collapsed})}>
             {canShow ? (
                 <>
-                    {interactive ? (
+                    {interactive && canSelectOrganizations ? (
                         <Dropdown
                             {...dropdownProps}
                             trigger={["click"]}

@@ -50,6 +50,20 @@ def upgrade() -> None:
     """
     conn = op.get_bind()
 
+    def _constraint_exists(constraint_name: str) -> bool:
+        return bool(
+            conn.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conname = :constraint_name
+                    """
+                ),
+                {"constraint_name": constraint_name},
+            ).scalar()
+        )
+
     # Step 1: Add JSONB columns (flags, tags, meta - all nullable)
     op.add_column(
         "organizations",
@@ -417,58 +431,55 @@ def upgrade() -> None:
     )
 
     # Step 16c: Ensure workspaces cascade on organization delete
-    try:
+    if _constraint_exists("workspaces_organization_id_fkey"):
         op.drop_constraint(
             "workspaces_organization_id_fkey",
             "workspaces",
             type_="foreignkey",
         )
-    except Exception:
-        pass  # Constraint might not exist yet
-    op.create_foreign_key(
-        "workspaces_organization_id_fkey",
-        "workspaces",
-        "organizations",
-        ["organization_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
+    if not _constraint_exists("workspaces_organization_id_fkey"):
+        op.create_foreign_key(
+            "workspaces_organization_id_fkey",
+            "workspaces",
+            "organizations",
+            ["organization_id"],
+            ["id"],
+            ondelete="CASCADE",
+        )
 
     # Step 16c2: Ensure workspace_members cascade on workspace delete
-    try:
+    if _constraint_exists("workspace_members_workspace_id_fkey"):
         op.drop_constraint(
             "workspace_members_workspace_id_fkey",
             "workspace_members",
             type_="foreignkey",
         )
-    except Exception:
-        pass  # Constraint might not exist yet
-    op.create_foreign_key(
-        "workspace_members_workspace_id_fkey",
-        "workspace_members",
-        "workspaces",
-        ["workspace_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
+    if not _constraint_exists("workspace_members_workspace_id_fkey"):
+        op.create_foreign_key(
+            "workspace_members_workspace_id_fkey",
+            "workspace_members",
+            "workspaces",
+            ["workspace_id"],
+            ["id"],
+            ondelete="CASCADE",
+        )
 
     # Step 16d: Ensure projects cascade on organization delete
-    try:
+    if _constraint_exists("projects_organization_id_fkey"):
         op.drop_constraint(
             "projects_organization_id_fkey",
             "projects",
             type_="foreignkey",
         )
-    except Exception:
-        pass  # Constraint might not exist yet
-    op.create_foreign_key(
-        "projects_organization_id_fkey",
-        "projects",
-        "organizations",
-        ["organization_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
+    if not _constraint_exists("projects_organization_id_fkey"):
+        op.create_foreign_key(
+            "projects_organization_id_fkey",
+            "projects",
+            "organizations",
+            ["organization_id"],
+            ["id"],
+            ondelete="CASCADE",
+        )
 
     # Note: Other tables (testsets, evaluations, scenarios, etc.) are linked to
     # organizations via projects, so they will cascade delete through projects.
