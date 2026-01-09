@@ -132,31 +132,11 @@ GET {{apiBaseUrl}}/authorisationurl?thirdPartyId=github&redirectURIOnProviderDas
 # SuperTokens handles the callback, creates session, and redirects to frontend
 
 ################################################################################
-# 5. OIDC/SSO AUTHENTICATION (EE ONLY)
-################################################################################
-# Available when: EE edition + organization has configured OIDC providers
-# Requires organization_providers table with enabled providers
-
-### 5a. OIDC - Initiate Authorization
-GET {{apiBaseUrl}}/authorize/oidc?provider_id=PROVIDER_UUID&redirect=/dashboard
-
-# This endpoint:
-# 1. Validates provider access
-# 2. Redirects to SuperTokens OIDC flow
-# 3. SuperTokens handles OIDC exchange
-# 4. Creates session with user identities
-# 5. Redirects to specified redirect path
-
-### 5b. OIDC Callback (handled automatically by SuperTokens)
-# Provider redirects to: {{baseUrl}}/auth/callback/custom
-# SuperTokens processes OIDC callback and creates session
-
-################################################################################
-# 6. SESSION MANAGEMENT (ALWAYS AVAILABLE)
+# 5. SESSION MANAGEMENT (ALWAYS AVAILABLE)
 ################################################################################
 # These endpoints are available regardless of which auth method was used
 
-### 6a. Verify Session
+### 5a. Verify Session
 GET {{apiBaseUrl}}/session/verify
 Cookie: sAccessToken=YOUR_ACCESS_TOKEN; sRefreshToken=YOUR_REFRESH_TOKEN
 
