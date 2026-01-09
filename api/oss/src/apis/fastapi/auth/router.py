@@ -170,7 +170,7 @@ async def oidc_authorize(request: Request, provider_id: str, redirect: str = "/"
     try:
         # Get provider to build third_party_id
         providers_dao = OrganizationProvidersDAO()
-        provider = await providers_dao.get_by_id_any(str(provider_id))
+        provider = await providers_dao.get_by_id_any(provider_id=str(provider_id))
 
         if not provider or not (provider.flags and provider.flags.get("is_active")):
             raise HTTPException(
@@ -281,7 +281,7 @@ async def sso_callback_redirect(
 
         # Validate provider exists and is active
         providers_dao = OrganizationProvidersDAO()
-        provider = await providers_dao.get_by_slug(provider_slug, str(organization.id))
+        provider = await providers_dao.get_by_slug(slug=provider_slug, organization_id=str(organization.id))
 
         if not provider:
             raise HTTPException(

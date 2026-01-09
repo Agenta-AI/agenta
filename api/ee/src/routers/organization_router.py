@@ -469,7 +469,7 @@ async def list_organization_domains(
         from uuid import UUID
 
         domains_dao = OrganizationDomainsDAO()
-        domains = await domains_dao.list_by_organization(UUID(organization_id))
+        domains = await domains_dao.list_by_organization(organization_id=str(organization_id))
 
         return [
             {
@@ -516,12 +516,13 @@ async def create_organization_domain(
 
         from uuid import UUID
 
-        domains_dao = OrganizationDomainsDAO()
-        domain_create = OrganizationDomainCreate(
-            slug=domain,
-            organization_id=UUID(organization_id),
+        from ee.src.services.organization_security_service import DomainVerificationService
+        domain_service = DomainVerificationService()
+        created_domain = await domain_service.create_domain(
+            organization_id=organization_id,
+            payload=OrganizationDomainCreate(domain=domain),
+            user_id=str(request.state.user_id),
         )
-        created_domain = await domains_dao.create(domain_create)
 
         return {
             "id": str(created_domain.id),
@@ -568,7 +569,7 @@ async def get_organization_domain(
         from uuid import UUID
 
         domains_dao = OrganizationDomainsDAO()
-        domain = await domains_dao.get_by_id(UUID(domain_id))
+        domain = await domains_dao.get_by_id(domain_id=domain_id, organization_id=organization_id)
 
         if not domain:
             return JSONResponse(
@@ -657,8 +658,13 @@ async def verify_organization_domain(
 
         from uuid import UUID
 
-        domains_dao = OrganizationDomainsDAO()
-        verified_domain = await domains_dao.mark_verified(UUID(domain_id))
+        from ee.src.services.organization_security_service import DomainVerificationService
+        domain_service = DomainVerificationService()
+        verified_domain = await domain_service.verify_domain(
+            organization_id=organization_id,
+            domain_id=domain_id,
+            user_id=str(request.state.user_id),
+        )
 
         if not verified_domain:
             return JSONResponse(

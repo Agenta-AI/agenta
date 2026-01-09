@@ -136,7 +136,7 @@ class DomainVerificationService:
             dao = OrganizationDomainsDAO(session)
 
             # Block if a verified domain already exists anywhere
-            existing_verified = await dao.get_verified_by_slug(payload.domain)
+            existing_verified = await dao.get_verified_by_slug(slug=payload.domain)
             if existing_verified:
                 raise HTTPException(
                     status_code=409,
@@ -144,7 +144,7 @@ class DomainVerificationService:
                 )
 
             # Reuse existing unverified domain for this organization, if any
-            existing = await dao.get_by_slug(payload.domain, organization_id)
+            existing = await dao.get_by_slug(slug=payload.domain, organization_id=organization_id)
             if existing and not (existing.flags or {}).get("is_verified"):
                 from datetime import datetime, timezone
 
@@ -162,12 +162,12 @@ class DomainVerificationService:
 
                 # Create domain with token
                 domain = await dao.create(
-                    organization_id=organization_id,
+                    created_by_id=user_id,
                     slug=payload.domain,
                     name=payload.name,
                     description=payload.description,
                     token=token,
-                    created_by_id=user_id,
+                    organization_id=organization_id,
                 )
 
                 await session.commit()
@@ -194,7 +194,7 @@ class DomainVerificationService:
         async with engine.core_session() as session:
             dao = OrganizationDomainsDAO(session)
 
-            domain = await dao.get_by_id(domain_id, organization_id)
+            domain = await dao.get_by_id(domain_id=domain_id, organization_id=organization_id)
             if not domain:
                 raise HTTPException(status_code=404, detail="Domain not found")
 
@@ -203,7 +203,7 @@ class DomainVerificationService:
                 raise HTTPException(status_code=400, detail="Domain already verified")
 
             # Check if domain is already verified by another organization
-            verified_by_other = await dao.get_verified_by_slug(domain.slug)
+            verified_by_other = await dao.get_verified_by_slug(slug=domain.slug)
             if (
                 verified_by_other
                 and str(verified_by_other.organization_id) != organization_id
@@ -259,7 +259,7 @@ class DomainVerificationService:
         """
         async with engine.core_session() as session:
             dao = OrganizationDomainsDAO(session)
-            domains = await dao.list_by_organization(organization_id)
+            domains = await dao.list_by_organization(organization_id=organization_id)
 
             return [
                 OrganizationDomainResponse(
@@ -287,7 +287,7 @@ class DomainVerificationService:
         async with engine.core_session() as session:
             dao = OrganizationDomainsDAO(session)
 
-            domain = await dao.get_by_id(domain_id, organization_id)
+            domain = await dao.get_by_id(domain_id=domain_id, organization_id=organization_id)
             if not domain:
                 raise HTTPException(status_code=404, detail="Domain not found")
 
@@ -327,7 +327,7 @@ class DomainVerificationService:
         async with engine.core_session() as session:
             dao = OrganizationDomainsDAO(session)
 
-            domain = await dao.get_by_id(domain_id, organization_id)
+            domain = await dao.get_by_id(domain_id=domain_id, organization_id=organization_id)
             if not domain:
                 raise HTTPException(status_code=404, detail="Domain not found")
 
@@ -363,11 +363,11 @@ class DomainVerificationService:
         async with engine.core_session() as session:
             dao = OrganizationDomainsDAO(session)
 
-            domain = await dao.get_by_id(domain_id, organization_id)
+            domain = await dao.get_by_id(domain_id=domain_id, organization_id=organization_id)
             if not domain:
                 raise HTTPException(status_code=404, detail="Domain not found")
 
-            deleted = await dao.delete(domain_id, user_id)
+            deleted = await dao.delete(deleted_by_id=user_id, domain_id=domain_id)
             await session.commit()
             return deleted
 
@@ -434,7 +434,7 @@ class SSOProviderService:
             slug = payload.slug
 
             # Check if provider with this slug already exists
-            existing = await dao.get_by_slug(slug, organization_id)
+            existing = await dao.get_by_slug(slug=slug, organization_id=organization_id)
             if existing:
                 raise HTTPException(
                     status_code=400,
@@ -480,13 +480,13 @@ class SSOProviderService:
 
             # Create provider
             provider = await dao.create(
-                organization_id=organization_id,
+                created_by_id=user_id,
                 slug=slug,
                 name=payload.name,
                 description=payload.description,
-                secret_id=str(secret_dto.id),
-                created_by_id=user_id,
                 flags=flags,
+                secret_id=str(secret_dto.id),
+                organization_id=organization_id,
             )
 
             await session.commit()
@@ -505,7 +505,7 @@ class SSOProviderService:
         async with engine.core_session() as session:
             dao = OrganizationProvidersDAO(session)
 
-            provider = await dao.get_by_id(provider_id, organization_id)
+            provider = await dao.get_by_id(provider_id=provider_id, organization_id=organization_id)
             if not provider:
                 raise HTTPException(status_code=404, detail="Provider not found")
 
@@ -533,7 +533,7 @@ class SSOProviderService:
             # Update slug if provided
             if payload.slug is not None:
                 # Check if new slug already exists
-                existing = await dao.get_by_slug(payload.slug, organization_id)
+                existing = await dao.get_by_slug(slug=payload.slug, organization_id=organization_id)
                 if existing and existing.id != provider_id:
                     raise HTTPException(
                         status_code=400,
@@ -573,9 +573,9 @@ class SSOProviderService:
                 )
 
             provider = await dao.update(
+                updated_by_id=user_id,
                 provider_id=provider_id,
                 flags=flags,
-                updated_by_id=user_id,
             )
 
             await session.commit()
@@ -589,7 +589,7 @@ class SSOProviderService:
         """List all SSO providers for an organization."""
         async with engine.core_session() as session:
             dao = OrganizationProvidersDAO(session)
-            providers = await dao.list_by_organization(organization_id)
+            providers = await dao.list_by_organization(organization_id=organization_id)
 
             responses: List[OrganizationProviderResponse] = []
             for provider in providers:
@@ -602,7 +602,7 @@ class SSOProviderService:
         """Get a single SSO provider by ID."""
         async with engine.core_session() as session:
             dao = OrganizationProvidersDAO(session)
-            provider = await dao.get_by_id(provider_id, organization_id)
+            provider = await dao.get_by_id(provider_id=provider_id, organization_id=organization_id)
             if not provider:
                 raise HTTPException(status_code=404, detail="Provider not found")
             return await self._to_response(provider, organization_id)
@@ -614,7 +614,7 @@ class SSOProviderService:
         async with engine.core_session() as session:
             dao = OrganizationProvidersDAO(session)
 
-            provider = await dao.get_by_id(provider_id, organization_id)
+            provider = await dao.get_by_id(provider_id=provider_id, organization_id=organization_id)
             if not provider:
                 raise HTTPException(status_code=404, detail="Provider not found")
 
@@ -640,9 +640,9 @@ class SSOProviderService:
                 flags["is_active"] = False
 
             provider = await dao.update(
+                updated_by_id=user_id,
                 provider_id=provider_id,
                 flags=flags,
-                updated_by_id=user_id,
             )
 
             await session.commit()
@@ -657,14 +657,14 @@ class SSOProviderService:
         async with engine.core_session() as session:
             dao = OrganizationProvidersDAO(session)
 
-            provider = await dao.get_by_id(provider_id, organization_id)
+            provider = await dao.get_by_id(provider_id=provider_id, organization_id=organization_id)
             if not provider:
                 raise HTTPException(status_code=404, detail="Provider not found")
 
             organization = await db_manager_ee.get_organization(organization_id)
             flags = organization.flags or {}
             if flags.get("allow_sso"):
-                providers = await dao.list_by_organization(organization_id)
+                providers = await dao.list_by_organization(organization_id=organization_id)
                 remaining = [
                     p
                     for p in providers
@@ -685,7 +685,7 @@ class SSOProviderService:
                 secret_id=provider.secret_id,
                 organization_id=organization_id,
             )
-            deleted = await dao.delete(provider_id, user_id)
+            deleted = await dao.delete(deleted_by_id=user_id, provider_id=provider_id)
             await session.commit()
             return deleted
 

@@ -149,7 +149,7 @@ class AuthService:
 
             # 3. Organizations with verified domain matching user's email
             if domain and self.domains_dao:
-                domain_dto = await self.domains_dao.get_verified_by_slug(domain)
+                domain_dto = await self.domains_dao.get_verified_by_slug(slug=domain)
 
                 if domain_dto:
                     domain_org_ids.append(domain_dto.organization_id)
@@ -175,7 +175,7 @@ class AuthService:
                     has_active_sso = False
                     if self.providers_dao:
                         providers = await self.providers_dao.list_by_organization(
-                            str(org_id)
+                            organization_id=str(org_id)
                         )
 
                         has_active_sso = any(
@@ -259,7 +259,7 @@ class AuthService:
                 if not organization or not organization.slug:
                     continue
 
-                providers = await self.providers_dao.list_by_organization(str(org_id))
+                providers = await self.providers_dao.list_by_organization(organization_id=str(org_id))
                 for p in providers:
                     is_active = p.flags and p.flags.get("is_active", False)
                     if is_active:
@@ -409,7 +409,7 @@ class AuthService:
         if not is_ee() or not self.providers_dao:
             return False
 
-        provider = await self.providers_dao.get_by_id(provider_id)
+        provider = await self.providers_dao.get_by_id_any(provider_id=str(provider_id))
 
         if not provider or not (provider.flags and provider.flags.get("is_active")):
             return False
@@ -443,7 +443,7 @@ class AuthService:
             return
 
         # Check for verified domain matching user's email
-        domain_dto = await self.domains_dao.get_verified_by_slug(domain)
+        domain_dto = await self.domains_dao.get_verified_by_slug(slug=domain)
         if not domain_dto:
             return
 
@@ -649,7 +649,7 @@ class AuthService:
                     else None
                 )
                 providers = await self.providers_dao.list_by_organization(
-                    str(organization_id)
+                    organization_id=str(organization_id)
                 )
                 active_provider_slugs = {
                     p.slug
@@ -696,7 +696,7 @@ class AuthService:
 
                 # Get verified domains for this organization
                 org_domains = await self.domains_dao.list_by_organization(
-                    str(organization_id)
+                    organization_id=str(organization_id)
                 )
                 verified_domain_slugs = {
                     d.slug.lower()
@@ -753,7 +753,7 @@ class AuthService:
         if not organization or not organization.slug:
             return []
 
-        providers = await self.providers_dao.list_by_organization(str(organization_id))
+        providers = await self.providers_dao.list_by_organization(organization_id=str(organization_id))
         results = []
         for provider in providers:
             if provider.flags and provider.flags.get("is_active", False):

@@ -1,8 +1,16 @@
-"""FastAPI router for organization security features."""
-
 from typing import List
+
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse, Response
+
+from ee.src.utils.permissions import check_user_org_access
+
+from ee.src.services import db_manager_ee
+from ee.src.services.selectors import get_user_org_and_workspace_id
+from ee.src.services.organization_security_service import (
+    DomainVerificationService,
+    SSOProviderService,
+)
 
 from ee.src.apis.fastapi.organizations.models import (
     OrganizationDomainCreate,
@@ -12,13 +20,6 @@ from ee.src.apis.fastapi.organizations.models import (
     OrganizationProviderUpdate,
     OrganizationProviderResponse,
 )
-from ee.src.services.organization_security_service import (
-    DomainVerificationService,
-    SSOProviderService,
-)
-from ee.src.services import db_manager_ee
-from ee.src.utils.permissions import check_user_org_access
-from ee.src.services.selectors import get_user_org_and_workspace_id
 
 
 router = APIRouter()
@@ -69,7 +70,10 @@ async def require_domains_and_auto_join_disabled(organization_id: str) -> None:
 # Domain Verification Endpoints
 
 
-@router.post("/domains", response_model=OrganizationDomainResponse, status_code=201)
+@router.post(
+    "/domains",
+    response_model=OrganizationDomainResponse,
+)
 async def create_domain(
     payload: OrganizationDomainCreate,
     request: Request,
@@ -97,7 +101,10 @@ async def create_domain(
     )
 
 
-@router.post("/domains/verify", response_model=OrganizationDomainResponse)
+@router.post(
+    "/domains/verify",
+    response_model=OrganizationDomainResponse,
+)
 async def verify_domain(
     payload: OrganizationDomainVerify,
     request: Request,
@@ -119,7 +126,10 @@ async def verify_domain(
     )
 
 
-@router.get("/domains", response_model=List[OrganizationDomainResponse])
+@router.get(
+    "/domains",
+    response_model=List[OrganizationDomainResponse],
+)
 async def list_domains(
     request: Request,
 ):
@@ -132,7 +142,10 @@ async def list_domains(
     return await domain_service.list_domains(organization_id)
 
 
-@router.post("/domains/{domain_id}/refresh", response_model=OrganizationDomainResponse)
+@router.post(
+    "/domains/{domain_id}/refresh",
+    response_model=OrganizationDomainResponse,
+)
 async def refresh_domain_token(
     domain_id: str,
     request: Request,
@@ -152,7 +165,10 @@ async def refresh_domain_token(
     return await domain_service.refresh_token(organization_id, domain_id, user_id)
 
 
-@router.post("/domains/{domain_id}/reset", response_model=OrganizationDomainResponse)
+@router.post(
+    "/domains/{domain_id}/reset",
+    response_model=OrganizationDomainResponse,
+)
 async def reset_domain(
     domain_id: str,
     request: Request,
@@ -172,7 +188,10 @@ async def reset_domain(
     return await domain_service.reset_domain(organization_id, domain_id, user_id)
 
 
-@router.delete("/domains/{domain_id}", status_code=204)
+@router.delete(
+    "/domains/{domain_id}",
+    status_code=204,
+)
 async def delete_domain(
     domain_id: str,
     request: Request,
@@ -191,7 +210,10 @@ async def delete_domain(
 # SSO Provider Endpoints
 
 
-@router.post("/providers", response_model=OrganizationProviderResponse, status_code=201)
+@router.post(
+    "/providers",
+    response_model=OrganizationProviderResponse,
+)
 async def create_provider(
     payload: OrganizationProviderCreate,
     request: Request,
@@ -212,7 +234,10 @@ async def create_provider(
     return await provider_service.create_provider(organization_id, payload, user_id)
 
 
-@router.patch("/providers/{provider_id}", response_model=OrganizationProviderResponse)
+@router.patch(
+    "/providers/{provider_id}",
+    response_model=OrganizationProviderResponse,
+)
 async def update_provider(
     provider_id: str,
     payload: OrganizationProviderUpdate,
@@ -230,7 +255,10 @@ async def update_provider(
     )
 
 
-@router.get("/providers", response_model=List[OrganizationProviderResponse])
+@router.get(
+    "/providers",
+    response_model=List[OrganizationProviderResponse],
+)
 async def list_providers(
     request: Request,
 ):
@@ -244,7 +272,8 @@ async def list_providers(
 
 
 @router.post(
-    "/providers/{provider_id}/test", response_model=OrganizationProviderResponse
+    "/providers/{provider_id}/test",
+    response_model=OrganizationProviderResponse,
 )
 async def test_provider(
     provider_id: str,
@@ -267,7 +296,10 @@ async def test_provider(
     return await provider_service.test_provider(organization_id, provider_id, user_id)
 
 
-@router.delete("/providers/{provider_id}", status_code=204)
+@router.delete(
+    "/providers/{provider_id}",
+    status_code=204,
+)
 async def delete_provider(
     provider_id: str,
     request: Request,

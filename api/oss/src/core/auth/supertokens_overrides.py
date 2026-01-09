@@ -100,7 +100,7 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
             return None
 
         # Fetch provider from database by organization_id and provider_slug
-        provider = await providers_dao.get_by_slug(provider_slug, str(organization.id))
+        provider = await providers_dao.get_by_slug(slug=provider_slug, organization_id=str(organization.id))
         if not provider or not (provider.flags and provider.flags.get("is_active")):
             return None
 

@@ -1149,7 +1149,7 @@ async def update_organization(
                 if changing_auth_flags and allow_sso:
                     providers_dao = OrganizationProvidersDAO(session)
                     providers = await providers_dao.list_by_organization(
-                        organization_id
+                        organization_id=organization_id
                     )
                     active_valid = [
                         provider
@@ -1171,7 +1171,7 @@ async def update_organization(
 
                 if changing_auto_join and merged_flags.get("auto_join", False):
                     domains_dao = OrganizationDomainsDAO(session)
-                    domains = await domains_dao.list_by_organization(organization_id)
+                    domains = await domains_dao.list_by_organization(organization_id=organization_id)
                     has_verified_domain = any(
                         (domain.flags or {}).get("is_verified") for domain in domains
                     )
@@ -1182,7 +1182,7 @@ async def update_organization(
 
                 if changing_domains_only and merged_flags.get("domains_only", False):
                     domains_dao = OrganizationDomainsDAO(session)
-                    domains = await domains_dao.list_by_organization(organization_id)
+                    domains = await domains_dao.list_by_organization(organization_id=organization_id)
                     has_verified_domain = any(
                         (domain.flags or {}).get("is_verified") for domain in domains
                     )

@@ -164,7 +164,7 @@ async def invite_user_to_workspace(
         verified_domain_slugs = set()
         if domains_only:
             domains_dao = OrganizationDomainsDAO()
-            org_domains = await domains_dao.list_by_organization(organization_id)
+            org_domains = await domains_dao.list_by_organization(organization_id=organization_id)
             verified_domain_slugs = {
                 d.slug.lower()
                 for d in org_domains
