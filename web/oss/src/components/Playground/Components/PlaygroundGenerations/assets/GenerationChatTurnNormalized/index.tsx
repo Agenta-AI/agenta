@@ -12,7 +12,7 @@ import {useAssistantDisplayValue} from "@/oss/components/Playground/hooks/chat/u
 import useEffectiveRevisionId from "@/oss/components/Playground/hooks/chat/useEffectiveRevisionId"
 import useHasAssistantContent from "@/oss/components/Playground/hooks/chat/useHasAssistantContent"
 import {useRepetitionResult} from "@/oss/components/Playground/hooks/useRepetitionResult"
-import {displayedVariantsAtom, isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
+import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 import {resolvedGenerationResultAtomFamily} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {messageSchemaMetadataAtom} from "@/oss/state/generation/entities"
 import {assistantMessageAtomFamily, chatTurnAtomFamily} from "@/oss/state/generation/selectors"
@@ -125,8 +125,6 @@ const GenerationChatTurnNormalized = ({
         displayAssistantValue,
         toolMessages.length > 0,
     )
-
-    const isComparisonView = useAtomValue(isComparisonViewAtom)
 
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
