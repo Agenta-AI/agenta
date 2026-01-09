@@ -17,7 +17,7 @@ from supertokens_python.asyncio import delete_user as delete_user_from_supertoke
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.models import converters
-from oss.src.services import user_service
+from oss.src.services import user_service, analytics_service
 from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services.json_importer_helper import get_json
@@ -1085,6 +1085,12 @@ async def check_if_user_exists_and_create_organization(user_email: str):
                     "project_name": organization_name,
                 }
             )
+
+            analytics_service.capture_oss_deployment_created(
+                user_email=user_email,
+                organization_id=str(organization_db.id),
+            )
+
             return organization_db
 
         organizations_db = await get_organizations()
