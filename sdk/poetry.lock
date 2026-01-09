@@ -266,18 +266,18 @@ files = [
 
 [[package]]
 name = "boto3"
-version = "1.42.23"
+version = "1.42.24"
 description = "The AWS SDK for Python"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "boto3-1.42.23-py3-none-any.whl", hash = "sha256:2ed797bdb394b08550f6269babf0a31bbeb853684bb2cb67116620df0ed632dc"},
-    {file = "boto3-1.42.23.tar.gz", hash = "sha256:f681a8d43b46b3d8acf0be4f3894eb85e40e75945431d0dfe0542edda7025512"},
+    {file = "boto3-1.42.24-py3-none-any.whl", hash = "sha256:8ed6ad670a5a2d7f66c1b0d3362791b48392c7a08f78479f5d8ab319a4d9118f"},
+    {file = "boto3-1.42.24.tar.gz", hash = "sha256:c47a2f40df933e3861fc66fd8d6b87ee36d4361663a7e7ba39a87f5a78b2eae1"},
 ]
 
 [package.dependencies]
-botocore = ">=1.42.23,<1.43.0"
+botocore = ">=1.42.24,<1.43.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.16.0,<0.17.0"
 
@@ -286,14 +286,14 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "botocore"
-version = "1.42.23"
+version = "1.42.24"
 description = "Low-level, data-driven core of boto 3."
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "botocore-1.42.23-py3-none-any.whl", hash = "sha256:d5042e0252b81f25ca1152fff9ed25463bab2438fbc4530ba53d5390d00ca1b1"},
-    {file = "botocore-1.42.23.tar.gz", hash = "sha256:453ce449bd1021acd67e75c814aae1b132b1ab3ee0ecff248de863bf19e58be8"},
+    {file = "botocore-1.42.24-py3-none-any.whl", hash = "sha256:8fca9781d7c84f7ad070fceffaff7179c4aa7a5ffb27b43df9d1d957801e0a8d"},
+    {file = "botocore-1.42.24.tar.gz", hash = "sha256:be8d1bea64fb91eea08254a1e5fea057e4428d08e61f4e11083a02cafc1f8cc6"},
 ]
 
 [package.dependencies]
@@ -469,22 +469,22 @@ markers = {main = "platform_system == \"Windows\"", dev = "platform_system == \"
 
 [[package]]
 name = "daytona"
-version = "0.128.1"
+version = "0.129.0"
 description = "Python SDK for Daytona"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "daytona-0.128.1-py3-none-any.whl", hash = "sha256:d00536a899d5bab299837d0ad7d59a8c9cb1e76d5618f01fd0106fc59fbeac69"},
-    {file = "daytona-0.128.1.tar.gz", hash = "sha256:4d9ab0cc2504b48223dbd2f4429b304b484292cdff3d942af8080bb9f359d6b1"},
+    {file = "daytona-0.129.0-py3-none-any.whl", hash = "sha256:1850ff5bb2487e6499d94eeb3b9a76d70a9c262aae529a698004fda446f8774d"},
+    {file = "daytona-0.129.0.tar.gz", hash = "sha256:e2040af29864910fc7d8c6e9c1173a9593d0650bdfc821fdfeeb6730b15219ac"},
 ]
 
 [package.dependencies]
 aiofiles = ">=24.1.0,<24.2.0"
-daytona-api-client = "0.128.1"
-daytona-api-client-async = "0.128.1"
-daytona-toolbox-api-client = "0.128.1"
-daytona-toolbox-api-client-async = "0.128.1"
+daytona-api-client = "0.129.0"
+daytona-api-client-async = "0.129.0"
+daytona-toolbox-api-client = "0.129.0"
+daytona-toolbox-api-client-async = "0.129.0"
 Deprecated = ">=1.2.18,<2.0.0"
 environs = ">=10.0.0,<15.0.0"
 httpx = ">=0.28.0,<0.29.0"
@@ -496,14 +496,14 @@ websockets = ">=15.0.0,<16.0.0"
 
 [[package]]
 name = "daytona-api-client"
-version = "0.128.1"
+version = "0.129.0"
 description = "Daytona"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_api_client-0.128.1-py3-none-any.whl", hash = "sha256:eede1d93ec8995d7280e077127018508b94a488c6288363f50794128af56d339"},
-    {file = "daytona_api_client-0.128.1.tar.gz", hash = "sha256:e9db105bf5ea7ad4b55431e3bb7db1e3a8937557ffbca7dba6167bc5a6a63c96"},
+    {file = "daytona_api_client-0.129.0-py3-none-any.whl", hash = "sha256:c598658b3898a8bc2dce9220edd278cfeaf06a195cd203c3b62db57359dc7887"},
+    {file = "daytona_api_client-0.129.0.tar.gz", hash = "sha256:1d3e74ac10dc6bea69ddec10ecb83d3207ccb0a31b4ad8e148fcb010f94f8549"},
 ]
 
 [package.dependencies]
@@ -514,14 +514,14 @@ urllib3 = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "daytona-api-client-async"
-version = "0.128.1"
+version = "0.129.0"
 description = "Daytona"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_api_client_async-0.128.1-py3-none-any.whl", hash = "sha256:c0fb378e0df95fe0ae125d9f60cebfd4badc08e089d18584bfa6158a0002893b"},
-    {file = "daytona_api_client_async-0.128.1.tar.gz", hash = "sha256:2fb7507cb4122ae2011aa1f52a38556c1ce9c137173648aa96ca227ef072eadd"},
+    {file = "daytona_api_client_async-0.129.0-py3-none-any.whl", hash = "sha256:2c8ef42369f745d97cbca22cc9b21cc1648d8d12aa982afa098d43f278307416"},
+    {file = "daytona_api_client_async-0.129.0.tar.gz", hash = "sha256:bc98833259c2e37352dff3775dcf05d6320ebf8c22885d9ba1c6ab26391e2ec3"},
 ]
 
 [package.dependencies]
@@ -534,14 +534,14 @@ urllib3 = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "daytona-toolbox-api-client"
-version = "0.128.1"
+version = "0.129.0"
 description = "Daytona Daemon API"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_toolbox_api_client-0.128.1-py3-none-any.whl", hash = "sha256:dd22da7e7fc823802c657a35996f1f4824deeda1b248192504c67e6936a1a120"},
-    {file = "daytona_toolbox_api_client-0.128.1.tar.gz", hash = "sha256:869ee431f485ed535868a93154e29c10e46fb2c36a0a7af79020385830e23c8f"},
+    {file = "daytona_toolbox_api_client-0.129.0-py3-none-any.whl", hash = "sha256:bcf8174e6c0c5b04591e1c638cbc5f13849b68762f58dce5393c8ae6f8031229"},
+    {file = "daytona_toolbox_api_client-0.129.0.tar.gz", hash = "sha256:1a0ec486a1e8ce72bf55a172c453c298d5d34e1cd1dc8e2a6ee653a02b6be663"},
 ]
 
 [package.dependencies]
@@ -552,14 +552,14 @@ urllib3 = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "daytona-toolbox-api-client-async"
-version = "0.128.1"
+version = "0.129.0"
 description = "Daytona Daemon API"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_toolbox_api_client_async-0.128.1-py3-none-any.whl", hash = "sha256:2ae4afb86f2d2568bd1df031764df0d41837e8ccab2200f2ed70fd61d18231d3"},
-    {file = "daytona_toolbox_api_client_async-0.128.1.tar.gz", hash = "sha256:d9ef0ec4d17fcc611e5c8d17ae300afb825b32bf8346fa6a2a8576d760ef0304"},
+    {file = "daytona_toolbox_api_client_async-0.129.0-py3-none-any.whl", hash = "sha256:a21b25a2b24b574b8b597ed20099c5fb9ab5b052682fd3c0ffd41de3976013e9"},
+    {file = "daytona_toolbox_api_client_async-0.129.0.tar.gz", hash = "sha256:8a39bf3f1b4fce726f2fad67a181c154acd5c7a9ffd65db0d1ed9bc282132b86"},
 ]
 
 [package.dependencies]
@@ -959,81 +959,11 @@ grpc = ["grpcio (>=1.44.0,<2.0.0)"]
 
 [[package]]
 name = "grpcio"
-version = "1.67.1"
-description = "HTTP/2-based RPC framework"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-markers = "python_version < \"3.14\""
-files = [
-    {file = "grpcio-1.67.1-cp310-cp310-linux_armv7l.whl", hash = "sha256:8b0341d66a57f8a3119b77ab32207072be60c9bf79760fa609c5609f2deb1f3f"},
-    {file = "grpcio-1.67.1-cp310-cp310-macosx_12_0_universal2.whl", hash = "sha256:f5a27dddefe0e2357d3e617b9079b4bfdc91341a91565111a21ed6ebbc51b22d"},
-    {file = "grpcio-1.67.1-cp310-cp310-manylinux_2_17_aarch64.whl", hash = "sha256:43112046864317498a33bdc4797ae6a268c36345a910de9b9c17159d8346602f"},
-    {file = "grpcio-1.67.1-cp310-cp310-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:c9b929f13677b10f63124c1a410994a401cdd85214ad83ab67cc077fc7e480f0"},
-    {file = "grpcio-1.67.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e7d1797a8a3845437d327145959a2c0c47c05947c9eef5ff1a4c80e499dcc6fa"},
-    {file = "grpcio-1.67.1-cp310-cp310-musllinux_1_1_i686.whl", hash = "sha256:0489063974d1452436139501bf6b180f63d4977223ee87488fe36858c5725292"},
-    {file = "grpcio-1.67.1-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:9fd042de4a82e3e7aca44008ee2fb5da01b3e5adb316348c21980f7f58adc311"},
-    {file = "grpcio-1.67.1-cp310-cp310-win32.whl", hash = "sha256:638354e698fd0c6c76b04540a850bf1db27b4d2515a19fcd5cf645c48d3eb1ed"},
-    {file = "grpcio-1.67.1-cp310-cp310-win_amd64.whl", hash = "sha256:608d87d1bdabf9e2868b12338cd38a79969eaf920c89d698ead08f48de9c0f9e"},
-    {file = "grpcio-1.67.1-cp311-cp311-linux_armv7l.whl", hash = "sha256:7818c0454027ae3384235a65210bbf5464bd715450e30a3d40385453a85a70cb"},
-    {file = "grpcio-1.67.1-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:ea33986b70f83844cd00814cee4451055cd8cab36f00ac64a31f5bb09b31919e"},
-    {file = "grpcio-1.67.1-cp311-cp311-manylinux_2_17_aarch64.whl", hash = "sha256:c7a01337407dd89005527623a4a72c5c8e2894d22bead0895306b23c6695698f"},
-    {file = "grpcio-1.67.1-cp311-cp311-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:80b866f73224b0634f4312a4674c1be21b2b4afa73cb20953cbbb73a6b36c3cc"},
-    {file = "grpcio-1.67.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f9fff78ba10d4250bfc07a01bd6254a6d87dc67f9627adece85c0b2ed754fa96"},
-    {file = "grpcio-1.67.1-cp311-cp311-musllinux_1_1_i686.whl", hash = "sha256:8a23cbcc5bb11ea7dc6163078be36c065db68d915c24f5faa4f872c573bb400f"},
-    {file = "grpcio-1.67.1-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:1a65b503d008f066e994f34f456e0647e5ceb34cfcec5ad180b1b44020ad4970"},
-    {file = "grpcio-1.67.1-cp311-cp311-win32.whl", hash = "sha256:e29ca27bec8e163dca0c98084040edec3bc49afd10f18b412f483cc68c712744"},
-    {file = "grpcio-1.67.1-cp311-cp311-win_amd64.whl", hash = "sha256:786a5b18544622bfb1e25cc08402bd44ea83edfb04b93798d85dca4d1a0b5be5"},
-    {file = "grpcio-1.67.1-cp312-cp312-linux_armv7l.whl", hash = "sha256:267d1745894200e4c604958da5f856da6293f063327cb049a51fe67348e4f953"},
-    {file = "grpcio-1.67.1-cp312-cp312-macosx_10_9_universal2.whl", hash = "sha256:85f69fdc1d28ce7cff8de3f9c67db2b0ca9ba4449644488c1e0303c146135ddb"},
-    {file = "grpcio-1.67.1-cp312-cp312-manylinux_2_17_aarch64.whl", hash = "sha256:f26b0b547eb8d00e195274cdfc63ce64c8fc2d3e2d00b12bf468ece41a0423a0"},
-    {file = "grpcio-1.67.1-cp312-cp312-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:4422581cdc628f77302270ff839a44f4c24fdc57887dc2a45b7e53d8fc2376af"},
-    {file = "grpcio-1.67.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1d7616d2ded471231c701489190379e0c311ee0a6c756f3c03e6a62b95a7146e"},
-    {file = "grpcio-1.67.1-cp312-cp312-musllinux_1_1_i686.whl", hash = "sha256:8a00efecde9d6fcc3ab00c13f816313c040a28450e5e25739c24f432fc6d3c75"},
-    {file = "grpcio-1.67.1-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:699e964923b70f3101393710793289e42845791ea07565654ada0969522d0a38"},
-    {file = "grpcio-1.67.1-cp312-cp312-win32.whl", hash = "sha256:4e7b904484a634a0fff132958dabdb10d63e0927398273917da3ee103e8d1f78"},
-    {file = "grpcio-1.67.1-cp312-cp312-win_amd64.whl", hash = "sha256:5721e66a594a6c4204458004852719b38f3d5522082be9061d6510b455c90afc"},
-    {file = "grpcio-1.67.1-cp313-cp313-linux_armv7l.whl", hash = "sha256:aa0162e56fd10a5547fac8774c4899fc3e18c1aa4a4759d0ce2cd00d3696ea6b"},
-    {file = "grpcio-1.67.1-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:beee96c8c0b1a75d556fe57b92b58b4347c77a65781ee2ac749d550f2a365dc1"},
-    {file = "grpcio-1.67.1-cp313-cp313-manylinux_2_17_aarch64.whl", hash = "sha256:a93deda571a1bf94ec1f6fcda2872dad3ae538700d94dc283c672a3b508ba3af"},
-    {file = "grpcio-1.67.1-cp313-cp313-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:0e6f255980afef598a9e64a24efce87b625e3e3c80a45162d111a461a9f92955"},
-    {file = "grpcio-1.67.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9e838cad2176ebd5d4a8bb03955138d6589ce9e2ce5d51c3ada34396dbd2dba8"},
-    {file = "grpcio-1.67.1-cp313-cp313-musllinux_1_1_i686.whl", hash = "sha256:a6703916c43b1d468d0756c8077b12017a9fcb6a1ef13faf49e67d20d7ebda62"},
-    {file = "grpcio-1.67.1-cp313-cp313-musllinux_1_1_x86_64.whl", hash = "sha256:917e8d8994eed1d86b907ba2a61b9f0aef27a2155bca6cbb322430fc7135b7bb"},
-    {file = "grpcio-1.67.1-cp313-cp313-win32.whl", hash = "sha256:e279330bef1744040db8fc432becc8a727b84f456ab62b744d3fdb83f327e121"},
-    {file = "grpcio-1.67.1-cp313-cp313-win_amd64.whl", hash = "sha256:fa0c739ad8b1996bd24823950e3cb5152ae91fca1c09cc791190bf1627ffefba"},
-    {file = "grpcio-1.67.1-cp38-cp38-linux_armv7l.whl", hash = "sha256:178f5db771c4f9a9facb2ab37a434c46cb9be1a75e820f187ee3d1e7805c4f65"},
-    {file = "grpcio-1.67.1-cp38-cp38-macosx_10_9_universal2.whl", hash = "sha256:0f3e49c738396e93b7ba9016e153eb09e0778e776df6090c1b8c91877cc1c426"},
-    {file = "grpcio-1.67.1-cp38-cp38-manylinux_2_17_aarch64.whl", hash = "sha256:24e8a26dbfc5274d7474c27759b54486b8de23c709d76695237515bc8b5baeab"},
-    {file = "grpcio-1.67.1-cp38-cp38-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:3b6c16489326d79ead41689c4b84bc40d522c9a7617219f4ad94bc7f448c5085"},
-    {file = "grpcio-1.67.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:60e6a4dcf5af7bbc36fd9f81c9f372e8ae580870a9e4b6eafe948cd334b81cf3"},
-    {file = "grpcio-1.67.1-cp38-cp38-musllinux_1_1_i686.whl", hash = "sha256:95b5f2b857856ed78d72da93cd7d09b6db8ef30102e5e7fe0961fe4d9f7d48e8"},
-    {file = "grpcio-1.67.1-cp38-cp38-musllinux_1_1_x86_64.whl", hash = "sha256:b49359977c6ec9f5d0573ea4e0071ad278ef905aa74e420acc73fd28ce39e9ce"},
-    {file = "grpcio-1.67.1-cp38-cp38-win32.whl", hash = "sha256:f5b76ff64aaac53fede0cc93abf57894ab2a7362986ba22243d06218b93efe46"},
-    {file = "grpcio-1.67.1-cp38-cp38-win_amd64.whl", hash = "sha256:804c6457c3cd3ec04fe6006c739579b8d35c86ae3298ffca8de57b493524b771"},
-    {file = "grpcio-1.67.1-cp39-cp39-linux_armv7l.whl", hash = "sha256:a25bdea92b13ff4d7790962190bf6bf5c4639876e01c0f3dda70fc2769616335"},
-    {file = "grpcio-1.67.1-cp39-cp39-macosx_10_9_universal2.whl", hash = "sha256:cdc491ae35a13535fd9196acb5afe1af37c8237df2e54427be3eecda3653127e"},
-    {file = "grpcio-1.67.1-cp39-cp39-manylinux_2_17_aarch64.whl", hash = "sha256:85f862069b86a305497e74d0dc43c02de3d1d184fc2c180993aa8aa86fbd19b8"},
-    {file = "grpcio-1.67.1-cp39-cp39-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:ec74ef02010186185de82cc594058a3ccd8d86821842bbac9873fd4a2cf8be8d"},
-    {file = "grpcio-1.67.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:01f616a964e540638af5130469451cf580ba8c7329f45ca998ab66e0c7dcdb04"},
-    {file = "grpcio-1.67.1-cp39-cp39-musllinux_1_1_i686.whl", hash = "sha256:299b3d8c4f790c6bcca485f9963b4846dd92cf6f1b65d3697145d005c80f9fe8"},
-    {file = "grpcio-1.67.1-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:60336bff760fbb47d7e86165408126f1dded184448e9a4c892189eb7c9d3f90f"},
-    {file = "grpcio-1.67.1-cp39-cp39-win32.whl", hash = "sha256:5ed601c4c6008429e3d247ddb367fe8c7259c355757448d7c1ef7bd4a6739e8e"},
-    {file = "grpcio-1.67.1-cp39-cp39-win_amd64.whl", hash = "sha256:5db70d32d6703b89912af16d6d45d78406374a8b8ef0d28140351dd0ec610e98"},
-    {file = "grpcio-1.67.1.tar.gz", hash = "sha256:3dc2ed4cabea4dc14d5e708c2b426205956077cc5de419b4d4079315017e9732"},
-]
-
-[package.extras]
-protobuf = ["grpcio-tools (>=1.67.1)"]
-
-[[package]]
-name = "grpcio"
 version = "1.76.0"
 description = "HTTP/2-based RPC framework"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "python_version >= \"3.14\""
 files = [
     {file = "grpcio-1.76.0-cp310-cp310-linux_armv7l.whl", hash = "sha256:65a20de41e85648e00305c1bb09a3598f840422e522277641145a32d42dcefcc"},
     {file = "grpcio-1.76.0-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:40ad3afe81676fd9ec6d9d406eda00933f218038433980aa19d401490e46ecde"},
@@ -1430,21 +1360,21 @@ files = [
 
 [[package]]
 name = "jsonschema"
-version = "4.25.1"
+version = "4.26.0"
 description = "An implementation of JSON Schema validation for Python"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "jsonschema-4.25.1-py3-none-any.whl", hash = "sha256:3fba0169e345c7175110351d456342c364814cfcf3b964ba4587f22915230a63"},
-    {file = "jsonschema-4.25.1.tar.gz", hash = "sha256:e4a9655ce0da0c0b67a085847e00a3a51449e1157f4f75e9fb5aa545e122eb85"},
+    {file = "jsonschema-4.26.0-py3-none-any.whl", hash = "sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce"},
+    {file = "jsonschema-4.26.0.tar.gz", hash = "sha256:0c26707e2efad8aa1bfc5b7ce170f3fccc2e4918ff85989ba9ffa9facb2be326"},
 ]
 
 [package.dependencies]
 attrs = ">=22.2.0"
 jsonschema-specifications = ">=2023.03.6"
 referencing = ">=0.28.4"
-rpds-py = ">=0.7.1"
+rpds-py = ">=0.25.0"
 
 [package.extras]
 format = ["fqdn", "idna", "isoduration", "jsonpointer (>1.13)", "rfc3339-validator", "rfc3987", "uri-template", "webcolors (>=1.11)"]
@@ -1554,14 +1484,14 @@ files = [
 
 [[package]]
 name = "litellm"
-version = "1.80.11"
+version = "1.80.13"
 description = "Library to easily interface with LLM API providers"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "litellm-1.80.11-py3-none-any.whl", hash = "sha256:406283d66ead77dc7ff0e0b2559c80e9e497d8e7c2257efb1cb9210a20d09d54"},
-    {file = "litellm-1.80.11.tar.gz", hash = "sha256:c9fc63e7acb6360363238fe291bcff1488c59ff66020416d8376c0ee56414a19"},
+    {file = "litellm-1.80.13-py3-none-any.whl", hash = "sha256:43dcdbca010961f17d7a5a6a995a38d1a46101350959b0e8269576cfe913cf0b"},
+    {file = "litellm-1.80.13.tar.gz", hash = "sha256:61ed22dfad633ada3b97dd8a50d8e8d804da0115105006d2f9d77ba3fb247a0b"},
 ]
 
 [package.dependencies]
@@ -1569,7 +1499,7 @@ aiohttp = ">=3.10"
 click = "*"
 fastuuid = ">=0.13.0"
 grpcio = [
-    {version = ">=1.62.3,<1.68.0", markers = "python_version < \"3.14\""},
+    {version = ">=1.62.3,<1.68.dev0 || >1.71.0,<1.71.1 || >1.71.1,<1.72.0 || >1.72.0,<1.72.1 || >1.72.1,<1.73.0 || >1.73.0", markers = "python_version < \"3.14\""},
     {version = ">=1.75.0", markers = "python_version >= \"3.14\""},
 ]
 httpx = ">=0.23.0"
@@ -1586,7 +1516,7 @@ tokenizers = "*"
 caching = ["diskcache (>=5.6.1,<6.0.0)"]
 extra-proxy = ["azure-identity (>=1.15.0,<2.0.0)", "azure-keyvault-secrets (>=4.8.0,<5.0.0)", "google-cloud-iam (>=2.19.1,<3.0.0)", "google-cloud-kms (>=2.21.3,<3.0.0)", "prisma (==0.11.0)", "redisvl (>=0.4.1,<0.5.0)", "resend (>=0.8.0)"]
 mlflow = ["mlflow (>3.1.4)"]
-proxy = ["PyJWT (>=2.10.1,<3.0.0)", "apscheduler (>=3.10.4,<4.0.0)", "azure-identity (>=1.15.0,<2.0.0)", "azure-storage-blob (>=12.25.1,<13.0.0)", "backoff", "boto3 (==1.36.0)", "cryptography", "fastapi (>=0.120.1)", "fastapi-sso (>=0.16.0,<0.17.0)", "gunicorn (>=23.0.0,<24.0.0)", "litellm-enterprise (==0.1.27)", "litellm-proxy-extras (==0.4.16)", "mcp (>=1.21.2,<2.0.0)", "orjson (>=3.9.7,<4.0.0)", "polars (>=1.31.0,<2.0.0)", "pynacl (>=1.5.0,<2.0.0)", "python-multipart (>=0.0.18,<0.0.19)", "pyyaml (>=6.0.1,<7.0.0)", "rich (==13.7.1)", "rq", "soundfile (>=0.12.1,<0.13.0)", "uvicorn (>=0.31.1,<0.32.0)", "uvloop (>=0.21.0,<0.22.0)", "websockets (>=15.0.1,<16.0.0)"]
+proxy = ["PyJWT (>=2.10.1,<3.0.0)", "apscheduler (>=3.10.4,<4.0.0)", "azure-identity (>=1.15.0,<2.0.0)", "azure-storage-blob (>=12.25.1,<13.0.0)", "backoff", "boto3 (==1.36.0)", "cryptography", "fastapi (>=0.120.1)", "fastapi-sso (>=0.16.0,<0.17.0)", "gunicorn (>=23.0.0,<24.0.0)", "litellm-enterprise (==0.1.27)", "litellm-proxy-extras (==0.4.20)", "mcp (>=1.21.2,<2.0.0)", "orjson (>=3.9.7,<4.0.0)", "polars (>=1.31.0,<2.0.0)", "pynacl (>=1.5.0,<2.0.0)", "python-multipart (>=0.0.18,<0.0.19)", "pyyaml (>=6.0.1,<7.0.0)", "rich (==13.7.1)", "rq", "soundfile (>=0.12.1,<0.13.0)", "uvicorn (>=0.31.1,<0.32.0)", "uvloop (>=0.21.0,<0.22.0)", "websockets (>=15.0.1,<16.0.0)"]
 semantic-router = ["semantic-router (>=0.1.12)"]
 utils = ["numpydoc"]
 
@@ -2314,14 +2244,14 @@ files = [
 
 [[package]]
 name = "pathspec"
-version = "1.0.1"
+version = "1.0.2"
 description = "Utility library for gitignore style pattern matching of file paths."
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "pathspec-1.0.1-py3-none-any.whl", hash = "sha256:8870061f22c58e6d83463cfce9a7dd6eca0512c772c1001fb09ac64091816721"},
-    {file = "pathspec-1.0.1.tar.gz", hash = "sha256:e2769b508d0dd47b09af6ee2c75b2744a2cb1f474ae4b1494fd6a1b7a841613c"},
+    {file = "pathspec-1.0.2-py3-none-any.whl", hash = "sha256:62f8558917908d237d399b9b338ef455a814801a4688bc41074b25feefd93472"},
+    {file = "pathspec-1.0.2.tar.gz", hash = "sha256:fa32b1eb775ed9ba8d599b22c5f906dc098113989da2c00bf8b210078ca7fb92"},
 ]
 
 [package.extras]
@@ -2363,14 +2293,14 @@ testing = ["coverage", "pytest", "pytest-benchmark"]
 
 [[package]]
 name = "posthog"
-version = "7.4.3"
+version = "7.5.1"
 description = "Integrate PostHog into any python application."
 optional = false
 python-versions = ">=3.10"
 groups = ["dev"]
 files = [
-    {file = "posthog-7.4.3-py3-none-any.whl", hash = "sha256:ae068f8954ee7a56d10ce35261580f1b8d99c6a2b6e878964eeacea1ec906b4a"},
-    {file = "posthog-7.4.3.tar.gz", hash = "sha256:02484a32c8bf44ab489dcef270ada46e5ce324021258c322f0d1b567c2d6f174"},
+    {file = "posthog-7.5.1-py3-none-any.whl", hash = "sha256:fd3431ce32c9bbfb1e3775e3633c32ee589c052b0054fafe5ed9e4b17c1969d3"},
+    {file = "posthog-7.5.1.tar.gz", hash = "sha256:d8a8165b3d47465023ea2f919982a34890e2dda76402ec47d6c68424b2534a55"},
 ]
 
 [package.dependencies]
@@ -3535,14 +3465,14 @@ typing-extensions = ">=4.12.0"
 
 [[package]]
 name = "urllib3"
-version = "2.6.2"
+version = "2.6.3"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
 optional = false
 python-versions = ">=3.9"
 groups = ["main", "dev"]
 files = [
-    {file = "urllib3-2.6.2-py3-none-any.whl", hash = "sha256:ec21cddfe7724fc7cb4ba4bea7aa8e2ef36f607a4bab81aa6ce42a13dc3f03dd"},
-    {file = "urllib3-2.6.2.tar.gz", hash = "sha256:016f9c98bb7e98085cb2b4b17b87d2c702975664e4f060c6532e64d1c1a5e797"},
+    {file = "urllib3-2.6.3-py3-none-any.whl", hash = "sha256:bf272323e553dfb2e87d9bfd225ca7b0f467b919d7bbd355436d3fd37cb0acd4"},
+    {file = "urllib3-2.6.3.tar.gz", hash = "sha256:1b62b6884944a57dbe321509ab94fd4d3b307075e0c2eae991ac71ee15ad38ed"},
 ]
 
 [package.extras]
@@ -3920,4 +3850,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "3a50c443e01613504a5d707041ae4f3f75bde867745de270657959a8fcb895e8"
+content-hash = "4ee7440e85a3772c35371ca212fe0a66ea3d1309ba46c7e5d64f9d30d592994f"
