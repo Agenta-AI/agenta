@@ -78,6 +78,32 @@ class UserOrganizationDB(DeprecatedBase):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"))
 
 
+class DeprecatedOrganizationDB(DeprecatedBase):
+    """
+    Deprecated OrganizationDB model with 'owner' field.
+    Used by migrations that ran before the schema was changed to use 'owner_id'.
+    """
+
+    __tablename__ = "organizations"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    name = Column(String)
+    owner = Column(String)  # Deprecated: replaced by owner_id (UUID)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
 class OldInvitationDB(DeprecatedBase):
     __tablename__ = "invitations"
     __table_args__ = {"extend_existing": True}

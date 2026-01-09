@@ -13,7 +13,7 @@ def evaluate(
     app_params: Dict[str, str],
     inputs: Dict[str, str],
     output: Union[str, Dict[str, Any]],
-    correct_answer: str
+    correct_answer: str,
 ) -> float:
     """
     Evaluator that checks word count is within target range.
@@ -31,7 +31,7 @@ def evaluate(
     """
     # Convert output to string
     if isinstance(output, dict):
-        output_str = str(output.get('text', json.dumps(output)))
+        output_str = str(output.get("text", json.dumps(output)))
     else:
         output_str = str(output)
 
@@ -40,14 +40,14 @@ def evaluate(
     word_count = len(words)
 
     # Check target or range
-    if 'target_words' in app_params:
-        target = int(app_params['target_words'])
+    if "target_words" in app_params:
+        target = int(app_params["target_words"])
         # Allow 10% variance
         min_words = int(target * 0.9)
         max_words = int(target * 1.1)
     else:
-        min_words = int(app_params.get('min_words', 0))
-        max_words = int(app_params.get('max_words', 10000))
+        min_words = int(app_params.get("min_words", 0))
+        max_words = int(app_params.get("max_words", 10000))
 
     if min_words <= word_count <= max_words:
         return 1.0

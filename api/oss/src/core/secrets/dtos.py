@@ -1,6 +1,6 @@
 from typing import Optional, Union, List, Dict, Any
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from oss.src.core.secrets.enums import (
     SecretKind,
@@ -45,14 +45,31 @@ class CustomProviderDTO(BaseModel):
     model_keys: Optional[List[str]] = None
 
 
+class SSOProviderSettingsDTO(BaseModel):
+    client_id: str
+    client_secret: str
+    issuer_url: str
+    scopes: List[str]
+    extra: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SSOProviderDTO(BaseModel):
+    provider: SSOProviderSettingsDTO
+
+
 class SecretDTO(BaseModel):
     kind: SecretKind
-    data: Union[StandardProviderDTO, CustomProviderDTO]
+    data: Union[StandardProviderDTO, CustomProviderDTO, SSOProviderDTO]
 
     @model_validator(mode="before")
     def validate_secret_data_based_on_kind(cls, values: Dict[str, Any]):
         kind = values.get("kind")
+        if isinstance(kind, SecretKind):
+            kind = kind.value
         data = values.get("data", {})
+        if isinstance(data, BaseModel):
+            data = data.model_dump()
+            values["data"] = data
 
         if kind == SecretKind.PROVIDER_KEY.value:
             if not isinstance(data, dict):
@@ -81,6 +98,21 @@ class SecretDTO(BaseModel):
             if data["kind"] not in CustomProviderKind.__members__.values():
                 raise ValueError(
                     "The provided kind in data is not a valid CustomProviderKind enum"
+                )
+        elif kind == SecretKind.SSO_PROVIDER.value:
+            if not isinstance(data, dict):
+                raise ValueError(
+                    "The provided request secret dto is not a valid type for SSOProviderDTO"
+                )
+            provider = data.get("provider")
+            if not isinstance(provider, dict):
+                raise ValueError(
+                    "The provided request secret dto is missing required fields for SSOProviderSettingsDTO"
+                )
+            required_fields = {"client_id", "client_secret", "issuer_url", "scopes"}
+            if not required_fields.issubset(provider.keys()):
+                raise ValueError(
+                    "The provided request secret dto is missing required fields for SSOProviderSettingsDTO"
                 )
         else:
             raise ValueError("The provided kind is not a valid SecretKind enum")

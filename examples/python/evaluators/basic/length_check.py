@@ -13,7 +13,7 @@ def evaluate(
     app_params: Dict[str, str],
     inputs: Dict[str, str],
     output: Union[str, Dict[str, Any]],
-    correct_answer: str
+    correct_answer: str,
 ) -> float:
     """
     Evaluator that checks if output length is within expected range.
@@ -36,8 +36,8 @@ def evaluate(
         output_str = str(output)
 
     # Get length constraints from app_params
-    min_length = int(app_params.get('min_length', 0))
-    max_length = int(app_params.get('max_length', 10000))
+    min_length = int(app_params.get("min_length", 0))
+    max_length = int(app_params.get("max_length", 10000))
 
     output_length = len(output_str)
 

@@ -891,7 +891,7 @@ class EvaluationsService:
         )
 
         if not run or not run.data or not run.data.steps:
-            log.warning("[WARN] run or run.data or run.data.steps not found")
+            log.warning("run or run.data or run.data.steps not found")
             return []
 
         steps_metrics_keys: Dict[str, List[Dict[str, str]]] = dict()
@@ -903,7 +903,7 @@ class EvaluationsService:
                 evaluator_revision_ref = step.references.get("evaluator_revision")
 
                 if not evaluator_revision_ref:
-                    log.warning("[WARN] Evaluator revision reference not found")
+                    log.warning("Evaluator revision reference not found")
                     continue
 
                 evaluator_revision = (
@@ -914,7 +914,7 @@ class EvaluationsService:
                 )
 
                 if not evaluator_revision:
-                    log.warning("[WARN] Evaluator revision not found")
+                    log.warning("Evaluator revision not found")
                     continue
 
                 if evaluator_revision.data and evaluator_revision.data.schemas:
@@ -944,7 +944,7 @@ class EvaluationsService:
                     ]
 
         if not steps_metrics_keys:
-            log.warning("[WARN] No steps metrics keys found")
+            log.warning("No steps metrics keys found")
             return []
 
         step_keys = list(steps_metrics_keys.keys())
@@ -969,7 +969,7 @@ class EvaluationsService:
             # )
 
             if not results:
-                # log.warning("[WARN] No results found")
+                # log.warning("No results found")
                 continue
 
             trace_ids = [result.trace_id for result in results if result.trace_id]
@@ -1054,13 +1054,13 @@ class EvaluationsService:
 
                 if len(buckets) == 0:
                     log.warning(
-                        f"[WARN] Step '{step_key}': No metrics from analytics (0 buckets)"
+                        f"Step '{step_key}': No metrics from analytics (0 buckets)"
                     )
                     continue
 
                 if len(buckets) != 1:
-                    log.warning("[WARN] There should be one and only one bucket")
-                    log.warning("[WARN] Buckets:", buckets)
+                    log.warning("There should be one and only one bucket")
+                    log.warning("Buckets:", buckets)
                     continue
 
                 bucket = buckets[0]
@@ -1074,8 +1074,8 @@ class EvaluationsService:
                 #     )
 
                 if not bucket.metrics:
-                    log.warning("[WARN] Bucket metrics should not be empty")
-                    log.warning("[WARN] Bucket:", bucket)
+                    log.warning("Bucket metrics should not be empty")
+                    log.warning("Bucket:", bucket)
                     continue
 
                 metrics_data |= {step_key: bucket.metrics}
@@ -1088,7 +1088,7 @@ class EvaluationsService:
                 )
 
         if not metrics_data:
-            # log.warning("[WARN] No metrics data: no metrics will be stored")
+            # log.warning("No metrics data: no metrics will be stored")
             return []
 
         metrics_create = [

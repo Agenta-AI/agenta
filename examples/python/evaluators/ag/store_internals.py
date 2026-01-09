@@ -33,10 +33,12 @@ def evaluate(
         return 1.0 if str(output).lower() == str(correct_answer).lower() else 0.0
 
     # Store a simple hello world message in internals
-    ag.tracing.store_internals({
-        "message": "Hello World from evaluator internals!",
-        "evaluator_name": "internals_demo",
-    })
+    ag.tracing.store_internals(
+        {
+            "message": "Hello World from evaluator internals!",
+            "evaluator_name": "internals_demo",
+        }
+    )
 
     # Perform actual evaluation
     output_str = str(output).lower().strip()
@@ -47,11 +49,13 @@ def evaluate(
 
     # Store evaluation details as internals
     # These will be visible in the observability drawer
-    ag.tracing.store_internals({
-        "output_processed": output_str,
-        "correct_answer_processed": correct_str,
-        "exact_match": match,
-        "score": score,
-    })
+    ag.tracing.store_internals(
+        {
+            "output_processed": output_str,
+            "correct_answer_processed": correct_str,
+            "exact_match": match,
+            "score": score,
+        }
+    )
 
     return score

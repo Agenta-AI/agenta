@@ -13,12 +13,16 @@ from oss.src.core.secrets.dtos import (
 
 
 def map_secrets_dto_to_dbe(
-    *, project_id: uuid.UUID, secret_dto: CreateSecretDTO
+    *,
+    project_id: uuid.UUID | None,
+    organization_id: uuid.UUID | None,
+    secret_dto: CreateSecretDTO,
 ) -> SecretsDBE:
     vault_secret_dbe = SecretsDBE(
         name=secret_dto.header.name if secret_dto.header else None,
         description=(secret_dto.header.description if secret_dto.header else None),
         project_id=project_id,
+        organization_id=organization_id,
         kind=secret_dto.secret.kind.value,
         data=json.dumps(secret_dto.secret.data.model_dump(exclude_none=True)),
     )

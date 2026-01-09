@@ -33,7 +33,13 @@ def _load_files() -> dict[str, list[Path]]:
     for runtime, folder in BASIC_DIRS.items():
         if not folder.exists():
             continue
-        pattern = "*.py" if runtime == "python" else "*.js" if runtime == "javascript" else "*.ts"
+        pattern = (
+            "*.py"
+            if runtime == "python"
+            else "*.js"
+            if runtime == "javascript"
+            else "*.ts"
+        )
         candidates = sorted(folder.glob(pattern))
         files[runtime] = [
             path
@@ -57,9 +63,7 @@ def _wrap_js(code: str) -> str:
         "const app_params = params.app_params;\n"
         "const inputs = params.inputs;\n"
         "const output = params.output;\n"
-        "const correct_answer = params.correct_answer;\n"
-        + code
-        + "\n"
+        "const correct_answer = params.correct_answer;\n" + code + "\n"
         "let result = evaluate(app_params, inputs, output, correct_answer);\n"
         "result = Number(result);\n"
         "if (!Number.isFinite(result)) { result = 0.0; }\n"
@@ -82,9 +86,7 @@ def _wrap_python(code: str) -> str:
         "app_params = params['app_params']\n"
         "inputs = params['inputs']\n"
         "output = params['output']\n"
-        "correct_answer = params['correct_answer']\n"
-        + code
-        + "\n"
+        "correct_answer = params['correct_answer']\n" + code + "\n"
         "result = evaluate(app_params, inputs, output, correct_answer)\n"
         "if isinstance(result, (float, int, str)):\n"
         "    try:\n"

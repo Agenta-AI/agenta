@@ -882,7 +882,10 @@ def _format_with_template(
 
         return content
     except Exception as e:
-        log.error(f"Error during template formatting: {str(e)}")
+        log.error(
+            "Error during template formatting",
+            exc_info=True,
+        )
         return content
 
 

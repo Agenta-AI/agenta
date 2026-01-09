@@ -1,4 +1,9 @@
 import {getDefaultStore} from "jotai"
+import {signOut} from "supertokens-auth-react/recipe/session"
+
+import {requestNavigationAtom} from "@/oss/state/appState"
+import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
+import {authFlowAtom} from "@/oss/state/session"
 
 import {projectIdAtom} from "../../../state/project"
 import {getAgentaApiUrl} from "../../helpers/api"
@@ -54,6 +59,16 @@ export async function getAuthToken(): Promise<string | undefined> {
 
 export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> {
     const jwt = await getAuthToken()
+    try {
+        const store = getDefaultStore()
+        const authFlow = store.get(authFlowAtom)
+        const allowDuringAuthing = (init as any)?._allowDuringAuthing
+        if (authFlow === "authing" && !allowDuringAuthing) {
+            return undefined
+        }
+    } catch {
+        // ignore store access failures
+    }
 
     const headers = new Headers(init.headers || {})
     if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json")
@@ -81,6 +96,68 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
             (parsedBody as any)?.detail ||
             (parsedBody as any)?.error ||
             (typeof parsedBody === "string" ? parsedBody : undefined)
+
+        const detailObj = (parsedBody as any)?.detail
+        if (
+            res.status === 403 &&
+            (detailObj?.error === "AUTH_UPGRADE_REQUIRED" ||
+                detailObj?.error === "AUTH_SSO_DENIED") &&
+            typeof window !== "undefined"
+        ) {
+            try {
+                const store = getDefaultStore()
+                const authFlow = store.get(authFlowAtom)
+                const authUpgradeOrgId = window.localStorage.getItem("authUpgradeOrgId")
+                if (authUpgradeOrgId || authFlow === "authing") {
+                    return undefined as any
+                }
+                const selectedOrgId = store.get(selectedOrgIdAtom)
+                const required = Array.isArray(detailObj?.required_methods)
+                    ? detailObj.required_methods
+                    : []
+                const currentIdentity =
+                    (Array.isArray(detailObj?.session_identities)
+                        ? detailObj.session_identities[0]
+                        : undefined) ||
+                    (Array.isArray(detailObj?.user_identities)
+                        ? detailObj.user_identities[0]
+                        : undefined)
+
+                const requiredText = required.length ? required.join(", ") : "an allowed method"
+                const identityText = currentIdentity
+                    ? ` You're signed in with ${currentIdentity}.`
+                    : ""
+                const message =
+                    detailObj?.error === "AUTH_DOMAIN_DENIED"
+                        ? detailObj.message
+                        : `This organization requires ${requiredText}.${identityText}`
+
+                const authError =
+                    detailObj?.error === "AUTH_SSO_DENIED"
+                        ? "sso_denied"
+                        : detailObj?.error === "AUTH_DOMAIN_DENIED"
+                          ? "domain_denied"
+                          : "upgrade_required"
+                if (detailObj?.error === "AUTH_SSO_DENIED") {
+                    signOut().catch(() => null)
+                }
+                const query = new URLSearchParams({
+                    auth_error: authError,
+                    auth_message: message,
+                })
+                if (selectedOrgId) {
+                    query.set("organization_id", selectedOrgId)
+                }
+
+                store.set(requestNavigationAtom, {
+                    type: "href",
+                    href: `/auth?${query.toString()}`,
+                    method: "replace",
+                })
+            } catch {
+                // no-op
+            }
+        }
 
         const errorMessage =
             detail && typeof detail === "string"

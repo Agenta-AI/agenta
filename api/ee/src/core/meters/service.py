@@ -6,17 +6,21 @@ from json import loads
 import stripe
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
 
 from ee.src.core.entitlements.types import Quota
 from ee.src.core.entitlements.types import Counter, Gauge, REPORTS
 from ee.src.core.meters.types import MeterDTO
 from ee.src.core.meters.interfaces import MetersDAOInterface
 
-AGENTA_PRICING = loads(environ.get("AGENTA_PRICING") or "{}")
-
 log = get_module_logger(__name__)
 
-stripe.api_key = environ.get("STRIPE_API_KEY")
+# Initialize Stripe only if enabled
+if env.stripe.enabled:
+    stripe.api_key = env.stripe.api_key
+    log.info("✓ Stripe enabled:", target=env.stripe.webhook_target)
+else:
+    log.info("✗ Stripe disabled")
 
 
 class MetersService:
@@ -73,8 +77,8 @@ class MetersService:
         return await self.meters_dao.adjust(meter=meter, quota=quota, anchor=anchor)
 
     async def report(self):
-        if not stripe.api_key:
-            log.warn("[report] Missing Stripe API Key.")
+        if not env.stripe.enabled:
+            log.warn("✗ Stripe disabled")
             return
 
         log.info("[report] ============================================")
@@ -147,7 +151,7 @@ class MetersService:
                         if meter.key.name in Gauge.__members__.keys():
                             try:
                                 price_id = (
-                                    AGENTA_PRICING.get(meter.subscription.plan, {})
+                                    env.stripe.pricing.get(meter.subscription.plan, {})
                                     .get("users", {})
                                     .get("price")
                                 )

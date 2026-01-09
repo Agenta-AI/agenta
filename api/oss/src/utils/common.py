@@ -49,11 +49,11 @@ class APIRouter(FastAPIRouter):
 
 
 def is_ee():
-    return env.AGENTA_LICENSE == "ee"
+    return env.agenta.license == "ee"
 
 
 def is_oss():
-    return env.AGENTA_LICENSE == "oss"
+    return env.agenta.license == "oss"
 
 
 def is_uuid7(s: str, *, require_canonical: bool = False) -> bool:

@@ -30,6 +30,7 @@ from oss.src.services.organization_service import (
     check_valid_invitation,
 )
 from ee.src.services.organization_service import send_invitation_email
+from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 
 log = get_module_logger(__name__)
 
@@ -155,6 +156,32 @@ async def invite_user_to_workspace(
         organization = await db_manager_ee.get_organization(organization_id)
         user_performing_action = await db_manager.get_user(user_uid)
 
+        # Check if domains_only is enabled for this organization
+        org_flags = organization.flags or {}
+        domains_only = org_flags.get("domains_only", False)
+
+        # If domains_only is enabled, get the list of verified domains
+        verified_domain_slugs = set()
+        if domains_only:
+            domains_dao = OrganizationDomainsDAO()
+            org_domains = await domains_dao.list_by_organization(
+                organization_id=organization_id
+            )
+            verified_domain_slugs = {
+                d.slug.lower()
+                for d in org_domains
+                if d.flags and d.flags.get("is_verified", False)
+            }
+
+            # If domains_only is enabled but no verified domains exist, block all invitations
+            if not verified_domain_slugs:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": "Cannot send invitations: domains_only is enabled but no verified domains exist"
+                    },
+                )
+
         for payload_invite in payload:
             # Check that the user is not inviting themselves
             if payload_invite.email == user_performing_action.email:
@@ -162,6 +189,17 @@ async def invite_user_to_workspace(
                     status_code=400,
                     content={"error": "You cannot invite yourself to a workspace"},
                 )
+
+            # Check if domains_only is enabled and validate the email domain
+            if domains_only:
+                email_domain = payload_invite.email.split("@")[-1].lower()
+                if email_domain not in verified_domain_slugs:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": f"Cannot invite {payload_invite.email}: domain '{email_domain}' is not a verified domain for this organization"
+                        },
+                    )
 
             # Check if the user is already a member of the workspace
             if await db_manager_ee.check_user_in_workspace_with_email(
@@ -192,7 +230,11 @@ async def invite_user_to_workspace(
                     user_performing_action,
                 )
 
-                if not send_email:
+                # send_email is either True (email sent) or a string (URL for manual sharing)
+                if isinstance(send_email, str):
+                    # Sendgrid not configured - return URL for manual sharing
+                    return JSONResponse({"url": send_email}, status_code=200)
+                elif not send_email:
                     return JSONResponse(
                         {"detail": "Failed to invite user to organization"},
                         status_code=400,
@@ -210,7 +252,14 @@ async def invite_user_to_workspace(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while inviting user to workspace",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while inviting user to workspace.",
+        )
 
 
 async def resend_user_workspace_invite(
@@ -268,7 +317,11 @@ async def resend_user_workspace_invite(
             user_performing_action,
         )
 
-        if send_email:
+        # send_email is either True (email sent) or a string (URL for manual sharing)
+        if isinstance(send_email, str):
+            # Sendgrid not configured - return URL for manual sharing
+            return JSONResponse({"url": send_email}, status_code=200)
+        elif send_email:
             return JSONResponse(
                 {"message": "Invited user to organization"}, status_code=200
             )
@@ -278,7 +331,14 @@ async def resend_user_workspace_invite(
             )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while resending user workspace invite",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while resending user workspace invite.",
+        )
 
 
 async def accept_workspace_invitation(

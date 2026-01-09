@@ -15,6 +15,7 @@ const PasswordlessAuth = ({
     authErrorMsg,
     setIsLoginCodeVisible,
     disabled,
+    lockEmail = false,
 }: PasswordlessAuthProps) => {
     const sendOTP: FormProps<{email: string}>["onFinish"] = async (values) => {
         try {
@@ -51,6 +52,8 @@ const PasswordlessAuth = ({
                     type="email"
                     value={email}
                     placeholder="Enter valid email address"
+                    disabled={lockEmail}
+                    className={lockEmail ? "auth-locked-input" : undefined}
                     onChange={(e) => setEmail(e.target.value)}
                 />
             </Form.Item>
@@ -63,7 +66,7 @@ const PasswordlessAuth = ({
                 loading={isLoading}
                 disabled={disabled}
             >
-                Continue with email
+                Continue with OTP
             </Button>
         </Form>
     )

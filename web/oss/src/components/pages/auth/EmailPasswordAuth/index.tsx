@@ -13,6 +13,7 @@ const EmailPasswordAuth = ({
     setMessage,
     authErrorMsg,
     initialEmail,
+    lockEmail = false,
 }: EmailPasswordAuthProps) => {
     const {handleAuthSuccess} = usePostAuthRedirect()
     const [form, setForm] = useState({email: initialEmail || "", password: ""})
@@ -70,7 +71,7 @@ const EmailPasswordAuth = ({
             >
                 <Form.Item
                     name="email"
-                    label="Email"
+                    // label="Email"
                     className="[&_.ant-form-item-required]:before:!hidden [&_.ant-form-item-required]:font-medium w-full mb-0 flex flex-col gap-1"
                     rules={[{required: true, message: "Please add your email!"}]}
                 >
@@ -80,12 +81,14 @@ const EmailPasswordAuth = ({
                         value={form.email}
                         placeholder="Enter valid email address"
                         status={message.type === "error" ? "error" : ""}
+                        disabled={lockEmail}
+                        className={lockEmail ? "auth-locked-input" : undefined}
                         onChange={(e) => setForm({...form, email: e.target.value})}
                     />
                 </Form.Item>
                 <Form.Item
                     name="password"
-                    label="Password"
+                    // label="Password"
                     className="[&_.ant-form-item-required]:before:!hidden [&_.ant-form-item-required]:font-medium w-full mb-0 flex flex-col gap-1"
                     rules={[{required: true, message: "Please add your password!"}]}
                 >
@@ -106,7 +109,7 @@ const EmailPasswordAuth = ({
                     className="w-full"
                     loading={isLoading}
                 >
-                    Sign in
+                    Continue with password
                 </Button>
                 {message.type == "error" && (
                     <ShowErrorMessage info={message} className="text-start" />

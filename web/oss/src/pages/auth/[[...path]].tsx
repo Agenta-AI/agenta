@@ -1,34 +1,75 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import ProtectedRoute from "@agenta/oss/src/components/ProtectedRoute/ProtectedRoute"
-import {Alert, Typography} from "antd"
+import {
+    AppleOutlined,
+    FacebookOutlined,
+    GithubOutlined,
+    GoogleOutlined,
+    LinkedinOutlined,
+    TwitterOutlined,
+    GlobalOutlined,
+} from "@ant-design/icons"
+import {Alert, Button, Divider, Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 import Image from "next/image"
 import {useRouter} from "next/router"
 import {getLoginAttemptInfo} from "supertokens-auth-react/recipe/passwordless"
+import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 import {useLocalStorage} from "usehooks-ts"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import axios from "@/oss/lib/api/assets/axiosConfig"
+import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
+import {getEffectiveAuthConfig} from "@/oss/lib/helpers/dynamicEnv"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
 
 const PasswordlessAuth = dynamic(() => import("@/oss/components/pages/auth/PasswordlessAuth"))
 const EmailPasswordAuth = dynamic(() => import("@/oss/components/pages/auth/EmailPasswordAuth"))
+const EmailFirst = dynamic(() => import("@/oss/components/pages/auth/EmailFirst"))
 const SocialAuth = dynamic(() => import("@/oss/components/pages/auth/SocialAuth"), {ssr: false})
 const SendOTP = dynamic(() => import("@/oss/components/pages/auth/SendOTP"), {ssr: false})
 const SideBanner = dynamic(() => import("@/oss/components/pages/auth/SideBanner"), {ssr: false})
 
 const {Text, Title} = Typography
+const LAST_SSO_ORG_SLUG_KEY = "lastSsoOrgSlug"
 
 const Auth = () => {
     const [isAuthLoading, setIsAuthLoading] = useState(false)
     const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
+    const [showEmailForm, setShowEmailForm] = useState(true)
+    const discoveryInProgress = useRef(false)
+    const discoveryAbortRef = useRef<AbortController | null>(null)
+    const ssoRedirectInFlight = useRef(false)
+    const [availableMethods, setAvailableMethods] = useState<{
+        "email:password"?: boolean
+        "email:otp"?: boolean
+        "social:google"?: boolean
+        "social:google-workspaces"?: boolean
+        "social:github"?: boolean
+        "social:facebook"?: boolean
+        "social:apple"?: boolean
+        "social:discord"?: boolean
+        "social:twitter"?: boolean
+        "social:gitlab"?: boolean
+        "social:bitbucket"?: boolean
+        "social:linkedin"?: boolean
+        "social:okta"?: boolean
+        "social:azure-ad"?: boolean
+        "social:boxy-saml"?: boolean
+        sso?: {providers: {id: string; slug: string; third_party_id?: string}[]}
+    }>({})
+    const [discoveryComplete, setDiscoveryComplete] = useState(false)
     const [invite, setInvite] = useLocalStorage("invite", {})
     const router = useRouter()
+    const {authnEmail, authEmailEnabled, authOidcEnabled, oidcProviders} = getEffectiveAuthConfig()
+    const isPasswordlessDemo = isDemo() && authnEmail === "otp"
+    const showEmailEntry = authEmailEnabled || authOidcEnabled
 
     const firstString = (value: string | string[] | undefined): string | undefined => {
         if (Array.isArray(value)) return value[0]
@@ -40,10 +81,13 @@ const Auth = () => {
     const projectId = firstString(router.query.project_id)
     const workspaceId = firstString(router.query.workspace_id)
     const emailFromQuery = firstString(router.query.email)
+    const authMessage = firstString(router.query.auth_message)
+    const authError = firstString(router.query.auth_error)
     const {redirectToPath, ...queries} = router.query
     const isInvitedUser = Object.keys(queries.token ? queries : invite).length > 0
 
     const [email, setEmail] = useState(emailFromQuery ?? "")
+    const [emailSubmitted, setEmailSubmitted] = useState(!!emailFromQuery)
 
     useEffect(() => {
         if (isInvitedUser && Object.keys(invite).length === 0) {
@@ -66,6 +110,15 @@ const Auth = () => {
         emailFromQuery,
     ])
 
+    useEffect(() => {
+        if (authMessage) {
+            setMessage({
+                message: authMessage,
+                type: authError === "sso_denied" ? "info" : "error",
+            })
+        }
+    }, [authMessage, authError])
+
     const authErrorMsg = (error: any) => {
         if (error.isSuperTokensGeneralError === true) {
             // this may be a custom error message sent from the API by you.
@@ -86,6 +139,7 @@ const Auth = () => {
     }
 
     const hasInitialOTPBeenSent = async () => {
+        if (!isPasswordlessDemo) return
         const hasEmailSended = (await getLoginAttemptInfo()) !== undefined
         if (hasEmailSended) {
             setIsLoginCodeVisible(true)
@@ -94,11 +148,206 @@ const Auth = () => {
         }
     }
 
+    const parseSsoOrgSlug = (thirdPartyId?: string): string | null => {
+        if (!thirdPartyId) return null
+        if (!thirdPartyId.startsWith("sso:")) return null
+        const [, orgSlug] = thirdPartyId.split(":")
+        return orgSlug || null
+    }
+
+    const formatSsoProviderLabel = (provider: {slug: string; third_party_id?: string}) => {
+        const suffix = provider.third_party_id?.startsWith("sso:")
+            ? provider.third_party_id.replace(/^sso:/, "")
+            : provider.slug
+        return suffix
+    }
+
+    const redirectToSsoProvider = async (provider: {
+        id: string
+        slug: string
+        third_party_id?: string
+    }) => {
+        if (isSocialAuthLoading || ssoRedirectInFlight.current) return
+        ssoRedirectInFlight.current = true
+        setIsSocialAuthLoading(true)
+
+        try {
+            if (!provider.third_party_id) {
+                throw new Error("SSO provider is missing a third_party_id")
+            }
+
+            // Store the org slug so the post-auth redirect can land in the SSO org,
+            // not Personal, after the callback completes.
+            const orgSlug = parseSsoOrgSlug(provider.third_party_id)
+            if (orgSlug && typeof window !== "undefined") {
+                window.localStorage.setItem(LAST_SSO_ORG_SLUG_KEY, orgSlug)
+            }
+
+            const callbackUrl = `${getAgentaWebUrl()}/auth/callback/${provider.third_party_id}`
+            const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
+                thirdPartyId: provider.third_party_id,
+                frontendRedirectURI: callbackUrl,
+                redirectURIOnProviderDashboard: callbackUrl,
+            })
+
+            window.location.href = authUrl
+        } catch (err) {
+            ssoRedirectInFlight.current = false
+            setIsSocialAuthLoading(false)
+            authErrorMsg(err)
+        }
+    }
+
     useEffect(() => {
-        if (isDemo()) {
+        if (isPasswordlessDemo) {
             hasInitialOTPBeenSent()
         }
     }, [])
+
+    useEffect(() => {
+        return () => {
+            discoveryAbortRef.current?.abort()
+        }
+    }, [])
+
+    // Discover available auth methods after email is submitted
+    const handleEmailDiscovery = async (emailToDiscover: string) => {
+        // Prevent duplicate calls
+        if (discoveryInProgress.current) {
+            console.warn("⚠️ Discovery already in progress, aborting previous request...")
+            discoveryAbortRef.current?.abort()
+            discoveryInProgress.current = false
+        }
+
+        // Only probe discover if either auth path is configured
+        if (!authEmailEnabled && !authOidcEnabled) {
+            console.warn(
+                "⚠️ Both authEmailEnabled and authOidcEnabled are false - no auth methods available!",
+            )
+            setMessage({
+                message: "No authentication methods are configured",
+                type: "error",
+            })
+            return
+        }
+
+        try {
+            discoveryInProgress.current = true
+            setIsAuthLoading(true)
+
+            discoveryAbortRef.current?.abort()
+            const controller = new AbortController()
+            discoveryAbortRef.current = controller
+
+            const {data} = await axios.post(
+                `${getAgentaApiUrl()}/auth/discover`,
+                {
+                    email: emailToDiscover,
+                },
+                {
+                    signal: controller.signal,
+                },
+            )
+
+            if (data?.methods) {
+                setAvailableMethods(data.methods)
+                setDiscoveryComplete(true)
+                setEmailSubmitted(true)
+
+                // Check if only SSO is available and auto-redirect
+                const methods = data.methods
+                const ssoProviders = Array.isArray(methods.sso?.providers)
+                    ? methods.sso.providers
+                    : []
+                const ssoMethods = Object.keys(methods).filter(
+                    (key) => key.startsWith("social:") && methods[key] === true,
+                )
+                const hasSSOOnly =
+                    ssoProviders.length > 0 &&
+                    methods["email:password"] === false &&
+                    methods["email:otp"] === false &&
+                    ssoMethods.length === 0
+
+                if (hasSSOOnly && ssoProviders.length === 1) {
+                    await redirectToSsoProvider(ssoProviders[0])
+                }
+            } else {
+                console.warn("⚠️ No methods in discovery response")
+                setDiscoveryComplete(true)
+                setEmailSubmitted(true)
+            }
+        } catch (err) {
+            const isCanceled =
+                axios.isCancel?.(err) ||
+                (err as {code?: string}).code === "ERR_CANCELED" ||
+                (err instanceof Error &&
+                    (err.name === "AbortError" ||
+                        err.name === "CanceledError" ||
+                        err.message === "canceled"))
+
+            if (isCanceled) {
+                return
+            }
+
+            console.error("❌ Failed to fetch auth discover info:", err)
+            if (err instanceof Error) {
+                setDiscoveryComplete(true)
+                setEmailSubmitted(true)
+                authErrorMsg(err)
+            }
+        } finally {
+            discoveryInProgress.current = false
+            setIsAuthLoading(false)
+        }
+    }
+
+    const handleEmailContinue = async (emailValue: string) => {
+        setEmail(emailValue)
+        setMessage({} as AuthErrorMsgType)
+        await handleEmailDiscovery(emailValue)
+    }
+
+    // Auto-discover if email comes from query params
+    useEffect(() => {
+        if (emailFromQuery && !discoveryComplete) {
+            handleEmailDiscovery(emailFromQuery)
+        }
+    }, [emailFromQuery])
+
+    const oidcProviderMeta = [
+        {id: "google", label: "Google", icon: <GoogleOutlined />},
+        {id: "google-workspaces", label: "Google Workspaces", icon: <GoogleOutlined />},
+        {id: "github", label: "GitHub", icon: <GithubOutlined />},
+        {id: "facebook", label: "Facebook", icon: <FacebookOutlined />},
+        {id: "apple", label: "Apple", icon: <AppleOutlined />},
+        {id: "discord", label: "Discord", icon: <GlobalOutlined />},
+        {id: "twitter", label: "X", icon: <TwitterOutlined />},
+        {id: "gitlab", label: "GitLab", icon: <GlobalOutlined />},
+        {id: "bitbucket", label: "Bitbucket", icon: <GlobalOutlined />},
+        {id: "linkedin", label: "LinkedIn", icon: <LinkedinOutlined />},
+        {id: "okta", label: "Okta", icon: <GlobalOutlined />},
+        {id: "azure-ad", label: "Azure AD", icon: <GlobalOutlined />},
+        {id: "boxy-saml", label: "SAML", icon: <GlobalOutlined />},
+    ]
+
+    const configuredProviderIds = new Set(oidcProviders.map((provider) => provider.id))
+    const providersToShow = oidcProviderMeta.filter((provider) =>
+        configuredProviderIds.has(provider.id),
+    )
+
+    const socialAvailable = authOidcEnabled && providersToShow.length > 0
+    const ssoProviders = Array.isArray(availableMethods.sso?.providers)
+        ? availableMethods.sso.providers
+        : []
+    const ssoAvailable = ssoProviders.length > 0
+    const ssoProvidersToShow = ssoProviders.map((provider) => ({
+        ...provider,
+    }))
+
+    // After discovery, check what's actually available
+    const emailPasswordAvailable = discoveryComplete && authEmailEnabled && authnEmail !== "otp"
+
+    const emailOtpAvailable = discoveryComplete && authEmailEnabled && authnEmail === "otp"
 
     useLazyEffect(() => {
         if (message.message && message.type !== "error") {
@@ -107,6 +356,18 @@ const Auth = () => {
             }, 5000)
         }
     }, [message])
+
+    useEffect(() => {
+        if (emailSubmitted) {
+            setMessage({} as AuthErrorMsgType)
+        }
+    }, [emailSubmitted])
+
+    useEffect(() => {
+        if (!socialAvailable && !emailSubmitted) {
+            setShowEmailForm(true)
+        }
+    }, [emailSubmitted, socialAvailable])
 
     return (
         <main
@@ -129,18 +390,16 @@ const Auth = () => {
                     height={40}
                     className={clsx(["absolute", "top-4 lg:top-14", "left-4 lg:left-14"])}
                 />
-                <div className="h-[680px] w-[400px] flex flex-col justify-center gap-8 mx-auto mt-10">
-                    {!isLoginCodeVisible && (
-                        <div>
-                            <Title level={2} className="font-bold">
-                                Welcome to Agenta AI
-                            </Title>
-                            <Text className="text-sm text-[#586673]">
-                                Your All-In-One LLM Development Platform. Collaborate on prompts,
-                                evaluate, and monitor LLM apps with confidence
-                            </Text>
-                        </div>
-                    )}
+                <div className="h-[680px] w-[400px] flex flex-col justify-start gap-8 mx-auto mt-10">
+                    <div>
+                        <Title level={2} className="font-bold">
+                            Welcome to Agenta AI
+                        </Title>
+                        <Text className="text-sm text-[#586673]">
+                            Your All-In-One LLM Development Platform. Collaborate on prompts,
+                            evaluate, and monitor LLM apps with confidence
+                        </Text>
+                    </div>
 
                     {!isDemo() && (
                         <Alert
@@ -164,43 +423,141 @@ const Auth = () => {
                         />
                     )}
 
-                    {!isDemo() ? (
-                        <EmailPasswordAuth
-                            message={message}
-                            setMessage={setMessage}
-                            authErrorMsg={authErrorMsg}
-                            initialEmail={emailFromQuery}
-                        />
-                    ) : !isLoginCodeVisible ? (
-                        <>
-                            <SocialAuth
-                                authErrorMsg={authErrorMsg}
-                                disabled={isAuthLoading}
-                                isLoading={isSocialAuthLoading}
-                                setIsLoading={setIsSocialAuthLoading}
-                            />
-                            <PasswordlessAuth
-                                email={email}
-                                setEmail={setEmail}
-                                isLoading={isAuthLoading}
-                                message={message}
-                                setIsLoading={setIsAuthLoading}
-                                setMessage={setMessage}
-                                authErrorMsg={authErrorMsg}
-                                setIsLoginCodeVisible={setIsLoginCodeVisible}
-                                disabled={isSocialAuthLoading}
-                            />
-                        </>
-                    ) : (
-                        <SendOTP
-                            message={message}
-                            email={email}
-                            setMessage={setMessage}
-                            authErrorMsg={authErrorMsg}
-                            setIsLoginCodeVisible={setIsLoginCodeVisible}
-                            isInvitedUser={isInvitedUser}
-                        />
-                    )}
+                    <div className="flex flex-col gap-6 min-h-[360px]">
+                        {/* Step 1: Show social auth options (if configured) */}
+                        {socialAvailable && (
+                            <>
+                                <SocialAuth
+                                    authErrorMsg={authErrorMsg}
+                                    disabled={isAuthLoading}
+                                    isLoading={isSocialAuthLoading}
+                                    setIsLoading={setIsSocialAuthLoading}
+                                    providers={providersToShow}
+                                />
+                                {showEmailEntry && <Divider className="!m-0">or</Divider>}
+                            </>
+                        )}
+
+                        {/* Step 2: Email-first (if email auth is enabled and email not yet submitted) */}
+                        {showEmailEntry &&
+                            !emailSubmitted &&
+                            !socialAvailable &&
+                            !isLoginCodeVisible && (
+                                <EmailFirst
+                                    email={email}
+                                    setEmail={setEmail}
+                                    onContinue={handleEmailContinue}
+                                    message={message}
+                                    disabled={isSocialAuthLoading}
+                                />
+                            )}
+
+                        {showEmailEntry && !emailSubmitted && socialAvailable && !showEmailForm && (
+                            <Button
+                                type="link"
+                                onClick={() => setShowEmailForm(true)}
+                                className="text-center w-full"
+                            >
+                                Use a different email
+                            </Button>
+                        )}
+
+                        {showEmailEntry &&
+                            !emailSubmitted &&
+                            socialAvailable &&
+                            showEmailForm &&
+                            !isLoginCodeVisible && (
+                                <EmailFirst
+                                    email={email}
+                                    setEmail={setEmail}
+                                    onContinue={handleEmailContinue}
+                                    message={message}
+                                    disabled={isSocialAuthLoading}
+                                />
+                            )}
+
+                        {/* Step 3: After email discovery, show available methods */}
+                        {emailSubmitted && discoveryComplete && (
+                            <>
+                                {/* Show OTP flow if available */}
+                                {emailOtpAvailable && !isLoginCodeVisible && (
+                                    <PasswordlessAuth
+                                        email={email}
+                                        setEmail={setEmail}
+                                        isLoading={isAuthLoading}
+                                        message={message}
+                                        setIsLoading={setIsAuthLoading}
+                                        setMessage={setMessage}
+                                        authErrorMsg={authErrorMsg}
+                                        setIsLoginCodeVisible={setIsLoginCodeVisible}
+                                        disabled={isSocialAuthLoading}
+                                        lockEmail
+                                    />
+                                )}
+
+                                {/* Show password field if available */}
+                                {emailPasswordAvailable && !isLoginCodeVisible && (
+                                    <EmailPasswordAuth
+                                        message={message}
+                                        setMessage={setMessage}
+                                        authErrorMsg={authErrorMsg}
+                                        initialEmail={email}
+                                        lockEmail
+                                    />
+                                )}
+
+                                {/* Show OTP input if OTP was sent */}
+                                {emailOtpAvailable && isLoginCodeVisible && (
+                                    <SendOTP
+                                        message={message}
+                                        email={email}
+                                        setMessage={setMessage}
+                                        authErrorMsg={authErrorMsg}
+                                        setIsLoginCodeVisible={setIsLoginCodeVisible}
+                                        isInvitedUser={isInvitedUser}
+                                    />
+                                )}
+
+                                {(emailPasswordAvailable || emailOtpAvailable) && ssoAvailable && (
+                                    <Divider className="!m-0">or</Divider>
+                                )}
+
+                                {ssoAvailable && (
+                                    <div className="flex flex-col gap-2">
+                                        {ssoProvidersToShow.map((provider) => (
+                                            <Button
+                                                key={provider.id}
+                                                icon={provider.icon}
+                                                size="large"
+                                                className="w-full"
+                                                onClick={() => redirectToSsoProvider(provider)}
+                                                loading={isSocialAuthLoading}
+                                                disabled={isAuthLoading}
+                                            >
+                                                Continue with SSO (
+                                                {formatSsoProviderLabel(provider)})
+                                            </Button>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Show back button to change email */}
+                                {!isLoginCodeVisible && (
+                                    <Button
+                                        type="link"
+                                        onClick={() => {
+                                            setEmailSubmitted(false)
+                                            setDiscoveryComplete(false)
+                                            setAvailableMethods({})
+                                        }}
+                                        className="text-center w-full"
+                                    >
+                                        Use a different email
+                                    </Button>
+                                )}
+                            </>
+                        )}
+                    </div>
 
                     {isDemo() && !isLoginCodeVisible && (
                         <Text>
