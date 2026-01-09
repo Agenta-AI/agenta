@@ -27,6 +27,7 @@ const GenericDrawer = ({
                         onClick={() => props.onClose?.({} as any)}
                         type="text"
                         icon={<CloseOutlined />}
+                        {...props.closeButtonProps}
                     />
 
                     {props.expandable && (
@@ -46,6 +47,7 @@ const GenericDrawer = ({
                                     <FullscreenExitOutlined />
                                 )
                             }
+                            {...props.expandButtonProps}
                         />
                     )}
 

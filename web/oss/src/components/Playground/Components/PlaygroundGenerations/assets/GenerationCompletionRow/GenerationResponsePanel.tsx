@@ -1,15 +1,12 @@
 import {useMemo} from "react"
 
-import {ArrowsOutLineHorizontal} from "@phosphor-icons/react"
 import {Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import ToolCallView from "@/oss/components/Playground/Components/ToolCallView"
 import {isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
 import {deriveToolViewModelFromResult} from "@/oss/state/newPlayground/chat/parsers"
-import {openPlaygroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
 
 import SharedEditor from "../../../SharedEditor"
 import RepetitionNavigation from "../RepetitionNavigation"
@@ -34,7 +31,6 @@ export default function GenerationResponsePanel({
     rowId,
     variantId,
 }: Props) {
-    const openFocusDrawer = useSetAtom(openPlaygroundFocusDrawerAtom)
     const {toolData, isJSON, displayValue} = useMemo(
         () => deriveToolViewModelFromResult(result),
         [result],
@@ -55,21 +51,11 @@ export default function GenerationResponsePanel({
     return (
         <div>
             {repetitionProps && !isComparisonView && (
-                <div className="flex gap-2 justify-between items-center mb-1">
+                <div className="flex gap-1 items-center mb-1">
                     <Typography.Text type="secondary" className="text-[10px] text-nowrap">
-                        Total repetitions: {repetitionProps.total}
+                        Total repeats
                     </Typography.Text>
-
-                    <div className="flex gap-2 items-center">
-                        <EnhancedButton
-                            icon={<ArrowsOutLineHorizontal size={12} />}
-                            size="small"
-                            className="!w-5 !h-5"
-                            onClick={() => openFocusDrawer({rowId, variantId})}
-                            tooltipProps={{title: "View all repetitions"}}
-                        />
-                        <RepetitionNavigation {...repetitionProps} />
-                    </div>
+                    <RepetitionNavigation {...repetitionProps} />
                 </div>
             )}
 

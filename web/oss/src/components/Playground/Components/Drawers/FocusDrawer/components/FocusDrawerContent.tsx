@@ -105,7 +105,7 @@ const FocusDrawerContent = () => {
                         children: (
                             <div className="flex flex-col gap-2">
                                 {rowData?.variables?.map((v: any, index: number) => {
-                                    const key = v.key || `Variable ${index + 1}`
+                                    const key = v.key || `Repeats ${index + 1}`
                                     const value = v.value ?? v.content?.value ?? ""
 
                                     return (
@@ -139,7 +139,7 @@ const FocusDrawerContent = () => {
                 bordered={false}
                 classNames={{
                     header: "bg-[#05172905] !rounded-none select-none",
-                    body: "!rounded-none bg-white !p-3",
+                    body: "!rounded-none bg-white !p-0",
                 }}
                 items={[
                     {
@@ -150,7 +150,6 @@ const FocusDrawerContent = () => {
                                 {repetitions.map((rep: PlaygroundTestResult, index: number) => {
                                     const {type, content} = getOutputContent(rep, index)
                                     let contentToRender: React.ReactNode = null
-                                    console.log("rep", rep)
                                     if (type === "chat" && Array.isArray(content)) {
                                         contentToRender = (
                                             <div className="flex flex-col gap-2">
@@ -181,27 +180,28 @@ const FocusDrawerContent = () => {
                                     } else {
                                         const isError = type === "error"
                                         contentToRender = (
-                                            <SimpleSharedEditor
-                                                value={content as string}
-                                                initialValue={content as string}
-                                                editorType="border"
-                                                isMinimizeVisible
-                                                headerName={
-                                                    isError
-                                                        ? `Repetition ${index + 1} (Error)`
-                                                        : `Repetition ${index + 1}`
-                                                }
-                                                minimizedHeight={150}
-                                                headerClassName="mb-2"
-                                                footer={
-                                                    <div className="mt-2">
-                                                        <GenerationResultUtils
-                                                            result={rep as any}
-                                                            showStatus
-                                                        />
-                                                    </div>
-                                                }
-                                            />
+                                            <div className="flex flex-col gap-3">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="">
+                                                        {isError
+                                                            ? `Repeat ${index + 1} (Error)`
+                                                            : `Repeat ${index + 1}`}
+                                                    </span>
+                                                    <GenerationResultUtils
+                                                        result={rep as any}
+                                                        showStatus
+                                                    />
+                                                </div>
+                                                <SimpleSharedEditor
+                                                    value={content as string}
+                                                    initialValue={content as string}
+                                                    editorType="border"
+                                                    isMinimizeVisible
+                                                    headerName="Output"
+                                                    minimizedHeight={150}
+                                                    headerClassName="mb-1"
+                                                />
+                                            </div>
                                         )
                                     }
 
@@ -216,7 +216,8 @@ const FocusDrawerContent = () => {
                                                 {
                                                     "w-full": repetitions.length === 1,
                                                 },
-                                                "flex flex-col gap-2",
+                                                "border-0 border-r border-b border-solid border-gray-200 p-3",
+                                                "flex flex-col",
                                             )}
                                         >
                                             {contentToRender}

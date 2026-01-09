@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    ArrowsOutLineHorizontal,
     CaretDownIcon,
     CaretLineDownIcon,
     CaretLineUpIcon,
@@ -24,6 +25,7 @@ import {deleteGenerationInputRowMutationAtom} from "@/oss/components/Playground/
 import {duplicateGenerationInputRowMutationAtom} from "@/oss/components/Playground/state/atoms/mutations/input/duplicateInputRow"
 import {inputRowIdsAtom} from "@/oss/state/generation/entities"
 import {variableIdsUnifiedAtomFamily} from "@/oss/state/newPlayground/generation/selectors"
+import {openPlaygroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
 
 import {ClickRunPlaceholder} from "../ResultPlaceholder"
 
@@ -64,6 +66,7 @@ const SingleView = ({
         ),
     )[0] as string[]
 
+    const openFocusDrawer = useSetAtom(openPlaygroundFocusDrawerAtom)
     const {currentResult, repetitionProps} = useRepetitionResult({
         rowId,
         variantId,
@@ -129,6 +132,13 @@ const SingleView = ({
                     <div className="flex-1" />
                     <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
                         <EnhancedButton
+                            icon={<ArrowsOutLineHorizontal size={12} />}
+                            size="small"
+                            type="text"
+                            onClick={() => openFocusDrawer({rowId, variantId})}
+                            tooltipProps={{title: "View all repeats"}}
+                        />
+                        <EnhancedButton
                             icon={<MinusCircleIcon size={14} />}
                             type="text"
                             onClick={() => deleteInputRow(rowId)}
@@ -190,6 +200,13 @@ const SingleView = ({
                     )}
                     <div className="flex-1" />
                     <div className="flex items-center gap-1 opacity-0 group-hover/header:opacity-100 transition-opacity">
+                        <EnhancedButton
+                            icon={<ArrowsOutLineHorizontal size={12} />}
+                            size="small"
+                            type="text"
+                            onClick={() => openFocusDrawer({rowId, variantId})}
+                            tooltipProps={{title: "View all repeats"}}
+                        />
                         <EnhancedButton
                             icon={<MinusCircleIcon size={14} />}
                             type="text"

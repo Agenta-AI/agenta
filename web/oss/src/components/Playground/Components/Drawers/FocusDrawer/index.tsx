@@ -5,7 +5,7 @@ import {Button, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
+import GenericDrawer from "@/oss/components/GenericDrawer"
 import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {
     closePlaygroundFocusDrawerAtom,
@@ -38,18 +38,20 @@ const PlaygroundFocusDrawer = () => {
     }
 
     return (
-        <EnhancedDrawer
+        <GenericDrawer
             open={isOpen}
             onClose={closeDrawer}
-            closeIcon={null}
-            title={
+            closeButtonProps={{
+                icon: <CaretDoubleRight size={14} />,
+                size: "small",
+            }}
+            expandable
+            expandButtonProps={{
+                size: "small",
+            }}
+            initialWidth={800}
+            headerExtra={
                 <div className="flex items-center gap-2">
-                    <Button
-                        icon={<CaretDoubleRight size={14} />}
-                        size="small"
-                        type="text"
-                        onClick={closeDrawer}
-                    />
                     <div className="flex items-center">
                         <Button
                             type="text"
@@ -66,15 +68,12 @@ const PlaygroundFocusDrawer = () => {
                             size="small"
                         />
                     </div>
-                    <Text className="text-sm font-medium">Focus Drawer</Text>
+                    <Text className="text-sm font-medium">Test case {currentRowIndex + 1}</Text>
                 </div>
             }
-            width={800}
+            mainContent={<FocusDrawerContent />}
             className="[&_.ant-drawer-body]:!p-0"
-            resizable
-        >
-            <FocusDrawerContent />
-        </EnhancedDrawer>
+        />
     )
 }
 

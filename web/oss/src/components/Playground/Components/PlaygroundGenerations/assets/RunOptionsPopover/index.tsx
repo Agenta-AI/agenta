@@ -11,7 +11,7 @@ const RunOptionsPopover = ({isRunning, variantId}: {isRunning: boolean; variantI
         <div className="flex flex-col gap-4 w-[300px]">
             <div className="flex flex-col gap-2">
                 <div className="flex justify-between items-center">
-                    <Typography.Text strong>Repetitions</Typography.Text>
+                    <Typography.Text strong>Repeats</Typography.Text>
                     <InputNumber
                         min={1}
                         max={10}

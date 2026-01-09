@@ -1,9 +1,10 @@
 import {ReactNode} from "react"
 
-import {DrawerProps} from "antd"
+import {ButtonProps, DrawerProps} from "antd"
 
 export interface GenericDrawerProps extends DrawerProps {
     expandable?: boolean
+    expandButtonProps?: ButtonProps
     headerExtra?: ReactNode
     mainContent: ReactNode
     extraContent?: ReactNode
@@ -14,4 +15,5 @@ export interface GenericDrawerProps extends DrawerProps {
     mainContentDefaultSize?: number
     extraContentDefaultSize?: number
     closeOnLayoutClick?: boolean
+    closeButtonProps?: ButtonProps
 }

@@ -1,12 +1,9 @@
 import {useCallback, useMemo} from "react"
 
-import {ArrowsOutLineHorizontal} from "@phosphor-icons/react"
-import {Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import TurnMessageAdapter from "@/oss/components/Playground/adapters/TurnMessageAdapter"
 import TypingIndicator from "@/oss/components/Playground/assets/TypingIndicator"
 import ControlsBar from "@/oss/components/Playground/Components/ChatCommon/ControlsBar"
@@ -25,9 +22,6 @@ import {
     runChatTurnAtom,
 } from "@/oss/state/newPlayground/chat/actions"
 import {buildAssistantMessage} from "@/oss/state/newPlayground/helpers/messageFactory"
-import {openPlaygroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
-
-import RepetitionNavigation from "../RepetitionNavigation"
 
 interface Props {
     turnId: string
@@ -52,7 +46,6 @@ const GenerationChatTurnNormalized = ({
     const setAddTurn = useSetAtom(addChatTurnAtom)
     const runTurn = useSetAtom(runChatTurnAtom)
     const cancelTurn = useSetAtom(cancelChatTurnAtom)
-    const openFocusDrawer = useSetAtom(openPlaygroundFocusDrawerAtom)
 
     const effectiveRevisionId = useEffectiveRevisionId(variantId, displayedVariantIds as any)
     const resolvedTurnId = turnId
@@ -162,30 +155,6 @@ const GenerationChatTurnNormalized = ({
                 <TypingIndicator />
             ) : hasAssistantContent ? (
                 <>
-                    <div className="flex gap-2 justify-between items-center">
-                        <Typography.Text type="secondary" className="text-[10px] text-nowrap">
-                            {repetitionProps && !isComparisonView
-                                ? `Total repetitions: ${repetitionProps.total}`
-                                : ""}
-                        </Typography.Text>
-
-                        <div className="flex gap-2 items-center">
-                            {repetitionProps && !isComparisonView && (
-                                <>
-                                    <EnhancedButton
-                                        icon={<ArrowsOutLineHorizontal size={12} />}
-                                        size="small"
-                                        className="!w-5 !h-5"
-                                        onClick={() =>
-                                            openFocusDrawer({rowId: sessionRowId, variantId})
-                                        }
-                                        tooltipProps={{title: "View all repetitions"}}
-                                    />
-                                    <RepetitionNavigation {...repetitionProps} />
-                                </>
-                            )}
-                        </div>
-                    </div>
                     <TurnMessageAdapter
                         key={`${sessionRowId}-assistant-${repetitionIndex}`}
                         variantId={variantId as string}
@@ -204,6 +173,7 @@ const GenerationChatTurnNormalized = ({
                         }
                         messageProps={messageProps}
                         messageOverride={messageOverride}
+                        repetitionProps={repetitionProps}
                     />
                     {variantId
                         ? toolMessages.map((_, index) => (

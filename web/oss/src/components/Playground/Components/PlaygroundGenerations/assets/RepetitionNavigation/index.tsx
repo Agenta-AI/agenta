@@ -23,6 +23,7 @@ const RepetitionNavigation = ({
             <Button
                 icon={<CaretLeft size={12} />}
                 size="small"
+                type="text"
                 onClick={onPrev}
                 disabled={disabled || current <= 1}
                 className="!w-5 !h-5"
@@ -33,6 +34,7 @@ const RepetitionNavigation = ({
             <Button
                 icon={<CaretRight size={12} />}
                 size="small"
+                type="text"
                 onClick={onNext}
                 disabled={disabled || current >= total}
                 className="!w-5 !h-5"
