@@ -1,11 +1,31 @@
+import {useCallback, useRef} from "react"
+
 import {CaretDown} from "@phosphor-icons/react"
 import {Button, InputNumber, Popover, Slider, Typography} from "antd"
 import {useAtom} from "jotai"
 
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {repetitionCountAtom} from "@/oss/state/newPlayground/generation/options"
 
 const RunOptionsPopover = ({isRunning, variantId}: {isRunning: boolean; variantId: string}) => {
     const [repetitionCount, setRepetitionCount] = useAtom(repetitionCountAtom)
+    const posthog = usePostHogAg()
+    const initialCountRef = useRef(repetitionCount)
+
+    const handleOpenChange = useCallback(
+        (open: boolean) => {
+            if (open) {
+                initialCountRef.current = repetitionCount
+            } else {
+                if (repetitionCount !== initialCountRef.current) {
+                    posthog?.capture("playground_repeats_count_changed", {count: repetitionCount})
+                } else if (repetitionCount === 1) {
+                    posthog?.capture("playground_repeats_opened_no_change_default", {count: 1})
+                }
+            }
+        },
+        [posthog, repetitionCount],
+    )
 
     const content = (
         <div className="flex flex-col gap-4 w-[300px]">
@@ -43,6 +63,7 @@ const RunOptionsPopover = ({isRunning, variantId}: {isRunning: boolean; variantI
             placement="bottomRight"
             arrow={false}
             overlayInnerStyle={{padding: "16px"}}
+            onOpenChange={handleOpenChange}
         >
             <Button
                 type="primary"
