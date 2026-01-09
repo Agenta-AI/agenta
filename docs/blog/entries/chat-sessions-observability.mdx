@@ -1,0 +1,144 @@
+---
+title: "Chat Sessions in Observability"
+description: "Track and analyze multi-turn conversations with session grouping, cost analytics, and conversation flow visualization."
+authors: [agenta]
+tags: [observability, sessions, tracing]
+hide_table_of_contents: false
+---
+
+# Chat Sessions in Observability
+
+<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
+  <iframe
+    width="100%"
+    height="500"
+    src="https://www.youtube.com/embed/gOcLTuaIwXc"
+    title="Chat Sessions in Observability - Demo"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+## Overview
+
+Chat sessions bring conversation-level observability to Agenta. You can now group related traces from multi-turn conversations together, making it easy to analyze complete user interactions rather than individual requests.
+
+This feature is essential for debugging chatbots, AI assistants, and any application with multi-turn conversations. You get visibility into the entire conversation flow, including costs, latency, and intermediate steps.
+
+## Key Capabilities
+
+- **Automatic Grouping**: All traces with the same `ag.session.id` attribute are automatically grouped together
+- **Session Analytics**: Track total cost, latency, and token usage per conversation
+- **Session Browser**: Dedicated UI showing all sessions with first input, last output, and key metrics
+- **Session Drawer**: Detailed view of all traces within a session with parent-child relationships
+- **Real-time Monitoring**: Auto-refresh mode for monitoring active conversations
+
+## How to Use Sessions
+
+### Using the Python SDK
+
+Add session tracking to your application with one line of code:
+
+```python
+import agenta as ag
+
+# Initialize Agenta
+ag.init()
+
+# Store the session ID for all subsequent traces
+ag.tracing.store_session(session_id="conversation_123")
+
+# Your LLM calls are automatically tracked with this session
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+### Using the Chat Run Endpoint
+
+You can also instrument sessions when calling Agenta-managed prompts via the `/chat/run` endpoint:
+
+```python
+import agenta as ag
+
+# Initialize the Agenta client
+agenta = ag.Agenta(api_key="your_api_key")
+
+# Call the chat endpoint with session tracking
+response = agenta.run(
+    base_id="your_base_id",
+    environment="production",
+    inputs={
+        "chat_history": [
+            {"role": "user", "content": "What is the weather like?"}
+        ]
+    },
+    # Add session metadata to group related conversations
+    metadata={
+        "ag.session.id": "user_456_conv_789"
+    }
+)
+
+# Follow-up in the same session
+follow_up = agenta.run(
+    base_id="your_base_id",
+    environment="production",
+    inputs={
+        "chat_history": [
+            {"role": "user", "content": "What is the weather like?"},
+            {"role": "assistant", "content": response["message"]},
+            {"role": "user", "content": "What about tomorrow?"}
+        ]
+    },
+    metadata={
+        "ag.session.id": "user_456_conv_789"  # Same session ID
+    }
+)
+```
+
+### Using OpenTelemetry
+
+If you're using OpenTelemetry for instrumentation:
+
+```javascript
+import { trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('my-app');
+const span = tracer.startSpan('chat-interaction');
+
+// Add session ID as a span attribute
+span.setAttribute('ag.session.id', 'conversation_123');
+
+// Your code here
+span.end();
+```
+
+The UI automatically detects session IDs and groups traces together. You can use any format for session IDs: UUIDs, composite IDs like `user_123_session_456`, or custom formats.
+
+## Use Cases
+
+### Debug Chatbots
+See the complete conversation flow when users report issues. Instead of viewing isolated requests, you can analyze the entire conversation context and understand why a particular response was generated.
+
+### Monitor Multi-turn Agents
+Track how your agent handles follow-up questions and maintains context across turns. See which turns are expensive, identify where latency spikes occur, and understand conversation patterns.
+
+### Analyze Conversation Costs
+Understand which conversations are expensive and why. Session-level cost tracking helps you identify optimization opportunities and set appropriate pricing for your application.
+
+### Optimize Performance
+Identify latency issues across entire conversations, not just single requests. See which conversational patterns lead to performance problems and optimize accordingly.
+
+## Getting Started
+
+Learn more in our documentation:
+
+- [Track Chat Sessions (Python SDK)](/observability/trace-with-python-sdk/track-chat-sessions)
+- [Session Tracking (OpenTelemetry)](/observability/trace-with-opentelemetry/session-tracking)
+- [Observability Overview](/observability/overview)
+
+## What's Next
+
+We're continuing to enhance session tracking with upcoming features like session-level annotations, session comparisons, and automated session analysis.
