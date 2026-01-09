@@ -9,12 +9,12 @@ import PageLayout from "@/oss/components/PageLayout/PageLayout"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
+import {isEE} from "@/oss/lib/helpers/isEE"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useOrgData} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
-import {isEE} from "@/oss/lib/helpers/isEE"
-import {useProfileData} from "@/oss/state/profile"
 
 const Secrets = dynamic(() => import("@/oss/components/pages/settings/Secrets/Secrets"), {
     ssr: false,
@@ -48,8 +48,7 @@ const Settings: React.FC = () => {
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
     const canShowBilling = isEE() && isOwner
     const resolvedTab =
-        (tab === "organization" && !canShowOrganization) ||
-        (tab === "billing" && !canShowBilling)
+        (tab === "organization" && !canShowOrganization) || (tab === "billing" && !canShowBilling)
             ? "workspace"
             : tab
     const {project} = useProjectData()
