@@ -164,7 +164,9 @@ async def invite_user_to_workspace(
         verified_domain_slugs = set()
         if domains_only:
             domains_dao = OrganizationDomainsDAO()
-            org_domains = await domains_dao.list_by_organization(organization_id=organization_id)
+            org_domains = await domains_dao.list_by_organization(
+                organization_id=organization_id
+            )
             verified_domain_slugs = {
                 d.slug.lower()
                 for d in org_domains
@@ -250,7 +252,14 @@ async def invite_user_to_workspace(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while inviting user to workspace",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while inviting user to workspace.",
+        )
 
 
 async def resend_user_workspace_invite(
@@ -322,7 +331,14 @@ async def resend_user_workspace_invite(
             )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while resending user workspace invite",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while resending user workspace invite.",
+        )
 
 
 async def accept_workspace_invitation(

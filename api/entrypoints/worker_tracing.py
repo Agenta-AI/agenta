@@ -88,7 +88,7 @@ async def main_async() -> int:
         return 0
 
     except Exception as e:
-        log.error("[OTLP] Fatal error", error=str(e), exc_info=True)
+        log.error("[OTLP] Fatal error", exc_info=True)
         return 1
 
 
@@ -105,7 +105,7 @@ def main() -> int:
         log.info("[OTLP] Shutdown requested")
         return 0
     except Exception as e:
-        log.error("[OTLP] Fatal error", error=str(e))
+        log.error("[OTLP] Fatal error", exc_info=True)
         return 1
 
 

@@ -1171,7 +1171,9 @@ async def update_organization(
 
                 if changing_auto_join and merged_flags.get("auto_join", False):
                     domains_dao = OrganizationDomainsDAO(session)
-                    domains = await domains_dao.list_by_organization(organization_id=organization_id)
+                    domains = await domains_dao.list_by_organization(
+                        organization_id=organization_id
+                    )
                     has_verified_domain = any(
                         (domain.flags or {}).get("is_verified") for domain in domains
                     )
@@ -1182,7 +1184,9 @@ async def update_organization(
 
                 if changing_domains_only and merged_flags.get("domains_only", False):
                     domains_dao = OrganizationDomainsDAO(session)
-                    domains = await domains_dao.list_by_organization(organization_id=organization_id)
+                    domains = await domains_dao.list_by_organization(
+                        organization_id=organization_id
+                    )
                     has_verified_domain = any(
                         (domain.flags or {}).get("is_verified") for domain in domains
                     )
@@ -1263,7 +1267,8 @@ async def delete_invitation(invitation_id: str) -> bool:
             invitation = result.scalars().one_or_none()
         except MultipleResultsFound as e:
             log.error(
-                f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table. Error details: {str(e)}"
+                f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table.",
+                exc_info=True,
             )
             raise HTTPException(
                 500,

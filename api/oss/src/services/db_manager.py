@@ -245,7 +245,7 @@ async def add_default_simple_testsets(
             log.error(
                 "An error occurred in adding a default simple testset",
                 template_file=filename,
-                error=str(e),
+                exc_info=True,
             )
 
 
@@ -1146,7 +1146,7 @@ async def delete_accounts() -> None:
                 log.error(
                     "[scopes] error deleting project",
                     project_id=project.id,
-                    error=str(e),
+                    exc_info=True,
                 )
 
         # fetch all workspaces
@@ -1170,7 +1170,7 @@ async def delete_accounts() -> None:
                 log.error(
                     "[scopes] error deleting workspace",
                     workspace_id=workspace.id,
-                    error=str(e),
+                    exc_info=True,
                 )
 
         # fetch all organizations
@@ -1194,7 +1194,7 @@ async def delete_accounts() -> None:
                 log.error(
                     "[scopes] error deleting organization",
                     organization_id=organization.id,
-                    error=str(e),
+                    exc_info=True,
                 )
 
         await session.commit()
@@ -1220,7 +1220,7 @@ async def delete_accounts() -> None:
                 log.error(
                     "[scopes] error deleting user from supertokens",
                     user_uid=user.uid,
-                    error=str(e),
+                    exc_info=True,
                 )
 
         # delete all users
@@ -1236,7 +1236,7 @@ async def delete_accounts() -> None:
                 log.error(
                     "[scopes] error deleting user",
                     user_id=user.id,
-                    error=str(e),
+                    exc_info=True,
                 )
 
         await session.commit()
@@ -2143,7 +2143,8 @@ async def update_invitation(invitation_id: str, values_to_update: dict) -> bool:
 
         except MultipleResultsFound as e:
             log.error(
-                f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table. Error details: {str(e)}"
+                f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table",
+                exc_info=True,
             )
             raise HTTPException(
                 500,
@@ -2177,7 +2178,8 @@ async def delete_invitation(invitation_id: str) -> bool:
             invitation = result.scalars().one_or_none()
         except MultipleResultsFound as e:
             log.error(
-                f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table. Error details: {str(e)}"
+                f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table.",
+                exc_info=True,
             )
             raise HTTPException(
                 500,

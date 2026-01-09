@@ -195,7 +195,7 @@ async def create_accounts(
                 log.error(
                     "[scopes] setup failed for user [%s], deleting user: %s",
                     user.id,
-                    str(e),
+                    exc_info=True,
                 )
                 try:
                     await delete_user(str(user.id))

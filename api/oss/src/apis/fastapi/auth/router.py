@@ -49,7 +49,7 @@ async def discover(request: DiscoverRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@auth_router.get("/organization/access")
+@auth_router.get("/access")
 async def check_organization_access(request: Request, organization_id: str):
     """
     Check if the current session satisfies the organization's auth policy.
@@ -109,7 +109,7 @@ async def check_organization_access(request: Request, organization_id: str):
     return {"ok": True}
 
 
-@auth_router.post("/session/identities")
+@auth_router.patch("/session/identities")
 async def update_session_identities(request: Request, payload: SessionIdentitiesUpdate):
     try:
         session = await get_session(request)  # type: ignore
@@ -132,7 +132,7 @@ async def update_session_identities(request: Request, payload: SessionIdentities
     return {"session_identities": merged, "previous": current}
 
 
-@auth_router.get("/authorize/oidc")
+@auth_router.get("/sso/authorize")
 async def oidc_authorize(request: Request, provider_id: str, redirect: str = "/"):
     """
     Initiate OIDC/SSO authorization flow using SuperTokens third-party recipe (EE only).

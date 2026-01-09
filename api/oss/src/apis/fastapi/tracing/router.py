@@ -243,6 +243,10 @@ class TracingRouter:
                     query=merged_query,
                 )
             except FilteringException as e:
+                log.error(
+                    "Error in filtering conditions while querying spans",
+                    exc_info=True,
+                )
                 raise HTTPException(
                     status_code=400,
                     detail=str(e),

@@ -5,7 +5,7 @@ import {fetchJson, getBaseUrl} from "../../../lib/api/assets/fetchClient"
 import {Org, OrgDetails} from "../../../lib/Types"
 
 export const checkOrganizationAccess = async (organizationId: string) => {
-    const response = await axios.get(`${getAgentaApiUrl()}/auth/organization/access`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/auth/access`, {
         params: {organization_id: organizationId},
         _skipAuthUpgradeRedirect: true,
         _ignoreError: true,
