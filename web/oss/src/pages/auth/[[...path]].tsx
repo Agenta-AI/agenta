@@ -212,9 +212,6 @@ const Auth = () => {
 
     // Discover available auth methods after email is submitted
     const handleEmailDiscovery = async (emailToDiscover: string) => {
-        console.log("🔍 Starting discovery for email:", emailToDiscover)
-        console.log("📋 Auth config:", {authEmailEnabled, authOidcEnabled})
-
         // Prevent duplicate calls
         if (discoveryInProgress.current) {
             console.warn("⚠️ Discovery already in progress, aborting previous request...")
@@ -237,7 +234,6 @@ const Auth = () => {
         try {
             discoveryInProgress.current = true
             setIsAuthLoading(true)
-            console.log("📡 Calling /auth/discover...")
 
             discoveryAbortRef.current?.abort()
             const controller = new AbortController()
@@ -252,13 +248,11 @@ const Auth = () => {
                     signal: controller.signal,
                 },
             )
-            console.log("✅ Discovery response:", data)
 
             if (data?.methods) {
                 setAvailableMethods(data.methods)
                 setDiscoveryComplete(true)
                 setEmailSubmitted(true)
-                console.log("✅ Discovery complete. Available methods:", data.methods)
 
                 // Check if only SSO is available and auto-redirect
                 const methods = data.methods
@@ -274,10 +268,7 @@ const Auth = () => {
                     methods["email:otp"] === false &&
                     ssoMethods.length === 0
 
-                console.log("🔐 SSO analysis:", {ssoMethods, hasSSOOnly})
-
                 if (hasSSOOnly && ssoProviders.length === 1) {
-                    console.log("🔄 Only SSO available, auto-redirecting to:", ssoProviders[0])
                     await redirectToSsoProvider(ssoProviders[0])
                 }
             } else {
@@ -357,21 +348,6 @@ const Auth = () => {
     const emailPasswordAvailable = discoveryComplete && authEmailEnabled && authnEmail !== "otp"
 
     const emailOtpAvailable = discoveryComplete && authEmailEnabled && authnEmail === "otp"
-
-    // Debug logging
-    console.log("🎨 Render state:", {
-        emailSubmitted,
-        discoveryComplete,
-        authEmailEnabled,
-        authOidcEnabled,
-        socialAvailable,
-        ssoAvailable,
-        emailPasswordAvailable,
-        emailOtpAvailable,
-        isLoginCodeVisible,
-        availableMethods,
-        providersToShow: providersToShow.length,
-    })
 
     useLazyEffect(() => {
         if (message.message && message.type !== "error") {

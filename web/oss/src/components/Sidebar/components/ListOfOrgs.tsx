@@ -125,13 +125,6 @@ const ListOfOrgs = ({
                 // Only include actual members (not pending/expired invitations)
                 const isActualMember = member.user?.status === "member"
                 const hasValidId = member.user?.id && member.user.id !== user?.id
-                console.log("🔧 Checking member eligibility:", {
-                    email: member.user?.email,
-                    status: member.user?.status,
-                    id: member.user?.id,
-                    isActualMember,
-                    hasValidId,
-                })
                 return isActualMember && hasValidId
             })
             .map((member) => {
@@ -139,13 +132,6 @@ const ListOfOrgs = ({
                 const email = member.user?.email ?? ""
                 const displayName = member.user?.username || getUsernameFromEmail(email)
                 const label = email ? `${displayName} ${email}` : displayName
-                console.log("✅ Creating transfer option:", {
-                    userId,
-                    userIdType: typeof userId,
-                    email,
-                    displayName,
-                    label,
-                })
                 return {
                     value: userId,
                     label,
@@ -153,7 +139,6 @@ const ListOfOrgs = ({
                     email,
                 }
             })
-        console.log("📋 Transfer owner options created:", options)
         return options
     }, [workspaceMembers, user?.id])
     const transferOwnerOptionCount = transferOwnerOptions.length
@@ -411,18 +396,11 @@ const ListOfOrgs = ({
             organizationId: string
             newOwnerId: string
         }) => {
-            console.log("🔄 Transfer ownership mutation started:", {
-                organizationId,
-                newOwnerId,
-                newOwnerIdType: typeof newOwnerId,
-            })
             const {transferOrganizationOwnership} = await import("@/oss/services/organization/api")
             const result = await transferOrganizationOwnership(organizationId, newOwnerId)
-            console.log("✅ Transfer ownership result:", result)
             return result
         },
         onSuccess: async () => {
-            console.log("✅ Transfer ownership success")
             message.success("Ownership transferred")
             setTransferModalOpen(false)
             setOrgToTransfer(null)
@@ -769,11 +747,6 @@ const ListOfOrgs = ({
                     setNewOwnerId(null)
                 }}
                 onOk={() => {
-                    console.log("🎯 Transfer modal OK clicked:", {
-                        orgToTransfer,
-                        newOwnerId,
-                        newOwnerIdType: typeof newOwnerId,
-                    })
                     if (!orgToTransfer || !newOwnerId) {
                         console.warn("⚠️ Missing orgToTransfer or newOwnerId")
                         return
@@ -802,11 +775,6 @@ const ListOfOrgs = ({
                             popupClassName="[&_.ant-select-item-option-content]:overflow-visible"
                             value={newOwnerId}
                             onChange={(value) => {
-                                console.log("👤 Select owner changed:", {
-                                    value,
-                                    valueType: typeof value,
-                                    stringValue: String(value),
-                                })
                                 setNewOwnerId(String(value))
                             }}
                             filterOption={(input, option) =>
