@@ -11,6 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
 from oss.src.utils.env import env
+from ee.src.core.subscriptions.types import FREE_PLAN
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -422,6 +423,33 @@ def upgrade() -> None:
             AND pm.project_id = p.id
         )
     """)
+    )
+
+    # Step 11f: Ensure free subscriptions exist for all organizations
+    conn.execute(
+        text("""
+        INSERT INTO subscriptions (
+            organization_id,
+            subscription_id,
+            customer_id,
+            plan,
+            active,
+            anchor
+        )
+        SELECT
+            o.id,
+            NULL,
+            NULL,
+            :plan,
+            true,
+            EXTRACT(day FROM NOW())::int
+        FROM organizations o
+        WHERE NOT EXISTS (
+            SELECT 1 FROM subscriptions s
+            WHERE s.organization_id = o.id
+        )
+    """),
+        {"plan": FREE_PLAN.value},
     )
 
     # Step 12: Normalize personal organizations

@@ -27,13 +27,11 @@ log = get_module_logger(__name__)
 # Initialize Stripe only if enabled
 if env.stripe.enabled:
     stripe.api_key = env.stripe.api_key
-    log.info("✓ Stripe enabled")
+    log.info("✓ Stripe enabled:", target=env.stripe.webhook_target)
 else:
     log.info("✗ Stripe disabled")
 
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
-STRIPE_WEBHOOK_TARGET = env.stripe.webhook_target or MAC_ADDRESS
-AGENTA_PRICING = env.stripe.pricing
 
 
 class SwitchException(Exception):
@@ -111,7 +109,7 @@ class SubscriptionsService:
             email=organization_email,
             metadata={
                 "organization_id": organization_id,
-                "target": STRIPE_WEBHOOK_TARGET,
+                "target": env.stripe.webhook_target,
             },
         )
 
@@ -127,13 +125,13 @@ class SubscriptionsService:
 
         stripe_subscription = stripe.Subscription.create(
             customer=customer_id,
-            items=list(AGENTA_PRICING[REVERSE_TRIAL_PLAN].values()),
+            items=list(env.stripe.pricing[REVERSE_TRIAL_PLAN].values()),
             #
             # automatic_tax={"enabled": True},
             metadata={
                 "organization_id": organization_id,
                 "plan": REVERSE_TRIAL_PLAN.value,
-                "target": STRIPE_WEBHOOK_TARGET,
+                "target": env.stripe.webhook_target,
             },
             #
             trial_period_days=REVERSE_TRIAL_DAYS,
@@ -281,7 +279,7 @@ class SubscriptionsService:
                         subscription=subscription.subscription_id,
                     ).data
                 ]
-                + list(AGENTA_PRICING[plan].values()),
+                + list(env.stripe.pricing[plan].values()),
             )
 
             subscription = await self.update(subscription=subscription)
