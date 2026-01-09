@@ -308,6 +308,122 @@ def upgrade() -> None:
     """)
     )
 
+    # Step 11b: Create missing default workspaces for organizations
+    conn.execute(
+        text("""
+        INSERT INTO workspaces (
+            id,
+            name,
+            type,
+            description,
+            organization_id,
+            created_at,
+            updated_at
+        )
+        SELECT
+            gen_random_uuid(),
+            'Default',
+            'default',
+            NULL,
+            o.id,
+            NOW(),
+            NOW()
+        FROM organizations o
+        WHERE NOT EXISTS (
+            SELECT 1 FROM workspaces w
+            WHERE w.organization_id = o.id
+        )
+    """)
+    )
+
+    # Step 11c: Create missing default projects for workspaces
+    conn.execute(
+        text("""
+        INSERT INTO projects (
+            id,
+            project_name,
+            is_default,
+            created_at,
+            updated_at,
+            organization_id,
+            workspace_id
+        )
+        SELECT
+            gen_random_uuid(),
+            'Default',
+            true,
+            NOW(),
+            NOW(),
+            w.organization_id,
+            w.id
+        FROM workspaces w
+        WHERE NOT EXISTS (
+            SELECT 1 FROM projects p
+            WHERE p.workspace_id = w.id
+        )
+    """)
+    )
+
+    # Step 11d: Ensure workspace memberships exist for org members
+    conn.execute(
+        text("""
+        INSERT INTO workspace_members (
+            id,
+            user_id,
+            workspace_id,
+            role,
+            created_at,
+            updated_at
+        )
+        SELECT
+            gen_random_uuid(),
+            om.user_id,
+            w.id,
+            CASE WHEN om.user_id = o.owner_id THEN 'owner' ELSE 'viewer' END,
+            NOW(),
+            NOW()
+        FROM organization_members om
+        JOIN organizations o ON o.id = om.organization_id
+        JOIN workspaces w ON w.organization_id = o.id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM workspace_members wm
+            WHERE wm.user_id = om.user_id
+            AND wm.workspace_id = w.id
+        )
+    """)
+    )
+
+    # Step 11e: Ensure project memberships exist for org members
+    conn.execute(
+        text("""
+        INSERT INTO project_members (
+            id,
+            user_id,
+            project_id,
+            role,
+            is_demo,
+            created_at,
+            updated_at
+        )
+        SELECT
+            gen_random_uuid(),
+            om.user_id,
+            p.id,
+            CASE WHEN om.user_id = o.owner_id THEN 'owner' ELSE 'viewer' END,
+            NULL,
+            NOW(),
+            NOW()
+        FROM organization_members om
+        JOIN organizations o ON o.id = om.organization_id
+        JOIN projects p ON p.organization_id = o.id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM project_members pm
+            WHERE pm.user_id = om.user_id
+            AND pm.project_id = p.id
+        )
+    """)
+    )
+
     # Step 12: Normalize personal organizations
     conn.execute(
         text("""

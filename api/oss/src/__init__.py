@@ -395,17 +395,18 @@ def override_emailpassword_apis(
 def override_passwordless_apis(
     original_implementation: PasswordlessRecipeInterface,
 ):
-    original_consume_code_post = original_implementation.consume_code
+    original_consume_code_post = original_implementation.consume_code_post
 
     async def consume_code_post(
         pre_auth_session_id: str,
         user_input_code: Union[str, None],
         device_id: Union[str, None],
         link_code: Union[str, None],
-        tenant_id: str,
-        user_context: Dict[str, Any],
         session: Optional[SessionContainer] = None,
         should_try_linking_with_session_user: Optional[bool] = None,
+        tenant_id: str = "public",
+        api_options: Optional[APIOptions] = None,
+        user_context: Optional[Dict[str, Any]] = None,
     ):
         # First we call the original implementation of consume_code_post.
         response = await original_consume_code_post(
@@ -416,7 +417,8 @@ def override_passwordless_apis(
             session,
             should_try_linking_with_session_user,
             tenant_id,
-            user_context,
+            api_options,
+            user_context or {},
         )
 
         # Post sign up response, we check if it was successful
@@ -426,7 +428,7 @@ def override_passwordless_apis(
 
         return response
 
-    original_implementation.consume_code = consume_code_post  # type: ignore
+    original_implementation.consume_code_post = consume_code_post  # type: ignore
     return original_implementation
 
 

@@ -1350,7 +1350,11 @@ async def get_org_details(organization: Organization) -> dict:
     """
 
     default_workspace_db = await get_org_default_workspace(organization)
-    default_workspace = await get_workspace_details(default_workspace_db)
+    default_workspace = (
+        await get_workspace_details(default_workspace_db)
+        if default_workspace_db is not None
+        else None
+    )
     workspaces = await get_organization_workspaces(organization_id=str(organization.id))
 
     sample_organization = {
