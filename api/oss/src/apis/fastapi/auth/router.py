@@ -1,15 +1,23 @@
+from uuid import UUID
+
+import httpx
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
+
 from supertokens_python.recipe.session.asyncio import get_session
 
-from oss.src.apis.fastapi.auth.models import (
-    DiscoverRequest,
-    DiscoverResponse,
-)
-from oss.src.core.auth.service import AuthService
+from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.helpers import parse_url
+
+from oss.src.apis.fastapi.auth.models import DiscoverRequest, DiscoverResponse
+from oss.src.core.auth.service import AuthService
+from oss.src.services import db_manager
+
+if is_ee():
+    from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
 
 
 auth_router = APIRouter()
@@ -37,10 +45,7 @@ async def discover(request: DiscoverRequest):
         result = await auth_service.discover(request.email)
         return DiscoverResponse(**result)
     except Exception as e:
-        import traceback
-
-        print(f"❌ Discovery error: {e}")
-        print(traceback.format_exc())
+        log.error("[DISCOVERY]", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -61,9 +66,6 @@ async def check_organization_access(request: Request, organization_id: str):
     user_identities = payload.get("user_identities", [])
 
     try:
-        from uuid import UUID
-        from oss.src.services import db_manager
-
         user_uid = session.get_user_id()
         user = await db_manager.get_user_with_uid(user_uid)
         if not user:
@@ -167,13 +169,6 @@ async def oidc_authorize(request: Request, provider_id: str, redirect: str = "/"
 
     try:
         # Get provider to build third_party_id
-        from uuid import UUID
-        from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
-        import httpx
-
-        from oss.src.utils.env import env
-        from oss.src.utils.helpers import parse_url
-
         providers_dao = OrganizationProvidersDAO()
         provider = await providers_dao.get_by_id_any(str(provider_id))
 
@@ -181,8 +176,6 @@ async def oidc_authorize(request: Request, provider_id: str, redirect: str = "/"
             raise HTTPException(
                 status_code=404, detail="Provider not found or disabled"
             )
-
-        from oss.src.services import db_manager
 
         organization = await db_manager.get_organization_by_id(
             str(provider.organization_id)
@@ -200,7 +193,7 @@ async def oidc_authorize(request: Request, provider_id: str, redirect: str = "/"
         callback_url = (
             f"{env.agenta.web_url.rstrip('/')}/auth/callback/{third_party_id}"
         )
-        print(f"[OIDC-AUTH] Expected redirect URI: {callback_url}")
+
         api_url = parse_url(env.agenta.api_url)
         request_base_url = str(request.base_url).rstrip("/")
 
@@ -209,19 +202,9 @@ async def oidc_authorize(request: Request, provider_id: str, redirect: str = "/"
             f"{api_url}/auth/authorisationurl",
         ]
 
-        print(
-            "[OIDC-AUTH] Request context: "
-            f"request_url={request.url} base_url={request_base_url} api_url={api_url} "
-            f"candidates={authorisation_urls}"
-        )
-
         response = None
         async with httpx.AsyncClient(timeout=10.0) as client:
             for candidate in authorisation_urls:
-                print(
-                    f"[OIDC-AUTH] Resolving auth URL. third_party_id={third_party_id} "
-                    f"authorisation_url={candidate} callback_url={callback_url}"
-                )
                 try:
                     response = await client.get(
                         candidate,
@@ -230,14 +213,15 @@ async def oidc_authorize(request: Request, provider_id: str, redirect: str = "/"
                             "redirectURIOnProviderDashboard": callback_url,
                         },
                     )
-                except Exception as exc:
-                    print(f"[OIDC-AUTH] Request failed for {candidate}: {exc}")
+                except Exception:
+                    log.error(
+                        f"[AUTH] [OIDC] Request failed for {candidate}",
+                        exc_info=True,
+                    )
                     continue
+
                 content_type = response.headers.get("content-type", "")
-                print(
-                    f"[OIDC-AUTH] SuperTokens response status={response.status_code} "
-                    f"content_type={content_type} body={response.text}"
-                )
+
                 if response.status_code == 200 and "application/json" in content_type:
                     break
 
@@ -287,9 +271,6 @@ async def sso_callback_redirect(
         )
 
     try:
-        from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
-        from oss.src.services import db_manager
-
         # Validate organization exists
         organization = await db_manager.get_organization_by_slug(organization_slug)
         if not organization:

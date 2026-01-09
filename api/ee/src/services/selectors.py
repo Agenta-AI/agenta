@@ -35,7 +35,6 @@ async def get_user_org_and_workspace_id(user_uid) -> Dict[str, Union[str, List[s
 
     Example Usage:
         result = await get_user_org_and_workspace_id("user123")
-        print(result)
 
     Output:
         { "id": "123", "uid": "user123", "organization_ids": [], "workspace_ids": []}

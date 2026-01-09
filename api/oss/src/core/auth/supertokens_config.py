@@ -59,11 +59,6 @@ def get_app_info() -> InputAppInfo:
         api_base_path="/auth",
         website_base_path="/auth",
     )
-    print(
-        "[SUPERTOKENS] AppInfo: "
-        f"api_domain={api_domain} api_gateway_path={api_gateway_path} "
-        f"api_base_path=/auth website_domain={env.agenta.web_url}"
-    )
     return app_info
 
 

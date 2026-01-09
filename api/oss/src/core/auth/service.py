@@ -1,31 +1,26 @@
-"""Authentication and authorization service.
-
-This service provides three main capabilities:
-1. Discovery: Determine available authentication methods for a user
-2. Authentication: Support authentication flows (via SuperTokens + helpers)
-3. Authorization: Validate user access based on organization policies
-"""
-
 from typing import Optional, Dict, List, Any
 from uuid import UUID
 
-from oss.src.utils.common import is_ee
-from oss.src.dbs.postgres.users.dao import IdentitiesDAO
-from oss.src.services import db_manager
-from oss.src.utils.env import env
-from oss.src.utils.logging import get_module_logger
-from oss.src.models.db_models import InvitationDB, ProjectDB
-from oss.src.dbs.postgres.shared.engine import engine
 from sqlalchemy import select
 
-# Organization DAOs and models (EE only)
+from oss.src.utils.env import env
+from oss.src.utils.common import is_ee
+from oss.src.utils.logging import get_module_logger
+
+from oss.src.models.db_models import InvitationDB, ProjectDB, OrganizationDB
+from oss.src.services import db_manager
+
+from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.users.dao import IdentitiesDAO
+
 if is_ee():
+    from ee.src.models.db_models import OrganizationMemberDB
+
     from ee.src.dbs.postgres.organizations.dao import (
         OrganizationDomainsDAO,
         OrganizationProvidersDAO,
     )
-    from oss.src.models.db_models import OrganizationDB
-    from ee.src.models.db_models import OrganizationMemberDB
+
 
 log = get_module_logger(__name__)
 
@@ -95,11 +90,8 @@ class AuthService:
         Note: Only methods that are available (true) are included in the response.
         Missing methods should be assumed false on the client side.
         """
-        print(f"[DISCOVERY] Starting discovery for email: {email}")
-
         # Extract domain from email (if provided)
         domain = email.split("@")[1] if email and "@" in email else None
-        print(f"[DISCOVERY] Extracted domain: {domain}")
 
         # Check if user exists only when email looks valid
         user = None
@@ -109,7 +101,6 @@ class AuthService:
             user = await db_manager.get_user_with_email(email)
             user_exists = user is not None
             user_id = UUID(str(user.id)) if user else None
-            print(f"[DISCOVERY] User exists: {user_exists}, user_id: {user_id}")
 
         # Get relevant organization IDs (EE only)
         # Include: memberships, pending invitations, and domain-based access
@@ -118,17 +109,17 @@ class AuthService:
             UUID
         ] = []  # Orgs with verified domain matching user's email
 
-        print(f"[DISCOVERY] Is EE: {is_ee()}")
-
         if is_ee():
             # 1. User's existing memberships
             if user_exists and user_id:
                 try:
                     orgs = await db_manager.get_user_organizations(str(user_id))
                     org_ids = [org.id for org in orgs]
-                    print(f"[DISCOVERY] User organizations: {org_ids}")
-                except Exception as e:
-                    print(f"[DISCOVERY] Error fetching user organizations: {e}")
+                except Exception:
+                    log.error(
+                        "[DISCOVERY] Error fetching user organizations",
+                        exc_info=True,
+                    )
                     org_ids = []
 
             # 2. Organizations with pending project invitations
@@ -146,52 +137,39 @@ class AuthService:
                         result = await session.execute(stmt)
                         invitation_org_ids = [row[0] for row in result.fetchall()]
 
-                        print(
-                            f"[DISCOVERY] Pending invitation orgs: {invitation_org_ids}"
-                        )
-
                         # Add to org_ids if not already present
                         for invitation_org_id in invitation_org_ids:
                             if invitation_org_id not in org_ids:
                                 org_ids.append(invitation_org_id)
-                except Exception as e:
-                    print(f"[DISCOVERY] Error fetching pending invitations: {e}")
+                except Exception:
+                    log.error(
+                        "[DISCOVERY] Error fetching pending invitations",
+                        exc_info=True,
+                    )
 
             # 3. Organizations with verified domain matching user's email
             if domain and self.domains_dao:
                 domain_dto = await self.domains_dao.get_verified_by_slug(domain)
-                print(f"[DISCOVERY] Domain lookup for {domain}: {domain_dto}")
+
                 if domain_dto:
                     domain_org_ids.append(domain_dto.organization_id)
-                    print(f"[DISCOVERY] Domain org: {domain_dto.organization_id}")
+
                     # Include in org_ids for policy aggregation
                     if domain_dto.organization_id not in org_ids:
                         org_ids.append(domain_dto.organization_id)
-
-        print(f"[DISCOVERY] Final org_ids: {org_ids}")
-        print(f"[DISCOVERY] Domain org_ids: {domain_org_ids}")
 
         # Aggregate allowed methods across all organizations (EE only)
         all_allowed_methods: set[str] = set()
         has_sso_enforcement = False  # Track if any org has SSO + verified domain
 
-        print(
-            f"[DISCOVERY] Starting policy aggregation. EE={is_ee()}, org_ids={len(org_ids) if org_ids else 0}"
-        )
-
         if is_ee() and org_ids:
             # Check policy flags for each organization
             for org_id in org_ids:
-                print(f"[DISCOVERY] Checking org {org_id}")
                 org_flags = await self._get_organization_flags(org_id)
-                print(f"[DISCOVERY] Org {org_id} flags: {org_flags}")
 
                 if org_flags:
                     # Check if this org has verified domain (enables SSO enforcement)
                     has_verified_domain = org_id in domain_org_ids
-                    print(
-                        f"[DISCOVERY] Org {org_id} has verified domain: {has_verified_domain}"
-                    )
 
                     # Check if this org has active SSO providers
                     has_active_sso = False
@@ -199,20 +177,14 @@ class AuthService:
                         providers = await self.providers_dao.list_by_organization(
                             str(org_id)
                         )
-                        print(
-                            f"[DISCOVERY] Org {org_id} SSO providers: {[(p.slug, p.flags) for p in providers]}"
-                        )
+
                         has_active_sso = any(
                             p.flags and p.flags.get("is_active", False)
                             for p in providers
                         )
-                        print(
-                            f"[DISCOVERY] Org {org_id} has active SSO: {has_active_sso}"
-                        )
 
                     # SSO enforcement: only SSO allowed if org has both verified domain + active SSO
                     if has_verified_domain and has_active_sso:
-                        print(f"[DISCOVERY] Org {org_id} enforcing SSO-only")
                         has_sso_enforcement = True
                         all_allowed_methods.add("sso:*")
                         # Skip adding email/social methods for this org
@@ -221,17 +193,11 @@ class AuthService:
                     # Otherwise, check normal policy flags
                     # Default to True if not explicitly set
                     if org_flags.get("allow_email", env.auth.email_enabled):
-                        print(f"[DISCOVERY] Org {org_id} allows email")
                         all_allowed_methods.add("email:*")
                     if org_flags.get("allow_social", env.auth.oidc_enabled):
-                        print(f"[DISCOVERY] Org {org_id} allows social")
                         all_allowed_methods.add("social:*")
                     if org_flags.get("allow_sso", False):
-                        print(f"[DISCOVERY] Org {org_id} allows SSO")
                         all_allowed_methods.add("sso:*")
-
-        print(f"[DISCOVERY] Aggregated methods: {all_allowed_methods}")
-        print(f"[DISCOVERY] SSO enforcement: {has_sso_enforcement}")
 
         # If user has no organizations, show globally configured auth methods
         if not all_allowed_methods:
@@ -283,9 +249,6 @@ class AuthService:
         # Get SSO providers (EE only)
         # Show SSO providers from user's organizations (if user exists and is a member)
         sso_providers = []
-        print(
-            f"[DISCOVERY] Collecting SSO providers. EE={is_ee()}, has_providers_dao={self.providers_dao is not None}, org_ids={org_ids}"
-        )
 
         if is_ee() and self.providers_dao and org_ids:
             provider_map = {}  # Use dict to deduplicate by slug
@@ -294,39 +257,25 @@ class AuthService:
             for org_id in org_ids:
                 organization = await db_manager.get_organization_by_id(str(org_id))
                 if not organization or not organization.slug:
-                    print(
-                        f"[DISCOVERY] Org {org_id} missing slug; skipping SSO providers"
-                    )
                     continue
 
                 providers = await self.providers_dao.list_by_organization(str(org_id))
-                print(
-                    f"[DISCOVERY] Org {org_id} SSO providers (raw): {[(p.slug, p.name, p.flags) for p in providers]}"
-                )
                 for p in providers:
                     is_active = p.flags and p.flags.get("is_active", False)
-                    print(f"[DISCOVERY] Provider {p.slug}: is_active={is_active}")
                     if is_active:
                         provider_map[p.slug] = {
                             "id": str(p.id),
                             "slug": p.slug,
                             "third_party_id": f"sso:{organization.slug}:{p.slug}",
                         }
-                        print(f"[DISCOVERY] Added provider {p.slug} to map")
 
             sso_providers = list(provider_map.values())
-            print(f"[DISCOVERY] Final SSO providers: {sso_providers}")
 
         # Build methods dict - only include methods that are true
         methods = {}
 
-        print(
-            f"[DISCOVERY] Building response. has_sso_enforcement={has_sso_enforcement}"
-        )
-
         # If SSO enforcement is active, ONLY return SSO methods
         if has_sso_enforcement:
-            print("[DISCOVERY] SSO enforcement active, returning SSO-only")
             # SSO enforcement: only SSO providers, no email or social
             if sso_providers:
                 methods["sso"] = {"providers": sso_providers}
@@ -334,7 +283,6 @@ class AuthService:
                 "exists": user_exists,
                 "methods": methods,
             }
-            print(f"[DISCOVERY] Final response (SSO enforcement): {response}")
             return response
 
         # Otherwise, include all allowed methods based on policy
@@ -412,14 +360,12 @@ class AuthService:
         # SSO - only include if providers are available
         if sso_providers:
             methods["sso"] = {"providers": sso_providers}
-            print(f"[DISCOVERY] Including SSO providers in response: {sso_providers}")
 
         response = {
             "exists": user_exists,
             "methods": methods,
         }
 
-        print(f"[DISCOVERY] Final response: {response}")
         return response
 
     # ============================================================================
@@ -599,12 +545,12 @@ class AuthService:
                         await session.commit()
 
                     log.info(
-                        "Auto-join: added user to organization with editor access",
-                        user_id=str(user_id),
+                        "[AUTH] [AUTO-JOIN] Added user to organization as 'editor'",
                         organization_id=str(org_id),
+                        user_id=str(user_id),
                     )
-            except Exception as e:
-                log.error("Error during auto-join: %s", e)
+            except Exception:
+                log.error("[AUTH] [AUTO-JOIN]", exc_infp=True)
 
         # 2. Domains-only enforcement: Check if user has access
         # This is enforced at the organization level via check_organization_access()
