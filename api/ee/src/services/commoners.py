@@ -224,8 +224,11 @@ async def create_accounts(
                 email=user_dict["email"],
                 user_id=user.id,
             )
-        except Exception as e:
-            log.debug("Error enforcing domain policies after signup: %s", e)
+        except Exception:
+            log.error(
+                "Error enforcing domain policies after signup",
+                exc_info=True,
+            )
 
         if is_ee():
             try:

@@ -696,8 +696,6 @@ class TracingRouter:
                 detail="Too many root spans",
             )
 
-        log.debug(f"Editing trace {trace_id} with {len(spans)} spans.")
-
         try:
             links = await self._upsert(
                 project_id=UUID(request.state.project_id),

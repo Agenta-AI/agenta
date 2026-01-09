@@ -213,7 +213,6 @@ class OrganizationDomainsService:
 
         try:
             txt_record_name = f"_agenta-verification.{domain}"
-            log.info(f"Attempting DNS verification for {txt_record_name}")
             resolvers = [
                 ("system", None),
                 ("cloudflare+google", ["1.1.1.1", "8.8.8.8"]),
@@ -223,9 +222,6 @@ class OrganizationDomainsService:
                 resolver = dns.resolver.Resolver()
                 if nameservers:
                     resolver.nameservers = nameservers
-                log.info(
-                    f"DNS lookup using {resolver_label} resolver for {txt_record_name}"
-                )
                 return resolver.resolve(txt_record_name, "TXT")
 
             for resolver_label, nameservers in resolvers:
@@ -237,27 +233,19 @@ class OrganizationDomainsService:
                     )
                     continue
 
-                log.info(f"Found {len(answers)} TXT records for {txt_record_name}")
-
                 for rdata in answers:
                     txt_value = rdata.to_text().strip('"')
-                    log.info(f"TXT record value: {txt_value}")
 
                     # Extract the token value from "_agenta-verification=TOKEN" format
                     if txt_value.startswith("_agenta-verification="):
                         token = txt_value.split("=", 1)[1]
-                        log.info(f"Extracted token from DNS: {token}")
-                        log.info(f"Expected token from DB: {expected_token}")
-                        log.info(f"Tokens match: {token == expected_token}")
                         if token == expected_token:
-                            log.info(f"Domain verification successful for {domain}")
                             return True
+
                         else:
                             log.warning(
                                 f"Token mismatch for {domain}. Expected length: {len(expected_token)}, Got length: {len(token)}"
                             )
-                            log.warning(f"Expected: {expected_token}")
-                            log.warning(f"Got: {token}")
 
             log.warning(
                 f"No matching verification token found in DNS records for {domain}"

@@ -119,15 +119,6 @@ async def update_session_identities(request: Request, payload: SessionIdentities
     access_payload = session.get_access_token_payload() if session else {}
     current = access_payload.get("session_identities") or []
     merged = list(dict.fromkeys(current + payload.session_identities))
-    log.debug(
-        "[AUTH-IDENTITY] session_identities update",
-        {
-            "user_id": session.get_user_id() if session else None,
-            "current": current,
-            "incoming": payload.session_identities,
-            "merged": merged,
-        },
-    )
 
     if hasattr(session, "update_access_token_payload"):
         access_payload["session_identities"] = merged
@@ -281,7 +272,9 @@ async def sso_callback_redirect(
 
         # Validate provider exists and is active
         providers_dao = OrganizationProvidersDAO()
-        provider = await providers_dao.get_by_slug(slug=provider_slug, organization_id=str(organization.id))
+        provider = await providers_dao.get_by_slug(
+            slug=provider_slug, organization_id=str(organization.id)
+        )
 
         if not provider:
             raise HTTPException(

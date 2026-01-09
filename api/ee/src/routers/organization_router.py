@@ -363,12 +363,6 @@ async def create_collaborative_organization(
             use_reverse_trial=False,  # Use hobby plan instead
         )
 
-        log.info(
-            "[organization] collaborative organization created",
-            organization_id=organization.id,
-            user_id=user.id,
-        )
-
         return JSONResponse(
             {
                 "id": str(organization.id),

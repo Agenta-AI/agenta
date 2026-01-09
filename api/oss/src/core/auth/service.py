@@ -259,7 +259,9 @@ class AuthService:
                 if not organization or not organization.slug:
                     continue
 
-                providers = await self.providers_dao.list_by_organization(organization_id=str(org_id))
+                providers = await self.providers_dao.list_by_organization(
+                    organization_id=str(org_id)
+                )
                 for p in providers:
                     is_active = p.flags and p.flags.get("is_active", False)
                     if is_active:
@@ -545,7 +547,7 @@ class AuthService:
                         await session.commit()
 
                     log.info(
-                        "[AUTH] [AUTO-JOIN] Added user to organization as 'editor'",
+                        "[AUTH] [AUTO-JOIN] user auto-joined organization",
                         organization_id=str(org_id),
                         user_id=str(user_id),
                     )
@@ -753,7 +755,9 @@ class AuthService:
         if not organization or not organization.slug:
             return []
 
-        providers = await self.providers_dao.list_by_organization(organization_id=str(organization_id))
+        providers = await self.providers_dao.list_by_organization(
+            organization_id=str(organization_id)
+        )
         results = []
         for provider in providers:
             if provider.flags and provider.flags.get("is_active", False):

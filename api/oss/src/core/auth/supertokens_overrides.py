@@ -79,7 +79,7 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
     """
     # OIDC providers require EE
     if not is_ee() or providers_dao is None:
-        log.debug(f"SSO provider {third_party_id} requested but EE not enabled")
+        log.error(f"SSO provider {third_party_id} requested but EE not enabled")
         return None
 
     try:
@@ -100,7 +100,9 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
             return None
 
         # Fetch provider from database by organization_id and provider_slug
-        provider = await providers_dao.get_by_slug(slug=provider_slug, organization_id=str(organization.id))
+        provider = await providers_dao.get_by_slug(
+            slug=provider_slug, organization_id=str(organization.id)
+        )
         if not provider or not (provider.flags and provider.flags.get("is_active")):
             return None
 
@@ -111,7 +113,7 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
             organization_id=organization.id,
         )
         if not secret:
-            log.debug(f"Secret not found for provider id={provider.id}")
+            log.warning(f"Secret not found for provider id={provider.id}")
             return None
 
         data = secret.data
@@ -122,7 +124,7 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
             provider_settings = data.get("provider")
 
         if not isinstance(provider_settings, dict):
-            log.debug(f"Invalid provider secret format for provider id={provider.id}")
+            log.warning(f"Invalid provider secret format for provider id={provider.id}")
             return None
 
         issuer_url = provider_settings.get("issuer_url")
@@ -147,9 +149,12 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
                 oidc_discovery_endpoint=f"{issuer_url}/.well-known/openid-configuration",
             )
         )
-    except Exception as e:
+    except Exception:
         # Log error but don't crash
-        log.debug(f"Error fetching dynamic OIDC provider {third_party_id}: {e}")
+        log.error(
+            f"Error fetching dynamic OIDC provider {third_party_id}",
+            exc_info=True,
+        )
         return None
 
 
@@ -204,10 +209,6 @@ def override_thirdparty_functions(
         else:
             method = f"social:{third_party_id}"
 
-        log.debug(
-            f"[AUTH-IDENTITY] third_party_id={third_party_id} method={method} email={email}"
-        )
-
         # Extract domain from email
         domain = email.split("@")[1] if "@" in email and email.count("@") == 1 else None
 
@@ -238,26 +239,9 @@ def override_thirdparty_functions(
                         domain=domain,
                     )
                 )
-                log.debug(
-                    "[AUTH-IDENTITY] created",
-                    {
-                        "user_id": str(internal_user_id),
-                        "method": method,
-                        "subject": third_party_user_id,
-                    },
-                )
-            else:
-                log.debug(
-                    "[AUTH-IDENTITY] existing",
-                    {
-                        "user_id": str(internal_user_id),
-                        "method": method,
-                        "subject": third_party_user_id,
-                    },
-                )
         except Exception:
             # Log error but don't block authentication
-            log.debug("[AUTH-IDENTITY] create failed", exc_info=True)
+            log.error("[AUTH] Identity create failed", exc_info=True)
 
         # Fetch all user identities for session payload
         try:
@@ -278,21 +262,6 @@ def override_thirdparty_functions(
         user_context["user_identities"] = identities_array
         session_identities = _merge_session_identities(session, method)
         user_context["session_identities"] = session_identities
-        log.debug(
-            "[AUTH-IDENTITY] session_identities merge",
-            {
-                "method": method,
-                "session_identities": session_identities,
-                "user_identities": identities_array,
-            },
-        )
-        log.debug(
-            "[AUTH-IDENTITY] session user_identities",
-            {
-                "user_id": str(internal_user.id) if internal_user else None,
-                "user_identities": identities_array,
-            },
-        )
 
         # Enforce domain-based policies (auto-join, domains-only)
         if internal_user:
@@ -301,8 +270,8 @@ def override_thirdparty_functions(
                     email=email,
                     user_id=internal_user.id,
                 )
-            except Exception as e:
-                log.debug(f"Error enforcing domain policies: {e}")
+            except Exception:
+                log.error("[AUTH] Error enforcing domain policies", exc_info=True)
 
         return result
 
@@ -448,14 +417,6 @@ def override_passwordless_functions(
             user_context["user_identities"] = [method]
             session_identities = _merge_session_identities(session, method)
             user_context["session_identities"] = session_identities
-            log.debug(
-                "[AUTH-IDENTITY] session_identities merge",
-                {
-                    "method": method,
-                    "session_identities": session_identities,
-                    "user_identities": [method],
-                },
-            )
             return result
 
         # Extract domain from email
@@ -512,14 +473,6 @@ def override_passwordless_functions(
         user_context["user_identities"] = identities_array
         session_identities = _merge_session_identities(session, method)
         user_context["session_identities"] = session_identities
-        log.debug(
-            "[AUTH-IDENTITY] session_identities merge",
-            {
-                "method": method,
-                "session_identities": session_identities,
-                "user_identities": identities_array,
-            },
-        )
 
         # Enforce domain-based policies (auto-join, domains-only)
         if internal_user:
@@ -528,8 +481,8 @@ def override_passwordless_functions(
                     email=email,
                     user_id=internal_user.id,
                 )
-            except Exception as e:
-                log.debug(f"Error enforcing domain policies: {e}")
+            except Exception:
+                log.error("[AUTH] Error enforcing domain policies", exc_info=True)
 
         return result
 
@@ -630,14 +583,6 @@ def override_emailpassword_functions(
         user_context["user_identities"] = identities_array
         session_identities = _merge_session_identities(session, method)
         user_context["session_identities"] = session_identities
-        log.debug(
-            "[AUTH-IDENTITY] session_identities merge",
-            {
-                "method": method,
-                "session_identities": session_identities,
-                "user_identities": identities_array,
-            },
-        )
 
         # Enforce domain-based policies (auto-join, domains-only)
         if internal_user:
@@ -646,8 +591,8 @@ def override_emailpassword_functions(
                     email=email,
                     user_id=internal_user.id,
                 )
-            except Exception as e:
-                log.debug(f"Error enforcing domain policies: {e}")
+            except Exception:
+                log.error("[AUTH] Error enforcing domain policies", exc_info=True)
 
         return result
 
@@ -736,14 +681,6 @@ def override_emailpassword_functions(
         user_context["user_identities"] = identities_array
         session_identities = _merge_session_identities(session, method)
         user_context["session_identities"] = session_identities
-        log.debug(
-            "[AUTH-IDENTITY] session_identities merge",
-            {
-                "method": method,
-                "session_identities": session_identities,
-                "user_identities": identities_array,
-            },
-        )
 
         # Enforce domain-based policies (auto-join, domains-only)
         if internal_user:
@@ -752,8 +689,8 @@ def override_emailpassword_functions(
                     email=email,
                     user_id=internal_user.id,
                 )
-            except Exception as e:
-                log.debug(f"Error enforcing domain policies: {e}")
+            except Exception:
+                log.error("[AUTH] Error enforcing domain policies", exc_info=True)
 
         return result
 
