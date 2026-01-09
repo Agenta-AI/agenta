@@ -10,6 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
+import uuid_utils.compat as uuid
+
 from oss.src.utils.env import env
 from ee.src.core.subscriptions.types import FREE_PLAN
 from sqlalchemy.dialects import postgresql
@@ -206,31 +208,9 @@ def upgrade() -> None:
     )
 
     # Step 10: Create missing personal organizations for users without one
-    conn.execute(
+    users_missing_personal_org = conn.execute(
         text("""
-        INSERT INTO organizations (
-            name,
-            slug,
-            description,
-            owner,
-            owner_id,
-            created_at,
-            created_by_id,
-            updated_at,
-            updated_by_id,
-            flags
-        )
-        SELECT
-            'Personal',
-            NULL,
-            NULL,
-            u.id::text,
-            u.id,
-            NOW(),
-            u.id,
-            NOW(),
-            u.id,
-            '{"is_demo": false, "is_personal": true}'::jsonb
+        SELECT u.id
         FROM users u
         WHERE NOT EXISTS (
             SELECT 1 FROM organizations o
@@ -238,7 +218,43 @@ def upgrade() -> None:
             AND o.flags->>'is_personal' = 'true'
         )
     """)
-    )
+    ).fetchall()
+    for (user_id,) in users_missing_personal_org:
+        conn.execute(
+            text("""
+            INSERT INTO organizations (
+                id,
+                name,
+                slug,
+                description,
+                owner,
+                owner_id,
+                created_at,
+                created_by_id,
+                updated_at,
+                updated_by_id,
+                flags
+            )
+            VALUES (
+                :id,
+                'Personal',
+                NULL,
+                NULL,
+                :owner_text,
+                :owner_id,
+                NOW(),
+                :owner_id,
+                NOW(),
+                :owner_id,
+                '{"is_demo": false, "is_personal": true}'::jsonb
+            )
+        """),
+            {
+                "id": uuid.uuid7(),
+                "owner_text": str(user_id),
+                "owner_id": user_id,
+            },
+        )
 
     # Step 10b: Add role column to organization_members
     op.add_column(
@@ -289,13 +305,9 @@ def upgrade() -> None:
     )
 
     # Step 11: Add users as members to their new personal orgs
-    conn.execute(
+    personal_orgs_missing_owner = conn.execute(
         text("""
-        INSERT INTO organization_members (user_id, organization_id, role)
-        SELECT
-            o.owner_id,
-            o.id,
-            'owner'
+        SELECT o.id, o.owner_id
         FROM organizations o
         WHERE o.flags->>'is_personal' = 'true'
         AND NOT EXISTS (
@@ -304,76 +316,103 @@ def upgrade() -> None:
             AND om.user_id = o.owner_id
         )
     """)
-    )
+    ).fetchall()
+    for organization_id, owner_id in personal_orgs_missing_owner:
+        conn.execute(
+            text("""
+            INSERT INTO organization_members (id, user_id, organization_id, role)
+            VALUES (:id, :user_id, :organization_id, 'owner')
+        """),
+            {
+                "id": uuid.uuid7(),
+                "user_id": owner_id,
+                "organization_id": organization_id,
+            },
+        )
 
     # Step 11b: Create missing default workspaces for organizations
-    conn.execute(
+    orgs_missing_workspaces = conn.execute(
         text("""
-        INSERT INTO workspaces (
-            name,
-            type,
-            description,
-            organization_id,
-            created_at,
-            updated_at
-        )
-        SELECT
-            'Default',
-            'default',
-            NULL,
-            o.id,
-            NOW(),
-            NOW()
+        SELECT o.id
         FROM organizations o
         WHERE NOT EXISTS (
             SELECT 1 FROM workspaces w
             WHERE w.organization_id = o.id
         )
     """)
-    )
+    ).fetchall()
+    for (organization_id,) in orgs_missing_workspaces:
+        conn.execute(
+            text("""
+            INSERT INTO workspaces (
+                id,
+                name,
+                type,
+                description,
+                organization_id,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                :id,
+                'Default',
+                'default',
+                NULL,
+                :organization_id,
+                NOW(),
+                NOW()
+            )
+        """),
+            {
+                "id": uuid.uuid7(),
+                "organization_id": organization_id,
+            },
+        )
 
     # Step 11c: Create missing default projects for workspaces
-    conn.execute(
+    workspaces_missing_projects = conn.execute(
         text("""
-        INSERT INTO projects (
-            project_name,
-            is_default,
-            created_at,
-            updated_at,
-            organization_id,
-            workspace_id
-        )
-        SELECT
-            'Default',
-            true,
-            NOW(),
-            NOW(),
-            w.organization_id,
-            w.id
+        SELECT w.id, w.organization_id
         FROM workspaces w
         WHERE NOT EXISTS (
             SELECT 1 FROM projects p
             WHERE p.workspace_id = w.id
         )
     """)
-    )
+    ).fetchall()
+    for workspace_id, organization_id in workspaces_missing_projects:
+        conn.execute(
+            text("""
+            INSERT INTO projects (
+                id,
+                project_name,
+                is_default,
+                created_at,
+                updated_at,
+                organization_id,
+                workspace_id
+            )
+            VALUES (
+                :id,
+                'Default',
+                true,
+                NOW(),
+                NOW(),
+                :organization_id,
+                :workspace_id
+            )
+        """),
+            {
+                "id": uuid.uuid7(),
+                "organization_id": organization_id,
+                "workspace_id": workspace_id,
+            },
+        )
 
     # Step 11d: Ensure workspace memberships exist for org members
-    conn.execute(
+    workspace_members_missing = conn.execute(
         text("""
-        INSERT INTO workspace_members (
-            user_id,
-            workspace_id,
-            role,
-            created_at,
-            updated_at
-        )
-        SELECT
-            om.user_id,
-            w.id,
-            CASE WHEN om.user_id = o.owner_id THEN 'owner' ELSE 'viewer' END,
-            NOW(),
-            NOW()
+        SELECT om.user_id, w.id, o.owner_id
         FROM organization_members om
         JOIN organizations o ON o.id = om.organization_id
         JOIN workspaces w ON w.organization_id = o.id
@@ -383,26 +422,40 @@ def upgrade() -> None:
             AND wm.workspace_id = w.id
         )
     """)
-    )
+    ).fetchall()
+    for user_id, workspace_id, owner_id in workspace_members_missing:
+        role = "owner" if user_id == owner_id else "viewer"
+        conn.execute(
+            text("""
+            INSERT INTO workspace_members (
+                id,
+                user_id,
+                workspace_id,
+                role,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                :id,
+                :user_id,
+                :workspace_id,
+                :role,
+                NOW(),
+                NOW()
+            )
+        """),
+            {
+                "id": uuid.uuid7(),
+                "user_id": user_id,
+                "workspace_id": workspace_id,
+                "role": role,
+            },
+        )
 
     # Step 11e: Ensure project memberships exist for org members
-    conn.execute(
+    project_members_missing = conn.execute(
         text("""
-        INSERT INTO project_members (
-            user_id,
-            project_id,
-            role,
-            is_demo,
-            created_at,
-            updated_at
-        )
-        SELECT
-            om.user_id,
-            p.id,
-            CASE WHEN om.user_id = o.owner_id THEN 'owner' ELSE 'viewer' END,
-            NULL,
-            NOW(),
-            NOW()
+        SELECT om.user_id, p.id, o.owner_id
         FROM organization_members om
         JOIN organizations o ON o.id = om.organization_id
         JOIN projects p ON p.organization_id = o.id
@@ -412,7 +465,37 @@ def upgrade() -> None:
             AND pm.project_id = p.id
         )
     """)
-    )
+    ).fetchall()
+    for user_id, project_id, owner_id in project_members_missing:
+        role = "owner" if user_id == owner_id else "viewer"
+        conn.execute(
+            text("""
+            INSERT INTO project_members (
+                id,
+                user_id,
+                project_id,
+                role,
+                is_demo,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                :id,
+                :user_id,
+                :project_id,
+                :role,
+                NULL,
+                NOW(),
+                NOW()
+            )
+        """),
+            {
+                "id": uuid.uuid7(),
+                "user_id": user_id,
+                "project_id": project_id,
+                "role": role,
+            },
+        )
 
     # Step 11f: Ensure free subscriptions exist for all organizations
     conn.execute(
