@@ -179,8 +179,9 @@ async def update_organization(
 
     except ValueError as e:
         # Slug validation errors (format, immutability, personal org, etc.)
+        # Return a generic error message to avoid exposing internal details.
         return JSONResponse(
-            {"detail": str(e)},
+            {"detail": "Invalid request data for organization update."},
             status_code=400,
         )
     except Exception as e:
