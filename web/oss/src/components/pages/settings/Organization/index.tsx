@@ -59,6 +59,7 @@ interface SettingRowProps {
     disabledReason?: string
     tooltip?: string
     loading?: boolean
+    showSuccess?: boolean
 }
 
 const SettingRow: FC<SettingRowProps> = ({
@@ -70,6 +71,7 @@ const SettingRow: FC<SettingRowProps> = ({
     disabledReason,
     tooltip,
     loading,
+    showSuccess,
 }) => (
     <div
         className={`flex items-start justify-between py-4 border-0 border-b border-solid border-[var(--ant-color-border-secondary)] last:border-0 ${disabled ? "opacity-60" : ""}`}
@@ -84,6 +86,12 @@ const SettingRow: FC<SettingRowProps> = ({
                             className="text-[var(--ant-color-text-tertiary)] cursor-help"
                         />
                     </Tooltip>
+                )}
+                {showSuccess && (
+                    <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                        <CheckCircleOutlined />
+                        Saved
+                    </span>
                 )}
             </div>
             <p className="text-sm text-[var(--ant-color-text-secondary)] mt-0.5 mb-0">
@@ -117,6 +125,7 @@ const Organization: FC = () => {
     const [slugValue, setSlugValue] = useState("")
     const [slugModalVisible, setSlugModalVisible] = useState(false)
     const [updating, setUpdating] = useState(false)
+    const [lastSavedFlag, setLastSavedFlag] = useState<string | null>(null)
     const [domainModalVisible, setDomainModalVisible] = useState(false)
     const [domainForm] = Form.useForm()
     const [providerModalVisible, setProviderModalVisible] = useState(false)
@@ -126,7 +135,7 @@ const Organization: FC = () => {
     const handleUpdateOrganization = useCallback(
         async (
             payload: {slug?: string; name?: string; description?: string; flags?: any},
-            options?: {ignoreAxiosError?: boolean},
+            options?: {ignoreAxiosError?: boolean; flagName?: string},
         ) => {
             if (!selectedOrg?.id) return
 
@@ -146,7 +155,13 @@ const Organization: FC = () => {
                         )
                     })
                 }
-                message.success("Organization updated successfully")
+                // Show inline success indicator for flag changes
+                if (options?.flagName) {
+                    setLastSavedFlag(options.flagName)
+                    setTimeout(() => setLastSavedFlag(null), 2000)
+                } else {
+                    message.success("Organization updated successfully")
+                }
                 // Invalidate and refetch organization data
                 await queryClient.invalidateQueries({queryKey: ["organizations"]})
                 await refetch()
@@ -514,11 +529,14 @@ const Organization: FC = () => {
                     okType: "danger",
                     cancelText: "Cancel",
                     onOk: () => {
-                        handleUpdateOrganization({flags: {[flag]: value}}, {ignoreAxiosError: true})
+                        handleUpdateOrganization(
+                            {flags: {[flag]: value}},
+                            {ignoreAxiosError: true, flagName: flag},
+                        )
                     },
                 })
             } else {
-                handleUpdateOrganization({flags: {[flag]: value}})
+                handleUpdateOrganization({flags: {[flag]: value}}, {flagName: flag})
             }
         },
         [handleUpdateOrganization, hasActiveVerifiedProvider, hasVerifiedDomain, selectedOrg],
@@ -679,6 +697,7 @@ const Organization: FC = () => {
                         enabled={selectedOrg.flags.allow_email}
                         onChange={(checked) => handleFlagChange("allow_email", checked)}
                         loading={updating}
+                        showSuccess={lastSavedFlag === "allow_email"}
                     />
                     <SettingRow
                         title="Social login"
@@ -686,6 +705,7 @@ const Organization: FC = () => {
                         enabled={selectedOrg.flags.allow_social}
                         onChange={(checked) => handleFlagChange("allow_social", checked)}
                         loading={updating}
+                        showSuccess={lastSavedFlag === "allow_social"}
                     />
                     <SettingRow
                         title="SSO authentication"
@@ -696,6 +716,7 @@ const Organization: FC = () => {
                         disabledReason="Add an SSO provider below to enable"
                         tooltip="OIDC supported. Configure your IdP in the SSO Providers section below."
                         loading={updating}
+                        showSuccess={lastSavedFlag === "allow_sso"}
                     />
 
                     {/* Membership */}
@@ -708,15 +729,18 @@ const Organization: FC = () => {
                         disabled={!hasVerifiedDomain}
                         disabledReason="Verify at least one domain first"
                         loading={updating}
+                        showSuccess={lastSavedFlag === "auto_join"}
                     />
                     <SettingRow
-                        title="Allow invites from any domain"
-                        description="Owners can invite users with any email, not just verified domains"
-                        enabled={!selectedOrg.flags.domains_only}
-                        onChange={(checked) => handleFlagChange("domains_only", !checked)}
+                        title="Restrict invites to verified domains"
+                        description="Only allow inviting users whose email matches a verified domain"
+                        enabled={selectedOrg.flags.domains_only}
+                        onChange={(checked) => handleFlagChange("domains_only", checked)}
+                        disabled={!hasVerifiedDomain}
+                        disabledReason="Verify at least one domain first"
                         loading={updating}
+                        showSuccess={lastSavedFlag === "domains_only"}
                     />
-
                     {/* Admin */}
                     <SectionLabel>Admin</SectionLabel>
                     <SettingRow
@@ -728,6 +752,7 @@ const Organization: FC = () => {
                         disabledReason="Enable at least one sign-in method first"
                         tooltip="Prevents account lockout. Keep enabled if all sign-in methods are disabled."
                         loading={updating}
+                        showSuccess={lastSavedFlag === "allow_root"}
                     />
                 </div>
             </Card>
