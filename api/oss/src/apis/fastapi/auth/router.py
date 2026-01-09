@@ -63,9 +63,18 @@ async def check_organization_access(request: Request, organization_id: str):
     user_identities = payload.get("user_identities", [])
 
     try:
-        user_uid = session.get_user_id()
-        user = await db_manager.get_user_with_uid(user_uid)
+        user_id = session.get_user_id()
+        try:
+            user = await db_manager.get_user_with_id(user_id)
+        except Exception:
+            log.error(exc_info=True)
         if not user:
+            log.warning(
+                "[AUTH] [ACCESS] user not found for id=%s organization_id=%s session_identities=%s",
+                user_id,
+                organization_id,
+                session_identities,
+            )
             raise HTTPException(
                 status_code=403,
                 detail={

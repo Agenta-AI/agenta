@@ -708,6 +708,13 @@ class AuthService:
 
                 # If user's domain is not in the verified domains, deny access
                 if email_domain not in verified_domain_slugs:
+                    log.warning(
+                        "[AUTH] organization_id=%s user_id=%s domain=%s verified_domains=%s",
+                        str(organization_id),
+                        str(user_id),
+                        email_domain,
+                        sorted(verified_domain_slugs),
+                    )
                     return {
                         "error": "AUTH_DOMAIN_DENIED",
                         "message": f"Your email domain '{email_domain}' is not allowed for this organization",
