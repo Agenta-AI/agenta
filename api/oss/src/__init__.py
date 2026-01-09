@@ -55,19 +55,19 @@ from supertokens_python.recipe.session import (
 from supertokens_python.types import (
     AccountInfo,
 )
-from oss.src.core.auth.supertokens_overrides import (
+from oss.src.core.auth.supertokens.overrides import (
     override_emailpassword_functions,
 )
-from oss.src.core.auth.supertokens_overrides import (
+from oss.src.core.auth.supertokens.overrides import (
     override_passwordless_functions,
 )
-from oss.src.core.auth.supertokens_overrides import (
+from oss.src.core.auth.supertokens.overrides import (
     override_thirdparty_functions,
 )
-from oss.src.core.auth.supertokens_overrides import (
+from oss.src.core.auth.supertokens.overrides import (
     override_session_functions,
 )
-from oss.src.core.auth.supertokens_config import (
+from oss.src.core.auth.supertokens.config import (
     get_app_info,
     get_supertokens_config,
     get_thirdparty_providers,

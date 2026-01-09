@@ -374,7 +374,7 @@ class AuthService:
     # AUTHENTICATION: Support authentication flows
     # ============================================================================
     # Note: Actual authentication is handled by SuperTokens recipes.
-    # See supertokens_overrides.py for:
+    # See supertokens/overrides.py for:
     # - Dynamic OIDC provider configuration (get_dynamic_oidc_provider)
     # - Post-authentication hooks (sign_in_up override)
     # - Session creation with identities (create_new_session override)

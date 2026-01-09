@@ -23,7 +23,7 @@ from supertokens_python.recipe.session import (
 )
 
 from oss.src.utils.env import env
-from oss.src.core.auth.supertokens_overrides import (
+from oss.src.core.auth.supertokens.overrides import (
     override_thirdparty_functions,
     override_thirdparty_apis,
     override_passwordless_functions,
