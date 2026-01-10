@@ -1,9 +1,19 @@
-import {memo, Suspense, useEffect, useMemo, useRef, type ReactNode, type RefObject} from "react"
+import {
+    memo,
+    Suspense,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ReactNode,
+    type RefObject,
+} from "react"
 
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import {ConfigProvider, Layout, Modal, Skeleton, Space, theme} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import {ErrorBoundary} from "react-error-boundary"
@@ -12,9 +22,16 @@ import {useLocalStorage, useResizeObserver} from "usehooks-ts"
 import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {currentAppAtom} from "@/oss/state/app"
-import {useAppQuery, useAppState} from "@/oss/state/appState"
+import {requestNavigationAtom, useAppQuery, useAppState} from "@/oss/state/appState"
+import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
 import {getProjectValues, useProjectData} from "@/oss/state/project"
+import {
+    cacheLastUsedProjectId,
+    demoReturnHintDismissedAtom,
+    demoReturnHintPendingAtom,
+    lastNonDemoProjectAtom,
+} from "@/oss/state/project/selectors/project"
 
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
@@ -73,27 +90,91 @@ const AppWithVariants = memo(
         }, [appState.asPath, appState.pathname])
 
         const currentApp = useAtomValue(currentAppAtom)
-        const {project, projects} = useProjectData()
+        const {project} = useProjectData()
+        const lastNonDemoProject = useAtomValue(lastNonDemoProjectAtom)
+        const [demoReturnHintPending, setDemoReturnHintPending] = useAtom(demoReturnHintPendingAtom)
+        const [demoReturnHintDismissed, setDemoReturnHintDismissed] = useAtom(
+            demoReturnHintDismissedAtom,
+        )
+        const [isDemoReturnModalOpen, setDemoReturnModalOpen] = useState(false)
+        const navigate = useSetAtom(requestNavigationAtom)
         // const profileLoading = useAtomValue(profilePendingAtom)
         // const {changeSelectedOrg} = useOrgData()
 
-        const handleBackToWorkspaceSwitch = () => {
-            const project = projects.find((p) => p.user_role === "owner")
-            if (project && !project.is_demo && project.organization_id) {
-                // changeSelectedOrg(project.organization_id)
+        useEffect(() => {
+            if (project?.is_demo) return
+            if (!demoReturnHintPending) return
+            if (demoReturnHintDismissed) {
+                setDemoReturnHintPending(false)
+                return
             }
-        }
+            setDemoReturnHintPending(false)
+            setDemoReturnModalOpen(true)
+        }, [
+            demoReturnHintDismissed,
+            demoReturnHintPending,
+            project?.is_demo,
+            setDemoReturnHintPending,
+        ])
+
+        const closeDemoReturnModal = useCallback(() => {
+            setDemoReturnModalOpen(false)
+            setDemoReturnHintDismissed(true)
+        }, [setDemoReturnHintDismissed])
+
+        const handleBackToWorkspaceSwitch = useCallback(() => {
+            if (!lastNonDemoProject?.workspaceId || !lastNonDemoProject?.projectId) {
+                navigate({type: "href", href: "/w", method: "push"})
+                return
+            }
+
+            cacheLastUsedProjectId(lastNonDemoProject.workspaceId, lastNonDemoProject.projectId)
+
+            if (lastNonDemoProject.organizationId) {
+                cacheWorkspaceOrgPair(
+                    lastNonDemoProject.workspaceId,
+                    lastNonDemoProject.organizationId,
+                )
+            }
+
+            if (!demoReturnHintDismissed) {
+                setDemoReturnHintPending(true)
+            }
+            const href = `/w/${encodeURIComponent(
+                lastNonDemoProject.workspaceId,
+            )}/p/${encodeURIComponent(lastNonDemoProject.projectId)}/apps`
+            navigate({type: "href", href, method: "push"})
+        }, [demoReturnHintDismissed, lastNonDemoProject, navigate, setDemoReturnHintPending])
 
         return (
             <div className={clsx([{"flex flex-col grow min-h-0": isHumanEval || isEvaluator}])}>
+                <Modal
+                    title="Want to revisit the demo?"
+                    open={isDemoReturnModalOpen}
+                    onOk={closeDemoReturnModal}
+                    onCancel={closeDemoReturnModal}
+                    okText="Got it"
+                    cancelText="Do not show again"
+                >
+                    <p className="m-0">
+                        Open the org switcher in the sidebar. Select the organization tagged demo to
+                        return.
+                    </p>
+                </Modal>
                 {project?.is_demo && (
-                    <div className={classes.banner}>
-                        You are in <span>a view-only</span> demo workspace. To go back to your
-                        workspace{" "}
-                        <span className="cursor-pointer" onClick={handleBackToWorkspaceSwitch}>
-                            click here
-                        </span>
-                    </div>
+                    <>
+                        <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-1.5 h-[38px] bg-[#1c2c3d] text-white text-sm font-medium">
+                            You're viewing the demo workspace.
+                            <button
+                                type="button"
+                                className="bg-transparent border-none p-0 text-white text-sm font-medium underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer"
+                                onClick={handleBackToWorkspaceSwitch}
+                            >
+                                Return to your workspace
+                            </button>
+                        </div>
+                        <div className="h-[38px] shrink-0" />
+                    </>
                 )}
                 <Layout hasSider className={classes.layout}>
                     <SidebarIsland

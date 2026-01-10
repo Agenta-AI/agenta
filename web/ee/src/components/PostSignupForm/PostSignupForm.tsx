@@ -13,6 +13,7 @@ import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 
 import {useStyles} from "./assets/styles"
+import {OnboardingScreen} from "./OnboardingScreen"
 
 // Fisher-Yates shuffle algorithm
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -78,6 +79,7 @@ const PostSignupForm = () => {
     const {orgs} = useOrgData()
     const formData = Form.useWatch([], form)
     const [currentStep, setCurrentStep] = useState(0)
+    const [showOnboarding, setShowOnboarding] = useState(false)
     const {survey, loading, error} = useSurvey("Signup 2")
     const [autoRedirectAttempted, setAutoRedirectAttempted] = useState(false)
 
@@ -224,10 +226,10 @@ const PostSignupForm = () => {
             } catch (error) {
                 console.error("Error submitting form:", error)
             } finally {
-                router.push("/get-started")
+                setShowOnboarding(true)
             }
         },
-        [allQuestions, form, router, posthog, survey?.id, survey?.name, user?.email],
+        [allQuestions, form, posthog, survey?.id, survey?.name, user?.email],
     )
 
     // Memoize shuffled choices keyed by the stable question index
@@ -435,41 +437,49 @@ const PostSignupForm = () => {
                 />
             </section>
 
-            <Spin spinning={isSurveyLoading}>
-                {showSurveyForm && (
-                    <Form
-                        layout="vertical"
-                        form={form}
-                        onFinish={handleSubmitFormData}
-                        className={classes.mainContainer}
-                    >
-                        <div className={classes.container}>
-                            <div className="space-y-1">
-                                <Typography.Paragraph>
-                                    {currentStep + 1}/{totalSteps || 1}
-                                </Typography.Paragraph>
-                                <Typography.Title level={3}>
-                                    {currentStep === 0 ? "Tell us about yourself" : "Almost done"}
-                                </Typography.Title>
+            {showOnboarding ? (
+                <OnboardingScreen />
+            ) : (
+                <Spin spinning={isSurveyLoading}>
+                    {showSurveyForm && (
+                        <Form
+                            layout="vertical"
+                            form={form}
+                            onFinish={handleSubmitFormData}
+                            className={classes.mainContainer}
+                        >
+                            <div className={classes.container}>
+                                <div className="space-y-1">
+                                    <Typography.Paragraph>
+                                        {currentStep + 1}/{totalSteps || 1}
+                                    </Typography.Paragraph>
+                                    <Typography.Title level={3}>
+                                        {currentStep === 0
+                                            ? "Tell us about yourself"
+                                            : "Almost done"}
+                                    </Typography.Title>
+                                </div>
+
+                                <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
                             </div>
 
-                            <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
-                        </div>
-
-                        <Button
-                            size="large"
-                            type="primary"
-                            onClick={currentStep < totalSteps - 1 ? handleNextStep : form.submit}
-                            className="w-full min-h-[32px] mt-2"
-                            iconPlacement="end"
-                            icon={<ArrowRight className="mt-[3px]" />}
-                            disabled={!isCurrentStepValid}
-                        >
-                            {currentStep < totalSteps - 1 ? "Continue" : "Submit"}
-                        </Button>
-                    </Form>
-                )}
-            </Spin>
+                            <Button
+                                size="large"
+                                type="primary"
+                                onClick={
+                                    currentStep < totalSteps - 1 ? handleNextStep : form.submit
+                                }
+                                className="w-full min-h-[32px] mt-2"
+                                iconPlacement="end"
+                                icon={<ArrowRight className="mt-[3px]" />}
+                                disabled={!isCurrentStepValid}
+                            >
+                                {currentStep < totalSteps - 1 ? "Continue" : "Submit"}
+                            </Button>
+                        </Form>
+                    )}
+                </Spin>
+            )}
         </>
     )
 }
