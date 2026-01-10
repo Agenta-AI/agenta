@@ -1,7 +1,7 @@
-import {useState} from "react"
+import {useMemo, useState} from "react"
 
-import {ArrowLeft, Code, TreeView, Rocket} from "@phosphor-icons/react"
-import {Typography, Card, Button} from "antd"
+import {ArrowLeft, Code, Rocket, Sparkle, TreeView} from "@phosphor-icons/react"
+import {Button, Card, message, Typography} from "antd"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
@@ -12,7 +12,8 @@ import {
 import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {JSSTheme} from "@/oss/lib/Types"
-import {waitForWorkspaceContext, buildPostLoginPath} from "@/oss/state/url/postLoginRedirect"
+import {useProjectData} from "@/oss/state/project/hooks"
+import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 import {RunEvaluationView} from "./RunEvaluationView"
 
@@ -88,6 +89,32 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         flexWrap: "wrap",
         justifyContent: "center",
     },
+    dividerContainer: {
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        width: "100%",
+        maxWidth: 600,
+        color: theme.colorTextTertiary,
+        fontSize: 13,
+    },
+    dividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: theme.colorBorderSecondary,
+    },
+    demoLink: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        color: theme.colorTextSecondary,
+        fontSize: 15,
+        cursor: "pointer",
+        transition: "color 0.2s ease",
+        "&:hover": {
+            color: theme.colorPrimary,
+        },
+    },
     backButton: {
         alignSelf: "flex-start",
         marginBottom: 20,
@@ -112,7 +139,24 @@ export const OnboardingScreen = () => {
     const [view, setView] = useState<ViewState>("selection")
     const router = useRouter()
     const posthog = usePostHogAg()
+    const {projects} = useProjectData()
     const _url = useURL() // Keep hook call for potential future use
+
+    const demoProject = useMemo(() => projects.find((project) => project.is_demo), [projects])
+
+    const handleDemoSelection = async () => {
+        posthog?.capture?.("onboarding_selection_v1", {
+            selection: "demo",
+        })
+
+        if (!demoProject) {
+            message.error("Demo project is not available.")
+            return
+        }
+
+        // Navigate directly to the demo project
+        router.push(`/w/${demoProject.workspace_id}/p/${demoProject.project_id}/apps`)
+    }
 
     const handleSelection = async (selection: "trace" | "eval" | "test_prompt") => {
         posthog?.capture?.("onboarding_selection_v1", {
@@ -250,6 +294,17 @@ export const OnboardingScreen = () => {
                             </div>
                         </div>
                     </Card>
+                </div>
+
+                <div className={classes.dividerContainer}>
+                    <div className={classes.dividerLine} />
+                    <span>or</span>
+                    <div className={classes.dividerLine} />
+                </div>
+
+                <div className={classes.demoLink} onClick={handleDemoSelection}>
+                    <Sparkle size={18} />
+                    <span>Explore demo workspace</span>
                 </div>
 
                 <Button type="link" onClick={() => router.push("/apps")}>
