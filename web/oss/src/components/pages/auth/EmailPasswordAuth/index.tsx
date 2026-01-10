@@ -48,11 +48,12 @@ const EmailPasswordAuth = ({
                 })
             } else {
                 setMessage({message: "Verification successful", type: "success"})
-                const {createdNewRecipeUser, user} = response as {
-                    createdNewRecipeUser?: boolean
+                const {user} = response as {
                     user?: {loginMethods?: unknown[]}
                 }
-                await handleAuthSuccess({createdNewRecipeUser, user})
+                // signUp() doesn't return createdNewRecipeUser (only signInUp does).
+                // Since signUp always creates a new user, we explicitly set it to true.
+                await handleAuthSuccess({createdNewRecipeUser: true, user})
             }
         } catch (error) {
             authErrorMsg(error)
