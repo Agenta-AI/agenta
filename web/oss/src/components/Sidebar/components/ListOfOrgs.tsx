@@ -1,6 +1,6 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
-import {ArrowsLeftRight, CaretDown, PencilSimple, Trash, CopyIcon} from "@phosphor-icons/react"
+import {ArrowsLeftRight, CaretDown, PencilSimple, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
     Button,
@@ -185,15 +185,6 @@ const ListOfOrgs = ({
                                 <div className="flex items-center gap-2">
                                     <ArrowsLeftRight size={16} />
                                     Transfer ownership
-                                </div>
-                            ),
-                        },
-                        {
-                            key: `copy:${organization.id}`,
-                            label: (
-                                <div className="flex items-center gap-2">
-                                    <CopyIcon size={16} />
-                                    Copy ID
                                 </div>
                             ),
                         },
