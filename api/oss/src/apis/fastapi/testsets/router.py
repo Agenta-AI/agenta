@@ -555,7 +555,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -671,7 +671,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -738,7 +738,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -854,7 +854,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -890,7 +890,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -977,7 +977,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -1183,7 +1183,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -1260,7 +1260,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
