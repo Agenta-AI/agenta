@@ -1,6 +1,6 @@
 import {FC, useEffect, useMemo} from "react"
 
-import {ArrowLeft, Sparkle, Receipt, Key, Buildings, Kanban} from "@phosphor-icons/react"
+import {ArrowLeft, Sparkle, Receipt, Key, Buildings, UsersThree} from "@phosphor-icons/react"
 import {Button, Divider} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
@@ -42,13 +42,8 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     const items = useMemo<SidebarConfig[]>(() => {
         const list: SidebarConfig[] = [
             {
-                key: "workspace",
-                title: "Project",
-                icon: <Kanban size={16} className="mt-0.5" />,
-            },
-            {
                 key: "apiKeys",
-                title: "Credentials",
+                title: "API Keys",
                 icon: <Key size={16} className="mt-0.5" />,
             },
             {
@@ -57,11 +52,16 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 icon: <Sparkle size={16} className="mt-0.5" />,
                 divider: true,
             },
+            {
+                key: "workspace",
+                title: "Members",
+                icon: <UsersThree size={16} className="mt-0.5" />,
+            },
             ...(isOwner && canShowOrganization
                 ? [
                       {
                           key: "organization",
-                          title: "Organization",
+                          title: "Organization Admin",
                           icon: <Buildings size={16} className="mt-0.5" />,
                       },
                   ]
