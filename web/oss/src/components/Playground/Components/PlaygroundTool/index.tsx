@@ -13,6 +13,7 @@ import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
+import toolsSpecs from "../PlaygroundVariantConfigPrompt/assets/tools.specs.json"
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControl/assets/PlaygroundVariantPropertyControlWrapper"
 import PromptMessageContentOptions from "../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
 import SharedEditor from "../SharedEditor"
@@ -75,6 +76,67 @@ function stableStringify(input: any): string {
 
 function deepEqual(a: any, b: any): boolean {
     return stableStringify(a) === stableStringify(b)
+}
+
+function formatBuiltinLabel(value: string): string {
+    return value
+        .split("_")
+        .filter(Boolean)
+        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+        .join(" ")
+}
+
+function inferBuiltinLabel(toolObj: ToolObj): string | undefined {
+    if (!toolObj || typeof toolObj !== "object") return undefined
+    const typeValue = (toolObj as any).type
+    if (typeof typeValue === "string" && typeValue !== "function") {
+        return formatBuiltinLabel(typeValue)
+    }
+    const keys = Object.keys(toolObj).filter((key) => key !== "type" && key !== "function")
+    if (keys.length === 0) return undefined
+    return formatBuiltinLabel(keys[0])
+}
+
+function inferIsBuiltinTool(toolObj: ToolObj): boolean {
+    if (!toolObj || typeof toolObj !== "object") return false
+    const keys = Object.keys(toolObj)
+    if (keys.length === 0) return false
+    const typeValue = (toolObj as any).type
+    const hasFunction = typeValue === "function" || "function" in (toolObj as any)
+    if (hasFunction) return false
+    if (typeof typeValue === "string") return true
+    return keys.some((key) => key !== "type")
+}
+
+interface BuiltinToolInfo {
+    providerKey?: string
+    toolCode?: string
+}
+
+function matchesToolPayload(toolObj: ToolObj, payload: Record<string, any>): boolean {
+    if (!toolObj || typeof toolObj !== "object" || !payload) return false
+    const toolObjAny = toolObj as any
+    if (typeof payload.type === "string" && toolObjAny.type === payload.type) return true
+    if (typeof payload.name === "string" && toolObjAny.name === payload.name) return true
+    const payloadKeys = Object.keys(payload)
+    if (payloadKeys.length === 1 && payloadKeys[0] in toolObjAny) return true
+    return false
+}
+
+function inferBuiltinToolInfo(toolObj: ToolObj): BuiltinToolInfo | undefined {
+    if (!toolObj || typeof toolObj !== "object") return undefined
+    const specs = toolsSpecs as Record<string, Record<string, any>>
+    for (const [providerKey, tools] of Object.entries(specs)) {
+        for (const [toolCode, toolSpec] of Object.entries(tools)) {
+            const payloads = Array.isArray(toolSpec) ? toolSpec : [toolSpec]
+            for (const payload of payloads) {
+                if (matchesToolPayload(toolObj, payload as Record<string, any>)) {
+                    return {providerKey, toolCode}
+                }
+            }
+        }
+    }
+    return undefined
 }
 
 function toToolObj(value: unknown): ToolObj {
@@ -322,6 +384,16 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
         ),
     )
 
+    const inferredBuiltinTool = useMemo(() => inferIsBuiltinTool(toolObj), [toolObj])
+    const isBuiltinTool = builtinMeta?.isBuiltinTool || inferredBuiltinTool
+    const inferredToolInfo = useMemo(() => inferBuiltinToolInfo(toolObj), [toolObj])
+    const fallbackToolLabel = useMemo(() => inferBuiltinLabel(toolObj), [toolObj])
+    const fallbackProvider = inferredToolInfo?.providerKey
+        ? TOOL_PROVIDERS_META[inferredToolInfo.providerKey]
+        : undefined
+    const fallbackIcon =
+        fallbackProvider?.iconKey != null ? LLMIconMap[fallbackProvider.iconKey] : undefined
+
     useAtomValue(variantByRevisionIdAtomFamily(variantId))
     const appUriInfo = useAtomValue(appUriInfoAtom)
     const setPrompts = useSetAtom(
@@ -377,7 +449,7 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
                     editorProps={{
                         codeOnly: true,
                         noProvider: true,
-                        validationSchema: builtinMeta?.isBuiltinTool ? undefined : TOOL_SCHEMA,
+                        validationSchema: isBuiltinTool ? undefined : TOOL_SCHEMA,
                     }}
                     handleChange={(e) => {
                         if (isReadOnly) return
@@ -402,10 +474,17 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
                             minimized={minimized}
                             onToggleMinimize={() => setMinimized((v) => !v)}
                             onDelete={deleteMessage}
-                            isBuiltinTool={builtinMeta?.isBuiltinTool}
-                            builtinProviderLabel={builtinMeta?.providerLabel}
-                            builtinToolLabel={builtinMeta?.toolLabel}
-                            builtinIcon={builtinMeta?.Icon}
+                            isBuiltinTool={isBuiltinTool}
+                            builtinProviderLabel={
+                                builtinMeta?.providerLabel ??
+                                (fallbackProvider?.label || inferredToolInfo?.providerKey)
+                            }
+                            builtinToolLabel={
+                                builtinMeta?.toolLabel ??
+                                inferredToolInfo?.toolCode ??
+                                fallbackToolLabel
+                            }
+                            builtinIcon={builtinMeta?.Icon ?? fallbackIcon}
                         />
                     }
                 />
