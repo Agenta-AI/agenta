@@ -32,6 +32,8 @@ import {ClickRunPlaceholder} from "../ResultPlaceholder"
 import ErrorPanel from "./ErrorPanel"
 import GenerationResponsePanel from "./GenerationResponsePanel"
 
+const EMPTY_INPUTS_MESSAGE = "Insert a {{variable}} in your template to create an input."
+
 interface Props {
     rowId: string
     variantId: string
@@ -248,6 +250,11 @@ const SingleView = ({
                     "flex flex-col gap-4 w-full": isChat,
                 })}
             >
+                {variableIds.length === 0 ? (
+                    <div className="rounded-md border border-dashed border-[rgba(5,23,41,0.08)] bg-[rgba(5,23,41,0.02)] px-3 py-2 text-xs text-gray-500">
+                        {EMPTY_INPUTS_MESSAGE}
+                    </div>
+                ) : null}
                 {variableIds.length > 0 && (
                     <div className="flex flex-col gap-2 w-full">
                         {variableIds.map((id) => {
