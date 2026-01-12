@@ -46,6 +46,10 @@ const DefaultView = ({
         ),
     ) as string[]
 
+    if (inputOnly && variableIds.length === 0) {
+        return null
+    }
+
     return (
         <>
             <div
