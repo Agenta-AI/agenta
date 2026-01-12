@@ -833,6 +833,7 @@ const EvalRunDetailsTable = ({
                 <InfiniteVirtualTableFeatureShell<TableRowData>
                     datasetStore={evaluationPreviewDatasetStore}
                     tableScope={tableScope}
+                    store={store}
                     columns={previewColumns.columns}
                     rowKey={(record) => record.key}
                     tableClassName={clsx(
