@@ -63,6 +63,7 @@ CATALOG = [
         "description": "Great for hobby projects and POCs.",
         "type": "standard",
         "plan": Plan.CLOUD_V0_HOBBY.value,
+        "retention": Periods.MONTHLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -82,6 +83,7 @@ CATALOG = [
         "description": "For production projects.",
         "type": "standard",
         "plan": Plan.CLOUD_V0_PRO.value,
+        "retention": Periods.QUARTERLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -131,6 +133,7 @@ CATALOG = [
         "description": "For scale, security, and support.",
         "type": "standard",
         "plan": Plan.CLOUD_V0_BUSINESS.value,
+        "retention": Periods.YEARLY.value,
         "price": {
             "base": {
                 "type": "flat",

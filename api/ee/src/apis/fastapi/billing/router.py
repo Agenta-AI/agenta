@@ -11,7 +11,7 @@ import stripe
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import acquire_lock, release_lock
 from oss.src.utils.env import env
 
 from oss.src.services.db_manager import (
@@ -830,24 +830,19 @@ class BillingRouter:
         log.info("[report] [endpoint] Trigger")
 
         try:
-            report_ongoing = await get_cache(
+            lock_key = await acquire_lock(
                 namespace="meters:report",
                 key={},
+                ttl=3600,  # 1 hour
             )
 
-            if report_ongoing:
+            if not lock_key:
                 log.info("[report] [endpoint] Skipped (ongoing)")
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
                     content={"status": "skipped"},
                 )
 
-            # await set_cache(
-            #     namespace="meters:report",
-            #     key={},
-            #     value=True,
-            #     ttl=60 * 60,  # 1 hour
-            # )
             log.info("[report] [endpoint] Lock acquired")
 
             try:
@@ -871,7 +866,7 @@ class BillingRouter:
                 )
 
             finally:
-                await invalidate_cache(
+                await release_lock(
                     namespace="meters:report",
                     key={},
                 )
@@ -895,12 +890,13 @@ class BillingRouter:
         log.info("[flush] [endpoint] Trigger")
 
         try:
-            flush_ongoing = await get_cache(
+            lock_key = await acquire_lock(
                 namespace="spans:flush",
                 key={},
+                ttl=3600,  # 1 hour
             )
 
-            if flush_ongoing:
+            if not lock_key:
                 log.info("[flush] [endpoint] Skipped (ongoing)")
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
@@ -930,7 +926,7 @@ class BillingRouter:
                 )
 
             finally:
-                await invalidate_cache(
+                await release_lock(
                     namespace="spans:flush",
                     key={},
                 )
