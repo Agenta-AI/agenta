@@ -1,8 +1,8 @@
 [
     {
-        "id": "changelog-2024-12-16-pdf-support",
-        "title": "PDF Support in Playground",
-        "description": "You can now upload and test PDFs directly in the playground.",
-        "link": "https://agenta.ai/docs/changelog/pdf-support-in-playground"
+        "id": "changelog-2026-01-09-chat-sessions",
+        "title": "Chat Sessions in Observability",
+        "description": "Track multi-turn conversations with session grouping and cost analytics.",
+        "link": "https://agenta.ai/docs/changelog/chat-sessions-observability"
     }
 ]

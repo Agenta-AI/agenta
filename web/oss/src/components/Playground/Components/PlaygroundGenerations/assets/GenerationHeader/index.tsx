@@ -1,9 +1,11 @@
 import {useCallback, useEffect, useMemo} from "react"
 
+import {ArrowsInLineVerticalIcon, ArrowsOutLineVerticalIcon} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {appTypeAtom} from "@/oss/components/Playground/state/atoms/app"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {clearAllRunsMutationAtom} from "@/oss/components/Playground/state/atoms/utilityMutations"
@@ -12,10 +14,14 @@ import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 import RunButton from "../../../../assets/RunButton"
 import {usePlaygroundAtoms} from "../../../../hooks/usePlaygroundAtoms"
 import {generationHeaderDataAtomFamily, triggerWebWorkerTestAtom} from "../../../../state/atoms"
+import RunOptionsPopover from "../RunOptionsPopover"
 
+import {allGenerationsCollapsedAtom} from "./store"
 import {useStyles} from "./styles"
 import TestSetMenu from "./TestSetMenu"
 import type {GenerationHeaderProps} from "./types"
+
+// Global atom to track collapse state for all generations
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const classes = useStyles()
@@ -35,7 +41,9 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const triggerTest = useSetAtom(triggerWebWorkerTestAtom)
     const runAllChat = useSetAtom(runAllChatAtom)
     const appType = useAtomValue(appTypeAtom)
+
     const completionRowIds = useAtomValue(generationInputRowIdsAtom) as string[]
+    const [isAllCollapsed, setIsAllCollapsed] = useAtom(allGenerationsCollapsedAtom)
 
     const runTests = useCallback(() => {
         if (appType === "chat") runAllChat()
@@ -69,9 +77,27 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
             )}
         >
             <div className="w-full h-full bg-[white] flex justify-between items-center gap-4">
-                <Typography className="text-[16px] leading-[18px] font-[600] text-nowrap">
-                    Generations
-                </Typography>
+                {appType === "chat" ? (
+                    <Typography className="text-[16px] leading-[18px] font-[600] text-nowrap">
+                        Generations
+                    </Typography>
+                ) : (
+                    <EnhancedButton
+                        icon={
+                            isAllCollapsed ? (
+                                <ArrowsOutLineVerticalIcon size={16} />
+                            ) : (
+                                <ArrowsInLineVerticalIcon size={16} />
+                            )
+                        }
+                        type="text"
+                        onClick={() => setIsAllCollapsed(!isAllCollapsed)}
+                        tooltipProps={{
+                            title: isAllCollapsed ? "Expand all" : "Collapse all",
+                        }}
+                        className="text-[16px] leading-[18px] font-[600] text-nowrap flex items-center"
+                    />
+                )}
 
                 <div className="flex items-center gap-2">
                     <Tooltip title="Clear all">
@@ -87,14 +113,18 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                     />
 
                     {!isRunning ? (
-                        <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
-                            <RunButton
-                                isRunAll
-                                type="primary"
-                                onClick={() => runTests()}
-                                disabled={isRunning}
-                            />
-                        </Tooltip>
+                        <div className="flex">
+                            <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
+                                <RunButton
+                                    isRunAll
+                                    type="primary"
+                                    onClick={() => runTests()}
+                                    disabled={isRunning}
+                                    style={{borderRadius: "6px 0 0 6px"}}
+                                />
+                            </Tooltip>
+                            <RunOptionsPopover isRunning={isRunning} variantId={variantId} />
+                        </div>
                     ) : (
                         <RunButton
                             isCancel

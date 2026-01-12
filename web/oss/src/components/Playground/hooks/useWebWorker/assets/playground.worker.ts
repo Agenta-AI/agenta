@@ -1,4 +1,3 @@
-import {GenerationChatRow, GenerationInputRow} from "@/oss/components/Playground/state/types"
 import {ConfigMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {constructPlaygroundTestUrl} from "@/oss/lib/shared/variant/stringUtils"
 import {OpenAPISpec} from "@/oss/lib/shared/variant/types/openapi"
@@ -7,6 +6,10 @@ import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 import {transformToRequestBody} from "../../../../../lib/shared/variant/transformer/transformToRequestBody"
 import {EnhancedVariant} from "../../../../../lib/shared/variant/transformer/types"
 import {parseValidationError} from "../../../assets/utilities/errors"
+
+// Define types locally since they are not exported
+type GenerationChatRow = any
+type GenerationInputRow = any
 
 // Track in-flight requests so we can cancel them by runId
 const abortControllers = new Map<string, AbortController>()
@@ -65,6 +68,54 @@ const applyModelAttachmentRules = (variant: EnhancedVariant, requestBody: Record
     }
 }
 
+// Simple p-limit implementation to avoid adding dependencies
+const pLimit = (concurrency: number) => {
+    const queue: (() => Promise<void>)[] = []
+    let activeCount = 0
+
+    const next = () => {
+        activeCount--
+        if (queue.length > 0) {
+            queue.shift()!()
+        }
+    }
+
+    const run = async <T>(
+        fn: () => Promise<T>,
+        resolve: (value: T | PromiseLike<T>) => void,
+        reject: (reason?: any) => void,
+    ) => {
+        activeCount++
+        const result = (async () => fn())()
+        try {
+            const res = await result
+            resolve(res)
+        } catch (err) {
+            reject(err)
+        } finally {
+            next()
+        }
+    }
+
+    const enqueue = <T>(fn: () => Promise<T>): Promise<T> => {
+        return new Promise<T>((resolve, reject) => {
+            const task = () => run(fn, resolve, reject)
+
+            if (activeCount < concurrency) {
+                task()
+            } else {
+                queue.push(task)
+            }
+        })
+    }
+
+    return enqueue
+}
+
+// Global limiter instance to share concurrency limit across all "runVariantInputRow" calls
+// This ensures that even if 20 rows trigger this function simultaneously, total concurrent fetches won't exceed 6.
+const limit = pLimit(6)
+
 async function runVariantInputRow(payload: {
     variant: EnhancedVariant
     allMetadata: Record<string, ConfigMetadata>
@@ -83,7 +134,6 @@ async function runVariantInputRow(payload: {
     chatHistory?: any[]
     spec: OpenAPISpec
     runId: string
-    // New: pass pre-resolved prompt context to keep transform consistent with app atoms
     prompts?: any[]
     variables?: string[]
     variableValues?: Record<string, string>
@@ -92,18 +142,18 @@ async function runVariantInputRow(payload: {
     isChat?: boolean
     isCustom?: boolean
     appType?: string
+    repetitions?: number
 }) {
     const {
         variant,
-        rowId,
-        uri,
-        inputRow,
-        messageId,
-        messageRow,
         allMetadata,
+        inputRow,
+        messageRow,
+        rowId, // Ensure rowId is destructured
+        appId,
+        uri,
         headers,
         projectId,
-        appId,
         chatHistory,
         spec,
         runId,
@@ -111,39 +161,47 @@ async function runVariantInputRow(payload: {
         variables,
         variableValues,
         revisionId,
-        variantId: payloadVariantId,
+        variantId,
+        messageId, // Ensure messageId is destructured
         isChat,
         isCustom,
         appType,
+        repetitions = 1,
     } = payload
 
-    const requestBody = stripAgentaMetadataDeep(
-        transformToRequestBody({
-            variant,
-            inputRow,
-            messageRow,
-            allMetadata,
-            chatHistory,
-            spec,
-            routePath: uri?.routePath,
-            prompts,
-            variables,
-            variableValues,
-            revisionId,
-            isChat,
-            isCustom,
-            appType,
-        }),
-    )
-    applyModelAttachmentRules(variant, requestBody)
-    let result
     try {
+        const requestBody = stripAgentaMetadataDeep(
+            transformToRequestBody({
+                variant,
+                inputRow,
+                messageRow,
+                allMetadata,
+                chatHistory,
+                spec,
+                routePath: uri?.routePath,
+                prompts,
+                variables,
+                variableValues,
+                revisionId,
+                isChat,
+                isCustom,
+                appType,
+            }),
+        )
+
+        // Ensure we don't send repetitions to the backend as we handle it here
+        if ("repetitions" in requestBody) {
+            delete requestBody.repetitions
+        }
+
+        applyModelAttachmentRules(variant, requestBody)
+
         // Create an AbortController for this run to support cancellation
+        // We reuse the same controller for all repetition requests
         const controller = new AbortController()
         abortControllers.set(runId, controller)
-        // Construct URL using the revision's URI info (not localhost)
+
         const baseUrl = constructPlaygroundTestUrl(uri, "/test", true)
-        // The baseUrl should already be absolute if uri.runtimePrefix is properly set
         const fullUrl = baseUrl
         const search = new URLSearchParams()
         search.set("application_id", appId)
@@ -152,70 +210,101 @@ async function runVariantInputRow(payload: {
         }
         const queryParams = `?${search.toString()}`
 
-        const response = await fetch(`${fullUrl}${queryParams}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "ngrok-skip-browser-warning": "1",
-                ...headers,
-            },
-            body: JSON.stringify(requestBody),
-            signal: controller.signal,
-        })
-        const data = await response.json()
-        if (!response.ok) {
-            const errorMessage = parseValidationError(data)
-            result = {
-                response: undefined,
-                error: errorMessage,
-                metadata: {
-                    timestamp: new Date().toISOString(),
-                    statusCode: response.status,
-                    rawError: data,
-                },
-            }
-        } else {
-            result = {
-                response: data,
-                metadata: {
-                    timestamp: new Date().toISOString(),
-                    statusCode: response.status,
-                },
+        // Define the task for a single request
+        const executeRequest = async () => {
+            try {
+                const response = await fetch(`${fullUrl}${queryParams}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "ngrok-skip-browser-warning": "1",
+                        ...headers,
+                    },
+                    body: JSON.stringify(requestBody),
+                    signal: controller.signal,
+                })
+                const data = await response.json()
+
+                if (!response.ok) {
+                    const errorMessage = parseValidationError(data)
+                    return {
+                        response: undefined,
+                        error: errorMessage,
+                        metadata: {
+                            timestamp: new Date().toISOString(),
+                            statusCode: response.status,
+                            rawError: data,
+                        },
+                    }
+                }
+
+                return {
+                    response: data,
+                    metadata: {
+                        timestamp: new Date().toISOString(),
+                        statusCode: response.status,
+                    },
+                }
+            } catch (error: any) {
+                if (error.name === "AbortError") throw error // Let Promise.all catch aborts
+
+                return {
+                    response: undefined,
+                    error: error.message || "Unknown error",
+                    metadata: {
+                        timestamp: new Date().toISOString(),
+                        type: "network_error",
+                    },
+                }
             }
         }
-    } catch (error) {
-        console.error("Error running variant input row:", error)
-        result = {
-            response: undefined,
-            error:
-                error instanceof Error
-                    ? error.name === "AbortError"
-                        ? "Request aborted"
-                        : error.message
-                    : "Unknown error occurred",
-            metadata: {
-                timestamp: new Date().toISOString(),
-                type: "network_error",
-            },
-        }
-    } finally {
-        // Cleanup controller for this runId
-        abortControllers.delete(runId)
+
+        // Queue tasks
+        const tasks = Array.from({length: repetitions}).map(() => limit(executeRequest))
+        const results = await Promise.all(tasks)
+
+        // Post results
         postMessage({
-            type: "runVariantInputRowResult",
+            type: "runVariantInputRowResult", // Use explicit type matching the listener expectations
             payload: {
                 variant,
-                variantId: payloadVariantId || revisionId || (variant as any)?.id,
+                variantId: variantId || revisionId || (variant as any)?.id,
                 revisionId,
                 rowId,
-                result,
+                result: results, // Array of results
                 messageId,
                 runId,
             },
         })
+    } catch (error: any) {
+        if (error.name === "AbortError") {
+            // Cancelled, do nothing
+            return
+        }
+
+        // If the entire batch fails (e.g. body construction error), send error
+        postMessage({
+            type: "runVariantInputRowResult",
+            payload: {
+                variant,
+                variantId: variantId || revisionId || (variant as any)?.id,
+                revisionId,
+                rowId,
+                result: {
+                    error: error.message || String(error),
+                    metadata: {
+                        timestamp: new Date().toISOString(),
+                        type: "execution_error",
+                    },
+                },
+                messageId,
+                runId,
+            },
+        })
+    } finally {
+        abortControllers.delete(runId)
     }
 }
-
 addEventListener(
     "message",
     (

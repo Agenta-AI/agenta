@@ -12,8 +12,10 @@ import MessageImageList from "@/oss/components/Playground/Components/Shared/Mess
 import {useMessageContentHandlers} from "@/oss/components/Playground/hooks/useMessageContentHandlers"
 import {useMessageContentProps} from "@/oss/components/Playground/hooks/useMessageContentProps"
 import {findPropertyInObject} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
+import {isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
 import {chatTurnsByIdFamilyAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 import {runChatTurnAtom} from "@/oss/state/newPlayground/chat/actions"
+import {openPlaygroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
 
 import {createToolCallPayloads, ToolCallViewHeader} from "../Components/ToolCallView"
 
@@ -31,6 +33,14 @@ interface Props {
     messageOptionProps?: Partial<ComponentProps<typeof TurnMessageHeaderOptions>>
     toolCallsView?: {title?: string; json: string} | null
     toolIndex?: number
+    messageOverride?: any
+    isJSON?: boolean
+    isTool?: boolean
+    messageProps?: any
+    editorType?: string
+    handleRerun?: (args: any) => void
+    resultHashes?: string[]
+    repetitionProps?: any
 }
 
 const TurnMessageAdapter: React.FC<Props> = ({
@@ -53,7 +63,11 @@ const TurnMessageAdapter: React.FC<Props> = ({
     handleRerun: propsHandleRerun,
     resultHashes: propsResultHashes,
     toolIndex = 0,
+    messageOverride,
+    repetitionProps,
 }) => {
+    const openFocusDrawer = useSetAtom(openPlaygroundFocusDrawerAtom)
+    const isComparisonView = useAtomValue(isComparisonViewAtom)
     const editorIdRef = useRef(uuidv4())
     const turn = useAtomValue(chatTurnsByIdFamilyAtom(rowId)) as any
     const setTurn = useSetAtom(chatTurnsByIdFamilyAtom(rowId))
@@ -66,12 +80,13 @@ const TurnMessageAdapter: React.FC<Props> = ({
         return messages[toolIndex] || null
     }, [turn, variantId, toolIndex])
     const msg = useMemo(() => {
+        if (messageOverride) return messageOverride
         const t = turn
         if (!t) return null
         if (kind === "assistant") return t?.assistantMessageByRevision?.[variantId] || null
         if (kind === "tool") return toolMessage
         return t?.userMessage || null
-    }, [turn, variantId, kind, toolMessage])
+    }, [turn, variantId, kind, toolMessage, messageOverride])
 
     const {baseImageProperties, baseFileProperties, baseRoleProperty, computedText} =
         useMessageContentProps(msg as any)
@@ -393,6 +408,8 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             text={p?.json ?? editorText}
                             minimized={minimized}
                             allowFileUpload={baseRoleProperty?.value === "user" && !isToolKind}
+                            repetitionProps={!isComparisonView ? repetitionProps : undefined}
+                            onViewAllRepeats={() => openFocusDrawer({rowId: rowId, variantId})}
                             uploadCount={
                                 Array.isArray(baseImageProperties) ? baseImageProperties.length : 0
                             }
@@ -455,6 +472,8 @@ const TurnMessageAdapter: React.FC<Props> = ({
                         text={editorText}
                         minimized={minimized}
                         allowFileUpload={baseRoleProperty?.value === "user" && !isToolKind}
+                        repetitionProps={!isComparisonView ? repetitionProps : undefined}
+                        onViewAllRepeats={() => openFocusDrawer({rowId: rowId, variantId})}
                         uploadCount={
                             Array.isArray(baseImageProperties) ? baseImageProperties.length : 0
                         }

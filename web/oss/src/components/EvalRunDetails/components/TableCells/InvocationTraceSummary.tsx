@@ -36,3 +36,5 @@ const InvocationTraceSummary = ({
 }
 
 export default memo(InvocationTraceSummary)
+
+// export default () => null

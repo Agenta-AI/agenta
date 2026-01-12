@@ -5,7 +5,6 @@ import {useAtomValue, useStore} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
-import ScenarioColumnVisibilityPopoverContent from "@/oss/components/EvalRunDetails/components/columnVisibility/ColumnVisibilityPopoverContent"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
@@ -24,6 +23,7 @@ import {runDisplayNameAtomFamily} from "./atoms/runDerived"
 import type {EvaluationTableColumn} from "./atoms/table"
 import {DEFAULT_SCENARIO_PAGE_SIZE} from "./atoms/table"
 import type {PreviewTableRow} from "./atoms/tableRows"
+import ScenarioColumnVisibilityPopoverContent from "./components/columnVisibility/ColumnVisibilityPopoverContent"
 import {
     evaluationPreviewDatasetStore,
     evaluationPreviewTableStore,
@@ -39,12 +39,6 @@ import {scenarioRowHeightAtom} from "./state/rowHeight"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
 
 type TableRowData = PreviewTableRow
-
-// Alternating background colors for timestamp-based batch grouping
-const TIMESTAMP_GROUP_COLORS = [
-    "rgba(59, 130, 246, 0.06)", // blue
-    "rgba(16, 185, 129, 0.06)", // green
-]
 
 interface EvalRunDetailsTableProps {
     runId: string
@@ -93,25 +87,12 @@ const EvalRunDetailsTable = ({
 
     const previewColumns = usePreviewColumns({columnResult, evaluationType})
 
-    // Inject synthetic columns for comparison exports (hidden in table display)
-    const columnsWithSyntheticColumns = useMemo(() => {
+    // Inject synthetic columns for comparison exports (do not render in UI)
+    const exportColumns = useMemo(() => {
         const hasCompareRuns = compareSlots.some(Boolean)
         if (!hasCompareRuns) {
             return previewColumns.columns
         }
-
-        const hiddenColumnStyle = {
-            display: "none",
-            width: 0,
-            minWidth: 0,
-            maxWidth: 0,
-            padding: 0,
-            margin: 0,
-            border: "none",
-            visibility: "hidden",
-            position: "absolute",
-            left: "-9999px",
-        } as const
 
         // Create synthetic "Run" column for export only (completely hidden in table)
         const runColumn = {
@@ -124,8 +105,6 @@ const EvalRunDetailsTable = ({
             render: () => null,
             exportEnabled: true,
             exportLabel: "Run",
-            onHeaderCell: () => ({style: hiddenColumnStyle}),
-            onCell: () => ({style: hiddenColumnStyle}),
         }
 
         // Create synthetic "Run ID" column for export only (completely hidden in table)
@@ -139,8 +118,6 @@ const EvalRunDetailsTable = ({
             render: () => null,
             exportEnabled: true,
             exportLabel: "Run ID",
-            onHeaderCell: () => ({style: hiddenColumnStyle}),
-            onCell: () => ({style: hiddenColumnStyle}),
         }
 
         return [runColumn, runIdColumn, ...previewColumns.columns]
@@ -305,21 +282,6 @@ const EvalRunDetailsTable = ({
         }),
         [handleLoadMore, handleResetPages, mergedRows],
     )
-
-    // Build timestamp color map for row grouping (only for online evaluations)
-    const timestampColorMap = useMemo(() => {
-        const map = new Map<string, string>()
-        if (evaluationType !== "online") return map
-
-        // Process rows in order to assign consistent colors
-        mergedRows.forEach((row) => {
-            if (row.timestamp && !map.has(row.timestamp)) {
-                const colorIndex = map.size % TIMESTAMP_GROUP_COLORS.length
-                map.set(row.timestamp, TIMESTAMP_GROUP_COLORS[colorIndex])
-            }
-        })
-        return map
-    }, [evaluationType, mergedRows])
 
     // Build group map for export label resolution
     const groupMap = useMemo(() => {
@@ -851,17 +813,27 @@ const EvalRunDetailsTable = ({
             resolveColumnLabel,
             filename: `${runDisplayName || runId}-scenarios.csv`,
             beforeExport: loadAllPagesBeforeExport,
+            columnsOverride: exportColumns,
         }),
-        [exportResolveValue, resolveColumnLabel, runId, runDisplayName, loadAllPagesBeforeExport],
+        [
+            exportResolveValue,
+            resolveColumnLabel,
+            runId,
+            runDisplayName,
+            loadAllPagesBeforeExport,
+            exportColumns,
+        ],
     )
 
+    const hasCompareRuns = compareSlots.some(Boolean)
+
     return (
-        <section className="bg-zinc-1 w-full h-full overflow-scroll flex flex-col px-4 pt-2">
-            <div className="w-full grow min-h-0 overflow-scroll">
+        <section className="bg-zinc-1 w-full h-full overflow-hidden flex flex-col px-2">
+            <div className="w-full grow min-h-0 overflow-auto">
                 <InfiniteVirtualTableFeatureShell<TableRowData>
                     datasetStore={evaluationPreviewDatasetStore}
                     tableScope={tableScope}
-                    columns={columnsWithSyntheticColumns}
+                    columns={previewColumns.columns}
                     rowKey={(record) => record.key}
                     tableClassName={clsx(
                         "agenta-scenario-table",
@@ -898,17 +870,13 @@ const EvalRunDetailsTable = ({
                         bordered: true,
                         tableLayout: "fixed",
                         onRow: (record) => {
-                            // Determine background color: comparison color takes precedence, then timestamp grouping
-                            let backgroundColor: string | undefined
-                            if (record.compareIndex) {
-                                backgroundColor = getComparisonColor(record.compareIndex)
-                            } else if (
-                                evaluationType === "online" &&
-                                record.timestamp &&
-                                timestampColorMap.has(record.timestamp)
-                            ) {
-                                backgroundColor = timestampColorMap.get(record.timestamp)
-                            }
+                            const backgroundColor = hasCompareRuns
+                                ? getComparisonColor(
+                                      typeof record.compareIndex === "number"
+                                          ? record.compareIndex
+                                          : 0,
+                                  )
+                                : "#fff"
 
                             return {
                                 onClick: (event) => {

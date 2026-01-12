@@ -15,35 +15,54 @@ import {
     VariantReferenceText as GenericVariantReferenceText,
     VariantRevisionLabel as GenericVariantRevisionLabel,
 } from "@/oss/components/References"
+import type {ReferenceTone} from "@/oss/components/References/referenceColors"
 
 import {variantReferenceQueryAtomFamily} from "../../atoms/references"
 import {effectiveProjectIdAtom} from "../../atoms/run"
+import {runTestsetRefsAtomFamily} from "../../atoms/runDerived"
 import useRunIdentifiers from "../../hooks/useRunIdentifiers"
 import useRunScopedUrls from "../../hooks/useRunScopedUrls"
 
 /**
  * Evaluation-scoped testset tag.
  * Gets projectId from evaluation context.
+ * Uses revision ID for URL if available from run data.
  */
 export const TestsetTag = memo(
     ({
         testsetId,
+        revisionId: explicitRevisionId,
         projectURL,
         runId,
+        toneOverride,
+        showIconOverride,
     }: {
         testsetId: string
+        revisionId?: string | null
         projectURL?: string | null
         runId?: string | null
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
+        const testsetRefsAtom = useMemo(() => runTestsetRefsAtomFamily(runId ?? null), [runId])
+        const testsetRefs = useAtomValue(testsetRefsAtom)
         const {buildTestsetHref} = useRunScopedUrls(runId)
-        const href = buildTestsetHref(testsetId) ?? projectURL ?? undefined
+
+        // Find revision ID from run data if not explicitly provided
+        const runRevisionId = testsetRefs.find((ref) => ref.testsetId === testsetId)?.revisionId
+        const revisionId = explicitRevisionId ?? runRevisionId ?? null
+
+        const href = buildTestsetHref(testsetId, revisionId) ?? projectURL ?? undefined
 
         return (
             <GenericTestsetTag
                 testsetId={testsetId}
+                revisionId={revisionId}
                 projectId={projectId}
                 projectURL={href ? undefined : projectURL}
+                toneOverride={toneOverride}
+                showIconOverride={showIconOverride}
             />
         )
     },
@@ -52,6 +71,7 @@ export const TestsetTag = memo(
 /**
  * Evaluation-scoped testset tag list.
  * Gets projectId from evaluation context.
+ * Uses revision IDs for URLs if available from run data.
  */
 export const TestsetTagList = memo(
     ({
@@ -59,25 +79,49 @@ export const TestsetTagList = memo(
         projectURL,
         runId,
         className,
+        toneOverride,
+        showIconOverride,
     }: {
         ids: string[]
         projectURL?: string | null
         runId?: string | null
         className?: string
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
+        const testsetRefsAtom = useMemo(() => runTestsetRefsAtomFamily(runId ?? null), [runId])
+        const testsetRefs = useAtomValue(testsetRefsAtom)
         const {buildTestsetHref} = useRunScopedUrls(runId)
 
+        // Build a map of testsetId -> revisionId from run data
+        const revisionMap = useMemo(() => {
+            const map = new Map<string, string | null>()
+            for (const ref of testsetRefs) {
+                map.set(ref.testsetId, ref.revisionId)
+            }
+            return map
+        }, [testsetRefs])
+
         // Use the first testset's href as base projectURL if available
+        const firstRevisionId = ids.length > 0 ? revisionMap.get(ids[0]) : null
         const resolvedProjectURL =
-            ids.length > 0 ? buildTestsetHref(ids[0])?.replace(`/testsets/${ids[0]}`, "") : null
+            ids.length > 0
+                ? buildTestsetHref(ids[0], firstRevisionId)?.replace(
+                      `/testsets/${firstRevisionId ?? ids[0]}`,
+                      "",
+                  )
+                : null
 
         return (
             <GenericTestsetTagList
                 ids={ids}
+                revisionMap={revisionMap}
                 projectId={projectId}
                 projectURL={resolvedProjectURL ?? projectURL}
                 className={className}
+                toneOverride={toneOverride}
+                showIconOverride={showIconOverride}
             />
         )
     },
@@ -92,10 +136,14 @@ export const ApplicationReferenceLabel = memo(
         runId,
         applicationId: explicitApplicationId,
         projectURL: explicitProjectURL,
+        toneOverride,
+        showIconOverride,
     }: {
         runId?: string | null
         applicationId?: string | null
         projectURL?: string | null
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
         const {applicationId: runApplicationId} = useRunIdentifiers(runId)
@@ -112,6 +160,8 @@ export const ApplicationReferenceLabel = memo(
                 projectId={projectId}
                 projectURL={explicitProjectURL ?? scopedProjectURL}
                 href={appDetailHref}
+                toneOverride={toneOverride}
+                showIconOverride={showIconOverride}
             />
         )
     },
@@ -129,6 +179,8 @@ export const VariantReferenceLabel = memo(
         fallbackLabel,
         showVersionPill = false,
         explicitVersion,
+        toneOverride,
+        showIconOverride,
     }: {
         variantId?: string | null
         applicationId?: string | null
@@ -136,6 +188,8 @@ export const VariantReferenceLabel = memo(
         fallbackLabel?: string | null
         showVersionPill?: boolean
         explicitVersion?: number | string | null
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
         const {variantId: runVariantId, applicationId: runApplicationId} = useRunIdentifiers(runId)
@@ -153,6 +207,8 @@ export const VariantReferenceLabel = memo(
                 showVersionPill={showVersionPill}
                 explicitVersion={explicitVersion}
                 href={href}
+                toneOverride={toneOverride}
+                showIconOverride={showIconOverride}
             />
         )
     },
@@ -172,6 +228,8 @@ export const VariantRevisionLabel = memo(
         runId,
         fallbackVariantName,
         fallbackRevision,
+        toneOverride,
+        showIconOverride,
     }: {
         variantId?: string | null
         revisionId?: string | null
@@ -179,6 +237,8 @@ export const VariantRevisionLabel = memo(
         runId?: string | null
         fallbackVariantName?: string | null
         fallbackRevision?: number | string | null
+        toneOverride?: ReferenceTone | null
+        showIconOverride?: boolean
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
         const {
@@ -235,6 +295,8 @@ export const VariantRevisionLabel = memo(
                 fallbackVariantName={resolvedVariantName}
                 fallbackRevision={resolvedRevision}
                 href={href}
+                toneOverride={toneOverride}
+                showIconOverride={showIconOverride}
             />
         )
     },

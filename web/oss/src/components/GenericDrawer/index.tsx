@@ -20,13 +20,14 @@ const GenericDrawer = ({
         <EnhancedDrawer
             closeIcon={null}
             destroyOnHidden
-            width={drawerWidth}
+            size={drawerWidth}
             title={
                 <Flex gap={12} justify="space-between" align="center">
                     <Button
                         onClick={() => props.onClose?.({} as any)}
                         type="text"
                         icon={<CloseOutlined />}
+                        {...props.closeButtonProps}
                     />
 
                     {props.expandable && (
@@ -46,6 +47,7 @@ const GenericDrawer = ({
                                     <FullscreenExitOutlined />
                                 )
                             }
+                            {...props.expandButtonProps}
                         />
                     )}
 

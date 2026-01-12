@@ -1,16 +1,13 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
-import type {ReactNode, UIEvent} from "react"
+import type {CSSProperties, KeyboardEvent, ReactNode, UIEvent} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Typography} from "antd"
+import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {compareRunIdsAtom, getComparisonColor} from "../../../atoms/compare"
-import {
-    evaluationQueryReferenceAtomFamily,
-    evaluationQueryRevisionAtomFamily,
-} from "../../../atoms/query"
 import {
     runDisplayNameAtomFamily,
     runStatusAtomFamily,
@@ -20,15 +17,13 @@ import {
 import {evaluationRunQueryAtomFamily} from "../../../atoms/table"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../../atoms/table/evaluators"
 import {evaluationVariantConfigAtomFamily} from "../../../atoms/variantConfig"
-import {useRunMetricData, type RunDescriptor} from "../OverviewView/hooks/useRunMetricData"
+import EvaluationRunTag from "../../EvaluationRunTag"
 
 import EvaluatorSection from "./components/EvaluatorSection"
 import GeneralSection from "./components/GeneralSection"
 import InvocationSection from "./components/InvocationSection"
-import QuerySection from "./components/QuerySection"
 import {SectionCard, SectionSkeleton} from "./components/SectionPrimitives"
 import TestsetSection from "./components/TestsetSection"
-import {hasQueryReference} from "./utils"
 
 const {Text} = Typography
 
@@ -47,11 +42,9 @@ interface ConfigurationRunSummary {
     generalSubtitle?: string
     testsetSubtitle?: string
     invocationSubtitle?: string
-    querySubtitle?: string
     evaluatorSubtitle?: string
     hasTestsets: boolean
     hasInvocation: boolean
-    hasQuery: boolean
     hasEvaluatorSection: boolean
     isLoading: boolean
 }
@@ -88,13 +81,6 @@ const configurationRunSummaryAtomFamily = atomFamily(
             const rawInvocationRefs = invocationRefs.rawRefs ?? {}
             const testsetIds = get(runTestsetIdsAtomFamily(runId)) ?? []
             const testsetCount = testsetIds.length
-
-            const queryReference = get(evaluationQueryReferenceAtomFamily(runId)) ?? {}
-            const queryRevisionQuery = get(evaluationQueryRevisionAtomFamily(runId))
-            const queryRevision = queryRevisionQuery.data?.revision ?? null
-            const queryRevisionVersionLabel =
-                queryRevision?.version ?? (queryReference as any).queryRevisionVersion ?? undefined
-            const queryHasReference = hasQueryReference(queryReference)
 
             const variantConfigQuery = get(evaluationVariantConfigAtomFamily(runId))
             const variantConfig = variantConfigQuery.data
@@ -178,25 +164,6 @@ const configurationRunSummaryAtomFamily = atomFamily(
                       ? "1 linked set"
                       : `${testsetCount} linked sets`
 
-            const queryHeaderSubtitle = (() => {
-                const base = resolveLabel(
-                    (queryReference as any).querySlug,
-                    (queryReference as any).queryId,
-                    queryRevision?.slug,
-                    queryRevision?.id,
-                )
-                const parts: string[] = []
-                if (base) parts.push(base)
-                if (
-                    queryRevisionVersionLabel !== undefined &&
-                    queryRevisionVersionLabel !== null &&
-                    String(queryRevisionVersionLabel).trim() !== ""
-                ) {
-                    parts.push(`rev ${queryRevisionVersionLabel}`)
-                }
-                return parts.join(" | ") || undefined
-            })()
-
             const evaluatorsQuery = get(evaluationEvaluatorsByRunQueryAtomFamily(runId))
             const evaluatorsLoading = evaluatorsQuery.isPending || evaluatorsQuery.isFetching
             const evaluatorError = evaluatorsQuery.error
@@ -234,11 +201,9 @@ const configurationRunSummaryAtomFamily = atomFamily(
                 generalSubtitle: generalHeaderSubtitle,
                 testsetSubtitle: testsetHeaderSubtitle,
                 invocationSubtitle: invocationHeaderSubtitle,
-                querySubtitle: queryHeaderSubtitle,
                 evaluatorSubtitle: evaluatorHeaderSubtitle,
                 hasTestsets: testsetCount > 0,
                 hasInvocation: Boolean(rawInvocationRefs && Object.keys(rawInvocationRefs).length),
-                hasQuery: queryHasReference,
                 hasEvaluatorSection:
                     evaluatorsLoading || Boolean(evaluatorError) || evaluatorCount > 0,
                 isLoading,
@@ -294,10 +259,7 @@ const sectionDefinitions: SectionDefinition[] = [
         title: "General",
         alwaysVisible: true,
         hasData: () => true,
-        // TODO: Consider adding a subtitle for the General section in the future.
-        render: (runId, context) => (
-            <GeneralSection runId={runId} showActions={(context?.compareIndex ?? 0) === 0} />
-        ),
+        render: (runId, context) => <GeneralSection runId={runId} showActions showHeader={false} />,
     },
     {
         key: "testsets",
@@ -316,12 +278,12 @@ const sectionDefinitions: SectionDefinition[] = [
         fallbackMessage: "Application metadata unavailable.",
     },
     {
-        key: "query",
-        title: "Query configuration",
-        hasData: (summary) => summary.hasQuery,
-        getSubtitle: (summary) => summary?.querySubtitle,
-        render: (runId) => <QuerySection runId={runId} />,
-        fallbackMessage: "No query linked to this evaluation.",
+        key: "evaluators",
+        title: "Evaluators",
+        hasData: (summary) => summary.hasEvaluatorSection,
+        getSubtitle: (summary) => summary?.evaluatorSubtitle,
+        render: (runId) => <EvaluatorSection runId={runId} />,
+        fallbackMessage: "No evaluator reference found for this run.",
     },
 ]
 
@@ -330,16 +292,10 @@ const ConfigurationSectionColumn = memo(
         runId,
         compareIndex,
         section,
-        headerTitle,
-        collapsed,
-        onToggleCollapse,
     }: {
         runId: string
         compareIndex: number
         section: SectionDefinition
-        headerTitle?: string
-        collapsed?: boolean
-        onToggleCollapse?: () => void
     }) => {
         const summaryAtom = useMemo(
             () => configurationRunSummaryAtomFamily({runId, compareIndex}),
@@ -363,13 +319,17 @@ const ConfigurationSectionColumn = memo(
                 ? summary.accentColor
                 : undefined
 
-        if (
-            section.key === "evaluators" ||
-            section.key === "testsets" ||
-            section.key === "invocation"
-        ) {
+        if (section.key === "evaluators" || section.key === "testsets") {
             return (
-                <div className="flex flex-col gap-6 px-0 py-2" style={{borderColor: accentColor}}>
+                <div className="flex flex-col gap-6" style={{borderColor: accentColor}}>
+                    {content}
+                </div>
+            )
+        }
+
+        if (section.key === "invocation") {
+            return (
+                <div className="flex flex-col gap-6" style={{borderColor: accentColor}}>
                     {content}
                 </div>
             )
@@ -380,22 +340,7 @@ const ConfigurationSectionColumn = memo(
                 className="h-full"
                 style={accentColor ? {borderColor: accentColor} : undefined}
             >
-                {headerTitle ? (
-                    <div className="flex items-center justify-between gap-2">
-                        <Text className="text-base font-semibold text-neutral-900">
-                            {headerTitle}
-                        </Text>
-                        <Button
-                            type="text"
-                            size="small"
-                            icon={
-                                <DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />
-                            }
-                            onClick={onToggleCollapse}
-                        />
-                    </div>
-                ) : null}
-                {!collapsed ? content : null}
+                {content}
             </SectionCard>
         )
 
@@ -403,19 +348,89 @@ const ConfigurationSectionColumn = memo(
     },
 )
 
+const EvaluationRunTagsRow = memo(
+    ({
+        runIds,
+        registerScrollContainer,
+        syncScroll,
+    }: {
+        runIds: string[]
+        registerScrollContainer: (key: string, node: HTMLDivElement | null) => void
+        syncScroll: (key: string, scrollLeft: number) => void
+    }) => {
+        const columnClass =
+            runIds.length > 1 ? "auto-cols-[minmax(480px,1fr)]" : "auto-cols-[minmax(320px,1fr)]"
+        const refKey = "section-evaluations"
+        const handleRef = useCallback(
+            (node: HTMLDivElement | null) => registerScrollContainer(refKey, node),
+            [refKey, registerScrollContainer],
+        )
+        const handleScroll = useCallback(
+            (event: UIEvent<HTMLDivElement>) => syncScroll(refKey, event.currentTarget.scrollLeft),
+            [refKey, syncScroll],
+        )
+
+        return (
+            <SectionCard className="!p-0 sticky top-0 z-20">
+                <div
+                    ref={handleRef}
+                    onScroll={handleScroll}
+                    className={`grid grid-flow-col ${columnClass} overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
+                >
+                    {runIds.map((runId, index) => (
+                        <EvaluationRunTagItem
+                            key={`evaluation-tag-${runId}`}
+                            runId={runId}
+                            index={index}
+                        />
+                    ))}
+                </div>
+            </SectionCard>
+        )
+    },
+)
+
+const EvaluationRunTagItem = memo(({runId, index}: {runId: string; index: number}) => {
+    const runDisplayNameAtom = useMemo(() => runDisplayNameAtomFamily(runId), [runId])
+    const runDisplayName = useAtomValue(runDisplayNameAtom)
+    const summaryAtom = useMemo(
+        () => configurationRunSummaryAtomFamily({runId, compareIndex: index}),
+        [runId, index],
+    )
+    const summary = useAtomValue(summaryAtom)
+    const label = resolveLabel(
+        runDisplayName,
+        summary.runName !== "—" ? summary.runName : undefined,
+        summary.runSlug ?? undefined,
+        summary.runId,
+    )
+
+    return (
+        <div className="py-2 px-4 border-[0.5px] border-solid border-[#EAEFF5]">
+            {summary.isLoading ? (
+                <div className="h-6 w-full rounded-md bg-[#F2F4F7]" />
+            ) : (
+                <EvaluationRunTag
+                    label={label ?? "Evaluation"}
+                    compareIndex={index}
+                    isBaseRun={summary.isBaseRun}
+                />
+            )}
+        </div>
+    )
+})
+
 const ConfigurationSectionRow = memo(
     ({
         section,
         runIds,
         runIdsSignature,
-        runDescriptors,
         registerScrollContainer,
         syncScroll,
     }: {
         section: SectionDefinition
         runIds: string[]
         runIdsSignature: string
-        runDescriptors: RunDescriptor[]
         registerScrollContainer: (key: string, node: HTMLDivElement | null) => void
         syncScroll: (key: string, scrollLeft: number) => void
     }) => {
@@ -455,14 +470,13 @@ const ConfigurationSectionRow = memo(
             return null
         }
 
-        const showRowHeader = false
-        // section.key === "general" || section.key === "query"
-
+        const columnClass =
+            runIds.length > 1 ? "auto-cols-[minmax(480px,1fr)]" : "auto-cols-[minmax(320px,1fr)]"
         const grid = (
             <div
                 ref={handleRef}
                 onScroll={handleScroll}
-                className="grid grid-flow-col auto-cols-[minmax(320px,1fr)] gap-4 overflow-x-auto pb-2"
+                className={`grid grid-flow-col ${columnClass} overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
             >
                 {runIds.map((runId, index) => (
                     <ConfigurationSectionColumn
@@ -470,44 +484,77 @@ const ConfigurationSectionRow = memo(
                         runId={runId}
                         compareIndex={index}
                         section={section}
-                        headerTitle={showRowHeader ? section.title : undefined}
-                        collapsed={showRowHeader ? collapsed : false}
-                        onToggleCollapse={showRowHeader ? () => setCollapsed((v) => !v) : undefined}
                     />
                 ))}
             </div>
         )
 
-        return <div className="flex flex-col gap-2">{grid}</div>
+        return (
+            <div className="flex flex-col">
+                <div
+                    className={clsx(
+                        "flex items-center justify-between",
+                        "py-1 px-3 h-10",
+                        "sticky top-0",
+                        "bg-zinc-1 z-10",
+                        "cursor-pointer",
+                    )}
+                    style={{
+                        top: "40px",
+                        borderBottom: "1px solid #EAEFF5",
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setCollapsed((value) => !value)}
+                    onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault()
+                            setCollapsed((value) => !value)
+                        }
+                    }}
+                >
+                    <Text className="text-sm font-semibold text-[#344054]">{section.title}</Text>
+
+                    <Button
+                        type="link"
+                        size="small"
+                        icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+                        onClick={(event) => {
+                            event.stopPropagation()
+                            setCollapsed((value) => !value)
+                        }}
+                    />
+                </div>
+                {!collapsed ? grid : null}
+            </div>
+        )
     },
 )
 
 const ConfigurationLayout = memo(({runIds}: {runIds: string[]}) => {
     const runIdsSignature = useMemo(() => runIds.join("|"), [runIds])
     const {register, syncScroll} = useScrollSync()
-    const {runDescriptors} = useRunMetricData(runIds)
 
     return (
-        <div className="flex flex-col gap-4 pb-6">
+        <div
+            className="flex flex-col pb-6"
+            style={{"--config-header-offset": "40px"} as CSSProperties}
+        >
+            <EvaluationRunTagsRow
+                runIds={runIds}
+                registerScrollContainer={register}
+                syncScroll={syncScroll}
+            />
             {sectionDefinitions.map((section) => (
                 <ConfigurationSectionRow
                     key={section.key}
                     section={section}
                     runIds={runIds}
                     runIdsSignature={runIdsSignature}
-                    runDescriptors={runDescriptors}
                     registerScrollContainer={register}
                     syncScroll={syncScroll}
                 />
             ))}
-            {/* Render evaluators without a shared wrapper; each run renders its own evaluator cards directly */}
-            <div className="grid grid-flow-col auto-cols-[minmax(320px,1fr)] gap-4 overflow-x-auto pb-2">
-                {runIds.map((runId) => (
-                    <div key={`evaluators-${runId}`} className="flex flex-col gap-4">
-                        <EvaluatorSection runId={runId} />
-                    </div>
-                ))}
-            </div>
         </div>
     )
 })
@@ -534,10 +581,8 @@ const ConfigurationView = ({runId}: ConfigurationViewProps) => {
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col px-6 pt-2 bg-zinc-1">
-            <div className="flex-1 overflow-y-auto">
-                <ConfigurationLayout runIds={runIds} />
-            </div>
+        <div className="flex h-full min-h-0 flex-col px-2 bg-zinc-1 overflow-y-auto">
+            <ConfigurationLayout runIds={runIds} />
         </div>
     )
 }

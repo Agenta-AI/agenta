@@ -59,6 +59,7 @@ export interface testset {
     name: string
     created_at: string
     updated_at: string
+    created_by_id?: string
     columns?: string[]
 }
 
@@ -990,6 +991,7 @@ type ValueTypeOptions =
     | "messages"
     | "multiple_choice"
     | "llm_response_schema"
+    | "fields_checkbox_list"
 
 export interface EvaluationSettingsTemplate {
     type: ValueTypeOptions

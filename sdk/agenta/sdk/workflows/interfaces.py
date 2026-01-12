@@ -169,6 +169,53 @@ field_match_test_v0_interface = WorkflowServiceInterface(
     ),
 )
 
+json_multi_field_match_v0_interface = WorkflowServiceInterface(
+    uri="agenta:built-in:json_multi_field_match:v0",
+    schemas=dict(  # type: ignore
+        parameters={
+            "type": "object",
+            "title": "JSON Multi-Field Match Parameters",
+            "description": "Settings for comparing multiple JSON fields against expected values from a ground truth column.",
+            "properties": {
+                "correct_answer_key": {
+                    "type": "string",
+                    "title": "Ground Truth Column",
+                    "description": "Column in test data containing the JSON ground truth.",
+                    "default": "correct_answer",
+                },
+                "fields": {
+                    "type": "array",
+                    "title": "Fields to Compare",
+                    "description": "List of JSON field paths (dot notation) to compare. Each field becomes a separate score.",
+                    "items": {"type": "string"},
+                    "default": [],
+                },
+            },
+            "required": ["correct_answer_key", "fields"],
+            "additionalProperties": False,
+        },
+        inputs={
+            "type": "object",
+            "title": "JSON Multi-Field Match Inputs",
+            "description": "Testcase data including the JSON ground truth.",
+        },
+        outputs={
+            "type": "object",
+            "title": "JSON Multi-Field Match Outputs",
+            "description": "Per-field match scores and aggregate score. Each field produces a 0 or 1 output.",
+            "properties": {
+                "aggregate_score": {
+                    "type": "number",
+                    "title": "Aggregate Score",
+                    "description": "Percentage of matched fields (0-1).",
+                },
+            },
+            "required": ["aggregate_score"],
+            "additionalProperties": True,  # Allows dynamic field outputs
+        },
+    ),
+)
+
 auto_webhook_test_v0_interface = WorkflowServiceInterface(
     uri="agenta:built-in:auto_webhook_test:v0",
     schemas=dict(  # type: ignore

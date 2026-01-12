@@ -41,6 +41,38 @@ interface EvaluatorLabelProps {
     fallbackLabel: string
 }
 
+type MetricDeltaTone = "positive" | "negative" | "neutral"
+
+interface MetricStripEntry {
+    key: string
+    label: string
+    color: string
+    value: number | null
+    displayValue: string
+    isMain: boolean
+    deltaText: string
+    deltaTone: MetricDeltaTone
+}
+
+const getMainEvaluatorSeries = (entries: MetricStripEntry[]) =>
+    entries.find((entry) => entry.isMain) ?? entries[0]
+
+const computeDeltaPercent = (current: number | null, baseline: number | null) => {
+    if (typeof current !== "number" || typeof baseline !== "number") return null
+    if (!Number.isFinite(current) || !Number.isFinite(baseline) || baseline === 0) return null
+    return ((current - baseline) / baseline) * 100
+}
+
+const formatDelta = (delta: number | null): {text: string; tone: MetricDeltaTone} => {
+    if (delta === null || !Number.isFinite(delta)) {
+        return {text: "-", tone: "neutral"}
+    }
+    const rounded = Math.round(delta)
+    if (rounded > 0) return {text: `+${rounded}%`, tone: "positive"}
+    if (rounded < 0) return {text: `${rounded}%`, tone: "negative"}
+    return {text: "0%", tone: "neutral"}
+}
+
 const EvaluatorMetricsChartTitle = memo(
     ({runId, evaluatorRef, fallbackLabel}: EvaluatorLabelProps) => {
         const evaluatorAtom = useMemo(
@@ -109,9 +141,10 @@ const EvaluatorMetricsChart = ({
         return {} as BasicStats
     }, [resolvedStats])
 
-    const {data: numericHistogramData} = useMemo(() => {
-        return buildHistogramChartData(stats as unknown as Record<string, any>)
-    }, [stats])
+    const {data: numericHistogramData} = useMemo(
+        () => buildHistogramChartData(stats as unknown as Record<string, any>),
+        [stats],
+    )
 
     const hasNumericHistogram = numericHistogramData.length > 0
     const categoricalFrequencyData = useMemo(
@@ -243,23 +276,209 @@ const EvaluatorMetricsChart = ({
         (isBooleanMetric && booleanChartData.length > 0) ||
         hasCategoricalFrequency
 
-    const summaryValue = useMemo((): string | null => {
-        if (isBooleanMetric) {
-            const percentage = booleanHistogram.percentages.true
-            return Number.isFinite(percentage) ? `${percentage.toFixed(2)}%` : "—"
+    const comparisonBooleanPercentMap = useMemo(() => {
+        const map = new Map<string, number>()
+        comparisonBooleanHistograms.forEach((entry) => {
+            if (Number.isFinite(entry.histogram.percentages.true)) {
+                map.set(entry.runId, entry.histogram.percentages.true)
+            }
+        })
+        return map
+    }, [comparisonBooleanHistograms])
+
+    const summaryItems = useMemo<MetricStripEntry[]>(() => {
+        const baseValue = (() => {
+            if (!resolvedStats) return {value: null, displayValue: "—"}
+            if (isBooleanMetric) {
+                const percentage = booleanHistogram.percentages.true
+                return Number.isFinite(percentage)
+                    ? {value: percentage, displayValue: `${percentage.toFixed(2)}%`}
+                    : {value: null, displayValue: "—"}
+            }
+            if (hasCategoricalFrequency) {
+                return {value: null, displayValue: "—"}
+            }
+            if (typeof resolvedStats.mean === "number" && Number.isFinite(resolvedStats.mean)) {
+                return {value: resolvedStats.mean, displayValue: format3Sig(resolvedStats.mean)}
+            }
+            return {value: null, displayValue: "—"}
+        })()
+
+        const baseEntry: MetricStripEntry = {
+            key: baseSeriesKey,
+            label: resolvedRunName,
+            color: resolvedBaseColor,
+            value: baseValue.value,
+            displayValue: baseValue.displayValue,
+            isMain: true,
+            deltaText: "-",
+            deltaTone: "neutral",
         }
-        if (hasCategoricalFrequency && categoricalFrequencyData.length) {
-            return null
-        }
-        if (typeof stats.mean === "number") return format3Sig(stats.mean)
-        return "—"
+
+        const comparisonEntries = comparisonSeries.map((entry) => {
+            const statsValue = entry.stats
+            if (!statsValue) {
+                return {
+                    key: entry.runId,
+                    label: entry.runName,
+                    color: entry.color,
+                    value: null,
+                    displayValue: "—",
+                    isMain: false,
+                    deltaText: "-",
+                    deltaTone: "neutral",
+                }
+            }
+            if (isBooleanMetric) {
+                const percentage = comparisonBooleanPercentMap.get(entry.runId)
+                return {
+                    key: entry.runId,
+                    label: entry.runName,
+                    color: entry.color,
+                    value: typeof percentage === "number" ? percentage : null,
+                    displayValue:
+                        typeof percentage === "number" && Number.isFinite(percentage)
+                            ? `${percentage.toFixed(2)}%`
+                            : "—",
+                    isMain: false,
+                    deltaText: "-",
+                    deltaTone: "neutral",
+                }
+            }
+            if (hasCategoricalFrequency) {
+                return {
+                    key: entry.runId,
+                    label: entry.runName,
+                    color: entry.color,
+                    value: null,
+                    displayValue: "—",
+                    isMain: false,
+                    deltaText: "-",
+                    deltaTone: "neutral",
+                }
+            }
+            if (typeof statsValue.mean === "number" && Number.isFinite(statsValue.mean)) {
+                return {
+                    key: entry.runId,
+                    label: entry.runName,
+                    color: entry.color,
+                    value: statsValue.mean,
+                    displayValue: format3Sig(statsValue.mean),
+                    isMain: false,
+                    deltaText: "-",
+                    deltaTone: "neutral",
+                }
+            }
+            return {
+                key: entry.runId,
+                label: entry.runName,
+                color: entry.color,
+                value: null,
+                displayValue: "—",
+                isMain: false,
+                deltaText: "-",
+                deltaTone: "neutral",
+            }
+        })
+
+        const entries = [baseEntry, ...comparisonEntries]
+        const mainSeries = getMainEvaluatorSeries(entries)
+
+        return entries.map((entry) => {
+            if (entry.isMain) {
+                return entry
+            }
+            const delta = computeDeltaPercent(entry.value, mainSeries?.value ?? null)
+            const formatted = formatDelta(delta)
+            return {
+                ...entry,
+                deltaText: formatted.text,
+                deltaTone: formatted.tone,
+            }
+        })
     }, [
+        baseSeriesKey,
         booleanHistogram.percentages.true,
-        categoricalFrequencyData,
-        effectiveScenarioCount,
+        comparisonBooleanPercentMap,
+        comparisonSeries,
         hasCategoricalFrequency,
         isBooleanMetric,
-        stats,
+        resolvedBaseColor,
+        resolvedRunName,
+        resolvedStats,
+    ])
+
+    const numericSeries = useMemo(
+        () => [
+            {
+                key: baseSeriesKey,
+                name: resolvedRunName,
+                color: resolvedBaseColor,
+                barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
+            },
+            ...comparisonSeries.map((entry) => ({
+                key: entry.runId,
+                name: entry.runName,
+                color: entry.color,
+                barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
+            })),
+        ],
+        [baseSeriesKey, comparisonSeries, resolvedBaseColor, resolvedRunName],
+    )
+
+    const numericHistogramRows = useMemo(() => {
+        if (!numericHistogramAvailable || !hasNumericHistogram) return []
+        const rowMap = new Map<
+            string,
+            {label: string; order: number; [key: string]: number | string}
+        >()
+
+        numericHistogramData.forEach((bin, idx) => {
+            const order = typeof bin.edge === "number" && Number.isFinite(bin.edge) ? bin.edge : idx
+            const key =
+                typeof bin.edge === "number" && Number.isFinite(bin.edge)
+                    ? String(bin.edge)
+                    : `${idx}-${bin.x}`
+            const existing =
+                rowMap.get(key) ??
+                ({
+                    label: String(bin.x),
+                    order,
+                } as {label: string; order: number; [key: string]: number | string})
+            existing[baseSeriesKey] = Number(bin.y ?? 0)
+            rowMap.set(key, existing)
+        })
+
+        comparisonSeries.forEach((entry) => {
+            if (!entry.stats) return
+            const {data} = buildHistogramChartData(entry.stats as Record<string, any>)
+            data.forEach((bin, idx) => {
+                const order =
+                    typeof bin.edge === "number" && Number.isFinite(bin.edge) ? bin.edge : idx
+                const key =
+                    typeof bin.edge === "number" && Number.isFinite(bin.edge)
+                        ? String(bin.edge)
+                        : `${idx}-${bin.x}`
+                const existing =
+                    rowMap.get(key) ??
+                    ({
+                        label: String(bin.x),
+                        order,
+                    } as {label: string; order: number; [key: string]: number | string})
+                existing[entry.runId] = Number(bin.y ?? 0)
+                rowMap.set(key, existing)
+            })
+        })
+
+        return Array.from(rowMap.values())
+            .sort((a, b) => a.order - b.order)
+            .map(({order, ...rest}) => rest)
+    }, [
+        baseSeriesKey,
+        comparisonSeries,
+        hasNumericHistogram,
+        numericHistogramAvailable,
+        numericHistogramData,
     ])
 
     const chartContent = () => {
@@ -277,13 +496,13 @@ const EvaluatorMetricsChart = ({
                     key: baseSeriesKey,
                     name: resolvedRunName,
                     color: resolvedBaseColor,
-                    barProps: {radius: [8, 8, 0, 0]},
+                    barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
                 },
                 ...comparisonBooleanHistograms.map((entry) => ({
                     key: entry.runId,
                     name: entry.runName,
                     color: entry.color,
-                    barProps: {radius: [8, 8, 0, 0]},
+                    barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
                 })),
             ]
 
@@ -297,8 +516,8 @@ const EvaluatorMetricsChart = ({
                     yDomain={[0, 100]}
                     series={series}
                     barCategoryGap="20%"
-                    showLegend={stableComparisons.length > 0}
-                    reserveLegendSpace={stableComparisons.length > 0}
+                    showLegend={false}
+                    reserveLegendSpace={false}
                 />
             )
         }
@@ -363,13 +582,13 @@ const EvaluatorMetricsChart = ({
                     key: baseSeriesKey,
                     name: resolvedRunName,
                     color: resolvedBaseColor,
-                    barProps: {radius: [8, 8, 0, 0]},
+                    barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
                 },
                 ...comparisonMaps.map((entry) => ({
                     key: entry.runId,
                     name: entry.runName,
                     color: entry.color,
-                    barProps: {radius: [8, 8, 0, 0]},
+                    barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
                 })),
             ]
 
@@ -383,8 +602,8 @@ const EvaluatorMetricsChart = ({
                     yDomain={[0, "auto"]}
                     series={series}
                     barCategoryGap="20%"
-                    showLegend={stableComparisons.length > 0}
-                    reserveLegendSpace={stableComparisons.length > 0}
+                    showLegend={false}
+                    reserveLegendSpace={false}
                 />
             )
         }
@@ -398,35 +617,16 @@ const EvaluatorMetricsChart = ({
         }
 
         if (numericHistogramAvailable && hasNumericHistogram) {
-            const referenceLines = [] as {value: number; color?: string; label?: string}[]
-            if (typeof stats.mean === "number" && Number.isFinite(stats.mean)) {
-                referenceLines.push({
-                    value: stats.mean,
-                    color: resolvedBaseColor,
-                    label: `${resolvedRunName} mean ${format3Sig(stats.mean)}`,
-                })
-            }
-            comparisonSeries.forEach((entry) => {
-                if (!entry.stats) return
-                const mean = typeof entry.stats.mean === "number" ? entry.stats.mean : NaN
-                if (Number.isFinite(mean)) {
-                    referenceLines.push({
-                        value: mean,
-                        color: entry.color,
-                        label: `${entry.runName} mean ${format3Sig(mean)}`,
-                    })
-                }
-            })
-
             return (
                 <HistogramChart
-                    data={numericHistogramData}
-                    xKey="x"
-                    yKey="y"
+                    data={numericHistogramRows}
+                    xKey="label"
+                    yKey={baseSeriesKey}
                     tooltipLabel={metricLabel}
                     tooltipFormatter={(value) => format3Sig(value)}
                     yDomain={[0, "auto"]}
-                    referenceLines={referenceLines}
+                    series={numericSeries}
+                    barCategoryGap="20%"
                     showLegend={false}
                     reserveLegendSpace={stableComparisons.length > 0}
                 />
@@ -443,10 +643,11 @@ const EvaluatorMetricsChart = ({
     return (
         <Card
             className={clsx("h-full rounded-lg overflow-hidden", className)}
-            classNames={{header: "!p-0", body: "!p-0"}}
+            classNames={{body: "!p-0"}}
             variant="outlined"
-            title={
-                <div className="flex items-center justify-between px-4 py-3">
+        >
+            <div className="flex h-full flex-col">
+                <div className="px-4 pt-4 pb-2">
                     <div className="flex flex-col gap-0.5">
                         <EvaluatorMetricsChartTitle
                             runId={runId}
@@ -458,31 +659,45 @@ const EvaluatorMetricsChart = ({
                         </Typography.Text>
                     </div>
                 </div>
-            }
-        >
-            <div className="flex flex-col gap-4 px-4 pb-4">
-                {stableComparisons.length === 0 && (
-                    <div className="flex h-[70px] items-center justify-center">
-                        {summaryValue !== null ? (
-                            <Typography.Text
-                                className="text-xl font-medium"
-                                style={{color: resolvedBaseColor}}
+                <div className="px-4 pb-3">
+                    <div className="flex flex-nowrap items-center justify-center gap-6 overflow-x-auto pb-1 text-center [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {summaryItems.map((entry) => (
+                            <div
+                                key={entry.key}
+                                className="flex shrink-0 flex-col items-center gap-1"
                             >
-                                {summaryValue}
-                            </Typography.Text>
-                        ) : null}
+                                <Typography.Text
+                                    className="text-xl font-semibold"
+                                    style={{color: entry.color}}
+                                >
+                                    {entry.displayValue}
+                                </Typography.Text>
+                                <Typography.Text
+                                    className={clsx("text-xs font-medium", {
+                                        "text-emerald-600": entry.deltaTone === "positive",
+                                        "text-red-600": entry.deltaTone === "negative",
+                                        "text-neutral-400": entry.deltaTone === "neutral",
+                                    })}
+                                >
+                                    {entry.deltaText}
+                                </Typography.Text>
+                            </div>
+                        ))}
                     </div>
-                )}
-                <div className={stableComparisons.length > 0 ? "h-[370px]" : "h-[300px]"}>
-                    {isLoading ? (
-                        <Skeleton active className="w-full h-full" />
-                    ) : hasError && !resolvedStats ? (
-                        <div className="flex h-full items-center justify-center text-neutral-500">
-                            Unable to load metric data.
-                        </div>
-                    ) : (
-                        chartContent()
-                    )}
+                </div>
+                <div className="border-t border-neutral-200" />
+                <div className="flex flex-1 px-4 py-4">
+                    <div className="mt-auto h-[320px] w-full">
+                        {isLoading ? (
+                            <Skeleton active className="w-full h-full" />
+                        ) : hasError && !resolvedStats ? (
+                            <div className="flex h-full items-center justify-center text-neutral-500">
+                                Unable to load metric data.
+                            </div>
+                        ) : (
+                            chartContent()
+                        )}
+                    </div>
                 </div>
             </div>
         </Card>

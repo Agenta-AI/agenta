@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {MagnifyingGlass, SlidersHorizontal} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover} from "antd"
@@ -10,6 +10,7 @@ import CustomTreeComponent from "@/oss/components/CustomUIs/CustomTreeComponent"
 import {filterTree} from "@/oss/components/pages/observability/assets/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 
+import {TreeContent} from "../../../TraceDrawer/components/TraceTree"
 import TraceTreeSettings from "../../../TraceDrawer/components/TraceTreeSettings"
 import {openTraceDrawerAtom} from "../../../TraceDrawer/store/traceDrawerStore"
 import {useSessionDrawer} from "../../hooks/useSessionDrawer"
@@ -90,6 +91,11 @@ const SessionTree = ({selected, setSelected}: SessionTreeProps) => {
 
     const filteredTree = treeRoot
 
+    const renderTraceLabel = useCallback(
+        (node: TraceSpanNode) => <TreeContent value={node} settings={traceTreeSettings} />,
+        [traceTreeSettings],
+    )
+
     const handleSelect = (key: string) => {
         setSelected(key)
         const element = document.getElementById(key)
@@ -150,7 +156,9 @@ const SessionTree = ({selected, setSelected}: SessionTreeProps) => {
                 />
 
                 <Popover
-                    overlayInnerStyle={{padding: 0, width: 180}}
+                    styles={{
+                        container: {padding: 0, width: 180},
+                    }}
                     trigger="click"
                     content={
                         <TraceTreeSettings
@@ -166,9 +174,12 @@ const SessionTree = ({selected, setSelected}: SessionTreeProps) => {
             <Divider type="horizontal" className="m-0" />
             <CustomTreeComponent
                 data={filteredTree}
-                settings={traceTreeSettings}
+                getKey={(node) => node.span_id}
+                getChildren={(node) => node.children as TraceSpanNode[] | undefined}
+                renderLabel={renderTraceLabel}
                 selectedKey={selected}
-                onSelect={handleSelect}
+                onSelect={(key) => handleSelect(key)}
+                defaultExpanded
             />
         </div>
     )
