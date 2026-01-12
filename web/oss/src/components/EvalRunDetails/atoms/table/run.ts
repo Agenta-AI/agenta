@@ -4,16 +4,25 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {buildRunIndex} from "@/oss/lib/evaluations/buildRunIndex"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
+import {
+    getPreviewRunBatcher,
+    invalidatePreviewRunCache,
+} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 
+import {TERMINAL_STATUSES} from "../compare"
 import {effectiveProjectIdAtom} from "../run"
 
-import {getPreviewRunBatcher} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 import type {EvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 
 export interface EvaluationRunQueryResult {
     rawRun: EvaluationRun
     camelRun: any
     runIndex: ReturnType<typeof buildRunIndex>
+}
+
+const isTerminalStatus = (status: string | null | undefined) => {
+    if (!status) return false
+    return TERMINAL_STATUSES.has(status.toLowerCase())
 }
 
 const patchedRunRevisionSet = new Set<string>()
@@ -309,6 +318,11 @@ export const evaluationRunQueryAtomFamily = atomFamily((runId: string | null) =>
             gcTime: 5 * 60 * 1000,
             refetchOnWindowFocus: false,
             refetchOnReconnect: false,
+            refetchInterval: (query) => {
+                const status =
+                    query.state.data?.rawRun?.status ?? query.state.data?.camelRun?.status
+                return isTerminalStatus(status) ? false : 5000
+            },
             queryFn: async () => {
                 if (!runId) {
                     throw new Error("evaluationRunQueryAtomFamily requires a run id")
@@ -317,6 +331,7 @@ export const evaluationRunQueryAtomFamily = atomFamily((runId: string | null) =>
                     throw new Error("evaluationRunQueryAtomFamily requires a project id")
                 }
 
+                invalidatePreviewRunCache(projectId, runId)
                 const batcher = getPreviewRunBatcher()
                 const rawRun = await batcher({projectId, runId})
                 if (!rawRun) {

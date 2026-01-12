@@ -10,7 +10,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
+import uuid_utils.compat as uuid
+
 from oss.src.utils.env import env
+from ee.src.core.subscriptions.types import FREE_PLAN
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -49,6 +52,20 @@ def upgrade() -> None:
     - Normalize names: personal orgs → "Personal", slug → NULL
     """
     conn = op.get_bind()
+
+    def _constraint_exists(constraint_name: str) -> bool:
+        return bool(
+            conn.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conname = :constraint_name
+                    """
+                ),
+                {"constraint_name": constraint_name},
+            ).scalar()
+        )
 
     # Step 1: Add JSONB columns (flags, tags, meta - all nullable)
     op.add_column(
@@ -191,33 +208,9 @@ def upgrade() -> None:
     )
 
     # Step 10: Create missing personal organizations for users without one
-    conn.execute(
+    users_missing_personal_org = conn.execute(
         text("""
-        INSERT INTO organizations (
-            id,
-            name,
-            slug,
-            description,
-            owner,
-            owner_id,
-            created_at,
-            created_by_id,
-            updated_at,
-            updated_by_id,
-            flags
-        )
-        SELECT
-            gen_random_uuid(),
-            'Personal',
-            NULL,
-            NULL,
-            u.id::text,
-            u.id,
-            NOW(),
-            u.id,
-            NOW(),
-            u.id,
-            '{"is_demo": false, "is_personal": true}'::jsonb
+        SELECT u.id
         FROM users u
         WHERE NOT EXISTS (
             SELECT 1 FROM organizations o
@@ -225,7 +218,43 @@ def upgrade() -> None:
             AND o.flags->>'is_personal' = 'true'
         )
     """)
-    )
+    ).fetchall()
+    for (user_id,) in users_missing_personal_org:
+        conn.execute(
+            text("""
+            INSERT INTO organizations (
+                id,
+                name,
+                slug,
+                description,
+                owner,
+                owner_id,
+                created_at,
+                created_by_id,
+                updated_at,
+                updated_by_id,
+                flags
+            )
+            VALUES (
+                :id,
+                'Personal',
+                NULL,
+                NULL,
+                :owner_text,
+                :owner_id,
+                NOW(),
+                :owner_id,
+                NOW(),
+                :owner_id,
+                '{"is_demo": false, "is_personal": true}'::jsonb
+            )
+        """),
+            {
+                "id": uuid.uuid7(),
+                "owner_text": str(user_id),
+                "owner_id": user_id,
+            },
+        )
 
     # Step 10b: Add role column to organization_members
     op.add_column(
@@ -276,14 +305,9 @@ def upgrade() -> None:
     )
 
     # Step 11: Add users as members to their new personal orgs
-    conn.execute(
+    personal_orgs_missing_owner = conn.execute(
         text("""
-        INSERT INTO organization_members (id, user_id, organization_id, role)
-        SELECT
-            gen_random_uuid(),
-            o.owner_id,
-            o.id,
-            'owner'
+        SELECT o.id, o.owner_id
         FROM organizations o
         WHERE o.flags->>'is_personal' = 'true'
         AND NOT EXISTS (
@@ -292,6 +316,212 @@ def upgrade() -> None:
             AND om.user_id = o.owner_id
         )
     """)
+    ).fetchall()
+    for organization_id, owner_id in personal_orgs_missing_owner:
+        conn.execute(
+            text("""
+            INSERT INTO organization_members (id, user_id, organization_id, role)
+            VALUES (:id, :user_id, :organization_id, 'owner')
+        """),
+            {
+                "id": uuid.uuid7(),
+                "user_id": owner_id,
+                "organization_id": organization_id,
+            },
+        )
+
+    # Step 11b: Create missing default workspaces for organizations
+    orgs_missing_workspaces = conn.execute(
+        text("""
+        SELECT o.id
+        FROM organizations o
+        WHERE NOT EXISTS (
+            SELECT 1 FROM workspaces w
+            WHERE w.organization_id = o.id
+        )
+    """)
+    ).fetchall()
+    for (organization_id,) in orgs_missing_workspaces:
+        conn.execute(
+            text("""
+            INSERT INTO workspaces (
+                id,
+                name,
+                type,
+                description,
+                organization_id,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                :id,
+                'Default',
+                'default',
+                NULL,
+                :organization_id,
+                NOW(),
+                NOW()
+            )
+        """),
+            {
+                "id": uuid.uuid7(),
+                "organization_id": organization_id,
+            },
+        )
+
+    # Step 11c: Create missing default projects for workspaces
+    workspaces_missing_projects = conn.execute(
+        text("""
+        SELECT w.id, w.organization_id
+        FROM workspaces w
+        WHERE NOT EXISTS (
+            SELECT 1 FROM projects p
+            WHERE p.workspace_id = w.id
+        )
+    """)
+    ).fetchall()
+    for workspace_id, organization_id in workspaces_missing_projects:
+        conn.execute(
+            text("""
+            INSERT INTO projects (
+                id,
+                project_name,
+                is_default,
+                created_at,
+                updated_at,
+                organization_id,
+                workspace_id
+            )
+            VALUES (
+                :id,
+                'Default',
+                true,
+                NOW(),
+                NOW(),
+                :organization_id,
+                :workspace_id
+            )
+        """),
+            {
+                "id": uuid.uuid7(),
+                "organization_id": organization_id,
+                "workspace_id": workspace_id,
+            },
+        )
+
+    # Step 11d: Ensure workspace memberships exist for org members
+    workspace_members_missing = conn.execute(
+        text("""
+        SELECT om.user_id, w.id, o.owner_id
+        FROM organization_members om
+        JOIN organizations o ON o.id = om.organization_id
+        JOIN workspaces w ON w.organization_id = o.id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM workspace_members wm
+            WHERE wm.user_id = om.user_id
+            AND wm.workspace_id = w.id
+        )
+    """)
+    ).fetchall()
+    for user_id, workspace_id, owner_id in workspace_members_missing:
+        role = "owner" if user_id == owner_id else "viewer"
+        conn.execute(
+            text("""
+            INSERT INTO workspace_members (
+                id,
+                user_id,
+                workspace_id,
+                role,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                :id,
+                :user_id,
+                :workspace_id,
+                :role,
+                NOW(),
+                NOW()
+            )
+        """),
+            {
+                "id": uuid.uuid7(),
+                "user_id": user_id,
+                "workspace_id": workspace_id,
+                "role": role,
+            },
+        )
+
+    # Step 11e: Ensure project memberships exist for org members
+    project_members_missing = conn.execute(
+        text("""
+        SELECT om.user_id, p.id, o.owner_id
+        FROM organization_members om
+        JOIN organizations o ON o.id = om.organization_id
+        JOIN projects p ON p.organization_id = o.id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM project_members pm
+            WHERE pm.user_id = om.user_id
+            AND pm.project_id = p.id
+        )
+    """)
+    ).fetchall()
+    for user_id, project_id, owner_id in project_members_missing:
+        role = "owner" if user_id == owner_id else "viewer"
+        conn.execute(
+            text("""
+            INSERT INTO project_members (
+                id,
+                user_id,
+                project_id,
+                role,
+                is_demo,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                :id,
+                :user_id,
+                :project_id,
+                :role,
+                NULL,
+                NOW(),
+                NOW()
+            )
+        """),
+            {
+                "id": uuid.uuid7(),
+                "user_id": user_id,
+                "project_id": project_id,
+                "role": role,
+            },
+        )
+
+    # Step 11f: Ensure free subscriptions exist for all organizations
+    conn.execute(
+        text("""
+        INSERT INTO subscriptions (
+            organization_id,
+            subscription_id,
+            customer_id,
+            plan,
+            active,
+            anchor
+        )
+        SELECT
+            o.id,
+            NULL,
+            NULL,
+            :plan,
+            true,
+            EXTRACT(day FROM NOW())::int
+        FROM organizations o
+        WHERE NOT EXISTS (
+            SELECT 1 FROM subscriptions s
+            WHERE s.organization_id = o.id
+        )
+    """),
+        {"plan": FREE_PLAN.value},
     )
 
     # Step 12: Normalize personal organizations
@@ -417,58 +647,55 @@ def upgrade() -> None:
     )
 
     # Step 16c: Ensure workspaces cascade on organization delete
-    try:
+    if _constraint_exists("workspaces_organization_id_fkey"):
         op.drop_constraint(
             "workspaces_organization_id_fkey",
             "workspaces",
             type_="foreignkey",
         )
-    except Exception:
-        pass  # Constraint might not exist yet
-    op.create_foreign_key(
-        "workspaces_organization_id_fkey",
-        "workspaces",
-        "organizations",
-        ["organization_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
+    if not _constraint_exists("workspaces_organization_id_fkey"):
+        op.create_foreign_key(
+            "workspaces_organization_id_fkey",
+            "workspaces",
+            "organizations",
+            ["organization_id"],
+            ["id"],
+            ondelete="CASCADE",
+        )
 
     # Step 16c2: Ensure workspace_members cascade on workspace delete
-    try:
+    if _constraint_exists("workspace_members_workspace_id_fkey"):
         op.drop_constraint(
             "workspace_members_workspace_id_fkey",
             "workspace_members",
             type_="foreignkey",
         )
-    except Exception:
-        pass  # Constraint might not exist yet
-    op.create_foreign_key(
-        "workspace_members_workspace_id_fkey",
-        "workspace_members",
-        "workspaces",
-        ["workspace_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
+    if not _constraint_exists("workspace_members_workspace_id_fkey"):
+        op.create_foreign_key(
+            "workspace_members_workspace_id_fkey",
+            "workspace_members",
+            "workspaces",
+            ["workspace_id"],
+            ["id"],
+            ondelete="CASCADE",
+        )
 
     # Step 16d: Ensure projects cascade on organization delete
-    try:
+    if _constraint_exists("projects_organization_id_fkey"):
         op.drop_constraint(
             "projects_organization_id_fkey",
             "projects",
             type_="foreignkey",
         )
-    except Exception:
-        pass  # Constraint might not exist yet
-    op.create_foreign_key(
-        "projects_organization_id_fkey",
-        "projects",
-        "organizations",
-        ["organization_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
+    if not _constraint_exists("projects_organization_id_fkey"):
+        op.create_foreign_key(
+            "projects_organization_id_fkey",
+            "projects",
+            "organizations",
+            ["organization_id"],
+            ["id"],
+            ondelete="CASCADE",
+        )
 
     # Note: Other tables (testsets, evaluations, scenarios, etc.) are linked to
     # organizations via projects, so they will cascade delete through projects.

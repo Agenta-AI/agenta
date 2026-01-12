@@ -14,6 +14,7 @@ import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 import RunButton from "../../../../assets/RunButton"
 import {usePlaygroundAtoms} from "../../../../hooks/usePlaygroundAtoms"
 import {generationHeaderDataAtomFamily, triggerWebWorkerTestAtom} from "../../../../state/atoms"
+import RunOptionsPopover from "../RunOptionsPopover"
 
 import {allGenerationsCollapsedAtom} from "./store"
 import {useStyles} from "./styles"
@@ -40,6 +41,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const triggerTest = useSetAtom(triggerWebWorkerTestAtom)
     const runAllChat = useSetAtom(runAllChatAtom)
     const appType = useAtomValue(appTypeAtom)
+
     const completionRowIds = useAtomValue(generationInputRowIdsAtom) as string[]
     const [isAllCollapsed, setIsAllCollapsed] = useAtom(allGenerationsCollapsedAtom)
 
@@ -111,14 +113,18 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                     />
 
                     {!isRunning ? (
-                        <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
-                            <RunButton
-                                isRunAll
-                                type="primary"
-                                onClick={() => runTests()}
-                                disabled={isRunning}
-                            />
-                        </Tooltip>
+                        <div className="flex">
+                            <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
+                                <RunButton
+                                    isRunAll
+                                    type="primary"
+                                    onClick={() => runTests()}
+                                    disabled={isRunning}
+                                    style={{borderRadius: "6px 0 0 6px"}}
+                                />
+                            </Tooltip>
+                            <RunOptionsPopover isRunning={isRunning} variantId={variantId} />
+                        </div>
                     ) : (
                         <RunButton
                             isCancel

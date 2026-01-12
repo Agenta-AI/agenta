@@ -1,58 +1,97 @@
-from urllib.parse import urlparse
 from typing import Optional, Any, Dict, Union, List, Set
+from urllib.parse import urlparse
 
-from supertokens_python.types import AccountInfo
-from supertokens_python.asyncio import list_users_by_account_info
-from supertokens_python import init, InputAppInfo, SupertokensConfig
-from supertokens_python.asyncio import get_user as get_user_from_supertokens
-from supertokens_python.recipe.thirdparty import (
-    SignInAndUpFeature,
+import posthog
+
+from supertokens_python import (
+    SupertokensConfig,
+    init,
+)
+from supertokens_python.asyncio import (
+    list_users_by_account_info,
+    get_user as get_user_from_supertokens,
 )
 from supertokens_python.recipe import (
+    emailpassword,
     passwordless,
-    session,
-    dashboard,
     thirdparty,
-)
-from supertokens_python.recipe.passwordless import ContactEmailOnlyConfig
-from supertokens_python.recipe.thirdparty.provider import Provider, RedirectUriInfo
-from supertokens_python.recipe.session import SessionContainer
-from supertokens_python.recipe.thirdparty.interfaces import APIOptions
-from supertokens_python.recipe.passwordless.interfaces import (
-    RecipeInterface as PasswordlessRecipeInterface,
-    ConsumeCodeOkResult,
-)
-from supertokens_python.recipe import emailpassword
-from supertokens_python.recipe.emailpassword.types import FormField
-from supertokens_python.recipe.emailpassword.utils import (
-    InputSignUpFeature,
-    InputOverrideConfig,
-)
-from supertokens_python.recipe.emailpassword.types import InputFormField
-from supertokens_python.recipe.thirdparty.interfaces import (
-    APIInterface as ThirdPartyAPIInterface,
-    SignInUpPostOkResult,
+    session,
 )
 from supertokens_python.recipe.emailpassword.interfaces import (
     APIInterface as EmailPasswordAPIInterface,
     APIOptions as EmailPasswordAPIOptions,
     SignUpPostOkResult as EmailPasswordSignUpPostOkResult,
 )
+from supertokens_python.recipe.emailpassword.utils import (
+    InputSignUpFeature,
+    InputOverrideConfig,
+)
+from supertokens_python.recipe.emailpassword.types import (
+    FormField,
+    InputFormField,
+)
+from supertokens_python.recipe.passwordless import (
+    ContactEmailOnlyConfig,
+)
+from supertokens_python.recipe.passwordless.interfaces import (
+    RecipeInterface as PasswordlessRecipeInterface,
+    ConsumeCodeOkResult,
+)
+from supertokens_python.recipe.thirdparty import (
+    SignInAndUpFeature,
+)
+from supertokens_python.recipe.thirdparty.interfaces import (
+    APIInterface as ThirdPartyAPIInterface,
+    SignInUpPostOkResult,
+    APIOptions,
+)
+from supertokens_python.recipe.thirdparty.provider import (
+    Provider,
+    RedirectUriInfo,
+)
+from supertokens_python.recipe.session import (
+    SessionContainer,
+)
+from supertokens_python.types import (
+    AccountInfo,
+)
+from oss.src.core.auth.supertokens.overrides import (
+    override_emailpassword_functions,
+)
+from oss.src.core.auth.supertokens.overrides import (
+    override_passwordless_functions,
+)
+from oss.src.core.auth.supertokens.overrides import (
+    override_thirdparty_functions,
+)
+from oss.src.core.auth.supertokens.overrides import (
+    override_session_functions,
+)
+from oss.src.core.auth.supertokens.config import (
+    get_app_info,
+    get_supertokens_config,
+    get_thirdparty_providers,
+)
 
-import posthog
-
-from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
-from oss.src.services.exceptions import UnauthorizedException
-from oss.src.services.db_manager import (
-    get_user_with_email,
-)
+from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.validators import (
     validate_user_email_or_username,
     validate_actual_email,
     is_input_email,
 )
+
+from oss.src.services.exceptions import UnauthorizedException
+from oss.src.services.db_manager import (
+    get_user_with_email,
+    check_if_user_exists_and_create_organization,
+    check_if_user_invitation_exists,
+)
+
+
+log = get_module_logger(__name__)
 
 
 async def _get_blocked_domains() -> Set[str]:
@@ -221,11 +260,6 @@ async def _create_account(email: str, uid: str) -> None:
         await create_accounts(payload)
     else:
         # OSS: Compute or get the single organization
-        from oss.src.services.db_manager import (
-            check_if_user_exists_and_create_organization,
-            check_if_user_invitation_exists,
-        )
-
         organization_db = await check_if_user_exists_and_create_organization(
             user_email=email
         )
@@ -244,85 +278,9 @@ async def _create_account(email: str, uid: str) -> None:
         await create_accounts(payload)
 
 
-def override_passwordless_apis(
-    original_implementation: PasswordlessRecipeInterface,
+def override_emailpassword_apis(
+    original: EmailPasswordAPIInterface,
 ):
-    original_consume_code_post = original_implementation.consume_code
-
-    async def consume_code_post(
-        pre_auth_session_id: str,
-        user_input_code: Union[str, None],
-        device_id: Union[str, None],
-        link_code: Union[str, None],
-        tenant_id: str,
-        user_context: Dict[str, Any],
-        session: Optional[SessionContainer] = None,
-        should_try_linking_with_session_user: Optional[bool] = None,
-    ):
-        # First we call the original implementation of consume_code_post.
-        response = await original_consume_code_post(
-            pre_auth_session_id,
-            user_input_code,
-            device_id,
-            link_code,
-            session,
-            should_try_linking_with_session_user,
-            tenant_id,
-            user_context,
-        )
-
-        # Post sign up response, we check if it was successful
-        if isinstance(response, ConsumeCodeOkResult):
-            email = response.user.emails[0].lower()
-            await _create_account(email, response.user.id)
-            # Note: Identity tracking is now handled by the recipe-level override (override_passwordless_functions)
-            # which runs before session creation and properly injects existing_identities into the JWT payload
-
-        return response
-
-    original_implementation.consume_code = consume_code_post  # type: ignore
-    return original_implementation
-
-
-def override_thirdparty_apis(original_implementation: ThirdPartyAPIInterface):
-    original_sign_in_up = original_implementation.sign_in_up_post
-
-    async def thirdparty_sign_in_up_post(
-        provider: Provider,
-        tenant_id: str,
-        api_options: APIOptions,
-        user_context: Dict[str, Any],
-        redirect_uri_info: Optional[RedirectUriInfo] = None,
-        oauth_tokens: Optional[Dict[str, Any]] = None,
-        session: Optional[SessionContainer] = None,
-        should_try_linking_with_session_user: Optional[bool] = None,
-    ):
-        # Call the original implementation if needed
-        response = await original_sign_in_up(
-            provider,
-            redirect_uri_info,
-            oauth_tokens,
-            session,
-            should_try_linking_with_session_user,
-            tenant_id,
-            api_options,
-            user_context,
-        )
-
-        if isinstance(response, SignInUpPostOkResult):
-            email = response.user.emails[0].lower()
-            await _create_account(email, response.user.id)
-            # Note: Identity tracking is now handled by the recipe-level override (override_thirdparty_functions)
-            # which runs before session creation and properly injects existing_identities into the JWT payload
-
-        return response
-
-    original_implementation.sign_in_up_post = thirdparty_sign_in_up_post  # type: ignore
-
-    return original_implementation
-
-
-def override_password_apis(original: EmailPasswordAPIInterface):
     og_sign_up_post = original.sign_up_post
     og_sign_in_post = original.sign_in_post
 
@@ -434,6 +392,84 @@ def override_password_apis(original: EmailPasswordAPIInterface):
     return original
 
 
+def override_passwordless_apis(
+    original_implementation: PasswordlessRecipeInterface,
+):
+    original_consume_code_post = original_implementation.consume_code_post
+
+    async def consume_code_post(
+        pre_auth_session_id: str,
+        user_input_code: Union[str, None],
+        device_id: Union[str, None],
+        link_code: Union[str, None],
+        session: Optional[SessionContainer] = None,
+        should_try_linking_with_session_user: Optional[bool] = None,
+        tenant_id: str = "public",
+        api_options: Optional[APIOptions] = None,
+        user_context: Optional[Dict[str, Any]] = None,
+    ):
+        # First we call the original implementation of consume_code_post.
+        response = await original_consume_code_post(
+            pre_auth_session_id,
+            user_input_code,
+            device_id,
+            link_code,
+            session,
+            should_try_linking_with_session_user,
+            tenant_id,
+            api_options,
+            user_context or {},
+        )
+
+        # Post sign up response, we check if it was successful
+        if isinstance(response, ConsumeCodeOkResult):
+            email = response.user.emails[0].lower()
+            await _create_account(email, response.user.id)
+
+        return response
+
+    original_implementation.consume_code_post = consume_code_post  # type: ignore
+    return original_implementation
+
+
+def override_thirdparty_apis(
+    original_implementation: ThirdPartyAPIInterface,
+):
+    original_sign_in_up = original_implementation.sign_in_up_post
+
+    async def thirdparty_sign_in_up_post(
+        provider: Provider,
+        tenant_id: str,
+        api_options: APIOptions,
+        user_context: Dict[str, Any],
+        redirect_uri_info: Optional[RedirectUriInfo] = None,
+        oauth_tokens: Optional[Dict[str, Any]] = None,
+        session: Optional[SessionContainer] = None,
+        should_try_linking_with_session_user: Optional[bool] = None,
+    ):
+        # Call the original implementation if needed
+        response = await original_sign_in_up(
+            provider,
+            redirect_uri_info,
+            oauth_tokens,
+            session,
+            should_try_linking_with_session_user,
+            tenant_id,
+            api_options,
+            user_context,
+        )
+
+        if isinstance(response, SignInUpPostOkResult):
+            email = response.user.emails[0].lower()
+            await _create_account(email, response.user.id)
+
+        return response
+
+    original_implementation.sign_in_up_post = thirdparty_sign_in_up_post  # type: ignore
+
+    return original_implementation
+
+
 # Parse AGENTA_API_URL to extract domain and path
 try:
     parsed_api_url = urlparse(env.agenta.api_url)
@@ -442,23 +478,22 @@ try:
 
     api_domain = f"{parsed_api_url.scheme}://{parsed_api_url.netloc}"
     api_gateway_path = parsed_api_url.path or "/"
-except Exception as e:
-    print(f"[ERROR] Failed to parse AGENTA_API_URL ('{env.agenta.api_url}'): {e}")
+except Exception:
+    log.error(
+        f"[AUTH] Failed to parse AGENTA_API_URL ('{env.agenta.api_url}')",
+        exc_info=True,
+    )
     api_domain = ""
     api_gateway_path = "/"
 
 
 def _init_supertokens():
     """Initialize SuperTokens with only enabled recipes"""
-    from oss.src.utils.logging import get_logger
-
-    logger = get_logger(__name__)
-
     # Validate auth configuration
     try:
         env.auth.validate_config()
-    except ValueError as e:
-        logger.error(f"[AUTH CONFIG ERROR] {e}")
+    except ValueError:
+        log.error("[AUTH]", exc_info=True)
         raise
 
     # Build recipe list based on enabled auth methods
@@ -466,11 +501,7 @@ def _init_supertokens():
 
     # Email Password Authentication
     if env.auth.email_method == "password":
-        from oss.src.core.auth.supertokens_overrides import (
-            override_emailpassword_functions,
-        )
-
-        logger.info("✓ Email/Password authentication enabled")
+        log.info("✓ Email/Password authentication enabled")
         recipe_list.append(
             emailpassword.init(
                 sign_up_feature=InputSignUpFeature(
@@ -486,7 +517,7 @@ def _init_supertokens():
                     ]
                 ),
                 override=InputOverrideConfig(
-                    apis=override_password_apis,
+                    apis=override_emailpassword_apis,
                     functions=override_emailpassword_functions,
                 ),
             )
@@ -494,11 +525,7 @@ def _init_supertokens():
 
     # Email OTP Authentication
     if env.auth.email_method == "otp":
-        from oss.src.core.auth.supertokens_overrides import (
-            override_passwordless_functions,
-        )
-
-        logger.info("✓ Email/OTP authentication enabled")
+        log.info("✓ Email/OTP authentication enabled")
         recipe_list.append(
             passwordless.init(
                 flow_type="USER_INPUT_CODE",
@@ -512,16 +539,12 @@ def _init_supertokens():
 
     # Third-Party OIDC Authentication
     # Always initialize thirdparty recipe for dynamic OIDC support (EE)
-    from oss.src.core.auth.supertokens_config import get_thirdparty_providers
-    from oss.src.core.auth.supertokens_overrides import override_thirdparty_functions
-    from oss.src.utils.common import is_ee
-
     oidc_providers = get_thirdparty_providers()
     if oidc_providers:
         enabled_providers = [
             provider.config.third_party_id for provider in oidc_providers
         ]
-        logger.info("✓ OIDC providers enabled: %s", ", ".join(enabled_providers))
+        log.info("✓ OIDC providers enabled: %s", ", ".join(enabled_providers))
 
     # Initialize thirdparty recipe if we have static providers OR if EE is enabled (for dynamic OIDC)
     if oidc_providers or is_ee():
@@ -535,11 +558,9 @@ def _init_supertokens():
             )
         )
         if is_ee() and not oidc_providers:
-            logger.info("✓ Third-party recipe enabled for dynamic OIDC (EE)")
+            log.info("✓ Third-party recipe enabled for dynamic OIDC (EE)")
 
     # Sessions always required if auth is enabled
-    from oss.src.core.auth.supertokens_overrides import override_session_functions
-
     recipe_list.append(
         session.init(
             expose_access_token_to_frontend_in_cookie_based_auth=True,
@@ -549,15 +570,7 @@ def _init_supertokens():
         )
     )
 
-    # Dashboard for admin management
-    recipe_list.append(dashboard.init())
-
     # Initialize SuperTokens with selected recipes
-    from oss.src.core.auth.supertokens_config import (
-        get_app_info,
-        get_supertokens_config,
-    )
-
     init(
         app_info=get_app_info(),
         supertokens_config=SupertokensConfig(**get_supertokens_config()),

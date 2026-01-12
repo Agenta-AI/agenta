@@ -6,7 +6,6 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import EvaluatorDetailsPreview from "@/oss/components/pages/evaluations/onlineEvaluation/components/EvaluatorDetailsPreview"
-import EvaluatorTypeTag from "@/oss/components/pages/evaluations/onlineEvaluation/components/EvaluatorTypeTag"
 import {EVALUATOR_CATEGORY_LABEL_MAP} from "@/oss/components/pages/evaluations/onlineEvaluation/constants"
 import {useEvaluatorDetails} from "@/oss/components/pages/evaluations/onlineEvaluation/hooks/useEvaluatorDetails"
 import {useEvaluatorTypeFromConfigs} from "@/oss/components/pages/evaluations/onlineEvaluation/hooks/useEvaluatorTypeFromConfigs"
@@ -61,7 +60,7 @@ const EvaluatorSection = ({runId}: EvaluatorSectionProps) => {
     }
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col">
             {evaluators.map((evaluator, index) => (
                 <EvaluatorCard
                     key={evaluator.id}
@@ -159,128 +158,112 @@ const EvaluatorCard = ({
         ? `${projectURL}/evaluators/configure/${evaluator.id}`
         : undefined
 
+    const titleNode = (
+        <EvaluatorReferenceLabel
+            evaluatorId={evaluator.id}
+            evaluatorSlug={evaluator.slug}
+            projectId={projectId}
+            href={evaluatorHref}
+            label={evaluatorDisplayLabel}
+            toneOverride={null}
+            className="max-w-full !bg-[#F2F4F7] !border-[#D0D5DD] !text-[#1D2939]"
+        />
+    )
+
     return (
         <Form layout="vertical" requiredMark={false}>
-            <SectionCard>
-                {rawEvaluator ? (
-                    <div className="flex flex-col gap-3">
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="flex flex-col gap-1">
-                                <Typography.Title level={5} className="!mb-0 !mt-0 text-[#101828]">
-                                    {evaluatorDisplayLabel}
-                                </Typography.Title>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <EvaluatorReferenceLabel
-                                        evaluatorId={evaluator.id}
-                                        evaluatorSlug={evaluator.slug}
-                                        projectId={projectId}
-                                        href={evaluatorHref}
-                                    />
-                                    {finalShowType ? (
-                                        <EvaluatorTypeTag
-                                            label={finalTypeLabel!}
-                                            color={finalTypeColor}
-                                            fallback={finalFallbackColors}
-                                        />
-                                    ) : null}
-                                    {evaluator.version ? (
-                                        <Tag className="!m-0 !bg-[#0517290F]" bordered={false}>
-                                            V{evaluator.version}
-                                        </Tag>
-                                    ) : null}
-                                </div>
+            <SectionCard className="!gap-0 !p-0 overflow-hidden">
+                <div
+                    className="flex h-10 items-center justify-between gap-2 bg-[rgba(5,23,41,0.02)] px-3"
+                    style={{
+                        borderBottom:
+                            "var(--Components-Collapse-Global-lineWidth, 1px) solid var(--Colors-Neutral-Border-colorSplit, rgba(5, 23, 41, 0.06))",
+                    }}
+                >
+                    <div className="flex min-w-0 items-center gap-2">
+                        {titleNode}
+                        {evaluator.version ? (
+                            <span className="rounded-full bg-[#F2F4F7] px-2 py-0.5 text-xs font-medium text-[#475467]">
+                                V{evaluator.version}
+                            </span>
+                        ) : null}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {rawEvaluator && hasEvaluatorJson ? (
+                            <Segmented
+                                options={[
+                                    {label: "Details", value: "details"},
+                                    {label: "JSON", value: "json"},
+                                ]}
+                                size="small"
+                                value={view}
+                                onChange={(val) => setView(val as "details" | "json")}
+                            />
+                        ) : null}
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={
+                                <DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />
+                            }
+                            onClick={() => setCollapsed((v) => !v)}
+                        />
+                    </div>
+                </div>
+                {!collapsed ? (
+                    <div className="flex flex-col gap-4 p-3">
+                        {rawEvaluator ? (
+                            <>
                                 {evaluator.description ? (
                                     <Text type="secondary">{evaluator.description}</Text>
                                 ) : null}
-                            </div>
-                            <div className="flex items-start gap-2">
-                                {hasEvaluatorJson ? (
-                                    <Segmented
-                                        options={[
-                                            {label: "Details", value: "details"},
-                                            {label: "JSON", value: "json"},
-                                        ]}
-                                        size="small"
-                                        value={view}
-                                        onChange={(val) => setView(val as "details" | "json")}
-                                    />
-                                ) : null}
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    icon={
-                                        <DownOutlined
-                                            rotate={collapsed ? -90 : 0}
-                                            style={{fontSize: 12}}
+                                {view === "json" && hasEvaluatorJson ? (
+                                    <div className="rounded-md border border-solid border-[#E4E7EC] bg-[#F8FAFC]">
+                                        <JsonEditor
+                                            key={evaluatorJsonKey}
+                                            initialValue={evaluatorJson}
+                                            language="json"
+                                            codeOnly
+                                            showToolbar={false}
+                                            disabled
+                                            enableResize={false}
+                                            boundWidth
+                                            dimensions={{width: "100%", height: 260}}
                                         />
-                                    }
-                                    onClick={() => setCollapsed((v) => !v)}
-                                />
-                            </div>
-                        </div>
-
-                        {!collapsed ? (
-                            <>
-                                <div className="rounded-md border-[#E4E7EC]">
-                                    {view === "json" && hasEvaluatorJson ? (
-                                        <div className="rounded-md border border-solid border-[#E4E7EC] bg-[#F8FAFC]">
-                                            <JsonEditor
-                                                key={evaluatorJsonKey}
-                                                initialValue={evaluatorJson}
-                                                language="json"
-                                                codeOnly
-                                                showToolbar={false}
-                                                disabled
-                                                enableResize={false}
-                                                boundWidth
-                                                dimensions={{width: "100%", height: 260}}
-                                            />
-                                        </div>
-                                    ) : (
-                                        <EvaluatorDetailsPreview
-                                            details={details as any}
-                                            typeLabel={finalTypeLabel}
-                                            typeColor={finalTypeColor}
-                                            fallbackColors={finalFallbackColors}
-                                            showType={finalShowType}
-                                        />
-                                    )}
-                                </div>
-
-                                {metricsFallback.length > 0 ? (
-                                    <div className="flex flex-col gap-1">
-                                        <SectionLabel>Metrics</SectionLabel>
-                                        <div className="flex flex-wrap gap-2">
-                                            {metricsFallback.map((metric) => (
-                                                <Tag
-                                                    key={`${evaluator.id}-${metric.name}`}
-                                                    className="!m-0"
-                                                >
-                                                    {metric.displayLabel ?? metric.name}
-                                                </Tag>
-                                            ))}
-                                        </div>
                                     </div>
-                                ) : null}
+                                ) : (
+                                    <EvaluatorDetailsPreview
+                                        details={details as any}
+                                        typeLabel={finalTypeLabel}
+                                        typeColor={finalTypeColor}
+                                        fallbackColors={finalFallbackColors}
+                                        showType={finalShowType}
+                                    />
+                                )}
                             </>
-                        ) : null}
-                    </div>
-                ) : (
-                    <div className="flex flex-col gap-2">
-                        <Text type="secondary">
-                            Evaluator configuration snapshot is unavailable for this run.
-                        </Text>
-                        {metricsFallback.length ? (
-                            <div className="flex flex-wrap gap-2">
-                                {metricsFallback.map((metric) => (
-                                    <Tag key={`${evaluator.id}-${metric.name}`} className="!m-0">
-                                        {metric.displayLabel ?? metric.name}
-                                    </Tag>
-                                ))}
+                        ) : (
+                            <Text type="secondary">
+                                Evaluator configuration snapshot is unavailable for this run.
+                            </Text>
+                        )}
+
+                        {metricsFallback.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                                <SectionLabel>Metrics</SectionLabel>
+                                <div className="flex flex-wrap gap-2">
+                                    {metricsFallback.map((metric) => (
+                                        <Tag
+                                            key={`${evaluator.id}-${metric.name}`}
+                                            className="!m-0"
+                                        >
+                                            {metric.displayLabel ?? metric.name}
+                                        </Tag>
+                                    ))}
+                                </div>
                             </div>
                         ) : null}
                     </div>
-                )}
+                ) : null}
             </SectionCard>
         </Form>
     )

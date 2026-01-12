@@ -4,6 +4,22 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {fetchJson, getBaseUrl} from "../../../lib/api/assets/fetchClient"
 import {Org, OrgDetails} from "../../../lib/Types"
 
+export const checkOrganizationAccess = async (organizationId: string) => {
+    const response = await axios.get(`${getAgentaApiUrl()}/auth/access`, {
+        params: {organization_id: organizationId},
+        _skipAuthUpgradeRedirect: true,
+        _ignoreError: true,
+        validateStatus: () => true,
+    } as any)
+
+    const detailError = response.data?.detail?.error
+    if (response.status >= 200 && response.status < 300 && !detailError) {
+        return {ok: true, response}
+    }
+
+    return {ok: false, response}
+}
+
 /**
  * Fetch all organizations using modern fetchJson
  * Replaces the old axios-based fetchAllOrgsList
@@ -149,7 +165,9 @@ export interface OrganizationDomain {
  * Fetch all domains for an organization
  */
 export const fetchOrganizationDomains = async (): Promise<OrganizationDomain[]> => {
-    const response = await axios.get(`${getAgentaApiUrl()}/organizations/domains`)
+    const response = await axios.get(`${getAgentaApiUrl()}/organizations/domains`, {
+        _ignoreError: true,
+    } as any)
     return response.data
 }
 
@@ -161,7 +179,9 @@ export const createOrganizationDomain = async (payload: {
     name: string
     description?: string
 }): Promise<OrganizationDomain> => {
-    const response = await axios.post(`${getAgentaApiUrl()}/organizations/domains`, payload)
+    const response = await axios.post(`${getAgentaApiUrl()}/organizations/domains`, payload, {
+        _ignoreError: true,
+    } as any)
     return response.data
 }
 
@@ -189,6 +209,10 @@ export const refreshOrganizationDomainToken = async (
 ): Promise<OrganizationDomain> => {
     const response = await axios.post(
         `${getAgentaApiUrl()}/organizations/domains/${domainId}/refresh`,
+        undefined,
+        {
+            _ignoreError: true,
+        } as any,
     )
     return response.data
 }
@@ -197,7 +221,9 @@ export const refreshOrganizationDomainToken = async (
  * Delete a domain from an organization
  */
 export const deleteOrganizationDomain = async (domainId: string): Promise<void> => {
-    await axios.delete(`${getAgentaApiUrl()}/organizations/domains/${domainId}`)
+    await axios.delete(`${getAgentaApiUrl()}/organizations/domains/${domainId}`, {
+        _ignoreError: true,
+    } as any)
 }
 
 // ============================================================================
@@ -229,7 +255,9 @@ export interface OrganizationProvider {
  * Fetch all SSO providers for an organization
  */
 export const fetchOrganizationProviders = async (): Promise<OrganizationProvider[]> => {
-    const response = await axios.get(`${getAgentaApiUrl()}/organizations/providers`)
+    const response = await axios.get(`${getAgentaApiUrl()}/organizations/providers`, {
+        _ignoreError: true,
+    } as any)
     return response.data
 }
 
@@ -246,7 +274,9 @@ export const createOrganizationProvider = async (payload: {
         scopes?: string[]
     }
 }): Promise<OrganizationProvider> => {
-    const response = await axios.post(`${getAgentaApiUrl()}/organizations/providers`, payload)
+    const response = await axios.post(`${getAgentaApiUrl()}/organizations/providers`, payload, {
+        _ignoreError: true,
+    } as any)
     return response.data
 }
 
@@ -271,6 +301,9 @@ export const updateOrganizationProvider = async (
     const response = await axios.patch(
         `${getAgentaApiUrl()}/organizations/providers/${providerId}`,
         payload,
+        {
+            _ignoreError: true,
+        } as any,
     )
     return response.data
 }
@@ -283,6 +316,10 @@ export const testOrganizationProvider = async (
 ): Promise<OrganizationProvider> => {
     const response = await axios.post(
         `${getAgentaApiUrl()}/organizations/providers/${providerId}/test`,
+        undefined,
+        {
+            _ignoreError: true,
+        } as any,
     )
     return response.data
 }
@@ -291,5 +328,7 @@ export const testOrganizationProvider = async (
  * Delete an SSO/OIDC provider
  */
 export const deleteOrganizationProvider = async (providerId: string): Promise<void> => {
-    await axios.delete(`${getAgentaApiUrl()}/organizations/providers/${providerId}`)
+    await axios.delete(`${getAgentaApiUrl()}/organizations/providers/${providerId}`, {
+        _ignoreError: true,
+    } as any)
 }

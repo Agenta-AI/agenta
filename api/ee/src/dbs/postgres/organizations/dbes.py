@@ -1,6 +1,7 @@
 from sqlalchemy import (
     ForeignKeyConstraint,
     UniqueConstraint,
+    PrimaryKeyConstraint,
     Index,
     text,
 )
@@ -16,6 +17,7 @@ class OrganizationDomainDBE(Base, OrganizationDomainDBA):
     __tablename__ = "organization_domains"
 
     __table_args__ = (
+        PrimaryKeyConstraint("id"),
         ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],
@@ -43,6 +45,7 @@ class OrganizationProviderDBE(Base, OrganizationProviderDBA):
     __tablename__ = "organization_providers"
 
     __table_args__ = (
+        PrimaryKeyConstraint("id"),
         ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],

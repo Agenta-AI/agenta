@@ -76,8 +76,8 @@ const EvaluatorMetricsSpiderChart = ({
         )
     }
 
-    const LABEL_OFFSET = 12
-    const NUDGE = 5
+    const LABEL_OFFSET = 10
+    const NUDGE = 0
     const RAD = Math.PI / 180
 
     return (
@@ -106,9 +106,28 @@ const EvaluatorMetricsSpiderChart = ({
                             const nudgeX = cos * NUDGE
                             const nudgeY = sin * NUDGE
 
+                            const truncateText = (text: string, max = 18) => {
+                                if (text.length <= max) return text
+                                return `${text.slice(0, Math.max(1, max - 1))}…`
+                            }
+
                             const clampLines = (s: string, max = 18) => {
-                                const parts = s.includes(" - ") ? s.split(" - ") : [s]
-                                if (parts.length >= 2) return parts.slice(0, 2)
+                                const separator = s.includes(": ")
+                                    ? ": "
+                                    : s.includes(" - ")
+                                      ? " - "
+                                      : null
+
+                                if (separator) {
+                                    const parts = s.split(separator)
+                                    const evaluator = truncateText(parts[0]?.trim() ?? "", 16)
+                                    const metric = truncateText(
+                                        parts.slice(1).join(separator).trim(),
+                                        max,
+                                    )
+                                    return metric ? [evaluator, metric] : [evaluator]
+                                }
+
                                 const words = s.split(/\s+/)
                                 let line1 = ""
                                 let line2 = ""
@@ -126,10 +145,12 @@ const EvaluatorMetricsSpiderChart = ({
                             }
 
                             const lines = clampLines(label, 18)
+                            const lineHeight = 12
+                            const blockOffset = -((lines.length - 1) * lineHeight) / 2
 
                             return (
                                 <g
-                                    transform={`translate(${x + nudgeX},${y + nudgeY})`}
+                                    transform={`translate(${x + nudgeX},${y + nudgeY + blockOffset})`}
                                     pointerEvents="none"
                                 >
                                     <text
@@ -140,7 +161,7 @@ const EvaluatorMetricsSpiderChart = ({
                                         style={{userSelect: "none"}}
                                     >
                                         {lines.map((ln, i) => (
-                                            <tspan key={i} x={0} dy={i === 0 ? 0 : 12}>
+                                            <tspan key={i} x={0} dy={i === 0 ? 0 : lineHeight}>
                                                 {ln}
                                             </tspan>
                                         ))}

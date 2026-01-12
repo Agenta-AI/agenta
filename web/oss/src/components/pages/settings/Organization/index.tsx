@@ -1,4 +1,4 @@
-import {type FC, useState, useCallback} from "react"
+import {type FC, useState, useCallback, useMemo} from "react"
 
 import {
     PlusOutlined,
@@ -25,6 +25,7 @@ import {
     Tag,
     Popconfirm,
     Alert,
+    Tooltip,
 } from "antd"
 
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
@@ -97,62 +98,15 @@ const Organization: FC = () => {
         [selectedOrg?.id, queryClient, refetch],
     )
 
-    const handleFlagChange = useCallback(
-        (flagName: string, value: boolean) => {
-            if (!selectedOrg) return
-
-            // Check if this change would disable all auth methods
-            const wouldDisableAllAuth = () => {
-                const currentFlags = selectedOrg.flags
-
-                const allowEmail = flagName === "allow_email" ? value : currentFlags.allow_email
-                const allowSocial = flagName === "allow_social" ? value : currentFlags.allow_social
-                const allowSso = flagName === "allow_sso" ? value : currentFlags.allow_sso
-
-                return !allowEmail && !allowSocial && !allowSso
-            }
-
-            // If disabling all auth, show confirmation
-            if (wouldDisableAllAuth() && !value) {
-                Modal.confirm({
-                    title: "Disable all authentication methods?",
-
-                    content: (
-                        <div>
-                            <p>
-                                You are about to disable all authentication methods, for this
-                                organization.
-                            </p>
-                            <p>
-                                <strong>
-                                    To prevent lockout, the "Allow organization owner to bypass
-                                    controls" flag will be enabled.
-                                </strong>
-                            </p>
-                            <p>Do you want to continue?</p>
-                        </div>
-                    ),
-                    width: 420,
-                    okText: "Confirm",
-                    okType: "danger",
-                    cancelText: "Cancel",
-                    onOk: () => {
-                        handleUpdateOrganization({
-                            flags: {
-                                [flagName]: value,
-                            },
-                        })
-                    },
-                })
-            } else {
-                handleUpdateOrganization({
-                    flags: {
-                        [flagName]: value,
-                    },
-                })
-            }
-        },
-        [handleUpdateOrganization, selectedOrg],
+    // Domain Verification queries and mutations
+    const {data: domains = [], refetch: refetchDomains} = useQuery({
+        queryKey: ["organization-domains", selectedOrg?.id],
+        queryFn: fetchOrganizationDomains,
+        enabled: !!selectedOrg?.id,
+    })
+    const hasVerifiedDomain = useMemo(
+        () => domains.some((domain) => domain.flags?.is_verified),
+        [domains],
     )
 
     const handleSlugSave = useCallback(() => {
@@ -160,13 +114,6 @@ const Organization: FC = () => {
         handleUpdateOrganization({slug: slugValue.trim()}, {ignoreAxiosError: true})
         setSlugModalVisible(false)
     }, [slugValue, handleUpdateOrganization])
-
-    // Domain Verification queries and mutations
-    const {data: domains = [], refetch: refetchDomains} = useQuery({
-        queryKey: ["organization-domains", selectedOrg?.id],
-        queryFn: fetchOrganizationDomains,
-        enabled: !!selectedOrg?.id,
-    })
 
     const createDomainMutation = useMutation({
         mutationFn: createOrganizationDomain,
@@ -438,6 +385,81 @@ const Organization: FC = () => {
     const pendingProviderRowKeys = providers
         .filter((provider) => provider.flags?.is_valid === false)
         .map((provider) => provider.id)
+    const hasActiveVerifiedProvider = useMemo(
+        () => providers.some((provider) => provider.flags?.is_active && provider.flags?.is_valid),
+        [providers],
+    )
+    const allAuthMethodsDisabled = useMemo(
+        () =>
+            !selectedOrg?.flags?.allow_email &&
+            !selectedOrg?.flags?.allow_social &&
+            !selectedOrg?.flags?.allow_sso,
+        [selectedOrg?.flags],
+    )
+    const handleFlagChange = useCallback(
+        (flag: string, value: boolean) => {
+            if (!selectedOrg?.id) return
+
+            if (flag === "allow_sso" && value && !hasActiveVerifiedProvider) {
+                message.error("Enable at least one active SSO provider before allowing SSO.")
+                return
+            }
+
+            if (flag === "domains_only" && value && !hasVerifiedDomain) {
+                message.error("Verify at least one domain before enforcing verified domains only.")
+                return
+            }
+
+            if (flag === "auto_join" && value && !hasVerifiedDomain) {
+                message.error("Auto-join requires at least one verified domain.")
+                return
+            }
+
+            // Check if this change would disable all auth methods without owner bypass
+            const wouldDisableAllAuthWithoutBypass = () => {
+                const currentFlags = selectedOrg.flags
+
+                const allowEmail = flag === "allow_email" ? value : currentFlags.allow_email
+                const allowSocial = flag === "allow_social" ? value : currentFlags.allow_social
+                const allowSso = flag === "allow_sso" ? value : currentFlags.allow_sso
+                const allowRoot = currentFlags.allow_root
+
+                return !allowEmail && !allowSocial && !allowSso && !allowRoot
+            }
+
+            // If disabling all auth without owner bypass, show confirmation
+            if (wouldDisableAllAuthWithoutBypass() && !value) {
+                Modal.confirm({
+                    title: "Disable all authentication methods?",
+                    content: (
+                        <div>
+                            <p>
+                                You are about to disable all authentication methods for this
+                                organization.
+                            </p>
+                            <p>
+                                <strong>
+                                    To prevent lockout, the "Owner can bypass controls" flag will be
+                                    enabled automatically.
+                                </strong>
+                            </p>
+                            <p>Do you want to continue?</p>
+                        </div>
+                    ),
+                    width: 420,
+                    okText: "Confirm",
+                    okType: "danger",
+                    cancelText: "Cancel",
+                    onOk: () => {
+                        handleUpdateOrganization({flags: {[flag]: value}}, {ignoreAxiosError: true})
+                    },
+                })
+            } else {
+                handleUpdateOrganization({flags: {[flag]: value}})
+            }
+        },
+        [handleUpdateOrganization, hasActiveVerifiedProvider, hasVerifiedDomain, selectedOrg],
+    )
 
     const providerColumns = [
         {
@@ -488,39 +510,45 @@ const Organization: FC = () => {
         {
             title: "Actions",
             key: "actions",
-            render: (_: any, record: OrganizationProvider) => (
-                <Space>
-                    <Button
-                        type="primary"
-                        size="small"
-                        onClick={() => testProviderMutation.mutate(record.id)}
-                        loading={testProviderMutation.isPending}
-                    >
-                        Enable
-                    </Button>
-                    <Button
-                        size="small"
-                        icon={<EditOutlined />}
-                        aria-label="Edit provider"
-                        onClick={() => handleEditProvider(record)}
-                    ></Button>
-                    <Popconfirm
-                        title="Delete SSO provider"
-                        description="Are you sure you want to delete this SSO provider?"
-                        onConfirm={() => deleteProviderMutation.mutate(record.id)}
-                        okText="Delete"
-                        okType="danger"
-                        cancelText="Cancel"
-                    >
+            render: (_: any, record: OrganizationProvider) => {
+                const isEnabled = record.flags?.is_enabled !== false
+                const isValid = record.flags?.is_valid !== false
+                return (
+                    <Space>
+                        {(!isEnabled || !isValid) && (
+                            <Button
+                                type="primary"
+                                size="small"
+                                onClick={() => testProviderMutation.mutate(record.id)}
+                                loading={testProviderMutation.isPending}
+                            >
+                                Enable
+                            </Button>
+                        )}
                         <Button
-                            danger
                             size="small"
-                            icon={<DeleteOutlined />}
-                            loading={deleteProviderMutation.isPending}
-                        />
-                    </Popconfirm>
-                </Space>
-            ),
+                            icon={<EditOutlined />}
+                            aria-label="Edit provider"
+                            onClick={() => handleEditProvider(record)}
+                        ></Button>
+                        <Popconfirm
+                            title="Delete SSO provider"
+                            description="Are you sure you want to delete this SSO provider?"
+                            onConfirm={() => deleteProviderMutation.mutate(record.id)}
+                            okText="Delete"
+                            okType="danger"
+                            cancelText="Cancel"
+                        >
+                            <Button
+                                danger
+                                size="small"
+                                icon={<DeleteOutlined />}
+                                loading={deleteProviderMutation.isPending}
+                            />
+                        </Popconfirm>
+                    </Space>
+                )
+            },
         },
     ]
 
@@ -612,33 +640,22 @@ const Organization: FC = () => {
                                 }
                                 disabled={updating}
                             >
-                                <Radio.Button value="yes">Allow</Radio.Button>
-                                <Radio.Button value="no">Deny</Radio.Button>
-                            </Radio.Group>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Join from non-verified domains">
-                            <Radio.Group
-                                value={selectedOrg.flags.domains_only ? "no" : "yes"}
-                                size="small"
-                                onChange={(e) =>
-                                    handleFlagChange("domains_only", e.target.value === "no")
-                                }
-                                disabled={updating}
-                            >
-                                <Radio.Button value="yes">Allow</Radio.Button>
-                                <Radio.Button value="no">Deny</Radio.Button>
-                            </Radio.Group>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Auto-join from verified domains">
-                            <Radio.Group
-                                value={selectedOrg.flags.auto_join ? "yes" : "no"}
-                                size="small"
-                                onChange={(e) =>
-                                    handleFlagChange("auto_join", e.target.value === "yes")
-                                }
-                                disabled={updating}
-                            >
-                                <Radio.Button value="yes">Allow</Radio.Button>
+                                <Tooltip
+                                    title={
+                                        !hasActiveVerifiedProvider
+                                            ? "Enable at least one SSO provider first."
+                                            : null
+                                    }
+                                >
+                                    <span>
+                                        <Radio.Button
+                                            value="yes"
+                                            disabled={!hasActiveVerifiedProvider}
+                                        >
+                                            Allow
+                                        </Radio.Button>
+                                    </span>
+                                </Tooltip>
                                 <Radio.Button value="no">Deny</Radio.Button>
                             </Radio.Group>
                         </Descriptions.Item>
@@ -652,6 +669,68 @@ const Organization: FC = () => {
                                 disabled={updating}
                             >
                                 <Radio.Button value="yes">Allow</Radio.Button>
+                                <Tooltip
+                                    title={
+                                        allAuthMethodsDisabled
+                                            ? "Enable at least one authentication method first."
+                                            : null
+                                    }
+                                >
+                                    <span>
+                                        <Radio.Button value="no" disabled={allAuthMethodsDisabled}>
+                                            Deny
+                                        </Radio.Button>
+                                    </span>
+                                </Tooltip>
+                            </Radio.Group>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Join from non-verified domains">
+                            <Radio.Group
+                                value={selectedOrg.flags.domains_only ? "no" : "yes"}
+                                size="small"
+                                onChange={(e) =>
+                                    handleFlagChange("domains_only", e.target.value === "no")
+                                }
+                                disabled={updating}
+                            >
+                                <Radio.Button value="yes">Allow</Radio.Button>
+                                <Tooltip
+                                    title={
+                                        !hasVerifiedDomain
+                                            ? "Verify at least one domain first."
+                                            : null
+                                    }
+                                >
+                                    <span>
+                                        <Radio.Button value="no" disabled={!hasVerifiedDomain}>
+                                            Deny
+                                        </Radio.Button>
+                                    </span>
+                                </Tooltip>
+                            </Radio.Group>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Auto-join from verified domains">
+                            <Radio.Group
+                                value={selectedOrg.flags.auto_join ? "yes" : "no"}
+                                size="small"
+                                onChange={(e) =>
+                                    handleFlagChange("auto_join", e.target.value === "yes")
+                                }
+                                disabled={updating}
+                            >
+                                <Tooltip
+                                    title={
+                                        !hasVerifiedDomain
+                                            ? "Verify at least one domain first."
+                                            : null
+                                    }
+                                >
+                                    <span>
+                                        <Radio.Button value="yes" disabled={!hasVerifiedDomain}>
+                                            Allow
+                                        </Radio.Button>
+                                    </span>
+                                </Tooltip>
                                 <Radio.Button value="no">Deny</Radio.Button>
                             </Radio.Group>
                         </Descriptions.Item>

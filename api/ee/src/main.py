@@ -2,7 +2,10 @@ from fastapi import FastAPI
 
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.routers import workspace_router, organization_router
+from ee.src.routers import (
+    workspace_router,
+    organization_router as _organization_router,
+)
 
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.tracing.dao import TracingDAO
@@ -14,7 +17,7 @@ from ee.src.core.subscriptions.service import SubscriptionsService
 
 from ee.src.apis.fastapi.billing.router import BillingRouter
 from ee.src.apis.fastapi.organizations.router import (
-    router as organization_security_router,
+    router as organization_router,
 )
 from oss.src.apis.fastapi.auth.router import auth_router
 
@@ -70,16 +73,14 @@ def extend_main(app: FastAPI):
 
     # ROUTES (more) ------------------------------------------------------------
 
-    # Register security router BEFORE organization router to avoid route conflicts
-    # (specific routes must come before catch-all /{organization_id} route)
     app.include_router(
-        organization_security_router,
+        organization_router,
         prefix="/organizations",
-        tags=["Organizations", "Security"],
+        tags=["Organizations"],
     )
 
     app.include_router(
-        organization_router.router,
+        _organization_router.router,
         prefix="/organizations",
     )
 

@@ -195,7 +195,7 @@ async def create_accounts(
                 log.error(
                     "[scopes] setup failed for user [%s], deleting user: %s",
                     user.id,
-                    str(e),
+                    exc_info=True,
                 )
                 try:
                     await delete_user(str(user.id))
@@ -216,6 +216,19 @@ async def create_accounts(
                 )
 
         log.info("[scopes] User [%s] authenticated", user.id)
+
+        try:
+            from oss.src.core.auth.service import AuthService
+
+            await AuthService().enforce_domain_policies(
+                email=user_dict["email"],
+                user_id=user.id,
+            )
+        except Exception:
+            log.error(
+                "Error enforcing domain policies after signup",
+                exc_info=True,
+            )
 
         if is_ee():
             try:

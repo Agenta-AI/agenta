@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {Coins, MagnifyingGlass, PlusCircle, SlidersHorizontal, Timer} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Space, Tooltip, Typography} from "antd"
@@ -138,6 +138,11 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
         return result || {...treeRoot, children: []}
     }, [searchValue, treeRoot])
 
+    const renderTraceLabel = useCallback(
+        (node: TraceSpanNode) => <TreeContent value={node} settings={traceTreeSettings} />,
+        [traceTreeSettings],
+    )
+
     if (!activeTrace) {
         return <div className="h-full overflow-hidden flex flex-col" />
     }
@@ -179,9 +184,12 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
 
             <CustomTreeComponent
                 data={filteredTree}
-                settings={traceTreeSettings}
+                getKey={(node) => node.span_id}
+                getChildren={(node) => node.children as TraceSpanNode[] | undefined}
+                renderLabel={renderTraceLabel}
                 selectedKey={selected}
-                onSelect={setSelected}
+                onSelect={(key) => setSelected(key)}
+                defaultExpanded
             />
         </div>
     )

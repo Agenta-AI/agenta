@@ -9,8 +9,10 @@ import PageLayout from "@/oss/components/PageLayout/PageLayout"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
+import {isEE} from "@/oss/lib/helpers/isEE"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useOrgData} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
 
@@ -40,8 +42,16 @@ const Settings: React.FC = () => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
     const tab = tabQuery ?? settingsTab ?? "workspace"
-    const {project} = useProjectData()
+    const canShowOrganization = isEE()
+    const {user} = useProfileData()
     const {selectedOrg} = useOrgData()
+    const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
+    const canShowBilling = isEE() && isOwner
+    const resolvedTab =
+        (tab === "organization" && !canShowOrganization) || (tab === "billing" && !canShowBilling)
+            ? "workspace"
+            : tab
+    const {project} = useProjectData()
     const {redirectUrl} = useURL()
     const [isOrgIdCopied, setIsOrgIdCopied] = useState(false)
     const [isProjectIdCopied, setIsProjectIdCopied] = useState(false)
@@ -69,12 +79,13 @@ const Settings: React.FC = () => {
     }, [selectedOrg?.default_workspace?.id])
 
     const breadcrumbs = useMemo(() => {
+        const organizationLabel = isEE() ? "Organization" : "Agenta"
         return {
             settings: {
                 label: (() => {
-                    switch (tab) {
+                    switch (resolvedTab) {
                         case "organization":
-                            return "Organization"
+                            return organizationLabel
                         case "workspace":
                             return "Project"
                         case "projects":
@@ -86,12 +97,12 @@ const Settings: React.FC = () => {
                         case "billing":
                             return "Usage & Billing"
                         default:
-                            return tab
+                            return resolvedTab
                     }
                 })(),
             },
         }
-    }, [tab])
+    }, [resolvedTab])
 
     useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [tab])
 
@@ -99,13 +110,14 @@ const Settings: React.FC = () => {
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 
     const {content, title} = useMemo(() => {
-        switch (tab) {
+        const organizationLabel = isEE() ? "Organization" : "Agenta"
+        switch (resolvedTab) {
             case "organization":
                 return {
                     content: <Organization />,
                     title: (
                         <div className="flex items-center gap-2">
-                            <span>Organization</span>
+                            <span>{organizationLabel}</span>
                             <Tooltip title={isOrgIdCopied ? "Copied!" : "Click to copy ID"}>
                                 <Tag
                                     className="cursor-pointer flex items-center gap-1"
@@ -152,13 +164,14 @@ const Settings: React.FC = () => {
                 }
         }
     }, [
-        tab,
+        resolvedTab,
         isOrgIdCopied,
         isProjectIdCopied,
         handleCopyOrgId,
         handleCopyProjectId,
         isPersonalOrg,
         isDemoOrg,
+        isOwner,
     ])
 
     return (

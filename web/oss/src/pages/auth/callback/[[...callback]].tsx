@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {Alert, Spin} from "antd"
 import dynamic from "next/dynamic"
@@ -10,6 +10,7 @@ import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
+import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
@@ -18,6 +19,7 @@ const Callback = () => {
     const router = useRouter()
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
     const {handleAuthSuccess} = usePostAuthRedirect()
+    const hasHandledCallback = useRef(false)
 
     const state = router.query.state as string
     const code = router.query.code as string
@@ -40,6 +42,10 @@ const Callback = () => {
     }
 
     const handleThirdPartyCallback = async () => {
+        if (hasHandledCallback.current) {
+            return
+        }
+        hasHandledCallback.current = true
         try {
             console.log("[AUTH-CALLBACK] Starting third-party callback", {
                 path: window.location.pathname,
@@ -56,6 +62,26 @@ const Callback = () => {
                     console.log("[AUTH-CALLBACK] session payload", payload)
                 } catch (payloadErr) {
                     console.warn("[AUTH-CALLBACK] session payload fetch failed", payloadErr)
+                }
+                if (typeof window !== "undefined") {
+                    const rawSessionIdentities = window.localStorage.getItem(
+                        "authUpgradeSessionIdentities",
+                    )
+                    if (rawSessionIdentities) {
+                        try {
+                            const parsed = JSON.parse(rawSessionIdentities)
+                            const list = Array.isArray(parsed) ? parsed : []
+                            if (list.length > 0) {
+                                await mergeSessionIdentities(list)
+                            }
+                            window.localStorage.removeItem("authUpgradeSessionIdentities")
+                        } catch (mergeError) {
+                            console.warn(
+                                "[AUTH-CALLBACK] session identities merge failed",
+                                mergeError,
+                            )
+                        }
+                    }
                 }
                 setMessage({message: "Verification successful", type: "success"})
                 const {createdNewRecipeUser, user} = response

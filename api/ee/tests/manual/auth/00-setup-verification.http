@@ -28,17 +28,30 @@
 
 
 ###
-# 2. Verify Organization Slug and Kind Columns Added
+# 2. Verify Organization Schema
 ###
 
-# Check organizations table has slug and kind columns
+# Check organizations table has updated schema
 # \d organizations
 
-# Expected:
-# - slug column (text, unique, nullable)
-# - kind column (text, NOT NULL, default 'collaborative')
-# - CHECK constraint: kind IN ('personal', 'collaborative')
-# - INDEX on kind
+# Expected columns:
+# - slug (text, unique, nullable)
+# - flags (jsonb, nullable) - contains is_personal, is_demo, auth policy flags
+# - owner_id (uuid, FK to users.id, NOT NULL)
+# - created_by_id, updated_by_id, deleted_by_id (uuid, nullable)
+# - created_at, updated_at, deleted_at (timestamp)
+#
+# Flags structure:
+# {
+#   "is_personal": bool,
+#   "is_demo": bool,
+#   "allow_email": bool,
+#   "allow_social": bool,
+#   "allow_sso": bool,
+#   "allow_root": bool,
+#   "domains_only": bool,
+#   "auto_join": bool
+# }
 
 
 ###
@@ -46,15 +59,24 @@
 ###
 
 -- Create test collaborative organization with slug
--- INSERT INTO organizations (id, name, slug, description, kind, owner, created_at, updated_at)
+-- INSERT INTO organizations (
+--   id,
+--   name,
+--   slug,
+--   description,
+--   flags,
+--   owner_id,
+--   created_by_id,
+--   created_at
+-- )
 -- VALUES (
 --   gen_random_uuid(),
 --   'ACME Corporation',
 --   'acme',
 --   'Test collaborative organization for SSO',
---   'collaborative',
+--   '{"is_personal": false, "allow_email": true, "allow_social": true, "allow_sso": true}'::jsonb,
 --   '<userId>',  -- Replace with actual user ID who will own this org
---   now(),
+--   '<userId>',
 --   now()
 -- )
 -- RETURNING id;
@@ -65,60 +87,78 @@
 # 4. Setup Test Personal Organization (EE Mode)
 ###
 
--- Create test personal organization (for testing domain verification restrictions)
--- INSERT INTO organizations (id, name, slug, description, kind, owner, created_at, updated_at)
+-- Create test personal organization
+-- INSERT INTO organizations (
+--   id,
+--   name,
+--   slug,
+--   description,
+--   flags,
+--   owner_id,
+--   created_by_id,
+--   created_at
+-- )
 -- VALUES (
 --   gen_random_uuid(),
 --   'Personal',
---   NULL,  -- Personal orgs cannot have slugs
+--   NULL,  -- Personal orgs have no slug
 --   NULL,
---   'personal',
+--   '{"is_personal": true}'::jsonb,
 --   '<userId>',  -- Replace with actual user ID
---   now(),
+--   '<userId>',
 --   now()
 -- )
 -- RETURNING id;
 -- Save the returned ID as @testPersonalOrgId
 
 -- Add user as member to their personal org
--- INSERT INTO organization_members (id, user_id, organization_id, role, created_at, updated_at)
+-- INSERT INTO organization_members (
+--   id,
+--   user_id,
+--   organization_id,
+--   role,
+--   created_at
+-- )
 -- VALUES (
 --   gen_random_uuid(),
 --   '<userId>',
 --   '<testPersonalOrgId>',
 --   'owner',
---   now(),
 --   now()
 -- );
 
 
 ###
-# 5. Setup Organization Policy (EE Mode)
+# 5. Setup Organization Auth Flags (EE Mode)
 ###
 
--- Allow SSO + auto-join for test collaborative organization
--- INSERT INTO organization_policies (
---   id,
---   organization_id,
---   allowed_methods,
---   invitation_only,
---   domains_only,
---   auto_join,
---   disable_root,
---   created_at,
---   updated_at
+-- Update organization flags to set authentication policies
+-- UPDATE organizations
+-- SET flags = jsonb_set(
+--   jsonb_set(
+--     jsonb_set(
+--       jsonb_set(
+--         jsonb_set(
+--           flags,
+--           '{allow_email}', 'false'
+--         ),
+--         '{allow_social}', 'false'
+--       ),
+--       '{allow_sso}', 'true'
+--     ),
+--     '{auto_join}', 'true'
+--   ),
+--   '{domains_only}', 'true'
 -- )
--- VALUES (
---   gen_random_uuid(),
---   '<testOrgId>',  -- Replace with actual org ID
---   ARRAY['sso:*'],  -- Only SSO allowed
---   false,  -- Not invitation only
---   true,   -- Enforce verified domains
---   true,   -- Auto-join users with verified domain emails
---   false,
---   now(),
---   now()
--- );
+-- WHERE id = '<testOrgId>';
+
+# Auth policy flags in organizations.flags:
+# - allow_email (boolean, default: true) - Allow email authentication (OTP/password)
+# - allow_social (boolean, default: true) - Allow social authentication (Google, GitHub)
+# - allow_sso (boolean, default: false) - Allow SSO/OIDC authentication
+# - allow_root (boolean, default: true) - Allow owner bypass of auth restrictions
+# - domains_only (boolean, default: false) - Only allow users with verified domain emails
+# - auto_join (boolean, default: false) - Auto-add users with verified domain emails
 
 
 ###
@@ -129,53 +169,57 @@
 -- INSERT INTO organization_domains (
 --   id,
 --   organization_id,
---   domain,
---   verified,
---   verification_token,
---   created_at,
---   updated_at
+--   slug,
+--   name,
+--   description,
+--   token,
+--   flags,
+--   created_at
 -- )
 -- VALUES (
 --   gen_random_uuid(),
 --   '<testOrgId>',  -- Collaborative org ID
 --   'acme.com',
---   true,  -- Already verified
---   null,
---   now(),
+--   'ACME Domain',
+--   'Primary domain for ACME Corporation',
+--   NULL,  -- Token only needed during verification
+--   '{"is_verified": true}'::jsonb,
 --   now()
 -- )
 -- RETURNING id;
 -- Save as @testDomainId
+
+# Note: domain column renamed to slug, verified moved to flags.is_verified
 
 
 ###
 # 7. Test Domain Verification Restrictions (EE Mode)
 ###
 
--- Attempt to add domain to personal org (should fail at verification)
+-- Attempt to add domain to personal org (verification should fail)
 -- INSERT INTO organization_domains (
 --   id,
 --   organization_id,
---   domain,
---   verified,
---   verification_token,
---   created_at,
---   updated_at
+--   slug,
+--   name,
+--   token,
+--   flags,
+--   created_at
 -- )
 -- VALUES (
 --   gen_random_uuid(),
 --   '<testPersonalOrgId>',  -- Personal org ID
 --   'personal-test.com',
---   false,  -- Not verified yet
+--   'Personal Test Domain',
 --   'test-token-123',
---   now(),
+--   '{"is_verified": false}'::jsonb,
 --   now()
 -- )
 -- RETURNING id;
 -- Save as @personalOrgDomainId
 
--- NOTE: Attempting to verify this domain should fail with:
--- "Personal organizations cannot verify domains"
+# NOTE: Attempting to verify this domain should fail with:
+# "Personal organizations cannot verify domains"
 
 
 ###
@@ -183,15 +227,24 @@
 ###
 
 -- Create second collaborative org to test exclusivity
--- INSERT INTO organizations (id, name, slug, description, kind, owner, created_at, updated_at)
+-- INSERT INTO organizations (
+--   id,
+--   name,
+--   slug,
+--   description,
+--   flags,
+--   owner_id,
+--   created_by_id,
+--   created_at
+-- )
 -- VALUES (
 --   gen_random_uuid(),
 --   'Second Corp',
 --   'second',
 --   'Test domain exclusivity',
---   'collaborative',
+--   '{"is_personal": false}'::jsonb,
 --   '<userId>',
---   now(),
+--   '<userId>',
 --   now()
 -- )
 -- RETURNING id;
@@ -201,26 +254,26 @@
 -- INSERT INTO organization_domains (
 --   id,
 --   organization_id,
---   domain,
---   verified,
---   verification_token,
---   created_at,
---   updated_at
+--   slug,
+--   name,
+--   token,
+--   flags,
+--   created_at
 -- )
 -- VALUES (
 --   gen_random_uuid(),
 --   '<secondOrgId>',
 --   'acme.com',  -- Same domain as testOrgId
---   false,
+--   'Conflicting ACME Domain',
 --   'conflict-token-456',
---   now(),
+--   '{"is_verified": false}'::jsonb,
 --   now()
 -- )
 -- RETURNING id;
 -- Save as @conflictingDomainId
 
--- NOTE: Attempting to verify this domain should fail with:
--- "Domain 'acme.com' is already verified by another organization"
+# NOTE: Attempting to verify this domain should fail with:
+# "Domain 'acme.com' is already verified by another organization"
 
 
 ###
@@ -234,11 +287,9 @@
 --   slug,
 --   name,
 --   description,
---   enabled,
---   domain_id,
---   config,
---   created_at,
---   updated_at
+--   settings,
+--   flags,
+--   created_at
 -- )
 -- VALUES (
 --   gen_random_uuid(),
@@ -246,8 +297,6 @@
 --   'okta',
 --   'Okta SSO',
 --   'ACME Okta integration',
---   true,
---   '<testDomainId>',
 --   '{
 --     "issuer": "https://dev-12345.okta.com",
 --     "client_id": "0oa...",
@@ -257,11 +306,16 @@
 --     "token_endpoint": "https://dev-12345.okta.com/oauth2/v1/token",
 --     "userinfo_endpoint": "https://dev-12345.okta.com/oauth2/v1/userinfo"
 --   }'::jsonb,
---   now(),
+--   '{"is_active": true}'::jsonb,
 --   now()
 -- )
 -- RETURNING id;
 -- Save as @testProviderId
+
+# Note:
+# - config renamed to settings
+# - enabled moved to flags.is_active
+# - domain_id removed (SSO provider can handle multiple domains)
 
 
 ###
@@ -269,13 +323,12 @@
 ###
 
 -- Create test user
--- INSERT INTO users (id, uid, username, email, created_at, updated_at)
+-- INSERT INTO users (id, uid, username, email, created_at)
 -- VALUES (
 --   gen_random_uuid(),
 --   'st_user_123',  -- SuperTokens user ID
 --   'Test User',
 --   'test@acme.com',
---   now(),
 --   now()
 -- )
 -- RETURNING id;
@@ -287,12 +340,22 @@
 ###
 
 -- Create organization membership
--- INSERT INTO organization_members (id, user_id, organization_id)
+-- INSERT INTO organization_members (
+--   id,
+--   user_id,
+--   organization_id,
+--   role,
+--   created_at
+-- )
 -- VALUES (
 --   gen_random_uuid(),
 --   '<testUserId>',
---   '<testOrgId>'
+--   '<testOrgId>',
+--   'member',
+--   now()
 -- );
+
+# Role can be: 'owner', 'member'
 
 
 ###
@@ -301,28 +364,45 @@
 
 -- Check all test data created successfully
 
--- Verify organizations (check kind column)
--- SELECT id, name, slug, kind FROM organizations ORDER BY kind;
+-- Verify organizations (check flags)
+-- SELECT id, name, slug, flags FROM organizations ORDER BY flags->>'is_personal';
 
 -- Verify collaborative organization
--- SELECT id, name, slug, kind FROM organizations WHERE slug = 'acme';
+-- SELECT id, name, slug, flags FROM organizations WHERE slug = 'acme';
 
 -- Verify personal organization
--- SELECT id, name, slug, kind FROM organizations WHERE kind = 'personal';
+-- SELECT id, name, slug, flags FROM organizations WHERE flags->>'is_personal' = 'true';
 
--- Verify policy (check auto_join field)
--- SELECT allowed_methods, invitation_only, domains_only, auto_join
--- FROM organization_policies
--- WHERE organization_id = '<testOrgId>';
+-- Verify organization auth flags
+-- SELECT
+--   id,
+--   name,
+--   flags->'allow_email' as allow_email,
+--   flags->'allow_social' as allow_social,
+--   flags->'allow_sso' as allow_sso,
+--   flags->'auto_join' as auto_join,
+--   flags->'domains_only' as domains_only,
+--   flags->'allow_root' as allow_root
+-- FROM organizations
+-- WHERE id = '<testOrgId>';
 
 -- Verify domains
--- SELECT od.id, od.domain, od.verified, o.name as org_name, o.kind as org_kind
+-- SELECT
+--   od.id,
+--   od.slug as domain,
+--   od.flags->>'is_verified' as verified,
+--   o.name as org_name,
+--   o.flags->>'is_personal' as is_personal
 -- FROM organization_domains od
 -- JOIN organizations o ON o.id = od.organization_id
--- ORDER BY o.kind, od.domain;
+-- ORDER BY o.flags->>'is_personal', od.slug;
 
 -- Verify provider
--- SELECT slug, name, enabled, config->>'issuer' as issuer
+-- SELECT
+--   slug,
+--   name,
+--   flags->>'is_active' as is_active,
+--   settings->>'issuer' as issuer
 -- FROM organization_providers
 -- WHERE organization_id = '<testOrgId>';
 
@@ -330,12 +410,17 @@
 -- SELECT id, email FROM users WHERE email = 'test@acme.com';
 
 -- Verify membership
--- SELECT om.id, u.email, o.name, o.kind
+-- SELECT
+--   om.id,
+--   u.email,
+--   o.name,
+--   om.role,
+--   o.flags->>'is_personal' as is_personal
 -- FROM organization_members om
 -- JOIN users u ON u.id = om.user_id
 -- JOIN organizations o ON o.id = om.organization_id
 -- WHERE u.email = 'test@acme.com'
--- ORDER BY o.kind;
+-- ORDER BY o.flags->>'is_personal';
 
 
 ###
@@ -346,7 +431,6 @@
 -- DELETE FROM organization_members WHERE user_id = '<testUserId>';
 -- DELETE FROM organization_providers WHERE organization_id IN ('<testOrgId>', '<secondOrgId>');
 -- DELETE FROM organization_domains WHERE organization_id IN ('<testOrgId>', '<testPersonalOrgId>', '<secondOrgId>');
--- DELETE FROM organization_policies WHERE organization_id IN ('<testOrgId>', '<secondOrgId>');
 -- DELETE FROM user_identities WHERE user_id = '<testUserId>';
 -- DELETE FROM users WHERE id = '<testUserId>';
 -- DELETE FROM organizations WHERE id IN ('<testOrgId>', '<testPersonalOrgId>', '<secondOrgId>');
@@ -369,17 +453,19 @@
 
 -- SELECT EXISTS (
 --   SELECT FROM information_schema.columns
---   WHERE table_name = 'organizations' AND column_name = 'kind'
--- ) as org_kind_exists;
+--   WHERE table_name = 'organizations' AND column_name = 'flags'
+-- ) as org_flags_exists;
 
 -- Verify OSS has exactly 1 collaborative organization
--- SELECT COUNT(*) as org_count, kind
+-- SELECT
+--   COUNT(*) as org_count,
+--   flags->>'is_personal' as is_personal
 -- FROM organizations
--- GROUP BY kind;
--- Expected: 1 row with kind='collaborative', count=1
+-- GROUP BY flags->>'is_personal';
+-- Expected: 1 row with is_personal=false (or null), count=1
 
 -- Verify no personal organizations exist in OSS
 -- SELECT COUNT(*) as personal_org_count
 -- FROM organizations
--- WHERE kind = 'personal';
+-- WHERE flags->>'is_personal' = 'true';
 -- Expected: 0

@@ -37,12 +37,9 @@ log = get_module_logger(__name__)
 # Initialize Stripe only if enabled
 if env.stripe.enabled:
     stripe.api_key = env.stripe.api_key
-    log.info("✓ Stripe enabled")
+    log.info("✓ Stripe enabled:", target=env.stripe.webhook_target)
 else:
     log.info("✗ Stripe disabled")
-
-
-AGENTA_PRICING = env.stripe.pricing
 
 FORBIDDEN_RESPONSE = JSONResponse(
     status_code=403,
@@ -493,7 +490,7 @@ class BillingRouter:
             tax_id_collection={"enabled": True},
             #
             customer=subscription.customer_id,
-            line_items=list(AGENTA_PRICING[plan].values()),
+            line_items=list(env.stripe.pricing[plan].values()),
             #
             subscription_data={
                 # "billing_cycle_anchor": anchor,

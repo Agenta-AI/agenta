@@ -19,7 +19,7 @@ This guide shows you how to instrument LangChain applications using Agenta's obs
 Install the required packages:
 
 ```bash
-pip install -U agenta openai opentelemetry-instrumentation-langchain langchain langchain_community
+pip install -U agenta openai opentelemetry-instrumentation-langchain langchain langchain-openai
 ```
 
 ## Configure Environment Variables
@@ -48,15 +48,17 @@ os.environ["AGENTA_HOST"] = "http://localhost"
 
 ## Code Example
 
+This example uses [LangChain Expression Language (LCEL)](https://python.langchain.com/docs/concepts/lcel/) to build a multi-step workflow that generates a joke and then translates it.
+
 ```python
 # highlight-next-line
 import agenta as ag
 # highlight-next-line
 from opentelemetry.instrumentation.langchain import LangchainInstrumentor
-from langchain.schema import SystemMessage, HumanMessage
-from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
-from langchain_community.chat_models import ChatOpenAI
-from langchain.chains import LLMChain, SequentialChain, TransformChain
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from langchain_openai import ChatOpenAI
 
 # highlight-next-line
 ag.init()
@@ -66,42 +68,38 @@ LangchainInstrumentor().instrument()
 
 def langchain_app():
     # Initialize the chat model
-    chat = ChatOpenAI(temperature=0)
+    llm = ChatOpenAI(temperature=0)
 
-    # Define a transformation chain to create the prompt
-    transform = TransformChain(
-        input_variables=["subject"],
-        output_variables=["prompt"],
-        transform=lambda inputs: {"prompt": f"Tell me a joke about {inputs['subject']}."},
-    )
+    # Create prompt for joke generation
+    joke_prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a funny sarcastic nerd."),
+        ("human", "Tell me a joke about {subject}."),
+    ])
 
-    # Define the first LLM chain to generate a joke
-    first_prompt_messages = [
-        SystemMessage(content="You are a funny sarcastic nerd."),
-        HumanMessage(content="{prompt}"),
-    ]
-    first_prompt_template = ChatPromptTemplate.from_messages(first_prompt_messages)
-    first_chain = LLMChain(llm=chat, prompt=first_prompt_template, output_key="joke")
+    # Create prompt for translation
+    translate_prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are an Elf."),
+        ("human", "Translate the joke below into Sindarin language:\n{joke}"),
+    ])
 
-    # Define the second LLM chain to translate the joke
-    second_prompt_messages = [
-        SystemMessage(content="You are an Elf."),
-        HumanMessagePromptTemplate.from_template(
-            "Translate the joke below into Sindarin language:\n{joke}"
-        ),
-    ]
-    second_prompt_template = ChatPromptTemplate.from_messages(second_prompt_messages)
-    second_chain = LLMChain(llm=chat, prompt=second_prompt_template)
+    # Build the chain using LCEL (LangChain Expression Language)
+    # First chain: generate a joke
+    joke_chain = joke_prompt | llm | StrOutputParser()
 
-    # Chain everything together in a sequential workflow
-    workflow = SequentialChain(
-        chains=[transform, first_chain, second_chain],
-        input_variables=["subject"],
+    # Second chain: translate the joke
+    translate_chain = translate_prompt | llm | StrOutputParser()
+
+    # Combine the chains: generate joke, then translate it
+    full_chain = (
+        {"subject": RunnablePassthrough()}
+        | RunnableLambda(lambda x: {"joke": joke_chain.invoke(x["subject"])})
+        | translate_chain
     )
 
     # Execute the workflow and print the result
-    result = workflow({"subject": "OpenTelemetry"})
+    result = full_chain.invoke("OpenTelemetry")
     print(result)
+
 
 # Run the LangChain application
 langchain_app()
@@ -111,6 +109,7 @@ langchain_app()
 
 - **Initialize Agenta**: `ag.init()` sets up the Agenta SDK.
 - **Instrument LangChain**: `LangchainInstrumentor().instrument()` instruments LangChain for tracing. This must be called **before** running your application to ensure all components are traced.
+- **LCEL Chains**: The pipe operator (`|`) chains components together. Each step's output becomes the next step's input, making it easy to compose complex workflows.
 
 ## Using Workflows
 

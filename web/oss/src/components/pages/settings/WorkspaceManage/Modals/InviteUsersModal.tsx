@@ -40,14 +40,17 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
 
             setLoading(true)
 
-            inviteToWorkspace({
-                data: emails.map((email) => ({
-                    email,
-                    ...(role ? {roles: [role]} : {}),
-                })),
-                organizationId,
-                workspaceId,
-            })
+            inviteToWorkspace(
+                {
+                    data: emails.map((email) => ({
+                        email,
+                        ...(role ? {roles: [role]} : {}),
+                    })),
+                    organizationId,
+                    workspaceId,
+                },
+                true,
+            )
                 .then((responses) => {
                     if (!isEmailInvitationsEnabled() && typeof responses.url === "string") {
                         onSuccess?.({
@@ -62,7 +65,25 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
 
                     form.resetFields()
                 })
-                .catch(console.error)
+                .catch((error: any) => {
+                    const detail = error?.response?.data?.detail
+                    const rawError =
+                        typeof error?.response?.data?.error === "string"
+                            ? error.response.data.error
+                            : undefined
+                    const detailMessage =
+                        typeof detail === "string"
+                            ? detail
+                            : detail?.message || rawError || "Failed to send invitations"
+                    const isDomainRestricted =
+                        typeof detailMessage === "string" &&
+                        detailMessage.toLowerCase().includes("domain")
+                    message.error(
+                        isDomainRestricted
+                            ? "Only verified domains are allowed in this organization."
+                            : detailMessage,
+                    )
+                })
                 .finally(() => setLoading(false))
         },
         [organizationId],

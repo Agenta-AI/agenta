@@ -17,8 +17,10 @@ import {
     HouseIcon,
     GridFour,
     Database,
+    SignOut,
 } from "@phosphor-icons/react"
 
+import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
@@ -29,7 +31,7 @@ import {useOrgData} from "@/oss/state/org"
 import {SidebarConfig} from "../../types"
 
 export const useSidebarConfig = () => {
-    const {doesSessionExist} = useSession()
+    const {doesSessionExist, logout} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {selectedOrg} = useOrgData()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
@@ -130,39 +132,29 @@ export const useSidebarConfig = () => {
         },
         {
             key: "settings-link",
-            title: "Settings",
+            title: "Open Settings",
             link: `${projectURL}/settings`,
             icon: <Gear size={16} />,
             isBottom: true,
-            tooltip: "Settings",
+            tooltip: "Open Settings",
             disabled: !hasProjectURL,
         },
         {
-            key: "invite-teammate-link",
-            title: "Invite Teammate",
+            key: "invite-members-link",
+            title: "Invite Members",
             link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
             icon: <PaperPlane size={16} />,
             isBottom: true,
-            tooltip: "Invite Teammate",
+            tooltip: "Invite Members",
             isHidden: !doesSessionExist || !selectedOrg,
             disabled: !hasProjectURL,
         },
         {
-            key: "support-chat-link",
-            title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
-            icon: <ChatCircle size={16} />,
-            isBottom: true,
-            isHidden: !isDemo() || !isCrispEnabled,
-            onClick: (e) => {
-                e.preventDefault()
-                toggle()
-            },
-        },
-        {
-            key: "help-docs-link",
-            title: "Help & Docs",
+            key: "resources-link",
+            title: "Browse Resources",
             icon: <Question size={16} />,
             isBottom: true,
+            tooltip: "Browse Resources",
             submenu: [
                 {
                     key: "docs",
@@ -182,6 +174,16 @@ export const useSidebarConfig = () => {
                     title: "Slack Support",
                     link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
                     icon: <SlackLogo size={16} />,
+                },
+                {
+                    key: "support-chat-link",
+                    title: `Chat Support (${isVisible ? "ON" : "OFF"})`,
+                    icon: <ChatCircle size={16} />,
+                    isHidden: !isDemo() || !isCrispEnabled,
+                    onClick: (e) => {
+                        e.preventDefault()
+                        toggle()
+                    },
                     divider: true,
                 },
                 {
@@ -191,6 +193,23 @@ export const useSidebarConfig = () => {
                     icon: <Phone size={16} />,
                 },
             ],
+            divider: true,
+        },
+        {
+            key: "logout",
+            title: "Log out",
+            icon: <SignOut size={16} />,
+            isBottom: true,
+            isHidden: !doesSessionExist,
+            danger: true,
+            onClick: (e) => {
+                e.preventDefault()
+                AlertPopup({
+                    title: "Logout",
+                    message: "Are you sure you want to logout?",
+                    onOk: logout,
+                })
+            },
         },
     ]
 

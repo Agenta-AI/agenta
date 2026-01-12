@@ -187,7 +187,7 @@ const WorkspaceManage: FC = () => {
                     icon={<Plus size={14} className="mt-0.2" />}
                     onClick={() => setIsInviteModalOpen(true)}
                 >
-                    Invite members
+                    Invite Members
                 </Button>
 
                 <Input.Search

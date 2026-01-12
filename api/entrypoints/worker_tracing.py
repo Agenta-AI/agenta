@@ -52,7 +52,7 @@ async def main_async() -> int:
         Exit code (0 for success, non-zero for failure)
     """
     try:
-        log.info("[Streams] Initializing tracing worker")
+        log.info("[OTLP] Initializing tracing worker")
 
         # Validate environment
         warn_deprecated_env_vars()
@@ -80,7 +80,7 @@ async def main_async() -> int:
         # Create consumer group (idempotent)
         await tracing_worker.create_consumer_group()
 
-        log.info("[Streams] Starting tracing worker")
+        log.info("[OTLP] Starting tracing worker")
 
         # Run worker
         await tracing_worker.run()
@@ -88,7 +88,7 @@ async def main_async() -> int:
         return 0
 
     except Exception as e:
-        log.error("[Streams] Fatal error", error=str(e), exc_info=True)
+        log.error("[OTLP] Fatal error", exc_info=True)
         return 1
 
 
@@ -102,10 +102,10 @@ def main() -> int:
     try:
         return asyncio.run(main_async())
     except KeyboardInterrupt:
-        log.info("[Streams] Shutdown requested")
+        log.info("[OTLP] Shutdown requested")
         return 0
     except Exception as e:
-        log.error("[Streams] Fatal error", error=str(e))
+        log.error("[OTLP] Fatal error", exc_info=True)
         return 1
 
 

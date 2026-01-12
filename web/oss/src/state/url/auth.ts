@@ -1,13 +1,16 @@
 import {atom, getDefaultStore} from "jotai"
 import Router from "next/router"
+import {signOut} from "supertokens-auth-react/recipe/session"
 
+import {queryClient} from "@/oss/lib/api/queryClient"
+import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {
     appIdentifiersAtom,
     appStateSnapshotAtom,
     navigationRequestAtom,
     requestNavigationAtom,
 } from "@/oss/state/appState"
-import {orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
+import {isPersonalOrg, orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
 import {urlAtom} from "@/oss/state/url"
@@ -24,6 +27,7 @@ export interface InvitePayload {
 }
 
 const INVITE_STORAGE_KEY = "invite"
+let authOrgFetchInFlight = false
 
 export const protectedRouteReadyAtom = atom(false)
 export const activeInviteAtom = atom<InvitePayload | null>(null)
@@ -114,7 +118,10 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         const path = resolvedPath
         const asPath = resolvedAsPath
         const isAuthRoute = path.startsWith("/auth")
+        const isAuthCallbackRoute = path.startsWith("/auth/callback")
         const isAcceptRoute = path.startsWith("/workspaces/accept")
+        const authError =
+            typeof appState.query?.auth_error === "string" ? appState.query.auth_error : null
         const baseAppURL = urlState.baseAppURL || "/w"
 
         let invite = parseInviteFromUrl(url)
@@ -134,6 +141,33 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         }
 
         if (isSignedIn) {
+            if (isAuthCallbackRoute) {
+                store.set(protectedRouteReadyAtom, false)
+                return
+            }
+            if (typeof window !== "undefined") {
+                const upgradeOrgId = window.localStorage.getItem("authUpgradeOrgId")
+                const identifiers = store.get(appIdentifiersAtom)
+                const currentWorkspaceId = identifiers.workspaceId
+                const upgradePath = upgradeOrgId ? `/w/${encodeURIComponent(upgradeOrgId)}` : null
+                const alreadyOnUpgradePath =
+                    Boolean(upgradePath) && path.startsWith(upgradePath as string)
+
+                if (upgradeOrgId && alreadyOnUpgradePath) {
+                    window.localStorage.removeItem("authUpgradeOrgId")
+                    window.localStorage.removeItem("authUpgradeSessionIdentities")
+                } else if (upgradeOrgId && upgradeOrgId !== currentWorkspaceId) {
+                    void Router.replace(`/w/${encodeURIComponent(upgradeOrgId)}`).catch((error) => {
+                        console.error(
+                            "Failed to redirect authenticated user to upgrade org:",
+                            error,
+                        )
+                    })
+                    store.set(protectedRouteReadyAtom, false)
+                    return
+                }
+            }
+
             if (invite && !isAcceptRoute) {
                 const inviteEmail = invite.email ?? undefined
                 const userEmail = user?.email?.toLowerCase()
@@ -151,8 +185,94 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             }
 
             if (isAuthRoute) {
-                if (!path.startsWith(baseAppURL)) {
-                    void Router.replace(baseAppURL).catch((error) => {
+                if (authError === "sso_denied") {
+                    if (typeof window !== "undefined") {
+                        signOut().catch(() => null)
+                    }
+                    store.set(protectedRouteReadyAtom, true)
+                    return
+                }
+                if (typeof window !== "undefined") {
+                    const upgradeOrgId = window.localStorage.getItem("authUpgradeOrgId")
+                    if (upgradeOrgId) {
+                        void Router.replace(`/w/${encodeURIComponent(upgradeOrgId)}`).catch(
+                            (error) => {
+                                console.error(
+                                    "Failed to redirect authenticated user to upgrade org:",
+                                    error,
+                                )
+                            },
+                        )
+                        store.set(protectedRouteReadyAtom, false)
+                        return
+                    }
+                }
+                const orgs = store.get(orgsAtom)
+                const personalOrg = Array.isArray(orgs)
+                    ? orgs.find((org) => isPersonalOrg(org))
+                    : null
+                if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
+                    console.log("[auth-redirect] orgs snapshot", {
+                        count: Array.isArray(orgs) ? orgs.length : 0,
+                        personalOrgId: personalOrg?.id,
+                        orgs: Array.isArray(orgs)
+                            ? orgs.map((org) => ({
+                                  id: org.id,
+                                  is_personal: org.flags?.is_personal,
+                              }))
+                            : [],
+                    })
+                }
+                const targetWorkspaceId =
+                    personalOrg?.id || resolvePreferredWorkspaceId(user?.id ?? null, orgs)
+                const targetHref = targetWorkspaceId
+                    ? `/w/${encodeURIComponent(targetWorkspaceId)}`
+                    : "/w"
+                if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
+                    console.log("[auth-redirect] resolved", {
+                        targetWorkspaceId,
+                        targetHref,
+                        path,
+                        baseAppURL,
+                    })
+                }
+                if (!targetWorkspaceId && !authOrgFetchInFlight) {
+                    authOrgFetchInFlight = true
+                    void queryClient
+                        .fetchQuery({
+                            queryKey: ["orgs", user?.id || ""],
+                            queryFn: () => fetchAllOrgsList(),
+                            staleTime: 60_000,
+                        })
+                        .then((freshOrgs) => {
+                            const personal = Array.isArray(freshOrgs)
+                                ? freshOrgs.find((org) => isPersonalOrg(org))
+                                : null
+                            const resolved =
+                                personal?.id ||
+                                resolvePreferredWorkspaceId(user?.id ?? null, freshOrgs)
+                            if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
+                                console.log("[auth-redirect] fetched orgs", {
+                                    count: Array.isArray(freshOrgs) ? freshOrgs.length : 0,
+                                    personalOrgId: personal?.id,
+                                    resolved,
+                                })
+                            }
+                            if (resolved) {
+                                store.set(requestNavigationAtom, {
+                                    type: "href",
+                                    href: `/w/${encodeURIComponent(resolved)}`,
+                                    method: "replace",
+                                })
+                            }
+                        })
+                        .catch(() => null)
+                        .finally(() => {
+                            authOrgFetchInFlight = false
+                        })
+                }
+                if (!path.startsWith(targetHref)) {
+                    void Router.replace(targetHref).catch((error) => {
                         console.error("Failed to redirect authenticated user to app:", error)
                     })
                 }

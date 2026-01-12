@@ -23,7 +23,7 @@ from supertokens_python.recipe.session import (
 )
 
 from oss.src.utils.env import env
-from oss.src.core.auth.supertokens_overrides import (
+from oss.src.core.auth.supertokens.overrides import (
     override_thirdparty_functions,
     override_thirdparty_apis,
     override_passwordless_functions,
@@ -58,11 +58,6 @@ def get_app_info() -> InputAppInfo:
         api_gateway_path=api_gateway_path,
         api_base_path="/auth",
         website_base_path="/auth",
-    )
-    print(
-        "[SUPERTOKENS] AppInfo: "
-        f"api_domain={api_domain} api_gateway_path={api_gateway_path} "
-        f"api_base_path=/auth website_domain={env.agenta.web_url}"
     )
     return app_info
 
@@ -132,6 +127,7 @@ def get_thirdparty_providers() -> List[ProviderInput]:
             provider_id="github",
             client_id=env.auth.github_oauth_client_id,
             client_secret=env.auth.github_oauth_client_secret,
+            additional_config={"scope": ["user:email"]},
         )
 
     # Facebook OAuth
