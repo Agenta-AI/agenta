@@ -1,9 +1,13 @@
-import type {Tour, Step} from "@agentaai/nextstepjs"
+import type {Step, Tour} from "@agentaai/nextstepjs"
 
 /**
  * Extended step with lifecycle hooks and metadata
  */
 export interface OnboardingStep extends Step {
+    /** Step title */
+    title: string
+    /** Step content */
+    content: React.ReactNode
     /** Called when the step becomes active */
     onEnter?: () => void
     /** Called when leaving the step */
@@ -12,6 +16,10 @@ export interface OnboardingStep extends Step {
     onCleanup?: () => void
     /** Called before advancing to next step - can be async */
     onNext?: () => void | Promise<void>
+    /** Show navigation controls */
+    showControls?: boolean
+    /** Show skip button */
+    showSkip?: boolean
     /** Custom labels for control buttons */
     controlLabels?: {
         next?: string

@@ -1,10 +1,12 @@
-import {useCallback, useEffect, useRef} from "react"
+import {useCallback, useEffect} from "react"
 
 import {useNextStep} from "@agentaai/nextstepjs"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {tourRegistry, isNewUserAtom, seenToursAtom, activeTourIdAtom} from "@/oss/lib/onboarding"
 import type {TriggerTourOptions} from "@/oss/lib/onboarding"
+import {activeTourIdAtom, isNewUserAtom, seenToursAtom, tourRegistry} from "@/oss/lib/onboarding"
+
+import {useTourReducer} from "./useTourReducer"
 
 interface UseOnboardingTourOptions {
     /** Tour ID to use */
@@ -28,31 +30,13 @@ interface UseOnboardingTourReturn {
     isActive: boolean
     /** Whether the tour has been seen before */
     hasBeenSeen: boolean
-    /** Whether the tour can be auto-started */
+    /** Whether the tour can be auto-startd */
     canAutoStart: boolean
 }
 
 /**
  * Hook to trigger and manage onboarding tours
- *
- * @example
- * ```tsx
- * // Basic usage - manual trigger
- * const {startTour} = useOnboardingTour({tourId: "my-tour"})
- *
- * // Auto-start for new users
- * useOnboardingTour({
- *   tourId: "page-intro",
- *   autoStart: true,
- * })
- *
- * // Auto-start with additional condition
- * useOnboardingTour({
- *   tourId: "feature-tour",
- *   autoStart: true,
- *   autoStartCondition: hasFeatureData,
- * })
- * ```
+ * Refactored to use reducer pattern for better state management
  */
 export function useOnboardingTour({
     tourId,
@@ -60,6 +44,7 @@ export function useOnboardingTour({
     autoStartCondition = true,
 }: UseOnboardingTourOptions): UseOnboardingTourReturn {
     const {startNextStep, isNextStepVisible} = useNextStep()
+    const [state, dispatch] = useTourReducer()
 
     const isNewUser = useAtomValue(isNewUserAtom)
     const seenTours = useAtomValue(seenToursAtom)
@@ -70,57 +55,72 @@ export function useOnboardingTour({
     const isActive = activeTourId === tourId && isNextStepVisible
     const canAutoStart = isNewUser && !hasBeenSeen && autoStartCondition && tourRegistry.has(tourId)
 
-    // Track if we've auto-started to prevent multiple triggers
-    const hasAutoStartedRef = useRef(false)
-
+    // Manual start function
     const startTour = useCallback(
         (options?: TriggerTourOptions) => {
             const {force = false} = options ?? {}
 
-            // Check if tour exists
             if (!tourRegistry.has(tourId)) {
                 console.warn(`[Onboarding] Tour "${tourId}" not found in registry`)
+                dispatch({type: "CHECK_FAILURE", error: "Tour not found"})
                 return
             }
 
-            // Check if already seen (unless forced)
             if (!force && hasBeenSeen) {
+                dispatch({type: "CHECK_FAILURE", error: "Tour already seen"})
                 return
             }
 
-            // Check if another tour is active
             if (isNextStepVisible && activeTourId !== tourId) {
                 console.warn(`[Onboarding] Another tour is active, skipping "${tourId}"`)
+                dispatch({type: "CHECK_FAILURE", error: "Another tour active"})
                 return
             }
 
-            setActiveTourId(tourId)
-            startNextStep(tourId)
+            // Signal readiness to start
+            dispatch({type: "CHECK_SUCCESS"})
         },
-        [tourId, hasBeenSeen, isNextStepVisible, activeTourId, setActiveTourId, startNextStep],
+        [tourId, hasBeenSeen, isNextStepVisible, activeTourId, dispatch],
     )
 
-    // Auto-start effect
+    // Effect: Handle Auto Start logic
     useEffect(() => {
-        if (!autoStart) return
-        if (hasAutoStartedRef.current) return
-        if (!canAutoStart) return
+        if (autoStart && canAutoStart && state.status === "idle") {
+            dispatch({type: "START_CHECK"})
+        }
+    }, [autoStart, canAutoStart, state.status, dispatch])
 
-        // Small delay to ensure page is rendered
-        const timer = setTimeout(() => {
-            if (!hasAutoStartedRef.current && canAutoStart) {
-                hasAutoStartedRef.current = true
-                startTour()
+    // Effect: Perform connection check (simulating "wait for element" or "ready")
+    // In a real scenario, this could check for document.querySelector(selector)
+    // This separation allows us to replace the arbitrary 500ms timeout with
+    // a proper check for DOM readiness in the future.
+    useEffect(() => {
+        if (state.status === "checking") {
+            // We can replace the arbitrary timeout with a check logic here if needed
+            // For now, checks are immediate as we rely on 'canAutoStart' condition which encompasses logic
+            if (canAutoStart) {
+                dispatch({type: "CHECK_SUCCESS"})
+            } else {
+                dispatch({type: "CHECK_FAILURE", error: "Conditions not met"})
             }
-        }, 500)
+        }
+    }, [state.status, canAutoStart, dispatch])
 
-        return () => clearTimeout(timer)
-    }, [autoStart, canAutoStart, startTour])
-
-    // Reset auto-start ref when tour changes
+    // Effect: Start the tour when state becomes ready
     useEffect(() => {
-        hasAutoStartedRef.current = false
-    }, [tourId])
+        if (state.status === "ready") {
+            setActiveTourId(tourId)
+            startNextStep(tourId)
+            dispatch({type: "START_TOUR"})
+        }
+    }, [state.status, tourId, setActiveTourId, startNextStep, dispatch])
+
+    // Effect: Monitor visibility to complete tour state
+    useEffect(() => {
+        if (state.status === "active" && !isNextStepVisible) {
+            dispatch({type: "COMPLETE_TOUR"})
+        }
+    }, [isNextStepVisible, state.status, dispatch])
 
     return {
         startTour,

@@ -1,5 +1,6 @@
 "use client"
 
+import type {CSSProperties, ReactElement} from "react"
 import {
     cloneElement,
     isValidElement,
@@ -9,28 +10,35 @@ import {
     useRef,
     useState,
 } from "react"
-import type {CSSProperties, ReactElement} from "react"
 
 import type {CardComponentProps} from "@agentaai/nextstepjs"
 import {ArrowLeft, ArrowRight, DotsSixVertical} from "@phosphor-icons/react"
 import {Button, Card, Typography} from "antd"
 import {useSetAtom} from "jotai"
 
-import {currentStepStateAtom} from "@/oss/lib/onboarding"
 import type {OnboardingStep} from "@/oss/lib/onboarding"
+import {currentStepStateAtom} from "@/oss/lib/onboarding"
 
 const {Text} = Typography
 
-interface Props extends CardComponentProps {
+// We omit specific props to override them with our stricter types
+interface Props extends Omit<CardComponentProps, "step" | "arrow"> {
     step: OnboardingStep
+    currentStep: number
+    totalSteps: number
+    prevStep: () => void
+    nextStep: () => void
+    skipTour?: () => void
+    arrow?: ReactElement
 }
 
 /**
  * OnboardingCard - The tooltip/card UI for onboarding steps
  *
- * This component is passed to NextStep as the cardComponent prop.
- * It renders the step content with navigation controls.
- * Users can drag the card if it's blocking content.
+ * Refactored to separate concerns:
+ * - Drag logic is self-contained
+ * - Effect hook handles cleanup and state updates
+ * - Render logic is cleaner
  */
 const OnboardingCard = ({
     step,
@@ -42,131 +50,83 @@ const OnboardingCard = ({
     arrow,
 }: Props) => {
     const setCurrentStepState = useSetAtom(currentStepStateAtom)
-    const cleanupHandlersRef = useRef<Set<() => void>>(new Set())
     const cardRef = useRef<HTMLDivElement>(null)
 
-    // Drag state
+    // Simplified Drag State
     const [offset, setOffset] = useState({x: 0, y: 0})
-    const [isDragging, setIsDragging] = useState(false)
+    const isDraggingRef = useRef(false)
     const dragStartRef = useRef({x: 0, y: 0, offsetX: 0, offsetY: 0})
 
-    // Reset offset when step changes
+    // Drag Handler: Mouse Down
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault()
+        isDraggingRef.current = true
+        dragStartRef.current = {
+            x: e.clientX,
+            y: e.clientY,
+            offsetX: 0, // Will be updated relative to current offset state
+            offsetY: 0,
+        }
+
+        // Update drag start based on current React state
+        setOffset((prev) => {
+            dragStartRef.current.offsetX = prev.x
+            dragStartRef.current.offsetY = prev.y
+            return prev
+        })
+    }, [])
+
+    // Drag Logic: Global Listeners
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDraggingRef.current) return
+
+            const dx = e.clientX - dragStartRef.current.x
+            const dy = e.clientY - dragStartRef.current.y
+
+            // Allow unrestricted movement for smoother feel, boundary check can be added if really needed
+            setOffset({
+                x: dragStartRef.current.offsetX + dx,
+                y: dragStartRef.current.offsetY + dy,
+            })
+        }
+
+        const handleMouseUp = () => {
+            isDraggingRef.current = false
+        }
+
+        window.addEventListener("mousemove", handleMouseMove)
+        window.addEventListener("mouseup", handleMouseUp)
+
+        return () => {
+            window.removeEventListener("mousemove", handleMouseMove)
+            window.removeEventListener("mouseup", handleMouseUp)
+        }
+    }, [])
+
+    // Reset offset on step change
     useEffect(() => {
         setOffset({x: 0, y: 0})
     }, [currentStep])
 
-    // Drag handlers
-    const handleMouseDown = useCallback(
-        (e: React.MouseEvent) => {
-            e.preventDefault()
-            setIsDragging(true)
-            dragStartRef.current = {
-                x: e.clientX,
-                y: e.clientY,
-                offsetX: offset.x,
-                offsetY: offset.y,
-            }
-        },
-        [offset],
-    )
-
-    useEffect(() => {
-        if (!isDragging) return
-
-        const handleMouseMove = (e: MouseEvent) => {
-            const dx = e.clientX - dragStartRef.current.x
-            const dy = e.clientY - dragStartRef.current.y
-
-            // Calculate new position
-            let newX = dragStartRef.current.offsetX + dx
-            let newY = dragStartRef.current.offsetY + dy
-
-            // Viewport boundary check
-            if (cardRef.current) {
-                const rect = cardRef.current.getBoundingClientRect()
-                const viewportWidth = window.innerWidth
-                const viewportHeight = window.innerHeight
-
-                // Keep card within viewport with some padding
-                const padding = 10
-                const cardLeft = rect.left - offset.x + newX
-                const cardRight = cardLeft + rect.width
-                const cardTop = rect.top - offset.y + newY
-                const cardBottom = cardTop + rect.height
-
-                if (cardLeft < padding) newX = newX + (padding - cardLeft)
-                if (cardRight > viewportWidth - padding)
-                    newX = newX - (cardRight - viewportWidth + padding)
-                if (cardTop < padding) newY = newY + (padding - cardTop)
-                if (cardBottom > viewportHeight - padding)
-                    newY = newY - (cardBottom - viewportHeight + padding)
-            }
-
-            setOffset({x: newX, y: newY})
-        }
-
-        const handleMouseUp = () => {
-            setIsDragging(false)
-        }
-
-        document.addEventListener("mousemove", handleMouseMove)
-        document.addEventListener("mouseup", handleMouseUp)
-
-        return () => {
-            document.removeEventListener("mousemove", handleMouseMove)
-            document.removeEventListener("mouseup", handleMouseUp)
-        }
-    }, [isDragging, offset])
-
-    // Run cleanup handlers
-    const runCleanupHandlers = useCallback(() => {
-        cleanupHandlersRef.current.forEach((cleanup) => {
-            try {
-                cleanup()
-            } catch (error) {
-                console.error("[Onboarding] Cleanup handler error:", error)
-            }
-        })
-        cleanupHandlersRef.current.clear()
-    }, [])
-
-    // Update current step state and run lifecycle hooks
+    // Step Lifecycle & Cleanup Management
     useEffect(() => {
         if (!step) return
 
         setCurrentStepState({step, currentStep, totalSteps})
         step.onEnter?.()
 
-        // Store reference to this step's cleanup handler
-        const currentCleanup = step.onCleanup
-
-        if (currentCleanup) {
-            cleanupHandlersRef.current.add(currentCleanup)
-        }
-
         return () => {
             step.onExit?.()
-            // Remove this step's cleanup handler when leaving the step
-            // This prevents accumulation of stale handlers
-            if (currentCleanup) {
-                cleanupHandlersRef.current.delete(currentCleanup)
-            }
+            step.onCleanup?.()
         }
     }, [step, currentStep, totalSteps, setCurrentStepState])
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            setCurrentStepState({step: null, currentStep: 0, totalSteps: 0})
-            runCleanupHandlers()
-        }
-    }, [setCurrentStepState, runCleanupHandlers])
-
     // Handle skip/complete
     const handleSkip = useCallback(() => {
-        runCleanupHandlers()
+        step.onCleanup?.()
         skipTour?.()
-    }, [skipTour, runCleanupHandlers])
+    }, [skipTour, step])
 
     // Handle next step
     const handleNext = useCallback(async () => {
@@ -177,46 +137,35 @@ const OnboardingCard = ({
         }
 
         if (currentStep >= totalSteps - 1) {
-            // Last step - complete the tour
-            runCleanupHandlers()
+            // Last step - complete
+            step.onCleanup?.()
             skipTour?.()
         } else {
             nextStep()
         }
-    }, [step, currentStep, totalSteps, nextStep, skipTour, runCleanupHandlers])
+    }, [step, currentStep, totalSteps, nextStep, skipTour])
 
-    // Handle previous step
-    const handlePrev = useCallback(() => {
-        prevStep()
-    }, [prevStep])
-
-    // Get control labels
+    // UI Helpers
     const labels = step?.controlLabels ?? {}
-    const prevLabel = labels.previous ?? "Previous"
-    const nextLabel = labels.next ?? "Next"
-    const finishLabel = labels.finish ?? "Got it"
-
-    // Calculate progress
     const progressPercent = Math.round(((currentStep + 1) / totalSteps) * 100)
 
-    // Adjust arrow styling
+    // Arrow Styling
+    // We clone the arrow element to apply custom styles (white color)
+    // ensuring it matches the card theme
     const adjustedArrow = useMemo(() => {
         if (!isValidElement(arrow)) return null
 
-        const baseStyle = (arrow as ReactElement<{style?: CSSProperties}>).props?.style ?? {}
-        const offset = 12
-        const nextStyle: CSSProperties = {
-            ...baseStyle,
-            color: "#ffffff",
-            backgroundColor: "white",
-        }
+        // Safe prop access with type assertion
+        const element = arrow as ReactElement<{style?: CSSProperties}>
+        const baseStyle = element.props?.style || {}
 
-        if (typeof baseStyle.top === "string") nextStyle.top = `-${offset}px`
-        if (typeof baseStyle.bottom === "string") nextStyle.bottom = `-${offset}px`
-        if (typeof baseStyle.left === "string") nextStyle.left = `-${offset}px`
-        if (typeof baseStyle.right === "string") nextStyle.right = `-${offset}px`
-
-        return cloneElement(arrow as ReactElement<{style?: CSSProperties}>, {style: nextStyle})
+        return cloneElement(element, {
+            style: {
+                ...baseStyle,
+                color: "#ffffff",
+                backgroundColor: "white",
+            },
+        })
     }, [arrow])
 
     const showControls = step?.showControls ?? true
@@ -228,7 +177,10 @@ const OnboardingCard = ({
             className="w-[340px]"
             style={{
                 transform: `translate(${offset.x}px, ${offset.y}px)`,
-                transition: isDragging ? "none" : "transform 0.1s ease-out",
+                // Add explicit 'will-change' for performance hint
+                willChange: "transform",
+                // Only animate when NOT dragging to avoid lag
+                transition: isDraggingRef.current ? "none" : "transform 0.1s ease-out",
             }}
         >
             <Card className="!rounded-xl !p-0 shadow-lg" classNames={{body: "!px-4 !py-[10px]"}}>
@@ -259,7 +211,6 @@ const OnboardingCard = ({
                     {/* Controls */}
                     {showControls && (
                         <div className="flex flex-col gap-4">
-                            {/* Progress bar */}
                             <div className="h-1.5 w-full rounded-full bg-gray-200">
                                 <div
                                     className="h-full rounded-full bg-colorPrimary transition-all duration-300"
@@ -267,16 +218,15 @@ const OnboardingCard = ({
                                 />
                             </div>
 
-                            {/* Navigation buttons */}
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <Button
-                                    onClick={handlePrev}
+                                    onClick={prevStep}
                                     icon={<ArrowLeft size={14} className="mt-0.5" />}
                                     disabled={currentStep === 0}
                                     className="!text-xs !h-[26px] rounded-lg !border-colorBorder hover:!border-colorBorder bg-white text-colorText hover:!text-colorTextSecondary"
                                     size="small"
                                 >
-                                    {prevLabel}
+                                    {labels.previous ?? "Previous"}
                                 </Button>
 
                                 <Button
@@ -287,14 +237,15 @@ const OnboardingCard = ({
                                     className="!text-xs !h-[26px] bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg"
                                     size="small"
                                 >
-                                    {currentStep < totalSteps - 1 ? nextLabel : finishLabel}
+                                    {currentStep < totalSteps - 1
+                                        ? (labels.next ?? "Next")
+                                        : (labels.finish ?? "Got it")}
                                 </Button>
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* Skip button */}
                 {showSkip && skipTour && currentStep < totalSteps - 1 && (
                     <Button
                         type="default"
@@ -306,7 +257,7 @@ const OnboardingCard = ({
                     </Button>
                 )}
 
-                {/* Arrow - hide if user has dragged the card */}
+                {/* Arrow - hide if user has moved the card */}
                 {adjustedArrow && offset.x === 0 && offset.y === 0 && (
                     <div className="mt-2 flex w-full justify-center !bg-white">{adjustedArrow}</div>
                 )}
