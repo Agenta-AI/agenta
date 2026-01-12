@@ -4,7 +4,6 @@ from datetime import datetime
 
 from sqlalchemy import delete, func, literal, select, text, tuple_, bindparam
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
-from sqlalchemy.sql import any_  # SQL ANY() operator for array comparisons
 
 from oss.src.utils.logging import get_module_logger
 
@@ -46,7 +45,7 @@ TRACING_DELETE_SQL = text(
           SELECT sp.project_id, sp.trace_id
           FROM public.spans sp
           WHERE sp.parent_id IS NULL
-            AND sp.project_id = ANY(:project_ids::uuid[])
+            AND sp.project_id = ANY(:project_ids)
             AND sp.created_at < :cutoff
           ORDER BY sp.created_at
           LIMIT :max_traces
@@ -64,7 +63,7 @@ TRACING_DELETE_SQL = text(
         """
 ).bindparams(
     bindparam("project_ids", type_=ARRAY(PG_UUID(as_uuid=True))),
-    bindparam("cutoff"),  # timestamptz; driver will adapt from aware datetime
+    bindparam("cutoff"),
     bindparam("max_traces"),
 )
 
