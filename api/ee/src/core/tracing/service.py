@@ -120,9 +120,9 @@ class TracingService:
             total_traces += traces
             total_spans += spans
 
-            if traces > 0:
-                log.debug(
-                    f"[flush] [{plan.value}] Chunk #{batch_idx}: {traces} traces, {spans} spans"
-                )
+            # if traces > 0:
+            #     log.debug(
+            #         f"[flush] [{plan.value}] Chunk #{batch_idx}: {traces} traces, {spans} spans"
+            #     )
 
         return total_traces, total_spans
