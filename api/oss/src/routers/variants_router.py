@@ -291,7 +291,7 @@ async def update_variant_url(request: Request, payload: UpdateVariantURLPayload)
         traceback.print_exc()
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
-    except:
+    except Exception as e:
         import traceback
 
         traceback.print_exc()
