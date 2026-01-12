@@ -1,0 +1,2 @@
+* * * * * root echo "cron test $(date)" >> /proc/1/fd/1 2>&1
+*/30 * * * * root sh /spans.sh >> /proc/1/fd/1 2>&1

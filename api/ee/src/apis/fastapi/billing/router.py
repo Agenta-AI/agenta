@@ -23,6 +23,8 @@ from ee.src.utils.permissions import check_action_access
 from ee.src.models.shared_models import Permission
 from ee.src.core.entitlements.types import ENTITLEMENTS, CATALOG, Tracker, Quota
 from ee.src.core.subscriptions.types import Event, Plan
+from ee.src.core.meters.service import MetersService
+from ee.src.core.tracing.service import TracingService
 from ee.src.core.subscriptions.service import (
     SubscriptionsService,
     SwitchException,
@@ -50,12 +52,16 @@ FORBIDDEN_RESPONSE = JSONResponse(
 )
 
 
-class SubscriptionsRouter:
+class BillingRouter:
     def __init__(
         self,
         subscription_service: SubscriptionsService,
+        meters_service: MetersService,
+        tracing_service: TracingService,
     ):
         self.subscription_service = subscription_service
+        self.meters_service = meters_service
+        self.tracing_service = tracing_service
 
         # ROUTER
         self.router = APIRouter()
@@ -154,6 +160,13 @@ class SubscriptionsRouter:
             self.report_usage,
             methods=["POST"],
             operation_id="admin_report_usage",
+        )
+
+        self.admin_router.add_api_route(
+            "/usage/flush",
+            self.flush_usage,
+            methods=["POST"],
+            operation_id="admin_flush_usage",
         )
 
     # HANDLERS
@@ -785,7 +798,7 @@ class SubscriptionsRouter:
                 content={"status": "error", "message": "Plan not found"},
             )
 
-        meters = await self.subscription_service.meters_service.fetch(
+        meters = await self.meters_service.fetch(
             organization_id=organization_id,
         )
 
@@ -842,7 +855,7 @@ class SubscriptionsRouter:
 
             try:
                 log.info("[report] [endpoint] Reporting usage started")
-                await self.subscription_service.meters_service.report()
+                await self.meters_service.report()
                 log.info("[report] [endpoint] Reporting usage completed")
 
                 return JSONResponse(
@@ -871,6 +884,64 @@ class SubscriptionsRouter:
             # Catch-all for any errors, including cache errors
             log.error(
                 "[report] [endpoint] Fatal error:",
+                exc_info=True,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"status": "error", "message": "Fatal error"},
+            )
+
+    @intercept_exceptions()
+    async def flush_usage(
+        self,
+    ):
+        log.info("[flush] [endpoint] Trigger")
+
+        try:
+            flush_ongoing = await get_cache(
+                namespace="spans:flush",
+                key={},
+            )
+
+            if flush_ongoing:
+                log.info("[flush] [endpoint] Skipped (ongoing)")
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={"status": "skipped"},
+                )
+
+            log.info("[flush] [endpoint] Lock acquired")
+
+            try:
+                log.info("[flush] [endpoint] Retention started")
+                await self.tracing_service.flush_spans()
+                log.info("[flush] [endpoint] Retention completed")
+
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={"status": "success"},
+                )
+
+            except Exception:
+                log.error(
+                    "[flush] [endpoint] Retention failed:",
+                    exc_info=True,
+                )
+                return JSONResponse(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    content={"status": "error", "message": "Retention failed"},
+                )
+
+            finally:
+                await invalidate_cache(
+                    namespace="spans:flush",
+                    key={},
+                )
+                log.info("[flush] [endpoint] Lock released")
+
+        except Exception:
+            log.error(
+                "[flush] [endpoint] Fatal error:",
                 exc_info=True,
             )
             return JSONResponse(
