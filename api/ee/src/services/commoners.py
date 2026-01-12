@@ -119,7 +119,6 @@ async def add_user_to_demos(user_id: str) -> None:
 async def create_accounts(
     payload: dict,
     organization_name: Optional[str] = None,
-    is_personal: bool = True,
     use_reverse_trial: bool = True,
 ):
     """Creates a user account and an associated organization based on the
@@ -127,8 +126,7 @@ async def create_accounts(
 
     Arguments:
         payload (dict): The required payload. It consists of; user_id and user_email
-        organization_name (str): Name for the organization. Default: "Personal"
-        is_personal (bool): Whether this is a personal org. Default: True
+        organization_name (str): Optional name override for the organization.
         use_reverse_trial (bool): Use reverse trial (True) or hobby plan (False). Default: True
     """
 
@@ -182,12 +180,12 @@ async def create_accounts(
                 await add_user_to_demos(str(user.id))
 
                 # Create organization with workspace and subscription
+                resolved_org_name = organization_name or user_dict["username"]
                 await create_organization_with_subscription(
                     user_id=UUID(str(user.id)),
                     organization_email=user_dict["email"],
-                    organization_name="Personal",
-                    organization_description=None,
-                    is_personal=is_personal,
+                    organization_name=resolved_org_name,
+                    organization_description="Default Organization",
                     use_reverse_trial=use_reverse_trial,
                 )
             except Exception as e:
