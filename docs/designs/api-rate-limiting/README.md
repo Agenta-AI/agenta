@@ -14,10 +14,11 @@ This system provides distributed rate limiting using Redis with:
 
 | Document | Description |
 |----------|-------------|
-| [01-concepts.md](01-concepts.md) | Core vocabulary: principals, groups, plans, enforcement |
-| [02-policies.md](02-policies.md) | PAR(C) policy model, scoping modes, examples |
-| [03-algorithms.md](03-algorithms.md) | TBRA vs GCRA algorithms, trade-offs, parameters |
-| [04-implementation.md](04-implementation.md) | Three-layer architecture, Lua scripts, Python API |
+| [throttling.concepts.specs.md](throttling.concepts.specs.md) | Core vocabulary: principals, categories, plans, enforcement |
+| [throttling.policies.specs.md](throttling.policies.specs.md) | PAR(C) policy model, scoping modes, examples |
+| [throttling.algorithms.specs.md](throttling.algorithms.specs.md) | TBRA vs GCRA algorithms, trade-offs, parameters |
+| [throttling.implementation.specs.md](throttling.implementation.specs.md) | Three-layer architecture, Lua scripts, Python API |
+| [throttling.middleware.specs.md](throttling.middleware.specs.md) | Middleware design, entitlements integration, plan-based limits |
 
 ## Quick Start
 
@@ -30,9 +31,9 @@ result = await check_throttle("global", max_capacity=100, refill_rate=60)
 # With dict key
 result = await check_throttle({"org": org_id}, max_capacity=100, refill_rate=60)
 
-# With GCRA algorithm
+# With GCRA algorithm (default)
 result = await check_throttle(
-    {"org": org_id, "group": "llm"},
+    {"org": org_id, "policy": "cats:standard"},
     max_capacity=50,
     refill_rate=30,
     algorithm=Algorithm.GCRA,
@@ -45,24 +46,23 @@ if not result.allow:
 
 ## Key Concepts
 
-**Principal**: Who is being limited (organization_id or IP)
+**Principal**: Who is being limited (organization_id; IP not yet implemented)
 
-**Endpoint Groups**: Named collections of endpoints (llm, auth, exports)
+**Categories**: Named endpoint groups (STANDARD, CORE_FAST, TRACING_SLOW, etc.)
 
-**Plan**: Subscription tier that determines limits (free, pro, enterprise)
+**Plan**: Subscription tier that determines limits (HOBBY, PRO, BUSINESS)
 
-**Policy**: PAR(C) rule mapping principal + plan + scope → bucket parameters
+**Policy**: PAR(C) rule mapping principal + plan + categories → bucket parameters
 
 ## Bucket Key Format
 
 ```
-throttle:{key-components}
+throttle:organization:{org_id}:plan:{plan}:policy:{slug}
 ```
 
 Examples:
-- `throttle:global` — global limit
-- `throttle:org:abc123` — organization limit
-- `throttle:group:llm:org:abc123` — organization limit for LLM group
+- `throttle:organization:org_abc123:plan:cloud_v0_pro:policy:cats:standard`
+- `throttle:organization:org_abc123:plan:cloud_v0_hobby:policy:cats:core_fast,services_fast,tracing_fast`
 
 ## Response Headers
 
@@ -71,7 +71,6 @@ On 429 response:
 Retry-After: 2
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 0
-X-RateLimit-Reset: 1704672000
 ```
 
 ## Design Principles
@@ -80,4 +79,4 @@ X-RateLimit-Reset: 1704672000
 2. **Organization-first** — primary identifier is org_id, not user_id
 3. **Fail-open by default** — allow requests when Redis is unavailable
 4. **Atomic operations** — Lua scripts ensure correctness under concurrency
-5. **Time computed in application** — avoids extra Redis time call per request
+5. **GCRA by default** — smooth scheduling, minimal state, predictable behavior
