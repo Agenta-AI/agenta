@@ -60,13 +60,13 @@ Each policy outputs:
 ### Key Format
 
 ```
-arl:{key-components}
+throttle:{key-components}
 ```
 
 Key components are built from context:
-- Simple: `arl:global`
-- Single dimension: `arl:org:abc123`
-- Multiple dimensions: `arl:group:llm:org:abc123`
+- Simple: `throttle:global`
+- Single dimension: `throttle:org:abc123`
+- Multiple dimensions: `throttle:group:llm:org:abc123`
 
 ---
 
@@ -106,7 +106,7 @@ policy:
     refill_rate: 60
 ```
 
-Key: `arl:org:{organization_id}`
+Key: `throttle:org:{organization_id}`
 
 ### LLM-Specific Limit for Pro Plan
 
@@ -124,7 +124,7 @@ policy:
     refill_rate: 300
 ```
 
-Key: `arl:group:llm:org:{organization_id}`
+Key: `throttle:group:llm:org:{organization_id}`
 
 ### All Except Exports for Enterprise
 
@@ -142,7 +142,7 @@ policy:
     refill_rate: 5000
 ```
 
-Key: `arl:org:{organization_id}`
+Key: `throttle:org:{organization_id}`
 
 ### IP-Based Auth Protection
 
@@ -160,7 +160,7 @@ policy:
     refill_rate: 5
 ```
 
-Key: `arl:group:auth:ip:{ip_address}`
+Key: `throttle:group:auth:ip:{ip_address}`
 
 ---
 

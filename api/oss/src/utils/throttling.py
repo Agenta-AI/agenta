@@ -5,7 +5,7 @@ Three-layer architecture:
 
 Layer 1 (Scripts): Raw Redis Lua execution
     Methods:
-    - execute_tbra(key, capacity, refill)
+    - execute_tbra(key, capacity, rate)
     - execute_gcra(key, interval, tolerance)
     Details:
     - Computes current time internally
@@ -91,7 +91,7 @@ def _now_step() -> int:
 _LUA_TBRA = """
 local key = KEYS[1]
 local max_cap = tonumber(ARGV[1])
-local refill = tonumber(ARGV[2])
+local rate = tonumber(ARGV[2])
 local now = tonumber(ARGV[3])
 
 local val = redis.call('GET', key)
@@ -108,13 +108,13 @@ end
 
 local elapsed = now - last
 if elapsed > 0 then
-    tokens = tokens + elapsed * refill
+    tokens = tokens + elapsed * rate
     if tokens > max_cap then tokens = max_cap end
 end
 
 tokens = tokens - 1000
 local allow = tokens >= 0 and 1 or 0
-local retry = allow == 1 and 0 or math.ceil(-tokens / refill)
+local retry = allow == 1 and 0 or math.ceil(-tokens / rate)
 
 redis.call('SET', key, tokens .. '|' .. now, 'PX', 3600000)
 
@@ -130,21 +130,30 @@ local now = tonumber(ARGV[3])
 local tat = tonumber(redis.call('GET', key)) or now
 
 local limit = tat - tolerance
-local allow, retry, new_tat
+local allow, retry, new_tat, remaining
 
 if now < limit then
     allow = 0
     retry = limit - now
     new_tat = tat
+    remaining = 0
 else
     allow = 1
     retry = 0
     new_tat = (tat > now and tat or now) + interval
+    -- Remaining burst capacity: how many more requests before hitting the limit
+    -- remaining = (tolerance - (new_tat - now)) / interval
+    local used = new_tat - now
+    if used < tolerance then
+        remaining = math.floor((tolerance - used) / interval)
+    else
+        remaining = 0
+    end
 end
 
 redis.call('SET', key, new_tat, 'PX', 3600000)
 
-return {allow, retry}
+return {allow, remaining, retry}
 """
 
 _sha_tbra: Optional[str] = None
@@ -185,7 +194,7 @@ async def _exec_script(sha: str, key: str, *args) -> list:
 async def execute_tbra(
     key: str,
     capacity: int,
-    refill: int,
+    rate: int,
 ) -> tuple[bool, float, int]:
     """
     Layer 1: Execute TBRA script.
@@ -193,7 +202,7 @@ async def execute_tbra(
     Args:
         key: Full Redis key
         capacity: capacity * 1000
-        refill: tokens per step * 1000
+        rate: tokens per step * 1000
 
     Returns:
         (allow, tokens_remaining, retry_steps)
@@ -202,7 +211,7 @@ async def execute_tbra(
 
     now_step = _now_step()
 
-    result = await _exec_script(sha_tbra, key, capacity, refill, now_step)
+    result = await _exec_script(sha_tbra, key, capacity, rate, now_step)
 
     allow, tokens_scaled, retry_steps = result
 
@@ -213,7 +222,7 @@ async def execute_gcra(
     key: str,
     interval: int,
     tolerance: int,
-) -> tuple[bool, int]:
+) -> tuple[bool, float, int]:
     """
     Layer 1: Execute GCRA script.
 
@@ -223,7 +232,7 @@ async def execute_gcra(
         tolerance: Burst tolerance in steps
 
     Returns:
-        (allow, retry_steps)
+        (allow, tokens_remaining, retry_steps)
     """
     _, sha_gcra = await _ensure_scripts()
 
@@ -231,9 +240,9 @@ async def execute_gcra(
 
     result = await _exec_script(sha_gcra, key, interval, tolerance, now_step)
 
-    allow, retry_steps = result
+    allow, tokens_remaining, retry_steps = result
 
-    return bool(allow), int(retry_steps)
+    return bool(allow), float(tokens_remaining), int(retry_steps)
 
 
 # =============================================================================
@@ -260,7 +269,7 @@ class ThrottleResult:
 
     @property
     def retry_after_seconds(self) -> float:
-        if self.retry_after_ms <= 0:
+        if not self.retry_after_ms or self.retry_after_ms <= 0:
             return 0.0
         return self.retry_after_ms / 1000.0
 
@@ -304,16 +313,16 @@ def _to_tbra_params(max_capacity: int, refill_rate: int) -> tuple[int, int]:
         refill_rate: Tokens per minute
 
     Returns:
-        (capacity, refill)
+        (capacity, rate)
     """
-    refill = (refill_rate * _SCALE * TIME_STEP_MS) // 60000
+    rate = (refill_rate * _SCALE * TIME_STEP_MS) // 60000
 
-    if refill < 1:
-        refill = 1
+    if rate < 1:
+        rate = 1
 
     capacity = max_capacity * _SCALE
 
-    return capacity, refill
+    return capacity, rate
 
 
 def _to_gcra_params(max_capacity: int, refill_rate: int) -> tuple[int, int]:
@@ -335,6 +344,15 @@ def _to_gcra_params(max_capacity: int, refill_rate: int) -> tuple[int, int]:
     tolerance = max_capacity * interval
 
     return interval, tolerance
+
+
+def _failure_result(key: str, failure_mode: FailureMode) -> ThrottleResult:
+    return ThrottleResult(
+        allow=(failure_mode == FailureMode.OPEN),
+        tokens_remaining=None,
+        retry_after_ms=None,
+        key=key,
+    )
 
 
 async def check_throttle(
@@ -388,7 +406,7 @@ async def check_throttle(
                 refill_rate,
             )
 
-            allow, retry_steps = await execute_gcra(
+            allow, tokens_remaining, retry_steps = await execute_gcra(
                 full_key,
                 interval,
                 tolerance,
@@ -396,7 +414,7 @@ async def check_throttle(
 
             return ThrottleResult(
                 allow=allow,
-                tokens_remaining=None,
+                tokens_remaining=tokens_remaining,
                 retry_after_ms=retry_steps * TIME_STEP_MS,
                 key=key_str,
             )
@@ -404,22 +422,12 @@ async def check_throttle(
         else:
             log.warning("[throttle] Unknown algorithm", algorithm=algorithm)
 
-            return ThrottleResult(
-                allow=(failure_mode == FailureMode.OPEN),
-                tokens_remaining=None,
-                retry_after_ms=TIME_STEP_MS,
-                key=key_str,
-            )
+            return _failure_result(key_str, failure_mode)
 
     except Exception:
         log.warning("[throttle] Unexpected error", key=key_str, exc_info=True)
 
-        return ThrottleResult(
-            allow=(failure_mode == FailureMode.OPEN),
-            tokens_remaining=None,
-            retry_after_ms=TIME_STEP_MS,
-            key=key_str,
-        )
+        return _failure_result(key_str, failure_mode)
 
 
 # =============================================================================
@@ -445,6 +453,11 @@ async def check_throttles(
     """
     if not checks:
         return []
+
+    if algorithm not in (Algorithm.TBRA, Algorithm.GCRA):
+        log.warning("[throttle] [batch] Unknown algorithm", algorithm=algorithm)
+
+        return [_failure_result(_key_to_str(key), failure_mode) for key, _, _ in checks]
 
     # Pre-process keys
     processed = []
@@ -475,9 +488,6 @@ async def check_throttles(
                 interval, tolerance = _to_gcra_params(max_capacity, refill_rate)
                 pipe.evalsha(sha, 1, full_key, interval, tolerance, now_step)
 
-            else:
-                pass
-
         raw_results = await pipe.execute()
 
         results = []
@@ -495,42 +505,22 @@ async def check_throttles(
                 )
 
             elif algorithm == Algorithm.GCRA:
-                allow, retry_steps = raw
+                allow, tokens_remaining, retry_steps = raw
                 results.append(
                     ThrottleResult(
                         allow=bool(allow),
-                        tokens_remaining=None,
+                        tokens_remaining=float(tokens_remaining),
                         retry_after_ms=int(retry_steps) * TIME_STEP_MS,
-                        key=key_str,
-                    )
-                )
-
-            else:
-                log.warning("[throttle] [batch] Unknown algorithm", exc_info=True)
-
-                results.append(
-                    ThrottleResult(
-                        allow=(failure_mode == FailureMode.OPEN),
-                        tokens_remaining=None,
-                        retry_after_ms=None,
                         key=key_str,
                     )
                 )
 
         return results
 
-    except Exception as e:
+    except Exception:
         log.warning("[throttle] [batch] Unexpected error", exc_info=True)
 
-        return [
-            ThrottleResult(
-                allow=(failure_mode == FailureMode.OPEN),
-                tokens_remaining=None,
-                retry_after_ms=None,
-                key=ks,
-            )
-            for _, ks, _, _ in processed
-        ]
+        return [_failure_result(ks, failure_mode) for _, ks, _, _ in processed]
 
 
 # =============================================================================

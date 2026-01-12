@@ -21,12 +21,14 @@
 
 A **principal** is "who is being limited".
 
-| Type | Usage | Example |
-|------|-------|---------|
-| `organization_id` | Primary identifier for authenticated traffic | `org_abc123` |
-| `ip` | Unauthenticated routes or secondary guardrail | `192.168.1.100` |
+| Type | Usage | Example | Status |
+|------|-------|---------|--------|
+| `organization_id` | Primary identifier for authenticated traffic | `org_abc123` | ✅ Implemented |
+| `ip` | Unauthenticated routes or secondary guardrail | `192.168.1.100` | ⏳ Not yet implemented |
 
 **Note**: IP limits are inaccurate due to NAT, proxies, and mobile networks. Use IP limits primarily as a safety net.
+
+**Current implementation**: Only `organization_id` is supported. Unauthenticated requests bypass rate limiting.
 
 ---
 

@@ -42,14 +42,14 @@ on request at now_step:
 
   tokens = tokens - 1
   if tokens >= 0:
-    allowed = true
+    allow = true
     retry_after = 0
   else:
-    allowed = false
+    allow = false
     retry_after = ceil(-tokens / refill_per_step)
 
   store(tokens, now_step)
-  return (allowed, tokens, retry_after)
+  return (allow, tokens, retry_after)
 ```
 
 ### What You Get
@@ -103,16 +103,16 @@ on request at now_step:
   limit = tat - tolerance
 
   if now_step < limit:
-    allowed = false
+    allow = false
     retry_after = limit - now_step
     new_tat = tat
   else:
-    allowed = true
+    allow = true
     retry_after = 0
     new_tat = max(tat, now_step) + interval
 
   store(new_tat)
-  return (allowed, retry_after)
+  return (allow, retry_after)
 ```
 
 ### What You Get
@@ -126,7 +126,6 @@ on request at now_step:
 
 - No explicit "banked tokens" concept
 - Burst is tolerance, not stored tokens
-- No "remaining tokens" value (always None)
 
 ---
 
@@ -136,10 +135,10 @@ on request at now_step:
 |----------|------|------|
 | State size | 2 values (tokens + ts) | 1 value (tat) |
 | CPU | Slightly more (refill math) | Minimal |
-| "Remaining tokens" | Yes (natural) | No |
+| "Remaining tokens" | Yes (natural) | Yes (computed from tolerance) |
 | Burst semantics | Banked tokens | Tolerance window |
 | After idle period | Full bucket available | Tolerance available |
-| Headers UX | `X-RateLimit-Remaining` works | Only `Retry-After` |
+| Headers UX | `X-RateLimit-Remaining` works | `X-RateLimit-Remaining` works |
 
 ### Semantics Difference
 
@@ -228,7 +227,7 @@ Effect: One less parameter to pass.
 - `ARGV[3]`: now_step
 
 **Outputs**:
-- `[0]`: allowed (0 or 1)
+- `[0]`: allow (0 or 1)
 - `[1]`: tokens_scaled (current tokens × 1000)
 - `[2]`: retry_steps (steps until allowed)
 
@@ -240,6 +239,7 @@ Effect: One less parameter to pass.
 - `ARGV[2]`: tolerance (burst tolerance in steps)
 - `ARGV[3]`: now_step
 
-**Outputs**:
-- `[0]`: allowed (0 or 1)
-- `[1]`: retry_steps (steps until allowed)
+**Outputs** (same order as TBRA):
+- `[0]`: allow (0 or 1)
+- `[1]`: remaining (remaining burst capacity in requests)
+- `[2]`: retry_steps (steps until allowed)

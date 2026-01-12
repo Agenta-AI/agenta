@@ -38,7 +38,7 @@ result = await check_throttle(
     algorithm=Algorithm.GCRA,
 )
 
-if not result.allowed:
+if not result.allow:
     # Return 429 with Retry-After header
     retry_after = result.retry_after_seconds
 ```
@@ -56,13 +56,13 @@ if not result.allowed:
 ## Bucket Key Format
 
 ```
-arl:{key-components}
+throttle:{key-components}
 ```
 
 Examples:
-- `arl:global` — global limit
-- `arl:org:abc123` — organization limit
-- `arl:group:llm:org:abc123` — organization limit for LLM group
+- `throttle:global` — global limit
+- `throttle:org:abc123` — organization limit
+- `throttle:group:llm:org:abc123` — organization limit for LLM group
 
 ## Response Headers
 
@@ -80,4 +80,4 @@ X-RateLimit-Reset: 1704672000
 2. **Organization-first** — primary identifier is org_id, not user_id
 3. **Fail-open by default** — allow requests when Redis is unavailable
 4. **Atomic operations** — Lua scripts ensure correctness under concurrency
-5. **Time computed internally** — avoids clock skew across API instances
+5. **Time computed in application** — avoids extra Redis time call per request

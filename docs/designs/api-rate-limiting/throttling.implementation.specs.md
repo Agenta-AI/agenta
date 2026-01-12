@@ -28,7 +28,7 @@ Three-layer architecture for rate limiting with Redis.
 │ Layer 1: Lua Scripts                                        │
 │   _exec_tbra(key, max_cap_scaled, refill_scaled)            │
 │   _exec_gcra(key, interval, tolerance)                      │
-│   - Computes current time internally                        │
+│   - Uses current time from caller                           │
 │   - Atomic read-modify-write                                │
 └─────────────────────────────────────────────────────────────┘
                             │
@@ -69,12 +69,12 @@ if elapsed > 0 then
 end
 
 tokens = tokens - 1000
-local allowed = tokens >= 0 and 1 or 0
-local retry = allowed == 1 and 0 or math.ceil(-tokens / refill)
+local allow = tokens >= 0 and 1 or 0
+local retry = allow == 1 and 0 or math.ceil(-tokens / refill)
 
 redis.call('SET', key, tokens .. '|' .. now, 'PX', 3600000)
 
-return {allowed, tokens, retry}
+return {allow, tokens, retry}
 ```
 
 ### GCRA Script
@@ -88,21 +88,21 @@ local now = tonumber(ARGV[3])
 local tat = tonumber(redis.call('GET', key)) or now
 
 local limit = tat - tolerance
-local allowed, retry, new_tat
+local allow, retry, new_tat
 
 if now < limit then
-    allowed = 0
+    allow = 0
     retry = limit - now
     new_tat = tat
 else
-    allowed = 1
+    allow = 1
     retry = 0
     new_tat = (tat > now and tat or now) + interval
 end
 
 redis.call('SET', key, new_tat, 'PX', 3600000)
 
-return {allowed, retry}
+return {allow, retry}
 ```
 
 ### Script Loading
@@ -151,13 +151,13 @@ def _build_key(key: Union[str, dict]) -> str:
         key_str = key
     else:
         raise TypeError("key must be str or dict")
-    return f"arl:{key_str}"
+    return f"throttle:{key_str}"
 ```
 
 Examples:
-- `"global"` → `arl:global`
-- `{"org": "abc123"}` → `arl:org:abc123`
-- `{"group": "llm", "org": "abc123"}` → `arl:group:llm:org:abc123`
+- `"global"` → `throttle:global`
+- `{"org": "abc123"}` → `throttle:org:abc123`
+- `{"group": "llm", "org": "abc123"}` → `throttle:group:llm:org:abc123`
 
 ### Parameter Conversion
 
@@ -209,14 +209,14 @@ async def check_throttle(
 ```python
 @dataclass(frozen=True)
 class ThrottleResult:
-    allowed: bool
+    allow: bool
     tokens_remaining: Optional[float]  # None for GCRA
-    retry_after_ms: int
+    retry_after_ms: Optional[int]
     key: str
 
     @property
     def retry_after_seconds(self) -> float:
-        return self.retry_after_ms / 1000.0 if self.retry_after_ms > 0 else 0.0
+        return self.retry_after_ms / 1000.0 if self.retry_after_ms and self.retry_after_ms > 0 else 0.0
 ```
 
 ### Batch API
@@ -266,7 +266,7 @@ async def rate_limit_middleware(request, call_next):
     )
 
     # 4. Handle denial
-    if not result.allowed:
+    if not result.allow:
         return JSONResponse(
             status_code=429,
             content={"error": "rate_limit_exceeded"},
@@ -294,7 +294,7 @@ async def check_all_policies(org_id: str, endpoint_groups: list[str]):
 
     # Deny if any denies
     for result in results:
-        if not result.allowed:
+        if not result.allow:
             return result  # Return first denial
 
     return None  # All allowed
@@ -345,9 +345,9 @@ When Redis is unavailable, allow the request:
 ```python
 if failure_mode == FailureMode.OPEN:
     return ThrottleResult(
-        allowed=True,
-        tokens_remaining=float(max_capacity),
-        retry_after_ms=0,
+        allow=True,
+        tokens_remaining=None,
+        retry_after_ms=None,
         key=key_str,
     )
 ```
@@ -359,9 +359,9 @@ When Redis is unavailable, deny the request:
 ```python
 if failure_mode == FailureMode.CLOSED:
     return ThrottleResult(
-        allowed=False,
-        tokens_remaining=0.0,
-        retry_after_ms=TIME_STEP_MS,
+        allow=False,
+        tokens_remaining=None,
+        retry_after_ms=None,
         key=key_str,
     )
 ```
