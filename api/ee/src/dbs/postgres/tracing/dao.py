@@ -3,6 +3,7 @@ from uuid import UUID
 from datetime import datetime
 
 from sqlalchemy import delete, func, literal, select, text, tuple_, bindparam
+from sqlalchemy.sql import any_
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
 
 from oss.src.utils.logging import get_module_logger

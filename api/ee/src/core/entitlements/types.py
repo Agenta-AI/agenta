@@ -36,7 +36,7 @@ class Constraint(str, Enum):
 
 
 class Periods(str, Enum):
-    EPHEMERAL = 5  # 5 minutes
+    EPHEMERAL = 0  # instant
     HOURLY = 60  # 1 hour = 60 minutes
     DAILY = 1440  # 24 hours = 1 day = 1440 minutes
     MONTHLY = 44640  # 31 days = 744 hours = 44640 minutes
