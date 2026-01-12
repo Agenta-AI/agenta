@@ -54,7 +54,10 @@ else:
 # Auth service for domain policy enforcement
 auth_service = AuthService()
 
-def _merge_session_identities(session: Optional[Any], method: Optional[str]) -> List[str]:
+
+def _merge_session_identities(
+    session: Optional[Any], method: Optional[str]
+) -> List[str]:
     session_identities: List[str] = []
     if session is not None:
         try:
@@ -277,7 +280,11 @@ def override_thirdparty_functions(
         user_context["session_identities"] = session_identities
         log.debug(
             "[AUTH-IDENTITY] session_identities merge",
-            {"method": method, "session_identities": session_identities, "user_identities": identities_array},
+            {
+                "method": method,
+                "session_identities": session_identities,
+                "user_identities": identities_array,
+            },
         )
         log.debug(
             "[AUTH-IDENTITY] session user_identities",
@@ -367,9 +374,7 @@ def override_session_functions(
         """
         # Get identity context from user_context (populated by auth overrides)
         user_identities = user_context.get("user_identities", [])
-        session_identities = user_context.get(
-            "session_identities", user_identities
-        )
+        session_identities = user_context.get("session_identities", user_identities)
 
         # Merge with existing payload
         if access_token_payload is None:
@@ -445,7 +450,11 @@ def override_passwordless_functions(
             user_context["session_identities"] = session_identities
             log.debug(
                 "[AUTH-IDENTITY] session_identities merge",
-                {"method": method, "session_identities": session_identities, "user_identities": [method]},
+                {
+                    "method": method,
+                    "session_identities": session_identities,
+                    "user_identities": [method],
+                },
             )
             return result
 
@@ -505,7 +514,11 @@ def override_passwordless_functions(
         user_context["session_identities"] = session_identities
         log.debug(
             "[AUTH-IDENTITY] session_identities merge",
-            {"method": method, "session_identities": session_identities, "user_identities": identities_array},
+            {
+                "method": method,
+                "session_identities": session_identities,
+                "user_identities": identities_array,
+            },
         )
 
         # Enforce domain-based policies (auto-join, domains-only)
@@ -619,7 +632,11 @@ def override_emailpassword_functions(
         user_context["session_identities"] = session_identities
         log.debug(
             "[AUTH-IDENTITY] session_identities merge",
-            {"method": method, "session_identities": session_identities, "user_identities": identities_array},
+            {
+                "method": method,
+                "session_identities": session_identities,
+                "user_identities": identities_array,
+            },
         )
 
         # Enforce domain-based policies (auto-join, domains-only)
@@ -721,7 +738,11 @@ def override_emailpassword_functions(
         user_context["session_identities"] = session_identities
         log.debug(
             "[AUTH-IDENTITY] session_identities merge",
-            {"method": method, "session_identities": session_identities, "user_identities": identities_array},
+            {
+                "method": method,
+                "session_identities": session_identities,
+                "user_identities": identities_array,
+            },
         )
 
         # Enforce domain-based policies (auto-join, domains-only)
