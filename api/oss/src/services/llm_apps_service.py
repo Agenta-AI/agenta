@@ -390,7 +390,10 @@ async def run_with_retry(
             retries += 1
         except Exception as e:
             last_exception = e
-            log.warn(f"Error processing datapoint: {input_data}. {str(e)}")
+            log.warn(
+                f"Error processing datapoint: {input_data}.",
+                exc_info=True,
+            )
             log.warn("".join(traceback.format_exception_only(type(e), e)))
             retries += 1
 

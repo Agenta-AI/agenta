@@ -1,25 +1,29 @@
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 
-from oss.src.utils.logging import get_module_logger
-from oss.src.services import db_manager
-from ee.src.services import db_manager_ee
 from oss.src.utils.common import APIRouter
-from ee.src.services import workspace_manager
-from ee.src.models.shared_models import Permission
-from ee.src.services.selectors import (
-    get_user_own_org,
-    get_user_org_and_workspace_id,
+from oss.src.utils.logging import get_module_logger
+
+from oss.src.services import db_manager
+
+from ee.src.utils.permissions import (
+    check_user_org_access,
+    check_rbac_permission,
 )
+
+from ee.src.services import (
+    db_manager_ee,
+    workspace_manager,
+)
+from ee.src.services.selectors import get_user_org_and_workspace_id
+from ee.src.models.shared_models import Permission
+
 from ee.src.models.api.workspace_models import (
     CreateWorkspace,
     UpdateWorkspace,
     WorkspaceResponse,
 )
-from ee.src.utils.permissions import (
-    check_user_org_access,
-    check_rbac_permission,
-)
+
 from ee.src.models.api.organization_models import (
     Organization,
     OrganizationUpdate,
@@ -31,10 +35,8 @@ from ee.src.services.organization_service import (
     get_organization_details,
     transfer_organization_ownership as transfer_ownership_service,
 )
-from ee.src.services.organization_security_service import SSOProviderService
-from ee.src.dbs.postgres.organizations.dao import (
-    OrganizationDomainsDAO,
-)
+from ee.src.services.organization_service import OrganizationProvidersService
+from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 from ee.src.core.organizations.types import (
     OrganizationDomainCreate,
     OrganizationProviderCreate,
@@ -47,24 +49,10 @@ router = APIRouter()
 log = get_module_logger(__name__)
 
 
-@router.get("/own/", response_model=OrganizationOutput, operation_id="get_own_org")
-async def get_user_organization(
-    request: Request,
-):
-    try:
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        org_db = await get_user_own_org(user_uid=user_org_workspace_data["uid"])
-        if org_db is None:
-            raise HTTPException(404, detail="User does not have an organization")
-
-        return OrganizationOutput(id=str(org_db.id), name=org_db.name)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/{organization_id}/", operation_id="fetch_ee_organization_details")
+@router.get(
+    "/{organization_id}/",
+    operation_id="fetch_ee_organization_details",
+)
 async def fetch_organization_details(
     organization_id: str,
     request: Request,
@@ -137,12 +125,13 @@ async def fetch_organization_details(
         return organization
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        log.error(
+            "Unexpected error while fetching organization details",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="Unexpected error occurred while fetching organization details.",
         )
 
 
@@ -191,8 +180,9 @@ async def update_organization(
 
     except ValueError as e:
         # Slug validation errors (format, immutability, personal org, etc.)
+        # Return a generic error message to avoid exposing internal details.
         return JSONResponse(
-            {"detail": str(e)},
+            {"detail": "Invalid request data for organization update."},
             status_code=400,
         )
     except Exception as e:
@@ -206,9 +196,15 @@ async def update_organization(
                 },
                 status_code=409,
             )
+
+        log.error(
+            "Unexpected error while updating organization",
+            exc_info=True,
+        )
+
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="An internal error occurred while updating the organization.",
         )
 
 
@@ -246,9 +242,13 @@ async def create_workspace(
         return workspace
 
     except Exception as e:
+        log.error(
+            "Unexpected error while creating workspace",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="An internal error occurred while creating the workspace.",
         )
 
 
@@ -288,9 +288,13 @@ async def update_workspace(
         return workspace
 
     except Exception as e:
+        log.error(
+            "Unexpected error while updating workspace",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="An internal error occurred while updating the workspace.",
         )
 
 
@@ -333,23 +337,30 @@ async def transfer_organization_ownership(
             status_code=200,
         )
 
-    except ValueError as e:
+    except ValueError:
         # New owner not a member or organization not found
-        return JSONResponse(
-            {"detail": str(e)},
-            status_code=400,
+        log.warning(
+            "Invalid organization ownership transfer request",
+            exc_info=True,
         )
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        return JSONResponse(
+            {"detail": "Invalid organization or new owner for ownership transfer"},
+        )
+    except Exception:
+        log.error(
+            "Unexpected error while transferring organization ownership",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="An internal error occurred while transferring organization ownership.",
         )
 
 
-@router.post("/", operation_id="create_collaborative_organization")
+@router.post(
+    "/",
+    operation_id="create_collaborative_organization",
+)
 async def create_collaborative_organization(
     payload: CreateCollaborativeOrganization,
     request: Request,
@@ -375,12 +386,6 @@ async def create_collaborative_organization(
             use_reverse_trial=False,  # Use hobby plan instead
         )
 
-        log.info(
-            "[organization] collaborative organization created",
-            organization_id=organization.id,
-            user_id=user.id,
-        )
-
         return JSONResponse(
             {
                 "id": str(organization.id),
@@ -391,16 +396,20 @@ async def create_collaborative_organization(
         )
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        log.error(
+            "Unexpected error while creating collaborative organization",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="An internal error occurred while creating the organization.",
         )
 
 
-@router.delete("/{organization_id}/", operation_id="delete_organization")
+@router.delete(
+    "/{organization_id}/",
+    operation_id="delete_organization",
+)
 async def delete_organization(
     organization_id: str,
     request: Request,
@@ -433,12 +442,13 @@ async def delete_organization(
         )
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        log.error(
+            "Unexpected error while deleting organization",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="An internal error occurred while deleting the organization.",
         )
 
 
@@ -447,7 +457,10 @@ async def delete_organization(
 # ============================================================================
 
 
-@router.get("/{organization_id}/domains/", operation_id="list_organization_domains")
+@router.get(
+    "/{organization_id}/domains/",
+    operation_id="list_organization_domains",
+)
 async def list_organization_domains(
     organization_id: str,
     request: Request,
@@ -469,7 +482,9 @@ async def list_organization_domains(
         from uuid import UUID
 
         domains_dao = OrganizationDomainsDAO()
-        domains = await domains_dao.list_by_organization(UUID(organization_id))
+        domains = await domains_dao.list_by_organization(
+            organization_id=str(organization_id)
+        )
 
         return [
             {
@@ -488,13 +503,20 @@ async def list_organization_domains(
         ]
 
     except Exception as e:
-        import traceback
+        log.error(
+            "Unexpected error while listing organization domains",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while listing organization domains.",
+        )
 
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/{organization_id}/domains/", operation_id="create_organization_domain")
+@router.post(
+    "/{organization_id}/domains/",
+    operation_id="create_organization_domain",
+)
 async def create_organization_domain(
     organization_id: str,
     request: Request,
@@ -516,12 +538,16 @@ async def create_organization_domain(
 
         from uuid import UUID
 
-        domains_dao = OrganizationDomainsDAO()
-        domain_create = OrganizationDomainCreate(
-            slug=domain,
-            organization_id=UUID(organization_id),
+        from ee.src.services.organization_service import (
+            OrganizationDomainsService,
         )
-        created_domain = await domains_dao.create(domain_create)
+
+        domain_service = OrganizationDomainsService()
+        created_domain = await domain_service.create_domain(
+            organization_id=organization_id,
+            payload=OrganizationDomainCreate(domain=domain),
+            user_id=str(request.state.user_id),
+        )
 
         return {
             "id": str(created_domain.id),
@@ -537,14 +563,19 @@ async def create_organization_domain(
         }
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while creating organization domain",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while creating the organization domain.",
+        )
 
 
 @router.get(
-    "/{organization_id}/domains/{domain_id}", operation_id="get_organization_domain"
+    "/{organization_id}/domains/{domain_id}",
+    operation_id="get_organization_domain",
 )
 async def get_organization_domain(
     organization_id: str,
@@ -568,7 +599,9 @@ async def get_organization_domain(
         from uuid import UUID
 
         domains_dao = OrganizationDomainsDAO()
-        domain = await domains_dao.get_by_id(UUID(domain_id))
+        domain = await domains_dao.get_by_id(
+            domain_id=domain_id, organization_id=organization_id
+        )
 
         if not domain:
             return JSONResponse(
@@ -586,14 +619,19 @@ async def get_organization_domain(
         }
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while fetching organization domain",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while fetching the organization domain.",
+        )
 
 
 @router.delete(
-    "/{organization_id}/domains/{domain_id}", operation_id="delete_organization_domain"
+    "/{organization_id}/domains/{domain_id}",
+    operation_id="delete_organization_domain",
 )
 async def delete_organization_domain(
     organization_id: str,
@@ -626,10 +664,14 @@ async def delete_organization_domain(
         )
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while deleting organization domain",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while deleting the organization domain.",
+        )
 
 
 @router.post(
@@ -657,8 +699,16 @@ async def verify_organization_domain(
 
         from uuid import UUID
 
-        domains_dao = OrganizationDomainsDAO()
-        verified_domain = await domains_dao.mark_verified(UUID(domain_id))
+        from ee.src.services.organization_service import (
+            OrganizationDomainsService,
+        )
+
+        domain_service = OrganizationDomainsService()
+        verified_domain = await domain_service.verify_domain(
+            organization_id=organization_id,
+            domain_id=domain_id,
+            user_id=str(request.state.user_id),
+        )
 
         if not verified_domain:
             return JSONResponse(
@@ -680,10 +730,14 @@ async def verify_organization_domain(
         }
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while verifying organization domain",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while verifying the organization domain.",
+        )
 
 
 # ============================================================================
@@ -691,7 +745,10 @@ async def verify_organization_domain(
 # ============================================================================
 
 
-@router.get("/{organization_id}/providers/", operation_id="list_organization_providers")
+@router.get(
+    "/{organization_id}/providers/",
+    operation_id="list_organization_providers",
+)
 async def list_organization_providers(
     organization_id: str,
     request: Request,
@@ -712,18 +769,23 @@ async def list_organization_providers(
 
         from uuid import UUID
 
-        provider_service = SSOProviderService()
+        provider_service = OrganizationProvidersService()
         return await provider_service.list_providers(organization_id)
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while listing organization providers",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while listing the organization providers.",
+        )
 
 
 @router.post(
-    "/{organization_id}/providers/", operation_id="create_organization_provider"
+    "/{organization_id}/providers/",
+    operation_id="create_organization_provider",
 )
 async def create_organization_provider(
     organization_id: str,
@@ -746,7 +808,7 @@ async def create_organization_provider(
 
         from uuid import UUID
 
-        provider_service = SSOProviderService()
+        provider_service = OrganizationProvidersService()
         provider_create = OrganizationProviderCreate(
             slug=payload.get("slug"),
             organization_id=UUID(organization_id),
@@ -766,10 +828,14 @@ async def create_organization_provider(
         return created_provider
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while creating organization provider",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while creating the organization provider.",
+        )
 
 
 @router.get(
@@ -797,17 +863,21 @@ async def get_organization_provider(
 
         from uuid import UUID
 
-        provider_service = SSOProviderService()
+        provider_service = OrganizationProvidersService()
         return await provider_service.get_provider(
             organization_id=organization_id,
             provider_id=provider_id,
         )
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while fetching organization provider",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while fetching the organization provider.",
+        )
 
 
 @router.patch(
@@ -836,7 +906,7 @@ async def update_organization_provider(
 
         from uuid import UUID
 
-        provider_service = SSOProviderService()
+        provider_service = OrganizationProvidersService()
         provider_update = OrganizationProviderUpdate(
             name=payload.get("name"),
             description=payload.get("description"),
@@ -855,10 +925,14 @@ async def update_organization_provider(
         return updated_provider
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while updating organization provider",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while updating the organization provider.",
+        )
 
 
 @router.delete(
@@ -886,7 +960,7 @@ async def delete_organization_provider(
 
         from uuid import UUID
 
-        provider_service = SSOProviderService()
+        provider_service = OrganizationProvidersService()
         await provider_service.delete_provider(
             organization_id=organization_id,
             provider_id=provider_id,
@@ -899,7 +973,11 @@ async def delete_organization_provider(
         )
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(
+            "Unexpected error while deleting organization provider",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while deleting the organization provider.",
+        )

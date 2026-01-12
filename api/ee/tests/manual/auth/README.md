@@ -6,8 +6,8 @@ This directory contains `.http` files for manually testing the SSO/OIDC authenti
 
 ### Phase 1: Setup & Verification
 1. **`00-setup-verification.http`** - Run SQL setup commands first
-   - Create test organizations
-   - Set up policies and providers (EE only)
+   - Create test organizations with flags
+   - Set up domains and providers (EE only)
    - Create test users
    - Verify schema
 
@@ -23,7 +23,7 @@ This directory contains `.http` files for manually testing the SSO/OIDC authenti
    - Verify domains on collaborative organizations
    - Prevent personal orgs from verifying domains
    - Enforce domain exclusivity (one domain, one org)
-   - Test auto-join policy configuration
+   - Test auto-join flag configuration
    - Domain transfer scenarios
 
 ### Phase 4: OIDC Flow Testing (EE Only)
@@ -39,10 +39,10 @@ This directory contains `.http` files for manually testing the SSO/OIDC authenti
    - SSO identity tracking
    - Session payload verification
 
-### Phase 6: Policy Enforcement (EE Only)
+### Phase 6: Flag Enforcement (EE Only)
 6. **`04-policy-enforcement.http`** - Test access control
-   - SSO-only organization access
-   - Multi-method policies
+   - SSO-only organization access (via flags)
+   - Multi-method flag combinations
    - Auth upgrade requirements
    - Membership validation
 
@@ -83,21 +83,21 @@ curl -X POST http://localhost:8000/auth/discover \
 - ✅ Session contains `identities` array
 - ✅ Exactly 1 collaborative organization exists
 - ✅ No personal organizations exist
-- ✅ Organization has `kind = 'collaborative'`
+- ✅ Organization has `flags.is_personal = false`
 - ❌ SSO endpoints return 404 "EE only"
-- ❌ Policy enforcement not active
+- ❌ Flag enforcement not active (EE only)
 - ❌ Domain verification not available
 
 ### EE Mode Tests (Should Pass)
 - ✅ All OSS tests pass
-- ✅ Organizations have `kind` field ('personal' or 'collaborative')
+- ✅ Organizations have `flags.is_personal` (true or false)
 - ✅ Personal organizations cannot verify domains
 - ✅ Domain exclusivity enforced (one domain per org)
-- ✅ Auto-join policy can be configured
+- ✅ Auto-join flag (`flags.auto_join`) can be configured
 - ✅ Discovery returns SSO providers for verified domains
 - ✅ OIDC authorization redirects to IdP
 - ✅ SSO login creates `user_identity` with `sso:*` method
-- ✅ Policy middleware blocks unauthorized methods
+- ✅ Flag-based access control blocks unauthorized methods
 - ✅ Auth upgrade flow works
 
 ## 🐛 Troubleshooting
@@ -116,28 +116,27 @@ curl -X POST http://localhost:8000/auth/discover \
 - User exists in `users` table
 - Database has write permissions
 
-### Policy Not Enforced
+### Flags Not Enforced
 **Check:**
 - `AGENTA_LICENSE=ee`
 - Middleware registered in FastAPI app
 - Request includes `organization_id` parameter
-- `organization_policies` table has data
+- `organizations.flags` JSONB contains policy flags
 
 ### SSO Flow Fails
 **Check:**
 - OIDC provider configuration in `organization_providers`
-- Provider `enabled=true`
-- Domain verified in `organization_domains`
-- Organization is collaborative (personal orgs cannot verify domains)
+- Provider `flags.is_active = true`
+- Domain verified in `organization_domains` (`flags.is_verified = true`)
+- Organization is collaborative (`flags.is_personal = false`)
 - IdP credentials valid
 - Callback URL configured at IdP
 
 ### Domain Verification Fails
 **Check:**
-- Organization kind is 'collaborative' (personal orgs cannot verify)
+- Organization is collaborative (`flags.is_personal = false`)
 - Domain not already verified by another organization
 - `organization_domains` table exists and populated
-- Check constraint on `organizations.kind` is in place
 
 ## 🔍 Debugging Tips
 
@@ -146,22 +145,41 @@ curl -X POST http://localhost:8000/auth/discover \
 -- Check identities created
 SELECT * FROM user_identities ORDER BY created_at DESC LIMIT 10;
 
--- Check organization kinds
-SELECT id, name, slug, kind FROM organizations ORDER BY kind;
+-- Check organization types (personal vs collaborative)
+SELECT id, name, slug, flags->>'is_personal' as is_personal
+FROM organizations
+ORDER BY flags->>'is_personal';
 
--- Check organization policies (including auto_join)
-SELECT o.name, o.kind, p.allowed_methods, p.invitation_only, p.domains_only, p.auto_join
-FROM organizations o
-JOIN organization_policies p ON p.organization_id = o.id;
+-- Check organization flags (auth policy)
+SELECT
+  id,
+  name,
+  flags->'is_personal' as is_personal,
+  flags->'allow_email' as allow_email,
+  flags->'allow_social' as allow_social,
+  flags->'allow_sso' as allow_sso,
+  flags->'domains_only' as domains_only,
+  flags->'auto_join' as auto_join,
+  flags->'allow_root' as allow_root
+FROM organizations;
 
 -- Check domain verification
-SELECT od.domain, od.verified, o.name as org_name, o.kind as org_kind
+SELECT
+  od.slug as domain,
+  od.flags->>'is_verified' as verified,
+  o.name as org_name,
+  o.flags->>'is_personal' as is_personal
 FROM organization_domains od
 JOIN organizations o ON o.id = od.organization_id
-ORDER BY od.verified DESC, o.kind;
+ORDER BY od.flags->>'is_verified' DESC;
 
 -- Check SSO providers
-SELECT o.name, o.kind, op.slug, op.enabled, op.config->>'issuer'
+SELECT
+  o.name,
+  o.flags->>'is_personal' as is_personal,
+  op.slug,
+  op.flags->>'is_active' as is_active,
+  op.settings->>'issuer' as issuer
 FROM organizations o
 JOIN organization_providers op ON op.organization_id = o.id;
 ```
@@ -184,15 +202,23 @@ These manual tests cover:
 - ✅ Identity tracking and accumulation
 - ✅ Session payload with identities
 - ✅ Organization membership queries
-- ✅ Policy-based access control
+- ✅ Flag-based access control
 - ✅ Auth method discovery
 - ✅ Multi-organization support
 - ✅ Auth upgrade requirements
 - ✅ Organization slug immutability
 - ✅ Slug validation and constraints
-- ✅ Organization kind system (personal vs collaborative)
+- ✅ Organization classification (personal vs collaborative via `flags.is_personal`)
 - ✅ Domain verification on collaborative organizations
 - ✅ Domain verification restrictions on personal organizations
 - ✅ Domain exclusivity enforcement (one domain per org)
-- ✅ Auto-join policy configuration
+- ✅ Auto-join flag configuration
 - ✅ Auto-join behavior with verified domains
+
+## Error Codes
+
+| Error Code | Trigger | HTTP Status |
+|------------|---------|-------------|
+| `AUTH_UPGRADE_REQUIRED` | Auth method not in allowed list | 403 |
+| `AUTH_SSO_DENIED` | SSO provider disabled or inactive | 403 |
+| `AUTH_DOMAIN_DENIED` | Email domain not in verified list | 403 |

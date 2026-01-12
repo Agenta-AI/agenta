@@ -93,14 +93,6 @@ async def authentication_middleware(request: Request, call_next):
     """
 
     try:
-        if "authorisationurl" in request.url.path:
-            log.info(
-                "[AUTH-ROUTE] authorisationurl path=%s root_path=%s raw_path=%s",
-                request.scope.get("path"),
-                request.scope.get("root_path"),
-                request.scope.get("raw_path"),
-            )
-
         await _check_authentication_token(request)
 
         await _check_organization_policy(request)
@@ -793,6 +785,19 @@ async def _check_organization_policy(request: Request):
     if any(path in request.url.path for path in invitation_paths):
         return
 
+    # Skip policy checks for org-agnostic endpoints (no explicit org context).
+    # This prevents SSO logins from being blocked by the default org policy
+    # before the frontend can redirect to the intended SSO org.
+    if (
+        request.url.path in {"/api/profile", "/api/organizations"}
+        or request.url.path.startswith("/api/projects")
+        or request.url.path.startswith("/api/organizations/")
+    ):
+        # NOTE: These endpoints are hit during initial login bootstrap before the FE
+        # redirects to the intended org (e.g., SSO org). Enforcing org policy here
+        # can incorrectly fail against the default org and log the user out.
+        return
+
     organization_id = (
         request.state.organization_id
         if hasattr(request.state, "organization_id")
@@ -823,10 +828,13 @@ async def _check_organization_policy(request: Request):
     )
 
     if policy_error:
-        # Only enforce auth policy errors (AUTH_UPGRADE_REQUIRED)
-        # Skip membership errors - those should be handled by route handlers
+        # Only enforce auth policy errors; skip membership errors (route handlers handle those)
         error_code = policy_error.get("error")
-        if error_code == "AUTH_UPGRADE_REQUIRED":
+        if error_code in {
+            "AUTH_UPGRADE_REQUIRED",
+            "AUTH_SSO_DENIED",
+            "AUTH_DOMAIN_DENIED",
+        }:
             detail = {
                 "error": policy_error.get("error"),
                 "message": policy_error.get(
@@ -836,6 +844,9 @@ async def _check_organization_policy(request: Request):
                 "required_methods": policy_error.get("required_methods", []),
                 "session_identities": session_identities,
                 "user_identities": user_identities,
+                "sso_providers": policy_error.get("sso_providers", []),
+                "current_domain": policy_error.get("current_domain"),
+                "allowed_domains": policy_error.get("allowed_domains", []),
             }
             raise HTTPException(status_code=403, detail=detail)
         # If NOT_A_MEMBER, skip - let route handlers deal with it

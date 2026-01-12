@@ -61,7 +61,6 @@ const SocialAuth = ({
                     </Button>
                 ))}
             </div>
-
         </>
     )
 }

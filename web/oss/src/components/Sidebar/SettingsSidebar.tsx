@@ -8,7 +8,7 @@ import {useRouter} from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
-import {isDemo} from "@/oss/lib/helpers/utils"
+import {isEE} from "@/oss/lib/helpers/isEE"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {settingsTabAtom} from "@/oss/state/settings"
@@ -30,6 +30,8 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     const {selectedOrg} = useOrgData()
     const {user} = useProfileData()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
+    const canShowOrganization = isEE()
+    const canShowBilling = isEE() && isOwner
 
     useEffect(() => {
         if (tab && tab !== settingsTab) {
@@ -55,7 +57,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 icon: <Sparkle size={16} className="mt-0.5" />,
                 divider: true,
             },
-            ...(isOwner
+            ...(isOwner && canShowOrganization
                 ? [
                       {
                           key: "organization",
@@ -65,7 +67,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                   ]
                 : []),
         ]
-        if (isDemo() && isOwner) {
+        if (canShowBilling) {
             list.push({
                 key: "billing",
                 title: "Usage & Billing",
@@ -73,7 +75,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             })
         }
         return list
-    }, [isOwner])
+    }, [isOwner, canShowOrganization, canShowBilling])
 
     return (
         <section

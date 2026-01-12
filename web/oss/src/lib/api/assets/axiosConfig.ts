@@ -6,10 +6,10 @@ import {signOut} from "supertokens-auth-react/recipe/session"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {getJWT} from "@/oss/services/api"
+// import {requestNavigationAtom} from "@/oss/state/appState"
+import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {projectIdAtom} from "@/oss/state/project"
-import {requestNavigationAtom} from "@/oss/state/appState"
-import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 
 import {getAgentaApiUrl} from "../../helpers/api"
 import {getErrorMessage, globalErrorHandler} from "../../helpers/errorHandler"
@@ -144,9 +144,16 @@ axios.interceptors.response.use(
         const upgradeDetail = error.response?.data?.detail
         if (
             error.response?.status === 403 &&
-            upgradeDetail?.error === "AUTH_UPGRADE_REQUIRED" &&
+            (upgradeDetail?.error === "AUTH_UPGRADE_REQUIRED" ||
+                upgradeDetail?.error === "AUTH_SSO_DENIED") &&
             !error.config?._skipAuthUpgradeRedirect
         ) {
+            if (typeof window !== "undefined" && window.localStorage.getItem("authUpgradeOrgId")) {
+                if (error.config) {
+                    error.config._ignoreError = true
+                }
+                return Promise.reject(error)
+            }
             if (typeof window === "undefined") {
                 return Promise.reject(error)
             }
@@ -175,8 +182,13 @@ axios.interceptors.response.use(
                     ? ` You're signed in with ${currentIdentity}.`
                     : ""
                 const message = `This organization requires ${requiredText}.${identityText}`
+                const authError =
+                    upgradeDetail?.error === "AUTH_SSO_DENIED" ? "sso_denied" : "upgrade_required"
+                if (upgradeDetail?.error === "AUTH_SSO_DENIED") {
+                    signOut().catch(() => null)
+                }
                 const query = new URLSearchParams({
-                    auth_error: "upgrade_required",
+                    auth_error: authError,
                     auth_message: message,
                 })
                 if (selectedOrgId) {
@@ -212,6 +224,14 @@ axios.interceptors.response.use(
 
         // if axios config has _ignoreError set to true, then don't handle error
         if (error.config?._ignoreError) throw error
+
+        const domainDeniedDetail = error.response?.data?.detail
+        if (error.response?.status === 403 && domainDeniedDetail?.error === "AUTH_DOMAIN_DENIED") {
+            if (error.config) {
+                error.config._ignoreError = true
+            }
+            throw error
+        }
 
         let msg = getErrorMessage(error.response?.data?.error || error.response?.data, "")
         if (!msg)

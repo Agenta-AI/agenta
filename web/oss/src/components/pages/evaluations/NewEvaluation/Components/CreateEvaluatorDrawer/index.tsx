@@ -27,9 +27,7 @@ import {
 
 const ConfigureEvaluator = dynamic(
     () =>
-        import(
-            "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator"
-        ),
+        import("@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator"),
     {ssr: false},
 )
 

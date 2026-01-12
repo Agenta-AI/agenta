@@ -13,14 +13,12 @@ from ee.src.core.entitlements.types import Counter, Gauge, REPORTS
 from ee.src.core.meters.types import MeterDTO
 from ee.src.core.meters.interfaces import MetersDAOInterface
 
-AGENTA_PRICING = env.stripe.pricing
-
 log = get_module_logger(__name__)
 
 # Initialize Stripe only if enabled
 if env.stripe.enabled:
     stripe.api_key = env.stripe.api_key
-    log.info("✓ Stripe enabled")
+    log.info("✓ Stripe enabled:", target=env.stripe.webhook_target)
 else:
     log.info("✗ Stripe disabled")
 
@@ -153,7 +151,7 @@ class MetersService:
                         if meter.key.name in Gauge.__members__.keys():
                             try:
                                 price_id = (
-                                    AGENTA_PRICING.get(meter.subscription.plan, {})
+                                    env.stripe.pricing.get(meter.subscription.plan, {})
                                     .get("users", {})
                                     .get("price")
                                 )

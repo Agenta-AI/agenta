@@ -1,6 +1,6 @@
 ###
 # Domain Verification Testing
-# Tests for organization kind restrictions and domain exclusivity
+# Tests for organization type restrictions and domain exclusivity
 #
 # Prerequisites:
 # - Run 00-setup-verification.http first
@@ -33,8 +33,8 @@ Content-Type: application/json
 # {
 #   "id": "...",
 #   "organization_id": "{{testOrgId}}",
-#   "domain": "acme.com",
-#   "verified": true
+#   "slug": "acme.com",
+#   "flags": {"is_verified": true}
 # }
 
 
@@ -82,16 +82,17 @@ POST {{apiUrl}}/organizations/{{testOrgId}}/domains
 Content-Type: application/json
 
 {
-  "domain": "newdomain.com"
+  "slug": "newdomain.com",
+  "name": "New Domain"
 }
 
 # Expected: 201 Created
 # {
 #   "id": "...",
 #   "organization_id": "{{testOrgId}}",
-#   "domain": "newdomain.com",
-#   "verified": false,
-#   "verification_token": "..."
+#   "slug": "newdomain.com",
+#   "flags": {"is_verified": false},
+#   "token": "..."
 # }
 
 
@@ -105,13 +106,13 @@ GET {{apiUrl}}/organizations/{{testOrgId}}/domains
 # [
 #   {
 #     "id": "...",
-#     "domain": "acme.com",
-#     "verified": true
+#     "slug": "acme.com",
+#     "flags": {"is_verified": true}
 #   },
 #   {
 #     "id": "...",
-#     "domain": "newdomain.com",
-#     "verified": false
+#     "slug": "newdomain.com",
+#     "flags": {"is_verified": false}
 #   }
 # ]
 
@@ -126,8 +127,8 @@ GET {{apiUrl}}/organizations/{{testPersonalOrgId}}/domains
 # [
 #   {
 #     "id": "...",
-#     "domain": "personal-test.com",
-#     "verified": false
+#     "slug": "personal-test.com",
+#     "flags": {"is_verified": false}
 #   }
 # ]
 # NOTE: Personal org can have domains, but cannot verify them
@@ -143,7 +144,7 @@ DELETE {{apiUrl}}/organizations/{{testOrgId}}/domains/<domain-id>/verification
 # Expected: 200 OK
 # {
 #   "id": "...",
-#   "verified": false
+#   "flags": {"is_verified": false}
 # }
 
 # Now verify it with the second org (should succeed now)
@@ -156,12 +157,12 @@ Content-Type: application/json
 
 # Expected: 200 OK
 # {
-#   "verified": true
+#   "flags": {"is_verified": true}
 # }
 
 
 ###
-# Test 8: Check Organization Kind
+# Test 8: Check Organization Type (via flags)
 ###
 
 GET {{apiUrl}}/organizations/{{testOrgId}}
@@ -171,7 +172,7 @@ GET {{apiUrl}}/organizations/{{testOrgId}}
 #   "id": "{{testOrgId}}",
 #   "name": "ACME Corporation",
 #   "slug": "acme",
-#   "kind": "collaborative"
+#   "flags": {"is_personal": false, "allow_email": true, ...}
 # }
 
 GET {{apiUrl}}/organizations/{{testPersonalOrgId}}
@@ -181,47 +182,110 @@ GET {{apiUrl}}/organizations/{{testPersonalOrgId}}
 #   "id": "{{testPersonalOrgId}}",
 #   "name": "Personal",
 #   "slug": null,
-#   "kind": "personal"
+#   "flags": {"is_personal": true}
 # }
 
 
 ###
-# Test 9: Verify Auto-Join Policy with Verified Domain
+# Test 9: Verify Auto-Join Flag with Verified Domain
 ###
 
-# Get organization policy
-GET {{apiUrl}}/organizations/{{testOrgId}}/policy
+# Get organization to check flags
+GET {{apiUrl}}/organizations/{{testOrgId}}
 
 # Expected: 200 OK
 # {
-#   "organization_id": "{{testOrgId}}",
-#   "allowed_methods": ["sso:*"],
-#   "invitation_only": false,
-#   "domains_only": true,
-#   "auto_join": true,
-#   "disable_root": false
+#   "id": "{{testOrgId}}",
+#   "flags": {
+#     "is_personal": false,
+#     "allow_email": false,
+#     "allow_social": false,
+#     "allow_sso": true,
+#     "domains_only": true,
+#     "auto_join": true,
+#     "allow_root": true
+#   }
 # }
 
 # When a user authenticates with email from verified domain (e.g., user@acme.com),
-# they should automatically be added to the organization as a member
+# and auto_join=true, they should automatically be added to the organization as a member
 # This is tested in the SSO flow tests
 
 
 ###
-# Test 10: Update Auto-Join Policy
+# Test 10: Update Auto-Join Flag
 ###
 
-PATCH {{apiUrl}}/organizations/{{testOrgId}}/policy
+PATCH {{apiUrl}}/organizations/{{testOrgId}}
 Content-Type: application/json
 
 {
-  "auto_join": false
+  "flags": {
+    "auto_join": false
+  }
 }
 
 # Expected: 200 OK
 # {
-#   "auto_join": false
+#   "flags": {"auto_join": false, ...}
 # }
 
 # Now users with verified domain emails will NOT be auto-added
 # They must be explicitly invited
+
+
+###
+# Test 11: Test domains_only Enforcement
+###
+
+# When domains_only=true, only users with verified domain emails can access the org
+
+# Step 1: Set domains_only flag
+PATCH {{apiUrl}}/organizations/{{testOrgId}}
+Content-Type: application/json
+
+{
+  "flags": {
+    "domains_only": true
+  }
+}
+
+# Expected: 200 OK
+
+# Step 2: User with non-verified domain tries to access
+# Expected: 403 AUTH_DOMAIN_DENIED
+# {
+#   "error": "AUTH_DOMAIN_DENIED",
+#   "message": "Your email domain 'gmail.com' is not allowed for this organization"
+# }
+
+# Step 3: User with verified domain (acme.com) accesses
+# Expected: 200 OK (access granted)
+
+
+###
+# Test 12: Invitation Validation with domains_only
+###
+
+# When domains_only=true, invitations to non-verified domains should be blocked
+
+POST {{apiUrl}}/organizations/{{testOrgId}}/invitations
+Content-Type: application/json
+
+{
+  "email": "user@gmail.com"
+}
+
+# Expected: 400 Bad Request
+# {
+#   "error": "Cannot invite user@gmail.com: domain 'gmail.com' is not a verified domain for this organization"
+# }
+
+POST {{apiUrl}}/organizations/{{testOrgId}}/invitations
+Content-Type: application/json
+
+{
+  "email": "user@acme.com"
+}
+
+# Expected: 201 Created (invitation sent)

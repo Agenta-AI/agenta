@@ -56,7 +56,7 @@ async def send_email(
 
     # No-op if SendGrid is disabled
     if not env.sendgrid.enabled:
-        log.info(f"Email disabled - would send '{subject}' to {to_email}")
+        log.info(f"[SENDGRID] Email disabled - would send '{subject}' to {to_email}")
         return True
 
     message = Mail(

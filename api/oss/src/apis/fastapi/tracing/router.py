@@ -243,6 +243,10 @@ class TracingRouter:
                     query=merged_query,
                 )
             except FilteringException as e:
+                log.error(
+                    "Error in filtering conditions while querying spans",
+                    exc_info=True,
+                )
                 raise HTTPException(
                     status_code=400,
                     detail=str(e),
@@ -695,8 +699,6 @@ class TracingRouter:
                 status_code=400,
                 detail="Too many root spans",
             )
-
-        log.debug(f"Editing trace {trace_id} with {len(spans)} spans.")
 
         try:
             links = await self._upsert(

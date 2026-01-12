@@ -704,7 +704,7 @@ export function DrillInContent({
 
                                 {/* Field content - collapsible */}
                                 {!isCollapsed && (
-                                    <div>
+                                    <div className="drill-in-field-content">
                                         {renderFieldContent({
                                             item,
                                             stringValue,

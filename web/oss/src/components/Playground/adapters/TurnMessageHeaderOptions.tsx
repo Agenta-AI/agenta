@@ -3,6 +3,7 @@ import {memo, useCallback, useMemo, useState} from "react"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {
     ArrowClockwise,
+    ArrowsOutLineHorizontal,
     CaretDown,
     CaretUp,
     Check,
@@ -22,8 +23,10 @@ import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/com
 import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import TestsetDrawerButton from "@/oss/components/Playground/Components/Drawers/TestsetDrawer"
+import RepetitionNavigation from "@/oss/components/Playground/Components/PlaygroundGenerations/assets/RepetitionNavigation"
 
 export interface TurnMessageHeaderOptionsProps {
+    id: string
     className?: string
     messageId?: string
     text?: any
@@ -37,6 +40,8 @@ export interface TurnMessageHeaderOptionsProps {
     hideAddToTestset?: boolean
     viewOnly?: boolean
     resultHashes?: string[]
+    repetitionProps?: any
+    onViewAllRepeats?: () => void
     actions?: {
         onRerun?: () => void
         onDelete?: () => void
@@ -77,9 +82,11 @@ const TurnMessageHeaderOptions = ({
     hideMarkdownToggle,
     viewOnly,
     resultHashes,
-    actions,
     children,
     hideAddToTestset = false,
+    repetitionProps,
+    onViewAllRepeats,
+    actions,
     ...props
 }: TurnMessageHeaderOptionsProps) => {
     const [editor] = useLexicalComposerContext()
@@ -160,6 +167,15 @@ const TurnMessageHeaderOptions = ({
                 className,
             )}
         >
+            {repetitionProps && <RepetitionNavigation {...repetitionProps} />}
+            <EnhancedButton
+                icon={<ArrowsOutLineHorizontal size={12} />}
+                size="small"
+                type="text"
+                className="!w-5 !h-5"
+                onClick={onViewAllRepeats}
+                tooltipProps={{title: "Expand results"}}
+            />
             {onRerun ? (
                 <EnhancedButton
                     icon={<ArrowClockwise size={14} />}

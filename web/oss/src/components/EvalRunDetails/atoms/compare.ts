@@ -168,7 +168,20 @@ export const deriveRunComparisonStructure = ({
 }
 
 /** Terminal statuses that allow comparison */
-const TERMINAL_STATUSES = new Set(["success", "failure", "errors", "cancelled"])
+export const TERMINAL_STATUSES = new Set([
+    "success",
+    "failure",
+    "failed",
+    "errors",
+    "cancelled",
+    "completed",
+    "finished",
+    "ok",
+    "evaluation_finished",
+    "evaluation_finished_with_errors",
+    "evaluation_failed",
+    "evaluation_aggregation_failed",
+])
 
 /** Check if a status is terminal (run has finished) */
 export const isTerminalStatus = (status: string | undefined | null): boolean => {

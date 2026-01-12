@@ -48,7 +48,7 @@ let result = evaluate(app_params, inputs, output, correct_answer);
 // Ensure result is a number
 result = Number(result);
 if (!Number.isFinite(result)) {{
-    result = 0.0;
+    result = null;
 }}
 
 // Print result for capture
@@ -71,7 +71,7 @@ let result = evaluate(app_params, inputs, output, correct_answer);
 // Ensure result is a number
 result = Number(result);
 if (!Number.isFinite(result)) {{
-    result = 0.0;
+    result = null;
 }}
 
 // Print result for capture

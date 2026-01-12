@@ -5,7 +5,6 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 class Organization(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
     id: UUID
     slug: Optional[str] = None
     #
@@ -22,6 +21,8 @@ class Organization(BaseModel):
     invitations: List = Field(default_factory=list)
     workspaces: List[str] = Field(default_factory=list)
 
+    model_config = ConfigDict(from_attributes=True)
+
 
 class CreateOrganization(BaseModel):
     name: Optional[str] = None
@@ -35,14 +36,18 @@ class CreateOrganization(BaseModel):
 
 class OrganizationUpdate(BaseModel):
     slug: Optional[str] = None
+
     name: Optional[str] = None
     description: Optional[str] = None
+
     flags: Optional[Dict[str, Any]] = None
+
     updated_at: Optional[str] = None
 
 
 class OrganizationOutput(BaseModel):
     id: str
+
     name: Optional[str] = None
 
 

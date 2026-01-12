@@ -127,10 +127,7 @@ const SendOTP = ({
             >
                 {message.type == "error" && <ShowErrorMessage info={message} />}
 
-                <Form.Item
-                    name="email"
-                    className="w-full mb-0 flex flex-col gap-1"
-                >
+                <Form.Item name="email" className="w-full mb-0 flex flex-col gap-1">
                     <Input
                         size="large"
                         type="email"

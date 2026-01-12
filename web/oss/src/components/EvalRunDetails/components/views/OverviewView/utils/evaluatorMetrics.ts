@@ -92,7 +92,9 @@ export const buildEvaluatorMetricEntries = (
                     if (!rawKey) return
                     const canonicalKey = canonicalizeMetricKey(rawKey)
                     if (hasSchema && !allowedCanonicalKeys.has(canonicalKey)) {
-                        return
+                        if (!rawKey.startsWith("attributes.ag.data.outputs.")) {
+                            return
+                        }
                     }
                     if (!unique.has(canonicalKey)) {
                         const fallbackDefinition = fallbackByCanonicalKey.get(canonicalKey)

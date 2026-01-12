@@ -162,8 +162,9 @@ export interface TableExportColumnContext<Row extends InfiniteTableRowBase> {
     columnIndex: number
 }
 
-export interface TableExportValueArgs<Row extends InfiniteTableRowBase>
-    extends TableExportColumnContext<Row> {
+export interface TableExportValueArgs<
+    Row extends InfiniteTableRowBase,
+> extends TableExportColumnContext<Row> {
     row: Row
 }
 
@@ -176,16 +177,19 @@ export interface TableExportOptions<Row extends InfiniteTableRowBase> {
     beforeExport?: (rows: Row[]) => void | Row[] | Promise<void | Row[]>
     resolveValue?: (args: TableExportResolveArgs<Row>) => unknown | Promise<unknown>
     resolveColumnLabel?: (context: TableExportColumnContext<Row>) => string | undefined
+    columnsOverride?: ColumnsType<Row>
 }
 
-export interface TableExportParams<Row extends InfiniteTableRowBase>
-    extends TableExportOptions<Row> {
+export interface TableExportParams<
+    Row extends InfiniteTableRowBase,
+> extends TableExportOptions<Row> {
     columns: ColumnsType<Row>
     rows: Row[]
 }
 
-export interface TableExportResolveArgs<Row extends InfiniteTableRowBase>
-    extends TableExportValueArgs<Row> {
+export interface TableExportResolveArgs<
+    Row extends InfiniteTableRowBase,
+> extends TableExportValueArgs<Row> {
     rowIndex: number
     columnKey: string
     columnIdentifier: string

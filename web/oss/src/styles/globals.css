@@ -414,3 +414,9 @@ body {
 .agenta-testcase-table .ant-table-thead th:hover .group .opacity-0 {
     opacity: 1;
 }
+
+/* Danger dropdown menu item hover state */
+.ant-dropdown-menu-item-danger:hover {
+    background-color: #d0574e !important;
+    border-color: #ffccc7 !important;
+}

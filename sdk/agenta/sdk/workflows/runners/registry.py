@@ -19,7 +19,7 @@ def get_runner() -> CodeRunner:
     Registry to get the appropriate code runner based on environment configuration.
 
     Uses AGENTA_SERVICES_SANDBOX_RUNNER environment variable:
-    - "local" (default): Uses RestrictedPython for local execution
+    - "local" (default): Uses current container for local execution
     - "daytona": Uses Daytona remote sandbox
 
     Returns:

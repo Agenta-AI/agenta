@@ -1,11 +1,12 @@
 import {useCallback, useMemo} from "react"
 
-import {getDefaultStore} from "jotai"
+import {getDefaultStore, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
+import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {queryClient} from "@/oss/lib/api/queryClient"
+import {isDemo} from "@/oss/lib/helpers/utils"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
@@ -13,6 +14,7 @@ import {isPersonalOrg, resolvePreferredWorkspaceId} from "@/oss/state/org/select
 import {useProfileData} from "@/oss/state/profile"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {useProjectData} from "@/oss/state/project"
+import {authFlowAtom} from "@/oss/state/session"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 interface AuthUserLike {
@@ -31,8 +33,10 @@ const usePostAuthRedirect = () => {
     const {refetch: resetProfileData} = useProfileData()
     const {refetch: resetOrgData} = useOrgData()
     const {reset: resetProjectData} = useProjectData()
+    const setAuthFlow = useSetAtom(authFlowAtom)
     const [invite] = useLocalStorage<Record<string, unknown>>("invite", {})
     const authUpgradeOrgKey = "authUpgradeOrgId"
+    const lastSsoOrgSlugKey = "lastSsoOrgSlug"
 
     const hasInviteFromQuery = useMemo(() => {
         const token = router.query?.token
@@ -57,6 +61,8 @@ const usePostAuthRedirect = () => {
 
     const handleAuthSuccess = useCallback(
         async (authResult: AuthUserLike, options?: HandleAuthSuccessOptions) => {
+            // Auth completed successfully; resume normal data fetching.
+            setAuthFlow("authed")
             const isInvitedUser = options?.isInvitedUser ?? derivedIsInvitedUser
             const loginMethodCount = authResult?.user?.loginMethods?.length ?? 0
             const isNewUser =
@@ -129,10 +135,66 @@ const usePostAuthRedirect = () => {
                     queryFn: () => fetchAllOrgsList(),
                     staleTime: 60_000,
                 })
+                let lastSsoSlug =
+                    typeof window !== "undefined"
+                        ? window.localStorage.getItem(lastSsoOrgSlugKey)
+                        : null
+                try {
+                    const payload = await Session.getAccessTokenPayloadSecurely()
+                    const sessionIdentities =
+                        payload?.session_identities || payload?.sessionIdentities || []
+                    const ssoIdentity = Array.isArray(sessionIdentities)
+                        ? sessionIdentities.find((identity: string) => identity.startsWith("sso:"))
+                        : null
+                    if (!ssoIdentity) {
+                        // Social/email logins should not reuse a stale SSO target from storage.
+                        if (typeof window !== "undefined") {
+                            window.localStorage.removeItem(lastSsoOrgSlugKey)
+                        }
+                        lastSsoSlug = null
+                    } else if (!lastSsoSlug) {
+                        const [, orgSlug] = ssoIdentity.split(":")
+                        if (orgSlug) {
+                            lastSsoSlug = orgSlug
+                        }
+                    }
+                } catch {
+                    // ignore payload lookup failures
+                }
+                if (lastSsoSlug) {
+                    const match = Array.isArray(freshOrgs)
+                        ? freshOrgs.find((org) => org.slug === lastSsoSlug)
+                        : null
+                    if (match?.id && match.flags?.allow_sso) {
+                        // If we just completed an SSO flow, prefer the SSO org over Personal.
+                        // This avoids a brief redirect to Personal that can trigger
+                        // "requires email/social" when the session only has sso:*.
+                        window.localStorage.removeItem(lastSsoOrgSlugKey)
+                        await router.replace(`/w/${encodeURIComponent(match.id)}`)
+                        return
+                    }
+                    if (match?.id && !match.flags?.allow_sso) {
+                        // SSO succeeded but the org is not SSO-enabled: sign out and return to /auth.
+                        window.localStorage.removeItem(lastSsoOrgSlugKey)
+                        const query = new URLSearchParams({
+                            auth_error: "sso_denied",
+                            auth_message:
+                                "SSO was successful but is currently disabled for this organization. Please sign in using another method or contact your administrator.",
+                        })
+                        try {
+                            await signOut()
+                        } catch {
+                            // ignore sign-out failures
+                        }
+                        await router.replace(`/auth?${query.toString()}`)
+                        return
+                    }
+                }
                 const personal = Array.isArray(freshOrgs)
                     ? freshOrgs.find((org) => isPersonalOrg(org))
                     : null
                 if (personal?.id) {
+                    // Fallback only if no SSO-specific org was selected above.
                     await router.replace(`/w/${encodeURIComponent(personal.id)}`)
                     return
                 }

@@ -1,9 +1,9 @@
-import React from "react"
 import {memo, useCallback, useEffect, useRef} from "react"
 
-import {Typography, Button, Splitter} from "antd"
+import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {chatTurnIdsAtom} from "@/oss/state/generation/entities"
@@ -14,9 +14,9 @@ import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
 import {
+    appChatModeAtom,
     displayedVariantsAtom,
     isComparisonViewAtom,
-    appChatModeAtom,
     selectedVariantsAtom,
 } from "../../state/atoms"
 import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"
@@ -27,6 +27,9 @@ import PlaygroundGenerations from "../PlaygroundGenerations"
 import PromptComparisonVariantNavigation from "../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import type {BaseContainerProps} from "../types"
+const PlaygroundFocusDrawer = dynamic(() => import("../Drawers/FocusDrawer"), {
+    ssr: false,
+})
 
 import ComparisonVariantConfigSkeleton from "./assets/ComparisonVariantConfigSkeleton"
 import ComparisonVariantNavigationSkeleton from "./assets/ComparisonVariantNavigationSkeleton"
@@ -275,6 +278,7 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
                         </section>
                     </SplitterPanel>
                 </Splitter>
+                <PlaygroundFocusDrawer />
             </div>
         </main>
     )

@@ -1,14 +1,15 @@
 import {atom, getDefaultStore} from "jotai"
 import Router from "next/router"
+import {signOut} from "supertokens-auth-react/recipe/session"
 
+import {queryClient} from "@/oss/lib/api/queryClient"
+import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {
     appIdentifiersAtom,
     appStateSnapshotAtom,
     navigationRequestAtom,
     requestNavigationAtom,
 } from "@/oss/state/appState"
-import {queryClient} from "@/oss/lib/api/queryClient"
-import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {isPersonalOrg, orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
@@ -117,7 +118,10 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         const path = resolvedPath
         const asPath = resolvedAsPath
         const isAuthRoute = path.startsWith("/auth")
+        const isAuthCallbackRoute = path.startsWith("/auth/callback")
         const isAcceptRoute = path.startsWith("/workspaces/accept")
+        const authError =
+            typeof appState.query?.auth_error === "string" ? appState.query.auth_error : null
         const baseAppURL = urlState.baseAppURL || "/w"
 
         let invite = parseInviteFromUrl(url)
@@ -137,19 +141,28 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         }
 
         if (isSignedIn) {
+            if (isAuthCallbackRoute) {
+                store.set(protectedRouteReadyAtom, false)
+                return
+            }
             if (typeof window !== "undefined") {
                 const upgradeOrgId = window.localStorage.getItem("authUpgradeOrgId")
                 const identifiers = store.get(appIdentifiersAtom)
                 const currentWorkspaceId = identifiers.workspaceId
-                if (upgradeOrgId && upgradeOrgId !== currentWorkspaceId) {
-                    void Router.replace(`/w/${encodeURIComponent(upgradeOrgId)}`).catch(
-                        (error) => {
-                            console.error(
-                                "Failed to redirect authenticated user to upgrade org:",
-                                error,
-                            )
-                        },
-                    )
+                const upgradePath = upgradeOrgId ? `/w/${encodeURIComponent(upgradeOrgId)}` : null
+                const alreadyOnUpgradePath =
+                    Boolean(upgradePath) && path.startsWith(upgradePath as string)
+
+                if (upgradeOrgId && alreadyOnUpgradePath) {
+                    window.localStorage.removeItem("authUpgradeOrgId")
+                    window.localStorage.removeItem("authUpgradeSessionIdentities")
+                } else if (upgradeOrgId && upgradeOrgId !== currentWorkspaceId) {
+                    void Router.replace(`/w/${encodeURIComponent(upgradeOrgId)}`).catch((error) => {
+                        console.error(
+                            "Failed to redirect authenticated user to upgrade org:",
+                            error,
+                        )
+                    })
                     store.set(protectedRouteReadyAtom, false)
                     return
                 }
@@ -172,6 +185,13 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             }
 
             if (isAuthRoute) {
+                if (authError === "sso_denied") {
+                    if (typeof window !== "undefined") {
+                        signOut().catch(() => null)
+                    }
+                    store.set(protectedRouteReadyAtom, true)
+                    return
+                }
                 if (typeof window !== "undefined") {
                     const upgradeOrgId = window.localStorage.getItem("authUpgradeOrgId")
                     if (upgradeOrgId) {
@@ -188,7 +208,9 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     }
                 }
                 const orgs = store.get(orgsAtom)
-                const personalOrg = Array.isArray(orgs) ? orgs.find((org) => isPersonalOrg(org)) : null
+                const personalOrg = Array.isArray(orgs)
+                    ? orgs.find((org) => isPersonalOrg(org))
+                    : null
                 if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
                     console.log("[auth-redirect] orgs snapshot", {
                         count: Array.isArray(orgs) ? orgs.length : 0,

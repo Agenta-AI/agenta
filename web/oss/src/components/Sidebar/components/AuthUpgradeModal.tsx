@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useMemo, useRef, useState} from "react"
 
 import {
     AppleOutlined,
@@ -9,12 +9,14 @@ import {
     TwitterOutlined,
     GlobalOutlined,
 } from "@ant-design/icons"
-import {Alert, Divider, Modal, Typography} from "antd"
+import {Alert, Button, Divider, Modal, Typography} from "antd"
+import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
 import EmailPasswordSignIn from "@/oss/components/pages/auth/EmailPasswordSignIn"
 import PasswordlessAuth from "@/oss/components/pages/auth/PasswordlessAuth"
 import SendOTP from "@/oss/components/pages/auth/SendOTP"
 import SocialAuth from "@/oss/components/pages/auth/SocialAuth"
+import {getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {getEffectiveAuthConfig} from "@/oss/lib/helpers/dynamicEnv"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
@@ -27,6 +29,11 @@ export interface AuthUpgradeDetail {
     required_methods?: string[]
     session_identities?: string[]
     user_identities?: string[]
+    sso_providers?: {
+        id: string
+        slug: string
+        third_party_id?: string
+    }[]
 }
 
 interface AuthUpgradeModalProps {
@@ -42,13 +49,17 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
     const [isLoading, setIsLoading] = useState(false)
     const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
+    const [isSsoAuthLoading, setIsSsoAuthLoading] = useState(false)
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
     const [email, setEmail] = useState(user?.email ?? "")
+    const ssoRedirectInFlight = useRef(false)
 
     const requiredMethods = detail?.required_methods ?? []
     const detailMessage = typeof detail?.message === "string" ? detail.message : ""
     const requiresEmail = requiredMethods.some((method) => method.startsWith("email:"))
     const requiresSocial = requiredMethods.some((method) => method.startsWith("social:"))
+    const requiresSso = requiredMethods.some((method) => method.startsWith("sso:"))
+    const ssoProviders = detail?.sso_providers ?? []
 
     const oidcProviderMeta = [
         {id: "google", label: "Google", icon: <GoogleOutlined />},
@@ -72,7 +83,60 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
     }, [oidcProviders])
 
     const showEmail = authEmailEnabled && (requiresEmail || requiredMethods.length === 0)
-    const showSocial = authOidcEnabled && providersToShow.length > 0 && (requiresSocial || requiredMethods.length === 0)
+    const showSocial =
+        authOidcEnabled &&
+        providersToShow.length > 0 &&
+        (requiresSocial || requiredMethods.length === 0)
+    const showSso = ssoProviders.length > 0 && (requiresSso || requiredMethods.length === 0)
+
+    const formatSsoProviderLabel = (provider: {slug: string; third_party_id?: string}) => {
+        if (provider.third_party_id?.startsWith("sso:")) {
+            return provider.third_party_id.replace(/^sso:/, "")
+        }
+        return provider.slug
+    }
+
+    const parseSsoOrgSlug = (thirdPartyId?: string): string | null => {
+        if (!thirdPartyId) return null
+        if (!thirdPartyId.startsWith("sso:")) return null
+        const [, orgSlug] = thirdPartyId.split(":")
+        return orgSlug || null
+    }
+
+    const redirectToSsoProvider = async (provider: {
+        id: string
+        slug: string
+        third_party_id?: string
+    }) => {
+        if (isSsoAuthLoading || isLoading || isSocialAuthLoading || ssoRedirectInFlight.current) {
+            return
+        }
+        ssoRedirectInFlight.current = true
+        setIsSsoAuthLoading(true)
+
+        try {
+            if (!provider.third_party_id) {
+                throw new Error("SSO provider is missing a third_party_id")
+            }
+            // Persist the org slug so post-auth redirect can send the user to the
+            // intended SSO org instead of briefly landing on Personal.
+            const orgSlug = parseSsoOrgSlug(provider.third_party_id)
+            if (orgSlug && typeof window !== "undefined") {
+                window.localStorage.setItem("lastSsoOrgSlug", orgSlug)
+            }
+            const callbackUrl = `${getAgentaWebUrl()}/auth/callback/${provider.third_party_id}`
+            const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
+                thirdPartyId: provider.third_party_id,
+                frontendRedirectURI: callbackUrl,
+                redirectURIOnProviderDashboard: callbackUrl,
+            })
+            window.location.href = authUrl
+        } catch (err) {
+            ssoRedirectInFlight.current = false
+            setIsSsoAuthLoading(false)
+            authErrorMsg(err)
+        }
+    }
 
     const authErrorMsg = (error: any) => {
         if (error.isSuperTokensGeneralError === true) {
@@ -102,17 +166,30 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
         >
             <div className="flex flex-col gap-4">
                 {organizationName && (
-                    <Text>
-                        {organizationName} requires additional authentication to continue.
-                    </Text>
+                    <Text>{organizationName} requires additional authentication to continue.</Text>
                 )}
-                {detailMessage && (
-                    <Alert
-                        showIcon
-                        message={detailMessage}
-                        type="warning"
-                    />
+                {detailMessage && <Alert showIcon message={detailMessage} type="warning" />}
+                {showSso && (
+                    <>
+                        <div className="flex flex-col gap-2">
+                            {ssoProviders.map((provider) => (
+                                <Button
+                                    key={provider.id}
+                                    icon={<GlobalOutlined />}
+                                    size="large"
+                                    className="w-full"
+                                    onClick={() => redirectToSsoProvider(provider)}
+                                    loading={isSsoAuthLoading}
+                                    disabled={isLoading || isSocialAuthLoading}
+                                >
+                                    Continue with SSO ({formatSsoProviderLabel(provider)})
+                                </Button>
+                            ))}
+                        </div>
+                        {(showSocial || showEmail) && <Divider className="!my-2">or</Divider>}
+                    </>
                 )}
+
                 {showSocial && (
                     <>
                         <SocialAuth
@@ -162,7 +239,7 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
                     />
                 )}
 
-                {!showEmail && !showSocial && (
+                {!showEmail && !showSocial && !showSso && (
                     <Alert
                         showIcon
                         message="No authentication methods are configured for this organization."

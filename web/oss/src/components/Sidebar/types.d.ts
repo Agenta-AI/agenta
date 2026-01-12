@@ -16,6 +16,7 @@ export interface SidebarConfig {
     divider?: boolean
     header?: boolean
     disabled?: boolean
+    danger?: boolean
 }
 
 export interface SidebarMenuProps {

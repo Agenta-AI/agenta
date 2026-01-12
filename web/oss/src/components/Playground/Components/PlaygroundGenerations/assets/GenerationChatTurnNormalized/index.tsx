@@ -1,6 +1,5 @@
 import {useCallback, useMemo} from "react"
 
-// antd imports not needed here
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -12,20 +11,25 @@ import {ClickRunPlaceholder} from "@/oss/components/Playground/Components/Playgr
 import {useAssistantDisplayValue} from "@/oss/components/Playground/hooks/chat/useAssistant"
 import useEffectiveRevisionId from "@/oss/components/Playground/hooks/chat/useEffectiveRevisionId"
 import useHasAssistantContent from "@/oss/components/Playground/hooks/chat/useHasAssistantContent"
+import {useRepetitionResult} from "@/oss/components/Playground/hooks/useRepetitionResult"
 import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 import {resolvedGenerationResultAtomFamily} from "@/oss/components/Playground/state/atoms/generationProperties"
+import {messageSchemaMetadataAtom} from "@/oss/state/generation/entities"
 import {assistantMessageAtomFamily, chatTurnAtomFamily} from "@/oss/state/generation/selectors"
 import {
     addChatTurnAtom,
-    runChatTurnAtom,
     cancelChatTurnAtom,
+    runChatTurnAtom,
 } from "@/oss/state/newPlayground/chat/actions"
+import {buildAssistantMessage} from "@/oss/state/newPlayground/helpers/messageFactory"
 
 interface Props {
     turnId: string
     variantId?: string
     withControls?: boolean
     className?: string
+    hideUserMessage?: boolean
+    messageProps?: any
 }
 
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {ssr: false})
@@ -58,6 +62,21 @@ const GenerationChatTurnNormalized = ({
     const {isRunning, result: inlineResult} = useAtomValue(genResultAtom) as any
     const result = inlineResult
 
+    const {currentResult, repetitionIndex, repetitionProps} = useRepetitionResult({
+        rowId: resolvedTurnId || turnId,
+        variantId: variantId as string,
+        result,
+    })
+
+    const messageSchema = useAtomValue(messageSchemaMetadataAtom)
+
+    const messageOverride = useMemo(() => {
+        if (Array.isArray(result) && result.length > 0) {
+            return buildAssistantMessage(messageSchema, currentResult)
+        }
+        return undefined
+    }, [result, currentResult, messageSchema])
+
     const onRun = useCallback(() => {
         runTurn({turnId, variantId: variantId as string | undefined})
     }, [runTurn, turnId, variantId, effectiveRevisionId, resolvedTurnId])
@@ -88,7 +107,10 @@ const GenerationChatTurnNormalized = ({
         ),
     ) as any
 
-    const displayAssistantValue = useAssistantDisplayValue(assistantMsg, result)
+    const displayAssistantValue = useAssistantDisplayValue(
+        messageOverride || assistantMsg,
+        currentResult,
+    )
 
     const turnState = useAtomValue(useMemo(() => chatTurnAtomFamily(sessionRowId), [sessionRowId]))
 
@@ -99,7 +121,7 @@ const GenerationChatTurnNormalized = ({
     }, [turnState, variantId])
 
     const hasAssistantContent = useHasAssistantContent(
-        assistantMsg as any,
+        (messageOverride || assistantMsg) as any,
         displayAssistantValue,
         toolMessages.length > 0,
     )
@@ -132,13 +154,24 @@ const GenerationChatTurnNormalized = ({
             ) : hasAssistantContent ? (
                 <>
                     <TurnMessageAdapter
+                        key={`${sessionRowId}-assistant-${repetitionIndex}`}
                         variantId={variantId as string}
                         rowId={sessionRowId}
                         kind="assistant"
                         className="w-full"
                         headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
-                        footer={result ? <GenerationResultUtils result={result as any} /> : null}
+                        footer={
+                            <div className="w-full flex justify-between items-center mt-2 gap-2">
+                                {currentResult ? (
+                                    <GenerationResultUtils result={currentResult as any} />
+                                ) : (
+                                    <div />
+                                )}
+                            </div>
+                        }
                         messageProps={messageProps}
+                        messageOverride={messageOverride}
+                        repetitionProps={repetitionProps}
                     />
                     {variantId
                         ? toolMessages.map((_, index) => (

@@ -1,10 +1,10 @@
 ###
-# Organization Policy Enforcement Tests (EE Only)
-# Tests the OrganizationPolicyMiddleware and auth upgrade requirements
+# Organization Flag Enforcement Tests (EE Only)
+# Tests the auth flag enforcement and auth upgrade requirements
 #
 # Prerequisites:
 # 1. AGENTA_LICENSE=ee
-# 2. Organizations set up with different policies
+# 2. Organizations set up with different flag configurations
 # 3. Users with various authentication methods
 ###
 
@@ -57,11 +57,11 @@ Accept: application/json
 
 
 ###
-# Scenario 3: Organization allows multiple methods
+# Scenario 3: Organization allows multiple methods (via flags)
 ###
 
 ### Setup:
-# Organization policy: allowed_methods = ["email:otp", "social:*", "sso:*"]
+# Organization flags: allow_email=true, allow_social=true, allow_sso=true
 
 ### Test: Access with any valid method
 # User with identities=["email:otp"] should be allowed
@@ -76,11 +76,11 @@ Accept: application/json
 ###
 
 ### Test: Request without organization context
-# Middleware should skip policy check
+# Middleware should skip flag enforcement
 GET {{apiUrl}}/health
 Accept: application/json
 
-# Expected: 200 OK (no policy enforcement)
+# Expected: 200 OK (no flag enforcement)
 
 
 ###
@@ -102,11 +102,11 @@ Accept: application/json
 
 
 ###
-# Scenario 6: Organization has no policy (default allow)
+# Scenario 6: Organization has default flags (all methods allowed)
 ###
 
 ### Setup:
-# No record in organization_policies for this organization
+# Organization flags: allow_email=true (default), allow_social=true (default)
 
 ### Test: Access should work with any auth method
 GET {{apiUrl}}/projects?organization_id={{organizationId}}
@@ -116,45 +116,99 @@ Accept: application/json
 
 
 ###
-# Scenario 7: Wildcard Method Matching
+# Scenario 7: Owner Bypass (allow_root=true)
 ###
 
-### Test 1: Policy allows "social:*"
-# User with "social:google" should match
-# User with "social:github" should match
-# User with "email:otp" should NOT match
+### Setup:
+# Organization flags: allow_email=false, allow_social=false, allow_sso=true, allow_root=true
+# User is owner of organization
 
-### Test 2: Policy allows "sso:acme:*"
-# User with "sso:acme:okta" should match
-# User with "sso:acme:azure" should match
-# User with "sso:other:okta" should NOT match
+### Test: Owner accesses with email:otp (normally blocked method)
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
+Accept: application/json
+
+# Expected: 200 OK (owner bypasses all auth restrictions when allow_root=true)
 
 
 ###
-# Testing Policy Enforcement Logic
+# Scenario 8: domains_only Enforcement
 ###
 
-# SQL to set different policies:
+### Setup:
+# Organization flags: domains_only=true
+# Verified domain: acme.com
+# User email: user@gmail.com
 
-# Policy 1: SSO Only
-# UPDATE organization_policies
-# SET allowed_methods = ARRAY['sso:*']
-# WHERE organization_id = '<orgId>';
+### Test: User with non-verified domain tries to access
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
+Accept: application/json
 
-# Policy 2: Email or Social (no SSO)
-# UPDATE organization_policies
-# SET allowed_methods = ARRAY['email:*', 'social:*']
-# WHERE organization_id = '<orgId>';
+# Expected: 403 AUTH_DOMAIN_DENIED
+# {
+#   "error": "AUTH_DOMAIN_DENIED",
+#   "message": "Your email domain 'gmail.com' is not allowed for this organization",
+#   "current_domain": "gmail.com",
+#   "allowed_domains": ["acme.com"]
+# }
 
-# Policy 3: Specific SSO provider only
-# UPDATE organization_policies
-# SET allowed_methods = ARRAY['sso:acme:okta']
-# WHERE organization_id = '<orgId>';
 
-# Policy 4: Everything allowed
-# UPDATE organization_policies
-# SET allowed_methods = ARRAY['email:*', 'social:*', 'sso:*']
-# WHERE organization_id = '<orgId>';
+###
+# Scenario 9: SSO Provider Disabled
+###
+
+### Setup:
+# User has session with sso:acme:okta identity
+# Admin sets provider flags.is_active=false
+
+### Test: User tries to access SSO-only org
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
+Accept: application/json
+
+# Expected: 403 AUTH_SSO_DENIED
+# {
+#   "error": "AUTH_SSO_DENIED",
+#   "message": "SSO provider is disabled or no longer valid"
+# }
+
+
+###
+# Testing Flag Configurations
+###
+
+# SQL to set different flag configurations:
+
+# Config 1: SSO Only
+# UPDATE organizations
+# SET flags = jsonb_set(jsonb_set(jsonb_set(flags,
+#   '{allow_email}', 'false'),
+#   '{allow_social}', 'false'),
+#   '{allow_sso}', 'true')
+# WHERE id = '<orgId>';
+
+# Config 2: Email or Social (no SSO)
+# UPDATE organizations
+# SET flags = jsonb_set(jsonb_set(jsonb_set(flags,
+#   '{allow_email}', 'true'),
+#   '{allow_social}', 'true'),
+#   '{allow_sso}', 'false')
+# WHERE id = '<orgId>';
+
+# Config 3: Everything allowed (default)
+# UPDATE organizations
+# SET flags = jsonb_set(jsonb_set(jsonb_set(flags,
+#   '{allow_email}', 'true'),
+#   '{allow_social}', 'true'),
+#   '{allow_sso}', 'true')
+# WHERE id = '<orgId>';
+
+# Config 4: SSO only with owner bypass
+# UPDATE organizations
+# SET flags = jsonb_set(jsonb_set(jsonb_set(jsonb_set(flags,
+#   '{allow_email}', 'false'),
+#   '{allow_social}', 'false'),
+#   '{allow_sso}', 'true'),
+#   '{allow_root}', 'true')
+# WHERE id = '<orgId>';
 
 
 ###
@@ -167,10 +221,17 @@ Accept: application/json
 # WHERE ui.user_id = '<userId>'
 # ORDER BY ui.created_at;
 
-# Check organization policy
-# SELECT allowed_methods
-# FROM organization_policies
-# WHERE organization_id = '<orgId>';
+# Check organization flags
+# SELECT
+#   id,
+#   name,
+#   flags->'allow_email' as allow_email,
+#   flags->'allow_social' as allow_social,
+#   flags->'allow_sso' as allow_sso,
+#   flags->'allow_root' as allow_root,
+#   flags->'domains_only' as domains_only
+# FROM organizations
+# WHERE id = '<orgId>';
 
 # Check if user is organization member
 # SELECT EXISTS (
@@ -180,20 +241,25 @@ Accept: application/json
 #     AND organization_id = '<orgId>'
 # ) as is_member;
 
+# Check if user is owner
+# SELECT owner_id = '<userId>' as is_owner
+# FROM organizations
+# WHERE id = '<orgId>';
+
 
 ###
-# Middleware Bypass Routes (Should NOT Check Policy)
+# Middleware Bypass Routes (Should NOT Check Flags)
 ###
 
-### Auth routes (no policy check)
+### Auth routes (no flag check)
 GET {{apiUrl}}/auth/discover
 Accept: application/json
 
-### Health check (no policy check)
+### Health check (no flag check)
 GET {{apiUrl}}/health
 Accept: application/json
 
-### Public routes (no policy check)
+### Public routes (no flag check)
 GET {{apiUrl}}/public/status
 Accept: application/json
 
@@ -203,40 +269,61 @@ Accept: application/json
 ###
 
 # 1. User session has no identities array
-#    → Should treat as empty, enforce policy
+#    → Should treat as empty, enforce flags
 
-# 2. Policy has empty allowed_methods array
-#    → Should block all access
+# 2. All allow_* flags are false
+#    → System auto-enables allow_root to prevent lockout
+#    → Owner can still access
 
 # 3. User has multiple identities, only one matches
 #    → Should allow access (OR logic)
 
-# 4. Organization deleted but policy remains
+# 4. Organization deleted but membership remains
 #    → Should handle gracefully
 
-# 5. Concurrent policy updates during request
-#    → Should use consistent policy snapshot
+# 5. Concurrent flag updates during request
+#    → Should use consistent flag snapshot
+
+
+###
+# Error Codes Summary
+###
+
+# AUTH_UPGRADE_REQUIRED
+# - Trigger: User's session identities don't match any allowed method
+# - Response: 403 with required_methods list
+# - User action: Complete additional authentication
+
+# AUTH_SSO_DENIED
+# - Trigger: SSO provider is disabled (flags.is_active=false)
+# - Response: 403 with message
+# - User action: Contact admin or use different auth method
+
+# AUTH_DOMAIN_DENIED
+# - Trigger: User's email domain not in verified domains list (when domains_only=true)
+# - Response: 403 with allowed_domains list
+# - User action: Use email from verified domain or contact admin
 
 
 ###
 # Common Issues & Debugging
 ###
 
-# Issue: Policy not enforced
+# Issue: Flags not enforced
 # Check:
 # - Middleware is registered in FastAPI app
 # - Request includes organization_id param
 # - AGENTA_LICENSE=ee
-# - organization_policies table has data
+# - organizations.flags contains auth flags
 
-# Issue: Wrong policy applied
+# Issue: Wrong flags applied
 # Check:
-# - organization_id in request matches policy org
+# - organization_id in request matches flags
 # - No caching issues
-# - Database query returns correct policy
+# - Database query returns correct organization
 
 # Issue: Session identities not checked
 # Check:
 # - Session payload includes "identities" array
 # - Middleware can verify session correctly
-# - matches_policy() function logic is correct
+# - check_organization_access() function logic is correct

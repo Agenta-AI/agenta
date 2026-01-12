@@ -69,7 +69,7 @@ broker = RedisStreamBroker(
 )
 
 
-# WORKERS ------------------------------------------------------------------
+# EVALSS ------------------------------------------------------------------
 # Instantiate workers (analogous to router instantiation in routers.py)
 
 tracing_dao = TracingDAO()
@@ -182,13 +182,13 @@ def main() -> int:
         Exit code (0 for success, non-zero for failure)
     """
     try:
-        log.info("[WORKER] Initializing Taskiq worker")
+        log.info("[EVAL] Initializing Taskiq worker")
 
         # Validate environment
         warn_deprecated_env_vars()
         validate_required_env_vars()
 
-        log.info("[WORKER] Starting Taskiq worker with Redis Streams")
+        log.info("[EVAL] Starting Taskiq worker with Redis Streams")
 
         # Run Taskiq worker
         # Broker and workers are instantiated above (like routes.py does for FastAPI)
@@ -204,10 +204,10 @@ def main() -> int:
         return result if result is not None else 0
 
     except KeyboardInterrupt:
-        log.info("[WORKER] Shutdown requested")
+        log.info("[EVAL] Shutdown requested")
         return 0
     except Exception as e:
-        log.error("[WORKER] Fatal error", error=str(e))
+        log.error("[EVAL] Fatal error", error=str(e))
         return 1
 
 
