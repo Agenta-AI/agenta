@@ -20,33 +20,31 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # CREATE INDEX CONCURRENTLY must run outside a transaction
-    conn = op.get_bind()
-    conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+    with op.get_context().autocommit_block():
+        # Index for projects -> subscriptions join
+        op.execute(
+            text("""
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_projects_organization_id
+            ON public.projects (organization_id);
+        """)
+        )
 
-    # Index for projects -> subscriptions join
-    conn.execute(
-        text("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_projects_organization_id
-        ON public.projects (organization_id);
-    """)
-    )
-
-    # Index for plan-based lookups
-    conn.execute(
-        text("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_subscriptions_plan
-        ON public.subscriptions (plan);
-    """)
-    )
+        # Index for plan-based lookups
+        op.execute(
+            text("""
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_subscriptions_plan
+            ON public.subscriptions (plan);
+        """)
+        )
 
 
 def downgrade() -> None:
-    conn = op.get_bind()
-    conn = conn.execution_options(isolation_level="AUTOCOMMIT")
-
-    conn.execute(
-        text("DROP INDEX CONCURRENTLY IF EXISTS public.ix_projects_organization_id;")
-    )
-    conn.execute(
-        text("DROP INDEX CONCURRENTLY IF EXISTS public.ix_subscriptions_plan;")
-    )
+    with op.get_context().autocommit_block():
+        op.execute(
+            text(
+                "DROP INDEX CONCURRENTLY IF EXISTS public.ix_projects_organization_id;"
+            )
+        )
+        op.execute(
+            text("DROP INDEX CONCURRENTLY IF EXISTS public.ix_subscriptions_plan;")
+        )

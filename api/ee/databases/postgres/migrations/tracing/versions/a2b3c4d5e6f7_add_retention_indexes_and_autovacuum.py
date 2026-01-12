@@ -19,59 +19,55 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    conn = op.get_bind()
-    conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+    with op.get_context().autocommit_block():
+        # Unique partial index: enforce single root span per trace
+        op.execute(
+            text("""
+            CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ux_spans_root_per_trace
+            ON public.spans (project_id, trace_id)
+            WHERE parent_id IS NULL;
+        """)
+        )
 
-    # Unique partial index: enforce single root span per trace
-    conn.execute(
-        text("""
-        CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ux_spans_root_per_trace
-        ON public.spans (project_id, trace_id)
-        WHERE parent_id IS NULL;
-    """)
-    )
+        # Retention selection index (critical for performance)
+        op.execute(
+            text("""
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_spans_root_project_created_trace
+            ON public.spans (project_id, created_at, trace_id)
+            WHERE parent_id IS NULL;
+        """)
+        )
 
-    # Retention selection index (critical for performance)
-    conn.execute(
-        text("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_spans_root_project_created_trace
-        ON public.spans (project_id, created_at, trace_id)
-        WHERE parent_id IS NULL;
-    """)
-    )
-
-    # Autovacuum tuning for high-churn retention workload
-    conn.execute(
-        text("""
-        ALTER TABLE public.spans SET (
-          autovacuum_vacuum_scale_factor = 0.02,
-          autovacuum_analyze_scale_factor = 0.01,
-          autovacuum_vacuum_cost_delay = 5,
-          autovacuum_vacuum_cost_limit = 4000
-        );
-    """)
-    )
+        # Autovacuum tuning for high-churn retention workload
+        op.execute(
+            text("""
+            ALTER TABLE public.spans SET (
+              autovacuum_vacuum_scale_factor = 0.02,
+              autovacuum_analyze_scale_factor = 0.01,
+              autovacuum_vacuum_cost_delay = 5,
+              autovacuum_vacuum_cost_limit = 4000
+            );
+        """)
+        )
 
 
 def downgrade() -> None:
-    conn = op.get_bind()
-    conn = conn.execution_options(isolation_level="AUTOCOMMIT")
-
-    conn.execute(
-        text("DROP INDEX CONCURRENTLY IF EXISTS public.ux_spans_root_per_trace;")
-    )
-    conn.execute(
-        text(
-            "DROP INDEX CONCURRENTLY IF EXISTS public.ix_spans_root_project_created_trace;"
+    with op.get_context().autocommit_block():
+        op.execute(
+            text("DROP INDEX CONCURRENTLY IF EXISTS public.ux_spans_root_per_trace;")
         )
-    )
-    conn.execute(
-        text("""
-        ALTER TABLE public.spans RESET (
-            autovacuum_vacuum_scale_factor,
-            autovacuum_analyze_scale_factor,
-            autovacuum_vacuum_cost_delay,
-            autovacuum_vacuum_cost_limit
-        );
-    """)
-    )
+        op.execute(
+            text(
+                "DROP INDEX CONCURRENTLY IF EXISTS public.ix_spans_root_project_created_trace;"
+            )
+        )
+        op.execute(
+            text("""
+            ALTER TABLE public.spans RESET (
+                autovacuum_vacuum_scale_factor,
+                autovacuum_analyze_scale_factor,
+                autovacuum_vacuum_cost_delay,
+                autovacuum_vacuum_cost_limit
+            );
+        """)
+        )

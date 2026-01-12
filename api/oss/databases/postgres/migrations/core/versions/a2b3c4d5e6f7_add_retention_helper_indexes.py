@@ -20,21 +20,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # CREATE INDEX CONCURRENTLY must run outside a transaction
-    conn = op.get_bind()
-    conn = conn.execution_options(isolation_level="AUTOCOMMIT")
-
-    conn.execute(
-        text("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_projects_organization_id
-        ON public.projects (organization_id);
-    """)
-    )
+    with op.get_context().autocommit_block():
+        op.execute(
+            text("""
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_projects_organization_id
+            ON public.projects (organization_id);
+        """)
+        )
 
 
 def downgrade() -> None:
-    conn = op.get_bind()
-    conn = conn.execution_options(isolation_level="AUTOCOMMIT")
-
-    conn.execute(
-        text("DROP INDEX CONCURRENTLY IF EXISTS public.ix_projects_organization_id;")
-    )
+    with op.get_context().autocommit_block():
+        op.execute(
+            text(
+                "DROP INDEX CONCURRENTLY IF EXISTS public.ix_projects_organization_id;"
+            )
+        )
