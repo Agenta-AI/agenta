@@ -135,7 +135,7 @@ const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
                             />
                         </div>
                         <div className="flex items-start justify-between gap-3">
-                            <Typography.Text type="secondary">Test sets</Typography.Text>
+                            <Typography.Text type="secondary">Testsets</Typography.Text>
                             <TestsetTagList
                                 ids={testsetIds}
                                 runId={runId}

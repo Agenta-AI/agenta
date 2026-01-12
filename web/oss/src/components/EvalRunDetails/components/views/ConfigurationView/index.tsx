@@ -263,7 +263,7 @@ const sectionDefinitions: SectionDefinition[] = [
     },
     {
         key: "testsets",
-        title: "Test sets",
+        title: "Testsets",
         hasData: (summary) => summary.hasTestsets,
         getSubtitle: (summary) => summary?.testsetSubtitle,
         render: (runId) => <TestsetSection runId={runId} />,

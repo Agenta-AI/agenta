@@ -47,7 +47,7 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
         [rows, scenarioId],
     )
     const scenarioIndex: number | undefined = scenarioRow?.scenarioIndex
-    const scenarioBase = evalType === "human" ? "Scenario" : "Test case"
+    const scenarioBase = evalType === "human" ? "Scenario" : "Testcase"
     const parentTitle = scenarioIndex
         ? `${scenarioBase} #${scenarioIndex}`
         : scenarioId
