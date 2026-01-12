@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    ArrowsOutLineHorizontal,
+    ArrowsOutLineHorizontalIcon,
     CaretDownIcon,
     CaretLineDownIcon,
     CaretLineUpIcon,
@@ -31,8 +31,6 @@ import {ClickRunPlaceholder} from "../ResultPlaceholder"
 
 import ErrorPanel from "./ErrorPanel"
 import GenerationResponsePanel from "./GenerationResponsePanel"
-
-const EMPTY_INPUTS_MESSAGE = "Insert a {{variable}} in your template to create an input."
 
 interface Props {
     rowId: string
@@ -117,6 +115,10 @@ const SingleView = ({
         setCollapsedInputs((prev) => ({...prev, [id]: !prev[id]}))
     }, [])
 
+    if (inputOnly && variableIds.length === 0) {
+        return null
+    }
+
     if (isCollapsed && !inputOnly) {
         return (
             <div className={clsx(["flex flex-col", "p-4", "group/item", containerClassName])}>
@@ -134,7 +136,7 @@ const SingleView = ({
                     <div className="flex-1" />
                     <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
                         <EnhancedButton
-                            icon={<ArrowsOutLineHorizontal size={12} />}
+                            icon={<ArrowsOutLineHorizontalIcon size={12} />}
                             size="small"
                             type="text"
                             onClick={() => openFocusDrawer({rowId, variantId})}
@@ -181,7 +183,7 @@ const SingleView = ({
     return (
         <div
             className={clsx([
-                "flex flex-col",
+                "flex flex-col gap-1",
                 "p-4",
                 "group/item",
                 {"gap-4": variableIds.length > 0},
@@ -203,7 +205,7 @@ const SingleView = ({
                     <div className="flex-1" />
                     <div className="flex items-center gap-1 opacity-0 group-hover/header:opacity-100 transition-opacity">
                         <EnhancedButton
-                            icon={<ArrowsOutLineHorizontal size={12} />}
+                            icon={<ArrowsOutLineHorizontalIcon size={12} />}
                             size="small"
                             type="text"
                             onClick={() => openFocusDrawer({rowId, variantId})}
@@ -250,11 +252,6 @@ const SingleView = ({
                     "flex flex-col gap-4 w-full": isChat,
                 })}
             >
-                {variableIds.length === 0 ? (
-                    <div className="rounded-md border border-dashed border-[rgba(5,23,41,0.08)] bg-[rgba(5,23,41,0.02)] px-3 py-2 text-xs text-gray-500">
-                        {EMPTY_INPUTS_MESSAGE}
-                    </div>
-                ) : null}
                 {variableIds.length > 0 && (
                     <div className="flex flex-col gap-2 w-full">
                         {variableIds.map((id) => {
