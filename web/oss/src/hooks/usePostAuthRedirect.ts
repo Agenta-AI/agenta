@@ -1,10 +1,11 @@
 import {useCallback, useMemo} from "react"
 
-import {getDefaultStore} from "jotai"
+import {getDefaultStore, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
 
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {isNewUserAtom} from "@/oss/lib/onboarding/atoms"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
 import {resolvePreferredWorkspaceId} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -29,6 +30,7 @@ const usePostAuthRedirect = () => {
     const {refetch: resetOrgData} = useOrgData()
     const {reset: resetProjectData} = useProjectData()
     const [invite] = useLocalStorage<Record<string, unknown>>("invite", {})
+    const setIsNewUser = useSetAtom(isNewUserAtom)
 
     const hasInviteFromQuery = useMemo(() => {
         const token = router.query?.token
@@ -63,6 +65,7 @@ const usePostAuthRedirect = () => {
                     await router.push("/workspaces/accept?survey=true")
                 } else {
                     await resetAuthState()
+                    setIsNewUser(true)
                     await router.push("/post-signup")
                 }
                 return
