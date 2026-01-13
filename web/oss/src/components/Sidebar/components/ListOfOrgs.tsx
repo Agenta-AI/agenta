@@ -29,7 +29,6 @@ import {resetOrgData} from "@/oss/state/org"
 import {
     orgsAtom as organizationsAtom,
     selectedOrgIdAtom,
-    isPersonalOrg,
     clearWorkspaceOrgCache,
 } from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -154,7 +153,6 @@ const ListOfOrgs = ({
 
     const organizationMenuItems = useMemo<MenuProps["items"]>(() => {
         const items: MenuProps["items"] = organizations.map((organization) => {
-            const isPersonal = isPersonalOrg(organization)
             const isDemo = organization.flags?.is_demo ?? false
             const isOwner = organization.owner_id === user?.id
             const isSelectedOrganization = organization.id === effectiveSelectedId
@@ -167,7 +165,6 @@ const ListOfOrgs = ({
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                             <Avatar size="small" name={organization.name} />
                             <span className="truncate">{organization.name}</span>
-                            {isPersonal && <Tag className="bg-[#0517290F] m-0">personal</Tag>}
                             {isDemo && <Tag className="bg-[#0517290F] m-0">demo</Tag>}
                         </div>
                     </div>
@@ -175,7 +172,7 @@ const ListOfOrgs = ({
             }
 
             // Show submenu actions only for the currently selected org
-            if (!isPersonal && isOwner && isEE() && isSelectedOrganization) {
+            if (isOwner && isEE() && isSelectedOrganization) {
                 return {
                     ...baseItem,
                     children: [
@@ -275,7 +272,7 @@ const ListOfOrgs = ({
 
     const organizationButtonLabel = organizationDisplayName
     const organizationCount = Array.isArray(organizations) ? organizations.length : 0
-    const canSelectOrganizations = isEE() && organizationCount > 1
+    const canSelectOrganizations = isEE() && organizationCount >= 1
 
     const sharedButtonProps = useMemo(() => {
         if (!buttonProps) {
