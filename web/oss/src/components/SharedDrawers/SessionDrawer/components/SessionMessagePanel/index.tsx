@@ -1,6 +1,7 @@
-import {useMemo, useRef} from "react"
+import {useMemo, useRef, useState} from "react"
 
-import {Collapse, CollapseProps, Tag, Typography} from "antd"
+import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
+import {Button, Collapse, CollapseProps, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -20,16 +21,19 @@ interface SessionMessagePanelProps extends CollapseProps {
     bgColor?: string
     fullEditorHeight?: boolean
     trace?: any
+    defaultHiddenCount?: number
 }
 
 const SessionMessagePanel = ({
     value: incomingValue,
     label,
     trace,
+    defaultHiddenCount = 0,
     ...props
 }: SessionMessagePanelProps) => {
     const isAnnotationVisible = useAtomValue(isAnnotationVisibleAtom)
     const editorRef = useRef<HTMLDivElement>(null)
+    const [showHidden, setShowHidden] = useState(false)
 
     // Get span ID for AddToTestsetButton - drawer will fetch data from entity cache
     const spanIds = useMemo(() => {
@@ -72,9 +76,11 @@ const SessionMessagePanel = ({
                             <div className="w-full flex gap-2">
                                 <div className="w-full flex flex-col gap-2 p-4">
                                     <div className="flex flex-col gap-2">
-                                        {(incomingValue as any[])?.map(
-                                            (val: any, index: number) => {
-                                                return (
+                                        {/* Hidden messages (shown when toggled) */}
+                                        {showHidden &&
+                                            (incomingValue as any[])
+                                                ?.slice(0, defaultHiddenCount)
+                                                .map((val: any, index: number) => (
                                                     <div ref={editorRef} key={val.id || index}>
                                                         <SimpleSharedEditor
                                                             headerName={val.role}
@@ -90,9 +96,56 @@ const SessionMessagePanel = ({
                                                             noProvider
                                                         />
                                                     </div>
-                                                )
-                                            },
+                                                ))}
+
+                                        {/* Toggle Button */}
+                                        {defaultHiddenCount > 0 && (
+                                            <div className="flex items-center gap-2 my-1">
+                                                <div className="flex-1 border-t border-solid border-gray-100" />
+                                                <Button
+                                                    type="text"
+                                                    size="small"
+                                                    onClick={() => setShowHidden(!showHidden)}
+                                                    className="flex items-center gap-1 text-gray-400 hover:text-gray-600 hover:bg-transparent"
+                                                    icon={
+                                                        showHidden ? (
+                                                            <MinusOutlined />
+                                                        ) : (
+                                                            <PlusOutlined />
+                                                        )
+                                                    }
+                                                >
+                                                    {showHidden
+                                                        ? "Hide all inputs"
+                                                        : "View all inputs"}
+                                                </Button>
+                                                <div className="flex-1 border-t border-solid border-gray-100" />
+                                            </div>
                                         )}
+
+                                        {/* Always visible messages */}
+                                        {(incomingValue as any[])
+                                            ?.slice(defaultHiddenCount)
+                                            .map((val: any, index: number) => (
+                                                <div
+                                                    ref={editorRef}
+                                                    key={val.id || index + defaultHiddenCount}
+                                                >
+                                                    <SimpleSharedEditor
+                                                        headerName={val.role}
+                                                        initialValue={val.content as string}
+                                                        className="bg-[#0517290A] !w-[96%]"
+                                                        headerClassName={
+                                                            val.role === "exception"
+                                                                ? "capitalize text-red-500"
+                                                                : "capitalize"
+                                                        }
+                                                        editorType="borderless"
+                                                        readOnly
+                                                        noProvider
+                                                    />
+                                                </div>
+                                            ))}
                                     </div>
 
                                     <SharedGenerationResultUtils traceId={trace?.trace_id} />
