@@ -24,9 +24,8 @@ def upgrade() -> None:
     Clean up organizations table and introduce new schema.
 
     Changes:
-    - Add flags (JSONB, nullable) with is_personal and is_demo fields
+    - Add flags (JSONB, nullable) with is_demo field
     - Migrate type='view-only' to flags.is_demo=true
-    - Set is_personal=false for the single organization
     - Drop type column
     - Convert owner (String) to owner_id (UUID, NOT NULL)
     - Add created_by_id (UUID, NOT NULL)
@@ -39,7 +38,6 @@ def upgrade() -> None:
 
     OSS Mode:
     - Must have exactly 1 organization (fail-fast if not)
-    - Set is_personal=false (no personal organizations in OSS)
     """
     conn = op.get_bind()
 
@@ -118,13 +116,12 @@ def upgrade() -> None:
         sa.Column("deleted_by_id", postgresql.UUID(as_uuid=True), nullable=True),
     )
 
-    # Step 3: Migrate type='view-only' to is_demo=true, set is_personal=false
+    # Step 3: Migrate type='view-only' to is_demo=true
     conn.execute(
         text("""
         UPDATE organizations
         SET flags = jsonb_build_object(
-            'is_demo', CASE WHEN type = 'view-only' THEN true ELSE false END,
-            'is_personal', false
+            'is_demo', CASE WHEN type = 'view-only' THEN true ELSE false END
         )
         WHERE flags IS NULL OR flags = '{}'::jsonb
     """)
