@@ -10,7 +10,7 @@ import {
     navigationRequestAtom,
     requestNavigationAtom,
 } from "@/oss/state/appState"
-import {isPersonalOrg, orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
+import {orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
 import {urlAtom} from "@/oss/state/url"
@@ -208,23 +208,17 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     }
                 }
                 const orgs = store.get(orgsAtom)
-                const personalOrg = Array.isArray(orgs)
-                    ? orgs.find((org) => isPersonalOrg(org))
-                    : null
                 if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
                     console.log("[auth-redirect] orgs snapshot", {
                         count: Array.isArray(orgs) ? orgs.length : 0,
-                        personalOrgId: personalOrg?.id,
                         orgs: Array.isArray(orgs)
                             ? orgs.map((org) => ({
                                   id: org.id,
-                                  is_personal: org.flags?.is_personal,
                               }))
                             : [],
                     })
                 }
-                const targetWorkspaceId =
-                    personalOrg?.id || resolvePreferredWorkspaceId(user?.id ?? null, orgs)
+                const targetWorkspaceId = resolvePreferredWorkspaceId(user?.id ?? null, orgs)
                 const targetHref = targetWorkspaceId
                     ? `/w/${encodeURIComponent(targetWorkspaceId)}`
                     : "/w"
@@ -245,16 +239,13 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                             staleTime: 60_000,
                         })
                         .then((freshOrgs) => {
-                            const personal = Array.isArray(freshOrgs)
-                                ? freshOrgs.find((org) => isPersonalOrg(org))
-                                : null
-                            const resolved =
-                                personal?.id ||
-                                resolvePreferredWorkspaceId(user?.id ?? null, freshOrgs)
+                            const resolved = resolvePreferredWorkspaceId(
+                                user?.id ?? null,
+                                freshOrgs,
+                            )
                             if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
                                 console.log("[auth-redirect] fetched orgs", {
                                     count: Array.isArray(freshOrgs) ? freshOrgs.length : 0,
-                                    personalOrgId: personal?.id,
                                     resolved,
                                 })
                             }

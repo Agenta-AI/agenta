@@ -10,7 +10,7 @@ import {isDemo} from "@/oss/lib/helpers/utils"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
-import {isPersonalOrg, resolvePreferredWorkspaceId} from "@/oss/state/org/selectors/org"
+import {resolvePreferredWorkspaceId} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {useProjectData} from "@/oss/state/project"
@@ -190,12 +190,10 @@ const usePostAuthRedirect = () => {
                         return
                     }
                 }
-                const personal = Array.isArray(freshOrgs)
-                    ? freshOrgs.find((org) => isPersonalOrg(org))
-                    : null
-                if (personal?.id) {
-                    // Fallback only if no SSO-specific org was selected above.
-                    await router.replace(`/w/${encodeURIComponent(personal.id)}`)
+                // No SSO-specific org - use preferred workspace resolution
+                const preferredWorkspaceId = resolvePreferredWorkspaceId(userId, freshOrgs)
+                if (preferredWorkspaceId) {
+                    await router.replace(`/w/${encodeURIComponent(preferredWorkspaceId)}`)
                     return
                 }
             } catch {
