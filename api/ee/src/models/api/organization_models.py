@@ -50,6 +50,6 @@ class OrganizationOutput(BaseModel):
     name: Optional[str] = None
 
 
-class CreateCollaborativeOrganization(BaseModel):
+class CreateOrganizationPayload(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None

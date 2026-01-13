@@ -5,7 +5,7 @@ from ee.src.core.organizations.types import (
 )
 from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 from ee.src.models.api.organization_models import (
-    CreateCollaborativeOrganization,
+    CreateOrganizationPayload,
     Organization,
     OrganizationUpdate,
 )
@@ -353,13 +353,13 @@ async def transfer_organization_ownership(
 
 @router.post(
     "/",
-    operation_id="create_collaborative_organization",
+    operation_id="create_organization",
 )
-async def create_collaborative_organization(
-    payload: CreateCollaborativeOrganization,
+async def create_organization(
+    payload: CreateOrganizationPayload,
     request: Request,
 ):
-    """Create a new collaborative organization."""
+    """Create a new organization."""
     try:
         from uuid import UUID
 
@@ -391,7 +391,7 @@ async def create_collaborative_organization(
 
     except Exception:
         log.error(
-            "Unexpected error while creating collaborative organization",
+            "Unexpected error while creating organization",
             exc_info=True,
         )
         raise HTTPException(
