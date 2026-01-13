@@ -116,8 +116,8 @@ const SessionMessagePanel = ({
                                                     }
                                                 >
                                                     {showHidden
-                                                        ? "Hide all inputs"
-                                                        : "View all inputs"}
+                                                        ? "Hide first messages"
+                                                        : "Show all messages"}
                                                 </Button>
                                                 <div className="flex-1 border-t border-solid border-gray-100" />
                                             </div>
