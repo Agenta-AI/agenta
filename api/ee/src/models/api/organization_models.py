@@ -29,7 +29,6 @@ class CreateOrganization(BaseModel):
     description: Optional[str] = None
     #
     is_demo: bool = False
-    is_personal: bool = False
     #
     owner_id: UUID
 

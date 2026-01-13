@@ -9,7 +9,6 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.common import is_ee
 
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services import db_manager
@@ -33,7 +32,6 @@ class CreateOrganization(BaseModel):
     description: Optional[str] = None
     #
     is_demo: bool = False
-    is_personal: bool = False
     #
     owner_id: UUID
 
@@ -78,8 +76,6 @@ Tier = str
 class OrganizationRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    #
-    is_personal: bool
 
 
 class WorkspaceRequest(BaseModel):
@@ -168,7 +164,6 @@ async def legacy_create_organization(
 
         create_org_data["flags"] = {
             "is_demo": payload.is_demo,
-            "is_personal": payload.is_personal,
         }
 
         # Set required audit fields
@@ -301,7 +296,7 @@ async def create_organization(
         organization_db = OrganizationDB(
             name=request.name,
             description=request.description,
-            flags={"is_demo": False, "is_personal": False},
+            flags={"is_demo": False},
             owner_id=created_by_id,
             created_by_id=created_by_id,
         )

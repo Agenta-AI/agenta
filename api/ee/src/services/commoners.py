@@ -9,23 +9,18 @@ from pydantic import BaseModel
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
 from oss.src.utils.common import is_ee
-from ee.src.services import workspace_manager
 from ee.src.services.db_manager_ee import (
     create_organization,
     add_user_to_organization,
     add_user_to_workspace,
     add_user_to_project,
 )
-from ee.src.services.selectors import (
-    user_exists,
-)
 from ee.src.models.api.organization_models import CreateOrganization
 from oss.src.services.user_service import (
     create_new_user,
-    check_user_exists,
     delete_user,
 )
-from oss.src.models.db_models import UserDB, OrganizationDB
+from oss.src.models.db_models import OrganizationDB
 from ee.src.services.email_helper import (
     add_contact_to_loops,
 )
@@ -36,8 +31,6 @@ from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.core.meters.service import MetersService
-from oss.src.utils.caching import set_cache, get_cache
-from sqlalchemy.exc import IntegrityError
 
 subscription_service = SubscriptionsService(
     subscriptions_dao=SubscriptionsDAO(),
@@ -188,7 +181,7 @@ async def create_accounts(
                     organization_description="Default Organization",
                     use_reverse_trial=use_reverse_trial,
                 )
-            except Exception as e:
+            except Exception:
                 # Setup failed - delete the user to avoid orphaned state
                 log.error(
                     "[scopes] setup failed for user [%s], deleting user: %s",
@@ -254,7 +247,6 @@ async def create_organization_with_subscription(
     organization_email: str,
     organization_name: Optional[str] = None,
     organization_description: Optional[str] = None,
-    is_personal: bool = False,
     use_reverse_trial: bool = False,
 ) -> OrganizationDB:
     """Create an organization with workspace and subscription for an existing user.
@@ -264,7 +256,6 @@ async def create_organization_with_subscription(
         organization_email: The user's email for subscription
         organization_name: Name for the organization
         organization_description: Optional description
-        is_personal: Whether this is a personal org (default: False for collaborative)
         use_reverse_trial: Use reverse trial (True) or hobby plan (False)
 
     Returns:
@@ -275,50 +266,19 @@ async def create_organization_with_subscription(
     if not user:
         raise ValueError(f"User {user_id} not found")
 
-    if is_personal:
-        existing_orgs = await db_manager.get_user_organizations(str(user_id))
-        existing_personal = next(
-            (org for org in existing_orgs if (org.flags or {}).get("is_personal")),
-            None,
-        )
-        if existing_personal:
-            log.info(
-                "[scopes] Personal organization already exists",
-                organization_id=existing_personal.id,
-                user_id=user_id,
-            )
-            return existing_personal
-
     # Prepare payload to create organization
     create_org_payload = CreateOrganization(
         name=organization_name,
         description=organization_description,
         is_demo=False,
-        is_personal=is_personal,
         owner_id=user_id,
     )
 
     # Create organization and workspace
-    try:
-        organization = await create_organization(
-            payload=create_org_payload,
-            user=user,
-        )
-    except IntegrityError:
-        if is_personal:
-            existing_orgs = await db_manager.get_user_organizations(str(user_id))
-            existing_personal = next(
-                (org for org in existing_orgs if (org.flags or {}).get("is_personal")),
-                None,
-            )
-            if existing_personal:
-                log.info(
-                    "[scopes] Personal organization already exists (race)",
-                    organization_id=existing_personal.id,
-                    user_id=user_id,
-                )
-                return existing_personal
-        raise
+    organization = await create_organization(
+        payload=create_org_payload,
+        user=user,
+    )
 
     log.info("[scopes] Organization [%s] created", organization.id)
 

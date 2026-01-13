@@ -1,48 +1,42 @@
-from fastapi.responses import JSONResponse
-from fastapi import HTTPException, Request
-
-from oss.src.utils.common import APIRouter
-from oss.src.utils.logging import get_module_logger
-
-from oss.src.services import db_manager
-
-from ee.src.utils.permissions import (
-    check_user_org_access,
-    check_rbac_permission,
-)
-
-from ee.src.services import (
-    db_manager_ee,
-    workspace_manager,
-)
-from ee.src.services.selectors import get_user_org_and_workspace_id
-from ee.src.models.shared_models import Permission
-
-from ee.src.models.api.workspace_models import (
-    CreateWorkspace,
-    UpdateWorkspace,
-    WorkspaceResponse,
-)
-
-from ee.src.models.api.organization_models import (
-    Organization,
-    OrganizationUpdate,
-    OrganizationOutput,
-    CreateCollaborativeOrganization,
-)
-from ee.src.services.organization_service import (
-    update_an_organization,
-    get_organization_details,
-    transfer_organization_ownership as transfer_ownership_service,
-)
-from ee.src.services.organization_service import OrganizationProvidersService
-from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 from ee.src.core.organizations.types import (
     OrganizationDomainCreate,
     OrganizationProviderCreate,
     OrganizationProviderUpdate,
 )
-
+from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
+from ee.src.models.api.organization_models import (
+    CreateCollaborativeOrganization,
+    Organization,
+    OrganizationUpdate,
+)
+from ee.src.models.api.workspace_models import (
+    CreateWorkspace,
+    UpdateWorkspace,
+    WorkspaceResponse,
+)
+from ee.src.models.shared_models import Permission
+from ee.src.services import (
+    db_manager_ee,
+    workspace_manager,
+)
+from ee.src.services.organization_service import (
+    OrganizationProvidersService,
+    get_organization_details,
+    update_an_organization,
+)
+from ee.src.services.organization_service import (
+    transfer_organization_ownership as transfer_ownership_service,
+)
+from ee.src.services.selectors import get_user_org_and_workspace_id
+from ee.src.utils.permissions import (
+    check_rbac_permission,
+    check_user_org_access,
+)
+from fastapi import HTTPException, Request
+from fastapi.responses import JSONResponse
+from oss.src.services import db_manager
+from oss.src.utils.common import APIRouter
+from oss.src.utils.logging import get_module_logger
 
 router = APIRouter()
 
@@ -124,7 +118,7 @@ async def fetch_organization_details(
 
         return organization
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while fetching organization details",
             exc_info=True,
@@ -178,7 +172,7 @@ async def update_organization(
 
         return organization
 
-    except ValueError as e:
+    except ValueError:
         # Slug validation errors (format, immutability, personal org, etc.)
         # Return a generic error message to avoid exposing internal details.
         return JSONResponse(
@@ -241,7 +235,7 @@ async def create_workspace(
         )
         return workspace
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while creating workspace",
             exc_info=True,
@@ -287,7 +281,7 @@ async def update_workspace(
         workspace = await workspace_manager.update_workspace(payload, workspace_id)
         return workspace
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while updating workspace",
             exc_info=True,
@@ -368,6 +362,7 @@ async def create_collaborative_organization(
     """Create a new collaborative organization."""
     try:
         from uuid import UUID
+
         from ee.src.services.commoners import create_organization_with_subscription
 
         user = await db_manager.get_user(request.state.user_id)
@@ -382,7 +377,6 @@ async def create_collaborative_organization(
             organization_email=user.email,
             organization_name=payload.name,
             organization_description=payload.description,
-            is_personal=False,  # Collaborative organization
             use_reverse_trial=False,  # Use hobby plan instead
         )
 
@@ -395,7 +389,7 @@ async def create_collaborative_organization(
             status_code=201,
         )
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while creating collaborative organization",
             exc_info=True,
@@ -441,7 +435,7 @@ async def delete_organization(
             status_code=200,
         )
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while deleting organization",
             exc_info=True,
@@ -479,8 +473,6 @@ async def list_organization_domains(
                 status_code=403,
             )
 
-        from uuid import UUID
-
         domains_dao = OrganizationDomainsDAO()
         domains = await domains_dao.list_by_organization(
             organization_id=str(organization_id)
@@ -502,7 +494,7 @@ async def list_organization_domains(
             for domain in domains
         ]
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while listing organization domains",
             exc_info=True,
@@ -536,8 +528,6 @@ async def create_organization_domain(
                 status_code=403,
             )
 
-        from uuid import UUID
-
         from ee.src.services.organization_service import (
             OrganizationDomainsService,
         )
@@ -562,7 +552,7 @@ async def create_organization_domain(
             else None,
         }
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while creating organization domain",
             exc_info=True,
@@ -596,8 +586,6 @@ async def get_organization_domain(
                 status_code=403,
             )
 
-        from uuid import UUID
-
         domains_dao = OrganizationDomainsDAO()
         domain = await domains_dao.get_by_id(
             domain_id=domain_id, organization_id=organization_id
@@ -618,7 +606,7 @@ async def get_organization_domain(
             "updated_at": domain.updated_at.isoformat() if domain.updated_at else None,
         }
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while fetching organization domain",
             exc_info=True,
@@ -652,8 +640,6 @@ async def delete_organization_domain(
                 status_code=403,
             )
 
-        from uuid import UUID
-
         domains_dao = OrganizationDomainsDAO()
         # TODO: Implement delete method in DAO
         # await domains_dao.delete(UUID(domain_id))
@@ -663,7 +649,7 @@ async def delete_organization_domain(
             status_code=200,
         )
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while deleting organization domain",
             exc_info=True,
@@ -697,8 +683,6 @@ async def verify_organization_domain(
                 status_code=403,
             )
 
-        from uuid import UUID
-
         from ee.src.services.organization_service import (
             OrganizationDomainsService,
         )
@@ -729,7 +713,7 @@ async def verify_organization_domain(
             else None,
         }
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while verifying organization domain",
             exc_info=True,
@@ -767,12 +751,10 @@ async def list_organization_providers(
                 status_code=403,
             )
 
-        from uuid import UUID
-
         provider_service = OrganizationProvidersService()
         return await provider_service.list_providers(organization_id)
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while listing organization providers",
             exc_info=True,
@@ -827,7 +809,7 @@ async def create_organization_provider(
 
         return created_provider
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while creating organization provider",
             exc_info=True,
@@ -861,15 +843,13 @@ async def get_organization_provider(
                 status_code=403,
             )
 
-        from uuid import UUID
-
         provider_service = OrganizationProvidersService()
         return await provider_service.get_provider(
             organization_id=organization_id,
             provider_id=provider_id,
         )
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while fetching organization provider",
             exc_info=True,
@@ -904,8 +884,6 @@ async def update_organization_provider(
                 status_code=403,
             )
 
-        from uuid import UUID
-
         provider_service = OrganizationProvidersService()
         provider_update = OrganizationProviderUpdate(
             name=payload.get("name"),
@@ -924,7 +902,7 @@ async def update_organization_provider(
 
         return updated_provider
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while updating organization provider",
             exc_info=True,
@@ -958,8 +936,6 @@ async def delete_organization_provider(
                 status_code=403,
             )
 
-        from uuid import UUID
-
         provider_service = OrganizationProvidersService()
         await provider_service.delete_provider(
             organization_id=organization_id,
@@ -972,7 +948,7 @@ async def delete_organization_provider(
             status_code=200,
         )
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while deleting organization provider",
             exc_info=True,
