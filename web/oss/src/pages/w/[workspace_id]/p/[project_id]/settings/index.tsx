@@ -106,7 +106,6 @@ const Settings: React.FC = () => {
 
     useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [tab])
 
-    const isPersonalOrg = selectedOrg?.flags?.is_personal ?? true
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 
     const {content, title} = useMemo(() => {
@@ -127,9 +126,6 @@ const Settings: React.FC = () => {
                                     <span>ID</span>
                                 </Tag>
                             </Tooltip>
-                            {isPersonalOrg && (
-                                <Tag className="bg-[#0517290F] m-0 font-normal">personal</Tag>
-                            )}
                             {isDemoOrg && (
                                 <Tag className="bg-[#0517290F] m-0 font-normal">demo</Tag>
                             )}
@@ -169,7 +165,6 @@ const Settings: React.FC = () => {
         isProjectIdCopied,
         handleCopyOrgId,
         handleCopyProjectId,
-        isPersonalOrg,
         isDemoOrg,
         isOwner,
     ])
