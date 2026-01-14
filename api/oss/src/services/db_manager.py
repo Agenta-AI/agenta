@@ -80,6 +80,13 @@ from oss.src.models.db_models import (
 from oss.src.core.testcases.dtos import Testcase
 from oss.src.core.testsets.dtos import TestsetRevisionData
 
+from oss.src.core.testcases.service import TestcasesService
+from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
+from oss.src.apis.fastapi.testsets.models import (
+    SimpleTestsetCreate,
+    SimpleTestsetCreateRequest,
+)
+
 
 log = get_module_logger(__name__)
 
@@ -171,12 +178,6 @@ async def add_default_simple_testsets(
     template_names: Optional[List[str]] = None,
 ) -> None:
     """Create default simple testsets from bundled presets."""
-    from oss.src.core.testcases.service import TestcasesService
-    from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
-    from oss.src.apis.fastapi.testsets.models import (
-        SimpleTestsetCreate,
-        SimpleTestsetCreateRequest,
-    )
 
     testsets_dir = PARENT_DIRECTORY / "resources" / "default_testsets"
     if not testsets_dir.exists():
@@ -1265,8 +1266,6 @@ async def create_accounts(payload: dict) -> UserDB:
     user_db = await user_service.create_new_user(payload=user_info)
 
     # Delegate organization/workspace assignment to implementation-specific function
-    from oss.src.utils.common import is_ee
-
     if is_ee():
         # EE implementation: handled by ee.src.services.commoners.create_accounts
         # This function should NOT be called for EE - see __init__.py imports

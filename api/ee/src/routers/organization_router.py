@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 
@@ -35,12 +37,18 @@ from ee.src.services.organization_service import (
     get_organization_details,
     transfer_organization_ownership as transfer_ownership_service,
 )
+from ee.src.services.commoners import create_organization_with_subscription
 from ee.src.services.organization_service import OrganizationProvidersService
 from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 from ee.src.core.organizations.types import (
     OrganizationDomainCreate,
     OrganizationProviderCreate,
     OrganizationProviderUpdate,
+)
+from ee.src.core.organizations.exceptions import OrganizationSlugConflictError
+
+from ee.src.services.organization_service import (
+    OrganizationDomainsService,
 )
 
 
@@ -185,18 +193,14 @@ async def update_organization(
             {"detail": "Invalid request data for organization update."},
             status_code=400,
         )
-    except Exception as e:
-        # Check for unique constraint violation (duplicate slug)
-        from sqlalchemy.exc import IntegrityError
-
-        if isinstance(e, IntegrityError) and "uq_organizations_slug" in str(e):
-            return JSONResponse(
-                {
-                    "detail": "Slug already in use. Please select another slug or contact your administrator."
-                },
-                status_code=409,
-            )
-
+    except OrganizationSlugConflictError:
+        return JSONResponse(
+            {
+                "detail": "Slug already in use. Please select another slug or contact your administrator."
+            },
+            status_code=409,
+        )
+    except Exception:
         log.error(
             "Unexpected error while updating organization",
             exc_info=True,
@@ -367,9 +371,6 @@ async def create_collaborative_organization(
 ):
     """Create a new collaborative organization."""
     try:
-        from uuid import UUID
-        from ee.src.services.commoners import create_organization_with_subscription
-
         user = await db_manager.get_user(request.state.user_id)
         if not user:
             return JSONResponse(
@@ -434,7 +435,9 @@ async def delete_organization(
         )
         if org_count <= 1:
             return JSONResponse(
-                {"detail": "Cannot delete your last organization. You must have at least one organization."},
+                {
+                    "detail": "Cannot delete your last organization. You must have at least one organization."
+                },
                 status_code=400,
             )
 
@@ -488,8 +491,6 @@ async def list_organization_domains(
                 {"detail": "You do not have access to this organization"},
                 status_code=403,
             )
-
-        from uuid import UUID
 
         domains_dao = OrganizationDomainsDAO()
         domains = await domains_dao.list_by_organization(
@@ -546,12 +547,6 @@ async def create_organization_domain(
                 status_code=403,
             )
 
-        from uuid import UUID
-
-        from ee.src.services.organization_service import (
-            OrganizationDomainsService,
-        )
-
         domain_service = OrganizationDomainsService()
         created_domain = await domain_service.create_domain(
             organization_id=organization_id,
@@ -605,8 +600,6 @@ async def get_organization_domain(
                 {"detail": "You do not have access to this organization"},
                 status_code=403,
             )
-
-        from uuid import UUID
 
         domains_dao = OrganizationDomainsDAO()
         domain = await domains_dao.get_by_id(
@@ -662,8 +655,6 @@ async def delete_organization_domain(
                 status_code=403,
             )
 
-        from uuid import UUID
-
         domains_dao = OrganizationDomainsDAO()
         # TODO: Implement delete method in DAO
         # await domains_dao.delete(UUID(domain_id))
@@ -706,12 +697,6 @@ async def verify_organization_domain(
                 {"detail": "Only organization owners can verify domains"},
                 status_code=403,
             )
-
-        from uuid import UUID
-
-        from ee.src.services.organization_service import (
-            OrganizationDomainsService,
-        )
 
         domain_service = OrganizationDomainsService()
         verified_domain = await domain_service.verify_domain(
@@ -777,8 +762,6 @@ async def list_organization_providers(
                 status_code=403,
             )
 
-        from uuid import UUID
-
         provider_service = OrganizationProvidersService()
         return await provider_service.list_providers(organization_id)
 
@@ -815,8 +798,6 @@ async def create_organization_provider(
                 {"detail": "Only organization owners can add SSO providers"},
                 status_code=403,
             )
-
-        from uuid import UUID
 
         provider_service = OrganizationProvidersService()
         provider_create = OrganizationProviderCreate(
@@ -871,8 +852,6 @@ async def get_organization_provider(
                 status_code=403,
             )
 
-        from uuid import UUID
-
         provider_service = OrganizationProvidersService()
         return await provider_service.get_provider(
             organization_id=organization_id,
@@ -913,8 +892,6 @@ async def update_organization_provider(
                 {"detail": "Only organization owners can update SSO providers"},
                 status_code=403,
             )
-
-        from uuid import UUID
 
         provider_service = OrganizationProvidersService()
         provider_update = OrganizationProviderUpdate(
@@ -967,8 +944,6 @@ async def delete_organization_provider(
                 {"detail": "Only organization owners can delete SSO providers"},
                 status_code=403,
             )
-
-        from uuid import UUID
 
         provider_service = OrganizationProvidersService()
         await provider_service.delete_provider(
