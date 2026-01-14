@@ -723,7 +723,7 @@ const Organization: FC = () => {
                     <SectionLabel>Membership</SectionLabel>
                     <SettingRow
                         title="Auto-join from verified domains"
-                        description="Users with a verified domain email are automatically added to this org"
+                        description="Users with a verified domain email are automatically added to this organization"
                         enabled={selectedOrg.flags.auto_join}
                         onChange={(checked) => handleFlagChange("auto_join", checked)}
                         disabled={!hasVerifiedDomain}
