@@ -4,12 +4,13 @@ from typing import Callable, Dict, Optional, List, Any
 
 import httpx
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.cache import TTLLRUCache
-from agenta.sdk.utils.exceptions import suppress, display_exception
+from agenta.sdk.utils.exceptions import display_exception
 from agenta.client.backend.types import SecretDto as SecretDTO
 from agenta.client.backend.types import (
     StandardProviderDto as StandardProviderDTO,
@@ -58,11 +59,13 @@ class DenyException(Exception):
         self,
         status_code: int = 403,
         content: str = "Forbidden",
+        headers: Optional[Dict[str, str]] = None,
     ) -> None:
         super().__init__()
 
         self.status_code = status_code
         self.content = content
+        self.headers = headers
 
 
 class VaultMiddleware(BaseHTTPMiddleware):
@@ -81,7 +84,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
     ):
         request.state.vault = {}
 
-        with suppress():
+        try:
             secrets, vault_secrets, local_secrets = await self._get_secrets(request)
 
             request.state.vault = {
@@ -89,6 +92,14 @@ class VaultMiddleware(BaseHTTPMiddleware):
                 "vault_secrets": vault_secrets,
                 "local_secrets": local_secrets,
             }
+        except DenyException as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.content},
+                headers=exc.headers,
+            )
+        except Exception:  # pylint: disable=bare-except
+            display_exception("Vault: Secrets Exception")
 
         return await call_next(request)
 
@@ -144,6 +155,8 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
                 local_secrets.append(secret.model_dump())
         except DenyException as e:  # pylint: disable=bare-except
+            if e.status_code == 429:
+                raise e
             log.warning(f"Agenta [secrets] {e.status_code}: {e.content}")
             allow_secrets = False
         except Exception:  # pylint: disable=bare-except
@@ -157,6 +170,26 @@ class VaultMiddleware(BaseHTTPMiddleware):
                     f"{self.host}/api/vault/v1/secrets/",
                     headers=headers,
                 )
+
+                if response.status_code == 429:
+                    headers = {
+                        key: value
+                        for key, value in {
+                            "Retry-After": response.headers.get("retry-after"),
+                            "X-RateLimit-Limit": response.headers.get(
+                                "x-ratelimit-limit"
+                            ),
+                            "X-RateLimit-Remaining": response.headers.get(
+                                "x-ratelimit-remaining"
+                            ),
+                        }.items()
+                        if value is not None
+                    }
+                    raise DenyException(
+                        status_code=429,
+                        content="API Rate limit exceeded. Please try again later or upgrade your plan.",
+                        headers=headers or None,
+                    )
 
                 if response.status_code != 200:
                     vault_secrets = []
@@ -283,6 +316,25 @@ class VaultMiddleware(BaseHTTPMiddleware):
                             status_code=403,
                             content="Out of credits. Please set your LLM provider API keys or contact support.",
                         )
+                    elif response.status_code == 429:
+                        headers = {
+                            key: value
+                            for key, value in {
+                                "Retry-After": response.headers.get("retry-after"),
+                                "X-RateLimit-Limit": response.headers.get(
+                                    "x-ratelimit-limit"
+                                ),
+                                "X-RateLimit-Remaining": response.headers.get(
+                                    "x-ratelimit-remaining"
+                                ),
+                            }.items()
+                            if value is not None
+                        }
+                        raise DenyException(
+                            status_code=429,
+                            content="API Rate limit exceeded. Please try again later or upgrade your plan or upgrade your plan.",
+                            headers=headers or None,
+                        )
                     elif response.status_code != 200:
                         # log.debug(
                         #     f"Agenta returned {response.status_code} - Unexpected status code"
@@ -324,7 +376,8 @@ class VaultMiddleware(BaseHTTPMiddleware):
                     return
 
             except DenyException as deny:
-                _cache.put(_hash, deny)
+                if deny.status_code != 429:
+                    _cache.put(_hash, deny)
 
                 raise deny
             except Exception as exc:  # pylint: disable=bare-except

@@ -157,13 +157,13 @@ app = FastAPI(
 )
 # MIDDLEWARE -------------------------------------------------------------------
 
-app.middleware("http")(authentication_middleware)
 
 if is_ee():
     from ee.src.services.throttling_service import throttling_middleware
 
     app.middleware("http")(throttling_middleware)
 
+app.middleware("http")(authentication_middleware)
 app.middleware("http")(analytics_middleware)
 
 app.add_middleware(

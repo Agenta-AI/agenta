@@ -20,6 +20,7 @@ from ee.src.core.subscriptions.types import (
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
 from ee.src.core.entitlements.service import EntitlementsService
+from oss.src.utils.caching import invalidate_cache
 from ee.src.core.meters.service import MetersService
 
 log = get_module_logger(__name__)
@@ -71,7 +72,13 @@ class SubscriptionsService:
         *,
         subscription: SubscriptionDTO,
     ) -> Optional[SubscriptionDTO]:
-        return await self.subscriptions_dao.update(subscription=subscription)
+        updated = await self.subscriptions_dao.update(subscription=subscription)
+        if updated:
+            await invalidate_cache(
+                namespace="entitlements:subscription",
+                key={"organization_id": str(updated.organization_id)},
+            )
+        return updated
 
     async def start_reverse_trial(
         self,

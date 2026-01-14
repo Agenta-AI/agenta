@@ -109,11 +109,15 @@ def _throttle_matches(
     return False
 
 
-def _throttle_suffix(throttle: Throttle) -> str:
+def _throttle_suffix(
+    throttle: Throttle,
+    matched_categories: Optional[set[Category]] = None,
+) -> str:
     if throttle.categories:
-        categories = ",".join(
-            sorted(category.value for category in throttle.categories)
+        categories_source = (
+            matched_categories if matched_categories else set(throttle.categories)
         )
+        categories = ",".join(sorted(category.value for category in categories_source))
         return f"cats:{categories}"
 
     if throttle.endpoints:
@@ -193,6 +197,10 @@ async def throttling_middleware(request: Request, call_next):
 
     path = _normalize_path(request)
 
+    # log.debug(
+    #     "[throttling] START", org=organization_id, plan=plan, method=method, path=path
+    # )
+
     categories = _resolve_categories(method, path)
 
     checks: list[tuple[dict, int, int]] = []
@@ -204,10 +212,14 @@ async def throttling_middleware(request: Request, call_next):
         if not _throttle_matches(throttle, categories, method, path):
             continue
 
+        matched_categories = None
+        if throttle.categories:
+            matched_categories = categories.intersection(throttle.categories)
+
         key = {
             "organization": str(organization_id),
             "plan": plan.value,
-            "policy": _throttle_suffix(throttle),
+            "policy": _throttle_suffix(throttle, matched_categories=matched_categories),
         }
 
         capacity = throttle.bucket.capacity
@@ -229,25 +241,53 @@ async def throttling_middleware(request: Request, call_next):
         if algo_str == "tbra":
             algorithm = Algorithm.TBRA
 
+    # log.debug("[throttling] CHECK", org=organization_id, plan=plan, checks=checks)
+
     results = await check_throttles(checks, algorithm=algorithm)
 
+    # Track minimum remaining tokens across all policies for the response header
+    min_remaining: int | None = None
+
     for idx, result in enumerate(results):
-        if result.allow:
-            continue
+        remaining = int(result.tokens_remaining or 0)
 
-        key, capacity, rate = checks[idx]
+        if not result.allow:
+            key, capacity, rate = checks[idx]
 
-        headers = {
-            "X-RateLimit-Limit": str(capacity),
-            "X-RateLimit-Remaining": str(int(result.tokens_remaining or 0)),
-        }
-        if result.retry_after_seconds > 0:
-            headers["Retry-After"] = str(int(result.retry_after_seconds) + 1)
+            headers = {
+                "X-RateLimit-Limit": str(capacity),
+                "X-RateLimit-Remaining": str(remaining),
+            }
+            retry_after = (
+                int(result.retry_after_seconds) + 1
+                if result.retry_after_seconds > 0
+                else None
+            )
+            if retry_after:
+                headers["Retry-After"] = str(retry_after)
 
-        return JSONResponse(
-            status_code=429,
-            content={"detail": "rate_limit_exceeded"},
-            headers=headers,
-        )
+            detail = (
+                f"Rate limit exceeded. Please retry after {retry_after} seconds."
+                if retry_after
+                else "Rate limit exceeded. Please try again later."
+            )
 
-    return await call_next(request)
+            return JSONResponse(
+                status_code=429,
+                content={"detail": detail},
+                headers=headers,
+            )
+
+        # Track minimum remaining across all allowed policies
+        if min_remaining is None or remaining < min_remaining:
+            min_remaining = remaining
+
+    # log.debug("[throttling] ALLOW")
+
+    response = await call_next(request)
+
+    # Add rate limit header to successful responses
+    if min_remaining is not None:
+        response.headers["X-RateLimit-Remaining"] = str(min_remaining)
+
+    return response
