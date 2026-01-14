@@ -80,8 +80,6 @@ from oss.src.models.db_models import (
 from oss.src.core.testcases.dtos import Testcase
 from oss.src.core.testsets.dtos import TestsetRevisionData
 
-from oss.src.core.testcases.service import TestcasesService
-from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
 from oss.src.apis.fastapi.testsets.models import (
     SimpleTestsetCreate,
     SimpleTestsetCreateRequest,
@@ -178,6 +176,8 @@ async def add_default_simple_testsets(
     template_names: Optional[List[str]] = None,
 ) -> None:
     """Create default simple testsets from bundled presets."""
+    from oss.src.core.testcases.service import TestcasesService
+    from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
 
     testsets_dir = PARENT_DIRECTORY / "resources" / "default_testsets"
     if not testsets_dir.exists():
