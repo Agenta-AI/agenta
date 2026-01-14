@@ -1236,7 +1236,18 @@ async def update_organization(
             if hasattr(organization, key):
                 setattr(organization, key, value)
 
-        await session.commit()
+        try:
+            await session.commit()
+        except Exception as e:
+            from sqlalchemy.exc import IntegrityError
+            from ee.src.core.organizations.exceptions import OrganizationSlugConflictError
+
+            if isinstance(e, IntegrityError) and "uq_organizations_slug" in str(e):
+                raise OrganizationSlugConflictError(
+                    slug=payload_dict.get("slug", "unknown")
+                ) from e
+            raise
+
         await session.refresh(organization)
         return organization
 

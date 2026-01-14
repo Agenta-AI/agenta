@@ -241,7 +241,7 @@ def override_thirdparty_functions(
                 )
         except Exception:
             # Log error but don't block authentication
-            log.error("[AUTH] Identity create failed", exc_info=True)
+            log.info("[AUTH] Identity not created", exc_info=True)
 
         # Fetch all user identities for session payload
         try:
