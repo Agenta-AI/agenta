@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    ArrowsOutLineHorizontalIcon,
     CaretDownIcon,
     CaretLineDownIcon,
     CaretLineUpIcon,
@@ -18,11 +19,13 @@ import RunButton from "@/oss/components/Playground/assets/RunButton"
 import TypingIndicator from "@/oss/components/Playground/assets/TypingIndicator"
 import TestsetDrawerButton from "@/oss/components/Playground/Components/Drawers/TestsetDrawer"
 import {allGenerationsCollapsedAtom} from "@/oss/components/Playground/Components/PlaygroundGenerations/assets/GenerationHeader/store"
+import {useRepetitionResult} from "@/oss/components/Playground/hooks/useRepetitionResult"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {deleteGenerationInputRowMutationAtom} from "@/oss/components/Playground/state/atoms/mutations/input/deleteInputRow"
 import {duplicateGenerationInputRowMutationAtom} from "@/oss/components/Playground/state/atoms/mutations/input/duplicateInputRow"
 import {inputRowIdsAtom} from "@/oss/state/generation/entities"
 import {variableIdsUnifiedAtomFamily} from "@/oss/state/newPlayground/generation/selectors"
+import {openPlaygroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
 
 import {ClickRunPlaceholder} from "../ResultPlaceholder"
 
@@ -56,12 +59,19 @@ const SingleView = ({
     cancelRow,
     containerClassName,
 }: Props) => {
-    const variableIds = useAtomValue(
+    const variableIds = useAtom(
         useMemo(
             () => variableIdsUnifiedAtomFamily({rowId, revisionId: variantId}),
             [rowId, variantId],
         ),
-    ) as string[]
+    )[0] as string[]
+
+    const openFocusDrawer = useSetAtom(openPlaygroundFocusDrawerAtom)
+    const {currentResult, repetitionProps} = useRepetitionResult({
+        rowId,
+        variantId,
+        result,
+    })
 
     const inputRowIds = useAtomValue(generationInputRowIdsAtom) as string[]
     const allInputRowIds = useAtomValue(inputRowIdsAtom) as string[]
@@ -105,6 +115,10 @@ const SingleView = ({
         setCollapsedInputs((prev) => ({...prev, [id]: !prev[id]}))
     }, [])
 
+    if (inputOnly && variableIds.length === 0) {
+        return null
+    }
+
     if (isCollapsed && !inputOnly) {
         return (
             <div className={clsx(["flex flex-col", "p-4", "group/item", containerClassName])}>
@@ -121,6 +135,13 @@ const SingleView = ({
                     )}
                     <div className="flex-1" />
                     <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                        <EnhancedButton
+                            icon={<ArrowsOutLineHorizontalIcon size={12} />}
+                            size="small"
+                            type="text"
+                            onClick={() => openFocusDrawer({rowId, variantId})}
+                            tooltipProps={{title: "Expand results"}}
+                        />
                         <EnhancedButton
                             icon={<MinusCircleIcon size={14} />}
                             type="text"
@@ -162,7 +183,7 @@ const SingleView = ({
     return (
         <div
             className={clsx([
-                "flex flex-col",
+                "flex flex-col gap-1",
                 "p-4",
                 "group/item",
                 {"gap-4": variableIds.length > 0},
@@ -183,6 +204,13 @@ const SingleView = ({
                     )}
                     <div className="flex-1" />
                     <div className="flex items-center gap-1 opacity-0 group-hover/header:opacity-100 transition-opacity">
+                        <EnhancedButton
+                            icon={<ArrowsOutLineHorizontalIcon size={12} />}
+                            size="small"
+                            type="text"
+                            onClick={() => openFocusDrawer({rowId, variantId})}
+                            tooltipProps={{title: "View all repeats"}}
+                        />
                         <EnhancedButton
                             icon={<MinusCircleIcon size={14} />}
                             type="text"
@@ -296,13 +324,23 @@ const SingleView = ({
                     >
                         {isBusy ? (
                             <TypingIndicator />
-                        ) : !result ? (
+                        ) : !currentResult ? (
                             <ClickRunPlaceholder />
-                        ) : result.error ? (
-                            <ErrorPanel result={result} />
-                        ) : result.response ? (
-                            <GenerationResponsePanel result={result} />
-                        ) : null}
+                        ) : (
+                            <div className="flex flex-col gap-2">
+                                {currentResult.error ? (
+                                    <ErrorPanel result={currentResult} />
+                                ) : currentResult.response ? (
+                                    <GenerationResponsePanel
+                                        key={repetitionProps?.current || 0}
+                                        result={currentResult}
+                                        repetitionProps={repetitionProps}
+                                        rowId={rowId}
+                                        variantId={variantId}
+                                    />
+                                ) : null}
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : null}

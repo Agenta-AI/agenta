@@ -99,7 +99,6 @@ from oss.src.routers import (
     testset_router,
     user_profile,
     variants_router,
-    bases_router,
     configs_router,
     health_router,
     permissions_router,
@@ -567,12 +566,6 @@ app.include_router(
     environment_router.router,
     prefix="/environments",
     tags=["Environments"],
-)
-
-app.include_router(
-    bases_router.router,
-    prefix="/bases",
-    tags=["Bases"],
 )
 
 app.include_router(

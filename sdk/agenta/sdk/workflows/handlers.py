@@ -1,10 +1,14 @@
 import json
 import math
+import os
 import re
+import socket
+import ipaddress
 import traceback
 from difflib import SequenceMatcher
 from json import dumps, loads
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set, Union
+from urllib.parse import urlparse
 
 import httpx
 
@@ -48,6 +52,68 @@ from agenta.sdk.workflows.errors import (
 )
 
 log = get_module_logger(__name__)
+
+_WEBHOOK_RESPONSE_MAX_BYTES = 1 * 1024 * 1024.0  # 1 MB
+_WEBHOOK_ALLOW_INSECURE = (
+    os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE") or "true"
+).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+
+
+def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
+    if _WEBHOOK_ALLOW_INSECURE:
+        return False
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+    )
+
+
+def _validate_webhook_url(url: str) -> None:
+    if not url:
+        raise ValueError("Webhook URL is required.")
+
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"}:
+        raise ValueError("Webhook URL must use http or https.")
+    if scheme == "http" and not _WEBHOOK_ALLOW_INSECURE:
+        raise ValueError("Webhook URL must use https.")
+    if not parsed.netloc:
+        raise ValueError("Webhook URL must include a host.")
+    if parsed.username or parsed.password:
+        raise ValueError("Webhook URL must not include credentials.")
+
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        raise ValueError("Webhook URL must include a valid hostname.")
+    if (
+        hostname in {"localhost", "localhost.localdomain"}
+        and not _WEBHOOK_ALLOW_INSECURE
+    ):
+        raise ValueError("Webhook URL hostname is not allowed.")
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if _is_blocked_ip(ip):
+            raise ValueError("Webhook URL resolves to a blocked IP range.")
+        return
+    except ValueError:
+        pass
+
+    try:
+        addresses = {
+            ipaddress.ip_address(info[4][0])
+            for info in socket.getaddrinfo(hostname, None)
+        }
+    except socket.gaierror as exc:
+        raise ValueError("Webhook URL hostname could not be resolved.") from exc
+
+    if not addresses or any(_is_blocked_ip(ip) for ip in addresses):
+        raise ValueError("Webhook URL resolves to a blocked IP range.")
 
 
 def _configure_litellm():
@@ -701,6 +767,14 @@ async def auto_webhook_test_v0(
         raise MissingConfigurationParameterV0Error(path="webhook_url")
 
     webhook_url = str(parameters["webhook_url"])
+    try:
+        _validate_webhook_url(webhook_url)
+    except ValueError as exc:
+        raise InvalidConfigurationParameterV0Error(
+            path="webhook_url",
+            expected="http/https URL",
+            got=webhook_url,
+        ) from exc
 
     if "correct_answer_key" not in parameters:
         raise MissingConfigurationParameterV0Error(path="correct_answer_key")
@@ -750,6 +824,7 @@ async def auto_webhook_test_v0(
             response = await client.post(
                 url=webhook_url,
                 json=json_payload,
+                timeout=httpx.Timeout(10.0, connect=5.0),
             )
         except Exception as e:
             raise WebhookClientV0Error(
@@ -762,12 +837,18 @@ async def auto_webhook_test_v0(
                 message=response.json(),
             )
 
+        content_length = response.headers.get("content-length")
+        if content_length and int(content_length) > _WEBHOOK_RESPONSE_MAX_BYTES:
+            raise WebhookClientV0Error(message="Webhook response exceeded size limit.")
+
+        response_bytes = response.content
+        if len(response_bytes) > _WEBHOOK_RESPONSE_MAX_BYTES:
+            raise WebhookClientV0Error(message="Webhook response exceeded size limit.")
+
         try:
-            _outputs = response.json()
+            _outputs = json.loads(response_bytes)
         except Exception as e:
-            raise WebhookClientV0Error(
-                message=str(e),
-            ) from e
+            raise WebhookClientV0Error(message=str(e)) from e
     # --------------------------------------------------------------------------
 
     if isinstance(_outputs, (int, float)):
