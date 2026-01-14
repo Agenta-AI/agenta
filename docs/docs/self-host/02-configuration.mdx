@@ -4,158 +4,266 @@ sidebar_label: Configuring Environment
 description: Learn how to configure the environment variables to self-host Agenta through Docker Compose
 ---
 
-This guide covers all environment variables used to configure Agenta. These variables control various aspects of the platform, from core functionality to third-party integrations.
+This guide lists the env vars in the same order as the `.example` files in `hosting/docker-compose`. These variables control various aspects of the platform, from core functionality to third-party integrations.
 
-## Configuration File Location
+## Configuration file location
 
-The default environment variables are specified in `hosting/docker-compose/oss/.env.oss.gh` (or `hosting/docker-compose/oss/.env.oss.dev` for development).
+Defaults live in `hosting/docker-compose/*/env.*.example`. Use `--env-file` to point to your own file.
 
-You can specify your own environment file using the `--env-file` flag when running `docker compose`:
+## Environment file sections (in file order)
+
+### Agenta - License
+Controls OSS vs EE behavior and defaults.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `AGENTA_LICENSE` | License type (`oss` or `ee`) | `oss` |
+
+### Agenta - Secrets
+Used for internal authorization and encryption. Change in production.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `AGENTA_AUTH_KEY` | Authorization key | `replace-me` |
+| `AGENTA_CRYPT_KEY` | Encryption key | `replace-me` |
+
+### Agenta - Endpoints
+Public URLs and internal API URL.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `AGENTA_WEB_URL` | Web URL | `http://localhost` |
+| `AGENTA_API_URL` | API URL | `http://localhost/api` |
+| `AGENTA_SERVICES_URL` | Services URL | `http://localhost/services` |
+| `AGENTA_API_INTERNAL_URL` | Internal API URL | _(empty)_ |
+
+### Agenta - Images
+Override Docker image names or tags.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `AGENTA_WEB_IMAGE_NAME` | Web image name | `agenta-web` |
+| `AGENTA_WEB_IMAGE_TAG` | Web image tag | `latest` |
+| `AGENTA_API_IMAGE_NAME` | API image name | `agenta-api` |
+| `AGENTA_API_IMAGE_TAG` | API image tag | `latest` |
+| `AGENTA_COMPLETION_IMAGE_NAME` | Completion image name | `agenta-completion` |
+| `AGENTA_COMPLETION_IMAGE_TAG` | Completion image tag | `latest` |
+| `AGENTA_CHAT_IMAGE_NAME` | Chat image name | `agenta-chat` |
+| `AGENTA_CHAT_IMAGE_TAG` | Chat image tag | `latest` |
+
+### Agenta - OTLP
+Tracing batch size limit.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `AGENTA_OTLP_MAX_BATCH_BYTES` | Max OTLP batch bytes | `10485760` |
+
+### Agenta - API
+Basic backend options.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `AGENTA_DEMOS` | Enable demos | _(empty)_ |
+| `AGENTA_ALLOWED_DOMAINS` | Allowed email domains | _(empty)_ |
+
+### Agenta - Services
+Middleware cache and sandbox runner.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `AGENTA_SERVICES_MIDDLEWARE_CACHE_ENABLED` | Enable cache | `true` |
+| `AGENTA_SERVICES_SANDBOX_RUNNER` | `local` or `daytona` | `local` |
+
+### Network - Traefik
+Reverse proxy and TLS settings.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `TRAEFIK_PROTOCOL` | `http` or `https` | `http` |
+| `TRAEFIK_DOMAIN` | Hostname | `localhost` |
+| `TRAEFIK_PORT` | HTTP port | `80` |
+| `TRAEFIK_UI_PORT` | Dashboard port | `8080` |
+| `TRAEFIK_HTTPS_PORT` | HTTPS port | `443` |
+| `TRAEFIK_SSL_DIR` | SSL cert dir | `/home/user/ssl_certificates` |
+
+### Network - Nginx
+Only used if you enable Nginx.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `NGINX_PORT` | Nginx port | `80` |
+
+### Docker - Compose
+Project name affects container naming.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `COMPOSE_PROJECT_NAME` | Compose project name | `agenta-oss-dev` |
+
+### Databases - Postgres
+User, password, ports, and connection strings.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `POSTGRES_USER` | DB user | `username` |
+| `POSTGRES_PASSWORD` | DB password | `password` |
+| `POSTGRES_PORT` | DB port | `5432` |
+| `POSTGRES_URI_CORE` | Core DB URI | `postgresql+asyncpg://username:password@postgres:5432/agenta_oss_core` |
+| `POSTGRES_URI_TRACING` | Tracing DB URI | `postgresql+asyncpg://username:password@postgres:5432/agenta_oss_tracing` |
+| `POSTGRES_URI_SUPERTOKENS` | SuperTokens DB URI | `postgresql://username:password@postgres:5432/agenta_oss_supertokens` |
+
+### Databases - Alembic (migrations)
+Controls migrations and config paths.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `ALEMBIC_AUTO_MIGRATIONS` | Auto migrations | `true` |
+| `ALEMBIC_CFG_PATH_CORE` | Core alembic path | `/app/oss/databases/postgres/migrations/core/alembic.ini` |
+| `ALEMBIC_CFG_PATH_TRACING` | Tracing alembic path | `/app/oss/databases/postgres/migrations/tracing/alembic.ini` |
+
+### Databases - Redis
+Use one Redis or split to volatile/durable.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `REDIS_URI` | Single Redis URI | `redis://redis:6379/0` |
+| `REDIS_URI_VOLATILE` | Volatile Redis URI | `redis://redis-volatile:6379/0` |
+| `REDIS_URI_DURABLE` | Durable Redis URI | `redis://redis-durable:6381/0` |
+
+### Authentication - SuperTokens
+Auth service connection and email auth toggle.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `SUPERTOKENS_API_KEY` | SuperTokens API key | _(empty)_ |
+| `SUPERTOKENS_CONNECTION_URI` | SuperTokens URL | `http://supertokens:3567` |
+| `SUPERTOKENS_EMAIL_DISABLED` | Disable email auth | `false` |
+
+### Authentication - Email providers
+Used for email login (OTP).
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `SENDGRID_API_KEY` | SendGrid key | _(empty)_ |
+| `SENDGRID_FROM_ADDRESS` | SendGrid sender | _(empty)_ |
+
+### Authentication - OIDC providers
+Set the provider pairs you use.
+
+| Variable | Purpose |
+|----------|---------|
+| `GOOGLE_OAUTH_CLIENT_ID` | Google client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Google client secret |
+| `GOOGLE_WORKSPACES_OAUTH_CLIENT_ID` | Google Workspaces client ID |
+| `GOOGLE_WORKSPACES_OAUTH_CLIENT_SECRET` | Google Workspaces client secret |
+| `GOOGLE_WORKSPACES_HD` | Google Workspaces hosted domain |
+| `GITHUB_OAUTH_CLIENT_ID` | GitHub client ID |
+| `GITHUB_OAUTH_CLIENT_SECRET` | GitHub client secret |
+| `APPLE_OAUTH_CLIENT_ID` | Apple client ID |
+| `APPLE_OAUTH_CLIENT_SECRET` | Apple client secret |
+| `APPLE_KEY_ID` | Apple key ID |
+| `APPLE_TEAM_ID` | Apple team ID |
+| `APPLE_PRIVATE_KEY` | Apple private key |
+| `DISCORD_OAUTH_CLIENT_ID` | Discord client ID |
+| `DISCORD_OAUTH_CLIENT_SECRET` | Discord client secret |
+| `FACEBOOK_OAUTH_CLIENT_ID` | Facebook client ID |
+| `FACEBOOK_OAUTH_CLIENT_SECRET` | Facebook client secret |
+| `GITLAB_OAUTH_CLIENT_ID` | GitLab client ID |
+| `GITLAB_OAUTH_CLIENT_SECRET` | GitLab client secret |
+| `GITLAB_BASE_URL` | GitLab base URL |
+| `BITBUCKET_OAUTH_CLIENT_ID` | Bitbucket client ID |
+| `BITBUCKET_OAUTH_CLIENT_SECRET` | Bitbucket client secret |
+| `LINKEDIN_OAUTH_CLIENT_ID` | LinkedIn client ID |
+| `LINKEDIN_OAUTH_CLIENT_SECRET` | LinkedIn client secret |
+| `OKTA_OAUTH_CLIENT_ID` | Okta client ID |
+| `OKTA_OAUTH_CLIENT_SECRET` | Okta client secret |
+| `OKTA_DOMAIN` | Okta domain |
+| `AZURE_AD_OAUTH_CLIENT_ID` | Azure AD client ID |
+| `AZURE_AD_OAUTH_CLIENT_SECRET` | Azure AD client secret |
+| `AZURE_AD_DIRECTORY_ID` | Azure AD directory ID |
+| `BOXY_SAML_OAUTH_CLIENT_ID` | BoxyHQ SAML client ID |
+| `BOXY_SAML_OAUTH_CLIENT_SECRET` | BoxyHQ SAML client secret |
+| `BOXY_SAML_URL` | BoxyHQ SAML URL |
+| `TWITTER_OAUTH_CLIENT_ID` | Twitter client ID |
+| `TWITTER_OAUTH_CLIENT_SECRET` | Twitter client secret |
+
+### Billing - Stripe [ee-only]
+Only for EE deployments.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `STRIPE_API_KEY` | Stripe API key | _(empty)_ |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook secret | _(empty)_ |
+| `STRIPE_WEBHOOK_TARGET` | Stripe webhook target | _(empty)_ |
+| `STRIPE_PRICING` | Stripe pricing JSON | _(empty)_ |
+
+### Proxy - LLM Providers
+API keys for the LLM proxy.
+
+| Variable | Purpose |
+|----------|---------|
+| `OPENAI_API_KEY` | OpenAI key |
+| `ANTHROPIC_API_KEY` | Anthropic key |
+| `COHERE_API_KEY` | Cohere key |
+| `GROQ_API_KEY` | Groq key |
+| `GEMINI_API_KEY` | Gemini key |
+| `MISTRAL_API_KEY` | Mistral key |
+| `ALEPHALPHA_API_KEY` | Aleph Alpha key |
+| `ANYSCALE_API_KEY` | Anyscale key |
+| `DEEPINFRA_API_KEY` | DeepInfra key |
+| `OPENROUTER_API_KEY` | OpenRouter key |
+| `PERPLEXITYAI_API_KEY` | Perplexity key |
+| `TOGETHERAI_API_KEY` | Together key |
+
+### Sandbox - Daytona
+Used when `AGENTA_SERVICES_SANDBOX_RUNNER=daytona`.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `DAYTONA_API_KEY` | Daytona API key | _(empty)_ |
+| `DAYTONA_API_URL` | Daytona API URL | `https://app.daytona.io/api` |
+| `DAYTONA_TARGET` | Region (`AGENTA_REGION` or `eu`) | `eu` |
+| `DAYTONA_SNAPSHOT` | Snapshot ID | `daytona-small` |
+
+### Analytics - PostHog
+Analytics key for OSS.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `POSTHOG_API_KEY` | PostHog key | `phc_xxxxxxxx` |
+
+## Self-hosting basics
+
+- Pick a file: `hosting/docker-compose/oss/env.oss.dev.example` (development) or `hosting/docker-compose/oss/env.oss.gh.example`. EE has matching `env.ee.*.example`.
+- Copy it and edit the values you need.
+- Use it with Docker Compose:
 
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file .my-env-file --profile with-web --profile with-traefik up -d
 ```
 
-## Variable Categories
+Key environments variables for self-hosting:
 
-### First-party (Required)
+- `AGENTA_LICENSE`
+- `AGENTA_AUTH_KEY`
+- `AGENTA_CRYPT_KEY`
+- `AGENTA_WEB_URL`
+- `AGENTA_API_URL`
+- `AGENTA_SERVICES_URL`
+- `AGENTA_API_INTERNAL_URL`
+- `TRAEFIK_PROTOCOL`
+- `TRAEFIK_DOMAIN`
+- `TRAEFIK_PORT`
+- `TRAEFIK_HTTPS_PORT`
+- `TRAEFIK_SSL_DIR`
+- `POSTGRES_URI_CORE`
+- `POSTGRES_URI_TRACING`
+- `POSTGRES_URI_SUPERTOKENS`
+- `REDIS_URI` (or `REDIS_URI_VOLATILE` + `REDIS_URI_DURABLE`)
 
-These variables are essential for Agenta to function properly:
+## Deprecated variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `AGENTA_LICENSE` | License type (oss for open source) | `oss` |
-| `AGENTA_API_URL` | Base URL for the API backend | `http://localhost/api` |
-| `AGENTA_WEB_URL` | Base URL for the web frontend | `http://localhost` |
-| `AGENTA_SERVICES_URL` | URL prefix for Agenta services | `http://localhost/services` |
-| `AGENTA_AUTH_KEY` | Authentication key for internal services | `replace-me` |
-| `AGENTA_CRYPT_KEY` | Encryption key for sensitive data | `replace-me` |
-
-### First-party (Registry & Service)
-
-Configuration for Docker and database connections:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `AGENTA_WEB_IMAGE_TAG` | Docker image tag for the web frontend | `latest` |
-| `AGENTA_API_IMAGE_TAG` | Docker image tag for the API backend | `latest` |
-| `DOCKER_NETWORK_MODE` | Docker networking mode | `_(empty)_` (which falls back to `bridge`) |
-| `POSTGRES_PASSWORD` | PostgreSQL database password | `password` |
-| `POSTGRES_USERNAME` | PostgreSQL database username | `username` |
-
-### First-party (Optional)
-
-Optional Agenta-specific configurations:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ALEMBIC_AUTO_MIGRATIONS` | Enable automatic database migrations (legacy: `AGENTA_AUTO_MIGRATIONS`) | `true` |
-| `AGENTA_PRICING` | Enable pricing features | _(empty)_ |
-| `AGENTA_DEMOS` | Enable demo applications | _(empty)_ |
-| `AGENTA_RUNTIME_PREFIX` | Prefix for runtime containers | _(empty)_ |
-| `AGENTA_TELEMETRY_ENABLED` | Enable telemetry collection | `true` |
-| `AGENTA_SEND_EMAIL_FROM_ADDRESS` | From address for system emails | `mail@example.com` |
-| `AGENTA_API_INTERNAL_URL` | Internal API URL for services | _(empty)_ |
-| `AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED` | Enable middleware caching in the chat and completion services | `true` |
-| `AGENTA_ALLOWED_DOMAINS` | Comma-separated list of email domains allowed to authenticate; when set, all other domains are rejected | _(empty)_ |
-| `AGENTA_OTLP_MAX_BATCH_BYTES` | Max OTLP batch size before requests are rejected with 413 | `10485760` (10MB) |
-
-### Sandbox Runner (Custom Evaluators)
-
-Agenta executes custom evaluator code in a sandboxed environment. You can choose between local execution or remote execution using Daytona sandboxes.
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `AGENTA_SERVICES_SANDBOX_RUNNER` | Code execution backend for custom evaluators. Set to `local` or `daytona`. | `local` |
-| `DAYTONA_API_KEY` | Your Daytona API key. Required when using Daytona. Get one from https://app.daytona.io | _(empty)_ |
-| `DAYTONA_API_URL` | Daytona API endpoint. | `https://app.daytona.io/api` |
-| `DAYTONA_TARGET` | Daytona region for sandbox execution (e.g., `eu`, `us`). | Value of `AGENTA_REGION`, or `eu` |
-| `DAYTONA_SNAPSHOT` | Snapshot ID that defines the sandbox environment. Required when using Daytona. | _(empty)_ |
-
-**When to use Daytona**: Local execution runs code directly on the API server. This is simpler but runs in the same process as the API. Daytona runs code in isolated containers with their own dependencies. Use Daytona for production deployments or when you need stronger isolation.
-
-### Third-party (Required)
-
-Essential third-party service configurations:
-
-#### Traefik (Reverse Proxy)
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `TRAEFIK_DOMAIN` | Domain for Traefik routing | `localhost` |
-| `TRAEFIK_PORT` | HTTP port for Traefik | `80` |
-| `TRAEFIK_UI_PORT` | Port for Traefik dashboard | `8080` |
-| `TRAEFIK_HTTPS_PORT` | HTTPS port for Traefik | `443` |
-
-#### Redis (Task Queue, Caching & Sessions) {#redis-caching}
-Use `REDIS_URI` when you have a single Redis, or split to two instances with the volatile/durable URLs below.
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `REDIS_URI` | Single Redis URL used when the split URLs are not provided | `redis://redis:6379/0` |
-| `REDIS_URI_VOLATILE` | Caches/PubSub channels; falls back to `REDIS_URI` | `redis://redis-volatile:6379/0` |
-| `REDIS_URI_DURABLE` | Queues/Streams; falls back to `REDIS_URI` | `redis://redis-durable:6381/0` |
-
-#### PostgreSQL (Database)
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `POSTGRES_URI_SUPERTOKENS` | SuperTokens database connection | `postgresql://username:password@postgres:5432/agenta_oss_supertokens` |
-| `POSTGRES_URI_CORE` | Core database connection | `postgresql+asyncpg://username:password@postgres:5432/agenta_oss_core` |
-| `POSTGRES_URI_TRACING` | Tracing database connection | `postgresql+asyncpg://username:password@postgres:5432/agenta_oss_tracing` |
-
-#### Database Migrations
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ALEMBIC_CFG_PATH_CORE` | Core database migration config | `/app/oss/databases/postgres/migrations/core/alembic.ini` |
-| `ALEMBIC_CFG_PATH_TRACING` | Tracing database migration config | `/app/oss/databases/postgres/migrations/tracing/alembic.ini` |
-
-#### SuperTokens (Authentication)
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SUPERTOKENS_API_KEY` | SuperTokens API key | _(empty)_ |
-| `SUPERTOKENS_CONNECTION_URI` | SuperTokens service URL | `http://supertokens:3567` |
-| `SUPERTOKENS_EMAIL_DISABLED` | Disable email-based authentication (password and OTP). Use when only OAuth/SSO is desired. | `false` |
-
-#### Analytics
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `POSTHOG_API_KEY` | PostHog analytics key | `phc_xxxxxxxx` |
-
-### Third-party (TLS/SSL)
-
-Required for HTTPS/SSL configuration:
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `AGENTA_SSL_DIR` | Directory for SSL certificates | `/home/user/ssl_certificates` |
-
-### Third-party (Optional)
-
-Optional port and service configurations:
-
-#### Port Overrides
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NGINX_PORT` | Nginx port (when using Nginx) | `80` |
-| `POSTGRES_PORT` | PostgreSQL port | `5432` |
-| `SUPERTOKENS_PORT` | SuperTokens port | `3567` |
-
-#### OAuth providers
-| Variable | Description |
-|----------|-------------|
-| `GOOGLE_OAUTH_CLIENT_ID` | Google OAuth client ID |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth client secret |
-| `GITHUB_OAUTH_CLIENT_ID` | GitHub OAuth client ID |
-| `GITHUB_OAUTH_CLIENT_SECRET` | GitHub OAuth client secret |
-
-#### Email & Communication
-| Variable | Description |
-|----------|-------------|
-| `SENDGRID_API_KEY` | SendGrid email service API key |
-
-
-## Deprecated Variables
-
-⚠️ **Warning**: The following variables are deprecated and will be removed in future releases. I'd recommend migrating them to the new variables listed below:
+These are deprecated and will be removed later:
 
 | Deprecated Variable | New Variable(s) | Migration Note |
 |-------------------|-----------------|----------------|
@@ -212,7 +320,7 @@ AGENTA_WEB_URL=https://agenta.mydomain.com
 TRAEFIK_DOMAIN=agenta.mydomain.com
 TRAEFIK_PORT=80
 TRAEFIK_HTTPS_PORT=443
-AGENTA_SSL_DIR=/home/user/ssl_certificates
+TRAEFIK_SSL_DIR=/home/user/ssl_certificates
 ```
 
 ### Production with IP Address
