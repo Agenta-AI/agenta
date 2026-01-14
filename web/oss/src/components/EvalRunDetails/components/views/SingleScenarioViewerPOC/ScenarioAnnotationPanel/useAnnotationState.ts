@@ -31,9 +31,29 @@ function getMetricFieldsFromEvaluator(
             ? ((rawProp as Record<string, unknown>).anyOf as unknown[])[0]
             : rawProp
         const propObj = prop as Record<string, unknown>
-        const type = propObj?.type as string | undefined
+        const rawType = propObj?.type as string | string[] | undefined
 
-        if (!type) continue
+        if (!rawType) continue
+
+        if (Array.isArray(rawType)) {
+            const enumValues =
+                (propObj.enum as unknown[] | undefined)?.filter(
+                    (value) => value !== null && value !== undefined && value !== "",
+                ) || []
+            const filteredTypes = rawType.filter((value) => value !== "null")
+            if (filteredTypes.length === 0) continue
+            const baseType = filteredTypes[0]
+            fields[key] = {
+                value: baseType === "string" ? "" : null,
+                type: filteredTypes,
+                enum: enumValues as string[],
+                minimum: propObj.minimum as number | undefined,
+                maximum: propObj.maximum as number | undefined,
+            }
+            continue
+        }
+
+        const type = rawType
 
         if (type === "array") {
             const items = propObj.items as Record<string, unknown> | undefined
@@ -95,13 +115,34 @@ function getMetricsFromAnnotation(
             ? ((rawProp as Record<string, unknown>).anyOf as unknown[])[0]
             : rawProp
         const propObj = prop as Record<string, unknown>
-        const type = propObj?.type as string | undefined
+        const rawType = propObj?.type as string | string[] | undefined
 
-        if (!type) continue
+        if (!rawType) continue
 
         // Check if value exists - be careful with boolean false which is falsy but valid
         const hasValue = key in outputs
         const value = hasValue ? outputs[key] : undefined
+
+        if (Array.isArray(rawType)) {
+            const enumValues =
+                (propObj.enum as unknown[] | undefined)?.filter(
+                    (item) => item !== null && item !== undefined && item !== "",
+                ) || []
+            const filteredTypes = rawType.filter((item) => item !== "null")
+            if (filteredTypes.length === 0) continue
+            const baseType = filteredTypes[0]
+            const defaultValue = baseType === "string" ? "" : null
+            fields[key] = {
+                value: hasValue ? value : defaultValue,
+                type: filteredTypes,
+                enum: enumValues as string[],
+                minimum: propObj.minimum as number | undefined,
+                maximum: propObj.maximum as number | undefined,
+            }
+            continue
+        }
+
+        const type = rawType
 
         if (type === "array") {
             const items = propObj.items as Record<string, unknown> | undefined
