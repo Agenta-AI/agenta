@@ -11,7 +11,7 @@ import {
     requestNavigationAtom,
 } from "@/oss/state/appState"
 import {orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
-import {userAtom} from "@/oss/state/profile/selectors/user"
+import {profileQueryAtom, userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
 import {urlAtom} from "@/oss/state/url"
 
@@ -169,8 +169,19 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             }
 
             if (invite && !isAcceptRoute) {
-                const inviteEmail = invite.email ?? undefined
+                const inviteEmail = invite.email?.toLowerCase() ?? undefined
                 const userEmail = user?.email?.toLowerCase()
+                const profileQuery = store.get(profileQueryAtom)
+                const profileLoading = profileQuery.isPending || profileQuery.isFetching
+
+                // If invite has an email but user profile is still loading, wait
+                // This prevents race conditions where we redirect to accept before
+                // we can check if the emails match
+                if (inviteEmail && !userEmail && profileLoading) {
+                    store.set(protectedRouteReadyAtom, false)
+                    return
+                }
+
                 if (!inviteEmail || !userEmail || inviteEmail === userEmail) {
                     if (!isCurrentAcceptRouteForInvite(appState, invite)) {
                         void Router.replace({pathname: "/workspaces/accept", query: invite}).catch(
@@ -182,6 +193,12 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     store.set(protectedRouteReadyAtom, false)
                     return
                 }
+                // Invite exists but emails don't match - if on auth route, show the page
+                // so user can sign out and sign in with the correct account
+                if (isAuthRoute && inviteEmail && userEmail && inviteEmail !== userEmail) {
+                    store.set(protectedRouteReadyAtom, true)
+                    return
+                }
             }
 
             if (isAuthRoute) {
@@ -189,6 +206,12 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     if (typeof window !== "undefined") {
                         signOut().catch(() => null)
                     }
+                    store.set(protectedRouteReadyAtom, true)
+                    return
+                }
+                // When auth upgrade is required, stay on auth page to show the upgrade message
+                // The user needs to re-authenticate with the correct method
+                if (authError === "upgrade_required") {
                     store.set(protectedRouteReadyAtom, true)
                     return
                 }

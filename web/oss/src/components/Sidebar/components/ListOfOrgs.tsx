@@ -1,13 +1,6 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
-import {
-    ArrowsLeftRight,
-    CaretDown,
-    PencilSimple,
-    Trash,
-    CopyIcon,
-    SignOut,
-} from "@phosphor-icons/react"
+import {ArrowsLeftRight, CaretDown, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
     Button,
