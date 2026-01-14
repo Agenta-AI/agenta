@@ -501,8 +501,8 @@ export const sessionTimeRangeAtomFamily = atomFamily((sessionId: string) =>
         const sorted = get(sessionSortedTracesAtomFamily(sessionId))
         if (!sorted.length) return {startTime: undefined, endTime: undefined}
         return {
-            startTime: sorted[0].created_at,
-            endTime: sorted[sorted.length - 1].created_at,
+            startTime: sorted[0].start_time || sorted[0].created_at,
+            endTime: sorted[sorted.length - 1].end_time || sorted[sorted.length - 1].created_at,
         }
     }),
 )
