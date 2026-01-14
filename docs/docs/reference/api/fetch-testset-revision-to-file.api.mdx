@@ -1,0 +1,71 @@
+---
+id: fetch-testset-revision-to-file
+title: "Fetch Testset Revision To File"
+description: "Fetch Testset Revision To File"
+sidebar_label: "Fetch Testset Revision To File"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1VcGO2zYQ/RViLtsAgrVZ9KRTDaRBFmmzi123F8MwuNLIYkKRCjly6gr692IoyrZsLxIX7cmyOJr35s3MYwckNx6yJSzQk0fysErANugkKWvuC8igRMqrNQ3na4db5ZU1a7LrUmmEBBrpZI2EjhN1YGSNkMHZB6qABJSBDBpJFSTg8GurHBaQkWsxAZ9XWEvIOqBdwyk8OWU2kEBpXS0JMmjbkIUUaQ6IpMVTxBD3BfR9sufABNchWUT+2qLbTaBLqf0EW5rdQxkKQdPWLE3ut5DAZ28NizPlxmDxjWm1hn6VQIE+d6phASGD90qj4BBBVhT2m9FWFjPx3DaNdYRFJm5yv70R1okbxriZiXdYylZTPJkBpwxvIItkRgFC8gXj9/8D7qmS4fnfKHmtZg/hQWqRt55sLRidwUVpnaAKD/WcavGJKZ5pcUU+JuPQN9Z49FzF3e0t/0wTPrd5jt6XrRZPMRgSyK0hNBRqbxqt8rBEaZicrDso0/d9n8DPd3fnif+UWhXhM/Grc9ZdkRUax4tLauBdIEml+UkR1v48QNt8cvoD7VKGcIMO+lW/XwTpnNwdteE3OxDkLtR+c2mdx9Df0Xu5Cf0aQl4PDWLEST9g25fPmNNkCpehrgE6xq0OaQ7yDuq+Xsa7Qb5LYGPIh8Xi8Szh0NuTVWQHFWdmtbDi/eCgNVJl2Wsb6yk4KlWQQdqweeK3NHqpT0cz9Wl3wV/7dJxjSMCj246W3DoNGVREjc/SNNe2LWZyg4bkTKpUNiqMvce8dYp24ZP54/1H3H1AWaCDbLk6DnjmkRuGaBq2759s1EdkOaN9zFuqrFN/D5MRLaQavmK9lClt+DxKOw/kxPzxHhLgMgYhb2dvZ7dwKu8kmLdF5mFbRuxwDMmJCvv6IQGsw6oAoax/ORwwM+5ILc1Rvu92c8JuLwnhX5Q2WqqwGYFLFxu9hNhoHq7xHuahjs2GBLLL1+m+36sEKp6dbAld9yI9/uF03/Prwai5pYXy8kUfWfUJ0b3R/Dd31sW6v+Du5F7eSt1yXPCZH6d43RXxHSrxYjtQWfEfp5jLldL99BSt6I14DXjcEbM7xhwJXWp08Ntq3MUuRs7zHBs6ynF2PXAde295fHheQN//A4wwapY=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Testset Revision To File"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/preview/testsets/revisions/{testset_revision_id}/download"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Testset Revision To File
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"testset_revision_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Testset Revision Id"}},{"name":"file_type","in":"query","required":false,"schema":{"anyOf":[{"enum":["csv","json"],"type":"string"},{"type":"null"}],"description":"File type to download. Supported: 'csv' or 'json'. Default: 'csv'.","default":"csv","title":"File Type"},"description":"File type to download. Supported: 'csv' or 'json'. Default: 'csv'."},{"name":"file_name","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Optional custom filename for the download.","title":"File Name"},"description":"Optional custom filename for the download."}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
