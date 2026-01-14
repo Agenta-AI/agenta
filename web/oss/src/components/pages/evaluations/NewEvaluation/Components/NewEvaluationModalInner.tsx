@@ -107,14 +107,13 @@ const NewEvaluationModalInner = ({
     const [selectedTestsetRevisionId, setSelectedTestsetRevisionId] = useState("")
     const [selectedTestsetName, setSelectedTestsetName] = useState("")
     const [selectedTestsetVersion, setSelectedTestsetVersion] = useState<number | null>(null)
-    // Initialize with at most one pre-selected variant (e.g., from playground)
-    const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>(() => {
-        const first = preSelectedVariantIds?.[0]
-        return first ? [first] : []
-    })
+    // Initialize with pre-selected variants (e.g., from playground comparison mode)
+    const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>(() =>
+        preSelectedVariantIds?.length ? [...preSelectedVariantIds] : [],
+    )
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
     // If variants are pre-selected, start on testset panel; otherwise follow normal flow
-    const hasPreSelectedVariants = Boolean(preSelectedVariantIds?.[0])
+    const hasPreSelectedVariants = Boolean(preSelectedVariantIds?.length)
     const [activePanel, setActivePanel] = useState<string | null>(() =>
         getInitialPanel(hasPreSelectedVariants, isAppScoped),
     )
@@ -212,6 +211,9 @@ const NewEvaluationModalInner = ({
     // Memoised base (deterministic) part of generated name (without random suffix)
     const generatedNameBase = useMemo(() => {
         if (!selectedVariantRevisionIds.length || !selectedTestsetName) return ""
+        if (selectedVariantRevisionIds.length > 1) {
+            return `${selectedVariantRevisionIds.length}-variants-${selectedTestsetName}`
+        }
         const variant = filteredVariants?.find((v) => selectedVariantRevisionIds.includes(v.id))
         if (!variant) return ""
         return `${variant.variantName}-v${variant.revision}-${selectedTestsetName}`
