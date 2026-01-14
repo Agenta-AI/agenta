@@ -78,6 +78,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
     })
 
     const lastSyncedValueRef = useRef<string | undefined>(undefined)
+    const skipSyncRef = useRef(false)
 
     const namePath = useMemo(() => (Array.isArray(name) ? name : [name]), [name])
 
@@ -133,6 +134,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
         if (!defaultValue) {
             setSupportsBasicMode(true)
             setRawSchema("")
+            skipSyncRef.current = true
             return
         }
 
@@ -145,6 +147,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
 
         setSupportsBasicMode(isSchemaCompatibleWithBasicMode(defaultValue))
         setRawSchema(defaultValue)
+        skipSyncRef.current = true
     }, [defaultValue, applyParsedConfig])
 
     useEffect(() => {
@@ -155,6 +158,10 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
 
     // Update form when basic mode changes
     useEffect(() => {
+        if (skipSyncRef.current) {
+            skipSyncRef.current = false
+            return
+        }
         if (mode === "basic" && supportsBasicMode) {
             const config: SchemaConfig = {
                 responseFormat,
