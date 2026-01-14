@@ -428,6 +428,16 @@ async def delete_organization(
                 status_code=403,
             )
 
+        # Check if this is the user's last organization
+        org_count = await db_manager_ee.count_organizations_by_owner(
+            str(request.state.user_id)
+        )
+        if org_count <= 1:
+            return JSONResponse(
+                {"detail": "Cannot delete your last organization. You must have at least one organization."},
+                status_code=400,
+            )
+
         await db_manager_ee.delete_organization(organization_id)
 
         log.info(

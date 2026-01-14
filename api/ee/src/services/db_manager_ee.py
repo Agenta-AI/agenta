@@ -98,6 +98,27 @@ async def get_organizations_by_list_ids(organization_ids: List) -> List[Organiza
         return organizations
 
 
+async def count_organizations_by_owner(owner_id: str) -> int:
+    """
+    Count the number of organizations owned by a user.
+
+    Args:
+        owner_id (str): The ID of the owner.
+
+    Returns:
+        int: The count of organizations owned by the user.
+    """
+    from sqlalchemy import func
+
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(func.count(OrganizationDB.id)).where(
+                OrganizationDB.owner_id == uuid.UUID(owner_id)
+            )
+        )
+        return result.scalar() or 0
+
+
 async def get_default_workspace_id(user_id: str) -> str:
     """
     Retrieve the default workspace ID for a user.
