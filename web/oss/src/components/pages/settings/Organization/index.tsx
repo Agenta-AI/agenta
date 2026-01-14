@@ -9,14 +9,15 @@ import {
     InfoCircleOutlined,
     ReloadOutlined,
 } from "@ant-design/icons"
+import {Info, Lock} from "@phosphor-icons/react"
 import {useQueryClient, useQuery, useMutation} from "@tanstack/react-query"
 import {
     Card,
     Descriptions,
     Input,
     Modal,
-    Radio,
     Space,
+    Switch,
     Typography,
     message,
     Table,
@@ -49,12 +50,82 @@ import {useOrgData} from "@/oss/state/org"
 
 const {Title, Text} = Typography
 
+interface SettingRowProps {
+    title: string
+    description: string
+    enabled: boolean
+    onChange: (checked: boolean) => void
+    disabled?: boolean
+    disabledReason?: string
+    tooltip?: string
+    loading?: boolean
+    showSuccess?: boolean
+}
+
+const SettingRow: FC<SettingRowProps> = ({
+    title,
+    description,
+    enabled,
+    onChange,
+    disabled,
+    disabledReason,
+    tooltip,
+    loading,
+    showSuccess,
+}) => (
+    <div
+        className={`flex items-start justify-between py-4 border-0 border-b border-solid border-[var(--ant-color-border-secondary)] last:border-0 ${disabled ? "opacity-60" : ""}`}
+    >
+        <div className="pr-8 flex-1">
+            <div className="flex items-center gap-2">
+                <h4 className="text-sm font-medium m-0">{title}</h4>
+                {tooltip && (
+                    <Tooltip title={tooltip}>
+                        <Info
+                            size={16}
+                            className="text-[var(--ant-color-text-tertiary)] cursor-help"
+                        />
+                    </Tooltip>
+                )}
+                {showSuccess && (
+                    <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                        <CheckCircleOutlined />
+                        Saved
+                    </span>
+                )}
+            </div>
+            <p className="text-sm text-[var(--ant-color-text-secondary)] mt-0.5 mb-0">
+                {description}
+            </p>
+            {disabled && disabledReason && (
+                <p className="text-xs text-amber-600 mt-1 mb-0 flex items-center gap-1">
+                    <Lock size={14} />
+                    {disabledReason}
+                </p>
+            )}
+        </div>
+        <Switch
+            checked={enabled}
+            onChange={onChange}
+            disabled={disabled || loading}
+            loading={loading}
+        />
+    </div>
+)
+
+const SectionLabel: FC<{children: React.ReactNode}> = ({children}) => (
+    <p className="text-xs font-medium text-[var(--ant-color-text-tertiary)] uppercase tracking-wider pt-4 pb-2 m-0">
+        {children}
+    </p>
+)
+
 const Organization: FC = () => {
     const {selectedOrg, loading, refetch} = useOrgData()
     const queryClient = useQueryClient()
     const [slugValue, setSlugValue] = useState("")
     const [slugModalVisible, setSlugModalVisible] = useState(false)
     const [updating, setUpdating] = useState(false)
+    const [lastSavedFlag, setLastSavedFlag] = useState<string | null>(null)
     const [domainModalVisible, setDomainModalVisible] = useState(false)
     const [domainForm] = Form.useForm()
     const [providerModalVisible, setProviderModalVisible] = useState(false)
@@ -64,7 +135,7 @@ const Organization: FC = () => {
     const handleUpdateOrganization = useCallback(
         async (
             payload: {slug?: string; name?: string; description?: string; flags?: any},
-            options?: {ignoreAxiosError?: boolean},
+            options?: {ignoreAxiosError?: boolean; flagName?: string},
         ) => {
             if (!selectedOrg?.id) return
 
@@ -84,7 +155,13 @@ const Organization: FC = () => {
                         )
                     })
                 }
-                message.success("Organization updated successfully")
+                // Show inline success indicator for flag changes
+                if (options?.flagName) {
+                    setLastSavedFlag(options.flagName)
+                    setTimeout(() => setLastSavedFlag(null), 2000)
+                } else {
+                    message.success("Organization updated successfully")
+                }
                 // Invalidate and refetch organization data
                 await queryClient.invalidateQueries({queryKey: ["organizations"]})
                 await refetch()
@@ -396,6 +473,7 @@ const Organization: FC = () => {
             !selectedOrg?.flags?.allow_sso,
         [selectedOrg?.flags],
     )
+
     const handleFlagChange = useCallback(
         (flag: string, value: boolean) => {
             if (!selectedOrg?.id) return
@@ -451,11 +529,14 @@ const Organization: FC = () => {
                     okType: "danger",
                     cancelText: "Cancel",
                     onOk: () => {
-                        handleUpdateOrganization({flags: {[flag]: value}}, {ignoreAxiosError: true})
+                        handleUpdateOrganization(
+                            {flags: {[flag]: value}},
+                            {ignoreAxiosError: true, flagName: flag},
+                        )
                     },
                 })
             } else {
-                handleUpdateOrganization({flags: {[flag]: value}})
+                handleUpdateOrganization({flags: {[flag]: value}}, {flagName: flag})
             }
         },
         [handleUpdateOrganization, hasActiveVerifiedProvider, hasVerifiedDomain, selectedOrg],
@@ -598,144 +679,82 @@ const Organization: FC = () => {
     return (
         <Space direction="vertical" size="middle" style={{width: "100%"}}>
             <Card>
-                <Space direction="vertical" size="small" style={{width: "100%"}}>
-                    <div>
-                        <Title level={1} style={sectionTitleStyle}>
+                <div className="px-1">
+                    <div className="border-0 border-b border-solid border-[var(--ant-color-border-secondary)] pb-4">
+                        <Title level={1} style={sectionTitleStyle} className="!mb-1">
                             Access Controls
                         </Title>
+                        <Text type="secondary">
+                            Configure how users authenticate and join your organization
+                        </Text>
                     </div>
-                    <Descriptions column={1} bordered size="small" className="org-kv-65-35">
-                        <Descriptions.Item label="Email authentication">
-                            <Radio.Group
-                                value={selectedOrg.flags.allow_email ? "yes" : "no"}
-                                size="small"
-                                onChange={(e) =>
-                                    handleFlagChange("allow_email", e.target.value === "yes")
-                                }
-                                disabled={updating}
-                            >
-                                <Radio.Button value="yes">Allow</Radio.Button>
-                                <Radio.Button value="no">Deny</Radio.Button>
-                            </Radio.Group>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Social authentication">
-                            <Radio.Group
-                                value={selectedOrg.flags.allow_social ? "yes" : "no"}
-                                size="small"
-                                onChange={(e) =>
-                                    handleFlagChange("allow_social", e.target.value === "yes")
-                                }
-                                disabled={updating}
-                            >
-                                <Radio.Button value="yes">Allow</Radio.Button>
-                                <Radio.Button value="no">Deny</Radio.Button>
-                            </Radio.Group>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="SSO authentication">
-                            <Radio.Group
-                                value={selectedOrg.flags.allow_sso ? "yes" : "no"}
-                                size="small"
-                                onChange={(e) =>
-                                    handleFlagChange("allow_sso", e.target.value === "yes")
-                                }
-                                disabled={updating}
-                            >
-                                <Tooltip
-                                    title={
-                                        !hasActiveVerifiedProvider
-                                            ? "Enable at least one SSO provider first."
-                                            : null
-                                    }
-                                >
-                                    <span>
-                                        <Radio.Button
-                                            value="yes"
-                                            disabled={!hasActiveVerifiedProvider}
-                                        >
-                                            Allow
-                                        </Radio.Button>
-                                    </span>
-                                </Tooltip>
-                                <Radio.Button value="no">Deny</Radio.Button>
-                            </Radio.Group>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Owner can bypass controls">
-                            <Radio.Group
-                                value={selectedOrg.flags.allow_root ? "yes" : "no"}
-                                size="small"
-                                onChange={(e) =>
-                                    handleFlagChange("allow_root", e.target.value === "yes")
-                                }
-                                disabled={updating}
-                            >
-                                <Radio.Button value="yes">Allow</Radio.Button>
-                                <Tooltip
-                                    title={
-                                        allAuthMethodsDisabled
-                                            ? "Enable at least one authentication method first."
-                                            : null
-                                    }
-                                >
-                                    <span>
-                                        <Radio.Button value="no" disabled={allAuthMethodsDisabled}>
-                                            Deny
-                                        </Radio.Button>
-                                    </span>
-                                </Tooltip>
-                            </Radio.Group>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Join from non-verified domains">
-                            <Radio.Group
-                                value={selectedOrg.flags.domains_only ? "no" : "yes"}
-                                size="small"
-                                onChange={(e) =>
-                                    handleFlagChange("domains_only", e.target.value === "no")
-                                }
-                                disabled={updating}
-                            >
-                                <Radio.Button value="yes">Allow</Radio.Button>
-                                <Tooltip
-                                    title={
-                                        !hasVerifiedDomain
-                                            ? "Verify at least one domain first."
-                                            : null
-                                    }
-                                >
-                                    <span>
-                                        <Radio.Button value="no" disabled={!hasVerifiedDomain}>
-                                            Deny
-                                        </Radio.Button>
-                                    </span>
-                                </Tooltip>
-                            </Radio.Group>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Auto-join from verified domains">
-                            <Radio.Group
-                                value={selectedOrg.flags.auto_join ? "yes" : "no"}
-                                size="small"
-                                onChange={(e) =>
-                                    handleFlagChange("auto_join", e.target.value === "yes")
-                                }
-                                disabled={updating}
-                            >
-                                <Tooltip
-                                    title={
-                                        !hasVerifiedDomain
-                                            ? "Verify at least one domain first."
-                                            : null
-                                    }
-                                >
-                                    <span>
-                                        <Radio.Button value="yes" disabled={!hasVerifiedDomain}>
-                                            Allow
-                                        </Radio.Button>
-                                    </span>
-                                </Tooltip>
-                                <Radio.Button value="no">Deny</Radio.Button>
-                            </Radio.Group>
-                        </Descriptions.Item>
-                    </Descriptions>
-                </Space>
+
+                    {/* Sign-in methods */}
+                    <SectionLabel>Sign-in methods</SectionLabel>
+                    <SettingRow
+                        title="Email & password"
+                        description="Members can sign in with their email and a password"
+                        enabled={selectedOrg.flags.allow_email}
+                        onChange={(checked) => handleFlagChange("allow_email", checked)}
+                        loading={updating}
+                        showSuccess={lastSavedFlag === "allow_email"}
+                    />
+                    <SettingRow
+                        title="Social login"
+                        description="Allow sign-in with Google, GitHub, or other OAuth providers"
+                        enabled={selectedOrg.flags.allow_social}
+                        onChange={(checked) => handleFlagChange("allow_social", checked)}
+                        loading={updating}
+                        showSuccess={lastSavedFlag === "allow_social"}
+                    />
+                    <SettingRow
+                        title="SSO authentication"
+                        description="Enable single sign-on through your identity provider"
+                        enabled={selectedOrg.flags.allow_sso}
+                        onChange={(checked) => handleFlagChange("allow_sso", checked)}
+                        disabled={!hasActiveVerifiedProvider}
+                        disabledReason="Add an SSO provider below to enable"
+                        tooltip="OIDC supported. Configure your IdP in the SSO Providers section below."
+                        loading={updating}
+                        showSuccess={lastSavedFlag === "allow_sso"}
+                    />
+
+                    {/* Membership */}
+                    <SectionLabel>Membership</SectionLabel>
+                    <SettingRow
+                        title="Auto-join from verified domains"
+                        description="Users with a verified domain email are automatically added to this organization"
+                        enabled={selectedOrg.flags.auto_join}
+                        onChange={(checked) => handleFlagChange("auto_join", checked)}
+                        disabled={!hasVerifiedDomain}
+                        disabledReason="Verify at least one domain first"
+                        loading={updating}
+                        showSuccess={lastSavedFlag === "auto_join"}
+                    />
+                    <SettingRow
+                        title="Restrict invites to verified domains"
+                        description="Only allow inviting users whose email matches a verified domain"
+                        enabled={selectedOrg.flags.domains_only}
+                        onChange={(checked) => handleFlagChange("domains_only", checked)}
+                        disabled={!hasVerifiedDomain}
+                        disabledReason="Verify at least one domain first"
+                        loading={updating}
+                        showSuccess={lastSavedFlag === "domains_only"}
+                    />
+                    {/* Admin */}
+                    <SectionLabel>Admin</SectionLabel>
+                    <SettingRow
+                        title="Owners bypass restrictions"
+                        description="Owners can sign in and invite members regardless of the restrictions above"
+                        enabled={selectedOrg.flags.allow_root}
+                        onChange={(checked) => handleFlagChange("allow_root", checked)}
+                        disabled={allAuthMethodsDisabled && selectedOrg.flags.allow_root}
+                        disabledReason="Enable at least one sign-in method first"
+                        tooltip="Prevents account lockout. Keep enabled if all sign-in methods are disabled."
+                        loading={updating}
+                        showSuccess={lastSavedFlag === "allow_root"}
+                    />
+                </div>
             </Card>
 
             <Card>
@@ -744,13 +763,14 @@ const Organization: FC = () => {
                         style={{
                             display: "flex",
                             justifyContent: "space-between",
-                            alignItems: "center",
+                            alignItems: "flex-start",
                         }}
                     >
                         <div>
-                            <Title level={1} style={sectionTitleStyle}>
+                            <Title level={1} style={sectionTitleStyle} className="!mb-1">
                                 Verified Domains
                             </Title>
+                            <Text type="secondary">Domains that belong to your organization</Text>
                         </div>
                         <Button
                             type="primary"
@@ -938,13 +958,16 @@ const Organization: FC = () => {
                         style={{
                             display: "flex",
                             justifyContent: "space-between",
-                            alignItems: "center",
+                            alignItems: "flex-start",
                         }}
                     >
                         <div>
-                            <Title level={1} style={sectionTitleStyle}>
+                            <Title level={1} style={sectionTitleStyle} className="!mb-1">
                                 SSO Providers
                             </Title>
+                            <Text type="secondary">
+                                Configure identity providers for single sign-on
+                            </Text>
                         </div>
                         <Button
                             type="primary"

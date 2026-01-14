@@ -198,15 +198,6 @@ const ListOfOrgs = ({
                             ),
                         },
                         {
-                            key: `copy:${organization.id}`,
-                            label: (
-                                <div className="flex items-center gap-2">
-                                    <CopyIcon size={16} />
-                                    Copy ID
-                                </div>
-                            ),
-                        },
-                        {
                             key: `rename:${organization.id}`,
                             label: (
                                 <div className="flex items-center gap-2">
