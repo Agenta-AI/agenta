@@ -87,13 +87,13 @@ const Settings: React.FC = () => {
                         case "organization":
                             return organizationLabel
                         case "workspace":
-                            return "Project"
+                            return "Members"
                         case "projects":
                             return "Projects"
                         case "secrets":
                             return "Providers & Models"
                         case "apiKeys":
-                            return "Credentials"
+                            return "API Keys"
                         case "billing":
                             return "Usage & Billing"
                         default:
@@ -135,7 +135,7 @@ const Settings: React.FC = () => {
             case "secrets":
                 return {content: <Secrets />, title: "Providers & Models"}
             case "apiKeys":
-                return {content: <APIKeys />, title: "Credentials"}
+                return {content: <APIKeys />, title: "API Keys"}
             case "billing":
                 return {content: <Billing />, title: "Usage & Billing"}
             case "projects":
@@ -143,20 +143,7 @@ const Settings: React.FC = () => {
             default:
                 return {
                     content: <WorkspaceManage />,
-                    title: (
-                        <div className="flex items-center gap-2">
-                            <span>Project</span>
-                            <Tooltip title={isProjectIdCopied ? "Copied!" : "Click to copy ID"}>
-                                <Tag
-                                    className="cursor-pointer flex items-center gap-1"
-                                    onClick={handleCopyProjectId}
-                                >
-                                    <Link size={14} weight="bold" />
-                                    <span>ID</span>
-                                </Tag>
-                            </Tooltip>
-                        </div>
-                    ),
+                    title: "Members",
                 }
         }
     }, [

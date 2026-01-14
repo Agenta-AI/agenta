@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    ArrowsOutLineHorizontal,
+    ArrowsOutLineHorizontalIcon,
     CaretDownIcon,
     CaretLineDownIcon,
     CaretLineUpIcon,
@@ -115,6 +115,10 @@ const SingleView = ({
         setCollapsedInputs((prev) => ({...prev, [id]: !prev[id]}))
     }, [])
 
+    if (inputOnly && variableIds.length === 0) {
+        return null
+    }
+
     if (isCollapsed && !inputOnly) {
         return (
             <div className={clsx(["flex flex-col", "p-4", "group/item", containerClassName])}>
@@ -132,7 +136,7 @@ const SingleView = ({
                     <div className="flex-1" />
                     <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
                         <EnhancedButton
-                            icon={<ArrowsOutLineHorizontal size={12} />}
+                            icon={<ArrowsOutLineHorizontalIcon size={12} />}
                             size="small"
                             type="text"
                             onClick={() => openFocusDrawer({rowId, variantId})}
@@ -179,7 +183,7 @@ const SingleView = ({
     return (
         <div
             className={clsx([
-                "flex flex-col",
+                "flex flex-col gap-1",
                 "p-4",
                 "group/item",
                 {"gap-4": variableIds.length > 0},
@@ -201,7 +205,7 @@ const SingleView = ({
                     <div className="flex-1" />
                     <div className="flex items-center gap-1 opacity-0 group-hover/header:opacity-100 transition-opacity">
                         <EnhancedButton
-                            icon={<ArrowsOutLineHorizontal size={12} />}
+                            icon={<ArrowsOutLineHorizontalIcon size={12} />}
                             size="small"
                             type="text"
                             onClick={() => openFocusDrawer({rowId, variantId})}

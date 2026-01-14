@@ -7,6 +7,8 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import acquire_lock, release_lock
+
 from oss.src.services import db_manager
 from oss.src.utils.common import is_ee
 from ee.src.services.db_manager_ee import (
@@ -24,6 +26,9 @@ from oss.src.models.db_models import OrganizationDB
 from ee.src.services.email_helper import (
     add_contact_to_loops,
 )
+
+from oss.src.core.auth.service import AuthService
+
 
 log = get_module_logger(__name__)
 
@@ -134,8 +139,6 @@ async def create_accounts(
 
     # Atomically acquire a distributed lock to prevent race conditions
     # where multiple concurrent requests create duplicate accounts
-    from oss.src.utils.caching import acquire_lock, release_lock
-
     lock_acquired = await acquire_lock(
         namespace="account-creation",
         key=email,
@@ -209,8 +212,6 @@ async def create_accounts(
         log.info("[scopes] User [%s] authenticated", user.id)
 
         try:
-            from oss.src.core.auth.service import AuthService
-
             await AuthService().enforce_domain_policies(
                 email=user_dict["email"],
                 user_id=user.id,

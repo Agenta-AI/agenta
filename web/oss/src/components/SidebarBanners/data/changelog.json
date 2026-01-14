@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-01-13-playground-ux",
+        "title": "Playground UX Improvements",
+        "description": "See provider costs, run evaluations directly, and collapse test cases.",
+        "link": "https://agenta.ai/docs/changelog/playground-ux-improvements-jan-2026"
+    },
+    {
         "id": "changelog-2026-01-09-chat-sessions",
         "title": "Chat Sessions in Observability",
         "description": "Track multi-turn conversations with session grouping and cost analytics.",

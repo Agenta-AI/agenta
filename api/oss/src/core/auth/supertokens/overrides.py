@@ -1,12 +1,8 @@
-"""SuperTokens override functions for dynamic OIDC providers and custom session handling."""
-
 from typing import Dict, Any, List, Optional, Union
-from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 
 from supertokens_python.recipe.thirdparty.provider import (
-    Provider,
     ProviderInput,
     ProviderConfig,
     ProviderClientConfig,
@@ -15,6 +11,9 @@ from supertokens_python.recipe.thirdparty.interfaces import (
     RecipeInterface as ThirdPartyRecipeInterface,
     APIInterface as ThirdPartyAPIInterface,
     SignInUpOkResult,
+)
+from supertokens_python.recipe.thirdparty.recipe_implementation import (
+    find_and_create_provider_instance,
 )
 from supertokens_python.recipe.passwordless.interfaces import (
     RecipeInterface as PasswordlessRecipeInterface,
@@ -28,13 +27,16 @@ from supertokens_python.recipe.emailpassword.interfaces import (
 from supertokens_python.recipe.session.interfaces import (
     RecipeInterface as SessionRecipeInterface,
 )
-from supertokens_python.types import User, RecipeUserId
+from supertokens_python.types import RecipeUserId
+
 
 from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.core.users.types import UserIdentityCreate
 from oss.src.services import db_manager
 from oss.src.core.auth.service import AuthService
+
+from oss.src.services.db_manager import get_user_with_email
 
 log = get_module_logger(__name__)
 
@@ -92,8 +94,6 @@ async def get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInp
             return None
 
         _, organization_slug, provider_slug = parts
-
-        from oss.src.services import db_manager
 
         organization = await db_manager.get_organization_by_slug(organization_slug)
         if not organization:
@@ -214,8 +214,6 @@ def override_thirdparty_functions(
 
         # Create or update user_identity
         try:
-            from oss.src.services.db_manager import get_user_with_email
-
             # Get internal user ID from database (not SuperTokens ID)
             internal_user = await get_user_with_email(email)
             if not internal_user:
@@ -241,12 +239,10 @@ def override_thirdparty_functions(
                 )
         except Exception:
             # Log error but don't block authentication
-            log.error("[AUTH] Identity create failed", exc_info=True)
+            log.info("[AUTH] Identity not created", exc_info=True)
 
         # Fetch all user identities for session payload
         try:
-            from oss.src.services.db_manager import get_user_with_email
-
             internal_user = await get_user_with_email(email)
             if internal_user:
                 all_identities = await identities_dao.list_by_user(internal_user.id)
@@ -298,10 +294,6 @@ def override_thirdparty_functions(
         provider_input = await get_dynamic_oidc_provider(third_party_id)
         if provider_input is None:
             return None
-
-        from supertokens_python.recipe.thirdparty.recipe_implementation import (
-            find_and_create_provider_instance,
-        )
 
         return await find_and_create_provider_instance(
             [provider_input],
@@ -424,8 +416,6 @@ def override_passwordless_functions(
 
         # Create or update user_identity
         try:
-            from oss.src.services.db_manager import get_user_with_email
-
             # Get internal user ID from database (not SuperTokens ID)
             internal_user = await get_user_with_email(email)
             if not internal_user:
@@ -456,8 +446,6 @@ def override_passwordless_functions(
 
         # Fetch all user identities for session payload
         try:
-            from oss.src.services.db_manager import get_user_with_email
-
             internal_user = await get_user_with_email(email)
             if internal_user:
                 all_identities = await identities_dao.list_by_user(internal_user.id)
@@ -534,8 +522,6 @@ def override_emailpassword_functions(
 
         # Create or update user_identity
         try:
-            from oss.src.services.db_manager import get_user_with_email
-
             # Get internal user ID from database (not SuperTokens ID)
             internal_user = await get_user_with_email(email)
             if not internal_user:
@@ -566,8 +552,6 @@ def override_emailpassword_functions(
 
         # Fetch all user identities for session payload
         try:
-            from oss.src.services.db_manager import get_user_with_email
-
             internal_user = await get_user_with_email(email)
             if internal_user:
                 all_identities = await identities_dao.list_by_user(internal_user.id)
@@ -632,8 +616,6 @@ def override_emailpassword_functions(
 
         # Create or update user_identity
         try:
-            from oss.src.services.db_manager import get_user_with_email
-
             # Get internal user ID from database (not SuperTokens ID)
             internal_user = await get_user_with_email(email)
             if not internal_user:
@@ -664,8 +646,6 @@ def override_emailpassword_functions(
 
         # Fetch all user identities for session payload
         try:
-            from oss.src.services.db_manager import get_user_with_email
-
             internal_user = await get_user_with_email(email)
             if internal_user:
                 all_identities = await identities_dao.list_by_user(internal_user.id)

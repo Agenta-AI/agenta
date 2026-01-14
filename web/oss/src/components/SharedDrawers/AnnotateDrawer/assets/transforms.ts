@@ -568,8 +568,8 @@ export const generateNewEvaluatorPayloadData = ({
                 acc[metric.name] = {
                     anyOf: [
                         {
-                            type: ["string", "null"],
-                            enum: [...(acc[metric.name].enum?.filter(Boolean) || []), null],
+                            type: ["string"],
+                            enum: acc[metric.name].enum?.filter(Boolean) || [],
                         },
                     ],
                 }
