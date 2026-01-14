@@ -12,6 +12,9 @@ from supertokens_python.recipe.session.framework.fastapi import verify_session
 from oss.src.core.auth.types import MethodKind
 from oss.src.utils.common import is_ee
 
+from oss.src.core.auth.service import AuthService
+
+
 # Note: This middleware requires EE organization tables
 # Organization policy enforcement is only available in EE
 # TODO: Policy enforcement needs to be reimplemented to read from organizations.flags
@@ -76,8 +79,6 @@ async def check_organization_policy(
     user_id = UUID(session.get_user_id())
 
     # Use AuthService for policy enforcement
-    from oss.src.core.auth.service import AuthService
-
     auth_service = AuthService()
     return await auth_service.check_organization_access(
         user_id, organization_id, identities

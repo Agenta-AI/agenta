@@ -1,16 +1,19 @@
-import uuid
 from typing import List, Union, NoReturn, Optional, Tuple
+import uuid
+from datetime import datetime, timezone
 
 import sendgrid
 from fastapi import HTTPException
 
+from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy.exc import IntegrityError
 
-from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
+from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services import db_manager, evaluator_manager
@@ -42,6 +45,11 @@ from oss.src.models.db_models import (
     UserDB,
     InvitationDB,
 )
+
+from ee.src.core.organizations.exceptions import (
+    OrganizationSlugConflictError,
+)
+
 from ee.src.dbs.postgres.organizations.dao import (
     OrganizationProvidersDAO,
     OrganizationDomainsDAO,
@@ -96,6 +104,25 @@ async def get_organizations_by_list_ids(organization_ids: List) -> List[Organiza
         result = await session.execute(query)
         organizations = result.scalars().all()
         return organizations
+
+
+async def count_organizations_by_owner(owner_id: str) -> int:
+    """
+    Count the number of organizations owned by a user.
+
+    Args:
+        owner_id (str): The ID of the owner.
+
+    Returns:
+        int: The count of organizations owned by the user.
+    """
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(func.count(OrganizationDB.id)).where(
+                OrganizationDB.owner_id == uuid.UUID(owner_id)
+            )
+        )
+        return result.scalar() or 0
 
 
 async def get_default_workspace_id(user_id: str) -> str:
@@ -1215,7 +1242,15 @@ async def update_organization(
             if hasattr(organization, key):
                 setattr(organization, key, value)
 
-        await session.commit()
+        try:
+            await session.commit()
+        except Exception as e:
+            if isinstance(e, IntegrityError) and "uq_organizations_slug" in str(e):
+                raise OrganizationSlugConflictError(
+                    slug=payload_dict.get("slug", "unknown")
+                ) from e
+            raise
+
         await session.refresh(organization)
         return organization
 
@@ -1659,9 +1694,6 @@ async def transfer_organization_ownership(
     Raises:
         ValueError: If new owner is not a member of the organization
     """
-    from datetime import datetime, timezone
-    from ee.src.models.db_models import OrganizationMemberDB, WorkspaceMemberDB
-
     async with engine.core_session() as session:
         # Verify organization exists
         org_result = await session.execute(

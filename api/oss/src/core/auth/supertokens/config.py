@@ -1,6 +1,8 @@
 """SuperTokens configuration and initialization."""
 
 from typing import Dict, List, Any, Optional
+from urllib.parse import urlparse
+
 from supertokens_python import init, InputAppInfo, SupertokensConfig
 from supertokens_python.recipe import (
     passwordless,
@@ -42,8 +44,6 @@ def get_supertokens_config() -> Dict[str, Any]:
 def get_app_info() -> InputAppInfo:
     """Get SuperTokens app info."""
     # Extract domain from full URL (e.g., "http://localhost/api" -> "http://localhost")
-    from urllib.parse import urlparse
-
     api_parsed = urlparse(env.agenta.api_url)
     api_domain = f"{api_parsed.scheme}://{api_parsed.netloc}"
     api_gateway_path = api_parsed.path or "/"

@@ -4,6 +4,12 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse, Response
 
 from ee.src.utils.permissions import check_user_org_access
+from ee.src.utils.entitlements import (
+    check_entitlements,
+    NOT_ENTITLED_RESPONSE,
+    Tracker,
+    Flag,
+)
 
 from ee.src.services import db_manager_ee
 from ee.src.services.selectors import get_user_org_and_workspace_id
@@ -93,6 +99,14 @@ async def create_domain(
 
     await verify_user_org_access(user_id, organization_id)
 
+    check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
+        key=Flag.DOMAINS,
+    )
+
+    if not check:
+        return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+
     domain = await domain_service.create_domain(organization_id, payload, user_id)
 
     return JSONResponse(
@@ -119,6 +133,15 @@ async def verify_domain(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+
+    check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
+        key=Flag.DOMAINS,
+    )
+
+    if not check:
+        return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+
     await require_domains_and_auto_join_disabled(organization_id)
 
     return await domain_service.verify_domain(
@@ -138,6 +161,14 @@ async def list_domains(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+
+    check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
+        key=Flag.DOMAINS,
+    )
+
+    if not check:
+        return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
 
     return await domain_service.list_domains(organization_id)
 
@@ -160,6 +191,15 @@ async def refresh_domain_token(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+
+    check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
+        key=Flag.DOMAINS,
+    )
+
+    if not check:
+        return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+
     await require_domains_and_auto_join_disabled(organization_id)
 
     return await domain_service.refresh_token(organization_id, domain_id, user_id)
@@ -183,6 +223,15 @@ async def reset_domain(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+
+    check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
+        key=Flag.DOMAINS,
+    )
+
+    if not check:
+        return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+
     await require_domains_and_auto_join_disabled(organization_id)
 
     return await domain_service.reset_domain(organization_id, domain_id, user_id)
@@ -201,6 +250,15 @@ async def delete_domain(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+
+    check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
+        key=Flag.DOMAINS,
+    )
+
+    if not check:
+        return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+
     await require_domains_and_auto_join_disabled(organization_id)
 
     await domain_service.delete_domain(organization_id, domain_id, user_id)
@@ -229,6 +287,15 @@ async def create_provider(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+
+    check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
+        key=Flag.SSO,
+    )
+
+    if not check:
+        return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+
     await require_email_or_social_or_root_enabled(organization_id)
 
     return await provider_service.create_provider(organization_id, payload, user_id)
@@ -248,6 +315,15 @@ async def update_provider(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+
+    check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
+        key=Flag.SSO,
+    )
+
+    if not check:
+        return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+
     await require_email_or_social_or_root_enabled(organization_id)
 
     return await provider_service.update_provider(
@@ -267,6 +343,14 @@ async def list_providers(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+
+    check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
+        key=Flag.SSO,
+    )
+
+    if not check:
+        return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
 
     return await provider_service.list_providers(organization_id)
 
@@ -291,6 +375,15 @@ async def test_provider(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+
+    check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
+        key=Flag.SSO,
+    )
+
+    if not check:
+        return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+
     await require_email_or_social_or_root_enabled(organization_id)
 
     return await provider_service.test_provider(organization_id, provider_id, user_id)
@@ -309,6 +402,15 @@ async def delete_provider(
     user_id = request.state.user_id
 
     await verify_user_org_access(user_id, organization_id)
+
+    check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
+        key=Flag.SSO,
+    )
+
+    if not check:
+        return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+
     await require_email_or_social_or_root_enabled(organization_id)
 
     await provider_service.delete_provider(organization_id, provider_id, user_id)

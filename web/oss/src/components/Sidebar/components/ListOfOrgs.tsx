@@ -1,6 +1,13 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
-import {ArrowsLeftRight, CaretDown, PencilSimple, Trash} from "@phosphor-icons/react"
+import {
+    ArrowsLeftRight,
+    CaretDown,
+    PencilSimple,
+    Trash,
+    CopyIcon,
+    SignOut,
+} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
     Button,
@@ -21,6 +28,7 @@ import {useRouter} from "next/router"
 import Session from "supertokens-auth-react/recipe/session"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {useSession} from "@/oss/hooks/useSession"
 import {isEE} from "@/oss/lib/helpers/isEE"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {checkOrganizationAccess} from "@/oss/services/organization/api"
@@ -57,7 +65,7 @@ interface ListOfOrgsProps extends Omit<DropdownProps, "menu" | "children"> {
      */
     overrideOrganizationId?: string
     /**
-     * When false, organization items remain visible but are not actionable.
+     * When false, organization items remain visible but are not actionable. Logout remains actionable.
      */
     organizationSelectionEnabled?: boolean
 }
@@ -77,6 +85,7 @@ const ListOfOrgs = ({
     }
     const router = useRouter()
     const {user} = useProfileData()
+    const {logout} = useSession()
     const {
         selectedOrg: selectedOrganization,
         orgs: organizations,
@@ -223,12 +232,24 @@ const ListOfOrgs = ({
             items.push({
                 key: "create-organization",
                 label: (
-                    <div className="flex items-center gap-2 text-primary-500">
-                        <span className="font-medium">+ New organization</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-gray-900">+ New organization</span>
                     </div>
                 ),
             })
+            items.push({type: "divider", key: "organizations-actions-divider"})
         }
+
+        items.push({
+            key: "logout",
+            danger: true,
+            label: (
+                <div className="flex items-center gap-2">
+                    <SignOut size={16} />
+                    Logout
+                </div>
+            ),
+        })
 
         return items
     }, [effectiveSelectedId, interactive, organizationSelectionEnabled, organizations, user?.id])
@@ -426,6 +447,16 @@ const ListOfOrgs = ({
         if (keyString === "create-organization") {
             setOrganizationDropdownOpen(false)
             setCreateModalOpen(true)
+            return
+        }
+
+        if (keyString === "logout") {
+            setOrganizationDropdownOpen(false)
+            AlertPopup({
+                title: "Logout",
+                message: "Are you sure you want to logout?",
+                onOk: logout,
+            })
             return
         }
 

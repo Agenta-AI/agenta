@@ -1,7 +1,11 @@
 import json
+import os
 import re
+import socket
 import traceback
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set, Union
+from urllib.parse import urlparse
+import ipaddress
 
 import httpx
 import litellm
@@ -35,6 +39,69 @@ from agenta.sdk.workflows.builtin import (
 
 
 log = get_module_logger(__name__)
+
+_WEBHOOK_RESPONSE_MAX_BYTES = 1 * 1024 * 1024.0  # 1 MB
+
+_WEBHOOK_ALLOW_INSECURE = (
+    os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE") or "true"
+).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+
+
+def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
+    if _WEBHOOK_ALLOW_INSECURE:
+        return False
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+    )
+
+
+def _validate_webhook_url(url: str) -> None:
+    if not url:
+        raise ValueError("Webhook URL is required.")
+
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"}:
+        raise ValueError("Webhook URL must use http or https.")
+    if scheme == "http" and not _WEBHOOK_ALLOW_INSECURE:
+        raise ValueError("Webhook URL must use https.")
+    if not parsed.netloc:
+        raise ValueError("Webhook URL must include a host.")
+    if parsed.username or parsed.password:
+        raise ValueError("Webhook URL must not include credentials.")
+
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        raise ValueError("Webhook URL must include a valid hostname.")
+    if (
+        hostname in {"localhost", "localhost.localdomain"}
+        and not _WEBHOOK_ALLOW_INSECURE
+    ):
+        raise ValueError("Webhook URL hostname is not allowed.")
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if _is_blocked_ip(ip):
+            raise ValueError("Webhook URL resolves to a blocked IP range.")
+        return
+    except ValueError:
+        pass
+
+    try:
+        addresses = {
+            ipaddress.ip_address(info[4][0])
+            for info in socket.getaddrinfo(hostname, None)
+        }
+    except socket.gaierror as exc:
+        raise ValueError("Webhook URL hostname could not be resolved.") from exc
+
+    if not addresses or any(_is_blocked_ip(ip) for ip in addresses):
+        raise ValueError("Webhook URL resolves to a blocked IP range.")
 
 
 def validate_string_output(
@@ -538,15 +605,34 @@ async def auto_webhook_test(
 
 
 async def webhook_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    webhook_url = input.settings.get("webhook_url")
+
+    _validate_webhook_url(webhook_url)
+
     with httpx.Client() as client:
         payload = {
             "correct_answer": input.inputs["ground_truth"],
             "output": input.inputs["prediction"],
             "inputs": input.inputs,
         }
-        response = client.post(url=input.settings["webhook_url"], json=payload)
+
+        response = client.post(
+            url=webhook_url,
+            json=payload,
+            timeout=httpx.Timeout(10.0, connect=5.0),
+        )
         response.raise_for_status()
-        response_data = response.json()
+
+        content_length = response.headers.get("content-length")
+
+        if content_length and int(content_length) > _WEBHOOK_RESPONSE_MAX_BYTES:
+            raise ValueError("Webhook response exceeded size limit.")
+
+        response_bytes = response.content
+        if len(response_bytes) > _WEBHOOK_RESPONSE_MAX_BYTES:
+            raise ValueError("Webhook response exceeded size limit.")
+
+        response_data = json.loads(response_bytes)
         score = response_data.get("score", None)
         return {"outputs": {"score": score}}
 
