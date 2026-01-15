@@ -1,0 +1,45 @@
+{
+    "name": "@agenta/entities",
+    "version": "0.75.0",
+    "private": true,
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "build": "tsc --noEmit",
+        "types:check": "tsc --noEmit",
+        "lint": "eslint --config ../eslint.config.mjs src/"
+    },
+    "exports": {
+        ".": "./src/index.ts",
+        "./shared": "./src/shared/index.ts",
+        "./trace": "./src/trace/index.ts",
+        "./testset": "./src/testset/index.ts",
+        "./testcase": "./src/testcase/index.ts",
+        "./ui": "./src/ui/index.ts"
+    },
+    "dependencies": {
+        "@agenta/shared": "workspace:../agenta-shared",
+        "@agenta/ui": "workspace:../agenta-ui",
+        "lodash": "^4.17.21",
+        "lucide-react": "^0.475.0"
+    },
+    "devDependencies": {
+        "@tanstack/react-virtual": "^3.13.2",
+        "@types/lodash": "^4.17.18",
+        "@types/node": "^20.8.10",
+        "@types/react": "^19.0.10"
+    },
+    "peerDependencies": {
+        "@ant-design/icons": ">=5.0.0",
+        "@tanstack/react-query": ">=5.0.0",
+        "@tanstack/react-virtual": ">=3.0.0",
+        "antd": ">=5.0.0",
+        "axios": ">=1.0.0",
+        "immer": ">=10.0.0",
+        "jotai": ">=2.0.0",
+        "jotai-family": ">=0.1.0",
+        "jotai-tanstack-query": ">=0.9.0",
+        "react": ">=18.0.0",
+        "zod": ">=3.0.0"
+    }
+}
