@@ -168,7 +168,7 @@ export function LoadMoreInline({
     return (
         <div className={`py-2 text-center ${className}`}>
             {isLoading ? (
-                <span className="text-gray-500 flex items-center justify-center gap-2">
+                <span className="text-zinc-500 flex items-center justify-center gap-2">
                     <Spin size="small" />
                     Loading...
                 </span>
@@ -217,5 +217,5 @@ export function EndOfList({
 }: EndOfListProps) {
     const displayMessage = totalCount ? `${message} (${totalCount} total)` : message
 
-    return <div className={`py-3 text-center text-gray-400 ${className}`}>{displayMessage}</div>
+    return <div className={`py-3 text-center text-zinc-400 ${className}`}>{displayMessage}</div>
 }

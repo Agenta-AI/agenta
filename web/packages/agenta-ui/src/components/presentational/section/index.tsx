@@ -108,7 +108,7 @@ export function SectionCard({children, className, style}: SectionCardProps) {
     return (
         <div
             className={cn(
-                "flex flex-col gap-6 border border-solid border-gray-200 bg-white p-4 rounded",
+                "flex flex-col gap-6 border border-solid border-zinc-2 bg-white p-4 rounded",
                 className,
             )}
             style={style}

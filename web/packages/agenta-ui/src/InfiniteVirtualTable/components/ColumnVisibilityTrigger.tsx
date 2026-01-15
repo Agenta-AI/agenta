@@ -50,9 +50,9 @@ const DefaultVisibilityContent = <Row extends object>({
 
     return (
         <div className="flex flex-col gap-3 min-w-[220px]">
-            <div className="text-xs text-gray-500">Toggle columns</div>
+            <div className="text-xs text-zinc-6">Toggle columns</div>
             <div className="max-h-64 overflow-auto pr-1">{renderNodes(nodes)}</div>
-            <div className="border-t border-gray-200 my-1" />
+            <div className="border-t border-zinc-2 my-1" />
             <div className="flex justify-between gap-2">
                 <Button size="small" onClick={() => controls.reset()}>
                     Reset

@@ -100,11 +100,11 @@ export function SearchInput({
             autoFocus={autoFocus}
             className={className}
             size={size}
-            prefix={<Search className="w-4 h-4 text-gray-400" />}
+            prefix={<Search className="w-4 h-4 text-zinc-400" />}
             suffix={
                 value ? (
                     <XCircle
-                        className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-pointer"
+                        className="w-4 h-4 text-zinc-400 hover:text-zinc-600 cursor-pointer"
                         onClick={handleClear}
                     />
                 ) : null

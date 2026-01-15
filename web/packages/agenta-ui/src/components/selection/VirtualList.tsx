@@ -192,7 +192,7 @@ export function VirtualList<T>({
                 style={containerStyle}
             >
                 <Spin size="default" />
-                <span className="ml-2 text-gray-500">{loadingMessage}</span>
+                <span className="ml-2 text-zinc-6">{loadingMessage}</span>
             </div>
         )
     }
@@ -236,7 +236,7 @@ export function VirtualList<T>({
             {isFetchingMore && (
                 <div className="flex items-center justify-center py-4">
                     <Spin size="small" />
-                    <span className="ml-2 text-gray-500">Loading more...</span>
+                    <span className="ml-2 text-zinc-6">Loading more...</span>
                 </div>
             )}
         </div>
@@ -282,7 +282,7 @@ export function SimpleList<T>({
                 style={containerStyle}
             >
                 <Spin size="default" />
-                <span className="ml-2 text-gray-500">{loadingMessage}</span>
+                <span className="ml-2 text-zinc-6">{loadingMessage}</span>
             </div>
         )
     }
@@ -298,7 +298,7 @@ export function SimpleList<T>({
             {isFetchingMore && (
                 <div className="flex items-center justify-center py-4">
                     <Spin size="small" />
-                    <span className="ml-2 text-gray-500">Loading more...</span>
+                    <span className="ml-2 text-zinc-6">Loading more...</span>
                 </div>
             )}
         </div>
