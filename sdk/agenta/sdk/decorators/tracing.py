@@ -18,6 +18,7 @@ from agenta.sdk.contexts.tracing import (
 from agenta.sdk.tracing.conventions import parse_span_kind
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.otel import debug_otel_context
 from opentelemetry import context as otel_context
 from opentelemetry.baggage import get_all, set_baggage
 from opentelemetry.context import attach, detach, get_current
@@ -77,7 +78,7 @@ class instrument:  # pylint: disable=invalid-name
             @wraps(handler)
             def astream_wrapper(*args, **kwargs):
                 with tracing_context_manager(context=TracingContext.get()):
-                    # debug_otel_context("[BEFORE STREAM] [BEFORE SETUP]")
+                    # debug_otel_context("[ASYNC] [BEFORE STREAM] [BEFORE SETUP]")
 
                     self._parse_type_and_kind()
 
@@ -147,6 +148,8 @@ class instrument:  # pylint: disable=invalid-name
             @wraps(handler)
             def stream_wrapper(*args, **kwargs):
                 with tracing_context_manager(context=TracingContext.get()):
+                    # debug_otel_context("[.SYNC] [BEFORE STREAM] [BEFORE SETUP]")
+
                     self._parse_type_and_kind()
 
                     token = self._attach_baggage()
@@ -210,6 +213,8 @@ class instrument:  # pylint: disable=invalid-name
             @wraps(handler)
             async def awrapper(*args, **kwargs):
                 with tracing_context_manager(context=TracingContext.get()):
+                    # debug_otel_context("[ASYNC] [BEFORE BATCH] [BEFORE SETUP]")
+
                     self._parse_type_and_kind()
 
                     token = self._attach_baggage()
@@ -243,6 +248,8 @@ class instrument:  # pylint: disable=invalid-name
         @wraps(handler)
         def wrapper(*args, **kwargs):
             with tracing_context_manager(context=TracingContext.get()):
+                # debug_otel_context("[.SYNC] [BEFORE BATCH] [BEFORE SETUP]")
+
                 self._parse_type_and_kind()
 
                 token = self._attach_baggage()
