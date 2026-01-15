@@ -103,22 +103,6 @@ export const fetchAllEvaluators = async (includeArchived = false) => {
 }
 
 // Evaluator Configs
-const normalizeSettingsValues = (settingsValues?: Record<string, any> | null) => {
-    if (!settingsValues) return settingsValues
-    const jsonSchema = settingsValues.json_schema
-    if (typeof jsonSchema !== "string") return settingsValues
-
-    try {
-        const parsed = JSON.parse(jsonSchema)
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-            return settingsValues
-        }
-        return {...settingsValues, json_schema: parsed}
-    } catch {
-        return settingsValues
-    }
-}
-
 export const fetchAllEvaluatorConfigs = async (
     appId?: string | null,
     projectIdOverride?: string | null,
@@ -139,7 +123,6 @@ export const fetchAllEvaluatorConfigs = async (
     })
     const evaluatorConfigs = (response.data || []).map((item: EvaluatorConfig) => ({
         ...item,
-        settings_values: normalizeSettingsValues(item.settings_values),
         icon_url: evaluatorIconsMap[item.evaluator_key as keyof typeof evaluatorIconsMap],
         color: tagColors[stringToNumberInRange(item.evaluator_key, 0, tagColors.length - 1)],
     })) as EvaluatorConfig[]
@@ -154,13 +137,8 @@ export const createEvaluatorConfig = async (
     const {projectId} = getProjectValues()
     void _appId
 
-    const normalizedConfig = {
-        ...config,
-        settings_values: normalizeSettingsValues(config.settings_values),
-    }
-
     return axios.post(`/evaluators/configs?project_id=${projectId}`, {
-        ...normalizedConfig,
+        ...config,
     })
 }
 
@@ -170,12 +148,7 @@ export const updateEvaluatorConfig = async (
 ) => {
     const {projectId} = getProjectValues()
 
-    const normalizedConfig = {
-        ...config,
-        settings_values: normalizeSettingsValues(config.settings_values),
-    }
-
-    return axios.put(`/evaluators/configs/${configId}?project_id=${projectId}`, normalizedConfig)
+    return axios.put(`/evaluators/configs/${configId}?project_id=${projectId}`, config)
 }
 
 export const deleteEvaluatorConfig = async (configId: string) => {

@@ -81,18 +81,6 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
 
     const namePath = useMemo(() => (Array.isArray(name) ? name : [name]), [name])
 
-    const parseSchemaObject = useCallback((value: string) => {
-        try {
-            const parsed = JSON.parse(value)
-            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-                return null
-            }
-            return parsed as Record<string, unknown>
-        } catch {
-            return null
-        }
-    }, [])
-
     const applyParsedConfig = useCallback((parsed: SchemaConfig) => {
         setResponseFormat(parsed.responseFormat)
         setIncludeReasoning(parsed.includeReasoning)
@@ -110,14 +98,14 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
     }, [])
 
     const syncFormValue = useCallback(
-        (value: string, parsedValue?: Record<string, unknown> | null) => {
-            if (lastSyncedValueRef.current === value) return
+        (value: string) => {
+            const current = form.getFieldValue(namePath)
+            if (current === value && lastSyncedValueRef.current === value) return
 
-            const nextValue = parsedValue ?? parseSchemaObject(value) ?? value
-            form.setFieldValue(namePath, nextValue)
+            form.setFieldValue(namePath, value)
             lastSyncedValueRef.current = value
         },
-        [form, namePath, parseSchemaObject],
+        [form, namePath],
     )
 
     const getDefaultConfig = useCallback((): SchemaConfig => {
@@ -132,10 +120,9 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
     const applyConfigAndSync = useCallback(
         (config: SchemaConfig) => {
             applyParsedConfig(config)
-            const schema = generateJSONSchema(config)
-            const schemaString = JSON.stringify(schema, null, 2)
+            const schemaString = JSON.stringify(generateJSONSchema(config), null, 2)
             setRawSchema(schemaString)
-            syncFormValue(schemaString, schema)
+            syncFormValue(schemaString)
             setSupportsBasicMode(true)
         },
         [applyParsedConfig, syncFormValue],
@@ -178,7 +165,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
             const schema = generateJSONSchema(config)
             const schemaString = JSON.stringify(schema, null, 2)
 
-            syncFormValue(schemaString, schema)
+            syncFormValue(schemaString)
         }
     }, [
         mode,
@@ -206,7 +193,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
             const schema = generateJSONSchema(config)
             const schemaString = JSON.stringify(schema, null, 2)
             setRawSchema(schemaString)
-            syncFormValue(schemaString, schema)
+            syncFormValue(schemaString)
             setSupportsBasicMode(true)
             setMode("advanced")
             return
@@ -279,7 +266,11 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                                     value ? isSchemaCompatibleWithBasicMode(value) : false,
                                 )
 
-                                syncFormValue(value)
+                                if (Array.isArray(name)) {
+                                    form.setFieldValue(name, value)
+                                } else {
+                                    form.setFieldValue([name], value)
+                                }
                             }
                         }}
                         editorProps={{
