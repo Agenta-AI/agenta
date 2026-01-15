@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from supertokens_python.recipe.session.asyncio import get_session
+from supertokens_python.asyncio import get_user as get_supertokens_user_by_id
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -64,25 +65,30 @@ async def check_organization_access(request: Request, organization_id: str):
 
     try:
         user_uid = session.get_user_id()
-        try:
-            user = await db_manager.get_user_with_uid(user_uid)
-        except Exception:
-            log.error(exc_info=True)
+
+        # Get SuperTokens user info to extract email
+        # This handles AUTH_UPGRADE case where user has multiple ST UIDs
+        user_info = await get_supertokens_user_by_id(user_uid)
+        if not user_info or not user_info.emails:
+            log.warning(
+                "[AUTH] [ACCESS] SuperTokens user has no email user_id=%s organization_id=%s",
+                user_uid,
+                organization_id,
+            )
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+        user_email = user_info.emails[0]
+
+        # Look up internal user by email (not UID) to handle AUTH_UPGRADE
+        user = await db_manager.get_user_with_email(email=user_email)
         if not user:
             log.warning(
-                "[AUTH] [ACCESS] user not found for id=%s organization_id=%s session_identities=%s",
-                user_uid,
+                "[AUTH] [ACCESS] user not found email=%s organization_id=%s session_identities=%s",
+                user_email,
                 organization_id,
                 session_identities,
             )
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    "error": "AUTH_DOMAIN_DENIED",
-                    "message": "Organization available but access restricted to verified domain(s).",
-                    "required_methods": [],
-                },
-            )
+            raise HTTPException(status_code=401, detail="Unauthorized")
 
         user_id = UUID(str(user.id))
         org_id = UUID(organization_id)

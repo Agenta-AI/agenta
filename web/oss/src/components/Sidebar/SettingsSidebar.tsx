@@ -61,7 +61,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 ? [
                       {
                           key: "organization",
-                          title: "Organization Admin",
+                          title: "Access & Security",
                           icon: <Buildings size={16} className="mt-0.5" />,
                       },
                   ]

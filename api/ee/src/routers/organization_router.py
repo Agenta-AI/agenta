@@ -12,6 +12,12 @@ from ee.src.utils.permissions import (
     check_user_org_access,
     check_rbac_permission,
 )
+from ee.src.utils.entitlements import (
+    check_entitlements,
+    Tracker,
+    Flag,
+    NOT_ENTITLED_RESPONSE,
+)
 
 from ee.src.services import (
     db_manager_ee,
@@ -181,6 +187,14 @@ async def update_organization(
                 {"detail": "You do not have permission to perform this action"},
                 status_code=403,
             )
+
+        if payload.flags is not None:
+            check, _, _ = await check_entitlements(
+                organization_id=organization_id,
+                key=Flag.ACCESS,
+            )
+            if not check:
+                return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
 
         organization = await update_an_organization(organization_id, payload)
 

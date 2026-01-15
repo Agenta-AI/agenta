@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
 import {Button, Spin, Typography} from "antd"
 import dayjs from "dayjs"
@@ -24,6 +24,23 @@ const Billing = () => {
     const {usage, isUsageLoading} = useUsageData()
     const [isOpenPricingModal, setIsOpenPricingModal] = useState(false)
     const [isOpenCancelModal, setIsOpenCancelModal] = useState(false)
+
+    // Open pricing modal if 'upgrade=true' query param is present
+    useEffect(() => {
+        if (router.query.upgrade === "true") {
+            setIsOpenPricingModal(true)
+            // Remove the query param to clean up the URL
+            const {upgrade, ...restQuery} = router.query
+            router.replace(
+                {
+                    pathname: router.pathname,
+                    query: restQuery,
+                },
+                undefined,
+                {shallow: true},
+            )
+        }
+    }, [router.query.upgrade])
 
     const onCancelSubscription = useCallback(() => {
         setIsOpenCancelModal(true)

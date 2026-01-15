@@ -219,6 +219,9 @@ axios.interceptors.response.use(
             return Promise.reject(error)
         }
 
+        // if axios config has _ignoreError set to true, then don't handle error
+        if (error.config?._ignoreError) throw error
+
         if (error.response?.status === 403 && error.config.method !== "get") {
             const detail = error.response?.data?.detail
             const detailMessage =
@@ -232,9 +235,6 @@ axios.interceptors.response.use(
             error.message = detailMessage
             throw error
         }
-
-        // if axios config has _ignoreError set to true, then don't handle error
-        if (error.config?._ignoreError) throw error
 
         const domainDeniedDetail = error.response?.data?.detail
         if (error.response?.status === 403 && domainDeniedDetail?.error === "AUTH_DOMAIN_DENIED") {

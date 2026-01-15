@@ -31,6 +31,7 @@ import {
 
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import {getAgentaWebUrl} from "@/oss/lib/helpers/api"
+import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {
     updateOrganization,
     fetchOrganizationDomains,
@@ -47,6 +48,7 @@ import {
     type OrganizationProvider,
 } from "@/oss/services/organization/api"
 import {useOrgData} from "@/oss/state/org"
+import {UpgradePrompt} from "./UpgradePrompt"
 
 const {Title, Text} = Typography
 
@@ -121,6 +123,7 @@ const SectionLabel: FC<{children: React.ReactNode}> = ({children}) => (
 
 const Organization: FC = () => {
     const {selectedOrg, loading, refetch} = useOrgData()
+    const {hasAccessControl, hasDomains, hasSSO} = useEntitlements()
     const queryClient = useQueryClient()
     const [slugValue, setSlugValue] = useState("")
     const [slugModalVisible, setSlugModalVisible] = useState(false)
@@ -141,10 +144,12 @@ const Organization: FC = () => {
 
             setUpdating(true)
             try {
+                const ignoreAxiosError =
+                    options?.ignoreAxiosError ?? Boolean(payload.flags)
                 const updated = await updateOrganization(
                     selectedOrg.id,
                     payload,
-                    options?.ignoreAxiosError ?? false,
+                    ignoreAxiosError,
                 )
                 if (updated) {
                     queryClient.setQueryData(["selectedOrg", selectedOrg.id], updated)
@@ -643,110 +648,118 @@ const Organization: FC = () => {
 
     return (
         <Space direction="vertical" size="middle" style={{width: "100%"}}>
-            <Card>
-                <div className="px-1">
-                    <div className="border-0 border-b border-solid border-[var(--ant-color-border-secondary)] pb-4">
-                        <Title level={1} style={sectionTitleStyle} className="!mb-1">
-                            Access Controls
-                        </Title>
-                        <Text type="secondary">
-                            Configure how users authenticate and join your organization
-                        </Text>
-                    </div>
-
-                    {/* Sign-in methods */}
-                    <SectionLabel>Sign-in methods</SectionLabel>
-                    <SettingRow
-                        title="Email & password"
-                        description="Members can sign in with their email and a password"
-                        enabled={selectedOrg.flags.allow_email}
-                        onChange={(checked) => handleFlagChange("allow_email", checked)}
-                        loading={updating}
-                        showSuccess={lastSavedFlag === "allow_email"}
-                    />
-                    <SettingRow
-                        title="Social login"
-                        description="Allow sign-in with Google, GitHub, or other OAuth providers"
-                        enabled={selectedOrg.flags.allow_social}
-                        onChange={(checked) => handleFlagChange("allow_social", checked)}
-                        loading={updating}
-                        showSuccess={lastSavedFlag === "allow_social"}
-                    />
-                    <SettingRow
-                        title="SSO authentication"
-                        description="Enable single sign-on through your identity provider"
-                        enabled={selectedOrg.flags.allow_sso}
-                        onChange={(checked) => handleFlagChange("allow_sso", checked)}
-                        disabled={!hasActiveVerifiedProvider}
-                        disabledReason="Add an SSO provider below to enable"
-                        tooltip="OIDC supported. Configure your IdP in the SSO Providers section below."
-                        loading={updating}
-                        showSuccess={lastSavedFlag === "allow_sso"}
-                    />
-
-                    {/* Membership */}
-                    <SectionLabel>Membership</SectionLabel>
-                    <SettingRow
-                        title="Auto-join from verified domains"
-                        description="Users with a verified domain email are automatically added to this organization"
-                        enabled={selectedOrg.flags.auto_join}
-                        onChange={(checked) => handleFlagChange("auto_join", checked)}
-                        disabled={!hasVerifiedDomain}
-                        disabledReason="Verify at least one domain first"
-                        loading={updating}
-                        showSuccess={lastSavedFlag === "auto_join"}
-                    />
-                    <SettingRow
-                        title="Restrict invites to verified domains"
-                        description="Only allow inviting users whose email matches a verified domain"
-                        enabled={selectedOrg.flags.domains_only}
-                        onChange={(checked) => handleFlagChange("domains_only", checked)}
-                        disabled={!hasVerifiedDomain}
-                        disabledReason="Verify at least one domain first"
-                        loading={updating}
-                        showSuccess={lastSavedFlag === "domains_only"}
-                    />
-                    {/* Admin */}
-                    <SectionLabel>Admin</SectionLabel>
-                    <SettingRow
-                        title="Owners bypass restrictions"
-                        description="Owners can sign in and invite members regardless of the restrictions above"
-                        enabled={selectedOrg.flags.allow_root}
-                        onChange={(checked) => handleFlagChange("allow_root", checked)}
-                        disabled={allAuthMethodsDisabled && selectedOrg.flags.allow_root}
-                        disabledReason="Enable at least one sign-in method first"
-                        tooltip="Prevents account lockout. Keep enabled if all sign-in methods are disabled."
-                        loading={updating}
-                        showSuccess={lastSavedFlag === "allow_root"}
-                    />
-                </div>
-            </Card>
-
-            <Card>
-                <Space direction="vertical" size="small" style={{width: "100%"}}>
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "flex-start",
-                        }}
-                    >
-                        <div>
+            {hasAccessControl ? (
+                <Card>
+                    <div className="px-1">
+                        <div className="border-0 border-b border-solid border-[var(--ant-color-border-secondary)] pb-4">
                             <Title level={1} style={sectionTitleStyle} className="!mb-1">
-                                Verified Domains
+                                Access Controls
                             </Title>
-                            <Text type="secondary">Domains that belong to your organization</Text>
+                            <Text type="secondary">
+                                Configure how users authenticate and join your organization
+                            </Text>
                         </div>
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={() => setDomainModalVisible(true)}
-                        >
-                            Add Domain
-                        </Button>
-                    </div>
 
-                    <Table
+                        {/* Sign-in methods */}
+                        <SectionLabel>Sign-in methods</SectionLabel>
+                        <SettingRow
+                            title="Email & password"
+                            description="Members can sign in with their email and a password"
+                            enabled={selectedOrg.flags.allow_email}
+                            onChange={(checked) => handleFlagChange("allow_email", checked)}
+                            loading={updating}
+                            showSuccess={lastSavedFlag === "allow_email"}
+                        />
+                        <SettingRow
+                            title="Social login"
+                            description="Allow sign-in with Google, GitHub, or other OAuth providers"
+                            enabled={selectedOrg.flags.allow_social}
+                            onChange={(checked) => handleFlagChange("allow_social", checked)}
+                            loading={updating}
+                            showSuccess={lastSavedFlag === "allow_social"}
+                        />
+                        <SettingRow
+                            title="SSO authentication"
+                            description="Enable single sign-on through your identity provider"
+                            enabled={selectedOrg.flags.allow_sso}
+                            onChange={(checked) => handleFlagChange("allow_sso", checked)}
+                            disabled={!hasActiveVerifiedProvider}
+                            disabledReason="Add an SSO provider below to enable"
+                            tooltip="OIDC supported. Configure your IdP in the SSO Providers section below."
+                            loading={updating}
+                            showSuccess={lastSavedFlag === "allow_sso"}
+                        />
+
+                        {/* Membership */}
+                        <SectionLabel>Membership</SectionLabel>
+                        <SettingRow
+                            title="Auto-join from verified domains"
+                            description="Users with a verified domain email are automatically added to this organization"
+                            enabled={selectedOrg.flags.auto_join}
+                            onChange={(checked) => handleFlagChange("auto_join", checked)}
+                            disabled={!hasVerifiedDomain}
+                            disabledReason="Verify at least one domain first"
+                            loading={updating}
+                            showSuccess={lastSavedFlag === "auto_join"}
+                        />
+                        <SettingRow
+                            title="Restrict invites to verified domains"
+                            description="Only allow inviting users whose email matches a verified domain"
+                            enabled={selectedOrg.flags.domains_only}
+                            onChange={(checked) => handleFlagChange("domains_only", checked)}
+                            disabled={!hasVerifiedDomain}
+                            disabledReason="Verify at least one domain first"
+                            loading={updating}
+                            showSuccess={lastSavedFlag === "domains_only"}
+                        />
+                        {/* Admin */}
+                        <SectionLabel>Admin</SectionLabel>
+                        <SettingRow
+                            title="Owners bypass restrictions"
+                            description="Owners can sign in and invite members regardless of the restrictions above"
+                            enabled={selectedOrg.flags.allow_root}
+                            onChange={(checked) => handleFlagChange("allow_root", checked)}
+                            disabled={allAuthMethodsDisabled && selectedOrg.flags.allow_root}
+                            disabledReason="Enable at least one sign-in method first"
+                            tooltip="Prevents account lockout. Keep enabled if all sign-in methods are disabled."
+                            loading={updating}
+                            showSuccess={lastSavedFlag === "allow_root"}
+                        />
+                    </div>
+                </Card>
+            ) : (
+                <UpgradePrompt
+                    title="Access Controls"
+                    description="Configure how users authenticate and join your organization with sign-in methods, membership rules, and admin controls."
+                />
+            )}
+
+            {hasDomains ? (
+                <Card>
+                    <Space direction="vertical" size="small" style={{width: "100%"}}>
+                        <div
+                            style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "flex-start",
+                            }}
+                        >
+                            <div>
+                                <Title level={1} style={sectionTitleStyle} className="!mb-1">
+                                    Verified Domains
+                                </Title>
+                                <Text type="secondary">Domains that belong to your organization</Text>
+                            </div>
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={() => setDomainModalVisible(true)}
+                            >
+                                Add Domain
+                            </Button>
+                        </div>
+
+                        <Table
                         columns={domainColumns}
                         dataSource={domains}
                         rowKey="id"
@@ -916,8 +929,15 @@ const Organization: FC = () => {
                     </Form>
                 </Modal>
             </Card>
+            ) : (
+                <UpgradePrompt
+                    title="Verified Domains"
+                    description="Verify domains that belong to your organization to enable domain-based access controls and auto-join features."
+                />
+            )}
 
-            <Card>
+            {hasSSO ? (
+                <Card>
                 <Space direction="vertical" size="small" style={{width: "100%"}}>
                     <div
                         style={{
@@ -1199,6 +1219,12 @@ const Organization: FC = () => {
                     </Form>
                 </Modal>
             </Card>
+            ) : (
+                <UpgradePrompt
+                    title="SSO Providers"
+                    description="Configure identity providers for single sign-on (SSO) using OIDC to enable enterprise-grade authentication for your organization."
+                />
+            )}
         </Space>
     )
 }
