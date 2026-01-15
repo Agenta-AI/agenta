@@ -146,7 +146,7 @@ export function LoadAllButton({
 
             {/* Count display */}
             {!isLoading && totalCount && loadedCount && loadedCount < totalCount && (
-                <span className="text-gray-400">
+                <span className="text-zinc-400">
                     {loadedCount} / {totalCount}
                 </span>
             )}
@@ -191,7 +191,7 @@ export function LoadAllInline({
     return (
         <span className={className}>
             {isLoading ? (
-                <span className="text-gray-500 flex items-center gap-1">
+                <span className="text-zinc-500 flex items-center gap-1">
                     <Spin size="small" />
                     Loading...
                 </span>

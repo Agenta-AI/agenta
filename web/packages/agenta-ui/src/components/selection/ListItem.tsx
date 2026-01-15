@@ -128,8 +128,8 @@ export function ListItem({
     const stateClasses = isDisabled
         ? "opacity-50 cursor-not-allowed"
         : isSelected
-          ? "bg-blue-50 cursor-pointer hover:bg-blue-100" // Selected: light blue bg, darker on hover
-          : "cursor-pointer hover:bg-gray-50" // Default: gray hover
+          ? "bg-blue-1 cursor-pointer hover:bg-blue-2" // Selected: light blue bg, darker on hover
+          : "cursor-pointer hover:bg-zinc-1" // Default: zinc hover
 
     return (
         <div
@@ -142,19 +142,19 @@ export function ListItem({
             aria-selected={isSelected}
         >
             <div className="flex items-center gap-3 flex-1 min-w-0">
-                {icon && <span className="flex-shrink-0 text-gray-500">{icon}</span>}
+                {icon && <span className="flex-shrink-0 text-zinc-6">{icon}</span>}
                 <div className="flex-1 min-w-0">
                     <div className="truncate" title={label}>
                         {labelNode ?? label}
                     </div>
-                    {description && <div className="text-gray-500 truncate">{description}</div>}
+                    {description && <div className="text-zinc-6 truncate">{description}</div>}
                 </div>
             </div>
 
             {/* Only show chevron for navigable items, no checkmark for selected */}
             {hasChildren && !isSelectable && (
                 <div className="flex-shrink-0 ml-2">
-                    <ChevronRight className="w-3 h-3 text-gray-400" />
+                    <ChevronRight className="w-3 h-3 text-zinc-4" />
                 </div>
             )}
         </div>

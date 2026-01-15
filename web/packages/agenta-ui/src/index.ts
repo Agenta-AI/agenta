@@ -79,10 +79,12 @@ export {copyToClipboard} from "./utils/copyToClipboard"
  * - cn: Class name concatenation utility
  * - sizeClasses: Text size class mappings
  * - flexLayouts: Common flex layout patterns
- * - textColors: Semantic text color classes
+ * - textColors: Semantic text color classes (using Ant Design zinc scale)
  * - bgColors: Semantic background color classes
  * - borderColors: Semantic border color classes
  * - interactiveStyles: Common interactive element styles
+ * - statusColors: Status-based color classes (success, warning, error, info)
+ * - shadows: Common shadow classes
  */
 export {
     cn,
@@ -92,6 +94,8 @@ export {
     bgColors,
     borderColors,
     interactiveStyles,
+    statusColors,
+    shadows,
     type SizeVariant,
 } from "./utils/styles"
 

@@ -252,7 +252,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
             />
 
             <div className="flex flex-col gap-1">
-                <Typography.Text className="text-xs font-medium uppercase text-gray-500">
+                <Typography.Text className="text-xs font-medium uppercase text-zinc-6">
                     Visibility
                 </Typography.Text>
                 <div className="flex flex-wrap gap-1.5">
@@ -270,7 +270,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                     </Button>
                 </div>
             </div>
-            <div className="rounded-md border border-gray-100 bg-white shadow-inner">
+            <div className="rounded-md border border-zinc-1 bg-white shadow-inner">
                 <div className="max-h-[320px] overflow-auto px-1 py-2">
                     <Tree
                         checkable
