@@ -503,7 +503,7 @@ const Auth = () => {
                                             switch to a different workspace:
                                         </Text>
                                         <Select
-                                            placeholder="Select a workspace"
+                                            placeholder="Select an organization"
                                             className="w-full"
                                             options={orgSelectOptions}
                                             onChange={(value) => {
