@@ -1,0 +1,71 @@
+---
+id: list-sessions
+title: "List Sessions"
+description: "List Sessions"
+sidebar_label: "List Sessions"
+hide_title: true
+hide_table_of_contents: true
+api: eJztV9+P2kYQ/lfQPBsw3MElfgptIgXl2rtyNJWKULTYY9h0vevsru+OIv/v1ewaG8NBqlOfqvDAj/XM59mZ7/u87MCytYFoAe8x1xgziwksA1A5ama5ktMEIhDc2C8GjeFKGghA47cCjf1JJVuIdhAraVFa+sryXPDYZfa/GiVpzcQbzBh9yzXhWo6GfmlkwvIMXZ7c3qUQLXZgtzlCBCulBDIJZVAvyUIIKJcBWG4FLcz2AGUAT1wm6onLdRutfUeJT2jsi/czVlNyAKnSGbMQQcIsdiv48zX86iHLAJRI/mvwOw9ZBiDx+d9CFwVPvlPys8MUPOMvg3JpcY36Isqty6Z96wT15dpQFhlxjJkYZeLXEqx/LC/2wMGXgStKPzLx6oqne4AyAM3sy7yTRbb6Ds6Mcssy2Aeo1VeMLTQBf9RcPIW5lPdQKey3AvV25jUGJWWQ4LjGBCKrC3QLJlfSeFoPw5A+qKOa56Q9AiviGI1JC9GZVcEQvFaqsSp80lG7m9p/dhE01pQVwkIUlgFUlvGFJw6FW8zMAUrFj6YjTGu2PW1IZ5qYQ+jF8ofgfwj+/yP4aWJqiZZO79fD4amiPzPBE6fXzgetlX69nBO0jIuWJNsBQsWtq+cmfbDdeiDL83q+Vb5AGkhm1qdW0IT+gsawNTbmcD7UNaMzp6svNbvxzoXbl791FXcw5aa9vrvnt/Het+/SZD/O5/cngH627aHecmM7D83RKkO7UXTmypUhwJzZDUTQzzU+cnzqW81iLtf9/Wms/40eFkBeqx9RGzekQguIYGNtbqJ+PxaqSHpsjdKyHuN9lnNHb4NxobndupTJ/fQTbj8ic9peLA8DHohGnhjtsHomLOefkKqQjM5zMCnsRmn+t582SZnq8VnUAyLorDlEfnhmWS6wfSikJ92Rze/tHIbh8Lob3nSHb+eDUTQaRMM3vfBm8Cc0rnwpxpsrXKXszSgdX3dHN4Ob7vVoPOyurtK4O4zfjq/S8ZilbAy1bYa187VsrXGpcO8yYencK1WuQxUjJq7/ncn9FAKgSfn5h71BL4RjVrSCSeQsdiLft9ddhuBo0PWIyYEzp3CwyLJ3zQWqjJiVMXmAd0zCVjH1kC0+234uGHf6dbfeVfxcQMVPkoBnKNSPf0L0LF0GsCFaRwvY7VbM4O9alCUt++vRYhnAI9Ocrahn7jm/2VNyB3/h1p00nOd1neApXBSegkf+R97kMyZxjLm9GLs8UN793cMcAlhV/24ylVCOZrQ5eo+AaOa64//H0NoOBJPrgiwrAo9Jr38AYjiEtg==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Sessions"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/preview/tracing/sessions/query"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List Sessions
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"realtime":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Realtime"},"windowing":{"anyOf":[{"properties":{"newest":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Newest"},"oldest":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Oldest"},"next":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Next"},"limit":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Limit"},"order":{"anyOf":[{"type":"string","enum":["ascending","descending"]},{"type":"null"}],"title":"Order"},"interval":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Interval"},"rate":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Rate"}},"type":"object","title":"Windowing"},{"type":"null"}]}},"type":"object","title":"SessionsQueryRequest"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"session_ids":{"items":{"type":"string"},"type":"array","title":"Session Ids","default":[]},"windowing":{"anyOf":[{"properties":{"newest":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Newest"},"oldest":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Oldest"},"next":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Next"},"limit":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Limit"},"order":{"anyOf":[{"type":"string","enum":["ascending","descending"]},{"type":"null"}],"title":"Order"},"interval":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Interval"},"rate":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Rate"}},"type":"object","title":"Windowing"},{"type":"null"}]}},"type":"object","title":"SessionIdsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

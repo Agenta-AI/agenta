@@ -1,0 +1,269 @@
+"use client"
+
+import type {CSSProperties, ReactElement} from "react"
+import {
+    cloneElement,
+    isValidElement,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
+
+import type {CardComponentProps} from "@agentaai/nextstepjs"
+import {ArrowLeft, ArrowRight, DotsSixVertical} from "@phosphor-icons/react"
+import {Button, Card, Typography} from "antd"
+import {useSetAtom} from "jotai"
+
+import type {OnboardingStep} from "@/oss/lib/onboarding"
+import {currentStepStateAtom} from "@/oss/lib/onboarding"
+
+const {Text} = Typography
+
+// We omit specific props to override them with our stricter types
+interface Props extends Omit<CardComponentProps, "step" | "arrow"> {
+    step: OnboardingStep
+    currentStep: number
+    totalSteps: number
+    prevStep: () => void
+    nextStep: () => void
+    skipTour?: () => void
+    arrow?: ReactElement
+}
+
+/**
+ * OnboardingCard - The tooltip/card UI for onboarding steps
+ *
+ * Refactored to separate concerns:
+ * - Drag logic is self-contained
+ * - Effect hook handles cleanup and state updates
+ * - Render logic is cleaner
+ */
+const OnboardingCard = ({
+    step,
+    currentStep,
+    totalSteps,
+    prevStep,
+    nextStep,
+    skipTour,
+    arrow,
+}: Props) => {
+    const setCurrentStepState = useSetAtom(currentStepStateAtom)
+    const cardRef = useRef<HTMLDivElement>(null)
+
+    // Simplified Drag State
+    const [offset, setOffset] = useState({x: 0, y: 0})
+    const isDraggingRef = useRef(false)
+    const dragStartRef = useRef({x: 0, y: 0, offsetX: 0, offsetY: 0})
+
+    // Drag Handler: Mouse Down
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault()
+        isDraggingRef.current = true
+        dragStartRef.current = {
+            x: e.clientX,
+            y: e.clientY,
+            offsetX: 0, // Will be updated relative to current offset state
+            offsetY: 0,
+        }
+
+        // Update drag start based on current React state
+        setOffset((prev) => {
+            dragStartRef.current.offsetX = prev.x
+            dragStartRef.current.offsetY = prev.y
+            return prev
+        })
+    }, [])
+
+    // Drag Logic: Global Listeners
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDraggingRef.current) return
+
+            const dx = e.clientX - dragStartRef.current.x
+            const dy = e.clientY - dragStartRef.current.y
+
+            // Allow unrestricted movement for smoother feel, boundary check can be added if really needed
+            setOffset({
+                x: dragStartRef.current.offsetX + dx,
+                y: dragStartRef.current.offsetY + dy,
+            })
+        }
+
+        const handleMouseUp = () => {
+            isDraggingRef.current = false
+        }
+
+        window.addEventListener("mousemove", handleMouseMove)
+        window.addEventListener("mouseup", handleMouseUp)
+
+        return () => {
+            window.removeEventListener("mousemove", handleMouseMove)
+            window.removeEventListener("mouseup", handleMouseUp)
+        }
+    }, [])
+
+    // Reset offset on step change
+    useEffect(() => {
+        setOffset({x: 0, y: 0})
+    }, [currentStep])
+
+    // Step Lifecycle & Cleanup Management
+    useEffect(() => {
+        if (!step) return
+
+        setCurrentStepState({step, currentStep, totalSteps})
+        step.onEnter?.()
+
+        return () => {
+            step.onExit?.()
+            step.onCleanup?.()
+        }
+    }, [step, currentStep, totalSteps, setCurrentStepState])
+
+    // Handle skip/complete
+    const handleSkip = useCallback(() => {
+        step.onCleanup?.()
+        skipTour?.()
+    }, [skipTour, step])
+
+    // Handle next step
+    const handleNext = useCallback(async () => {
+        try {
+            await step?.onNext?.()
+        } catch (error) {
+            console.error("[Onboarding] onNext handler error:", error)
+        }
+
+        if (currentStep >= totalSteps - 1) {
+            // Last step - complete
+            step.onCleanup?.()
+            skipTour?.()
+        } else {
+            nextStep()
+        }
+    }, [step, currentStep, totalSteps, nextStep, skipTour])
+
+    // UI Helpers
+    const labels = step?.controlLabels ?? {}
+    const progressPercent = Math.round(((currentStep + 1) / totalSteps) * 100)
+
+    // Arrow Styling
+    // We clone the arrow element to apply custom styles (white color)
+    // ensuring it matches the card theme
+    const adjustedArrow = useMemo(() => {
+        if (!isValidElement(arrow)) return null
+
+        // Safe prop access with type assertion
+        const element = arrow as ReactElement<{style?: CSSProperties}>
+        const baseStyle = element.props?.style || {}
+
+        return cloneElement(element, {
+            style: {
+                ...baseStyle,
+                color: "#ffffff",
+                backgroundColor: "white",
+            },
+        })
+    }, [arrow])
+
+    const showControls = step?.showControls ?? true
+    const showSkip = step?.showSkip ?? true
+
+    return (
+        <section
+            ref={cardRef}
+            className="w-[340px]"
+            style={{
+                transform: `translate(${offset.x}px, ${offset.y}px)`,
+                // Add explicit 'will-change' for performance hint
+                willChange: "transform",
+                // Only animate when NOT dragging to avoid lag
+                transition: isDraggingRef.current ? "none" : "transform 0.1s ease-out",
+            }}
+        >
+            <Card className="!rounded-xl !p-0 shadow-lg" classNames={{body: "!px-4 !py-[10px]"}}>
+                <div className="flex w-full flex-col gap-4">
+                    {/* Header with drag handle */}
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between gap-2">
+                            {/* Drag handle */}
+                            <div
+                                onMouseDown={handleMouseDown}
+                                className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                                title="Drag to move"
+                            >
+                                <DotsSixVertical size={16} weight="bold" />
+                            </div>
+                            <Text className="!mb-0 !text-sm font-medium leading-6 text-colorText flex-1">
+                                {step?.title}
+                            </Text>
+                            <Text className="!mb-0 !text-xs font-medium text-colorTextSecondary">
+                                {currentStep + 1} / {totalSteps}
+                            </Text>
+                        </div>
+                        <Text className="!mb-0 !text-xs leading-5 text-colorTextSecondary">
+                            {step?.content}
+                        </Text>
+                    </div>
+
+                    {/* Controls */}
+                    {showControls && (
+                        <div className="flex flex-col gap-4">
+                            <div className="h-1.5 w-full rounded-full bg-gray-200">
+                                <div
+                                    className="h-full rounded-full bg-colorPrimary transition-all duration-300"
+                                    style={{width: `${progressPercent}%`}}
+                                />
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <Button
+                                    onClick={prevStep}
+                                    icon={<ArrowLeft size={14} className="mt-0.5" />}
+                                    disabled={currentStep === 0}
+                                    className="!text-xs !h-[26px] rounded-lg !border-colorBorder hover:!border-colorBorder bg-white text-colorText hover:!text-colorTextSecondary"
+                                    size="small"
+                                >
+                                    {labels.previous ?? "Previous"}
+                                </Button>
+
+                                <Button
+                                    type="primary"
+                                    onClick={handleNext}
+                                    icon={<ArrowRight size={14} className="mt-0.5" />}
+                                    iconPosition="end"
+                                    className="!text-xs !h-[26px] bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg"
+                                    size="small"
+                                >
+                                    {currentStep < totalSteps - 1
+                                        ? (labels.next ?? "Next")
+                                        : (labels.finish ?? "Got it")}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {showSkip && skipTour && currentStep < totalSteps - 1 && (
+                    <Button
+                        type="default"
+                        className="!text-xs mt-2 w-full rounded-lg !border-colorBorder hover:!border-colorBorder bg-white text-colorText hover:!text-colorTextSecondary"
+                        onClick={handleSkip}
+                        size="small"
+                    >
+                        Skip
+                    </Button>
+                )}
+
+                {/* Arrow - hide if user has moved the card */}
+                {adjustedArrow && offset.x === 0 && offset.y === 0 && (
+                    <div className="mt-2 flex w-full justify-center !bg-white">{adjustedArrow}</div>
+                )}
+            </Card>
+        </section>
+    )
+}
+
+export default OnboardingCard

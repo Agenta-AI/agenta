@@ -1,14 +1,18 @@
-from typing import Sequence, Dict, List, Optional, Any
+from typing import Sequence, Dict, List, Optional
 from threading import Thread
 from os import environ
 from uuid import UUID
 
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    OTLPSpanExporter,
+)
+from opentelemetry.sdk.trace import (
+    ReadableSpan,
+)
 from opentelemetry.sdk.trace.export import (
     ConsoleSpanExporter,
     SpanExporter,
     SpanExportResult,
-    ReadableSpan,
 )
 
 from agenta.sdk.utils.constants import TRUTHY
@@ -40,7 +44,7 @@ class InlineTraceExporter(SpanExporter):
         spans: Sequence[ReadableSpan],
     ) -> SpanExportResult:
         if self._shutdown:
-            return
+            return SpanExportResult.SUCCESS
 
         with suppress():
             for span in spans:
@@ -51,7 +55,7 @@ class InlineTraceExporter(SpanExporter):
 
                 self._registry[trace_id].append(span)
 
-            return
+            return SpanExportResult.SUCCESS
 
     def shutdown(self) -> None:
         self._shutdown = True
@@ -122,7 +126,7 @@ class OTLPExporter(OTLPSpanExporter):
                     #     "[SPAN]  [EXPORT]",
                     #     trace_id=UUID(int=trace_id).hex,
                     #     span_id=UUID(int=span_id).hex[-16:],
-                    #     span_attributes=_span.attributes,
+                    #     # span_attributes=_span.attributes,
                     # )
 
                 serialized_spans.append(super().export(_spans))
@@ -154,7 +158,7 @@ class OTLPExporter(OTLPSpanExporter):
 
                     # log.debug(
                     #     "[SPAN] [_EXPORT]",
-                    #     data=serialized_data,
+                    #     # data=serialized_data,
                     #     resp=resp,
                     # )
 

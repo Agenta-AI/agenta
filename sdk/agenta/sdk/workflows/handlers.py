@@ -116,18 +116,25 @@ def _validate_webhook_url(url: str) -> None:
         raise ValueError("Webhook URL resolves to a blocked IP range.")
 
 
+_litellm_configured = False
+
+
 def _configure_litellm():
     """Lazy configuration of litellm - only imported when needed."""
+    global _litellm_configured
+
     litellm = _load_litellm()
     if not litellm:
         raise ImportError("litellm is required for completion handling.")
 
-    litellm.logging = False
-    litellm.set_verbose = False
-    litellm.drop_params = True
-    # litellm.turn_off_message_logging = True
-    mockllm.litellm = litellm
-    litellm.callbacks = [litellm_handler()]
+    if not _litellm_configured:
+        litellm.logging = False
+        litellm.set_verbose = False
+        litellm.drop_params = True
+        # litellm.turn_off_message_logging = True
+        mockllm.litellm = litellm
+        litellm.callbacks = [litellm_handler()]
+        _litellm_configured = True
 
     return litellm
 
@@ -967,8 +974,6 @@ async def auto_ai_critique_v0(
     inputs: Optional[Data] = None,
     outputs: Optional[Union[Data, str]] = None,
 ) -> Any:
-    # return {"score": 0.75, "success": True}
-
     """
     AI critique evaluator for using an LLM to evaluate outputs.
 
@@ -1182,7 +1187,8 @@ async def auto_ai_critique_v0(
 
     try:
         _outputs = json.loads(_outputs)
-    except:
+    except Exception:
+        log.warning("LLM output is not valid JSON, using raw output.", exc_info=True)
         pass
 
     if isinstance(_outputs, (int, float)):
