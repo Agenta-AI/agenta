@@ -1,5 +1,6 @@
 from threading import Lock
 from typing import Dict, List, Optional
+from uuid import UUID
 
 
 from agenta.sdk.contexts.tracing import TracingContext
@@ -58,11 +59,13 @@ class TraceProcessor(SpanProcessor):
         trace_id = span.context.trace_id
         span_id = span.context.span_id
 
-        # log.debug(
-        #     "[SPAN] [START] ",
-        #     trace_id=UUID(int=trace_id).hex,
-        #     span_id=UUID(int=span_id).hex[-16:],
-        # )
+        # if not self.inline:
+        #     log.debug(
+        #         "[SPAN] [START] ",
+        #         trace_id=UUID(int=trace_id).hex,
+        #         span_id=UUID(int=span_id).hex[-16:],
+        #         span_name=span.name,
+        #     )
 
         for key in self.references.keys():
             ref = self.references[key]
@@ -173,11 +176,13 @@ class TraceProcessor(SpanProcessor):
         trace_id = span.context.trace_id
         span_id = span.context.span_id
 
-        # log.debug(
-        #     "[SPAN] [END]   ",
-        #     trace_id=UUID(int=trace_id).hex,
-        #     span_id=UUID(int=span_id).hex[-16:],
-        # )
+        # if not self.inline:
+        #     log.debug(
+        #         "[SPAN] [END]   ",
+        #         trace_id=UUID(int=trace_id).hex,
+        #         span_id=UUID(int=span_id).hex[-16:],
+        #         span_name=span.name,
+        #     )
 
         self._spans.setdefault(trace_id, []).append(span)
         self._registry.setdefault(trace_id, {})
