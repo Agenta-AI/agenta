@@ -25,6 +25,7 @@ const POLLING_INTERVAL_MS = 5_000
  */
 const isRowInProgress = (row: EvaluationRunTableRow): boolean => {
     if (row.__isSkeleton) return false
+    if (row.evaluationKind === "human") return false
     const status = row.status
     if (!status) return false
     return IN_PROGRESS_STATUSES.has(status)

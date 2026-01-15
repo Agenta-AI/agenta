@@ -3,6 +3,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {buildRunIndex} from "@/oss/lib/evaluations/buildRunIndex"
+import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {
     getPreviewRunBatcher,
@@ -321,6 +322,10 @@ export const evaluationRunQueryAtomFamily = atomFamily((runId: string | null) =>
             refetchInterval: (query) => {
                 const status =
                     query.state.data?.rawRun?.status ?? query.state.data?.camelRun?.status
+                const kind = deriveEvaluationKind(
+                    query.state.data?.rawRun ?? query.state.data?.camelRun ?? null,
+                )
+                if (kind === "human") return false
                 return isTerminalStatus(status) ? false : 5000
             },
             queryFn: async () => {
