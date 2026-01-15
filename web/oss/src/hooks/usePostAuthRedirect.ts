@@ -6,7 +6,7 @@ import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
 import {queryClient} from "@/oss/lib/api/queryClient"
-import {isDemo} from "@/oss/lib/helpers/utils"
+import {isEE} from "@/oss/lib/helpers/isEE"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
@@ -31,7 +31,7 @@ interface HandleAuthSuccessOptions {
 const usePostAuthRedirect = () => {
     const router = useRouter()
     const {refetch: resetProfileData} = useProfileData()
-    const {refetch: resetOrgData} = useOrgData()
+    const {refetch: resetOrganizationData} = useOrgData()
     const {reset: resetProjectData} = useProjectData()
     const setAuthFlow = useSetAtom(authFlowAtom)
     const [invite] = useLocalStorage<Record<string, unknown>>("invite", {})
@@ -55,23 +55,30 @@ const usePostAuthRedirect = () => {
 
     const resetAuthState = useCallback(async () => {
         await resetProfileData()
-        await resetOrgData()
+        await resetOrganizationData()
         await resetProjectData()
-    }, [resetOrgData, resetProfileData, resetProjectData])
+    }, [resetProfileData, resetOrganizationData, resetProjectData])
 
     const handleAuthSuccess = useCallback(
         async (authResult: AuthUserLike, options?: HandleAuthSuccessOptions) => {
             // Auth completed successfully; resume normal data fetching.
             setAuthFlow("authed")
             const isInvitedUser = options?.isInvitedUser ?? derivedIsInvitedUser
-            const loginMethodCount = authResult?.user?.loginMethods?.length ?? 0
-            const isNewUser =
-                isDemo() && Boolean(authResult?.createdNewRecipeUser) && loginMethodCount === 1
+            const isNewUser = isEE() && Boolean(authResult?.createdNewRecipeUser)
+            console.log("[post-auth] handleAuthSuccess", {
+                isEE: isEE(),
+                createdNewRecipeUser: authResult?.createdNewRecipeUser,
+                isNewUser,
+                isInvitedUser,
+                loginMethods: authResult?.user?.loginMethods,
+            })
 
             if (isNewUser) {
                 if (isInvitedUser) {
+                    console.log("[post-auth] redirect invited new user -> /workspaces/accept")
                     await router.push("/workspaces/accept?survey=true")
                 } else {
+                    console.log("[post-auth] redirect new user -> /post-signup")
                     await resetAuthState()
                     await router.push("/post-signup")
                 }
@@ -79,6 +86,7 @@ const usePostAuthRedirect = () => {
             }
 
             if (isInvitedUser) {
+                console.log("[post-auth] redirect invited user -> /workspaces/accept")
                 await router.push("/workspaces/accept")
                 return
             }

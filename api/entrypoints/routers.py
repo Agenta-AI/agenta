@@ -24,6 +24,7 @@ from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
 
 from oss.src.routers import evaluation_router, human_evaluation_router
+from oss.src.core.auth.supertokens.config import init_supertokens
 
 # DBEs
 from oss.src.dbs.postgres.queries.dbes import (
@@ -128,6 +129,8 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+
+init_supertokens()
 
 
 @asynccontextmanager

@@ -1,14 +1,19 @@
-"""SuperTokens configuration and initialization."""
-
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from urllib.parse import urlparse
 
 from supertokens_python import init, InputAppInfo, SupertokensConfig
 from supertokens_python.recipe import (
+    emailpassword,
     passwordless,
     session,
-    dashboard,
     thirdparty,
+)
+from supertokens_python.recipe.emailpassword.utils import (
+    InputSignUpFeature,
+    InputOverrideConfig as EmailPasswordInputOverrideConfig,
+)
+from supertokens_python.recipe.emailpassword.types import (
+    InputFormField,
 )
 from supertokens_python.recipe.passwordless import (
     ContactEmailOnlyConfig,
@@ -25,12 +30,23 @@ from supertokens_python.recipe.session import (
 )
 
 from oss.src.utils.env import env
+from oss.src.utils.common import is_ee
+from oss.src.utils.logging import get_module_logger
+from oss.src.utils.validators import (
+    validate_user_email_or_username,
+    validate_actual_email,
+)
 from oss.src.core.auth.supertokens.overrides import (
+    override_emailpassword_apis,
+    override_emailpassword_functions,
     override_thirdparty_functions,
     override_thirdparty_apis,
     override_passwordless_functions,
+    override_passwordless_apis,
     override_session_functions,
 )
+
+log = get_module_logger(__name__)
 
 
 def get_supertokens_config() -> Dict[str, Any]:
@@ -262,40 +278,95 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
 
 def init_supertokens():
-    """Initialize SuperTokens with recipes and dynamic provider support."""
+    """Initialize SuperTokens with only enabled recipes."""
+    # Validate auth configuration
+    try:
+        env.auth.validate_config()
+    except ValueError:
+        log.error("[AUTH]", exc_info=True)
+        raise
 
-    init(
-        supertokens_config=SupertokensConfig(**get_supertokens_config()),
-        app_info=get_app_info(),
-        framework="fastapi",
-        recipe_list=[
-            # Email OTP (passwordless)
+    # Build recipe list based on enabled auth methods
+    recipe_list = []
+
+    # Email Password Authentication
+    if env.auth.email_method == "password":
+        log.info("✓ Email/Password authentication enabled")
+        recipe_list.append(
+            emailpassword.init(
+                sign_up_feature=InputSignUpFeature(
+                    form_fields=[
+                        InputFormField(
+                            id="email", validate=validate_user_email_or_username
+                        ),
+                        InputFormField(
+                            id="actualEmail",
+                            validate=validate_actual_email,
+                            optional=True,
+                        ),
+                    ]
+                ),
+                override=EmailPasswordInputOverrideConfig(
+                    apis=override_emailpassword_apis,
+                    functions=override_emailpassword_functions,
+                ),
+            )
+        )
+
+    # Email OTP Authentication
+    if env.auth.email_method == "otp":
+        log.info("✓ Email/OTP authentication enabled")
+        recipe_list.append(
             passwordless.init(
+                flow_type="USER_INPUT_CODE",
                 contact_config=ContactEmailOnlyConfig(),
-                flow_type="USER_INPUT_CODE_AND_MAGIC_LINK",
                 override=PasswordlessInputOverrideConfig(
+                    apis=override_passwordless_apis,
                     functions=override_passwordless_functions,
                 ),
-            ),
-            # Third-party OAuth (social + dynamic OIDC)
+            )
+        )
+
+    # Third-Party OIDC Authentication
+    # Always initialize thirdparty recipe for dynamic OIDC support (EE)
+    oidc_providers = get_thirdparty_providers()
+    if oidc_providers:
+        enabled_providers = [
+            provider.config.third_party_id for provider in oidc_providers
+        ]
+        log.info("✓ OIDC providers enabled: %s", ", ".join(enabled_providers))
+
+    # Initialize thirdparty recipe if we have static providers OR if EE is enabled
+    if oidc_providers or is_ee():
+        recipe_list.append(
             thirdparty.init(
                 sign_in_and_up_feature=thirdparty.SignInAndUpFeature(
-                    providers=get_thirdparty_providers()
+                    providers=oidc_providers
                 ),
                 override=ThirdPartyInputOverrideConfig(
-                    functions=override_thirdparty_functions,
                     apis=override_thirdparty_apis,
+                    functions=override_thirdparty_functions,
                 ),
+            )
+        )
+        if is_ee() and not oidc_providers:
+            log.info("✓ Third-party recipe enabled for dynamic OIDC (EE)")
+
+    # Sessions always required if auth is enabled
+    recipe_list.append(
+        session.init(
+            expose_access_token_to_frontend_in_cookie_based_auth=True,
+            override=SessionInputOverrideConfig(
+                functions=override_session_functions,
             ),
-            # Session management with custom identities payload
-            session.init(
-                get_token_transfer_method=lambda _, __, ___: "cookie",
-                override=SessionInputOverrideConfig(
-                    functions=override_session_functions,
-                ),
-            ),
-            # SuperTokens dashboard
-            dashboard.init(),
-        ],
+        )
+    )
+
+    # Initialize SuperTokens with selected recipes
+    init(
+        app_info=get_app_info(),
+        supertokens_config=SupertokensConfig(**get_supertokens_config()),
+        framework="fastapi",
+        recipe_list=recipe_list,
         mode="asgi",
     )

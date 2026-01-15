@@ -309,7 +309,7 @@ export const selectedOrgAtom = atom<OrgDetails | null>((get) => {
     return res ?? null
 })
 
-export const resetOrgDataAtom = atom(null, async (get) => {
+export const resetOrganizationDataAtom = atom(null, async (get) => {
     const qc = queryClient
     await qc.removeQueries({queryKey: ["orgs"]})
     await qc.removeQueries({queryKey: ["selectedOrg"]})

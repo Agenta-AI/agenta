@@ -21,22 +21,24 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const [posthog] = useAtom(posthogAtom)
 
     const _id: string | undefined = isDemo() ? user?.email : generateOrRetrieveDistinctId()
+    const baseCapture = posthog?.capture?.bind(posthog)
+    const baseIdentify = posthog?.identify?.bind(posthog)
     const capture: PostHog["capture"] = useCallback(
         (...args) => {
             if (trackingEnabled && user?.id) {
-                return posthog?.capture?.(...args)
+                return baseCapture?.(...args)
             }
             return undefined
         },
-        [posthog, trackingEnabled, user?.id],
+        [baseCapture, trackingEnabled, user?.id],
     )
     const identify: PostHog["identify"] = useCallback(
         (id, ...args) => {
             if (trackingEnabled && user?.id) {
-                posthog?.identify?.(_id !== undefined ? _id : id, ...args)
+                baseIdentify?.(_id !== undefined ? _id : id, ...args)
             }
         },
-        [_id, posthog, trackingEnabled, user?.id],
+        [_id, baseIdentify, trackingEnabled, user?.id],
     )
     useIsomorphicLayoutEffect(() => {
         if (!posthog) return
@@ -51,5 +53,6 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
         if (posthog.get_distinct_id() !== _id) identify()
     }, [posthog, _id])
 
-    return Object.assign({}, posthog, {identify, capture}) as ExtendedPostHog
+    if (!posthog) return null
+    return Object.assign(posthog, {identify, capture}) as ExtendedPostHog
 }

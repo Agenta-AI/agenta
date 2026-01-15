@@ -120,6 +120,7 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         const isAuthRoute = path.startsWith("/auth")
         const isAuthCallbackRoute = path.startsWith("/auth/callback")
         const isAcceptRoute = path.startsWith("/workspaces/accept")
+        const isPostSignupRoute = path.startsWith("/post-signup")
         const authError =
             typeof appState.query?.auth_error === "string" ? appState.query.auth_error : null
         const baseAppURL = urlState.baseAppURL || "/w"
@@ -141,6 +142,13 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         }
 
         if (isSignedIn) {
+            if (isPostSignupRoute) {
+                console.log("[auth-sync] signed in on /post-signup", {
+                    path,
+                    asPath,
+                    baseAppURL,
+                })
+            }
             if (isAuthCallbackRoute) {
                 store.set(protectedRouteReadyAtom, false)
                 return
@@ -199,6 +207,11 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     store.set(protectedRouteReadyAtom, true)
                     return
                 }
+            }
+
+            if (isPostSignupRoute) {
+                store.set(protectedRouteReadyAtom, true)
+                return
             }
 
             if (isAuthRoute) {
@@ -286,6 +299,7 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                         })
                 }
                 if (!path.startsWith(targetHref)) {
+                    console.log("[auth-sync] redirecting to app", {from: path, to: targetHref})
                     void Router.replace(targetHref).catch((error) => {
                         console.error("Failed to redirect authenticated user to app:", error)
                     })

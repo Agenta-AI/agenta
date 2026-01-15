@@ -26,7 +26,7 @@ import {isEE} from "@/oss/lib/helpers/isEE"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {checkOrganizationAccess} from "@/oss/services/organization/api"
 import {useOrgData} from "@/oss/state/org"
-import {resetOrgData} from "@/oss/state/org"
+import {resetOrganizationData} from "@/oss/state/org"
 import {
     orgsAtom as organizationsAtom,
     selectedOrgIdAtom,
@@ -383,7 +383,7 @@ const ListOfOrgs = ({
         },
         onSuccess: async () => {
             message.success("Organization deleted")
-            resetOrgData()
+            resetOrganizationData()
             resetProjectData()
             await refetch()
         },
@@ -416,7 +416,7 @@ const ListOfOrgs = ({
             await refetch()
 
             // Reset cached data to force fresh fetch
-            resetOrgData()
+            resetOrganizationData()
             resetProjectData()
         },
         onError: (error: any) => {
@@ -521,7 +521,7 @@ const ListOfOrgs = ({
                                 await changeSelectedOrg(remainingOrgs[0].id)
                             }
                         }
-                        resetOrgData()
+                        resetOrganizationData()
                         resetProjectData()
                         await refetch()
                     },

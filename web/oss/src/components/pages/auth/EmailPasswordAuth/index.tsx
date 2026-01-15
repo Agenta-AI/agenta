@@ -24,6 +24,9 @@ const EmailPasswordAuth = ({
     ) => {
         try {
             setIsLoading(true)
+            console.log("[emailpassword-auth] signup submit", {
+                email: values.email,
+            })
             const response = await signUp({
                 formFields: [
                     {
@@ -51,6 +54,10 @@ const EmailPasswordAuth = ({
                 const {user} = response as {
                     user?: {loginMethods?: unknown[]}
                 }
+                console.log("[emailpassword-auth] signup ok", {
+                    hasUser: Boolean(user),
+                    loginMethods: user?.loginMethods,
+                })
                 // signUp() doesn't return createdNewRecipeUser (only signInUp does).
                 // Since signUp always creates a new user, we explicitly set it to true.
                 await handleAuthSuccess({createdNewRecipeUser: true, user})
