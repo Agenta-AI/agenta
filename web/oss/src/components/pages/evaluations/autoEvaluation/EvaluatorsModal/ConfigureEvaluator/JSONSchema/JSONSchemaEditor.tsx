@@ -76,6 +76,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
 
         return isSchemaCompatibleWithBasicMode(defaultValue)
     })
+    const [isInitialized, setIsInitialized] = useState(false)
 
     const lastSyncedValueRef = useRef<string | undefined>(undefined)
 
@@ -133,10 +134,13 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
         if (!defaultValue) {
             setSupportsBasicMode(true)
             setRawSchema("")
+            lastSyncedValueRef.current = undefined
+            setIsInitialized(true)
             return
         }
 
         if (lastSyncedValueRef.current === defaultValue) {
+            setIsInitialized(true)
             return
         }
 
@@ -145,7 +149,9 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
 
         setSupportsBasicMode(isSchemaCompatibleWithBasicMode(defaultValue))
         setRawSchema(defaultValue)
-    }, [defaultValue, applyParsedConfig])
+        syncFormValue(defaultValue)
+        setIsInitialized(true)
+    }, [defaultValue, applyParsedConfig, syncFormValue])
 
     useEffect(() => {
         if (!supportsBasicMode && mode !== "advanced") {
@@ -155,6 +161,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
 
     // Update form when basic mode changes
     useEffect(() => {
+        if (!isInitialized) return
         if (mode === "basic" && supportsBasicMode) {
             const config: SchemaConfig = {
                 responseFormat,
@@ -168,6 +175,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
             syncFormValue(schemaString)
         }
     }, [
+        isInitialized,
         mode,
         responseFormat,
         includeReasoning,
