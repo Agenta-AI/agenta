@@ -27,6 +27,8 @@ export interface InvitePayload {
 }
 
 const INVITE_STORAGE_KEY = "invite"
+const POST_SIGNUP_PENDING_KEY = "postSignupPending"
+const POST_SIGNUP_TTL_MS = 2 * 60 * 1000
 let authOrgFetchInFlight = false
 
 export const protectedRouteReadyAtom = atom(false)
@@ -99,6 +101,41 @@ export const isCurrentAcceptRouteForInvite = (appState: any, invite: InvitePaylo
     return currentToken === invite.token
 }
 
+export const writePostSignupPending = () => {
+    if (!isBrowser) return
+    try {
+        window.sessionStorage.setItem(
+            POST_SIGNUP_PENDING_KEY,
+            JSON.stringify({ts: Date.now()}),
+        )
+    } catch {
+        // ignore storage failures
+    }
+}
+
+const readPostSignupPending = (): boolean => {
+    if (!isBrowser) return false
+    try {
+        const raw = window.sessionStorage.getItem(POST_SIGNUP_PENDING_KEY)
+        if (!raw) return false
+        const parsed = JSON.parse(raw) as {ts?: number}
+        if (!parsed?.ts) return false
+        if (Date.now() - parsed.ts > POST_SIGNUP_TTL_MS) return false
+        return true
+    } catch {
+        return false
+    }
+}
+
+const clearPostSignupPending = () => {
+    if (!isBrowser) return
+    try {
+        window.sessionStorage.removeItem(POST_SIGNUP_PENDING_KEY)
+    } catch {
+        // ignore storage failures
+    }
+}
+
 export const syncAuthStateFromUrl = (nextUrl?: string) => {
     if (!isBrowser) return
 
@@ -148,10 +185,21 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     asPath,
                     baseAppURL,
                 })
+                clearPostSignupPending()
             }
             if (isAuthCallbackRoute) {
                 store.set(protectedRouteReadyAtom, false)
                 return
+            }
+            if (isAuthRoute) {
+                if (readPostSignupPending()) {
+                    clearPostSignupPending()
+                    void Router.replace("/post-signup").catch((error) => {
+                        console.error("Failed to redirect to post-signup:", error)
+                    })
+                    store.set(protectedRouteReadyAtom, false)
+                    return
+                }
             }
             if (typeof window !== "undefined") {
                 const upgradeOrgId = window.localStorage.getItem("authUpgradeOrgId")
