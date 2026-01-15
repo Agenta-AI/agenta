@@ -153,6 +153,31 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
         }
     }, [supportsBasicMode, mode])
 
+    // Update form when basic mode changes
+    useEffect(() => {
+        if (mode === "basic" && supportsBasicMode) {
+            const config: SchemaConfig = {
+                responseFormat,
+                includeReasoning,
+                continuousConfig: {minimum: minValue, maximum: maxValue},
+                categoricalOptions: categories,
+            }
+            const schema = generateJSONSchema(config)
+            const schemaString = JSON.stringify(schema, null, 2)
+
+            syncFormValue(schemaString)
+        }
+    }, [
+        mode,
+        responseFormat,
+        includeReasoning,
+        minValue,
+        maxValue,
+        categories,
+        supportsBasicMode,
+        syncFormValue,
+    ])
+
     const handleModeSwitch = (newMode: "basic" | "advanced") => {
         if (newMode === mode) {
             return
