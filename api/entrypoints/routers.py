@@ -394,6 +394,7 @@ app.include_router(
     router=tracing.router,
     prefix="/preview/tracing",
     tags=["Deprecated"],
+    include_in_schema=False,
 )
 
 app.include_router(
