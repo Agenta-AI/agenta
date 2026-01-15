@@ -5,6 +5,7 @@ import router from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {buildAuthUpgradeMessage} from "@/oss/lib/helpers/authMessages"
 import {getJWT} from "@/oss/services/api"
 // import {requestNavigationAtom} from "@/oss/state/appState"
 import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
@@ -177,11 +178,21 @@ axios.interceptors.response.use(
             const selectedOrgId = store.get(selectedOrgIdAtom)
             if (!authUpgradeRedirectInFlight) {
                 authUpgradeRedirectInFlight = true
-                const requiredText = required.length ? required.join(", ") : "an allowed method"
-                const identityText = currentIdentity
-                    ? ` You're signed in with ${currentIdentity}.`
-                    : ""
-                const message = `This organization requires ${requiredText}.${identityText}`
+
+                // Clear any pending invite to prevent redirect loops.
+                // When auth upgrade is required, the user needs to re-authenticate
+                // with the correct method, not re-process the invite.
+                try {
+                    window.localStorage.removeItem("invite")
+                } catch {
+                    // ignore storage errors
+                }
+
+                const message = buildAuthUpgradeMessage(
+                    required,
+                    currentIdentity,
+                    upgradeDetail?.error,
+                )
                 const authError =
                     upgradeDetail?.error === "AUTH_SSO_DENIED" ? "sso_denied" : "upgrade_required"
                 if (upgradeDetail?.error === "AUTH_SSO_DENIED") {

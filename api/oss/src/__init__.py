@@ -250,8 +250,6 @@ async def _create_account(email: str, uid: str) -> None:
     payload = {
         "uid": uid,
         "email": email,
-        "name": "Personal",
-        "is_personal": True,
     }
 
     # For OSS: compute organization before calling create_accounts

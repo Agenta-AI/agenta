@@ -242,7 +242,7 @@ async def add_default_simple_testsets(
                 user_id=user_uuid,
                 simple_testset_create_request=simple_testset_create_request,
             )
-        except Exception as e:
+        except Exception:
             log.error(
                 "An error occurred in adding a default simple testset",
                 template_file=filename,
@@ -1143,7 +1143,7 @@ async def delete_accounts() -> None:
                     "[scopes] project deleted",
                     project_id=project.id,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting project",
                     project_id=project.id,
@@ -1167,7 +1167,7 @@ async def delete_accounts() -> None:
                     "[scopes] workspace deleted",
                     workspace_id=workspace.id,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting workspace",
                     workspace_id=workspace.id,
@@ -1191,7 +1191,7 @@ async def delete_accounts() -> None:
                     "[scopes] organization deleted",
                     organization_id=organization.id,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting organization",
                     organization_id=organization.id,
@@ -1217,7 +1217,7 @@ async def delete_accounts() -> None:
                     "[scopes] user deleted (supertokens)",
                     user_uid=user.uid,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting user from supertokens",
                     user_uid=user.uid,
@@ -1233,7 +1233,7 @@ async def delete_accounts() -> None:
                     "[scopes] user deleted",
                     user_id=user.id,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting user",
                     user_id=user.id,
@@ -1366,7 +1366,6 @@ async def create_organization(
             name=name,
             flags={
                 "is_demo": False,
-                "is_personal": False,
                 "allow_email": env.auth.email_enabled,
                 "allow_social": env.auth.oidc_enabled,
                 "allow_sso": False,

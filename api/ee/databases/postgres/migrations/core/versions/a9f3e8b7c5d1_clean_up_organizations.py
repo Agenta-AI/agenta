@@ -28,7 +28,7 @@ def upgrade() -> None:
     Clean up organizations table and introduce new schema.
 
     Changes:
-    - Add flags (JSONB, nullable) with is_personal and is_demo fields
+    - Add flags (JSONB, nullable) with is_demo field
     - Migrate type='view-only' to flags.is_demo=true
     - Drop type column
     - Convert owner (String) to owner_id (UUID, NOT NULL)
@@ -44,12 +44,6 @@ def upgrade() -> None:
     - Add updated_by_id to project_members (nullable)
     - Drop user_organizations table (replaced by organization_members)
     - Drop invitations table (obsolete)
-
-    EE Mode:
-    - Organizations with >1 member → is_personal=false
-    - Organizations with =1 member and user owns it → is_personal=true
-    - Create missing personal orgs for users without one
-    - Normalize names: personal orgs → "Personal", slug → NULL
     """
     conn = op.get_bind()
 
@@ -130,52 +124,14 @@ def upgrade() -> None:
     )
 
     # Step 4: Migrate type='view-only' to is_demo=true for all orgs
-    # and mark multi-member orgs as is_personal=false
     conn.execute(
         text("""
         UPDATE organizations o
         SET flags = jsonb_build_object(
-            'is_demo', CASE WHEN o.type = 'view-only' THEN true ELSE false END,
-            'is_personal', false
+            'is_demo', CASE WHEN o.type = 'view-only' THEN true ELSE false END
         )
         FROM org_member_counts omc
         WHERE o.id = omc.org_id
-        AND omc.member_count > 1
-    """)
-    )
-
-    # Step 5: Mark single-member orgs owned by that member as personal
-    # NOTE: owner is String type, needs casting for comparison
-    conn.execute(
-        text("""
-        UPDATE organizations o
-        SET flags = jsonb_build_object(
-            'is_demo', CASE WHEN o.type = 'view-only' THEN true ELSE false END,
-            'is_personal', true
-        )
-        FROM org_member_counts omc
-        WHERE o.id = omc.org_id
-        AND omc.member_count = 1
-        AND EXISTS (
-            SELECT 1 FROM organization_members om
-            WHERE om.organization_id = o.id
-            AND om.user_id::text = o.owner
-        )
-    """)
-    )
-
-    # Step 6: Mark remaining single-member orgs as collaborative (is_personal=false)
-    conn.execute(
-        text("""
-        UPDATE organizations o
-        SET flags = jsonb_build_object(
-            'is_demo', CASE WHEN o.type = 'view-only' THEN true ELSE false END,
-            'is_personal', false
-        )
-        FROM org_member_counts omc
-        WHERE o.id = omc.org_id
-        AND omc.member_count = 1
-        AND (o.flags IS NULL OR o.flags = '{}'::jsonb)
     """)
     )
 
@@ -206,55 +162,6 @@ def upgrade() -> None:
         WHERE owner_id IS NOT NULL
     """)
     )
-
-    # Step 10: Create missing personal organizations for users without one
-    users_missing_personal_org = conn.execute(
-        text("""
-        SELECT u.id
-        FROM users u
-        WHERE NOT EXISTS (
-            SELECT 1 FROM organizations o
-            WHERE o.owner_id = u.id
-            AND o.flags->>'is_personal' = 'true'
-        )
-    """)
-    ).fetchall()
-    for (user_id,) in users_missing_personal_org:
-        conn.execute(
-            text("""
-            INSERT INTO organizations (
-                id,
-                name,
-                slug,
-                description,
-                owner,
-                owner_id,
-                created_at,
-                created_by_id,
-                updated_at,
-                updated_by_id,
-                flags
-            )
-            VALUES (
-                :id,
-                'Personal',
-                NULL,
-                NULL,
-                :owner_text,
-                :owner_id,
-                NOW(),
-                :owner_id,
-                NOW(),
-                :owner_id,
-                '{"is_demo": false, "is_personal": true}'::jsonb
-            )
-        """),
-            {
-                "id": uuid.uuid7(),
-                "owner_text": str(user_id),
-                "owner_id": user_id,
-            },
-        )
 
     # Step 10b: Add role column to organization_members
     op.add_column(
@@ -303,32 +210,6 @@ def upgrade() -> None:
         "project_members",
         sa.Column("updated_by_id", sa.UUID(), nullable=True),
     )
-
-    # Step 11: Add users as members to their new personal orgs
-    personal_orgs_missing_owner = conn.execute(
-        text("""
-        SELECT o.id, o.owner_id
-        FROM organizations o
-        WHERE o.flags->>'is_personal' = 'true'
-        AND NOT EXISTS (
-            SELECT 1 FROM organization_members om
-            WHERE om.organization_id = o.id
-            AND om.user_id = o.owner_id
-        )
-    """)
-    ).fetchall()
-    for organization_id, owner_id in personal_orgs_missing_owner:
-        conn.execute(
-            text("""
-            INSERT INTO organization_members (id, user_id, organization_id, role)
-            VALUES (:id, :user_id, :organization_id, 'owner')
-        """),
-            {
-                "id": uuid.uuid7(),
-                "user_id": owner_id,
-                "organization_id": organization_id,
-            },
-        )
 
     # Step 11b: Create missing default workspaces for organizations
     orgs_missing_workspaces = conn.execute(
@@ -524,24 +405,12 @@ def upgrade() -> None:
         {"plan": FREE_PLAN.value},
     )
 
-    # Step 12: Normalize personal organizations
-    conn.execute(
-        text("""
-        UPDATE organizations
-        SET
-            name = 'Personal',
-            slug = NULL
-        WHERE flags->>'is_personal' = 'true'
-    """)
-    )
-
     # Step 13: Ensure any remaining orgs have flags set
     conn.execute(
         text("""
         UPDATE organizations
         SET flags = jsonb_build_object(
-            'is_demo', CASE WHEN type = 'view-only' THEN true ELSE false END,
-            'is_personal', false
+            'is_demo', CASE WHEN type = 'view-only' THEN true ELSE false END
         )
         WHERE flags IS NULL OR flags = '{}'::jsonb
     """)
@@ -568,15 +437,6 @@ def upgrade() -> None:
             )
         WHERE flags IS NOT NULL
     """)
-    )
-
-    # Step 13c: Add unique constraint: one personal org per owner
-    op.create_index(
-        "uq_organizations_owner_personal",
-        "organizations",
-        ["owner_id"],
-        unique=True,
-        postgresql_where=sa.text("(flags->>'is_personal') = 'true'"),
     )
 
     # Clean up temp table

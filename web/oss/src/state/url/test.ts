@@ -5,6 +5,7 @@ import type {Store} from "jotai/vanilla/store"
 import Router from "next/router"
 
 import {parseRouterState, setLocationAtom} from "@/oss/state/appState"
+import {profileQueryAtom} from "@/oss/state/profile/selectors/user"
 import {sessionLoadingAtom} from "@/oss/state/session"
 import focusDrawerState from "@/oss/state/url/focusDrawer"
 
@@ -106,6 +107,21 @@ urlQuerySyncAtom.onMount = (set) => {
         }
         lastSessionLoading = current
     })
+
+    // Also re-sync when profile finishes loading (for invite email matching)
+    let lastProfileLoading = (() => {
+        const pq = store.get(profileQueryAtom)
+        return pq.isPending || pq.isFetching
+    })()
+    const unsubProfileLoading = store.sub(profileQueryAtom, () => {
+        const profileQuery = store.get(profileQueryAtom)
+        const currentLoading = profileQuery.isPending || profileQuery.isFetching
+        if (lastProfileLoading && !currentLoading) {
+            syncAuthStateFromUrl()
+        }
+        lastProfileLoading = currentLoading
+    })
+
     syncUrlState()
 
     Router.events.on("beforeHistoryChange", handleRouteChange)
@@ -117,6 +133,7 @@ urlQuerySyncAtom.onMount = (set) => {
         Router.events.off("routeChangeComplete", handleRouteChange)
         window.removeEventListener("hashchange", handleHashChange)
         unsubSessionLoading()
+        unsubProfileLoading()
     }
 }
 

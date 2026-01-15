@@ -87,7 +87,6 @@ All stored in `organizations.flags` JSONB:
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `is_personal` | `false` | Personal single-user organization |
 | `is_demo` | `false` | Demo organization |
 | `allow_email` | `env.auth.email_enabled` | Allow email/OTP authentication |
 | `allow_social` | `env.auth.oidc_enabled` | Allow social authentication |
@@ -95,6 +94,8 @@ All stored in `organizations.flags` JSONB:
 | `allow_root` | `false` | Owner bypasses all auth restrictions |
 | `domains_only` | `false` | Restrict to verified email domains |
 | `auto_join` | `false` | Auto-add users with verified domains |
+
+> **Note:** The `is_personal` flag has been removed. All organizations are collaborative by default.
 
 ---
 

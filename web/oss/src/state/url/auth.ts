@@ -10,8 +10,8 @@ import {
     navigationRequestAtom,
     requestNavigationAtom,
 } from "@/oss/state/appState"
-import {isPersonalOrg, orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
-import {userAtom} from "@/oss/state/profile/selectors/user"
+import {orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
+import {profileQueryAtom, userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
 import {urlAtom} from "@/oss/state/url"
 
@@ -169,8 +169,19 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             }
 
             if (invite && !isAcceptRoute) {
-                const inviteEmail = invite.email ?? undefined
+                const inviteEmail = invite.email?.toLowerCase() ?? undefined
                 const userEmail = user?.email?.toLowerCase()
+                const profileQuery = store.get(profileQueryAtom)
+                const profileLoading = profileQuery.isPending || profileQuery.isFetching
+
+                // If invite has an email but user profile is still loading, wait
+                // This prevents race conditions where we redirect to accept before
+                // we can check if the emails match
+                if (inviteEmail && !userEmail && profileLoading) {
+                    store.set(protectedRouteReadyAtom, false)
+                    return
+                }
+
                 if (!inviteEmail || !userEmail || inviteEmail === userEmail) {
                     if (!isCurrentAcceptRouteForInvite(appState, invite)) {
                         void Router.replace({pathname: "/workspaces/accept", query: invite}).catch(
@@ -182,6 +193,12 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     store.set(protectedRouteReadyAtom, false)
                     return
                 }
+                // Invite exists but emails don't match - if on auth route, show the page
+                // so user can sign out and sign in with the correct account
+                if (isAuthRoute && inviteEmail && userEmail && inviteEmail !== userEmail) {
+                    store.set(protectedRouteReadyAtom, true)
+                    return
+                }
             }
 
             if (isAuthRoute) {
@@ -189,6 +206,12 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     if (typeof window !== "undefined") {
                         signOut().catch(() => null)
                     }
+                    store.set(protectedRouteReadyAtom, true)
+                    return
+                }
+                // When auth upgrade is required, stay on auth page to show the upgrade message
+                // The user needs to re-authenticate with the correct method
+                if (authError === "upgrade_required") {
                     store.set(protectedRouteReadyAtom, true)
                     return
                 }
@@ -208,23 +231,17 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     }
                 }
                 const orgs = store.get(orgsAtom)
-                const personalOrg = Array.isArray(orgs)
-                    ? orgs.find((org) => isPersonalOrg(org))
-                    : null
                 if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
                     console.log("[auth-redirect] orgs snapshot", {
                         count: Array.isArray(orgs) ? orgs.length : 0,
-                        personalOrgId: personalOrg?.id,
                         orgs: Array.isArray(orgs)
                             ? orgs.map((org) => ({
                                   id: org.id,
-                                  is_personal: org.flags?.is_personal,
                               }))
                             : [],
                     })
                 }
-                const targetWorkspaceId =
-                    personalOrg?.id || resolvePreferredWorkspaceId(user?.id ?? null, orgs)
+                const targetWorkspaceId = resolvePreferredWorkspaceId(user?.id ?? null, orgs)
                 const targetHref = targetWorkspaceId
                     ? `/w/${encodeURIComponent(targetWorkspaceId)}`
                     : "/w"
@@ -245,16 +262,13 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                             staleTime: 60_000,
                         })
                         .then((freshOrgs) => {
-                            const personal = Array.isArray(freshOrgs)
-                                ? freshOrgs.find((org) => isPersonalOrg(org))
-                                : null
-                            const resolved =
-                                personal?.id ||
-                                resolvePreferredWorkspaceId(user?.id ?? null, freshOrgs)
+                            const resolved = resolvePreferredWorkspaceId(
+                                user?.id ?? null,
+                                freshOrgs,
+                            )
                             if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
                                 console.log("[auth-redirect] fetched orgs", {
                                     count: Array.isArray(freshOrgs) ? freshOrgs.length : 0,
-                                    personalOrgId: personal?.id,
                                     resolved,
                                 })
                             }

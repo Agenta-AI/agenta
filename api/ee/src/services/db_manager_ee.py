@@ -12,7 +12,6 @@ from sqlalchemy.orm import joinedload, load_only
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.exc import IntegrityError
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.shared.engine import engine
@@ -1008,11 +1007,9 @@ async def create_organization(
         create_org_data = payload.model_dump(exclude_unset=True)
 
         is_demo = create_org_data.pop("is_demo", False)
-        is_personal = create_org_data.pop("is_personal", False)
 
         create_org_data["flags"] = {
             "is_demo": is_demo,
-            "is_personal": is_personal,
             "allow_email": env.auth.email_enabled,
             "allow_social": env.auth.oidc_enabled,
             "allow_sso": False,
@@ -1120,16 +1117,6 @@ async def update_organization(
                         "Organization slug can only contain lowercase letters (a-z) and hyphens (-)."
                     )
 
-            # Personal organizations cannot have slugs
-            is_personal = organization.flags and organization.flags.get(
-                "is_personal", False
-            )
-            if is_personal:
-                raise ValueError(
-                    "Personal organizations cannot have slugs. "
-                    "Slugs are only available for collaborative organizations."
-                )
-
             # Slug immutability: once set, cannot be changed
             if organization.slug is not None and new_slug != organization.slug:
                 raise ValueError(
@@ -1147,7 +1134,6 @@ async def update_organization(
                 # Start with complete defaults
                 default_flags = {
                     "is_demo": False,
-                    "is_personal": False,
                     "allow_email": env.auth.email_enabled,
                     "allow_social": env.auth.oidc_enabled,
                     "allow_sso": False,

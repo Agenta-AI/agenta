@@ -30,7 +30,7 @@ from ee.src.models.api.organization_models import (
     Organization,
     OrganizationUpdate,
     OrganizationOutput,
-    CreateCollaborativeOrganization,
+    CreateOrganizationPayload,
 )
 from ee.src.services.organization_service import (
     update_an_organization,
@@ -363,13 +363,13 @@ async def transfer_organization_ownership(
 
 @router.post(
     "/",
-    operation_id="create_collaborative_organization",
+    operation_id="create_organization",
 )
-async def create_collaborative_organization(
-    payload: CreateCollaborativeOrganization,
+async def create_organization(
+    payload: CreateOrganizationPayload,
     request: Request,
 ):
-    """Create a new collaborative organization."""
+    """Create a new organization."""
     try:
         user = await db_manager.get_user(request.state.user_id)
         if not user:
@@ -383,7 +383,6 @@ async def create_collaborative_organization(
             organization_email=user.email,
             organization_name=payload.name,
             organization_description=payload.description,
-            is_personal=False,  # Collaborative organization
             use_reverse_trial=False,  # Use hobby plan instead
         )
 
@@ -398,7 +397,7 @@ async def create_collaborative_organization(
 
     except Exception as e:
         log.error(
-            "Unexpected error while creating collaborative organization",
+            "Unexpected error while creating organization",
             exc_info=True,
         )
         raise HTTPException(
