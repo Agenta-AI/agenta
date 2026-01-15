@@ -1,0 +1,30 @@
+{
+    "name": "@agenta/shared",
+    "version": "0.75.0",
+    "private": true,
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "build": "tsc --noEmit",
+        "types:check": "tsc --noEmit",
+        "lint": "eslint --config ../eslint.config.mjs src/"
+    },
+    "exports": {
+        ".": "./src/index.ts",
+        "./api": "./src/api/index.ts",
+        "./state": "./src/state/index.ts",
+        "./utils": "./src/utils/index.ts"
+    },
+    "dependencies": {
+        "dayjs": "^1.11.10"
+    },
+    "devDependencies": {
+        "@types/node": "^20.8.10"
+    },
+    "peerDependencies": {
+        "axios": ">=1.0.0",
+        "jotai": ">=2.0.0",
+        "jotai-tanstack-query": ">=0.9.0",
+        "@tanstack/react-query": ">=5.0.0"
+    }
+}
