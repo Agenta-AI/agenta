@@ -15,8 +15,8 @@ import {useProfileData} from "@/oss/state/profile"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {useProjectData} from "@/oss/state/project"
 import {authFlowAtom} from "@/oss/state/session"
-import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 import {writePostSignupPending} from "@/oss/state/url/auth"
+import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 interface AuthUserLike {
     createdNewRecipeUser?: boolean

@@ -48,6 +48,7 @@ import {
     type OrganizationProvider,
 } from "@/oss/services/organization/api"
 import {useOrgData} from "@/oss/state/org"
+
 import {UpgradePrompt} from "./UpgradePrompt"
 
 const {Title, Text} = Typography
@@ -144,13 +145,8 @@ const Organization: FC = () => {
 
             setUpdating(true)
             try {
-                const ignoreAxiosError =
-                    options?.ignoreAxiosError ?? Boolean(payload.flags)
-                const updated = await updateOrganization(
-                    selectedOrg.id,
-                    payload,
-                    ignoreAxiosError,
-                )
+                const ignoreAxiosError = options?.ignoreAxiosError ?? Boolean(payload.flags)
+                const updated = await updateOrganization(selectedOrg.id, payload, ignoreAxiosError)
                 if (updated) {
                     queryClient.setQueryData(["selectedOrg", selectedOrg.id], updated)
                     queryClient.setQueriesData(["orgs"], (old: any) => {
@@ -748,7 +744,9 @@ const Organization: FC = () => {
                                 <Title level={1} style={sectionTitleStyle} className="!mb-1">
                                     Verified Domains
                                 </Title>
-                                <Text type="secondary">Domains that belong to your organization</Text>
+                                <Text type="secondary">
+                                    Domains that belong to your organization
+                                </Text>
                             </div>
                             <Button
                                 type="primary"
@@ -760,82 +758,57 @@ const Organization: FC = () => {
                         </div>
 
                         <Table
-                        columns={domainColumns}
-                        dataSource={domains}
-                        rowKey="id"
-                        pagination={false}
-                        size="small"
-                        tableLayout="fixed"
-                        className="no-expand-indent no-expand-col org-domains-table"
-                        expandable={{
-                            expandedRowKeys: pendingDomainRowKeys,
-                            expandedRowRender: (record: OrganizationDomain) => {
-                                // Only show DNS instructions for unverified domains with a token
-                                if (record.flags?.is_verified || !record.token) {
-                                    return null
-                                }
+                            columns={domainColumns}
+                            dataSource={domains}
+                            rowKey="id"
+                            pagination={false}
+                            size="small"
+                            tableLayout="fixed"
+                            className="no-expand-indent no-expand-col org-domains-table"
+                            expandable={{
+                                expandedRowKeys: pendingDomainRowKeys,
+                                expandedRowRender: (record: OrganizationDomain) => {
+                                    // Only show DNS instructions for unverified domains with a token
+                                    if (record.flags?.is_verified || !record.token) {
+                                        return null
+                                    }
 
-                                const txtRecordName = `_agenta-verification.${record.slug}`
-                                const txtRecordValue = `_agenta-verification=${record.token}`
+                                    const txtRecordName = `_agenta-verification.${record.slug}`
+                                    const txtRecordValue = `_agenta-verification=${record.token}`
 
-                                return (
-                                    <Alert
-                                        message={
-                                            <span style={{fontSize: "15px", fontWeight: 500}}>
-                                                Verification Instructions
-                                            </span>
-                                        }
-                                        description={
-                                            <Space
-                                                direction="vertical"
-                                                size="middle"
-                                                style={{width: "100%"}}
-                                            >
-                                                <Text style={{fontSize: "14px"}}>
-                                                    1. Add the following DNS TXT record:
-                                                </Text>
-                                                <Descriptions
-                                                    bordered
-                                                    size="small"
-                                                    column={1}
-                                                    className="org-instructions"
+                                    return (
+                                        <Alert
+                                            message={
+                                                <span style={{fontSize: "15px", fontWeight: 500}}>
+                                                    Verification Instructions
+                                                </span>
+                                            }
+                                            description={
+                                                <Space
+                                                    direction="vertical"
+                                                    size="middle"
+                                                    style={{width: "100%"}}
                                                 >
-                                                    <Descriptions.Item
-                                                        label={
-                                                            <span
-                                                                style={{
-                                                                    fontFamily: "monospace",
-                                                                    fontSize: "12px",
-                                                                }}
-                                                            >
-                                                                Type
-                                                            </span>
-                                                        }
+                                                    <Text style={{fontSize: "14px"}}>
+                                                        1. Add the following DNS TXT record:
+                                                    </Text>
+                                                    <Descriptions
+                                                        bordered
+                                                        size="small"
+                                                        column={1}
+                                                        className="org-instructions"
                                                     >
-                                                        <span
-                                                            style={{
-                                                                fontFamily: "monospace",
-                                                                fontSize: "12px",
-                                                            }}
-                                                        >
-                                                            TXT
-                                                        </span>
-                                                    </Descriptions.Item>
-                                                    <Descriptions.Item
-                                                        label={
-                                                            <span
-                                                                style={{
-                                                                    fontFamily: "monospace",
-                                                                    fontSize: "12px",
-                                                                }}
-                                                            >
-                                                                Host
-                                                            </span>
-                                                        }
-                                                    >
-                                                        <TooltipWithCopyAction
-                                                            copyText={txtRecordName}
-                                                            title="Copy host"
+                                                        <Descriptions.Item
+                                                            label={
+                                                                <span
+                                                                    style={{
+                                                                        fontFamily: "monospace",
+                                                                        fontSize: "12px",
+                                                                    }}
+                                                                >
+                                                                    Type
+                                                                </span>
+                                                            }
                                                         >
                                                             <span
                                                                 style={{
@@ -843,92 +816,118 @@ const Organization: FC = () => {
                                                                     fontSize: "12px",
                                                                 }}
                                                             >
-                                                                {txtRecordName}
+                                                                TXT
                                                             </span>
-                                                        </TooltipWithCopyAction>
-                                                    </Descriptions.Item>
-                                                    <Descriptions.Item
-                                                        label={
-                                                            <span
-                                                                style={{
-                                                                    fontFamily: "monospace",
-                                                                    fontSize: "12px",
-                                                                }}
-                                                            >
-                                                                Value
-                                                            </span>
-                                                        }
-                                                    >
-                                                        <TooltipWithCopyAction
-                                                            copyText={txtRecordValue}
-                                                            title="Copy value"
+                                                        </Descriptions.Item>
+                                                        <Descriptions.Item
+                                                            label={
+                                                                <span
+                                                                    style={{
+                                                                        fontFamily: "monospace",
+                                                                        fontSize: "12px",
+                                                                    }}
+                                                                >
+                                                                    Host
+                                                                </span>
+                                                            }
                                                         >
-                                                            <span
-                                                                className="break-all"
-                                                                style={{
-                                                                    fontFamily: "monospace",
-                                                                    fontSize: "12px",
-                                                                }}
+                                                            <TooltipWithCopyAction
+                                                                copyText={txtRecordName}
+                                                                title="Copy host"
                                                             >
-                                                                {txtRecordValue}
-                                                            </span>
-                                                        </TooltipWithCopyAction>
-                                                    </Descriptions.Item>
-                                                </Descriptions>
-                                                <Text style={{fontSize: "14px"}}>
-                                                    2. Wait a few minutes for DNS propagation.
-                                                </Text>
-                                                <Text style={{fontSize: "14px"}}>
-                                                    3. Click the "Verify" button.
-                                                </Text>
-                                            </Space>
-                                        }
-                                        type="info"
-                                        icon={<InfoCircleOutlined />}
-                                        showIcon
-                                    />
-                                )
-                            },
-                            rowExpandable: (record: OrganizationDomain) =>
-                                !record.flags?.is_verified && !!record.token,
-                            expandIcon: () => null,
-                        }}
-                    />
-                </Space>
-
-                <Modal
-                    title="Add Domain"
-                    open={domainModalVisible}
-                    onOk={handleAddDomain}
-                    onCancel={() => {
-                        setDomainModalVisible(false)
-                        domainForm.resetFields()
-                    }}
-                    confirmLoading={createDomainMutation.isPending}
-                    okText="Add"
-                >
-                    <Form form={domainForm} layout="vertical" style={{marginTop: 16}}>
-                        <Form.Item
-                            name="domain"
-                            label="Domain"
-                            rules={[
-                                {required: true, message: "Please enter a domain"},
-                                {
-                                    pattern:
-                                        /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.[a-zA-Z]{2,}$/,
-                                    message:
-                                        "Please enter a valid domain (e.g., example.com or app.example.com)",
+                                                                <span
+                                                                    style={{
+                                                                        fontFamily: "monospace",
+                                                                        fontSize: "12px",
+                                                                    }}
+                                                                >
+                                                                    {txtRecordName}
+                                                                </span>
+                                                            </TooltipWithCopyAction>
+                                                        </Descriptions.Item>
+                                                        <Descriptions.Item
+                                                            label={
+                                                                <span
+                                                                    style={{
+                                                                        fontFamily: "monospace",
+                                                                        fontSize: "12px",
+                                                                    }}
+                                                                >
+                                                                    Value
+                                                                </span>
+                                                            }
+                                                        >
+                                                            <TooltipWithCopyAction
+                                                                copyText={txtRecordValue}
+                                                                title="Copy value"
+                                                            >
+                                                                <span
+                                                                    className="break-all"
+                                                                    style={{
+                                                                        fontFamily: "monospace",
+                                                                        fontSize: "12px",
+                                                                    }}
+                                                                >
+                                                                    {txtRecordValue}
+                                                                </span>
+                                                            </TooltipWithCopyAction>
+                                                        </Descriptions.Item>
+                                                    </Descriptions>
+                                                    <Text style={{fontSize: "14px"}}>
+                                                        2. Wait a few minutes for DNS propagation.
+                                                    </Text>
+                                                    <Text style={{fontSize: "14px"}}>
+                                                        3. Click the "Verify" button.
+                                                    </Text>
+                                                </Space>
+                                            }
+                                            type="info"
+                                            icon={<InfoCircleOutlined />}
+                                            showIcon
+                                        />
+                                    )
                                 },
-                            ]}
-                        >
-                            <Input placeholder="example.com or app.example.com" />
-                        </Form.Item>
-                        <Text type="secondary" style={{fontSize: "12px"}}>
-                            After adding the domain, please follow the verification instructions.
-                        </Text>
-                    </Form>
-                </Modal>
-            </Card>
+                                rowExpandable: (record: OrganizationDomain) =>
+                                    !record.flags?.is_verified && !!record.token,
+                                expandIcon: () => null,
+                            }}
+                        />
+                    </Space>
+
+                    <Modal
+                        title="Add Domain"
+                        open={domainModalVisible}
+                        onOk={handleAddDomain}
+                        onCancel={() => {
+                            setDomainModalVisible(false)
+                            domainForm.resetFields()
+                        }}
+                        confirmLoading={createDomainMutation.isPending}
+                        okText="Add"
+                    >
+                        <Form form={domainForm} layout="vertical" style={{marginTop: 16}}>
+                            <Form.Item
+                                name="domain"
+                                label="Domain"
+                                rules={[
+                                    {required: true, message: "Please enter a domain"},
+                                    {
+                                        pattern:
+                                            /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.[a-zA-Z]{2,}$/,
+                                        message:
+                                            "Please enter a valid domain (e.g., example.com or app.example.com)",
+                                    },
+                                ]}
+                            >
+                                <Input placeholder="example.com or app.example.com" />
+                            </Form.Item>
+                            <Text type="secondary" style={{fontSize: "12px"}}>
+                                After adding the domain, please follow the verification
+                                instructions.
+                            </Text>
+                        </Form>
+                    </Modal>
+                </Card>
             ) : (
                 <UpgradePrompt
                     title="Verified Domains"
@@ -938,287 +937,289 @@ const Organization: FC = () => {
 
             {hasSSO ? (
                 <Card>
-                <Space direction="vertical" size="small" style={{width: "100%"}}>
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "flex-start",
-                        }}
-                    >
-                        <div>
-                            <Title level={1} style={sectionTitleStyle} className="!mb-1">
-                                SSO Providers
-                            </Title>
-                            <Text type="secondary">
-                                Configure identity providers for single sign-on
-                            </Text>
-                        </div>
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={() => {
-                                if (!selectedOrg?.slug) {
-                                    setSlugValue("")
-                                    setSlugModalVisible(true)
-                                    return
-                                }
-                                setProviderModalVisible(true)
+                    <Space direction="vertical" size="small" style={{width: "100%"}}>
+                        <div
+                            style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "flex-start",
                             }}
                         >
-                            {selectedOrg?.slug ? "Add Provider" : "Set Slug"}
-                        </Button>
-                    </div>
-                    <Descriptions
-                        size="small"
-                        column={1}
-                        bordered
-                        className="org-kv-65-35 org-slug-row"
-                    >
-                        <Descriptions.Item label="Organization slug">
-                            <div className="org-slug-content">
-                                {selectedOrg.slug ? (
-                                    <Text>{selectedOrg.slug}</Text>
-                                ) : (
-                                    <Text type="secondary">Please set slug to enable SSO</Text>
-                                )}
+                            <div>
+                                <Title level={1} style={sectionTitleStyle} className="!mb-1">
+                                    SSO Providers
+                                </Title>
+                                <Text type="secondary">
+                                    Configure identity providers for single sign-on
+                                </Text>
                             </div>
-                        </Descriptions.Item>
-                    </Descriptions>
-                    <Modal
-                        title="Set organization slug"
-                        open={slugModalVisible}
-                        okText="Save"
-                        onOk={handleSlugSave}
-                        onCancel={() => setSlugModalVisible(false)}
-                        confirmLoading={updating}
-                    >
-                        <Text type="secondary">
-                            The slug is used in SSO callbacks and cannot be unset or edited once
-                            saved.
-                        </Text>
-                        <Input
-                            style={{marginTop: 12}}
-                            value={slugValue}
-                            onChange={(e) => setSlugValue(e.target.value)}
-                            placeholder="organization-slug"
-                        />
-                    </Modal>
-                    {!selectedOrg?.slug && (
-                        <Alert
-                            message="Set an organization slug before configuring SSO providers."
-                            type="warning"
-                            showIcon
-                        />
-                    )}
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={() => {
+                                    if (!selectedOrg?.slug) {
+                                        setSlugValue("")
+                                        setSlugModalVisible(true)
+                                        return
+                                    }
+                                    setProviderModalVisible(true)
+                                }}
+                            >
+                                {selectedOrg?.slug ? "Add Provider" : "Set Slug"}
+                            </Button>
+                        </div>
+                        <Descriptions
+                            size="small"
+                            column={1}
+                            bordered
+                            className="org-kv-65-35 org-slug-row"
+                        >
+                            <Descriptions.Item label="Organization slug">
+                                <div className="org-slug-content">
+                                    {selectedOrg.slug ? (
+                                        <Text>{selectedOrg.slug}</Text>
+                                    ) : (
+                                        <Text type="secondary">Please set slug to enable SSO</Text>
+                                    )}
+                                </div>
+                            </Descriptions.Item>
+                        </Descriptions>
+                        <Modal
+                            title="Set organization slug"
+                            open={slugModalVisible}
+                            okText="Save"
+                            onOk={handleSlugSave}
+                            onCancel={() => setSlugModalVisible(false)}
+                            confirmLoading={updating}
+                        >
+                            <Text type="secondary">
+                                The slug is used in SSO callbacks and cannot be unset or edited once
+                                saved.
+                            </Text>
+                            <Input
+                                style={{marginTop: 12}}
+                                value={slugValue}
+                                onChange={(e) => setSlugValue(e.target.value)}
+                                placeholder="organization-slug"
+                            />
+                        </Modal>
+                        {!selectedOrg?.slug && (
+                            <Alert
+                                message="Set an organization slug before configuring SSO providers."
+                                type="warning"
+                                showIcon
+                            />
+                        )}
 
-                    <Table
-                        columns={providerColumns}
-                        dataSource={providers}
-                        rowKey="id"
-                        pagination={false}
-                        size="small"
-                        tableLayout="fixed"
-                        className="no-expand-indent no-expand-col org-providers-table"
-                        expandable={{
-                            expandedRowKeys: pendingProviderRowKeys,
-                            expandedRowRender: (record: OrganizationProvider) => {
-                                // Only show configuration instructions for providers that are not valid
-                                if (record.flags?.is_valid !== false) {
-                                    return null
-                                }
+                        <Table
+                            columns={providerColumns}
+                            dataSource={providers}
+                            rowKey="id"
+                            pagination={false}
+                            size="small"
+                            tableLayout="fixed"
+                            className="no-expand-indent no-expand-col org-providers-table"
+                            expandable={{
+                                expandedRowKeys: pendingProviderRowKeys,
+                                expandedRowRender: (record: OrganizationProvider) => {
+                                    // Only show configuration instructions for providers that are not valid
+                                    if (record.flags?.is_valid !== false) {
+                                        return null
+                                    }
 
-                                if (!selectedOrg?.slug) {
-                                    return null
-                                }
+                                    if (!selectedOrg?.slug) {
+                                        return null
+                                    }
 
-                                const callbackUrl = `${getAgentaWebUrl()}/auth/callback/sso:${selectedOrg.slug}:${record.slug}`
-                                const expectedScopes = "openid email profile"
+                                    const callbackUrl = `${getAgentaWebUrl()}/auth/callback/sso:${selectedOrg.slug}:${record.slug}`
+                                    const expectedScopes = "openid email profile"
 
-                                return (
-                                    <Alert
-                                        message={
-                                            <span style={{fontSize: "15px", fontWeight: 500}}>
-                                                Configuration Instructions
-                                            </span>
-                                        }
-                                        description={
-                                            <Space
-                                                direction="vertical"
-                                                size="middle"
-                                                style={{width: "100%"}}
-                                            >
-                                                <Text style={{fontSize: "14px"}}>
-                                                    1. Edit your IdP with the following details:
-                                                </Text>
-                                                <Descriptions
-                                                    bordered
-                                                    size="small"
-                                                    column={1}
-                                                    className="org-instructions"
+                                    return (
+                                        <Alert
+                                            message={
+                                                <span style={{fontSize: "15px", fontWeight: 500}}>
+                                                    Configuration Instructions
+                                                </span>
+                                            }
+                                            description={
+                                                <Space
+                                                    direction="vertical"
+                                                    size="middle"
+                                                    style={{width: "100%"}}
                                                 >
-                                                    <Descriptions.Item
-                                                        label={
-                                                            <span
-                                                                style={{
-                                                                    fontFamily: "monospace",
-                                                                    fontSize: "12px",
-                                                                }}
-                                                            >
-                                                                Callback URL
-                                                            </span>
-                                                        }
+                                                    <Text style={{fontSize: "14px"}}>
+                                                        1. Edit your IdP with the following details:
+                                                    </Text>
+                                                    <Descriptions
+                                                        bordered
+                                                        size="small"
+                                                        column={1}
+                                                        className="org-instructions"
                                                     >
-                                                        <TooltipWithCopyAction
-                                                            copyText={callbackUrl}
-                                                            title="Copy callback URL"
+                                                        <Descriptions.Item
+                                                            label={
+                                                                <span
+                                                                    style={{
+                                                                        fontFamily: "monospace",
+                                                                        fontSize: "12px",
+                                                                    }}
+                                                                >
+                                                                    Callback URL
+                                                                </span>
+                                                            }
                                                         >
-                                                            <span
-                                                                style={{
-                                                                    fontFamily: "monospace",
-                                                                    fontSize: "12px",
-                                                                }}
+                                                            <TooltipWithCopyAction
+                                                                copyText={callbackUrl}
+                                                                title="Copy callback URL"
                                                             >
-                                                                {callbackUrl}
-                                                            </span>
-                                                        </TooltipWithCopyAction>
-                                                    </Descriptions.Item>
-                                                    <Descriptions.Item
-                                                        label={
-                                                            <span
-                                                                style={{
-                                                                    fontFamily: "monospace",
-                                                                    fontSize: "12px",
-                                                                }}
-                                                            >
-                                                                Scopes
-                                                            </span>
-                                                        }
-                                                    >
-                                                        <TooltipWithCopyAction
-                                                            copyText={expectedScopes}
-                                                            title="Copy scopes"
+                                                                <span
+                                                                    style={{
+                                                                        fontFamily: "monospace",
+                                                                        fontSize: "12px",
+                                                                    }}
+                                                                >
+                                                                    {callbackUrl}
+                                                                </span>
+                                                            </TooltipWithCopyAction>
+                                                        </Descriptions.Item>
+                                                        <Descriptions.Item
+                                                            label={
+                                                                <span
+                                                                    style={{
+                                                                        fontFamily: "monospace",
+                                                                        fontSize: "12px",
+                                                                    }}
+                                                                >
+                                                                    Scopes
+                                                                </span>
+                                                            }
                                                         >
-                                                            <span
-                                                                style={{
-                                                                    fontFamily: "monospace",
-                                                                    fontSize: "12px",
-                                                                }}
+                                                            <TooltipWithCopyAction
+                                                                copyText={expectedScopes}
+                                                                title="Copy scopes"
                                                             >
-                                                                {expectedScopes}
-                                                            </span>
-                                                        </TooltipWithCopyAction>
-                                                    </Descriptions.Item>
-                                                </Descriptions>
-                                                <Text style={{fontSize: "14px"}}>
-                                                    2. Ensure your SSO provider's OIDC discovery
-                                                    endpoint is accessible.
-                                                </Text>
-                                                <Text style={{fontSize: "14px"}}>
-                                                    3. Click the "Enable" button.
-                                                </Text>
-                                            </Space>
-                                        }
-                                        type="info"
-                                        icon={<InfoCircleOutlined />}
-                                        showIcon
-                                    />
-                                )
-                            },
-                            rowExpandable: (record: OrganizationProvider) =>
-                                record.flags?.is_valid === false,
-                            expandIcon: () => null,
-                        }}
-                    />
-                </Space>
-
-                <Modal
-                    title={editingProvider ? "Edit SSO Provider" : "Add SSO Provider"}
-                    open={providerModalVisible}
-                    onOk={handleAddOrUpdateProvider}
-                    onCancel={() => {
-                        setProviderModalVisible(false)
-                        setEditingProvider(null)
-                        providerForm.resetFields()
-                    }}
-                    confirmLoading={
-                        createProviderMutation.isPending || updateProviderMutation.isPending
-                    }
-                    okText={editingProvider ? "Update" : "Add"}
-                    width={600}
-                >
-                    <Form form={providerForm} layout="vertical" style={{marginTop: 16}}>
-                        <Form.Item
-                            name="slug"
-                            label="Provider"
-                            rules={[
-                                {required: true, message: "Please enter a provider slug"},
-                                {
-                                    pattern: /^[a-z-]+$/,
-                                    message:
-                                        "Provider slug must contain only lowercase letters and hyphens",
+                                                                <span
+                                                                    style={{
+                                                                        fontFamily: "monospace",
+                                                                        fontSize: "12px",
+                                                                    }}
+                                                                >
+                                                                    {expectedScopes}
+                                                                </span>
+                                                            </TooltipWithCopyAction>
+                                                        </Descriptions.Item>
+                                                    </Descriptions>
+                                                    <Text style={{fontSize: "14px"}}>
+                                                        2. Ensure your SSO provider's OIDC discovery
+                                                        endpoint is accessible.
+                                                    </Text>
+                                                    <Text style={{fontSize: "14px"}}>
+                                                        3. Click the "Enable" button.
+                                                    </Text>
+                                                </Space>
+                                            }
+                                            type="info"
+                                            icon={<InfoCircleOutlined />}
+                                            showIcon
+                                        />
+                                    )
                                 },
-                            ]}
-                        >
-                            <Input placeholder="my-idp" disabled={!!editingProvider} />
-                        </Form.Item>
-                        <Form.Item
-                            label="Callback URL"
-                            shouldUpdate={(prev, next) => prev.slug !== next.slug}
-                        >
-                            {() => {
-                                const slug = providerForm.getFieldValue("slug")
-                                const callbackUrl =
-                                    selectedOrg?.slug && slug
-                                        ? `${getAgentaWebUrl()}/auth/callback/sso:${selectedOrg.slug}:${slug}`
-                                        : ""
-                                return (
-                                    <Input
-                                        value={callbackUrl}
-                                        placeholder="Set organization and provider slug"
-                                        readOnly
-                                    />
-                                )
+                                rowExpandable: (record: OrganizationProvider) =>
+                                    record.flags?.is_valid === false,
+                                expandIcon: () => null,
                             }}
-                        </Form.Item>
-                        <Form.Item
-                            name="issuer_url"
-                            label="Issuer URL"
-                            rules={[
-                                {required: true, message: "Please enter the issuer URL"},
-                                {type: "url", message: "Please enter a valid URL"},
-                            ]}
-                        >
-                            <Input placeholder="https://accounts.google.com" />
-                        </Form.Item>
-                        <Form.Item
-                            name="client_id"
-                            label="Client ID"
-                            rules={[{required: true, message: "Please enter the client ID"}]}
-                        >
-                            <Input placeholder="Your OAuth 2.0 Client ID" />
-                        </Form.Item>
-                        <Form.Item
-                            name="client_secret"
-                            label="Client Secret"
-                            rules={[{required: true, message: "Please enter the client secret"}]}
-                        >
-                            <Input.Password placeholder="Your OAuth 2.0 Client Secret" />
-                        </Form.Item>
-                        <Form.Item
-                            name="scopes"
-                            label="Scopes (comma-separated)"
-                            initialValue="openid, profile, email"
-                        >
-                            <Input placeholder="openid, profile, email" />
-                        </Form.Item>
-                        <Text type="secondary" style={{fontSize: "12px"}}>
-                            After adding the provider, use the "Test" button to verify the
-                            connection.
-                        </Text>
-                    </Form>
-                </Modal>
-            </Card>
+                        />
+                    </Space>
+
+                    <Modal
+                        title={editingProvider ? "Edit SSO Provider" : "Add SSO Provider"}
+                        open={providerModalVisible}
+                        onOk={handleAddOrUpdateProvider}
+                        onCancel={() => {
+                            setProviderModalVisible(false)
+                            setEditingProvider(null)
+                            providerForm.resetFields()
+                        }}
+                        confirmLoading={
+                            createProviderMutation.isPending || updateProviderMutation.isPending
+                        }
+                        okText={editingProvider ? "Update" : "Add"}
+                        width={600}
+                    >
+                        <Form form={providerForm} layout="vertical" style={{marginTop: 16}}>
+                            <Form.Item
+                                name="slug"
+                                label="Provider"
+                                rules={[
+                                    {required: true, message: "Please enter a provider slug"},
+                                    {
+                                        pattern: /^[a-z-]+$/,
+                                        message:
+                                            "Provider slug must contain only lowercase letters and hyphens",
+                                    },
+                                ]}
+                            >
+                                <Input placeholder="my-idp" disabled={!!editingProvider} />
+                            </Form.Item>
+                            <Form.Item
+                                label="Callback URL"
+                                shouldUpdate={(prev, next) => prev.slug !== next.slug}
+                            >
+                                {() => {
+                                    const slug = providerForm.getFieldValue("slug")
+                                    const callbackUrl =
+                                        selectedOrg?.slug && slug
+                                            ? `${getAgentaWebUrl()}/auth/callback/sso:${selectedOrg.slug}:${slug}`
+                                            : ""
+                                    return (
+                                        <Input
+                                            value={callbackUrl}
+                                            placeholder="Set organization and provider slug"
+                                            readOnly
+                                        />
+                                    )
+                                }}
+                            </Form.Item>
+                            <Form.Item
+                                name="issuer_url"
+                                label="Issuer URL"
+                                rules={[
+                                    {required: true, message: "Please enter the issuer URL"},
+                                    {type: "url", message: "Please enter a valid URL"},
+                                ]}
+                            >
+                                <Input placeholder="https://accounts.google.com" />
+                            </Form.Item>
+                            <Form.Item
+                                name="client_id"
+                                label="Client ID"
+                                rules={[{required: true, message: "Please enter the client ID"}]}
+                            >
+                                <Input placeholder="Your OAuth 2.0 Client ID" />
+                            </Form.Item>
+                            <Form.Item
+                                name="client_secret"
+                                label="Client Secret"
+                                rules={[
+                                    {required: true, message: "Please enter the client secret"},
+                                ]}
+                            >
+                                <Input.Password placeholder="Your OAuth 2.0 Client Secret" />
+                            </Form.Item>
+                            <Form.Item
+                                name="scopes"
+                                label="Scopes (comma-separated)"
+                                initialValue="openid, profile, email"
+                            >
+                                <Input placeholder="openid, profile, email" />
+                            </Form.Item>
+                            <Text type="secondary" style={{fontSize: "12px"}}>
+                                After adding the provider, use the "Test" button to verify the
+                                connection.
+                            </Text>
+                        </Form>
+                    </Modal>
+                </Card>
             ) : (
                 <UpgradePrompt
                     title="SSO Providers"

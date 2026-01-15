@@ -145,7 +145,8 @@ const PostSignupForm = () => {
     useEffect(() => {
         if (!error || autoRedirectAttempted) return
         const errorCode = (error as any).code as string | undefined
-        const shouldRedirect = errorCode === "survey-unavailable" || errorCode === "posthog-not-configured"
+        const shouldRedirect =
+            errorCode === "survey-unavailable" || errorCode === "posthog-not-configured"
         if (!shouldRedirect) {
             return
         }
