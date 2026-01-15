@@ -14,7 +14,6 @@ from supertokens_python.recipe.thirdparty.provider import (
 from supertokens_python.recipe.thirdparty.interfaces import (
     RecipeInterface as ThirdPartyRecipeInterface,
     APIInterface as ThirdPartyAPIInterface,
-    SignInUpPostOkResult,
     SignInUpOkResult,
     APIOptions,
 )
@@ -35,7 +34,6 @@ from supertokens_python.recipe.emailpassword.interfaces import (
     APIOptions as EmailPasswordAPIOptions,
     SignInOkResult as EmailPasswordSignInOkResult,
     SignUpOkResult as EmailPasswordSignUpOkResult,
-    SignUpPostOkResult as EmailPasswordSignUpPostOkResult,
 )
 from supertokens_python.recipe.emailpassword.types import FormField
 from supertokens_python.recipe.session.interfaces import (
@@ -213,16 +211,21 @@ async def _is_blocked(email: str) -> bool:
     return False
 
 
-async def _create_account(email: str, uid: str) -> None:
+async def _create_account(email: str, uid: str) -> bool:
     """
     Create the internal user and related entities if missing.
 
     This is idempotent: if a user already exists, it returns early.
+
+    Returns:
+        True if a new user was created, False if user already existed.
     """
+    log.info("[AUTH] _create_account start", email=email, uid=uid)
     # Check if user already exists (idempotent - skip if adding new auth method)
     existing_user = await get_user_with_email(email=email)
     if existing_user is not None:
-        return
+        log.info("[AUTH] _create_account skip existing user", email=email, uid=uid)
+        return False
 
     # Check email blocking (EE only)
     if is_ee() and await _is_blocked(email):
@@ -255,6 +258,8 @@ async def _create_account(email: str, uid: str) -> None:
 
         payload["organization_id"] = str(organization_db.id)
         await create_accounts(payload)
+    log.info("[AUTH] _create_account done", email=email, uid=uid)
+    return True
 
 
 async def _create_identity_if_user_exists(
@@ -471,22 +476,6 @@ def override_emailpassword_apis(
             user_context,
         )
 
-        # FLOW 3: Create application user (idempotent - skips if user exists)
-        if isinstance(response, EmailPasswordSignUpPostOkResult):
-            actual_email = ""
-            for field in form_fields:
-                if field.id == "email":
-                    actual_email = field.value
-
-            if actual_email != "":
-                email = (
-                    actual_email
-                    if "@" in actual_email
-                    else f"{actual_email}@localhost.com"
-                ).lower()
-
-                await _create_account(email, response.user.id)
-
         return response
 
     original.sign_up_post = sign_up_post  # type: ignore
@@ -523,11 +512,6 @@ def override_passwordless_apis(
             user_context or {},
         )
 
-        # Post sign up response, we check if it was successful
-        if isinstance(response, ConsumeCodeOkResult):
-            email = response.user.emails[0].lower()
-            await _create_account(email, response.user.id)
-
         return response
 
     original_implementation.consume_code_post = consume_code_post  # type: ignore
@@ -560,10 +544,6 @@ def override_thirdparty_apis(
             api_options,
             user_context,
         )
-
-        if isinstance(response, SignInUpPostOkResult):
-            email = response.user.emails[0].lower()
-            await _create_account(email, response.user.id)
 
         return response
 
@@ -623,13 +603,18 @@ def override_thirdparty_functions(
         else:
             method = f"social:{third_party_id}"
 
+        # Create internal user account first (idempotent - skips if exists)
+        normalized_email = email.lower()
+        is_new_user = await _create_account(normalized_email, result.user.id)
+        user_context["is_new_user"] = is_new_user
+
         # Extract domain from email
         domain = email.split("@")[1] if "@" in email and email.count("@") == 1 else None
 
         # Create or update user_identity
         try:
             internal_user = await _create_identity_if_user_exists(
-                email=email,
+                email=normalized_email,
                 method=method,
                 subject=third_party_user_id,
                 domain=domain,
@@ -703,7 +688,29 @@ def override_passwordless_functions(
 ) -> PasswordlessRecipeInterface:
     """Override passwordless recipe functions to track email:otp identity."""
 
+    original_create_code = original_implementation.create_code
     original_consume_code = original_implementation.consume_code
+
+    async def create_code(
+        email: Optional[str],
+        phone_number: Optional[str],
+        user_input_code: Optional[str],
+        tenant_id: str,
+        user_context: Dict[str, Any],
+        **kwargs: Any,
+    ):
+        normalized_email = email.lower() if email else None
+        if normalized_email and is_ee() and await _is_blocked(normalized_email):
+            raise UnauthorizedException(detail="This email is not allowed.")
+
+        return await original_create_code(
+            email=email,
+            phone_number=phone_number,
+            user_input_code=user_input_code,
+            tenant_id=tenant_id,
+            user_context=user_context,
+            **kwargs,
+        )
 
     async def consume_code(
         pre_auth_session_id: str,
@@ -748,15 +755,27 @@ def override_passwordless_functions(
             user_context["session_identities"] = session_identities
             return result
 
+        normalized_email = email.lower()
+        if is_ee() and await _is_blocked(normalized_email):
+            raise UnauthorizedException(detail="This email is not allowed.")
+
+        # Create internal user account first (idempotent - skips if exists)
+        is_new_user = await _create_account(normalized_email, user_id_str)
+        user_context["is_new_user"] = is_new_user
+
         # Extract domain from email
-        domain = email.split("@")[1] if "@" in email and email.count("@") == 1 else None
+        domain = (
+            normalized_email.split("@")[1]
+            if "@" in normalized_email and normalized_email.count("@") == 1
+            else None
+        )
 
         # Create or update user_identity
         try:
             internal_user = await _create_identity_if_user_exists(
-                email=email,
+                email=normalized_email,
                 method=method,
-                subject=email,
+                subject=normalized_email,
                 domain=domain,
             )
         except Exception:
@@ -780,7 +799,7 @@ def override_passwordless_functions(
         if internal_user:
             try:
                 await auth_service.enforce_domain_policies(
-                    email=email,
+                    email=normalized_email,
                     user_id=internal_user.id,
                 )
             except Exception:
@@ -788,6 +807,7 @@ def override_passwordless_functions(
 
         return result
 
+    original_implementation.create_code = create_code
     original_implementation.consume_code = consume_code
     return original_implementation
 
@@ -831,15 +851,26 @@ def override_emailpassword_functions(
         # Method for email/password
         method = "email:password"
 
+        # Check if internal user exists (sign_in can be called for new users too)
+        normalized_email = email.lower()
+        existing_user = await get_user_with_email(normalized_email)
+
+        # If no internal user, create one (this can happen when ST user exists but internal doesn't)
+        if not existing_user:
+            is_new_user = await _create_account(normalized_email, result.user.id)
+            user_context["is_new_user"] = is_new_user
+        else:
+            user_context["is_new_user"] = False
+
         # Extract domain from email
         domain = email.split("@")[1] if "@" in email and email.count("@") == 1 else None
 
         # Create or update user_identity
         try:
             internal_user = await _create_identity_if_user_exists(
-                email=email,
+                email=normalized_email,
                 method=method,
-                subject=email,
+                subject=normalized_email,
                 domain=domain,
             )
         except Exception:
@@ -902,15 +933,20 @@ def override_emailpassword_functions(
         # Method for email/password
         method = "email:password"
 
+        # Create internal user account first (idempotent - skips if exists)
+        normalized_email = email.lower()
+        is_new_user = await _create_account(normalized_email, result.user.id)
+        user_context["is_new_user"] = is_new_user
+
         # Extract domain from email
         domain = email.split("@")[1] if "@" in email and email.count("@") == 1 else None
 
         # Create or update user_identity
         try:
             internal_user = await _create_identity_if_user_exists(
-                email=email,
+                email=normalized_email,
                 method=method,
-                subject=email,
+                subject=normalized_email,
                 domain=domain,
             )
         except Exception:
@@ -969,6 +1005,7 @@ def override_session_functions(
         # Get identity context from user_context (populated by auth overrides)
         user_identities = user_context.get("user_identities", [])
         session_identities = user_context.get("session_identities", user_identities)
+        is_new_user = user_context.get("is_new_user", False)
 
         # Merge with existing payload
         if access_token_payload is None:
@@ -976,6 +1013,7 @@ def override_session_functions(
 
         access_token_payload["user_identities"] = user_identities
         access_token_payload["session_identities"] = session_identities
+        access_token_payload["is_new_user"] = is_new_user
 
         # Call original implementation
         result = await original_create_new_session(

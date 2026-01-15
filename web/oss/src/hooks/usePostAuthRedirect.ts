@@ -38,7 +38,6 @@ const usePostAuthRedirect = () => {
     const [invite] = useLocalStorage<Record<string, unknown>>("invite", {})
     const authUpgradeOrgKey = "authUpgradeOrgId"
     const lastSsoOrgSlugKey = "lastSsoOrgSlug"
-    const postSignupPendingKey = "postSignupPending"
 
     const hasInviteFromQuery = useMemo(() => {
         const token = router.query?.token
@@ -66,13 +65,26 @@ const usePostAuthRedirect = () => {
             // Auth completed successfully; resume normal data fetching.
             setAuthFlow("authed")
             const isInvitedUser = options?.isInvitedUser ?? derivedIsInvitedUser
-            const isNewUser = isEE() && Boolean(authResult?.createdNewRecipeUser)
+
+            // Read is_new_user from session payload (set by backend overrides)
+            let isNewUser = false
+            let payload: any = null
+            try {
+                payload = await Session.getAccessTokenPayloadSecurely()
+                isNewUser = Boolean(payload?.is_new_user)
+            } catch {
+                // Fallback to createdNewRecipeUser if payload unavailable (EE only)
+                isNewUser = isEE() && Boolean(authResult?.createdNewRecipeUser)
+            }
+
             console.log("[post-auth] handleAuthSuccess", {
                 isEE: isEE(),
                 createdNewRecipeUser: authResult?.createdNewRecipeUser,
+                payloadIsNewUser: payload?.is_new_user,
                 isNewUser,
                 isInvitedUser,
                 loginMethods: authResult?.user?.loginMethods,
+                fullPayload: payload,
             })
 
             if (isNewUser) {
