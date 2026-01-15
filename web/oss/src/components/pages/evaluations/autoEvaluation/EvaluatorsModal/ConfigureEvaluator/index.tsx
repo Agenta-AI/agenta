@@ -154,7 +154,6 @@ const ConfigureEvaluator = ({
         null,
     )
     const [form] = Form.useForm()
-    console.log("ConfigureEvaluator: ", {form: form.getFieldsValue()})
     const [submitLoading, setSubmitLoading] = useState(false)
 
     // Store form ref in atom so DebugSection can access it
