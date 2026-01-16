@@ -24,6 +24,7 @@ from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
 
 from oss.src.routers import evaluation_router, human_evaluation_router
+from oss.src.core.auth.supertokens.config import init_supertokens
 
 # DBEs
 from oss.src.dbs.postgres.queries.dbes import (
@@ -73,6 +74,7 @@ from oss.src.core.evaluations.service import SimpleEvaluationsService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
+from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
@@ -118,7 +120,7 @@ from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 import agenta as ag
 
 ag.init(
-    api_url=env.AGENTA_API_URL,
+    api_url=env.agenta.api_url,
 )
 
 ee = None
@@ -127,6 +129,8 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+
+init_supertokens()
 
 
 @asynccontextmanager
@@ -224,8 +228,8 @@ tracing_service = TracingService(
 )
 
 # Redis client and TracingWorker for publishing spans to Redis Streams
-if env.REDIS_URI_DURABLE:
-    redis_client = Redis.from_url(env.REDIS_URI_DURABLE, decode_responses=False)
+if env.redis.uri_durable:
+    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
     tracing_worker = TracingWorker(
         service=tracing_service,
         redis_client=redis_client,
@@ -391,10 +395,19 @@ app.include_router(
 )
 
 app.include_router(
+    router=auth_router,
+    prefix="/auth",
+    tags=["Auth"],
+)
+
+## DEPRECATED
+app.include_router(
     router=tracing.router,
     prefix="/preview/tracing",
     tags=["Deprecated"],
+    include_in_schema=False,
 )
+## DEPRECATED
 
 app.include_router(
     router=tracing.router,

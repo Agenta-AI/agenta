@@ -132,8 +132,7 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
 
                                 <SidebarMenu
                                     menuProps={{
-                                        className:
-                                            "[&_.ant-menu-item-icon]:!shrink-0 [&_.ant-menu-item-icon]:!w-[14px] [&_.ant-menu-item-icon]:!h-[14px]",
+                                        className: "",
                                         selectedKeys,
                                         openKeys: openKey ? [openKey] : [],
                                         onOpenChange: (openKeys) =>

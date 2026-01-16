@@ -22,7 +22,7 @@ agenta = ">=0.72.1"
 
 # Core framework dependencies
 fastapi = ">=0.127"
-pydantic = "^2"
+pydantic = { version = "^2", extras = ["email"] }
 uvicorn = "^0.40"
 gunicorn = "^23"
 httpx = "^0.28"
@@ -44,7 +44,7 @@ jsonschema = "^4"
 genson = "^1"
 python-jsonpath = "^2"
 bson = "^0.5"
-uuid-utils = "^0.12"
+uuid-utils = "^0.13"
 
 # caches, channels, streams
 taskiq = "^0.12"
@@ -59,6 +59,7 @@ sendgrid = "^6"
 stripe = "^14"
 posthog = "^7"
 newrelic = "^11"
+dnspython = "^2"
 
 # Observability (limited - see comment below)
 opentelemetry-proto = "^1"

@@ -42,9 +42,13 @@ async def get_all_workspace_permissions() -> List[Permission]:
         workspace_permissions = await workspace_manager.get_all_workspace_permissions()
         return sorted(workspace_permissions)
     except Exception as e:
+        log.error(
+            "Unexpected error while fetching workspace permissions",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="An internal error occurred while fetching workspace permissions.",
         )
 
 
@@ -101,9 +105,13 @@ async def assign_role_to_user(
     except HTTPException as ex:
         raise ex
     except Exception as e:
+        log.error(
+            "Unexpected error while assigning role to user",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="An internal error occurred while assigning role to user.",
         )
 
 
@@ -167,7 +175,11 @@ async def unassign_role_from_user(
     except HTTPException as ex:
         raise ex
     except Exception as e:
+        log.error(
+            "Unexpected error while unassigning role from user",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="An internal error occurred while unassigning role from user.",
         )

@@ -72,6 +72,7 @@ interface QuestionMeta {
 }
 
 const PostSignupForm = () => {
+    console.log("[post-signup] form mount")
     const [form] = Form.useForm()
     const router = useRouter()
     const posthog = usePostHogAg()
@@ -133,7 +134,22 @@ const PostSignupForm = () => {
     }, [baseAppURL, redirect, redirectParam])
 
     useEffect(() => {
+        console.log("[post-signup] survey state", {
+            hasSurvey: Boolean(survey),
+            questionCount: survey?.questions?.length ?? 0,
+            loading,
+            error: error ? {code: (error as any).code, message: error.message} : null,
+        })
+    }, [error, loading, survey])
+
+    useEffect(() => {
         if (!error || autoRedirectAttempted) return
+        const errorCode = (error as any).code as string | undefined
+        const shouldRedirect =
+            errorCode === "survey-unavailable" || errorCode === "posthog-not-configured"
+        if (!shouldRedirect) {
+            return
+        }
 
         setAutoRedirectAttempted(true)
         void navigateToPostSignupDestination()
