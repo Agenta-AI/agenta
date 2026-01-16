@@ -186,6 +186,11 @@ async def throttling_middleware(request: Request, call_next):
     plan = await _get_plan(str(organization_id))
 
     if not plan or plan not in ENTITLEMENTS:
+        log.warning(
+            "[throttling] Missing entitlements for plan",
+            org=organization_id,
+            plan=plan,
+        )
         return await call_next(request)
 
     throttles: list[Throttle] = ENTITLEMENTS[plan].get(Tracker.THROTTLES) or []
