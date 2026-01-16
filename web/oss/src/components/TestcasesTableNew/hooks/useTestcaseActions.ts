@@ -43,7 +43,7 @@ export interface UseTestcaseActionsResult {
     // Navigation blocker
     skipBlockerRef: React.MutableRefObject<boolean>
 
-    // Testcase actions
+    // Test case actions
     handleAddTestcase: () => void
     handleDeleteSelected: (selectedRowKeys: React.Key[]) => void
     handleRowClick: (record: TestcaseTableRow) => void

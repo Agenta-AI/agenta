@@ -74,7 +74,7 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
         loadNextPage,
     ])
 
-    const scenarioLabel = evalType === "human" ? "Scenario" : "Testcase"
+    const scenarioLabel = evalType === "human" ? "Scenario" : "Test case"
 
     const options = useMemo(() => {
         const base = loadedScenarios.map((row) => ({
