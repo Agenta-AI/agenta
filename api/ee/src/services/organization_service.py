@@ -113,7 +113,7 @@ async def send_invitation_email(
     html_content = html_template.format(
         username_placeholder=user.username,
         action_placeholder="invited you to join",
-        workspace_placeholder=workspace.name,
+        workspace_placeholder=organization.name,
         call_to_action=(
             "Click the link below to accept the invitation:</p><br>"
             f'<a href="{invite_link}">Accept Invitation</a>'
