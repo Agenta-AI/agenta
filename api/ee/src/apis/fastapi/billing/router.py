@@ -19,6 +19,7 @@ from oss.src.services.db_manager import (
     get_organization_by_id,
 )
 
+from ee.src.services import db_manager_ee
 from ee.src.utils.permissions import check_action_access
 from ee.src.models.shared_models import Permission
 from ee.src.core.entitlements.types import ENTITLEMENTS, CATALOG, Tracker, Quota
@@ -28,6 +29,7 @@ from ee.src.core.subscriptions.service import (
     SwitchException,
     EventException,
 )
+from ee.src.models.api.organization_models import OrganizationUpdate
 
 
 log = get_module_logger(__name__)
@@ -136,6 +138,29 @@ class SubscriptionsRouter:
             self.switch_plans_admin_route,
             methods=["POST"],
             operation_id="admin_switch_plans",
+        )
+
+    async def _reset_organization_flags(self, organization_id: str) -> None:
+        organization = await db_manager_ee.get_organization(organization_id)
+        if not organization:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found",
+            )
+
+        existing_flags = organization.flags or {}
+        default_flags = {
+            "is_demo": existing_flags.get("is_demo", False),
+            "allow_email": env.auth.email_enabled,
+            "allow_social": env.auth.oidc_enabled,
+            "allow_sso": False,
+            "allow_root": False,
+            "domains_only": False,
+            "auto_join": False,
+        }
+        await db_manager_ee.update_organization(
+            organization_id,
+            OrganizationUpdate(flags=default_flags),
         )
 
         self.admin_router.add_api_route(
@@ -339,6 +364,8 @@ class SubscriptionsRouter:
                 plan=plan,
                 anchor=anchor,
             )
+            if event == Event.SUBSCRIPTION_CANCELLED:
+                await self._reset_organization_flags(organization_id)
 
         except Exception as e:
             raise HTTPException(status_code=500, detail="unexpected error") from e
@@ -745,6 +772,8 @@ class SubscriptionsRouter:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Could not cancel subscription. Please try again or contact support.",
             ) from e
+
+        await self._reset_organization_flags(organization_id)
 
         return JSONResponse(
             status_code=status.HTTP_200_OK,
