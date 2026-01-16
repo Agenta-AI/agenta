@@ -1,0 +1,506 @@
+---
+title: Domain Verification
+description: Verify email domains to enable auto-join and domain-restricted access
+---
+
+# Domain Verification
+
+Domain verification establishes organizational authority over an email domain (e.g., `acme.com`), enabling auto-join for new users and domain-restricted access policies.
+
+## What is Domain Verification?
+
+Domain verification proves that your organization controls a specific email domain by adding a DNS TXT record. Once verified, you can:
+
+- **Auto-join**: Automatically add users with matching email domains to your organization
+- **Domain restrictions**: Limit organization access to verified email domains only
+
+## How It Works
+
+### Verification Process
+
+1. **Add Domain**: Create a domain record in your organization settings
+2. **Get Token**: Agenta generates a unique verification token
+3. **Add DNS Record**: Add a TXT record to your DNS configuration
+4. **Verify**: Agenta checks for the DNS record to confirm ownership
+
+### DNS TXT Record Format
+
+```
+_agenta-verification.yourdomain.com TXT "agenta-verify=abc123xyz"
+```
+
+**Example for `acme.com`:**
+```
+_agenta-verification.acme.com TXT "agenta-verify=J8f2KmP9nQ4vR7sT"
+```
+
+## Verification Steps
+
+### Step 1: Add Domain
+
+1. Navigate to **Settings** → **Access & Security** → **Verified Domains**
+2. Click **"Add Domain"**
+3. Enter your domain (e.g., `acme.com`)
+4. Optionally add a display name
+5. Click **"Create"**
+
+### Step 2: Get Verification Token
+
+After creating the domain, you'll see:
+
+```
+Domain: acme.com
+Status: Unverified
+Token: agenta-verify=J8f2KmP9nQ4vR7sT
+
+DNS Record to Add:
+_agenta-verification.acme.com TXT "agenta-verify=J8f2KmP9nQ4vR7sT"
+```
+
+### Step 3: Add DNS TXT Record
+
+Add the TXT record to your DNS provider:
+
+#### Cloudflare
+
+1. Go to **DNS** → **Records**
+2. Click **Add record**
+3. Type: `TXT`
+4. Name: `_agenta-verification`
+5. Content: `agenta-verify=J8f2KmP9nQ4vR7sT`
+6. TTL: Auto
+7. Click **Save**
+
+#### AWS Route 53
+
+1. Go to **Route 53** → **Hosted zones**
+2. Select your domain
+3. Click **Create record**
+4. Record name: `_agenta-verification`
+5. Record type: `TXT`
+6. Value: `"agenta-verify=J8f2KmP9nQ4vR7sT"`
+7. Click **Create records**
+
+#### Google Domains
+
+1. Go to **DNS** → **Custom records**
+2. Host name: `_agenta-verification`
+3. Type: `TXT`
+4. Data: `agenta-verify=J8f2KmP9nQ4vR7sT`
+5. Click **Save**
+
+#### Namecheap
+
+1. Go to **Advanced DNS**
+2. Add New Record
+3. Type: `TXT Record`
+4. Host: `_agenta-verification`
+5. Value: `agenta-verify=J8f2KmP9nQ4vR7sT`
+6. Click **Save**
+
+### Step 4: Verify Domain
+
+1. Wait for DNS propagation (usually 5-60 minutes, can take up to 48 hours)
+2. Go back to **Settings** → **Access & Security** → **Domains**
+3. Find your domain
+4. Click **"Verify"**
+5. If DNS record is found, status changes to **"Verified"** ✅
+
+## Using Verified Domains
+
+### Auto-Join
+
+Enable auto-join to automatically add users with verified email domains:
+
+**Configuration:**
+1. Navigate to **Settings** → **Access & Security** → **Authentication Policies**
+2. Enable **"Auto-join for verified domains"** (`auto_join=true`)
+3. Save changes
+
+**How it works:**
+- User signs up with `alice@acme.com`
+- Agenta sees `acme.com` is a verified domain for ACME Corp
+- `auto_join=true` → User is automatically added to ACME Corp
+- User has immediate access (no invitation needed)
+
+**Example:**
+```json
+{
+  "organization": "ACME Corp",
+  "verified_domains": ["acme.com"],
+  "flags": {
+    "auto_join": true
+  }
+}
+```
+
+Result: Anyone with `@acme.com` email is automatically added as a member.
+
+### Domain-Only Access
+
+Restrict organization access to verified email domains only:
+
+**Configuration:**
+1. Navigate to **Settings** → **Access & Security** → **Authentication Policies**
+2. Enable **"Restrict to verified domains"** (`domains_only=true`)
+3. Save changes
+
+**How it works:**
+- User tries to access organization
+- System checks: Is user's email domain verified?
+- If yes → Access granted
+- If no → `AUTH_DOMAIN_DENIED` error
+
+**Example:**
+```json
+{
+  "organization": "ACME Corp",
+  "verified_domains": ["acme.com"],
+  "flags": {
+    "domains_only": true
+  }
+}
+```
+
+Results:
+- ✅ `alice@acme.com` → Access granted
+- ❌ `bob@gmail.com` → Access denied
+
+### Combined: Auto-Join + Domain-Only
+
+Enable both for complete domain-based access control:
+
+```json
+{
+  "organization": "ACME Corp",
+  "verified_domains": ["acme.com", "acme.co.uk"],
+  "flags": {
+    "auto_join": true,
+    "domains_only": true
+  }
+}
+```
+
+**Behavior:**
+- Anyone with `@acme.com` or `@acme.co.uk` is automatically added
+- Only users with verified domains can access the organization
+- Users with other domains (`@gmail.com`) cannot access, even if invited
+
+
+## Managing Multiple Domains
+
+Organizations can verify multiple domains:
+
+**Example:**
+```json
+{
+  "organization": "ACME Corp",
+  "verified_domains": [
+    "acme.com",
+    "acme.co.uk",
+    "subsidiary.com"
+  ]
+}
+```
+
+**Use Cases:**
+- Company with multiple TLDs
+- Acquired subsidiaries
+- Regional domains
+
+Each domain:
+- Has its own verification token
+- Must be verified independently
+- Enables auto-join for that specific domain
+
+## Authority Model
+
+### One Domain, One Organization
+
+**Rule:** A domain can only be verified by one organization globally.
+
+**Scenario 1: First Come, First Served**
+- Alice's "ACME Research" verifies `acme.com` → Success
+- Bob's "ACME ML" tries to verify `acme.com` → Error: "Domain already verified by another organization"
+
+**Scenario 2: Multiple Orgs Without Verification**
+- Alice's "ACME Research" doesn't verify `acme.com`
+- Bob's "ACME ML" doesn't verify `acme.com`
+- Both orgs coexist, no auto-join, manual invitations only
+
+### What Verification Grants
+
+✅ **Granted:**
+- Right to define domain-scoped policies
+- Right to use `domains_only=true`
+- Right to use `auto_join=true`
+- Organizational authority over the domain
+
+❌ **NOT Granted:**
+- Authentication (users still need to prove identity)
+- Automatic user migration (existing users stay where they are)
+- Control over other organizations (they remain functional)
+
+## Troubleshooting
+
+### Verification Fails
+
+**Error**: "DNS record not found"
+
+**Causes & Solutions:**
+
+1. **DNS not propagated yet**
+   - Wait 5-60 minutes
+   - Try again
+   - Check DNS propagation: `nslookup -type=TXT _agenta-verification.yourdomain.com`
+
+2. **Wrong record name**
+   - Should be: `_agenta-verification.yourdomain.com`
+   - NOT: `_agenta-verification` (missing domain)
+   - NOT: `agenta-verification` (missing underscore)
+
+3. **Wrong record type**
+   - Must be `TXT` record
+   - NOT `A` or `CNAME`
+
+4. **Wrong token value**
+   - Copy exact token from Agenta
+   - Include quotes if required by DNS provider
+   - No extra spaces
+
+5. **TTL too high**
+   - Lower TTL for faster propagation
+   - Default: 300 seconds (5 minutes)
+
+### Token Expired or Lost
+
+**Solution:** Refresh verification token
+
+1. Go to **Settings** → **Access & Security** → **Domains**
+2. Find your domain
+3. Click **"Refresh Token"**
+4. Update DNS record with new token
+5. Click **"Verify"** again
+
+### Already Verified by Another Organization
+
+**Error**: "Domain 'acme.com' is already verified by another organization"
+
+**Cause:** Another organization has already verified this domain
+
+**Solutions:**
+1. Contact the other organization to release the domain
+2. Use a different domain
+3. If you're the rightful owner, contact support with proof of ownership
+
+### Can't Verify Subdomain
+
+**Scenario:** Want to verify `team.acme.com` but only own `acme.com`
+
+**Solution:** Verify parent domain `acme.com` instead
+- Verifying `acme.com` covers all `@acme.com` emails
+- Subdomain verification not currently supported
+
+### Domain Verification After Users Joined
+
+**Scenario:** Enable `domains_only=true` after non-verified domain users joined
+
+**Behavior:**
+- Existing members with non-verified domains are **blocked** on next access
+- They receive `AUTH_DOMAIN_DENIED` error
+- No automatic removal, just access denial
+
+**Solutions:**
+1. Remove `domains_only` flag to restore access
+2. Add their domains to verified list
+3. Remove users who shouldn't have access
+
+## Security Considerations
+
+### DNS Security
+
+**Recommendations:**
+- Use DNSSEC for domain integrity
+- Restrict DNS management access
+- Monitor DNS changes
+- Use strong passwords for DNS provider
+
+### Token Security
+
+**Best Practices:**
+- Tokens are unique per domain
+- Tokens don't expire (but can be refreshed)
+- Anyone with DNS access can verify the domain
+- Rotate tokens if compromised (refresh token feature)
+
+### Domain Ownership Changes
+
+**If domain ownership changes:**
+1. New owner can't verify until old verification is removed
+2. Contact support to resolve ownership disputes
+3. Provide proof of domain ownership (WHOIS, DNS control)
+
+## Advanced Scenarios
+
+### Company Acquisition
+
+**Scenario:** ACME Corp acquires Subsidiary Corp
+
+**Option 1: Merge Organizations**
+- Verify `subsidiary.com` in ACME Corp
+- Enable `auto_join=true`
+- Subsidiary users auto-join ACME Corp on next sign-in
+
+**Option 2: Keep Separate**
+- Keep both organizations
+- Don't verify subsidiary domain in ACME
+- Manual invitations for cross-org access
+
+### Multiple Brands
+
+**Scenario:** Company operates multiple brands with different domains
+
+**Solution:** One organization with multiple verified domains
+```json
+{
+  "organization": "Parent Company",
+  "verified_domains": [
+    "brand-a.com",
+    "brand-b.com",
+    "brand-c.com"
+  ],
+  "flags": {
+    "auto_join": true
+  }
+}
+```
+
+All brand employees automatically join parent organization.
+
+### Domain Transition
+
+**Scenario:** Migrating from `oldcompany.com` to `newcompany.com`
+
+**Steps:**
+1. Verify both domains in your organization
+2. Enable `auto_join=true` for both
+3. Users with either domain can auto-join
+4. After migration complete, remove old domain
+
+## API Reference
+
+### Create Domain
+
+```http
+POST /api/organizations/{organization_id}/domains
+Content-Type: application/json
+
+{
+  "domain": "acme.com",
+  "name": "ACME Corporation",
+  "description": "Main corporate domain"
+}
+```
+
+**Response:** 201 Created
+- Returns domain object with verification token
+
+### Verify Domain
+
+```http
+POST /api/organizations/{organization_id}/domains/verify
+Content-Type: application/json
+
+{
+  "domain_id": "domain_uuid"
+}
+```
+
+**Response:** 200 OK
+- Checks DNS TXT record at `_agenta-verification.{domain}`
+- Sets `is_verified=true` on success
+
+### Refresh Token
+
+```http
+POST /api/organizations/{organization_id}/domains/{domain_id}/refresh
+```
+
+**Response:** 200 OK
+- Generates new verification token
+- Resets 48-hour expiry window
+
+### Reset Domain
+
+```http
+POST /api/organizations/{organization_id}/domains/{domain_id}/reset
+```
+
+**Response:** 200 OK
+- Marks verified domain as unverified
+- Generates new token for re-verification
+
+### List Domains
+
+```http
+GET /api/organizations/{organization_id}/domains
+```
+
+**Response:** 200 OK
+- Returns all domains for the organization
+- Includes tokens for unverified domains
+
+### Delete Domain
+
+```http
+DELETE /api/organizations/{organization_id}/domains/{domain_id}
+```
+
+**Response:** 204 No Content
+- Requires `domains_only=false` and `auto_join=false`
+
+## Related Documentation
+
+- [Organizations](/docs/enterprise/organizations) - Organization management and policies
+- [SSO Providers](/docs/enterprise/sso-providers) - Enterprise SSO configuration
+- [Account Linking](/docs/concepts/authentication/account-linking) - How authentication methods link
+- [Multiple Organizations](/docs/concepts/authentication/multi-organization) - Multi-org access
+
+## FAQ
+
+### How long does DNS propagation take?
+
+Usually 5-60 minutes, but can take up to 48 hours depending on your DNS provider's TTL settings.
+
+### Can I verify subdomains separately?
+
+No, subdomain verification is not currently supported. Verify the parent domain instead (e.g., verify `acme.com` to cover all `@acme.com` emails).
+
+### What happens if I delete a verified domain?
+
+- Domain becomes unverified immediately
+- `auto_join` stops working for that domain
+- `domains_only` may block existing users with that domain
+- Can be re-verified later
+
+### Can multiple organizations verify the same domain?
+
+No, a domain can only be verified by one organization at a time globally.
+
+### Do I need to verify domains for SSO?
+
+No, domain verification is optional for SSO. However, verification enables:
+- SSO auto-discovery (users see SSO option automatically)
+- Auto-join for verified domain users
+- Domain-restricted access policies
+
+### What if my DNS provider doesn't support TXT records?
+
+All modern DNS providers support TXT records. If yours doesn't, consider:
+- Migrating to a modern DNS provider (Cloudflare, Route 53, Google Domains)
+- Using a DNS service alongside your current provider
+- Contacting your DNS provider to enable TXT record support
+
+### Can I verify domains I don't own?
+
+No, verification requires adding a DNS TXT record, which requires DNS access. You must own or control the domain to verify it.
