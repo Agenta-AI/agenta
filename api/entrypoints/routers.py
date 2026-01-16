@@ -98,7 +98,6 @@ from oss.src.routers import (
     app_router,
     environment_router,
     evaluators_router,
-    testset_router,
     user_profile,
     variants_router,
     configs_router,
@@ -567,12 +566,6 @@ app.include_router(
     evaluators_router.router,
     prefix="/evaluators",
     tags=["Evaluators"],
-)
-
-app.include_router(
-    testset_router.router,
-    prefix="/testsets",
-    tags=["Testsets"],
 )
 
 app.include_router(

@@ -8,6 +8,7 @@ import {useLocalStorage} from "usehooks-ts"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
 import {isEE} from "@/oss/lib/helpers/isEE"
+import {isNewUserAtom} from "@/oss/lib/onboarding/atoms"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
@@ -39,6 +40,7 @@ const usePostAuthRedirect = () => {
     const [invite] = useLocalStorage<Record<string, unknown>>("invite", {})
     const authUpgradeOrgKey = "authUpgradeOrgId"
     const lastSsoOrgSlugKey = "lastSsoOrgSlug"
+    const setIsNewUser = useSetAtom(isNewUserAtom)
 
     const hasInviteFromQuery = useMemo(() => {
         const token = router.query?.token
@@ -96,6 +98,7 @@ const usePostAuthRedirect = () => {
                     console.log("[post-auth] redirect new user -> /post-signup")
                     writePostSignupPending()
                     await resetAuthState()
+                    setIsNewUser(true)
                     await router.push("/post-signup")
                 }
                 return

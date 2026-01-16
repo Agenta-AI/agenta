@@ -3,6 +3,7 @@ import {useMemo} from "react"
 import {useRouter} from "next/router"
 
 import EvalRunPreviewPage from "./components/Page"
+import EvalResultsOnboarding from "./EvalResultsOnboarding"
 
 type EvalRunKind = "auto" | "human" | "online" | "custom"
 
@@ -31,6 +32,7 @@ const EvalRunTestPage = ({type = "auto"}: {type?: EvalRunKind}) => {
 
     return (
         <div className="w-full h-full overflow-hidden flex flex-col">
+            <EvalResultsOnboarding isReady={!!runId} />
             <EvalRunPreviewPage
                 evaluationType={evaluationType}
                 runId={runId}

@@ -1,0 +1,71 @@
+---
+id: get-project
+title: "Get Project"
+description: "Get Project"
+sidebar_label: "Get Project"
+hide_title: true
+hide_table_of_contents: true
+api: eJytVttu2zAM/ZWATxsgNF2xJz8tQIs26LYGvWwPRVCwNhOrlS1Vkrtlhv99oHxv0gu6PSWxD8nDw0MpJXhcO4iu4SLWhhwsBWhDFr3U+TyBCNbkb4zVdxR7EGDQYkaeLMeUkGNGEEHz/kYmIEDm/AR9CgIsPRTSUgKRtwUJcHFKGUJUgt8YjnTeynwNArz0ih8s6lSTeQJVteQMzujckeOgg/19/kjIxVYapggRXBRxTM6tCjU5b8AgINa5p9wzHI1RMg4dTe8cx5QDIsZyv17WFbRdYy7/BDC3w+H55mwVun3KeaVthh4iKAqZQCU6RF4oBcy+7epskDa0JsaVah2fr/Xm3N85USXgl7b3zmBM/7GJn23OpoO+xr/Q77O23Adu2mGUMd/dxulztMxes1tbW7qbhFZYqN70ffSt1oowH4TP3eSwhk8W3Y40CSBaoXJUCSgc2Rur1bs1unJkJ+ecoKWY6Z25WoYvJQucMw1VJVqMvm2o9/t6PV7qkZ7LLf1ct3lVxXk/HxxsL+oPVDKpbXpkrbbv39KEPErF36SnzG0DlI5Hb98gusw9rclCtex1QWtxMxj3V10T5DFkbv2Ssb6Rc7gOA6shz0ODGJNLfvvaTLivunSDG4yil7dW9/k2Dmv5dhVrISeXl4uthPVsx0M9pqH1M/Kpbm6NcFv4FCKYNu5x07I3VQUCHNnH9ioprIIIUu+Ni6bTWOki2cM15R73UE7RyGBiR3Fhpd+EkNlifkqbE8KELETXyyHggq1Tm2EM6+aARp4Sy9JcYrPCp9o2B2l7j6V1FPct81VYulaiWSA3mS3mIIDbqAXZ3/u0tw9PZRqB2fVYnyxt7fAaxBMVuv5BAGXB8uAJsy/9C2ZmtPMZ5oN846mMqHT9e/rtp0ahDHYOhctmYt3yOxAQDQ6CpYBUO8+IsrxFR1dWVRU/fijI8lSWAh7RSrxlja5LSKTj70lzGm6R6U4A+HDeGP3jBMRuku3kch7bI6qCf4GAe9qM/4WEJU5bY5QNYBbHZPwgdOvMYQd1Hj4+uoSq+gtPZx6W
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get Project"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/projects/{project_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Get Project
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"project_id","in":"path","required":true,"schema":{"type":"string","title":"Project Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"organization_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Organization Id"},"organization_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Organization Name"},"workspace_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Workspace Id"},"workspace_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Workspace Name"},"project_id":{"type":"string","format":"uuid","title":"Project Id"},"project_name":{"type":"string","title":"Project Name"},"is_default_project":{"type":"boolean","title":"Is Default Project","default":false},"user_role":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"User Role"},"is_demo":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Is Demo"}},"type":"object","required":["project_id","project_name"],"title":"ProjectsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
