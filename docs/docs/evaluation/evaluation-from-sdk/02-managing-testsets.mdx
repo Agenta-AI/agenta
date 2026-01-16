@@ -104,7 +104,17 @@ The `data` parameter accepts a simple list of dictionaries. The SDK automaticall
 
 ## Upserting a Testset
 
-Use `ag.testsets.aupsert()` to create a new testset or update an existing one if it already exists:
+Use `ag.testsets.aupsert()` to create a new testset or replace an existing one. This function performs a full replacement of the testset data.
+
+**How it works:**
+
+1. The function searches for an existing testset by `testset_id` (if provided) or by `name`
+2. If found, it **replaces all testcases** with the new data you provide
+3. If not found, it creates a new testset
+
+:::warning Full replacement
+The upsert operation replaces the entire testset. All existing testcases are removed and replaced with the new data. There is no merge or append behavior.
+:::
 
 <Tabs>
   <TabItem value="Python SDK">
@@ -114,7 +124,18 @@ import agenta as ag
 
 ag.init()
 
-# Create or update a testset
+# First call: creates a new testset with 3 testcases
+testset = await ag.testsets.aupsert(
+    name="Country Capitals",
+    data=[
+        {"country": "Germany", "capital": "Berlin"},
+        {"country": "France", "capital": "Paris"},
+        {"country": "Spain", "capital": "Madrid"},
+    ],
+)
+
+# Second call: replaces ALL testcases with these 4
+# The original 3 testcases are removed
 testset = await ag.testsets.aupsert(
     name="Country Capitals",
     data=[
@@ -133,7 +154,7 @@ print(f"Revision ID: {testset.id}")
   </TabItem>
   <TabItem value="REST API">
 
-To update an existing testset, use the PUT endpoint with the testset ID:
+To update an existing testset, use the PUT endpoint with the testset ID. This replaces all existing testcases:
 
 ```bash
 curl -X PUT "https://cloud.agenta.ai/api/preview/simple/testsets/{testset_id}" \
@@ -159,14 +180,16 @@ curl -X PUT "https://cloud.agenta.ai/api/preview/simple/testsets/{testset_id}" \
 </Tabs>
 
 **Parameters:**
-- `name` (required): The name of your testset. Used to find existing testset.
-- `data` (required): A list of dictionaries containing your test data.
-- `testset_id` (optional): If provided, updates the testset with this specific ID.
+- `name`: The name of your testset. Used to find an existing testset if `testset_id` is not provided.
+- `data` (required): A list of dictionaries containing your test data. This replaces all existing testcases.
+- `testset_id` (optional): If provided, updates the testset with this specific ID directly.
 
 **Returns:** A `TestsetRevision` object with the created or updated testset.
 
-:::tip When to use upsert vs create
-Use `aupsert()` when you want to update an existing testset with the same name, or create it if it doesn't exist. This is useful in CI/CD pipelines where you want to keep testsets synchronized. Use `acreate()` when you explicitly want to create a new testset every time.
+:::tip When to use each method
+- **`aupsert()`**: Use when you want to synchronize a testset to match your data exactly. Ideal for CI/CD pipelines where you regenerate test data and want to keep the testset in sync.
+- **`acreate()`**: Use when you want to create a new testset every time, regardless of whether one with the same name exists.
+- **`aedit()`**: Use when you have the testset ID and want to replace its contents.
 :::
 
 ## Listing Testsets
