@@ -199,7 +199,8 @@ export const Roles: React.FC<{
         }
 
         const currentUserMember = selectedOrg?.default_workspace?.members?.find(
-            (m: WorkspaceMember) => m.user?.id === signedInUser?.id || m.user?.email === signedInUser?.email
+            (m: WorkspaceMember) =>
+                m.user?.id === signedInUser?.id || m.user?.email === signedInUser?.email,
         )
 
         if (!currentUserMember) return false

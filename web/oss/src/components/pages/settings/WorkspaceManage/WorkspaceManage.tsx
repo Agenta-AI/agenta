@@ -7,8 +7,8 @@ import dynamic from "next/dynamic"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {isEmailInvitationsEnabled, isEE} from "@/oss/lib/helpers/isEE"
+import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {useOrgData} from "@/oss/state/org"
@@ -48,7 +48,8 @@ const WorkspaceManage: FC = () => {
         }
 
         const currentMember = filteredMembers.find(
-            (member) => member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email
+            (member) =>
+                member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email,
         )
 
         if (!currentMember) return false

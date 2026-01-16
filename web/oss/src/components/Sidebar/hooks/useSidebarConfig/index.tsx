@@ -53,7 +53,8 @@ export const useSidebarConfig = () => {
         }
 
         const currentMember = filteredMembers.find(
-            (member) => member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email
+            (member) =>
+                member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email,
         )
 
         if (!currentMember) return false
