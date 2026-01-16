@@ -5,9 +5,8 @@ from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import APIRouter
-from ee.src.utils.permissions import check_rbac_permission, check_action_access
+from ee.src.utils.permissions import check_action_access
 from ee.src.services import workspace_manager, db_manager_ee
-from ee.src.services.selectors import get_user_org_and_workspace_id
 
 from ee.src.models.api.workspace_models import (
     UserRole,

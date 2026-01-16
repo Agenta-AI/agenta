@@ -6,8 +6,8 @@ import {Button, Dropdown, Input, Modal, Space, Tag, Tooltip, Typography} from "a
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {message} from "@/oss/components/AppMessageContext"
+import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
-import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
 import {Plan, User} from "@/oss/lib/Types"
@@ -178,7 +178,7 @@ export const Roles: React.FC<{
     const [loading, setLoading] = useState(false)
     const {roles} = useWorkspaceRoles()
     const {selectedOrg, refetch} = useOrgData()
-    const {hasRBAC} = useEntitlements()
+    const {canModifyRoles} = useWorkspacePermissions()
     const {subscription}: {subscription?: any} = useSubscriptionDataWrapper() ?? {
         subscription: undefined,
     }
@@ -187,27 +187,6 @@ export const Roles: React.FC<{
     const isOwner = user.id === selectedOrg?.owner_id
     const readOnly = user.id === signedInUser?.id || user.status !== "member" || isOwner
     const role = member.roles[0]
-
-    // Check if current user can modify roles (owner or workspace_admin only)
-    const canModifyRoles = () => {
-        if (!isEE()) return false
-        if (!hasRBAC) return false
-
-        // Check if user is organization owner
-        if (selectedOrg?.owner_id && signedInUser?.id === selectedOrg.owner_id) {
-            return true
-        }
-
-        const currentUserMember = selectedOrg?.default_workspace?.members?.find(
-            (m: WorkspaceMember) =>
-                m.user?.id === signedInUser?.id || m.user?.email === signedInUser?.email,
-        )
-
-        if (!currentUserMember) return false
-
-        const allowedRoles = ["owner", "workspace_admin"]
-        return currentUserMember.roles?.some((r: any) => allowedRoles.includes(r.role_name))
-    }
 
     const handleChangeRole = async (roleName: string) => {
         setLoading(true)
@@ -249,7 +228,7 @@ export const Roles: React.FC<{
                     </Tag>
                 </Tooltip>
             )}
-            {!readOnly && !loading && canModifyRoles() && subscription?.plan === Plan.Business && (
+            {!readOnly && !loading && canModifyRoles && subscription?.plan === Plan.Business && (
                 <Dropdown
                     trigger={["click"]}
                     menu={{
