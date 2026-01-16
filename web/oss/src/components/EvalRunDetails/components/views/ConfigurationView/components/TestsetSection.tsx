@@ -100,7 +100,7 @@ const TestsetCard = ({
 
                     <div className="flex flex-wrap items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <Text className="font-medium text-neutral-800">Testcases</Text>
+                            <Text className="font-medium text-neutral-800">Test cases</Text>
                             <Tag className="!m-0 !bg-[#EEF2FF] !border-[#E0EAFF] !text-[#344054]">
                                 {testcaseCount ?? "—"}
                             </Tag>

@@ -22,7 +22,7 @@ const labelMap: Record<string, string> = {
     application: "Applications",
     application_variant: "Variants",
     environment: "Environments",
-    testset: "Testsets",
+    testset: "Test sets",
 }
 
 const TraceReferences = () => {
