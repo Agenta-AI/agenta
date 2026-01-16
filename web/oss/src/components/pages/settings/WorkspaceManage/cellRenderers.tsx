@@ -7,7 +7,7 @@ import {Button, Dropdown, Input, Modal, Space, Tag, Tooltip, Typography} from "a
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {message} from "@/oss/components/AppMessageContext"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
-import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
+import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
 import {Plan, User} from "@/oss/lib/Types"

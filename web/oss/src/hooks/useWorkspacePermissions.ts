@@ -30,7 +30,8 @@ export const useWorkspacePermissions = () => {
         }
 
         const currentMember = filteredMembers.find(
-            (member) => member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email
+            (member) =>
+                member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email,
         )
 
         if (!currentMember) return false
@@ -53,7 +54,7 @@ export const useWorkspacePermissions = () => {
         }
 
         const currentUserMember = selectedOrg?.default_workspace?.members?.find(
-            (m) => m.user?.id === signedInUser?.id || m.user?.email === signedInUser?.email
+            (m) => m.user?.id === signedInUser?.id || m.user?.email === signedInUser?.email,
         )
 
         if (!currentUserMember) return false
