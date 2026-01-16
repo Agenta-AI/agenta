@@ -55,13 +55,12 @@ def upgrade() -> None:
             ).scalar()
         )
 
-    # OSS: Must have exactly 1 organization
+    # OSS: Check organization count
     org_count = conn.execute(text("SELECT COUNT(*) FROM organizations")).scalar()
 
     if org_count == 0:
-        raise ValueError(
-            "OSS mode: No organizations found. Cannot proceed with migration."
-        )
+        # No organizations exist - skip migration
+        return
     elif org_count > 1:
         raise ValueError(
             f"OSS mode: Found {org_count} organizations. OSS supports exactly 1 collaborative organization. "
