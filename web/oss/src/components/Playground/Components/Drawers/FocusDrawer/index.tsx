@@ -68,7 +68,7 @@ const PlaygroundFocusDrawer = () => {
                             size="small"
                         />
                     </div>
-                    <Text className="text-sm font-medium">Testcase {currentRowIndex + 1}</Text>
+                    <Text className="text-sm font-medium">Test case {currentRowIndex + 1}</Text>
                 </div>
             }
             mainContent={<FocusDrawerContent />}
