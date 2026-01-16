@@ -9,6 +9,7 @@ export interface LoadTestsetSelectionPayload {
 
 export interface LoadTestsetModalProps extends ModalProps {
     setTestsetData: (payload: LoadTestsetSelectionPayload | null) => void
+    selectionMode?: "single" | "multiple"
 }
 
 /**
@@ -17,6 +18,7 @@ export interface LoadTestsetModalProps extends ModalProps {
  */
 export interface LoadTestsetModalContentProps {
     modalProps: ModalProps
+    selectionMode?: "single" | "multiple"
 }
 
 export interface LoadTestsetModalFooterProps {

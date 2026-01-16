@@ -22,10 +22,12 @@ const TestcasesTablePreview = ({
     revisionId,
     isCreateMode = false,
     showActions = false,
+    selectionMode = "multiple",
 }: {
     revisionId: string
     isCreateMode?: boolean
     showActions?: boolean
+    selectionMode?: "single" | "multiple"
 }) => {
     const [selectedRowKeys, setSelectedRowKeys] = useAtom(selectedTestcaseRowKeysAtom)
     const table = useTestcasesTable({revisionId, mode: isCreateMode ? "edit" : "view"})
@@ -43,6 +45,9 @@ const TestcasesTablePreview = ({
             const key = record?.key
             if (key === undefined || key === null) return
             setSelectedRowKeys((prev) => {
+                if (selectionMode === "single") {
+                    return [key]
+                }
                 const exists = prev.includes(key)
                 if (exists) {
                     return prev.filter((k) => k !== key)
@@ -54,17 +59,34 @@ const TestcasesTablePreview = ({
                 setEditingTestcaseId(recordId)
             }
         },
-        [setSelectedRowKeys, showActions],
+        [selectionMode, setSelectedRowKeys, showActions],
+    )
+
+    const handleSelectedRowKeysChange = useCallback(
+        (keys: React.Key[]) => {
+            if (selectionMode === "single") {
+                const nextKey = keys[keys.length - 1]
+                setSelectedRowKeys(nextKey !== undefined ? [nextKey] : [])
+                return
+            }
+            setSelectedRowKeys(keys)
+        },
+        [selectionMode, setSelectedRowKeys],
     )
 
     const handleAddRow = useCallback(() => {
         if (!showActions) return
         const newRow = table.addTestcase()
         const newRowKey = String(newRow.key ?? newRow.id ?? Date.now())
-        setSelectedRowKeys((prev) => (prev.includes(newRowKey) ? prev : [...prev, newRowKey]))
+        setSelectedRowKeys((prev) => {
+            if (selectionMode === "single") {
+                return [newRowKey]
+            }
+            return prev.includes(newRowKey) ? prev : [...prev, newRowKey]
+        })
         message.success("Row added. Fill in the cells and click Create & Load.")
         setEditingTestcaseId(newRowKey)
-    }, [setSelectedRowKeys, showActions, table])
+    }, [selectionMode, setSelectedRowKeys, showActions, table])
 
     const handleDeleteSelected = useCallback(() => {
         if (!showActions || !selectedRowKeys.length) return
@@ -111,7 +133,7 @@ const TestcasesTablePreview = ({
                     table={table}
                     rowHeight={rowHeight}
                     selectedRowKeys={selectedRowKeys}
-                    onSelectedRowKeysChange={setSelectedRowKeys}
+                    onSelectedRowKeysChange={handleSelectedRowKeysChange}
                     onRowClick={handleRowClick}
                     onDeleteSelected={handleDeleteSelected}
                     searchTerm={table.searchTerm}
@@ -120,6 +142,7 @@ const TestcasesTablePreview = ({
                     actions={actionsNode}
                     hideControls={false}
                     enableSelection
+                    selectionType={selectionMode === "single" ? "radio" : "checkbox"}
                     autoHeight
                     disableDeleteAction={!showActions}
                     onAddColumn={showActions ? () => setIsAddColumnModalOpen(true) : undefined}
@@ -172,7 +195,9 @@ const TestcasesTablePreview = ({
     )
 }
 
-export const TestsetPreviewPanel: React.FC = () => {
+export const TestsetPreviewPanel: React.FC<{selectionMode?: "single" | "multiple"}> = ({
+    selectionMode = "multiple",
+}) => {
     const selectedRevisionId = useAtomValue(selectedRevisionIdAtom)
     const isCreatingNew = useAtomValue(isCreatingNewTestsetAtom)
 
@@ -182,6 +207,7 @@ export const TestsetPreviewPanel: React.FC = () => {
                 revisionId={selectedRevisionId}
                 isCreateMode={isCreatingNew}
                 showActions={isCreatingNew}
+                selectionMode={selectionMode}
             />
         )
     }
