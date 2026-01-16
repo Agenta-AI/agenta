@@ -56,6 +56,9 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
 
     const requiredMethods = detail?.required_methods ?? []
     const detailMessage = typeof detail?.message === "string" ? detail.message : ""
+    const noAllowedMethods =
+        requiredMethods.length === 0 &&
+        detailMessage.toLowerCase().includes("no authentication methods are allowed")
     const requiresEmail = requiredMethods.some((method) => method.startsWith("email:"))
     const requiresSocial = requiredMethods.some((method) => method.startsWith("social:"))
     const requiresSso = requiredMethods.some((method) => method.startsWith("sso:"))
@@ -82,12 +85,17 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
         return oidcProviderMeta.filter((provider) => configuredProviderIds.has(provider.id))
     }, [oidcProviders])
 
-    const showEmail = authEmailEnabled && (requiresEmail || requiredMethods.length === 0)
+    const showEmail =
+        !noAllowedMethods && authEmailEnabled && (requiresEmail || requiredMethods.length === 0)
     const showSocial =
+        !noAllowedMethods &&
         authOidcEnabled &&
         providersToShow.length > 0 &&
         (requiresSocial || requiredMethods.length === 0)
-    const showSso = ssoProviders.length > 0 && (requiresSso || requiredMethods.length === 0)
+    const showSso =
+        !noAllowedMethods &&
+        ssoProviders.length > 0 &&
+        (requiresSso || requiredMethods.length === 0)
 
     const formatSsoProviderLabel = (provider: {slug: string; third_party_id?: string}) => {
         if (provider.third_party_id?.startsWith("sso:")) {
@@ -239,12 +247,17 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
                     />
                 )}
 
-                {!showEmail && !showSocial && !showSso && (
+                {!noAllowedMethods && !showEmail && !showSocial && !showSso && (
                     <Alert
                         showIcon
                         message="No authentication methods are configured for this organization."
                         type="warning"
                     />
+                )}
+                {noAllowedMethods && (
+                    <Button type="primary" onClick={onCancel} className="w-full">
+                        Cancel
+                    </Button>
                 )}
             </div>
         </Modal>
