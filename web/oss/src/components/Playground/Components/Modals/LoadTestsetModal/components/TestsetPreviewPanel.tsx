@@ -78,10 +78,15 @@ const TestcasesTablePreview = ({
         if (!showActions) return
         const newRow = table.addTestcase()
         const newRowKey = String(newRow.key ?? newRow.id ?? Date.now())
-        setSelectedRowKeys((prev) => (prev.includes(newRowKey) ? prev : [...prev, newRowKey]))
+        setSelectedRowKeys((prev) => {
+            if (selectionMode === "single") {
+                return [newRowKey]
+            }
+            return prev.includes(newRowKey) ? prev : [...prev, newRowKey]
+        })
         message.success("Row added. Fill in the cells and click Create & Load.")
         setEditingTestcaseId(newRowKey)
-    }, [setSelectedRowKeys, showActions, table])
+    }, [selectionMode, setSelectedRowKeys, showActions, table])
 
     const handleDeleteSelected = useCallback(() => {
         if (!showActions || !selectedRowKeys.length) return
