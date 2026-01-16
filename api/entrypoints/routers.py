@@ -24,6 +24,7 @@ from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
 
 from oss.src.routers import evaluation_router, human_evaluation_router
+from oss.src.core.auth.supertokens.config import init_supertokens
 
 # DBEs
 from oss.src.dbs.postgres.queries.dbes import (
@@ -97,10 +98,8 @@ from oss.src.routers import (
     app_router,
     environment_router,
     evaluators_router,
-    testset_router,
     user_profile,
     variants_router,
-    bases_router,
     configs_router,
     health_router,
     permissions_router,
@@ -129,6 +128,8 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+
+init_supertokens()
 
 
 @asynccontextmanager
@@ -568,21 +569,9 @@ app.include_router(
 )
 
 app.include_router(
-    testset_router.router,
-    prefix="/testsets",
-    tags=["Testsets"],
-)
-
-app.include_router(
     environment_router.router,
     prefix="/environments",
     tags=["Environments"],
-)
-
-app.include_router(
-    bases_router.router,
-    prefix="/bases",
-    tags=["Bases"],
 )
 
 app.include_router(

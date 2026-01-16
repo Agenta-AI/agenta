@@ -36,11 +36,8 @@ if is_ee():
         WorkspaceMembershipRequest,
         ProjectMembershipRequest,
         #
-        OrganizationRole,
-        WorkspaceRole,
         ProjectRole,
         #
-        Tier,
         Credentials,
         #
         check_user,
@@ -77,11 +74,8 @@ else:
         WorkspaceRequest,
         ProjectRequest,
         #
-        OrganizationRole,
-        WorkspaceRole,
         ProjectRole,
         #
-        Tier,
         Credentials,
         #
         check_user,
@@ -438,7 +432,6 @@ async def create_account(
             name="Organization",
             #
             is_demo=False,
-            is_personal=False,
             #
             owner_id=UUID(str(user_db.id)),
         )

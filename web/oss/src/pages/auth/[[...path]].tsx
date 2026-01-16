@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import ProtectedRoute from "@agenta/oss/src/components/ProtectedRoute/ProtectedRoute"
 import {
@@ -10,12 +10,14 @@ import {
     TwitterOutlined,
     GlobalOutlined,
 } from "@ant-design/icons"
-import {Alert, Button, Divider, Typography} from "antd"
+import {Alert, Button, Divider, Select, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import Image from "next/image"
 import {useRouter} from "next/router"
 import {getLoginAttemptInfo} from "supertokens-auth-react/recipe/passwordless"
+import {signOut} from "supertokens-auth-react/recipe/session"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 import {useLocalStorage} from "usehooks-ts"
 
@@ -26,6 +28,9 @@ import {getEffectiveAuthConfig} from "@/oss/lib/helpers/dynamicEnv"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
+import {orgsAtom} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
+import {sessionExistsAtom} from "@/oss/state/session"
 
 const PasswordlessAuth = dynamic(() => import("@/oss/components/pages/auth/PasswordlessAuth"))
 const EmailPasswordAuth = dynamic(() => import("@/oss/components/pages/auth/EmailPasswordAuth"))
@@ -85,6 +90,40 @@ const Auth = () => {
     const authError = firstString(router.query.auth_error)
     const {redirectToPath, ...queries} = router.query
     const isInvitedUser = Object.keys(queries.token ? queries : invite).length > 0
+
+    // For auth upgrade scenarios - check if user has other orgs they can access
+    const isAuthenticated = useAtomValue(sessionExistsAtom)
+    const orgs = useAtomValue(orgsAtom)
+    const {user} = useProfileData()
+    const isAuthUpgradeRequired = authError === "upgrade_required"
+
+    // Check if there's an invite email mismatch
+    const inviteEmail = emailFromQuery?.toLowerCase()
+    const currentUserEmail = user?.email?.toLowerCase()
+    const hasInviteEmailMismatch =
+        isAuthenticated && inviteEmail && currentUserEmail && inviteEmail !== currentUserEmail
+
+    // Derived state: whether to show the normal auth flow (not blocked by special states)
+    // Note: We still show auth methods when isAuthUpgradeRequired because the user needs
+    // to re-authenticate with the required method. Only hide for invite email mismatch.
+    const shouldShowNormalAuthFlow = !hasInviteEmailMismatch
+
+    // When auth upgrade is required, we show social auth but hide email-based flows
+    // since the user needs to authenticate with a different method (social/SSO)
+    const shouldShowEmailFlow = shouldShowNormalAuthFlow && !isAuthUpgradeRequired
+
+    // Filter out the current org that requires upgrade - user can navigate to other orgs
+    const otherOrgs = useMemo(() => {
+        if (!orgs || !Array.isArray(orgs)) return []
+        // Filter out the org that triggered the upgrade requirement
+        return orgs.filter((org) => org.id !== organizationId)
+    }, [orgs, organizationId])
+
+    // Memoize select options to prevent re-renders
+    const orgSelectOptions = useMemo(
+        () => otherOrgs.map((org) => ({label: org.name, value: org.id})),
+        [otherOrgs],
+    )
 
     const [email, setEmail] = useState(emailFromQuery ?? "")
     const [emailSubmitted, setEmailSubmitted] = useState(!!emailFromQuery)
@@ -424,8 +463,48 @@ const Auth = () => {
                     )}
 
                     <div className="flex flex-col gap-6 min-h-[360px]">
+                        {/* Show invite email mismatch message */}
+                        {hasInviteEmailMismatch && (
+                            <div className="flex flex-col gap-4">
+                                <Alert
+                                    showIcon
+                                    message="Signed in with a different account"
+                                    description={`This invitation was sent to ${inviteEmail}, but you're currently signed in as ${currentUserEmail}. Please sign out and sign in with the correct account to accept this invitation.`}
+                                    type="warning"
+                                />
+                                <div className="flex gap-3 justify-center">
+                                    <Button onClick={() => router.replace("/w")}>
+                                        Go to your organizations
+                                    </Button>
+                                    <Button
+                                        type="primary"
+                                        onClick={() => {
+                                            signOut()
+                                                .then(() => {
+                                                    // Stay on current page with invite params
+                                                    router.replace(router.asPath)
+                                                })
+                                                .catch(console.error)
+                                        }}
+                                    >
+                                        Sign out
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Show auth upgrade required message prominently */}
+                        {isAuthUpgradeRequired && authMessage && !hasInviteEmailMismatch && (
+                            <Alert
+                                showIcon
+                                message="Additional authentication required"
+                                description={authMessage}
+                                type="warning"
+                            />
+                        )}
+
                         {/* Step 1: Show social auth options (if configured) */}
-                        {socialAvailable && (
+                        {socialAvailable && shouldShowNormalAuthFlow && (
                             <>
                                 <SocialAuth
                                     authErrorMsg={authErrorMsg}
@@ -434,7 +513,9 @@ const Auth = () => {
                                     setIsLoading={setIsSocialAuthLoading}
                                     providers={providersToShow}
                                 />
-                                {showEmailEntry && <Divider className="!m-0">or</Divider>}
+                                {showEmailEntry && shouldShowEmailFlow && (
+                                    <Divider className="!m-0">or</Divider>
+                                )}
                             </>
                         )}
 
@@ -442,7 +523,8 @@ const Auth = () => {
                         {showEmailEntry &&
                             !emailSubmitted &&
                             !socialAvailable &&
-                            !isLoginCodeVisible && (
+                            !isLoginCodeVisible &&
+                            shouldShowEmailFlow && (
                                 <EmailFirst
                                     email={email}
                                     setEmail={setEmail}
@@ -452,21 +534,26 @@ const Auth = () => {
                                 />
                             )}
 
-                        {showEmailEntry && !emailSubmitted && socialAvailable && !showEmailForm && (
-                            <Button
-                                type="link"
-                                onClick={() => setShowEmailForm(true)}
-                                className="text-center w-full"
-                            >
-                                Use a different email
-                            </Button>
-                        )}
+                        {showEmailEntry &&
+                            !emailSubmitted &&
+                            socialAvailable &&
+                            !showEmailForm &&
+                            shouldShowEmailFlow && (
+                                <Button
+                                    type="link"
+                                    onClick={() => setShowEmailForm(true)}
+                                    className="text-center w-full"
+                                >
+                                    Use a different email
+                                </Button>
+                            )}
 
                         {showEmailEntry &&
                             !emailSubmitted &&
                             socialAvailable &&
                             showEmailForm &&
-                            !isLoginCodeVisible && (
+                            !isLoginCodeVisible &&
+                            shouldShowEmailFlow && (
                                 <EmailFirst
                                     email={email}
                                     setEmail={setEmail}
@@ -477,7 +564,7 @@ const Auth = () => {
                             )}
 
                         {/* Step 3: After email discovery, show available methods */}
-                        {emailSubmitted && discoveryComplete && (
+                        {emailSubmitted && discoveryComplete && shouldShowEmailFlow && (
                             <>
                                 {/* Show OTP flow if available */}
                                 {emailOtpAvailable && !isLoginCodeVisible && (
@@ -557,13 +644,53 @@ const Auth = () => {
                                 )}
                             </>
                         )}
+
+                        {/* Auth upgrade: show organization switch and sign out options */}
+                        {isAuthUpgradeRequired && isAuthenticated && !hasInviteEmailMismatch && (
+                            <div className="flex flex-col gap-3 pt-2 border-t border-[#e5e7eb]">
+                                {otherOrgs.length > 0 && (
+                                    <div className="flex flex-col gap-2">
+                                        <Text className="text-sm text-[#586673]">
+                                            Or switch to a different organization:
+                                        </Text>
+                                        <Select
+                                            placeholder="Select an organization"
+                                            className="w-full"
+                                            options={orgSelectOptions}
+                                            onChange={(value) => {
+                                                router.replace(`/w/${value}`)
+                                            }}
+                                        />
+                                    </div>
+                                )}
+                                <Button
+                                    type="link"
+                                    className="text-center p-0"
+                                    onClick={() => {
+                                        // Clear auth upgrade state before signing out
+                                        if (typeof window !== "undefined") {
+                                            window.localStorage.removeItem("authUpgradeOrgId")
+                                        }
+                                        signOut()
+                                            .then(() => {
+                                                // Clear auth error params to avoid showing stale error message
+                                                router.replace("/auth")
+                                            })
+                                            .catch(console.error)
+                                    }}
+                                >
+                                    Sign out and use a different account
+                                </Button>
+                            </div>
+                        )}
                     </div>
 
-                    {isDemo() && !isLoginCodeVisible && (
+                    {isDemo() && !isLoginCodeVisible && shouldShowNormalAuthFlow && (
                         <Text>
-                            By clicking on next, you agree to the Agenta AI’s{" "}
+                            By clicking on next, you agree to the Agenta AI's{" "}
                             <a
                                 target="_blank"
+                                rel="noopener noreferrer"
                                 className="!underline !underline-offset-2"
                                 href="https://app.termly.io/policy-viewer/policy.html?policyUUID=506861af-ea3d-41d2-b85a-561e15b0c7b7"
                             >
@@ -572,6 +699,7 @@ const Auth = () => {
                             and{" "}
                             <a
                                 target="_blank"
+                                rel="noopener noreferrer"
                                 className="!underline !underline-offset-2"
                                 href="https://app.termly.io/policy-viewer/policy.html?policyUUID=ce8134b1-80c5-44b7-b3b2-01dba9765e59"
                             >

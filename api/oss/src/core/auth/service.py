@@ -14,11 +14,15 @@ from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 
 if is_ee():
-    from ee.src.models.db_models import OrganizationMemberDB
-
     from ee.src.dbs.postgres.organizations.dao import (
         OrganizationDomainsDAO,
         OrganizationProvidersDAO,
+    )
+    from ee.src.services import db_manager_ee
+    from ee.src.models.db_models import (
+        OrganizationMemberDB,
+        WorkspaceMemberDB,
+        ProjectMemberDB,
     )
 
 
@@ -464,15 +468,6 @@ class AuthService:
                 is_member = any(org.id == org_id for org in user_orgs)
 
                 if not is_member:
-                    from ee.src.services import db_manager_ee
-                    from ee.src.models.db_models import (
-                        OrganizationMemberDB,
-                        WorkspaceMemberDB,
-                        ProjectMemberDB,
-                    )
-                    from oss.src.dbs.postgres.shared.engine import engine as db_engine
-                    from sqlalchemy import select
-
                     organization = await db_manager.get_organization_by_id(str(org_id))
                     user = await db_manager.get_user_with_id(user_id=str(user_id))
                     workspaces = await db_manager_ee.get_organization_workspaces(
@@ -484,7 +479,7 @@ class AuthService:
                             "Auto-join requires organization, user, and at least one workspace"
                         )
 
-                    async with db_engine.core_session() as session:
+                    async with engine.core_session() as session:
                         existing_org_member = await session.execute(
                             select(OrganizationMemberDB).filter_by(
                                 user_id=user.id, organization_id=organization.id

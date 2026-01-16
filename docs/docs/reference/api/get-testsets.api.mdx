@@ -5,7 +5,7 @@ description: "Get all testsets."
 sidebar_label: "Get Testsets"
 hide_title: true
 hide_table_of_contents: true
-api: eJzNVE1PGzEQ/SvWnN0kVJz21KhCECG1CMIpRDDsTrKmG9vYY0q62v9ezX4kWQ6ox+7FK897no/37BoYtxGyFSwpciSOsNZQUMyD8WychQwuiRVWleIeMXmwD/aWOAUbswf7Rc1VZSIrtxkgyj2/UD4g0UTqgE9Xy+XNxXtO7dFP6rfhUkVGTlHlriB1PjtXZqOsOyRTGEhtXLLFBDQ4TwGFuygggy3x44ADDYGidzZShKyGr7OZLONO7lKeU4ybVKnbHgwacmeZLAscva9M3maYvkTh1BDzknYof4Zp1x7ugxTCpkv1aApZeO8JMogcjN2CBjZcycaigEaDxR19hvoh8UZDHgiZikfkz9DfO5Sas3CSL/6Bc9+hWk6jB1inVDu912QCFeIF6agveVTRKNX6eLR45474Z2Kf+DDZYxIMAfcnpQwQJdY6GK+RT8OOuHS9vKDBI5eQwfRE6EjhjYK4toYUKsigZPYxm07zyqVigluyjBM0U/QGmrUw8hQM71vK/GZxTfsrwoICZKv1KeBOxO5kHcMOc0Vvrmk/jCeDeeLSBfOnNQ1oMGK0smNJO8ZuXEvve5+3xan5zQI0SBudNWeTs8kMPl69EVh8inmr8ZC7DYssoykc+gcNtEMjMSbcfTsGpDLvIu/Qnpw3kuNDLfXxnvxPL0KvCtM7T32FxrYXQsZR99ZZAZ88baWLLHt1/YyR7kPVNLL9miiIO9Ya3jAYfBatVutGD1KKcX7RXoaeS7UiHlapc8SHR0MMdXDx5cUSmuYvFW3aMA==
+api: eJzNVU1v2zAM/SsCz16SFT35tGArtqL7KNpslzToVJtJ1MmSJ1HdssD/faBkx3a67uO2kwH5UeTje6T2QHLjIV/CAj15JA+rDEr0hVM1KWsgh9dIQmotqEVMbsyNuUIKzvj8xjwTc6GVJ2HXHUTYu3ssOqRUHhPw85vF4vLse4Hx6s/im6Kt8CQpeFHYEsXp7FSotTD2kExIh2JtgyknkIGt0UmOPS8hhw3SbYeDDGrpZIWEjvnswcgKIU+fDBQz+RrQ7SADh1+DclhCvpbaYwa+2GIlId+DNLsP6xhPu5rjPTllNtBkhxMTtIZmlQEp0nzwnlM0fOLQ19Z49HzVyWzGn3Ezr0NRoPfroMVVC4YMCmsIDcUC6lqrIpKc3nuO2Q/Ka0uQzkkmogirmKt23BpSKfOtKgfglkFf73kJTdb252lUYpVB4VASlreSfod+mVBiThwT6vIvYj4mVBtTWB0qE+s/0DrW4Jj/IXsb2/SQZMGR2MvYmKyzxIDYqOKBsu1QfAhUBzro1fSA7kzwkBxGqGm4kNOTk8f6f5JalVFdceacdf8i/ljkEkkqPWrXGKBtMfr7F9ZWhnCDDprV071+a1OB3IbKb34n8Dv0Xm6wF+5paGyGWPDfP4nIvFLqFjcQrG9v6u7TNF6l9v0qWQfhbfXowqRthbS17Q6Kq4e2kMN0sI08uoduFQWnIYctUe3z6bTQNpQTuUFDciLVVNYqrhOPRXCKdjFkfnl+gbs3KEt0kC9XQ8A1OyJpPIb1+6FWF7jrrJ7DPNDWOvUjCdduw22KYjrKrG0Mb5nPY3FifnkOGTCNZN7Z5PlkBsfvwwjMZpZFNHOXO/7mERt14cAfMsAqOhkIZfWi/8GV1dZTJc3gvtGkHdWy74fpf3q2WlUIv9O01lLF2Ynt2LfWWQIN3t+t9cRn+/2d9PjR6abh4/R8sTtK5eWdHjxgX3DXv3UPUgfOF131IJ1ibDRR1onOl6SYecG8BlGPdhDfcvD767MFNM1P6tfOAA==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -44,8 +44,16 @@ Returns:
 Raises:
 - `HTTPException` with status code 404 if no testsets are found.
 
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
 <ParamsDetails
-  parameters={undefined}
+  parameters={[{"name":"name","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"}}]}
 >
   
 </ParamsDetails>
@@ -60,7 +68,7 @@ Raises:
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"properties":{"_id":{"type":"string","title":"Id"},"name":{"type":"string","title":"Name"},"created_at":{"type":"string","title":"Created At"},"updated_at":{"type":"string","title":"Updated At"}},"type":"object","required":["_id","name","created_at","updated_at"],"title":"TestSetOutputResponse"},"type":"array","title":"Response Get Testsets"}}}}}}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"array","items":{"properties":{"_id":{"type":"string","title":"Id"},"name":{"type":"string","title":"Name"},"created_at":{"type":"string","title":"Created At"},"updated_at":{"type":"string","title":"Updated At"},"columns":{"items":{"type":"string"},"type":"array","title":"Columns"}},"type":"object","required":["_id","name","created_at","updated_at"],"title":"TestsetOutputResponse"},"title":"Response Get Testsets"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
 >
   
 </StatusCodes>

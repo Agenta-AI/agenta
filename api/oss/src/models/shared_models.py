@@ -5,12 +5,10 @@ from typing import Any, Dict, Optional
 
 class OrganizationFlags(BaseModel):
     is_demo: bool = False
-    is_personal: bool = False
 
 
 class OrganizationQueryFlags(BaseModel):
     is_demo: Optional[bool] = None
-    is_personal: Optional[bool] = None
 
 
 class ConfigDB(BaseModel):

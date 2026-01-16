@@ -9,7 +9,10 @@ testset_name = 'your_testset_name'
 
 with open(file_path, 'rb') as file:
     files = {'file': file}
-    data = {'testset_name': testset_name}
+    data = {
+        'testset_name': testset_name,
+        'file_type': 'csv',
+    }
     response = requests.post(url, files=files, data=data${
         !isDemo() ? "" : ", headers={'Authorization': 'your_api_key'}"
     })

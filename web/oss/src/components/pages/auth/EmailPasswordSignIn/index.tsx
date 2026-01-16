@@ -24,6 +24,9 @@ const EmailPasswordSignIn = ({
     ) => {
         try {
             setIsLoading(true)
+            console.log("[emailpassword-signin] submit", {
+                email: values.email,
+            })
             const response = await signIn({
                 formFields: [
                     {id: "email", value: values.email},
@@ -64,11 +67,14 @@ const EmailPasswordSignIn = ({
                         return
                     }
                     setMessage({message: "Verification successful", type: "success"})
-                    const {createdNewRecipeUser, user} = signUpResponse as {
-                        createdNewRecipeUser?: boolean
+                    const {user} = signUpResponse as {
                         user?: {loginMethods?: unknown[]}
                     }
-                    await handleAuthSuccess({createdNewRecipeUser, user})
+                    console.log("[emailpassword-signin] signup fallback ok", {
+                        hasUser: Boolean(user),
+                        loginMethods: user?.loginMethods,
+                    })
+                    await handleAuthSuccess({createdNewRecipeUser: true, user})
                 } catch (signUpError) {
                     authErrorMsg(signUpError)
                 }
@@ -78,6 +84,11 @@ const EmailPasswordSignIn = ({
                     createdNewRecipeUser?: boolean
                     user?: {loginMethods?: unknown[]}
                 }
+                console.log("[emailpassword-signin] signin ok", {
+                    createdNewRecipeUser,
+                    hasUser: Boolean(user),
+                    loginMethods: user?.loginMethods,
+                })
                 await handleAuthSuccess({createdNewRecipeUser, user})
             }
         } catch (error) {

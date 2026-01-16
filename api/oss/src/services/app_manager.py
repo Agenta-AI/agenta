@@ -1,7 +1,5 @@
 """Main Business logic"""
 
-import os
-
 from urllib.parse import urlparse
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional

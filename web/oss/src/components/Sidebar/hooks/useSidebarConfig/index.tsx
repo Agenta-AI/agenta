@@ -1,4 +1,4 @@
-import {GithubFilled} from "@ant-design/icons"
+import {AppstoreOutlined, DatabaseOutlined, GithubFilled} from "@ant-design/icons"
 import {
     ChartDonut,
     ChartLineUp,
@@ -15,15 +15,12 @@ import {
     ChatCircle,
     Gauge,
     HouseIcon,
-    GridFour,
-    Database,
-    SignOut,
 } from "@phosphor-icons/react"
 
-import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
+import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {useAppsData} from "@/oss/state/app"
 import {useOrgData} from "@/oss/state/org"
@@ -31,9 +28,10 @@ import {useOrgData} from "@/oss/state/org"
 import {SidebarConfig} from "../../types"
 
 export const useSidebarConfig = () => {
-    const {doesSessionExist, logout} = useSession()
+    const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {selectedOrg} = useOrgData()
+    const {canInviteMembers} = useWorkspacePermissions()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
 
@@ -51,14 +49,14 @@ export const useSidebarConfig = () => {
             key: "project-prompts-link",
             title: "Prompts",
             link: `${projectURL}/prompts`,
-            icon: <GridFour size={16} />,
+            icon: <AppstoreOutlined size={16} />,
             disabled: !hasProjectURL,
         },
         {
             key: "app-testsets-link",
             title: "Testsets",
             link: `${projectURL}/testsets`,
-            icon: <Database size={16} />,
+            icon: <DatabaseOutlined size={16} />,
             disabled: !hasProjectURL,
         },
         {
@@ -132,29 +130,39 @@ export const useSidebarConfig = () => {
         },
         {
             key: "settings-link",
-            title: "Open Settings",
+            title: "Settings",
             link: `${projectURL}/settings`,
             icon: <Gear size={16} />,
             isBottom: true,
-            tooltip: "Open Settings",
+            tooltip: "Settings",
             disabled: !hasProjectURL,
         },
         {
-            key: "invite-members-link",
-            title: "Invite Members",
+            key: "invite-teammate-link",
+            title: "Invite Teammate",
             link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
             icon: <PaperPlane size={16} />,
             isBottom: true,
-            tooltip: "Invite Members",
-            isHidden: !doesSessionExist || !selectedOrg,
+            tooltip: "Invite Teammate",
+            isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
             disabled: !hasProjectURL,
         },
         {
-            key: "resources-link",
-            title: "Browse Resources",
+            key: "support-chat-link",
+            title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
+            icon: <ChatCircle size={16} />,
+            isBottom: true,
+            isHidden: !isDemo() || !isCrispEnabled,
+            onClick: (e) => {
+                e.preventDefault()
+                toggle()
+            },
+        },
+        {
+            key: "help-docs-link",
+            title: "Help & Docs",
             icon: <Question size={16} />,
             isBottom: true,
-            tooltip: "Browse Resources",
             submenu: [
                 {
                     key: "docs",
@@ -174,16 +182,6 @@ export const useSidebarConfig = () => {
                     title: "Slack Support",
                     link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
                     icon: <SlackLogo size={16} />,
-                },
-                {
-                    key: "support-chat-link",
-                    title: `Chat Support (${isVisible ? "ON" : "OFF"})`,
-                    icon: <ChatCircle size={16} />,
-                    isHidden: !isDemo() || !isCrispEnabled,
-                    onClick: (e) => {
-                        e.preventDefault()
-                        toggle()
-                    },
                     divider: true,
                 },
                 {
@@ -193,23 +191,6 @@ export const useSidebarConfig = () => {
                     icon: <Phone size={16} />,
                 },
             ],
-            divider: true,
-        },
-        {
-            key: "logout",
-            title: "Log out",
-            icon: <SignOut size={16} />,
-            isBottom: true,
-            isHidden: !doesSessionExist,
-            danger: true,
-            onClick: (e) => {
-                e.preventDefault()
-                AlertPopup({
-                    title: "Logout",
-                    message: "Are you sure you want to logout?",
-                    onOk: logout,
-                })
-            },
         },
     ]
 

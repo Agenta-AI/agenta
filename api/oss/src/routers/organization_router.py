@@ -20,8 +20,8 @@ from oss.src.models.api.workspace_models import (
 )
 
 if is_ee():
-    from ee.src.utils.permissions import check_rbac_permission
-    from ee.src.models.api.workspace_models import WorkspaceRole
+    from ee.src.utils.permissions import check_action_access
+    from ee.src.models.shared_models import Permission
     from ee.src.services import db_manager_ee, workspace_manager
     from ee.src.services.selectors import (
         get_user_org_and_workspace_id,
@@ -214,14 +214,11 @@ async def invite_user_to_organization(
             )
 
         if is_ee():
-            user_org_workspace_data = await get_user_org_and_workspace_id(
-                request.state.user_id
-            )
             project = await db_manager_ee.get_project_by_workspace(workspace_id)
-            has_permission = await check_rbac_permission(
-                user_org_workspace_data=user_org_workspace_data,
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
                 project_id=str(project.id),
-                role=WorkspaceRole.WORKSPACE_ADMIN,
+                permission=Permission.ADD_USER_TO_WORKSPACE,
             )
             if not has_permission:
                 return JSONResponse(
@@ -295,14 +292,11 @@ async def resend_user_invitation_to_organization(
     """
 
     if is_ee():
-        user_org_workspace_data = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
         project = await db_manager_ee.get_project_by_workspace(workspace_id)
-        has_permission = await check_rbac_permission(
-            user_org_workspace_data=user_org_workspace_data,
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
             project_id=str(project.id),
-            role=WorkspaceRole.WORKSPACE_ADMIN,
+            permission=Permission.ADD_USER_TO_WORKSPACE,
         )
         if not has_permission:
             return JSONResponse(

@@ -1,7 +1,8 @@
-import traceback
 from typing import Optional
+from uuid import UUID
 from datetime import datetime, timezone, timedelta
 import asyncio
+import traceback
 
 from pydantic import ValidationError
 from fastapi import Request, HTTPException, Response
@@ -26,6 +27,8 @@ from oss.src.services.exceptions import (
     GatewayTimeoutException,
     code_to_phrase,
 )
+
+from oss.src.core.auth.service import AuthService
 
 if is_ee():
     from ee.src.services import db_manager_ee
@@ -807,9 +810,6 @@ async def _check_organization_policy(request: Request):
 
     if not organization_id or not user_id:
         return
-
-    from uuid import UUID
-    from oss.src.core.auth.service import AuthService
 
     # Get identities from session
     try:

@@ -17,7 +17,9 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     const [loadingPosthog, setLoadingPosthog] = useState(false)
     const [posthogClient, setPosthogClient] = useAtom(posthogAtom)
     const failedAttemptsRef = useRef(0)
-    const isAuthRoute = (router.asPath || router.pathname || "").startsWith("/auth")
+    const currentPath = router.asPath || router.pathname || ""
+    const isAuthRoute = currentPath.startsWith("/auth") && !currentPath.startsWith("/auth/callback")
+    const isPostSignupRoute = currentPath.startsWith("/post-signup")
 
     const initPosthog = useCallback(async () => {
         if (posthogClient) return
@@ -55,10 +57,11 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     }, [loadingPosthog, posthogClient, setPosthogClient])
 
     useEffect(() => {
-        if (!isAuthRoute) {
+        // Initialize PostHog everywhere except auth routes (but DO initialize on post-signup for survey)
+        if (!isAuthRoute || isPostSignupRoute) {
             initPosthog()
         }
-    }, [initPosthog, isAuthRoute])
+    }, [initPosthog, isAuthRoute, isPostSignupRoute])
 
     const handleRouteChange = useCallback(() => {
         posthogClient?.capture("$pageview", {$current_url: window.location.href})

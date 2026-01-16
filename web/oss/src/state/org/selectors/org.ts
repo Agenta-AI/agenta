@@ -209,18 +209,8 @@ const isDemoOrg = (org?: Partial<Org>): boolean => {
     return false
 }
 
-export const isPersonalOrg = (org?: Partial<Org>): boolean => {
-    if (!org) return false
-    if (org?.flags?.["is_personal"] === true) return true
-    return false
-}
-
 const pickFirstNonDemoOrg = (orgs?: Org[]) => {
     if (!Array.isArray(orgs) || orgs.length === 0) return null
-    // Prioritize personal org
-    const personal = orgs.find((org) => isPersonalOrg(org))
-    if (personal) return personal
-    // Fall back to first non-demo org
     const nonDemo = orgs.find((org) => !isDemoOrg(org))
     return nonDemo ?? orgs[0]
 }
@@ -230,10 +220,6 @@ export const pickOwnedOrg = (userId: string | null, orgs?: Org[], nonDemoOnly = 
     const owned = orgs.filter((org) => org.owner_id === userId)
     if (!owned.length) return null
 
-    // Prioritize personal org
-    const personal = owned.find((org) => isPersonalOrg(org))
-    if (personal) return personal
-
     if (!nonDemoOnly) return owned[0]
     const firstNonDemoOwned = owned.find((org) => !isDemoOrg(org))
     return firstNonDemoOwned ?? null
@@ -242,11 +228,7 @@ export const pickOwnedOrg = (userId: string | null, orgs?: Org[], nonDemoOnly = 
 export const resolvePreferredWorkspaceId = (userId: string | null, orgs?: Org[]) => {
     if (!Array.isArray(orgs) || orgs.length === 0) return null
 
-    const personal = orgs.find((org) => isPersonalOrg(org))
-    if (personal?.id) {
-        return personal.id
-    }
-
+    // 1. Prefer last-used workspace if still valid
     const lastWorkspaceId = readLastUsedWorkspaceId()
     if (lastWorkspaceId) {
         const hasDirectOrgMatch = orgs.some((org) => org.id === lastWorkspaceId)
@@ -262,11 +244,13 @@ export const resolvePreferredWorkspaceId = (userId: string | null, orgs?: Org[])
         }
     }
 
+    // 2. Prefer an owned non-demo org
     const ownedPreferred = pickOwnedOrg(userId, orgs, true) ?? pickOwnedOrg(userId, orgs, false)
     if (ownedPreferred?.id) {
         return ownedPreferred.id
     }
 
+    // 3. Fall back to first non-demo org
     const fallback = pickFirstNonDemoOrg(orgs)
     return fallback?.id ?? null
 }
@@ -325,7 +309,7 @@ export const selectedOrgAtom = atom<OrgDetails | null>((get) => {
     return res ?? null
 })
 
-export const resetOrgDataAtom = atom(null, async (get) => {
+export const resetOrganizationDataAtom = atom(null, async (get) => {
     const qc = queryClient
     await qc.removeQueries({queryKey: ["orgs"]})
     await qc.removeQueries({queryKey: ["selectedOrg"]})

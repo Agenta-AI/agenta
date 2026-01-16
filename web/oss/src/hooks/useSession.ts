@@ -6,7 +6,7 @@ import {useRouter} from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
 
-import {resetOrgData} from "@/oss/state/org"
+import {resetOrganizationData} from "@/oss/state/org"
 import {resetProfileData} from "@/oss/state/profile"
 import {resetProjectData} from "@/oss/state/project"
 import {authFlowAtom, sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
@@ -56,7 +56,7 @@ export const useSession: () => {
 
             // Reset Jotai atoms
             resetProfileData()
-            resetOrgData()
+            resetOrganizationData()
             resetProjectData()
 
             // Reset analytics

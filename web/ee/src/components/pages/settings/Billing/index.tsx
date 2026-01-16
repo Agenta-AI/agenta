@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
 import {Button, Spin, Typography} from "antd"
 import dayjs from "dayjs"
@@ -20,10 +20,60 @@ const Billing = () => {
     const router = useRouter()
     const {projectURL} = useURL()
     const [isLoadingOpenBillingPortal, setIsLoadingOpenBillingPortal] = useState(false)
-    const {subscription, isSubLoading} = useSubscriptionData()
-    const {usage, isUsageLoading} = useUsageData()
+    const {subscription, isSubLoading, mutateSubscription} = useSubscriptionData()
+    const {usage, isUsageLoading, mutateUsage} = useUsageData()
     const [isOpenPricingModal, setIsOpenPricingModal] = useState(false)
     const [isOpenCancelModal, setIsOpenCancelModal] = useState(false)
+
+    // Refresh billing data when component mounts or tab is clicked
+    // This ensures fresh data every time the user navigates to the billing tab
+    useEffect(() => {
+        mutateSubscription()
+        mutateUsage()
+    }, [mutateSubscription, mutateUsage])
+
+    // Detect return from Stripe and refresh data
+    useEffect(() => {
+        // Check for Stripe return indicators in query params
+        const hasStripeReturn =
+            router.query.session_id ||
+            router.query.success === "true" ||
+            router.query.canceled === "true"
+
+        if (hasStripeReturn) {
+            // Refresh billing data after returning from Stripe
+            mutateSubscription()
+            mutateUsage()
+
+            // Clean up query params
+            const {session_id, success, canceled, ...restQuery} = router.query
+            router.replace(
+                {
+                    pathname: router.pathname,
+                    query: restQuery,
+                },
+                undefined,
+                {shallow: true},
+            )
+        }
+    }, [router.query, mutateSubscription, mutateUsage])
+
+    // Open pricing modal if 'upgrade=true' query param is present
+    useEffect(() => {
+        if (router.query.upgrade === "true") {
+            setIsOpenPricingModal(true)
+            // Remove the query param to clean up the URL
+            const {upgrade, ...restQuery} = router.query
+            router.replace(
+                {
+                    pathname: router.pathname,
+                    query: restQuery,
+                },
+                undefined,
+                {shallow: true},
+            )
+        }
+    }, [router.query.upgrade])
 
     const onCancelSubscription = useCallback(() => {
         setIsOpenCancelModal(true)

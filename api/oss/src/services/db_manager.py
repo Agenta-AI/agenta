@@ -17,7 +17,7 @@ from supertokens_python.asyncio import delete_user as delete_user_from_supertoke
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.models import converters
-from oss.src.services import user_service
+from oss.src.services import user_service, analytics_service
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.dbs.postgres.shared.engine import engine
@@ -79,6 +79,11 @@ from oss.src.models.db_models import (
 )
 from oss.src.core.testcases.dtos import Testcase
 from oss.src.core.testsets.dtos import TestsetRevisionData
+
+from oss.src.apis.fastapi.testsets.models import (
+    SimpleTestsetCreate,
+    SimpleTestsetCreateRequest,
+)
 
 
 log = get_module_logger(__name__)
@@ -173,10 +178,6 @@ async def add_default_simple_testsets(
     """Create default simple testsets from bundled presets."""
     from oss.src.core.testcases.service import TestcasesService
     from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
-    from oss.src.apis.fastapi.testsets.models import (
-        SimpleTestsetCreate,
-        SimpleTestsetCreateRequest,
-    )
 
     testsets_dir = PARENT_DIRECTORY / "resources" / "default_testsets"
     if not testsets_dir.exists():
@@ -241,7 +242,7 @@ async def add_default_simple_testsets(
                 user_id=user_uuid,
                 simple_testset_create_request=simple_testset_create_request,
             )
-        except Exception as e:
+        except Exception:
             log.error(
                 "An error occurred in adding a default simple testset",
                 template_file=filename,
@@ -1088,6 +1089,12 @@ async def check_if_user_exists_and_create_organization(user_email: str):
                     "project_name": "Default",
                 }
             )
+
+            analytics_service.capture_oss_deployment_created(
+                user_email=user_email,
+                organization_id=str(organization_db.id),
+            )
+
             return organization_db
 
         organizations_db = await get_organizations()
@@ -1142,7 +1149,7 @@ async def delete_accounts() -> None:
                     "[scopes] project deleted",
                     project_id=project.id,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting project",
                     project_id=project.id,
@@ -1166,7 +1173,7 @@ async def delete_accounts() -> None:
                     "[scopes] workspace deleted",
                     workspace_id=workspace.id,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting workspace",
                     workspace_id=workspace.id,
@@ -1190,7 +1197,7 @@ async def delete_accounts() -> None:
                     "[scopes] organization deleted",
                     organization_id=organization.id,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting organization",
                     organization_id=organization.id,
@@ -1216,7 +1223,7 @@ async def delete_accounts() -> None:
                     "[scopes] user deleted (supertokens)",
                     user_uid=user.uid,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting user from supertokens",
                     user_uid=user.uid,
@@ -1232,7 +1239,7 @@ async def delete_accounts() -> None:
                     "[scopes] user deleted",
                     user_id=user.id,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting user",
                     user_id=user.id,
@@ -1265,8 +1272,6 @@ async def create_accounts(payload: dict) -> UserDB:
     user_db = await user_service.create_new_user(payload=user_info)
 
     # Delegate organization/workspace assignment to implementation-specific function
-    from oss.src.utils.common import is_ee
-
     if is_ee():
         # EE implementation: handled by ee.src.services.commoners.create_accounts
         # This function should NOT be called for EE - see __init__.py imports
@@ -1367,7 +1372,6 @@ async def create_organization(
             name=name,
             flags={
                 "is_demo": False,
-                "is_personal": False,
                 "allow_email": env.auth.email_enabled,
                 "allow_social": env.auth.oidc_enabled,
                 "allow_sso": False,

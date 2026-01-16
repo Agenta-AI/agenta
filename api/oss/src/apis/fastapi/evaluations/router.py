@@ -1772,6 +1772,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.start_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="start_simple_evaluation",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/stop

@@ -1,6 +1,6 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
-import {ArrowsLeftRight, CaretDown, PencilSimple, Trash, CopyIcon} from "@phosphor-icons/react"
+import {ArrowsLeftRight, CaretDown, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
     Button,
@@ -13,6 +13,7 @@ import {
     Modal,
     Select,
     Tag,
+    Typography,
     message,
 } from "antd"
 import clsx from "clsx"
@@ -21,15 +22,15 @@ import {useRouter} from "next/router"
 import Session from "supertokens-auth-react/recipe/session"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {useSession} from "@/oss/hooks/useSession"
 import {isEE} from "@/oss/lib/helpers/isEE"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {checkOrganizationAccess} from "@/oss/services/organization/api"
 import {useOrgData} from "@/oss/state/org"
-import {resetOrgData} from "@/oss/state/org"
+import {resetOrganizationData} from "@/oss/state/org"
 import {
     orgsAtom as organizationsAtom,
     selectedOrgIdAtom,
-    isPersonalOrg,
     clearWorkspaceOrgCache,
 } from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -57,7 +58,7 @@ interface ListOfOrgsProps extends Omit<DropdownProps, "menu" | "children"> {
      */
     overrideOrganizationId?: string
     /**
-     * When false, organization items remain visible but are not actionable.
+     * When false, organization items remain visible but are not actionable. Logout remains actionable.
      */
     organizationSelectionEnabled?: boolean
 }
@@ -77,6 +78,7 @@ const ListOfOrgs = ({
     }
     const router = useRouter()
     const {user} = useProfileData()
+    const {logout} = useSession()
     const {
         selectedOrg: selectedOrganization,
         orgs: organizations,
@@ -115,6 +117,18 @@ const ListOfOrgs = ({
     const [isTransferModalOpen, setTransferModalOpen] = useState(false)
     const [orgToTransfer, setOrgToTransfer] = useState<string | null>(null)
     const [newOwnerId, setNewOwnerId] = useState<string | null>(null)
+
+    const [isDeleteModalOpen, setDeleteModalOpen] = useState(false)
+    const [orgToDelete, setOrgToDelete] = useState<string | null>(null)
+    const [deleteConfirmInput, setDeleteConfirmInput] = useState("")
+
+    const orgToDeleteName = useMemo(
+        () => organizations.find((organization) => organization.id === orgToDelete)?.name ?? "",
+        [organizations, orgToDelete],
+    )
+
+    const isDeleteNameMatch = Boolean(orgToDeleteName) && deleteConfirmInput === orgToDeleteName
+
     const [authUpgradeOpen, setAuthUpgradeOpen] = useState(false)
     const [authUpgradeDetail, setAuthUpgradeDetail] = useState<AuthUpgradeDetail | null>(null)
     const [authUpgradeOrgId, setAuthUpgradeOrgId] = useState<string | null>(null)
@@ -154,7 +168,6 @@ const ListOfOrgs = ({
 
     const organizationMenuItems = useMemo<MenuProps["items"]>(() => {
         const items: MenuProps["items"] = organizations.map((organization) => {
-            const isPersonal = isPersonalOrg(organization)
             const isDemo = organization.flags?.is_demo ?? false
             const isOwner = organization.owner_id === user?.id
             const isSelectedOrganization = organization.id === effectiveSelectedId
@@ -167,7 +180,6 @@ const ListOfOrgs = ({
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                             <Avatar size="small" name={organization.name} />
                             <span className="truncate">{organization.name}</span>
-                            {isPersonal && <Tag className="bg-[#0517290F] m-0">personal</Tag>}
                             {isDemo && <Tag className="bg-[#0517290F] m-0">demo</Tag>}
                         </div>
                     </div>
@@ -175,7 +187,7 @@ const ListOfOrgs = ({
             }
 
             // Show submenu actions only for the currently selected org
-            if (!isPersonal && isOwner && isEE() && isSelectedOrganization) {
+            if (isOwner && isEE() && isSelectedOrganization) {
                 return {
                     ...baseItem,
                     children: [
@@ -185,15 +197,6 @@ const ListOfOrgs = ({
                                 <div className="flex items-center gap-2">
                                     <ArrowsLeftRight size={16} />
                                     Transfer ownership
-                                </div>
-                            ),
-                        },
-                        {
-                            key: `copy:${organization.id}`,
-                            label: (
-                                <div className="flex items-center gap-2">
-                                    <CopyIcon size={16} />
-                                    Copy ID
                                 </div>
                             ),
                         },
@@ -232,12 +235,24 @@ const ListOfOrgs = ({
             items.push({
                 key: "create-organization",
                 label: (
-                    <div className="flex items-center gap-2 text-primary-500">
-                        <span className="font-medium">+ New organization</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-gray-900">+ New organization</span>
                     </div>
                 ),
             })
+            items.push({type: "divider", key: "organizations-actions-divider"})
         }
+
+        items.push({
+            key: "logout",
+            danger: true,
+            label: (
+                <div className="flex items-center gap-2">
+                    <SignOut size={16} />
+                    Logout
+                </div>
+            ),
+        })
 
         return items
     }, [effectiveSelectedId, interactive, organizationSelectionEnabled, organizations, user?.id])
@@ -275,7 +290,7 @@ const ListOfOrgs = ({
 
     const organizationButtonLabel = organizationDisplayName
     const organizationCount = Array.isArray(organizations) ? organizations.length : 0
-    const canSelectOrganizations = isEE() && organizationCount > 1
+    const canSelectOrganizations = isEE() && organizationCount >= 1
 
     const sharedButtonProps = useMemo(() => {
         if (!buttonProps) {
@@ -381,7 +396,7 @@ const ListOfOrgs = ({
         },
         onSuccess: async () => {
             message.success("Organization deleted")
-            resetOrgData()
+            resetOrganizationData()
             resetProjectData()
             await refetch()
         },
@@ -414,7 +429,7 @@ const ListOfOrgs = ({
             await refetch()
 
             // Reset cached data to force fresh fetch
-            resetOrgData()
+            resetOrganizationData()
             resetProjectData()
         },
         onError: (error: any) => {
@@ -435,6 +450,16 @@ const ListOfOrgs = ({
         if (keyString === "create-organization") {
             setOrganizationDropdownOpen(false)
             setCreateModalOpen(true)
+            return
+        }
+
+        if (keyString === "logout") {
+            setOrganizationDropdownOpen(false)
+            AlertPopup({
+                title: "Logout",
+                message: "Are you sure you want to logout?",
+                onOk: logout,
+            })
             return
         }
 
@@ -480,40 +505,9 @@ const ListOfOrgs = ({
             const organizationId = keyString.split(":")[1]
             const org = organizations.find((o) => o.id === organizationId)
             if (org) {
-                AlertPopup({
-                    title: "Delete organization",
-                    message: (
-                        <div className="space-y-2">
-                            <p>
-                                Are you sure you want to delete <strong>{org.name}</strong>?
-                            </p>
-                            <p className="text-xs text-neutral-500">
-                                This action cannot be undone.
-                            </p>
-                        </div>
-                    ),
-                    okText: "Delete",
-                    okType: "danger",
-                    onOk: async () => {
-                        await deleteMutation.mutateAsync(organizationId)
-                        const deletedOrg = organizations.find((org) => org.id === organizationId)
-                        const deletedWorkspaceId = deletedOrg?.default_workspace?.id || null
-                        clearWorkspaceOrgCache(deletedWorkspaceId)
-                        clearLastUsedProjectId(deletedWorkspaceId)
-                        // If we deleted the current org, select another one
-                        if (effectiveSelectedId === organizationId) {
-                            const remainingOrgs = organizations.filter(
-                                (o) => o.id !== organizationId,
-                            )
-                            if (remainingOrgs.length > 0) {
-                                await changeSelectedOrg(remainingOrgs[0].id)
-                            }
-                        }
-                        resetOrgData()
-                        resetProjectData()
-                        await refetch()
-                    },
-                })
+                setOrgToDelete(organizationId)
+                setDeleteConfirmInput("")
+                setDeleteModalOpen(true)
             }
             setOrganizationDropdownOpen(false)
             return
@@ -829,6 +823,87 @@ const ListOfOrgs = ({
                         />
                     </Form.Item>
                 </Form>
+            </Modal>
+
+            <Modal
+                title="Delete Organization"
+                open={isDeleteModalOpen}
+                okText="Delete"
+                okType="danger"
+                okButtonProps={{
+                    icon: <Trash size={14} />,
+                    disabled: !isDeleteNameMatch,
+                }}
+                onCancel={() => {
+                    setDeleteModalOpen(false)
+                    setOrgToDelete(null)
+                    setDeleteConfirmInput("")
+                }}
+                onOk={async () => {
+                    if (!orgToDelete) return
+                    if (!isDeleteNameMatch) return
+
+                    await deleteMutation.mutateAsync(orgToDelete)
+                    const deletedOrg = organizations.find((org) => org.id === orgToDelete)
+                    const deletedWorkspaceId = deletedOrg?.default_workspace?.id || null
+                    clearWorkspaceOrgCache(deletedWorkspaceId)
+                    clearLastUsedProjectId(deletedWorkspaceId)
+                    // If we deleted the current org, select another one
+                    if (effectiveSelectedId === orgToDelete) {
+                        const remainingOrgs = organizations.filter((o) => o.id !== orgToDelete)
+                        if (remainingOrgs.length > 0) {
+                            await changeSelectedOrg(remainingOrgs[0].id)
+                        }
+                    }
+                    resetOrganizationData()
+                    resetProjectData()
+                    await refetch()
+
+                    setDeleteModalOpen(false)
+                    setOrgToDelete(null)
+                    setDeleteConfirmInput("")
+                }}
+                confirmLoading={deleteMutation.isPending}
+                destroyOnHidden
+                centered
+                width={450}
+            >
+                <div className="flex flex-col gap-3">
+                    <div className="rounded-lg border border-[var(--ant-color-error-border)] bg-[var(--ant-color-error-bg)] px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                            <Typography.Text strong className="!text-[var(--ant-color-error)]">
+                                This action cannot be undone.
+                            </Typography.Text>
+                            <Typography.Paragraph className="!mb-0 text-[var(--ant-color-text)]">
+                                Permanently deletes{" "}
+                                <Typography.Text strong>{orgToDeleteName}</Typography.Text>,
+                                including all workspaces, projects, applications, and data.
+                            </Typography.Paragraph>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-[var(--ant-color-text)]">
+                            <span>Type</span>
+                            <Typography.Text
+                                code
+                                className="!text-[var(--ant-color-error)] !bg-[var(--ant-color-error-bg)] !border-[var(--ant-color-error-border)]"
+                            >
+                                {orgToDeleteName}
+                            </Typography.Text>
+                            <span>to confirm:</span>
+                        </div>
+                        <Input
+                            value={deleteConfirmInput}
+                            onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                            placeholder="Organization name"
+                            autoComplete="off"
+                            spellCheck={false}
+                            status={deleteConfirmInput && !isDeleteNameMatch ? "error" : undefined}
+                            autoFocus
+                        />
+                    </div>
+                </div>
             </Modal>
         </div>
     )
