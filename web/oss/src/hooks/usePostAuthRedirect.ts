@@ -6,6 +6,7 @@ import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
 import {queryClient} from "@/oss/lib/api/queryClient"
+import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
 import {isEE} from "@/oss/lib/helpers/isEE"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
@@ -152,19 +153,26 @@ const usePostAuthRedirect = () => {
             const store = getDefaultStore()
             const userId = (store.get(userAtom) as {id?: string} | null)?.id ?? null
 
+            // Store compatible orgs outside try-catch so fallback can use them
+            let compatibleOrgs: typeof orgsAtom extends Atom<infer T> ? T : never = []
+
             try {
                 const freshOrgs = await queryClient.fetchQuery({
                     queryKey: ["orgs", userId || ""],
                     queryFn: () => fetchAllOrgsList(),
                     staleTime: 60_000,
                 })
+
+                // Get session identities to filter orgs by auth method compatibility
+                let sessionIdentities: string[] = []
                 let lastSsoSlug =
                     typeof window !== "undefined"
                         ? window.localStorage.getItem(lastSsoOrgSlugKey)
                         : null
+
                 try {
                     const payload = await Session.getAccessTokenPayloadSecurely()
-                    const sessionIdentities =
+                    sessionIdentities =
                         payload?.session_identities || payload?.sessionIdentities || []
                     const ssoIdentity = Array.isArray(sessionIdentities)
                         ? sessionIdentities.find((identity: string) => identity.startsWith("sso:"))
@@ -184,9 +192,22 @@ const usePostAuthRedirect = () => {
                 } catch {
                     // ignore payload lookup failures
                 }
+
+                // Filter organizations by auth method compatibility
+                // This prevents redirecting users to orgs they can't access with their current auth method
+                compatibleOrgs = filterOrgsByAuthMethod(freshOrgs, sessionIdentities)
+
+                console.log("[post-auth] Organization filtering", {
+                    totalOrgs: freshOrgs.length,
+                    compatibleOrgs: compatibleOrgs.length,
+                    sessionIdentities,
+                    filteredOutCount: freshOrgs.length - compatibleOrgs.length,
+                })
+
+                // Check for SSO-specific org (using compatible orgs only)
                 if (lastSsoSlug) {
-                    const match = Array.isArray(freshOrgs)
-                        ? freshOrgs.find((org) => org.slug === lastSsoSlug)
+                    const match = Array.isArray(compatibleOrgs)
+                        ? compatibleOrgs.find((org) => org.slug === lastSsoSlug)
                         : null
                     if (match?.id && match.flags?.allow_sso) {
                         // If we just completed an SSO flow, prefer the SSO org over Personal.
@@ -213,20 +234,44 @@ const usePostAuthRedirect = () => {
                         return
                     }
                 }
-                // No SSO-specific org - use preferred workspace resolution
-                const preferredWorkspaceId = resolvePreferredWorkspaceId(userId, freshOrgs)
+
+                // Use preferred workspace resolution with ONLY compatible orgs
+                const preferredWorkspaceId = resolvePreferredWorkspaceId(userId, compatibleOrgs)
                 if (preferredWorkspaceId) {
                     await router.replace(`/w/${encodeURIComponent(preferredWorkspaceId)}`)
                     return
                 }
-            } catch {
+
+                // Fallback: If user has orgs but none are compatible with their auth method
+                if (freshOrgs.length > 0 && compatibleOrgs.length === 0) {
+                    console.warn(
+                        "[post-auth] User has organizations but none are compatible with their auth method",
+                        {
+                            totalOrgs: freshOrgs.length,
+                            sessionIdentities,
+                        },
+                    )
+                    // Redirect to auth page with helpful message
+                    const query = new URLSearchParams({
+                        auth_error: "no_compatible_orgs",
+                        auth_message:
+                            "None of your organizations accept the authentication method you used. Please sign in with a different method or contact your administrator.",
+                    })
+                    await router.replace(`/auth?${query.toString()}`)
+                    return
+                }
+            } catch (error) {
                 // fall back to workspace context
+                console.warn("[post-auth] Error during org filtering, falling back", error)
             }
 
             let context = await waitForWorkspaceContext({requireProjectId: false})
 
             if (!context.workspaceId) {
-                const fallbackWorkspace = resolvePreferredWorkspaceId(userId, store.get(orgsAtom))
+                // Use compatible orgs if available, otherwise fall back to all orgs
+                const orgsToUse =
+                    compatibleOrgs.length > 0 ? compatibleOrgs : store.get(orgsAtom)
+                const fallbackWorkspace = resolvePreferredWorkspaceId(userId, orgsToUse)
                 if (fallbackWorkspace) {
                     context = {workspaceId: fallbackWorkspace, projectId: null}
                 }

@@ -1,7 +1,8 @@
 import {atom, getDefaultStore} from "jotai"
 import Router from "next/router"
-import {signOut} from "supertokens-auth-react/recipe/session"
+import Session, {signOut} from "supertokens-auth-react/recipe/session"
 
+import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {
@@ -288,68 +289,13 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                         return
                     }
                 }
-                const orgs = store.get(orgsAtom)
-                if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
-                    console.log("[auth-redirect] orgs snapshot", {
-                        count: Array.isArray(orgs) ? orgs.length : 0,
-                        orgs: Array.isArray(orgs)
-                            ? orgs.map((org) => ({
-                                  id: org.id,
-                              }))
-                            : [],
-                    })
-                }
-                const targetWorkspaceId = resolvePreferredWorkspaceId(user?.id ?? null, orgs)
-                const targetHref = targetWorkspaceId
-                    ? `/w/${encodeURIComponent(targetWorkspaceId)}`
-                    : "/w"
-                if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
-                    console.log("[auth-redirect] resolved", {
-                        targetWorkspaceId,
-                        targetHref,
-                        path,
-                        baseAppURL,
-                    })
-                }
-                if (!targetWorkspaceId && !authOrgFetchInFlight) {
-                    authOrgFetchInFlight = true
-                    void queryClient
-                        .fetchQuery({
-                            queryKey: ["orgs", user?.id || ""],
-                            queryFn: () => fetchAllOrgsList(),
-                            staleTime: 60_000,
-                        })
-                        .then((freshOrgs) => {
-                            const resolved = resolvePreferredWorkspaceId(
-                                user?.id ?? null,
-                                freshOrgs,
-                            )
-                            if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
-                                console.log("[auth-redirect] fetched orgs", {
-                                    count: Array.isArray(freshOrgs) ? freshOrgs.length : 0,
-                                    resolved,
-                                })
-                            }
-                            if (resolved) {
-                                store.set(requestNavigationAtom, {
-                                    type: "href",
-                                    href: `/w/${encodeURIComponent(resolved)}`,
-                                    method: "replace",
-                                })
-                            }
-                        })
-                        .catch(() => null)
-                        .finally(() => {
-                            authOrgFetchInFlight = false
-                        })
-                }
-                if (!path.startsWith(targetHref)) {
-                    console.log("[auth-sync] redirecting to app", {from: path, to: targetHref})
-                    void Router.replace(targetHref).catch((error) => {
-                        console.error("Failed to redirect authenticated user to app:", error)
-                    })
-                }
-                store.set(protectedRouteReadyAtom, false)
+
+                // IMPORTANT: Don't redirect from /auth here - let usePostAuthRedirect.handleAuthSuccess
+                // handle the redirect with proper auth method filtering. The auth sync can't filter
+                // synchronously, so redirecting here would use unfiltered orgs and cause auth upgrade errors.
+                // The auth components will call handleAuthSuccess which does proper filtering.
+                console.log("[auth-sync] Signed in user on /auth - letting usePostAuthRedirect handle redirect")
+                store.set(protectedRouteReadyAtom, true)
                 return
             }
 
