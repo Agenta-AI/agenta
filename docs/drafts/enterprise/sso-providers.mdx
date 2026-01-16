@@ -574,3 +574,13 @@ No, if `allow_email=false`, email authentication is blocked. Exception: organiza
 ### How often should I rotate SSO credentials?
 
 Best practice: Quarterly or annually. More frequent if required by security policy.
+
+### What happens to SSO providers when a plan is cancelled?
+
+When an organization cancels their subscription:
+- SSO providers remain configured in the system (`is_valid` status preserved)
+- However, SSO authentication becomes **unusable**
+- Users cannot authenticate via SSO
+- Users can only authenticate via email or social login
+- Existing SSO configuration is not deleted
+- Re-subscribe to restore SSO functionality

@@ -368,6 +368,19 @@ Organizations can enable `auto_join=true` for verified domains:
 2. Sign in with the email that received the invitation
 3. Accept invitation
 
+### Authentication flags reset after plan cancellation
+
+**Scenario**: Organization cancelled their subscription plan
+
+**What happens**:
+- Authentication flags (`allow_email`, `allow_social`, `allow_sso`, `allow_root`) are reset to defaults
+- Organization reverts to default authentication settings
+- Users may lose access if they were using non-default auth methods
+
+**Solution**:
+- Renew subscription to restore custom authentication policies
+- Or contact organization owner to adjust access
+
 ### Can't see organization in list
 
 **Possible causes**:

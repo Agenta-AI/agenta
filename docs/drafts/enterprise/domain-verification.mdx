@@ -340,6 +340,16 @@ Each domain:
 2. Contact support to resolve ownership disputes
 3. Provide proof of domain ownership (WHOIS, DNS control)
 
+### Plan Cancellation Impact
+
+**What happens when organization cancels their subscription:**
+- Verified domains remain in the system with `is_verified=true`
+- However, domain features become **unusable**:
+  - `auto_join` stops working (new users not automatically added)
+  - `domains_only` stops enforcing (domain restrictions not applied)
+- Domains are not deleted, verification status is preserved
+- Re-subscribe to restore domain functionality
+
 ## Advanced Scenarios
 
 ### Company Acquisition
