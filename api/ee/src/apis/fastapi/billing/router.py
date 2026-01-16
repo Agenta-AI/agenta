@@ -146,6 +146,28 @@ class BillingRouter:
             operation_id="admin_switch_plans",
         )
 
+        self.admin_router.add_api_route(
+            "/subscription/cancel",
+            self.cancel_subscription_admin_route,
+            methods=["POST"],
+            operation_id="admin_cancel_subscription",
+        )
+
+        # DOESN'T REQUIRE 'organization_id'
+        self.admin_router.add_api_route(
+            "/usage/report",
+            self.report_usage,
+            methods=["POST"],
+            operation_id="admin_report_usage",
+        )
+
+        self.admin_router.add_api_route(
+            "/usage/flush",
+            self.flush_usage,
+            methods=["POST"],
+            operation_id="admin_flush_usage",
+        )
+
     async def _reset_organization_flags(self, organization_id: str) -> None:
         organization = await db_manager_ee.get_organization(organization_id)
         if not organization:
@@ -168,28 +190,6 @@ class BillingRouter:
             organization_id,
             OrganizationUpdate(flags=default_flags),
         )
-
-    self.admin_router.add_api_route(
-        "/subscription/cancel",
-        self.cancel_subscription_admin_route,
-        methods=["POST"],
-        operation_id="admin_cancel_subscription",
-    )
-
-    # DOESN'T REQUIRE 'organization_id'
-    self.admin_router.add_api_route(
-        "/usage/report",
-        self.report_usage,
-        methods=["POST"],
-        operation_id="admin_report_usage",
-    )
-
-    self.admin_router.add_api_route(
-        "/usage/flush",
-        self.flush_usage,
-        methods=["POST"],
-        operation_id="admin_flush_usage",
-    )
 
     # HANDLERS
 
