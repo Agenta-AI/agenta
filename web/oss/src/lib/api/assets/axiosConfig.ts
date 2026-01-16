@@ -5,6 +5,7 @@ import router from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {buildAuthUpgradeMessage} from "@/oss/lib/helpers/authMessages"
 import {getJWT} from "@/oss/services/api"
 // import {requestNavigationAtom} from "@/oss/state/appState"
 import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
@@ -177,11 +178,21 @@ axios.interceptors.response.use(
             const selectedOrgId = store.get(selectedOrgIdAtom)
             if (!authUpgradeRedirectInFlight) {
                 authUpgradeRedirectInFlight = true
-                const requiredText = required.length ? required.join(", ") : "an allowed method"
-                const identityText = currentIdentity
-                    ? ` You're signed in with ${currentIdentity}.`
-                    : ""
-                const message = `This organization requires ${requiredText}.${identityText}`
+
+                // Clear any pending invite to prevent redirect loops.
+                // When auth upgrade is required, the user needs to re-authenticate
+                // with the correct method, not re-process the invite.
+                try {
+                    window.localStorage.removeItem("invite")
+                } catch {
+                    // ignore storage errors
+                }
+
+                const message = buildAuthUpgradeMessage(
+                    required,
+                    currentIdentity,
+                    upgradeDetail?.error,
+                )
                 const authError =
                     upgradeDetail?.error === "AUTH_SSO_DENIED" ? "sso_denied" : "upgrade_required"
                 if (upgradeDetail?.error === "AUTH_SSO_DENIED") {
@@ -208,6 +219,9 @@ axios.interceptors.response.use(
             return Promise.reject(error)
         }
 
+        // if axios config has _ignoreError set to true, then don't handle error
+        if (error.config?._ignoreError) throw error
+
         if (error.response?.status === 403 && error.config.method !== "get") {
             const detail = error.response?.data?.detail
             const detailMessage =
@@ -221,9 +235,6 @@ axios.interceptors.response.use(
             error.message = detailMessage
             throw error
         }
-
-        // if axios config has _ignoreError set to true, then don't handle error
-        if (error.config?._ignoreError) throw error
 
         const domainDeniedDetail = error.response?.data?.detail
         if (error.response?.status === 403 && domainDeniedDetail?.error === "AUTH_DOMAIN_DENIED") {

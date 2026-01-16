@@ -87,13 +87,13 @@ const Settings: React.FC = () => {
                         case "organization":
                             return organizationLabel
                         case "workspace":
-                            return "Project"
+                            return "Members"
                         case "projects":
                             return "Projects"
                         case "secrets":
                             return "Providers & Models"
                         case "apiKeys":
-                            return "Credentials"
+                            return "API Keys"
                         case "billing":
                             return "Usage & Billing"
                         default:
@@ -106,7 +106,6 @@ const Settings: React.FC = () => {
 
     useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [tab])
 
-    const isPersonalOrg = selectedOrg?.flags?.is_personal ?? true
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 
     const {content, title} = useMemo(() => {
@@ -127,9 +126,6 @@ const Settings: React.FC = () => {
                                     <span>ID</span>
                                 </Tag>
                             </Tooltip>
-                            {isPersonalOrg && (
-                                <Tag className="bg-[#0517290F] m-0 font-normal">personal</Tag>
-                            )}
                             {isDemoOrg && (
                                 <Tag className="bg-[#0517290F] m-0 font-normal">demo</Tag>
                             )}
@@ -139,7 +135,7 @@ const Settings: React.FC = () => {
             case "secrets":
                 return {content: <Secrets />, title: "Providers & Models"}
             case "apiKeys":
-                return {content: <APIKeys />, title: "Credentials"}
+                return {content: <APIKeys />, title: "API Keys"}
             case "billing":
                 return {content: <Billing />, title: "Usage & Billing"}
             case "projects":
@@ -147,20 +143,7 @@ const Settings: React.FC = () => {
             default:
                 return {
                     content: <WorkspaceManage />,
-                    title: (
-                        <div className="flex items-center gap-2">
-                            <span>Project</span>
-                            <Tooltip title={isProjectIdCopied ? "Copied!" : "Click to copy ID"}>
-                                <Tag
-                                    className="cursor-pointer flex items-center gap-1"
-                                    onClick={handleCopyProjectId}
-                                >
-                                    <Link size={14} weight="bold" />
-                                    <span>ID</span>
-                                </Tag>
-                            </Tooltip>
-                        </div>
-                    ),
+                    title: "Members",
                 }
         }
     }, [
@@ -169,7 +152,6 @@ const Settings: React.FC = () => {
         isProjectIdCopied,
         handleCopyOrgId,
         handleCopyProjectId,
-        isPersonalOrg,
         isDemoOrg,
         isOwner,
     ])

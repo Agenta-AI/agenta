@@ -113,7 +113,7 @@ async def send_invitation_email(
     html_content = html_template.format(
         username_placeholder=user.username,
         action_placeholder="invited you to join",
-        workspace_placeholder=workspace.name,
+        workspace_placeholder=organization.name,
         call_to_action=(
             "Click the link below to accept the invitation:</p><br>"
             f'<a href="{invite_link}">Accept Invitation</a>'
@@ -123,7 +123,7 @@ async def send_invitation_email(
     await email_service.send_email(
         from_email="account@hello.agenta.ai",
         to_email=email,
-        subject=f"{user.username} invited you to join {workspace.name}",
+        subject=f"{user.username} invited you to join {organization.name}",
         html_content=html_content,
     )
     return True
@@ -141,12 +141,17 @@ async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> b
         bool: True if the email was sent successfully, False otherwise.
     """
 
+    organization = await db_manager_ee.get_organization(str(workspace.organization_id))
+    project = await db_manager_ee.get_project_by_workspace(str(workspace.id))
     html_template = email_service.read_email_template("./templates/send_email.html")
     html_content = html_template.format(
         username_placeholder=user.username,
         action_placeholder="joined your Workspace",
-        workspace_placeholder=f'"{workspace.name}"',
-        call_to_action=f'Click the link below to view your Workspace:</p><br><a href="{env.agenta.web_url}/settings?tab=workspace">View Workspace</a>',
+        workspace_placeholder=f'"{organization.name}"',
+        call_to_action=(
+            "Click the link below to view your Organization:</p><br>"
+            f'<a href="{env.agenta.web_url}/w/{workspace.id}/p/{project.id}/settings?tab=workspace">View Organization</a>'
+        ),
     )
 
     workspace_admins = await db_manager_ee.get_workspace_administrators(workspace)
@@ -154,7 +159,7 @@ async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> b
         await email_service.send_email(
             from_email="account@hello.agenta.ai",
             to_email=workspace_admin.email,
-            subject=f"New Member Joined {workspace.name}",
+            subject=f"New Member Joined {organization.name}",
             html_content=html_content,
         )
 

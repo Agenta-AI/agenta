@@ -176,23 +176,6 @@ const useEvaluationRunsColumns = ({
             : newBlueprint
     }, [stableRows, evaluationKind])
 
-    const ensuredReferenceBlueprint = useMemo(() => {
-        if (evaluationKind !== "all") {
-            return referenceBlueprint
-        }
-        const hasQueryColumn = referenceBlueprint.some((descriptor) => descriptor.role === "query")
-        if (hasQueryColumn) {
-            return referenceBlueprint
-        }
-        const fallbackDescriptor: ReferenceColumnDescriptor = {
-            slotIndex: referenceBlueprint.length,
-            role: "query",
-            roleOrdinal: 1,
-            label: "Query",
-        }
-        return [...referenceBlueprint, fallbackDescriptor]
-    }, [evaluationKind, referenceBlueprint])
-
     const invocationMetricDescriptors = useMemo(
         () =>
             INVOCATION_METRIC_KEYS.map(
@@ -741,7 +724,7 @@ const useEvaluationRunsColumns = ({
             })
         }
 
-        ensuredReferenceBlueprint
+        referenceBlueprint
             .filter(
                 (descriptor) => descriptor.role !== "evaluator" && descriptor.role !== "variant",
             )
@@ -857,7 +840,7 @@ const useEvaluationRunsColumns = ({
     }, [
         evaluationKind,
         metricNodes,
-        ensuredReferenceBlueprint,
+        referenceBlueprint,
         onOpenDetails,
         onVariantNavigation,
         onTestsetNavigation,

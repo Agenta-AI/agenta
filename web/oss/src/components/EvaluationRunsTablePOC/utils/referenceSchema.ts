@@ -32,7 +32,7 @@ export interface ReferenceColumnDescriptor {
 const ROLE_LABEL: Record<ReferenceRole, string> = {
     application: "Application",
     variant: "Variant",
-    testset: "Testset",
+    testset: "Test set",
     query: "Query",
     evaluator: "Evaluator",
 }
@@ -171,96 +171,69 @@ export const buildReferenceSequence = (meta?: PreviewRunColumnMeta | null): Refe
     return slots
 }
 
-interface DraftEntry {
-    slotIndex: number
-    totals: number
-    roleCounts: Partial<Record<ReferenceRole, number>>
+interface RoleStats {
+    count: number
     stepTypes: Set<string>
     origins: Set<string>
 }
 
-const pickDominantRole = (counts: Partial<Record<ReferenceRole, number>>): ReferenceRole | null => {
-    let winner: ReferenceRole | null = null
-    let max = 0
-    ROLE_ORDER.forEach((role) => {
-        const count = counts[role] ?? 0
-        if (count > max) {
-            winner = role
-            max = count
-        }
-    })
-    return winner
-}
-
 const buildFallbackBlueprint = (evaluationKind: EvaluationRunKind): ReferenceColumnDescriptor[] => {
     const fallbackRoles = ROLE_EVALUATION_FALLBACK[evaluationKind] ?? ROLE_ORDER
-    const perRoleOrdinal: Record<ReferenceRole, number> = {
-        application: 0,
-        variant: 0,
-        testset: 0,
-        query: 0,
-        evaluator: 0,
-    }
-    return fallbackRoles.map((role, index) => {
-        const ordinal = ++perRoleOrdinal[role]
-        return {
-            slotIndex: index,
-            role,
-            roleOrdinal: ordinal,
-            label: ordinal === 1 ? ROLE_LABEL[role] : `${ROLE_LABEL[role]} ${ordinal}`,
-        }
-    })
+    return fallbackRoles.map((role, index) => ({
+        slotIndex: index,
+        role,
+        roleOrdinal: 1,
+        label: ROLE_LABEL[role],
+    }))
 }
 
 export const buildReferenceBlueprint = (
     rows: EvaluationRunTableRow[],
     evaluationKind: EvaluationRunKind,
 ): ReferenceColumnDescriptor[] => {
-    const drafts: DraftEntry[] = []
+    // Collect which roles appear across all rows
+    const roleStats: Record<ReferenceRole, RoleStats> = {
+        testset: {count: 0, stepTypes: new Set(), origins: new Set()},
+        query: {count: 0, stepTypes: new Set(), origins: new Set()},
+        application: {count: 0, stepTypes: new Set(), origins: new Set()},
+        variant: {count: 0, stepTypes: new Set(), origins: new Set()},
+        evaluator: {count: 0, stepTypes: new Set(), origins: new Set()},
+    }
+
+    let hasAnyData = false
+
     rows.forEach((row) => {
         if (row.__isSkeleton || !row.previewMeta) return
+        hasAnyData = true
         const sequence = buildReferenceSequence(row.previewMeta)
-        sequence.forEach((slot, index) => {
-            const draft = drafts[index] ?? {
-                slotIndex: index,
-                totals: 0,
-                roleCounts: {},
-                stepTypes: new Set<string>(),
-                origins: new Set<string>(),
-            }
-            draft.totals += 1
-            draft.roleCounts[slot.role] = (draft.roleCounts[slot.role] ?? 0) + 1
-            if (slot.stepType) draft.stepTypes.add(slot.stepType)
-            if (slot.origin) draft.origins.add(slot.origin)
-            drafts[index] = draft
+        sequence.forEach((slot) => {
+            const stats = roleStats[slot.role]
+            stats.count += 1
+            if (slot.stepType) stats.stepTypes.add(slot.stepType)
+            if (slot.origin) stats.origins.add(slot.origin)
         })
     })
 
-    const effectiveDrafts = drafts.filter((draft) => draft.totals > 0)
-    if (!effectiveDrafts.length) {
+    if (!hasAnyData) {
         return buildFallbackBlueprint(evaluationKind)
     }
 
-    const perRoleOrdinal: Record<ReferenceRole, number> = {
-        application: 0,
-        variant: 0,
-        testset: 0,
-        query: 0,
-        evaluator: 0,
-    }
-
-    return effectiveDrafts.map((draft) => {
-        const role = pickDominantRole(draft.roleCounts) ?? "application"
-        const ordinal = ++perRoleOrdinal[role]
-        return {
-            slotIndex: draft.slotIndex,
+    // Build columns for roles that appear in the data, ordered by ROLE_ORDER
+    const result: ReferenceColumnDescriptor[] = []
+    ROLE_ORDER.forEach((role) => {
+        const stats = roleStats[role]
+        if (stats.count === 0) return
+        result.push({
+            slotIndex: result.length,
             role,
-            roleOrdinal: ordinal,
-            label: ordinal === 1 ? ROLE_LABEL[role] : `${ROLE_LABEL[role]} ${ordinal}`,
-            sampleOrigin: draft.origins.values().next().value ?? null,
-            sampleStepType: draft.stepTypes.values().next().value ?? null,
-        }
+            roleOrdinal: 1,
+            label: ROLE_LABEL[role],
+            sampleStepType: stats.stepTypes.values().next().value ?? null,
+            sampleOrigin: stats.origins.values().next().value ?? null,
+        })
     })
+
+    return result.length > 0 ? result : buildFallbackBlueprint(evaluationKind)
 }
 
 export const getSlotByRoleOrdinal = (

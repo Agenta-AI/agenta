@@ -9,6 +9,7 @@ import stripe
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
+from oss.src.utils.caching import invalidate_cache
 
 from ee.src.core.subscriptions.types import (
     SubscriptionDTO,
@@ -311,5 +312,11 @@ class SubscriptionsService:
             raise EventException(
                 f"Invalid subscription event {event} for organization ID: {organization_id}"
             )
+
+        # Invalidate the entitlements subscription cache so the new plan takes effect immediately
+        await invalidate_cache(
+            namespace="entitlements:subscription",
+            key={"organization_id": organization_id},
+        )
 
         return subscription

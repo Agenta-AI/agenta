@@ -29,7 +29,6 @@ class CreateOrganization(BaseModel):
     description: Optional[str] = None
     #
     is_demo: bool = False
-    is_personal: bool = False
     #
     owner_id: UUID
 
@@ -51,6 +50,6 @@ class OrganizationOutput(BaseModel):
     name: Optional[str] = None
 
 
-class CreateCollaborativeOrganization(BaseModel):
+class CreateOrganizationPayload(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None

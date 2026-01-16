@@ -23,7 +23,7 @@ const LoadTestsetModalContent = dynamic(() => import("./assets/LoadTestsetModalC
 })
 
 const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({setTestsetData, ...props}) => {
-    const {onCancel, afterClose, ...modalProps} = props
+    const {onCancel, afterClose, selectionMode = "multiple", ...modalProps} = props
 
     // Use atoms for all modal state
     const selectedRevisionId = useAtomValue(selectedRevisionIdAtom)
@@ -83,7 +83,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({setTestsetData, ...p
             }}
             {...modalProps}
         >
-            <LoadTestsetModalContent modalProps={modalProps} />
+            <LoadTestsetModalContent modalProps={modalProps} selectionMode={selectionMode} />
         </EnhancedModal>
     )
 }

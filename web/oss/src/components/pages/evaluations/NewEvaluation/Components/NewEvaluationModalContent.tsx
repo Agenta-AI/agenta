@@ -211,7 +211,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "testsetPanel",
                 label: (
-                    <TabLabel tabTitle="Testset" completed={Boolean(selectedTestsetName)}>
+                    <TabLabel tabTitle="Test set" completed={Boolean(selectedTestsetName)}>
                         {selectedTestsetName ? (
                             <Tag
                                 closeIcon={<CloseCircleOutlined />}

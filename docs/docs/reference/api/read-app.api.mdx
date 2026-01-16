@@ -1,0 +1,80 @@
+---
+id: read-app
+title: "Read App"
+description: "Retrieve an app by its ID."
+sidebar_label: "Read App"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVk1v5DYM/SsCL90FhJk06MmnGk3aHWzbDWZne0kGAWNzxtraklaiBzs1/N8LyvZ8bJo0SK89RTHJJ/LxkZoOGLcRslvIvY+w1lBSLILxbJyFDJbEwdCOFFqF3quHvTIc1eJqdmfvbB62MbuzSikx3ptSvYkc3mZqVZFaXCm3UVxRCmSnwoiVQpfEbbBT9JKwzL3/0LJveQh36awKZxmNNXY7QX0n1yu0pbLYjGBoIk1Y71arm+uvBaUSMrVIOQRSJkoRFIILUyonqMqFdGwjBVU6iso6VhXuSHkKjYnROCtVYFFQjFPYDDQ4TwHlskUJGQTC8h69Bw0eAzbEFITgDiRdyGBgCjQYIdgjV6Ah0JfWBCoh49CShlhU1CBkHfDeS1TkYOwWNLDhWj7k3qtFCX2/lujonY0UJeDy4kL+nPfxY5vS3rS1Wo7OoEHIJcvijt7XpkhlzD9HielOkvBBimQz3DBW8ILkdPIdCn/e+3fxGf0Hvw7Q7j9sEnXnkb0+fLFtXYNQcIq1EluvoQiETOU98mvRfhoQVM6C1/ryP+J9GhBGvI2rSwojla+B+zkBDDLQk5d7+EwFn2nq9ii6Qz9OYM6mD/pewH64vHysoj+wNmXSiLqWOXq9hEpiNLWcDFMTHzvUrjizvoAeY5m2FKBfH8nAEHB/IrVf3ZCg0N/E7XOq/I1ixG0S0iTIp1wTGaPs/qURUtdw9eh30ocjvQO7T5dxNdD3T5dNLrIGHwEOvW2IKye7akuc1hRXkMEcvY/zblBKDxoihd20u9pQQwYVs4/ZfF7Uri1nuCXLOEMzR2+SLiMVbTC8TyH5zeI97d8RlhQgu12fOnwUWQyNPnc7cIzevCcpedyaecuVC+avoXvj8qyGKKnJ2I1L4dMeSMmp/GYBGqSMQcEXs+9nF/DtK3fmnF6cIil6ujuZQX/DwqF+0EBNkjMwYfPj0SCZeRe5QXuCJ/Om8vREnOXRHafp/4f3BQ/vKBWmrzz3NZo01alH3SjqtPgiaMjGBbjWULnIYum6B4z0KdR9L5+/tBREuGsNOwwGH0RGtx2UJsq5hGyDdaRnWvZmOc75W/VUcpO4rSh7h3Ur/4GGP2l//GWQ9lc1zU03GvNCmD0Je7RuZcAOo/3L9Qr6/m9dc1nj
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Read App"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/apps/{app_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Retrieve an app by its ID.
+
+Args:
+    app_id (str): The ID of the app to retrieve.
+
+Returns:
+    ReadAppOutput: The output containing the app's ID and name.
+
+Raises:
+    HTTPException: If there is an error retrieving the app or the user does not have permission to access the app.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"app_id","in":"path","required":true,"schema":{"type":"string","title":"App Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"app_id":{"type":"string","title":"App Id"},"app_name":{"type":"string","title":"App Name"},"app_type":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"App Type"},"created_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated At"},"folder_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Folder Id"}},"type":"object","required":["app_id","app_name"],"title":"ReadAppOutput"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

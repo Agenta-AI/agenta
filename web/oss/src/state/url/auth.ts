@@ -2,16 +2,14 @@ import {atom, getDefaultStore} from "jotai"
 import Router from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 
-import {queryClient} from "@/oss/lib/api/queryClient"
-import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {
     appIdentifiersAtom,
     appStateSnapshotAtom,
     navigationRequestAtom,
     requestNavigationAtom,
 } from "@/oss/state/appState"
-import {isPersonalOrg, orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
-import {userAtom} from "@/oss/state/profile/selectors/user"
+import {orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
+import {profileQueryAtom, userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
 import {urlAtom} from "@/oss/state/url"
 
@@ -27,7 +25,8 @@ export interface InvitePayload {
 }
 
 const INVITE_STORAGE_KEY = "invite"
-let authOrgFetchInFlight = false
+const POST_SIGNUP_PENDING_KEY = "postSignupPending"
+const POST_SIGNUP_TTL_MS = 2 * 60 * 1000
 
 export const protectedRouteReadyAtom = atom(false)
 export const activeInviteAtom = atom<InvitePayload | null>(null)
@@ -99,6 +98,38 @@ export const isCurrentAcceptRouteForInvite = (appState: any, invite: InvitePaylo
     return currentToken === invite.token
 }
 
+export const writePostSignupPending = () => {
+    if (!isBrowser) return
+    try {
+        window.sessionStorage.setItem(POST_SIGNUP_PENDING_KEY, JSON.stringify({ts: Date.now()}))
+    } catch {
+        // ignore storage failures
+    }
+}
+
+const readPostSignupPending = (): boolean => {
+    if (!isBrowser) return false
+    try {
+        const raw = window.sessionStorage.getItem(POST_SIGNUP_PENDING_KEY)
+        if (!raw) return false
+        const parsed = JSON.parse(raw) as {ts?: number}
+        if (!parsed?.ts) return false
+        if (Date.now() - parsed.ts > POST_SIGNUP_TTL_MS) return false
+        return true
+    } catch {
+        return false
+    }
+}
+
+const clearPostSignupPending = () => {
+    if (!isBrowser) return
+    try {
+        window.sessionStorage.removeItem(POST_SIGNUP_PENDING_KEY)
+    } catch {
+        // ignore storage failures
+    }
+}
+
 export const syncAuthStateFromUrl = (nextUrl?: string) => {
     if (!isBrowser) return
 
@@ -120,6 +151,7 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         const isAuthRoute = path.startsWith("/auth")
         const isAuthCallbackRoute = path.startsWith("/auth/callback")
         const isAcceptRoute = path.startsWith("/workspaces/accept")
+        const isPostSignupRoute = path.startsWith("/post-signup")
         const authError =
             typeof appState.query?.auth_error === "string" ? appState.query.auth_error : null
         const baseAppURL = urlState.baseAppURL || "/w"
@@ -141,9 +173,27 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         }
 
         if (isSignedIn) {
+            if (isPostSignupRoute) {
+                console.log("[auth-sync] signed in on /post-signup", {
+                    path,
+                    asPath,
+                    baseAppURL,
+                })
+                clearPostSignupPending()
+            }
             if (isAuthCallbackRoute) {
                 store.set(protectedRouteReadyAtom, false)
                 return
+            }
+            if (isAuthRoute) {
+                if (readPostSignupPending()) {
+                    clearPostSignupPending()
+                    void Router.replace("/post-signup").catch((error) => {
+                        console.error("Failed to redirect to post-signup:", error)
+                    })
+                    store.set(protectedRouteReadyAtom, false)
+                    return
+                }
             }
             if (typeof window !== "undefined") {
                 const upgradeOrgId = window.localStorage.getItem("authUpgradeOrgId")
@@ -169,8 +219,19 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             }
 
             if (invite && !isAcceptRoute) {
-                const inviteEmail = invite.email ?? undefined
+                const inviteEmail = invite.email?.toLowerCase() ?? undefined
                 const userEmail = user?.email?.toLowerCase()
+                const profileQuery = store.get(profileQueryAtom)
+                const profileLoading = profileQuery.isPending || profileQuery.isFetching
+
+                // If invite has an email but user profile is still loading, wait
+                // This prevents race conditions where we redirect to accept before
+                // we can check if the emails match
+                if (inviteEmail && !userEmail && profileLoading) {
+                    store.set(protectedRouteReadyAtom, false)
+                    return
+                }
+
                 if (!inviteEmail || !userEmail || inviteEmail === userEmail) {
                     if (!isCurrentAcceptRouteForInvite(appState, invite)) {
                         void Router.replace({pathname: "/workspaces/accept", query: invite}).catch(
@@ -182,6 +243,17 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     store.set(protectedRouteReadyAtom, false)
                     return
                 }
+                // Invite exists but emails don't match - if on auth route, show the page
+                // so user can sign out and sign in with the correct account
+                if (isAuthRoute && inviteEmail && userEmail && inviteEmail !== userEmail) {
+                    store.set(protectedRouteReadyAtom, true)
+                    return
+                }
+            }
+
+            if (isPostSignupRoute) {
+                store.set(protectedRouteReadyAtom, true)
+                return
             }
 
             if (isAuthRoute) {
@@ -189,6 +261,12 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     if (typeof window !== "undefined") {
                         signOut().catch(() => null)
                     }
+                    store.set(protectedRouteReadyAtom, true)
+                    return
+                }
+                // When auth upgrade is required, stay on auth page to show the upgrade message
+                // The user needs to re-authenticate with the correct method
+                if (authError === "upgrade_required") {
                     store.set(protectedRouteReadyAtom, true)
                     return
                 }
@@ -207,76 +285,15 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                         return
                     }
                 }
-                const orgs = store.get(orgsAtom)
-                const personalOrg = Array.isArray(orgs)
-                    ? orgs.find((org) => isPersonalOrg(org))
-                    : null
-                if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
-                    console.log("[auth-redirect] orgs snapshot", {
-                        count: Array.isArray(orgs) ? orgs.length : 0,
-                        personalOrgId: personalOrg?.id,
-                        orgs: Array.isArray(orgs)
-                            ? orgs.map((org) => ({
-                                  id: org.id,
-                                  is_personal: org.flags?.is_personal,
-                              }))
-                            : [],
-                    })
-                }
-                const targetWorkspaceId =
-                    personalOrg?.id || resolvePreferredWorkspaceId(user?.id ?? null, orgs)
-                const targetHref = targetWorkspaceId
-                    ? `/w/${encodeURIComponent(targetWorkspaceId)}`
-                    : "/w"
-                if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
-                    console.log("[auth-redirect] resolved", {
-                        targetWorkspaceId,
-                        targetHref,
-                        path,
-                        baseAppURL,
-                    })
-                }
-                if (!targetWorkspaceId && !authOrgFetchInFlight) {
-                    authOrgFetchInFlight = true
-                    void queryClient
-                        .fetchQuery({
-                            queryKey: ["orgs", user?.id || ""],
-                            queryFn: () => fetchAllOrgsList(),
-                            staleTime: 60_000,
-                        })
-                        .then((freshOrgs) => {
-                            const personal = Array.isArray(freshOrgs)
-                                ? freshOrgs.find((org) => isPersonalOrg(org))
-                                : null
-                            const resolved =
-                                personal?.id ||
-                                resolvePreferredWorkspaceId(user?.id ?? null, freshOrgs)
-                            if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
-                                console.log("[auth-redirect] fetched orgs", {
-                                    count: Array.isArray(freshOrgs) ? freshOrgs.length : 0,
-                                    personalOrgId: personal?.id,
-                                    resolved,
-                                })
-                            }
-                            if (resolved) {
-                                store.set(requestNavigationAtom, {
-                                    type: "href",
-                                    href: `/w/${encodeURIComponent(resolved)}`,
-                                    method: "replace",
-                                })
-                            }
-                        })
-                        .catch(() => null)
-                        .finally(() => {
-                            authOrgFetchInFlight = false
-                        })
-                }
-                if (!path.startsWith(targetHref)) {
-                    void Router.replace(targetHref).catch((error) => {
-                        console.error("Failed to redirect authenticated user to app:", error)
-                    })
-                }
-                store.set(protectedRouteReadyAtom, false)
+
+                // IMPORTANT: Don't redirect from /auth here - let usePostAuthRedirect.handleAuthSuccess
+                // handle the redirect with proper auth method filtering. The auth sync can't filter
+                // synchronously, so redirecting here would use unfiltered orgs and cause auth upgrade errors.
+                // The auth components will call handleAuthSuccess which does proper filtering.
+                console.log(
+                    "[auth-sync] Signed in user on /auth - letting usePostAuthRedirect handle redirect",
+                )
+                store.set(protectedRouteReadyAtom, true)
                 return
             }
 

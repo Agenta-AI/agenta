@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
 import {Alert, Spin} from "antd"
+import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import Session from "supertokens-auth-react/recipe/session"
@@ -11,6 +12,7 @@ import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
+import {authFlowAtom} from "@/oss/state/session"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
@@ -20,6 +22,7 @@ const Callback = () => {
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
     const {handleAuthSuccess} = usePostAuthRedirect()
     const hasHandledCallback = useRef(false)
+    const setAuthFlow = useSetAtom(authFlowAtom)
 
     const state = router.query.state as string
     const code = router.query.code as string
@@ -46,6 +49,7 @@ const Callback = () => {
             return
         }
         hasHandledCallback.current = true
+        setAuthFlow("authing")
         try {
             console.log("[AUTH-CALLBACK] Starting third-party callback", {
                 path: window.location.pathname,
@@ -57,6 +61,11 @@ const Callback = () => {
 
             if (response.status === "OK") {
                 console.log("[AUTH-CALLBACK] signInAndUp OK", response)
+                console.log("[AUTH-CALLBACK] createdNewRecipeUser", {
+                    createdNewRecipeUser: response.createdNewRecipeUser,
+                    hasUser: Boolean(response.user),
+                    loginMethods: response.user?.loginMethods,
+                })
                 try {
                     const payload = await Session.getAccessTokenPayloadSecurely()
                     console.log("[AUTH-CALLBACK] session payload", payload)

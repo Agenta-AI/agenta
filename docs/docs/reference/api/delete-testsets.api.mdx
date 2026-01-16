@@ -5,7 +5,7 @@ description: "Delete specific testsets based on their unique IDs."
 sidebar_label: "Delete Testsets"
 hide_title: true
 hide_table_of_contents: true
-api: eJzVVd9v0zAQ/lesewGk0JaJpzxRaKVVG2LaCi9dNbnJtfFI7My+bJQq/zs6O2nSlgF7pC+N7e/O9333wzsguXEQL2COjhySg2UEKbrEqpKU0RDDBHMkFK7ERK1VIqhBipV0mAqjBWWorKi0eqhQzCZucKtv9dhuXHyrG/SdSp14fakcLRzZ5ZtYzDNsTVSKmtRaoXXCrNlddwkZkfoAvNNrpMpq9jsWuXLUwgMk3Zu98mFABKZEK5nILIUYAuyuRUEEFh8qdPTRpFuId5AYTaiJP2VZ5irxtsN7x0rswCUZFpK/SsueSaHjVY8kLxVhEfa3JUIMjqzSG6ijdkNaK7cQASnKed2IL2apg7qDmdU9JtREqSymnKj+XcvORcjSPos1u+nMyFboN1xptAtBn41G/HeY7JsqSdC5dZWL6wYM0b/L8mLm7SWiqbI+gTqC92dnpzF+k7lKfQRiaq2xLwnwMG8pklT5QeCHgNwkB6dSb7+sIV6cEtzvKE24QQv18nnWlyYEyMIUbnMqWAf9jM7JDXYSPg/1Yog5n/6tiJhXuLrB9Sqpkzeo+zyNSZDvd5e1kPP5/OrEYchtgZSZrishglJSBjEMe/3p0D6idV7yyuYQQ0ZUung4THJTpQO5QU1yINVQlgrqJVsklVW09Sbjq9kFbs9RpmghXiz7gBsuipDmQ9heYVmqC2TCWha8HleUGat+htxFoLgas2DFjLjcrruBMv0hizLHkwGxaFPHFaL02nhEI9jYExLjqxlEwNRDzY8G7wYjOB7NB2DuAZn4Hmjj9ccQHSm31wwiwMI3ABDK4kN3wGxK46iQuufvuEePwumNz//70WjST/iDhmUule9Tr+GuqdH9GPYzODOOeG+3Y3ZfbV7XvP1QoeUyXEbwKK2SK07wgpOetQW5g++4hRg+BeHe+uZleF6FAjyaZTxngsU4SbCkP2KXvR6bTC+n8ylEsGpeusKkbGXlE48G+QQx+OeS7X1P+L0d5FJvKh5AMQSv/PsF6wnaHw==
+api: eJzVVU1v2zAM/SsCL9sAL8mKnXxatgRo0A4r2myXNCgUm4nV2ZIr0e0yw/99oGTH+Vg79LhcHEmPFPkeSdVAcuMgXsAcHTkkB8sIUnSJVSUpoyGGCeZIKFyJiVqrRFCLFCvpMBVGC8pQWVFp9VChmE3c4Fbf6rHduPhWt+g7lTrx9lI5Wjiyy3exmGfYmagUNam1QuuEWbO7/hIyIvUBeKfXSJXV7HcscuWogwdIujN748OACEyJVnIisxRiCLC7DgURWHyo0NFnk24hrv1SWUwhJlthBInRhJr4SJZlrhLva3jvmJkaXJJhIflfafkmUuh4tZc0LxVhEfa3JUIMjqzSG2iibkNaK7cQASnKed2KIWapg6aHmdU9JtRGHcJcHNy17F0E1XaqNg37sehKo10I8mw04s+h2DdVkqBz6yoX1y0YXkHDUT4vJN6G2V0i2io7Cvjj2dlpjD9krlIfgZhaa+xrAjzUKUWSKj+Q6BCQm+TgVOrttzXEi9OMdjtKE27QQrN8Xt9LEwJkJgq3OWWoh35F5+QG+2J5HurJEHM+/VfRcF7h6ha3Vzk9vYHd59OYBPr+dlkHOZ/Pr04cBm0LpMz0XQkRlJIyiGG4158O7SNa5ymvbA4xZESli4fDJDdVOpAb1CQHUg1lqaBZskVSWUVbbzK+ml3g9hxlihbixXIfcMNFEWQ+hPVlXKoL5IS1LHg9rigzVv0O2kWguBqzYMUZcbld9wNl+ksWZY4nA2HRSccVovTaeERL2NgnJMZXM4iAUw81Pxp8GIzgeDQfgLkHZOJ7oIvXH0N0xNyOM4gAC98AQCiLT/0BZ1MaR4XUe/6Oe/QonLpvw//70WjlJ/xFwzKXyvep57Bua3Q3dv3MzYwj3qtrzu67zZuGtx8qtFyGywgepVVyxQIvWPSsK8gafuIWYvgSiHvvm5fheRUK8GiW8ZwJFuMkwZJexC73emwyvZzOpxDBqn3pCpOylZVPPBrkE8Tgn0u29z3h92rIpd5UPIBiCF759wcBJ9of
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -60,7 +60,7 @@ A list of the deleted testsets' IDs.
 
 <RequestSchema
   title={"Body"}
-  body={{"content":{"application/json":{"schema":{"properties":{"testset_ids":{"items":{"type":"string"},"type":"array","title":"Testset Ids"}},"type":"object","required":["testset_ids"],"title":"DeleteTestsets"}}},"required":true}}
+  body={{"required":true,"content":{"application/json":{"schema":{"properties":{"testset_ids":{"items":{"type":"string"},"type":"array","title":"Testset Ids"}},"type":"object","required":["testset_ids"],"title":"DeleteTestsets"}}}}}
 >
   
 </RequestSchema>
@@ -68,7 +68,7 @@ A list of the deleted testsets' IDs.
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"type":"string"},"type":"array","title":"Response Delete Testsets"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"array","items":{"type":"string"},"title":"Response Delete Testsets"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
 >
   
 </StatusCodes>

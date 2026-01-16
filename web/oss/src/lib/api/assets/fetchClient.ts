@@ -1,6 +1,7 @@
 import {getDefaultStore} from "jotai"
 import {signOut} from "supertokens-auth-react/recipe/session"
 
+import {buildAuthUpgradeMessage} from "@/oss/lib/helpers/authMessages"
 import {requestNavigationAtom} from "@/oss/state/appState"
 import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {authFlowAtom} from "@/oss/state/session"
@@ -123,14 +124,10 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
                         ? detailObj.user_identities[0]
                         : undefined)
 
-                const requiredText = required.length ? required.join(", ") : "an allowed method"
-                const identityText = currentIdentity
-                    ? ` You're signed in with ${currentIdentity}.`
-                    : ""
                 const message =
                     detailObj?.error === "AUTH_DOMAIN_DENIED"
                         ? detailObj.message
-                        : `This organization requires ${requiredText}.${identityText}`
+                        : buildAuthUpgradeMessage(required, currentIdentity, detailObj?.error)
 
                 const authError =
                     detailObj?.error === "AUTH_SSO_DENIED"

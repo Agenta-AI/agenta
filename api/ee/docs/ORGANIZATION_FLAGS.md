@@ -6,7 +6,8 @@ This document defines the canonical default values for all organization flags in
 
 ### Identity Flags
 - **`is_demo`**: `false` - Marks the organization as a demo organization
-- **`is_personal`**: `false` - Marks the organization as a personal organization (single-user)
+
+> **Note:** The `is_personal` flag has been removed. All organizations are now collaborative by default. Users get a regular organization auto-created on signup that supports team invitations immediately.
 
 ### Authentication Method Flags
 - **`allow_email`**: defaults to `env.auth.email_enabled` - Allow email/password or email/OTP authentication
@@ -32,15 +33,13 @@ All flags default to their specified default values above.
 ```json
 {
   "flags": {
-    "is_demo": true,
-    "is_personal": false
+    "is_demo": true
     // All other flags default as specified above
   }
 }
 ```
 This would result in:
 - `is_demo`: `true` (explicit)
-- `is_personal`: `false` (explicit)
 - `allow_email`: defaults to `env.auth.email_enabled`
 - `allow_social`: defaults to `env.auth.oidc_enabled`
 - `allow_sso`: `false` (default)

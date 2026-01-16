@@ -21,6 +21,7 @@ import {useRouter} from "next/router"
 import {message} from "@/oss/components/AppMessageContext"
 import {
     initPlaygroundAtom,
+    playgroundEditValuesAtom,
     resetPlaygroundAtom,
 } from "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
 import useURL from "@/oss/hooks/useURL"
@@ -52,11 +53,15 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
     // Atom actions
     const initPlayground = useSetAtom(initPlaygroundAtom)
     const resetPlayground = useSetAtom(resetPlaygroundAtom)
+    const stagedConfig = useAtomValue(playgroundEditValuesAtom)
 
     const existingConfig = useMemo(() => {
         if (!evaluatorId) return null
-        return evaluatorConfigs.find((config) => config.id === evaluatorId) ?? null
-    }, [evaluatorConfigs, evaluatorId])
+        return (
+            evaluatorConfigs.find((config) => config.id === evaluatorId) ??
+            (stagedConfig?.id === evaluatorId ? stagedConfig : null)
+        )
+    }, [evaluatorConfigs, evaluatorId, stagedConfig])
 
     const evaluatorKey = existingConfig?.evaluator_key ?? evaluatorId ?? null
 

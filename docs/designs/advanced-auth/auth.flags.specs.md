@@ -8,7 +8,6 @@ This document provides a comprehensive reference for all organization flags, the
 
 | Flag | Default | Category | Purpose |
 |------|---------|----------|---------|
-| `is_personal` | `false` | Identity | Marks org as personal/single-user |
 | `is_demo` | `false` | Identity | Marks org as demo organization |
 | `allow_email` | `env.auth.email_enabled` | Authentication | Allow email/password or OTP |
 | `allow_social` | `env.auth.oidc_enabled` | Authentication | Allow social providers (Google, GitHub) |
@@ -17,28 +16,13 @@ This document provides a comprehensive reference for all organization flags, the
 | `domains_only` | `false` | Access Control | Restrict to verified email domains |
 | `auto_join` | `false` | Access Control | Auto-add users with verified domains |
 
+> **Note:** The `is_personal` flag has been removed. All organizations are now collaborative by default, supporting team invitations from day one.
+
 ---
 
 ## 2. Identity Flags
 
-### 2.1 `is_personal`
-
-**Purpose:** Marks the organization as a personal, single-user workspace.
-
-**Behavior:**
-- Personal organizations cannot configure security settings
-- All security-related UI is hidden
-- Cannot add members or send invitations
-
-**Example:**
-```
-User signs up → Personal org created with is_personal=true
-User cannot access: Verified Domains, SSO Providers, Access Controls
-```
-
----
-
-### 2.2 `is_demo`
+### 2.1 `is_demo`
 
 **Purpose:** Marks the organization as a demo/trial organization.
 

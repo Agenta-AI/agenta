@@ -6,7 +6,6 @@ import uuid_utils.compat as uuid
 from sqlalchemy.future import select
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.common import is_ee
 
 from oss.src.dbs.postgres.shared.engine import engine
 
@@ -64,7 +63,6 @@ class OrganizationRequest(BaseModel):
     description: Optional[str] = None
     #
     is_demo: bool = False
-    is_personal: bool = False
     #
     owner_id: UUID
 
@@ -197,7 +195,6 @@ async def create_organization(
             description=request.description,
             flags={
                 "is_demo": False,
-                "is_personal": request.is_personal,
             },
             owner_id=request.owner_id,
             created_by_id=request.owner_id,

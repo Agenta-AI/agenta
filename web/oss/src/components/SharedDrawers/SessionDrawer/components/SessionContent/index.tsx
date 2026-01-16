@@ -22,12 +22,29 @@ const SessionContent = () => {
                     .map((trace: any, index: number) => {
                         const messages = extractTraceData(trace)
 
+                        let defaultHiddenCount = 0
+                        if (index > 0) {
+                            // Find the index of the last user message
+                            let lastUserIndex = -1
+                            for (let i = messages.length - 1; i >= 0; i--) {
+                                if (messages[i].role === "user") {
+                                    lastUserIndex = i
+                                    break
+                                }
+                            }
+
+                            if (lastUserIndex !== -1) {
+                                defaultHiddenCount = lastUserIndex
+                            }
+                        }
+
                         return (
                             <div id={trace.span_id} key={trace.span_id || index}>
                                 <SessionMessagePanel
                                     label={`Trace ${index + 1}`}
                                     value={messages}
                                     trace={trace}
+                                    defaultHiddenCount={defaultHiddenCount}
                                 />
                             </div>
                         )

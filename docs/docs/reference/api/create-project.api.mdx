@@ -1,0 +1,71 @@
+---
+id: create-project
+title: "Create Project"
+description: "Create Project"
+sidebar_label: "Create Project"
+hide_title: true
+hide_table_of_contents: true
+api: eJytVk1v2zAM/SsBz17TFjv5tOwDaLCPBmm3HYKgYGwm0SJbmiSvywL/94GSZTtJmxbdfLEtkRT5Hh/tHThcWUhncJMpTRbmCShNBp1Q5TiHFDJD6OhOG/WDMgcJGPpZkXVvVb6FdAeZKh2Vjh9Rayky7zr8YVXJazZbU4H8pA0HdoIsv5VYEN/dVhOkYJ0R5QoScMJJXvjC+3UCBW7oLqclVtL17BdKScKy5/AZNzR43xgm0LosUVqq6yR6qkWvDmEo5+J9NvMu2Dtf9CTUPA0FQ81ROi9nKvILVqvShqouzy/4lpPNjNAMBKRwU2UZWbus5GDaGEPyUtyUWWEp/njjO5F793J7vYR0dgzmUpkCHaRQVSKHOmktykpKqHsFX/fCDsZsu39SpOuxs54dO/J6r8zGaszoPxbxPcZsKujO+Jf0u6gx90YLTean8+3iNN3U5BZjPKWD6BXPFjaqoZXkKVWMbdTEYNIq+EAbCVSWzJ1R8sUYfbVkBlMOEFMs1IOxYoangvmcCwVPibZHwwGe8yP8bKu82sv49eXlsVC/oRR5aNMPxijzcpXm5FBIfhKOCntsIFW2t/sM0EXpaEUG6nmHCxqD2x7dn1RI0E9OuzrVWJ/JWlx5woLJ46YejMEt7z7FCdcVjm7selR08AZ0Hy/jfYDvocOiydXt7eQoYOB2n9QwynvdX5BbK/6yaWX5XaNbQwrDpoMsJGDJ/CJjPR+VkZDC2jlt0+Ewk6rKz3BFpcMzFEPUwveupawywm29y2gy/kjbK8KcDKSzed/ghjsm9MC+WQs/avGRGI0wGmBUubUyzfyEBARXtQ5eXC734rT7Jn/4jYUOSm4CtHzuf0uj+EW59FqNyI58cYPRZAwJMAwBx/Ozi7NzOER3z5jFgmEgxdz9NiQHKLb4QQJUeKWAIyzedBtcGRNUYNmLd0TmXjYthI5+u6GWKLwQ/Nm7hud2bPhfnTW3QDqD3W6Blr4aWde8/LMiw1TOE/iFRuCCgZmx7taR1B1saMsZhQHxyquDzWUVSDwYFizk4DHKMtLupO2816WT65tbSGDR/G4VKmcfg/esPLyHFIB/2djbd5Vf24HEclWxvlMIMfn6C4AAaAc=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create Project"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/projects"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Create Project
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"name":{"type":"string","title":"Name"},"make_default":{"type":"boolean","title":"Make Default","default":false}},"type":"object","required":["name"],"title":"CreateProjectRequest"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"201":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"organization_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Organization Id"},"organization_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Organization Name"},"workspace_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Workspace Id"},"workspace_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Workspace Name"},"project_id":{"type":"string","format":"uuid","title":"Project Id"},"project_name":{"type":"string","title":"Project Name"},"is_default_project":{"type":"boolean","title":"Is Default Project","default":false},"user_role":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"User Role"},"is_demo":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Is Demo"}},"type":"object","required":["project_id","project_name"],"title":"ProjectsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

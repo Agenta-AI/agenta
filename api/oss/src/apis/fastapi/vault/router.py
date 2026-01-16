@@ -76,7 +76,7 @@ class VaultRouter:
             has_permission = await check_action_access(
                 user_uid=str(request.state.user_id),
                 project_id=str(request.state.project_id),
-                permission=Permission.CREATE_SECRET,
+                permission=Permission.EDIT_SECRET,
             )
 
             if not has_permission:
@@ -171,7 +171,7 @@ class VaultRouter:
             has_permission = await check_action_access(
                 user_uid=str(request.state.user_id),
                 project_id=str(request.state.project_id),
-                permission=Permission.UPDATE_SECRET,
+                permission=Permission.EDIT_SECRET,
             )
 
             if not has_permission:
@@ -201,7 +201,7 @@ class VaultRouter:
             has_permission = await check_action_access(
                 user_uid=str(request.state.user_id),
                 project_id=str(request.state.project_id),
-                permission=Permission.DELETE_SECRET,
+                permission=Permission.EDIT_SECRET,
             )
 
             if not has_permission:

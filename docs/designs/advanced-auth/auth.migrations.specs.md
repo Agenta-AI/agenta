@@ -1,276 +1,118 @@
 # Organization Migration Specification
 
-## Introducing Personal and Collaborative Organizations
+## DEPRECATED: Personal Organizations Removed
 
-This document is a **complete and authoritative migration specification** for introducing **personal** and **collaborative** organizations via the `is_personal` flag in `organizations.flags`.
-
----
-
-## 1. Scope of This Migration
-
-This migration introduces:
-- A new organization classification: `personal` vs `collaborative`
-- The `is_personal` flag in `organizations.flags` JSONB
-- Deterministic rules to migrate all existing data
-
-This migration **does not** introduce:
-- Multiple owners per organization
-- RBAC changes
-- Invitation logic changes
-- Domain verification
-- SSO
-- Policy enforcement
+> **Important:** This document describes a migration that introduced personal organizations. **Personal organizations have been removed from the system.** All organizations are now collaborative by default.
 
 ---
 
-## 2. Definitions
+## Current Behavior (Post-Removal)
 
-### 2.1 Organization Classification
+### What Changed
 
-Each organization is classified via `flags.is_personal`:
+The `is_personal` flag has been completely removed from the codebase:
 
-| Type | `is_personal` | Description |
-|------|---------------|-------------|
-| Personal | `true` | Single-user sandbox |
-| Collaborative | `false` | Multi-user, governance-capable |
+- **Backend:** Removed from all models, services, routers, and migrations
+- **Frontend:** Removed `isPersonalOrg` helper, priority logic, and UI elements
+- **Database:** Migration sets `is_personal = false` on any existing orgs (for cleanup)
 
----
+### Current Organization Model
 
-### 2.2 Personal Organization
+All organizations are now **collaborative**:
 
-A **personal organization** represents an individual user.
+| Aspect | Behavior |
+|--------|----------|
+| Members | One or more members allowed |
+| Invitations | Always allowed |
+| Security settings | Always accessible |
+| Auto-created on signup | Yes, with username as org name |
 
-**Invariants**
-- Exactly **one member**
-- That member is the **owner**
-- No invitations allowed
-- Cannot be deleted
-- Cannot change ownership
-- Security settings hidden in UI
+### Signup Flow
 
-**Canonical flags**
-```json
-{
-  "is_personal": true
-}
-```
+1. User signs up with any auth method
+2. System auto-creates a collaborative organization
+3. Organization name = username (from email)
+4. User can immediately invite teammates
 
-There must be **exactly one personal organization per user** (EE only).
+### No Personal Organization Concept
 
----
-
-### 2.3 Collaborative Organization
-
-A **collaborative organization** represents shared ownership and collaboration.
-
-**Invariants**
-- One or more members
-- Exactly **one owner**
-- Invitations allowed
-- Full governance capabilities
-
-**Canonical flags**
-```json
-{
-  "is_personal": false
-}
-```
+- No `is_personal` flag in `organizations.flags`
+- No personal org priority in workspace selection
+- No "personal" tag in UI
+- No restrictions on invitations for any org type
 
 ---
 
-## 3. Pre-Migration Guarantees
+## Historical Context
 
-The system currently guarantees:
+The personal organization concept was introduced to provide users with a private sandbox. However, it created friction:
 
-- Every organization has **exactly one owner**
-- No self-deleted users exist
-- Every user exists in the database intentionally
-- Users may belong to zero, one, or multiple organizations
-- Users may own exactly one organization
+- Users couldn't invite teammates to their first org
+- Users ended up with two orgs (personal + team) which was confusing
+- Different behavior from main/prod
 
-These guarantees are relied upon.
+The decision was made to remove personal organizations entirely and match the simpler main/prod behavior where all organizations are collaborative from the start.
 
 ---
 
-## 4. Schema
+## Migration for Existing Data
 
-The `is_personal` flag is stored in the `organizations.flags` JSONB column:
+If any existing organizations have `is_personal = true` in their flags:
 
 ```sql
--- organizations.flags contains:
-{
-  "is_personal": true/false,
-  "is_demo": false,
-  "allow_email": true,
-  "allow_social": true,
-  "allow_sso": false,
-  "allow_root": false,
-  "domains_only": false,
-  "auto_join": false
-}
+UPDATE organizations
+SET flags = flags - 'is_personal'
+WHERE flags->>'is_personal' = 'true';
 ```
 
----
+Or alternatively, set to false:
 
-## 5. Data Migration — Enterprise / Commercial Edition (EE)
-
-EE supports **multiple organizations per deployment** and **personal organizations**.
-
-### 5.1 Step 1 — Classify Existing Organizations
-
-For each organization:
-
-- If `member_count > 1`
-  → Set `flags.is_personal = false`
-
-- If `member_count == 1`
-  → Mark as **personal-candidate**
-
-Ownership remains unchanged.
-
----
-
-### 5.2 Step 2 — Resolve Personal Organizations per User
-
-For each user:
-
-#### Case A — User owns a single-member organization
-- That organization becomes their **personal organization**
-- Set `flags.is_personal = true`
-
-#### Case B — User owns an organization that is now collaborative
-- That organization remains collaborative
-- User may now have **no personal organization**
-
-#### Case C — User has no organizations at all
-- This is treated as missing data
-- A new personal organization **must be created**
-
----
-
-### 5.3 Step 3 — Create Missing Personal Organizations
-
-For any user **without** a personal organization after Step 2:
-
-- Create a new organization
-- Assign user as owner
-- Assign user as sole member
-- Set flags:
-
-```json
-{
-  "is_personal": true,
-  "is_demo": false,
-  "allow_email": true,
-  "allow_social": true,
-  "allow_sso": false,
-  "allow_root": false,
-  "domains_only": false,
-  "auto_join": false
-}
+```sql
+UPDATE organizations
+SET flags = jsonb_set(flags, '{is_personal}', 'false')
+WHERE flags->>'is_personal' = 'true';
 ```
 
-This guarantees:
-> Exactly one personal organization per user.
+This is handled automatically by the `a9f3e8b7c5d1_clean_up_organizations.py` migration.
 
 ---
 
-### 5.4 Step 4 — Normalize Collaborative Organizations
+## Related Changes
 
-For **all** organizations with `flags.is_personal = false`:
+### Files Modified
 
-- Preserve existing name
-- Preserve members and owner
-- Ensure all required flags exist with defaults
+**Backend:**
+- `api/oss/src/models/shared_models.py` - Removed `is_personal` from `OrganizationFlags`
+- `api/ee/src/models/api/organization_models.py` - Removed `is_personal` from `CreateOrganization`
+- `api/ee/src/services/commoners.py` - Removed personal org creation logic
+- `api/ee/src/services/db_manager_ee.py` - Removed `is_personal` handling
 
----
+**Frontend:**
+- `web/oss/src/state/org/selectors/org.ts` - Removed `isPersonalOrg` function and priority logic
+- `web/oss/src/components/Sidebar/components/ListOfOrgs.tsx` - Removed personal tag
+- `web/oss/src/components/pages/settings/WorkspaceManage/WorkspaceManage.tsx` - Removed personal org empty state
 
-## 6. Ownership Rules (Explicit)
+### Workspace Selection Logic
 
-- Every organization has **exactly one owner**
-- This migration does **not** introduce multiple owners
-- Ownership transfer is expected to be handled later via a dedicated endpoint
+Previously:
+1. Prioritize personal org
+2. Fall back to last-used workspace
+3. Fall back to first owned org
 
----
-
-## 7. Data Migration — OSS Edition
-
-OSS has **strict constraints**.
-
-### 7.1 Allowed State
-
-- Exactly **one organization** exists
-
-### 7.2 Migration Logic
-
-#### Case A — Exactly one organization exists
-- Migration proceeds
-- That organization becomes collaborative:
-
-```json
-{
-  "is_personal": false
-}
-```
-
-- **No personal organizations are created**
-- OSS explicitly does **not** support personal organizations
-
-#### Case B — More than one organization exists
-- Migration **must fail**
-- No partial migration
-- Deployment must be corrected manually
-
-This fail-fast behavior is intentional.
+Now:
+1. Use last-used workspace if valid
+2. Fall back to first owned non-demo org
+3. Fall back to first non-demo org
 
 ---
 
-## 8. Post-Migration Guarantees
+## Summary
 
-### EE
-
-- Every user has **exactly one personal organization**
-- Users may belong to zero or more collaborative organizations
-- All organizations have a valid `is_personal` flag
-- No ambiguity exists
-
-### OSS
-
-- Exactly one organization exists
-- That organization is collaborative (`is_personal = false`)
-- No personal organizations exist
-
----
-
-## 9. UI Behavior
-
-When `is_personal = true`:
-- Security settings section is hidden
-- Verified Domains tab is hidden
-- SSO Providers tab is hidden
-- Access Controls section is hidden
-- Invitations are disabled
-
----
-
-## 10. Operational Notes
-
-- Migration may be run online or offline (deployment decision)
-- Logic must be **deterministic**
-- Any violation of OSS invariants must abort the migration
-- EE migration must never drop or merge organizations
-
----
-
-## 11. Summary
-
-After migration:
-
-- Organization classification is explicit via `flags.is_personal`
-- Personal organizations are canonical and enforced (EE only)
-- Collaborative organizations are preserved
-- Ownership remains single-user
-- Future features can safely build on this model
+- Personal organizations have been **removed**
+- All organizations are **collaborative** by default
+- Users can **invite teammates immediately** after signup
+- No special handling or UI for personal vs collaborative orgs
+- Simpler, more intuitive user experience
 
 ---
 
