@@ -1,28 +1,34 @@
 from os import getenv
 from json import loads
-from typing import List
+from typing import List, Optional
 from traceback import format_exc
+from uuid import UUID
 
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import acquire_lock, release_lock
+
 from oss.src.services import db_manager
 from oss.src.utils.common import is_ee
-from ee.src.services import workspace_manager
 from ee.src.services.db_manager_ee import (
     create_organization,
     add_user_to_organization,
     add_user_to_workspace,
     add_user_to_project,
 )
-from ee.src.services.selectors import (
-    user_exists,
-)
 from ee.src.models.api.organization_models import CreateOrganization
-from oss.src.services.user_service import create_new_user
+from oss.src.services.user_service import (
+    create_new_user,
+    delete_user,
+)
+from oss.src.models.db_models import OrganizationDB
 from ee.src.services.email_helper import (
     add_contact_to_loops,
 )
+
+from oss.src.core.auth.service import AuthService
+
 
 log = get_module_logger(__name__)
 
@@ -108,72 +114,201 @@ async def add_user_to_demos(user_id: str) -> None:
         raise exc  # TODO: handle exceptions
 
 
-async def create_accounts(payload: dict):
+async def create_accounts(
+    payload: dict,
+    organization_name: Optional[str] = None,
+    use_reverse_trial: bool = True,
+):
     """Creates a user account and an associated organization based on the
     provided payload.
 
     Arguments:
         payload (dict): The required payload. It consists of; user_id and user_email
+        organization_name (str): Optional name override for the organization.
+        use_reverse_trial (bool): Use reverse trial (True) or hobby plan (False). Default: True
     """
 
+    # Only keep fields expected by UserDB to avoid TypeErrors (e.g., organization_id)
     user_dict = {
-        **payload,
+        "uid": payload["uid"],
+        "email": payload["email"],
         "username": payload["email"].split("@")[0],
     }
 
-    user = await db_manager.get_user_with_email(email=user_dict["email"])
-    if user is None:
-        log.info("[scopes] Yey! A new user is signing up!")
+    email = user_dict["email"]
 
-        # Create user first
-        user = await create_new_user(user_dict)
+    # Atomically acquire a distributed lock to prevent race conditions
+    # where multiple concurrent requests create duplicate accounts
+    lock_acquired = await acquire_lock(
+        namespace="account-creation",
+        key=email,
+    )
 
-        log.info("[scopes] User [%s] created", user.id)
+    if not lock_acquired:
+        # Another request is already creating this account - just return the existing user
+        log.info("[scopes] account creation lock already taken")
+        user = await db_manager.get_user_with_email(email=email)
+        return user
 
-        # Prepare payload to create organization
-        create_org_payload = CreateOrganization(
-            name=user_dict["username"],
-            description="Default Organization",
-            owner=str(user.id),
-            type="default",
-        )
+    # We have the lock - proceed with account creation
+    log.info("[scopes] account creation lock acquired")
 
-        # Create the user's default organization and workspace
-        organization = await create_organization(
-            payload=create_org_payload,
-            user=user,
-        )
+    try:
+        # Get or create user
+        user = await db_manager.get_user_with_email(email=user_dict["email"])
+        user_is_new = user is None
 
-        log.info("[scopes] Organization [%s] created", organization.id)
+        if user is None:
+            # Create user (idempotent - returns existing if found)
+            user = await create_new_user(user_dict)
+            log.info("[scopes] User [%s] created", user.id)
 
-        # Add the user to demos
-        await add_user_to_demos(str(user.id))
+        # Check if user already has organizations (to detect if setup already ran)
+        user_organizations = await db_manager.get_user_organizations(str(user.id))
+        user_has_organization = len(user_organizations) > 0
 
-        # Start reverse trial
+        # Only run setup if user is new AND doesn't have organizations
+        if user_is_new and not user_has_organization:
+            # We successfully created the user and they have no orgs, proceed with setup
+            # If setup fails, delete the user to avoid orphaned records
+            try:
+                # Add the user to demos
+                await add_user_to_demos(str(user.id))
+
+                # Create organization with workspace and subscription
+                resolved_org_name = organization_name or user_dict["username"]
+                await create_organization_with_subscription(
+                    user_id=UUID(str(user.id)),
+                    organization_email=user_dict["email"],
+                    organization_name=resolved_org_name,
+                    organization_description="Default Organization",
+                    use_reverse_trial=use_reverse_trial,
+                )
+            except Exception:
+                # Setup failed - delete the user to avoid orphaned state
+                log.error(
+                    "[scopes] setup failed for user [%s], deleting user: %s",
+                    user.id,
+                    exc_info=True,
+                )
+                try:
+                    await delete_user(str(user.id))
+                except Exception as delete_error:
+                    log.error(
+                        "[scopes] failed to delete user [%s]: %s",
+                        user.id,
+                        str(delete_error),
+                    )
+                # Re-raise the original error
+                raise
+        else:
+            # User already has organization(s) - skip setup
+            if user_has_organization:
+                log.info(
+                    "[scopes] User [%s] already has organization, skipping setup",
+                    user.id,
+                )
+
+        log.info("[scopes] User [%s] authenticated", user.id)
+
         try:
+            await AuthService().enforce_domain_policies(
+                email=user_dict["email"],
+                user_id=user.id,
+            )
+        except Exception:
+            log.error(
+                "Error enforcing domain policies after signup",
+                exc_info=True,
+            )
+
+        if is_ee():
+            try:
+                # Adds contact to loops for marketing emails. TODO: Add opt-in checkbox to supertokens
+                add_contact_to_loops(user_dict["email"])  # type: ignore
+            except ConnectionError as ex:
+                log.warn("error adding contact to loops %s", ex)
+
+        return user
+
+    finally:
+        # Always release the lock when done (or on error)
+        released = await release_lock(
+            namespace="account-creation",
+            key=email,
+        )
+        if released:
+            log.info("[scopes] account creation lock released")
+        else:
+            log.warn("[scopes] account creation lock already expired")
+
+
+async def create_organization_with_subscription(
+    user_id: UUID,
+    organization_email: str,
+    organization_name: Optional[str] = None,
+    organization_description: Optional[str] = None,
+    use_reverse_trial: bool = False,
+) -> OrganizationDB:
+    """Create an organization with workspace and subscription for an existing user.
+
+    Args:
+        user_id: The user's UUID
+        organization_email: The user's email for subscription
+        organization_name: Name for the organization
+        organization_description: Optional description
+        use_reverse_trial: Use reverse trial (True) or hobby plan (False)
+
+    Returns:
+        OrganizationDB: The created organization
+    """
+    # Get user object
+    user = await db_manager.get_user(str(user_id))
+    if not user:
+        raise ValueError(f"User {user_id} not found")
+
+    # Prepare payload to create organization
+    create_org_payload = CreateOrganization(
+        name=organization_name,
+        description=organization_description,
+        is_demo=False,
+        owner_id=user_id,
+    )
+
+    # Create organization and workspace
+    organization = await create_organization(
+        payload=create_org_payload,
+        user=user,
+    )
+
+    log.info("[scopes] Organization [%s] created", organization.id)
+
+    # Start subscription based on type
+    try:
+        if use_reverse_trial:
             await subscription_service.start_reverse_trial(
                 organization_id=str(organization.id),
                 organization_name=organization.name,
-                organization_email=user_dict["email"],
+                organization_email=organization_email,
             )
-
-        except Exception as exc:
-            raise exc  # TODO: handle exceptions
-            # await subscription_service.start_free_plan(
-            #     organization_id=str(organization.id),
-            # )
-
-        await check_entitlements(
-            organization_id=str(organization.id),
-            key=Gauge.USERS,
-            delta=1,
+        else:
+            # Start hobby/free plan
+            await subscription_service.start_free_plan(
+                organization_id=str(organization.id),
+            )
+    except Exception as exc:
+        log.error(
+            "[scopes] Failed to create subscription for organization [%s]: %s",
+            organization.id,
+            exc,
         )
+        raise exc
 
-    log.info("[scopes] User [%s] authenticated", user.id)
+    # Check entitlements
+    await check_entitlements(
+        organization_id=str(organization.id),
+        key=Gauge.USERS,
+        delta=1,
+    )
 
-    if is_ee():
-        try:
-            # Adds contact to loops for marketing emails. TODO: Add opt-in checkbox to supertokens
-            add_contact_to_loops(user_dict["email"])  # type: ignore
-        except ConnectionError as ex:
-            log.warn("Error adding contact to loops %s", ex)
+    return organization

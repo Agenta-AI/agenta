@@ -24,7 +24,7 @@ def get_app_db(session: Session, app_id: str) -> Optional[DeprecatedAppDB]:
 
 
 def update_evaluators_with_app_name():
-    engine = create_engine(env.POSTGRES_URI_CORE)
+    engine = create_engine(env.postgres.uri_core)
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:

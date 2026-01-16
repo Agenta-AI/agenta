@@ -123,8 +123,8 @@ class AgentaSingleton:
         )
 
         if self.api_key is None:
-            log.warning(
-                "API key is required (in most cases). Please set AGENTA_API_KEY environment variable or pass api_key parameter in ag.init()."
+            log.info(
+                "Agenta -     API key: missing (if needed, set AGENTA_API_KEY environment variable or pass api_key parameter in ag.init())"
             )
 
         log.info("Agenta -     API URL: %s", self.api_url)

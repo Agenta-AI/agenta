@@ -1,16 +1,18 @@
-import uuid
 from typing import List, Union, NoReturn, Optional, Tuple
+import uuid
+from datetime import datetime, timezone
 
 import sendgrid
 from fastapi import HTTPException
 
+from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy.exc import IntegrityError
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.common import is_ee
 
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services import db_manager, evaluator_manager
@@ -42,6 +44,15 @@ from oss.src.models.db_models import (
     UserDB,
     InvitationDB,
 )
+
+from ee.src.core.organizations.exceptions import (
+    OrganizationSlugConflictError,
+)
+
+from ee.src.dbs.postgres.organizations.dao import (
+    OrganizationProvidersDAO,
+    OrganizationDomainsDAO,
+)
 from ee.src.services.converters import get_workspace_in_format
 from ee.src.services.selectors import get_org_default_workspace
 
@@ -49,7 +60,7 @@ from oss.src.utils.env import env
 
 
 # Initialize sendgrid api client
-sg = sendgrid.SendGridAPIClient(api_key=env.SENDGRID_API_KEY)
+sg = sendgrid.SendGridAPIClient(api_key=env.sendgrid.api_key)
 
 log = get_module_logger(__name__)
 
@@ -94,6 +105,25 @@ async def get_organizations_by_list_ids(organization_ids: List) -> List[Organiza
         return organizations
 
 
+async def count_organizations_by_owner(owner_id: str) -> int:
+    """
+    Count the number of organizations owned by a user.
+
+    Args:
+        owner_id (str): The ID of the owner.
+
+    Returns:
+        int: The count of organizations owned by the user.
+    """
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(func.count(OrganizationDB.id)).where(
+                OrganizationDB.owner_id == uuid.UUID(owner_id)
+            )
+        )
+        return result.scalar() or 0
+
+
 async def get_default_workspace_id(user_id: str) -> str:
     """
     Retrieve the default workspace ID for a user.
@@ -127,7 +157,9 @@ async def get_organization_workspaces(organization_id: str):
         result = await session.execute(
             select(WorkspaceDB)
             .filter_by(organization_id=uuid.UUID(organization_id))
-            .options(load_only(WorkspaceDB.organization_id))  # type: ignore
+            .options(  # type: ignore
+                load_only(WorkspaceDB.id, WorkspaceDB.organization_id)
+            )
         )
         workspaces = result.scalars().all()
         return workspaces
@@ -203,14 +235,14 @@ async def create_project(
 
     session.add(project_db)
 
+    await session.commit()
+
     log.info(
         "[scopes] project created",
         organization_id=organization_id,
         workspace_id=workspace_id,
         project_id=project_db.id,
     )
-
-    await session.commit()
 
     return project_db
 
@@ -231,7 +263,7 @@ async def create_default_project(
     """
 
     project_db = await create_project(
-        "Default Project",
+        "Default",
         workspace_id=workspace_id,
         organization_id=organization_id,
         session=session,
@@ -296,13 +328,11 @@ async def sync_workspace_members_to_project(
             member.user_id: member for member in existing_members_result.scalars().all()
         }
 
-        updated = False
         for member in workspace_members:
             project_member = existing_members.get(member.user_id)
             if project_member:
                 if project_member.role != member.role:
                     project_member.role = member.role
-                    updated = True
                 continue
 
             project_member = ProjectMemberDB(
@@ -311,6 +341,9 @@ async def sync_workspace_members_to_project(
                 role=member.role,
             )
             db_session.add(project_member)
+
+            await db_session.commit()
+
             log.info(
                 "[scopes] project membership created",
                 organization_id=str(project.organization_id),
@@ -319,10 +352,6 @@ async def sync_workspace_members_to_project(
                 user_id=str(member.user_id),
                 membership_id=project_member.id,
             )
-            updated = True
-
-        if updated:
-            await db_session.commit()
 
     if session is not None:
         await _sync(session)
@@ -422,6 +451,8 @@ async def create_project_member(
 
     session.add(project_member)
 
+    await session.commit()
+
     log.info(
         "[scopes] project membership created",
         organization_id=project.organization_id,
@@ -430,8 +461,6 @@ async def create_project_member(
         user_id=user_id,
         membership_id=project_member.id,
     )
-
-    await session.commit()
 
 
 async def fetch_project_memberships_by_user_id(
@@ -478,13 +507,13 @@ async def create_workspace_db_object(
 
     session.add(workspace)
 
+    await session.commit()
+
     log.info(
         "[scopes] workspace created",
         organization_id=organization.id,
         workspace_id=workspace.id,
     )
-
-    await session.commit()
 
     # add user as a member to the workspace with the owner role
     workspace_member = WorkspaceMemberDB(
@@ -494,6 +523,10 @@ async def create_workspace_db_object(
     )
 
     session.add(workspace_member)
+
+    await session.commit()
+    await session.refresh(workspace, attribute_names=["organization"])
+
     log.info(
         "[scopes] workspace membership created",
         organization_id=workspace.organization_id,
@@ -501,10 +534,6 @@ async def create_workspace_db_object(
         user_id=user.id,
         membership_id=workspace_member.id,
     )
-
-    await session.commit()
-
-    await session.refresh(workspace, attribute_names=["organization"])
 
     project_db = await create_default_project(
         organization_id=str(organization.id),
@@ -741,7 +770,10 @@ async def add_user_to_workspace_and_org(
         user_organization = OrganizationMemberDB(
             user_id=user.id, organization_id=organization.id
         )
+
         session.add(user_organization)
+
+        await session.commit()
 
         log.info(
             "[scopes] organization membership created",
@@ -758,6 +790,8 @@ async def add_user_to_workspace_and_org(
         )
 
         session.add(workspace_member)
+
+        await session.commit()
 
         log.info(
             "[scopes] workspace membership created",
@@ -793,7 +827,10 @@ async def add_user_to_workspace_and_org(
                 project_id=project.id,
                 role=role,
             )
+
             session.add(project_member)
+
+            await session.commit()
 
             log.info(
                 "[scopes] project membership created",
@@ -804,7 +841,6 @@ async def add_user_to_workspace_and_org(
                 membership_id=project_member.id,
             )
 
-        await session.commit()
         return True
 
 
@@ -969,46 +1005,56 @@ async def create_organization(
 
     async with engine.core_session() as session:
         create_org_data = payload.model_dump(exclude_unset=True)
-        if "owner" not in create_org_data:
-            create_org_data["owner"] = str(user.id)
+
+        is_demo = create_org_data.pop("is_demo", False)
+
+        create_org_data["flags"] = {
+            "is_demo": is_demo,
+            "allow_email": env.auth.email_enabled,
+            "allow_social": env.auth.oidc_enabled,
+            "allow_sso": False,
+            "allow_root": False,
+            "domains_only": False,
+            "auto_join": False,
+        }
+
+        # Set required audit fields
+        create_org_data["owner_id"] = user.id
+        create_org_data["created_by_id"] = user.id
 
         # create organization
         organization_db = OrganizationDB(**create_org_data)
         session.add(organization_db)
+
+        await session.commit()
 
         log.info(
             "[scopes] organization created",
             organization_id=organization_db.id,
         )
 
-        await session.commit()
-
         # create joined organization for user
         user_organization = OrganizationMemberDB(
-            user_id=user.id, organization_id=organization_db.id
+            user_id=user.id,
+            organization_id=organization_db.id,
+            role="owner",
         )
         session.add(user_organization)
+
+        await session.commit()
 
         log.info(
             "[scopes] organization membership created",
             organization_id=organization_db.id,
             user_id=user.id,
+            role="owner",
             membership_id=user_organization.id,
         )
 
-        await session.commit()
-
         # construct workspace payload
         workspace_payload = CreateWorkspace(
-            name=payload.name,
-            type=payload.type if payload.type else "",
-            description=(
-                "Default Workspace"
-                if payload.type == "default"
-                else payload.description
-                if payload.description
-                else ""
-            ),
+            name="Default",
+            type="default",
         )
 
         # create workspace
@@ -1055,13 +1101,171 @@ async def update_organization(
         if not organization:
             raise NoResultFound(f"Organization with id {organization_id} not found")
 
-        for key, value in payload.model_dump(exclude_unset=True).items():
+        # Validate slug updates before applying
+        payload_dict = payload.model_dump(exclude_unset=True)
+        if "slug" in payload_dict:
+            new_slug = payload_dict["slug"]
+
+            # Slug format validation: only lowercase letters and hyphens, max 64 characters
+            if new_slug is not None:
+                import re
+
+                if len(new_slug) > 64:
+                    raise ValueError("Organization slug cannot exceed 64 characters.")
+                if not re.match(r"^[a-z-]+$", new_slug):
+                    raise ValueError(
+                        "Organization slug can only contain lowercase letters (a-z) and hyphens (-)."
+                    )
+
+            # Slug immutability: once set, cannot be changed
+            if organization.slug is not None and new_slug != organization.slug:
+                raise ValueError(
+                    f"Organization slug cannot be changed once set. "
+                    f"Current slug: '{organization.slug}'"
+                )
+
+        # Special handling for flags: merge instead of replace
+        if "flags" in payload_dict:
+            new_flags = payload_dict["flags"]
+            if new_flags is not None:
+                # Get existing flags or initialize with defaults
+                existing_flags = organization.flags or {}
+
+                # Start with complete defaults
+                default_flags = {
+                    "is_demo": False,
+                    "allow_email": env.auth.email_enabled,
+                    "allow_social": env.auth.oidc_enabled,
+                    "allow_sso": False,
+                    "allow_root": False,
+                    "domains_only": False,
+                    "auto_join": False,
+                }
+
+                # Merge: defaults <- existing <- new
+                merged_flags = {**default_flags, **existing_flags, **new_flags}
+
+                # VALIDATION: Ensure at least one auth method is enabled OR allow_root is true
+                # This prevents organizations from being locked out
+                allow_email = merged_flags.get("allow_email", False)
+                allow_social = merged_flags.get("allow_social", False)
+                allow_sso = merged_flags.get("allow_sso", False)
+                allow_root = merged_flags.get("allow_root", False)
+
+                changing_auth_flags = any(
+                    key in new_flags
+                    for key in ("allow_email", "allow_social", "allow_sso")
+                )
+                changing_auto_join = "auto_join" in new_flags
+                changing_domains_only = "domains_only" in new_flags
+
+                if changing_auth_flags and allow_sso:
+                    providers_dao = OrganizationProvidersDAO(session)
+                    providers = await providers_dao.list_by_organization(
+                        organization_id=organization_id
+                    )
+                    active_valid = [
+                        provider
+                        for provider in providers
+                        if (provider.flags or {}).get("is_active")
+                        and (provider.flags or {}).get("is_valid")
+                    ]
+                    if not active_valid:
+                        raise ValueError(
+                            "SSO cannot be enabled until at least one SSO provider is "
+                            "active and verified."
+                        )
+                    if not allow_email and not allow_social:
+                        if not active_valid:
+                            raise ValueError(
+                                "SSO-only authentication requires at least one SSO provider to "
+                                "be active and verified."
+                            )
+
+                if changing_auto_join and merged_flags.get("auto_join", False):
+                    domains_dao = OrganizationDomainsDAO(session)
+                    domains = await domains_dao.list_by_organization(
+                        organization_id=organization_id
+                    )
+                    has_verified_domain = any(
+                        (domain.flags or {}).get("is_verified") for domain in domains
+                    )
+                    if not has_verified_domain:
+                        raise ValueError(
+                            "Auto-join requires at least one verified domain."
+                        )
+
+                if changing_domains_only and merged_flags.get("domains_only", False):
+                    domains_dao = OrganizationDomainsDAO(session)
+                    domains = await domains_dao.list_by_organization(
+                        organization_id=organization_id
+                    )
+                    has_verified_domain = any(
+                        (domain.flags or {}).get("is_verified") for domain in domains
+                    )
+                    if not has_verified_domain:
+                        raise ValueError(
+                            "Domains-only requires at least one verified domain."
+                        )
+
+                # Check if all auth methods are disabled
+                all_auth_disabled = not (allow_email or allow_social or allow_sso)
+
+                if all_auth_disabled and not allow_root:
+                    # Auto-enable allow_root to prevent lockout
+                    merged_flags["allow_root"] = True
+                    log.warning(
+                        f"All authentication methods disabled for organization {organization_id}. "
+                        f"Auto-enabling allow_root to prevent lockout."
+                    )
+
+                organization.flags = merged_flags
+            # Remove flags from payload_dict to avoid setting it again below
+            del payload_dict["flags"]
+
+        # Set all other attributes
+        for key, value in payload_dict.items():
             if hasattr(organization, key):
                 setattr(organization, key, value)
 
-        await session.commit()
+        try:
+            await session.commit()
+        except Exception as e:
+            if isinstance(e, IntegrityError) and "uq_organizations_slug" in str(e):
+                raise OrganizationSlugConflictError(
+                    slug=payload_dict.get("slug", "unknown")
+                ) from e
+            raise
+
         await session.refresh(organization)
         return organization
+
+
+async def delete_organization(organization_id: str) -> bool:
+    """
+    Delete an organization and all its related data.
+
+    Args:
+        organization_id (str): The organization ID to delete.
+
+    Returns:
+        bool: True if deletion was successful.
+
+    Raises:
+        NoResultFound: If organization not found.
+    """
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
+        )
+        organization = result.scalars().first()
+
+        if not organization:
+            raise NoResultFound(f"Organization with id {organization_id} not found")
+
+        await session.delete(organization)
+        await session.commit()
+        return True
 
 
 async def delete_invitation(invitation_id: str) -> bool:
@@ -1084,7 +1288,8 @@ async def delete_invitation(invitation_id: str) -> bool:
             invitation = result.scalars().one_or_none()
         except MultipleResultsFound as e:
             log.error(
-                f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table. Error details: {str(e)}"
+                f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table.",
+                exc_info=True,
             )
             raise HTTPException(
                 500,
@@ -1166,15 +1371,20 @@ async def get_org_details(organization: Organization) -> dict:
     """
 
     default_workspace_db = await get_org_default_workspace(organization)
-    default_workspace = await get_workspace_details(default_workspace_db)
+    default_workspace = (
+        await get_workspace_details(default_workspace_db)
+        if default_workspace_db is not None
+        else None
+    )
     workspaces = await get_organization_workspaces(organization_id=str(organization.id))
 
     sample_organization = {
         "id": str(organization.id),
+        "slug": organization.slug,
         "name": organization.name,
         "description": organization.description,
-        "type": organization.type,
-        "owner": organization.owner,
+        "flags": organization.flags,
+        "owner_id": str(organization.owner_id),
         "workspaces": [str(workspace.id) for workspace in workspaces],
         "default_workspace": default_workspace,
     }
@@ -1204,22 +1414,6 @@ async def get_workspace_details(workspace: WorkspaceDB) -> WorkspaceResponse:
 
         traceback.print_exc()
         raise e
-
-
-async def get_organization_invitations(organization_id: str):
-    """
-    Gets the organization invitations.
-
-    Args:
-        organization_id (str): The ID of the organization
-    """
-
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(InvitationDB).filter_by(organization_id=organization_id)
-        )
-        invitations = result.scalars().all()
-        return invitations
 
 
 async def get_project_invitations(project_id: str, **kwargs):
@@ -1376,24 +1570,27 @@ async def get_all_workspace_roles() -> List[WorkspaceRole]:
 async def add_user_to_organization(
     organization_id: str,
     user_id: str,
+    role: str = "member",
     # is_demo: bool = False,
 ) -> None:
     async with engine.core_session() as session:
         organization_member = OrganizationMemberDB(
             user_id=user_id,
             organization_id=organization_id,
+            role=role,
         )
 
         session.add(organization_member)
+
+        await session.commit()
 
         log.info(
             "[scopes] organization membership created",
             organization_id=organization_id,
             user_id=user_id,
+            role=role,
             membership_id=organization_member.id,
         )
-
-        await session.commit()
 
 
 async def add_user_to_workspace(
@@ -1419,7 +1616,8 @@ async def add_user_to_workspace(
 
         session.add(workspace_member)
 
-        # TODO: add organization_id
+        await session.commit()
+
         log.info(
             "[scopes] workspace membership created",
             organization_id=workspace.organization_id,
@@ -1427,8 +1625,6 @@ async def add_user_to_workspace(
             user_id=user_id,
             membership_id=workspace_member.id,
         )
-
-        await session.commit()
 
 
 async def add_user_to_project(
@@ -1454,6 +1650,8 @@ async def add_user_to_project(
 
         session.add(project_member)
 
+        await session.commit()
+
         log.info(
             "[scopes] project membership created",
             organization_id=project.organization_id,
@@ -1463,4 +1661,145 @@ async def add_user_to_project(
             membership_id=project_member.id,
         )
 
+
+async def transfer_organization_ownership(
+    organization_id: str,
+    new_owner_id: str,
+    current_user_id: str,
+) -> OrganizationDB:
+    """Transfer organization ownership to another member.
+
+    Args:
+        organization_id: The ID of the organization
+        new_owner_id: The UUID of the new owner
+        current_user_id: The UUID of the current user (initiating the transfer)
+
+    Returns:
+        OrganizationDB: The updated organization
+
+    Raises:
+        ValueError: If new owner is not a member of the organization
+    """
+    async with engine.core_session() as session:
+        # Verify organization exists
+        org_result = await session.execute(
+            select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
+        )
+        organization = org_result.scalars().first()
+        if not organization:
+            raise ValueError(f"Organization {organization_id} not found")
+
+        # Check if new owner is a member
+        member_result = await session.execute(
+            select(OrganizationMemberDB).filter_by(
+                user_id=uuid.UUID(new_owner_id),
+                organization_id=uuid.UUID(organization_id),
+            )
+        )
+        member = member_result.scalars().first()
+        if not member:
+            raise ValueError("The new owner must be a member of the organization")
+
+        # Swap organization roles between current owner and new owner
+        current_owner_org_member_result = await session.execute(
+            select(OrganizationMemberDB).filter_by(
+                user_id=uuid.UUID(current_user_id),
+                organization_id=uuid.UUID(organization_id),
+            )
+        )
+        current_owner_org_member = current_owner_org_member_result.scalars().first()
+
+        if current_owner_org_member:
+            # Swap org roles
+            current_owner_org_old_role = current_owner_org_member.role
+            new_owner_org_old_role = member.role
+
+            current_owner_org_member.role = new_owner_org_old_role
+            member.role = current_owner_org_old_role
+
+            log.info(
+                "[organization] roles swapped",
+                organization_id=organization_id,
+                current_owner_id=current_user_id,
+                current_owner_old_role=current_owner_org_old_role,
+                current_owner_new_role=new_owner_org_old_role,
+                new_owner_id=new_owner_id,
+                new_owner_old_role=new_owner_org_old_role,
+                new_owner_new_role=current_owner_org_old_role,
+            )
+
+        # Get all workspaces in this organization
+        workspaces_result = await session.execute(
+            select(WorkspaceDB).filter_by(organization_id=uuid.UUID(organization_id))
+        )
+        workspaces = workspaces_result.scalars().all()
+
+        # Update workspace roles for both users in all workspaces - swap their roles
+        for workspace in workspaces:
+            # Get both members' workspace roles
+            current_owner_member_result = await session.execute(
+                select(WorkspaceMemberDB).filter_by(
+                    user_id=uuid.UUID(current_user_id),
+                    workspace_id=workspace.id,
+                )
+            )
+            current_owner_member = current_owner_member_result.scalars().first()
+
+            new_owner_member_result = await session.execute(
+                select(WorkspaceMemberDB).filter_by(
+                    user_id=uuid.UUID(new_owner_id),
+                    workspace_id=workspace.id,
+                )
+            )
+            new_owner_member = new_owner_member_result.scalars().first()
+
+            # Swap roles between the two users
+            if current_owner_member and new_owner_member:
+                current_owner_old_role = current_owner_member.role
+                new_owner_old_role = new_owner_member.role
+
+                # Swap the roles
+                current_owner_member.role = new_owner_old_role
+                new_owner_member.role = current_owner_old_role
+
+                log.info(
+                    "[workspace] roles swapped",
+                    workspace_id=str(workspace.id),
+                    current_owner_id=current_user_id,
+                    current_owner_old_role=current_owner_old_role,
+                    current_owner_new_role=new_owner_old_role,
+                    new_owner_id=new_owner_id,
+                    new_owner_old_role=new_owner_old_role,
+                    new_owner_new_role=current_owner_old_role,
+                )
+            elif current_owner_member:
+                # Only current owner is a member - keep their role
+                log.info(
+                    "[workspace] new owner not a member",
+                    workspace_id=str(workspace.id),
+                    user_id=new_owner_id,
+                )
+            elif new_owner_member:
+                # Only new owner is a member - keep their role
+                log.info(
+                    "[workspace] current owner not a member",
+                    workspace_id=str(workspace.id),
+                    user_id=current_user_id,
+                )
+
+        # Transfer ownership
+        organization.owner_id = uuid.UUID(new_owner_id)
+        organization.updated_at = datetime.now(timezone.utc)
+        organization.updated_by_id = uuid.UUID(current_user_id)
+
         await session.commit()
+        await session.refresh(organization)
+
+        log.info(
+            "[organization] ownership transferred",
+            organization_id=organization_id,
+            old_owner_id=current_user_id,
+            new_owner_id=new_owner_id,
+        )
+
+        return organization

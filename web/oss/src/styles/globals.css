@@ -327,6 +327,84 @@ body {
     max-width: 48px !important;
 }
 
+.no-expand-col .ant-table-row-expand-icon-cell {
+    width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+}
+
+.no-expand-col .ant-table-tbody > tr > td:first-child {
+    padding-left: 0 !important;
+}
+
+.org-domains-table .ant-table,
+.org-providers-table .ant-table {
+    table-layout: fixed;
+}
+
+.org-domains-table .ant-table-thead > tr > th:nth-child(1),
+.org-domains-table .ant-table-tbody > tr > td:nth-child(1),
+.org-providers-table .ant-table-thead > tr > th:nth-child(1),
+.org-providers-table .ant-table-tbody > tr > td:nth-child(1) {
+    width: 5%;
+}
+
+.org-domains-table .ant-table-thead > tr > th:nth-child(2),
+.org-domains-table .ant-table-tbody > tr > td:nth-child(2),
+.org-providers-table .ant-table-thead > tr > th:nth-child(2),
+.org-providers-table .ant-table-tbody > tr > td:nth-child(2) {
+    width: 20%;
+}
+
+.org-domains-table .ant-table-thead > tr > th:nth-child(3),
+.org-domains-table .ant-table-tbody > tr > td:nth-child(3),
+.org-providers-table .ant-table-thead > tr > th:nth-child(3),
+.org-providers-table .ant-table-tbody > tr > td:nth-child(3) {
+    width: 30%;
+}
+
+.org-domains-table .ant-table-thead > tr > th:nth-child(4),
+.org-domains-table .ant-table-tbody > tr > td:nth-child(4),
+.org-providers-table .ant-table-thead > tr > th:nth-child(4),
+.org-providers-table .ant-table-tbody > tr > td:nth-child(4) {
+    width: 20%;
+}
+
+.org-domains-table .org-instructions .ant-descriptions-item-label,
+.org-providers-table .org-instructions .ant-descriptions-item-label {
+    width: 20%;
+}
+
+.org-domains-table .org-instructions .ant-descriptions-item-content,
+.org-providers-table .org-instructions .ant-descriptions-item-content {
+    width: 80%;
+}
+
+.org-kv-65-35 .ant-descriptions-item-label {
+    width: 50%;
+}
+
+.org-kv-65-35 .ant-descriptions-item-content {
+    width: 50%;
+}
+
+.org-slug-row .ant-descriptions-item-label,
+.org-slug-row .ant-descriptions-item-content {
+    vertical-align: middle;
+}
+
+.org-slug-content {
+    display: flex;
+    align-items: center;
+}
+
+.auth-locked-input.ant-input-disabled,
+.auth-locked-input.ant-input:disabled {
+    color: #1c2a3b;
+    background-color: #f3f4f6;
+    border-color: #d6dee6;
+    opacity: 0.75;
+}
 /* Force left alignment for all table headers */
 .agenta-testcase-table .ant-table-thead th {
     text-align: left !important;
@@ -337,3 +415,8 @@ body {
     opacity: 1;
 }
 
+/* Danger dropdown menu item hover state */
+.ant-dropdown-menu-item-danger:hover {
+    background-color: #d0574e !important;
+    border-color: #ffccc7 !important;
+}

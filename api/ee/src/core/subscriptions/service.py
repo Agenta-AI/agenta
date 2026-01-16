@@ -8,6 +8,8 @@ from os import environ
 import stripe
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
+from oss.src.utils.caching import invalidate_cache
 
 from ee.src.core.subscriptions.types import (
     SubscriptionDTO,
@@ -23,11 +25,14 @@ from ee.src.core.meters.service import MetersService
 
 log = get_module_logger(__name__)
 
-stripe.api_key = environ.get("STRIPE_SECRET_KEY")
+# Initialize Stripe only if enabled
+if env.stripe.enabled:
+    stripe.api_key = env.stripe.api_key
+    log.info("✓ Stripe enabled:", target=env.stripe.webhook_target)
+else:
+    log.info("✗ Stripe disabled")
 
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
-STRIPE_TARGET = environ.get("STRIPE_TARGET") or MAC_ADDRESS
-AGENTA_PRICING = loads(environ.get("AGENTA_PRICING") or "{}")
 
 
 class SwitchException(Exception):
@@ -96,8 +101,8 @@ class SubscriptionsService:
         if not subscription:
             return None
 
-        if not stripe.api_key:
-            log.warn("Missing Stripe API Key.")
+        if not env.stripe.enabled:
+            log.warn("✗ Stripe disabled")
             return None
 
         customer = stripe.Customer.create(
@@ -105,7 +110,7 @@ class SubscriptionsService:
             email=organization_email,
             metadata={
                 "organization_id": organization_id,
-                "target": STRIPE_TARGET,
+                "target": env.stripe.webhook_target,
             },
         )
 
@@ -121,13 +126,13 @@ class SubscriptionsService:
 
         stripe_subscription = stripe.Subscription.create(
             customer=customer_id,
-            items=list(AGENTA_PRICING[REVERSE_TRIAL_PLAN].values()),
+            items=list(env.stripe.pricing[REVERSE_TRIAL_PLAN].values()),
             #
             # automatic_tax={"enabled": True},
             metadata={
                 "organization_id": organization_id,
                 "plan": REVERSE_TRIAL_PLAN.value,
-                "target": STRIPE_TARGET,
+                "target": env.stripe.webhook_target,
             },
             #
             trial_period_days=REVERSE_TRIAL_DAYS,
@@ -147,6 +152,39 @@ class SubscriptionsService:
 
         return subscription
 
+    async def start_free_plan(
+        self,
+        *,
+        organization_id: str,
+    ) -> Optional[SubscriptionDTO]:
+        """Start a free/hobby plan for an organization without trial.
+
+        Args:
+            organization_id: The organization ID
+
+        Returns:
+            SubscriptionDTO: The created subscription or None if already exists
+        """
+        now = datetime.now(tz=timezone.utc)
+
+        subscription = await self.read(organization_id=organization_id)
+
+        if subscription:
+            return None
+
+        subscription = await self.create(
+            subscription=SubscriptionDTO(
+                organization_id=organization_id,
+                plan=FREE_PLAN,
+                active=True,
+                anchor=now.day,
+            )
+        )
+
+        log.info("✓ Free plan started for organization %s", organization_id)
+
+        return subscription
+
     async def process_event(
         self,
         *,
@@ -159,7 +197,7 @@ class SubscriptionsService:
         **kwargs,
     ) -> SubscriptionDTO:
         log.info(
-            "Billing event: %s | %s | %s",
+            "[billing] [internal] %s | %s | %s",
             organization_id,
             event,
             plan,
@@ -196,8 +234,8 @@ class SubscriptionsService:
             subscription = await self.update(subscription=subscription)
 
         elif subscription.plan != FREE_PLAN and event == Event.SUBSCRIPTION_SWITCHED:
-            if not stripe.api_key:
-                log.warn("Missing Stripe API Key.")
+            if not env.stripe.enabled:
+                log.warn("✗ Stripe disabled")
                 return None
 
             if subscription.plan == plan:
@@ -242,7 +280,7 @@ class SubscriptionsService:
                         subscription=subscription.subscription_id,
                     ).data
                 ]
-                + list(AGENTA_PRICING[plan].values()),
+                + list(env.stripe.pricing[plan].values()),
             )
 
             subscription = await self.update(subscription=subscription)
@@ -267,5 +305,11 @@ class SubscriptionsService:
             raise EventException(
                 f"Invalid subscription event {event} for organization ID: {organization_id}"
             )
+
+        # Invalidate the entitlements subscription cache so the new plan takes effect immediately
+        await invalidate_cache(
+            namespace="entitlements:subscription",
+            key={"organization_id": organization_id},
+        )
 
         return subscription

@@ -1,7 +1,8 @@
-import traceback
 from typing import Optional
+from uuid import UUID
 from datetime import datetime, timezone, timedelta
 import asyncio
+import traceback
 
 from pydantic import ValidationError
 from fastapi import Request, HTTPException, Response
@@ -26,6 +27,8 @@ from oss.src.services.exceptions import (
     GatewayTimeoutException,
     code_to_phrase,
 )
+
+from oss.src.core.auth.service import AuthService
 
 if is_ee():
     from ee.src.services import db_manager_ee
@@ -63,7 +66,7 @@ _PUBLIC_ENDPOINTS = (
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
 
-_SECRET_KEY = env.AGENTA_AUTH_KEY
+_SECRET_KEY = env.agenta.auth_key
 _SECRET_EXP = 15 * 60  # 15 minutes
 
 _ZERO_UUID = "00000000-0000-0000-0000-000000000000"
@@ -93,7 +96,9 @@ async def authentication_middleware(request: Request, call_next):
     """
 
     try:
-        await _authenticate(request)
+        await _check_authentication_token(request)
+
+        await _check_organization_policy(request)
 
         response = await call_next(request)
 
@@ -134,7 +139,7 @@ async def authentication_middleware(request: Request, call_next):
         )
 
 
-async def _authenticate(request: Request):
+async def _check_authentication_token(request: Request):
     try:
         if request.url.path.startswith(_PUBLIC_ENDPOINTS):
             return
@@ -155,6 +160,7 @@ async def _authenticate(request: Request):
             access_token = auth_header[len(_ACCESS_TOKEN_PREFIX) :]
 
             return await verify_access_token(
+                request=request,
                 access_token=access_token,
             )
 
@@ -233,6 +239,7 @@ async def _authenticate(request: Request):
 
 
 async def verify_access_token(
+    request: Request,
     access_token: str,
 ):
     try:
@@ -241,6 +248,8 @@ async def verify_access_token(
 
         if access_token != _SECRET_KEY:
             raise UnauthorizedException()
+
+        request.state.admin = True
 
         return
 
@@ -450,8 +459,6 @@ async def verify_bearer_token(
             organization_id = project.organization_id
 
         elif not query_project_id and query_workspace_id:
-            log.warning("[AUTH] Missing project_id in query params!")
-
             workspace = await db_manager.get_workspace(
                 workspace_id=query_workspace_id,
             )
@@ -474,19 +481,12 @@ async def verify_bearer_token(
             organization_id = workspace.organization_id
 
         else:
-            log.warning("[AUTH] Missing project_id in query params!")
-
             if is_ee():
                 workspace_id = await db_manager_ee.get_default_workspace_id(
                     user_id=user_id,
                 )
             else:
-                workspaces = await db_manager.get_workspaces()
-
-                assert len(workspaces) == 1, (
-                    "You can only have a single workspace in OSS."
-                )
-                workspace_id = str(workspaces[0].id)
+                workspace_id = await db_manager.get_default_workspace_id_oss()
 
             project_id = await db_manager.get_default_project_id_from_workspace(
                 workspace_id=workspace_id
@@ -758,3 +758,95 @@ async def sign_secret_token(
 
     except Exception as exc:  # pylint: disable=bare-except
         raise InternalServerErrorException() from exc
+
+
+async def _check_organization_policy(request: Request):
+    """
+    Check organization authentication policy for EE mode.
+
+    This is called after authentication to ensure the user's authentication method
+    is allowed by the organization's policy flags.
+
+    Skips policy checks for:
+    - Admin endpoints (using ACCESS_TOKEN)
+    - Invitation-related routes to allow users to accept invitations
+    """
+    if not is_ee():
+        return
+
+    if hasattr(request.state, "admin") and request.state.admin:
+        return
+
+    # Skip policy check for invitation routes
+    # Users must be able to accept invitations regardless of org auth policies
+    invitation_paths = [
+        "/invite/accept",
+        "/invite/resend",
+        "/invite",
+    ]
+
+    if any(path in request.url.path for path in invitation_paths):
+        return
+
+    # Skip policy checks for org-agnostic endpoints (no explicit org context).
+    # This prevents SSO logins from being blocked by the default org policy
+    # before the frontend can redirect to the intended SSO org.
+    if (
+        request.url.path in {"/api/profile", "/api/organizations"}
+        or request.url.path.startswith("/api/projects")
+        or request.url.path.startswith("/api/organizations/")
+    ):
+        # NOTE: These endpoints are hit during initial login bootstrap before the FE
+        # redirects to the intended org (e.g., SSO org). Enforcing org policy here
+        # can incorrectly fail against the default org and log the user out.
+        return
+
+    organization_id = (
+        request.state.organization_id
+        if hasattr(request.state, "organization_id")
+        else None
+    )
+    user_id = request.state.user_id if hasattr(request.state, "user_id") else None
+
+    if not organization_id or not user_id:
+        return
+
+    # Get identities from session
+    try:
+        session = await get_session(request)  # type: ignore
+        payload = session.get_access_token_payload() if session else {}  # type: ignore
+        session_identities = payload.get("session_identities") or []
+        user_identities = payload.get("user_identities", [])
+    except Exception:
+        session_identities = []
+        user_identities = []
+        return  # Skip policy check on session errors
+
+    auth_service = AuthService()
+    policy_error = await auth_service.check_organization_access(
+        UUID(user_id), UUID(organization_id), session_identities
+    )
+
+    if policy_error:
+        # Only enforce auth policy errors; skip membership errors (route handlers handle those)
+        error_code = policy_error.get("error")
+        if error_code in {
+            "AUTH_UPGRADE_REQUIRED",
+            "AUTH_SSO_DENIED",
+            "AUTH_DOMAIN_DENIED",
+        }:
+            detail = {
+                "error": policy_error.get("error"),
+                "message": policy_error.get(
+                    "message",
+                    "Authentication method not allowed for this organization",
+                ),
+                "required_methods": policy_error.get("required_methods", []),
+                "session_identities": session_identities,
+                "user_identities": user_identities,
+                "sso_providers": policy_error.get("sso_providers", []),
+                "current_domain": policy_error.get("current_domain"),
+                "allowed_domains": policy_error.get("allowed_domains", []),
+            }
+            raise HTTPException(status_code=403, detail=detail)
+        # If NOT_A_MEMBER, skip - let route handlers deal with it

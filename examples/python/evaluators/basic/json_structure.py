@@ -13,7 +13,7 @@ def evaluate(
     app_params: Dict[str, str],
     inputs: Dict[str, str],
     output: Union[str, Dict[str, Any]],
-    correct_answer: str
+    correct_answer: str,
 ) -> float:
     """
     Evaluator that validates JSON structure and required fields.
@@ -40,7 +40,7 @@ def evaluate(
             return 0.0
 
         # Get required fields
-        required_fields = app_params.get('required_fields', '').split(',')
+        required_fields = app_params.get("required_fields", "").split(",")
         required_fields = [f.strip() for f in required_fields if f.strip()]
 
         if not required_fields:

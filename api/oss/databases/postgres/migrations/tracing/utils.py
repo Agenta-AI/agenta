@@ -19,12 +19,12 @@ from oss.src.utils.env import env
 logger = logging.getLogger("alembic.env")
 
 # Initialize alembic config
-alembic_cfg = Config(env.ALEMBIC_CFG_PATH_TRACING)
+alembic_cfg = Config(env.alembic.cfg_path_tracing)
 script = ScriptDirectory.from_config(alembic_cfg)
 
 logger.info("license: oss")
 logger.info("migrations: tracing")
-logger.info("ALEMBIC_CFG_PATH_TRACING: %s", env.ALEMBIC_CFG_PATH_TRACING)
+logger.info("ALEMBIC_CFG_PATH_TRACING: %s", env.alembic.cfg_path_tracing)
 logger.info("alembic_cfg: %s", alembic_cfg)
 logger.info("script: %s", script)
 
@@ -91,7 +91,7 @@ async def get_pending_migration_head():
         the pending migration head
     """
 
-    engine = create_async_engine(url=env.POSTGRES_URI_TRACING)
+    engine = create_async_engine(url=env.postgres.uri_tracing)
     try:
         current_migration_script_head = script.get_current_head()
         migration_head_from_db = await get_current_migration_head_from_db(engine=engine)
@@ -109,14 +109,16 @@ async def get_pending_migration_head():
 
 def run_alembic_migration():
     """
-    Applies migration for first-time users and also checks the environment variable "AGENTA_AUTO_MIGRATIONS" to determine whether to apply migrations for returning users.
+    Applies migration for first-time users and also checks the environment variable
+    "ALEMBIC_AUTO_MIGRATIONS" (legacy: "AGENTA_AUTO_MIGRATIONS") to determine whether
+    to apply migrations for returning users.
     """
 
     try:
         pending_migration_head = asyncio.run(get_pending_migration_head())
         FIRST_TIME_USER = True if "alembic_version" in pending_migration_head else False
 
-        if FIRST_TIME_USER or env.AGENTA_AUTO_MIGRATIONS:
+        if FIRST_TIME_USER or env.agenta.auto_migrations:
             command.upgrade(alembic_cfg, "head")
             click.echo(
                 click.style(

@@ -15,6 +15,9 @@ class Flag(str, Enum):
     # HISTORY = "history"
     HOOKS = "hooks"
     RBAC = "rbac"
+    ACCESS = "access"
+    DOMAINS = "domains"
+    SSO = "sso"
 
 
 class Counter(str, Enum):
@@ -206,6 +209,9 @@ ENTITLEMENTS = {
         Tracker.FLAGS: {
             Flag.HOOKS: False,
             Flag.RBAC: False,
+            Flag.ACCESS: False,
+            Flag.DOMAINS: False,
+            Flag.SSO: False,
         },
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(limit=5_000, monthly=True, free=5_000),
@@ -221,6 +227,9 @@ ENTITLEMENTS = {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: False,
+            Flag.ACCESS: False,
+            Flag.DOMAINS: False,
+            Flag.SSO: False,
         },
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(monthly=True, free=10_000),
@@ -236,6 +245,9 @@ ENTITLEMENTS = {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: True,
+            Flag.ACCESS: True,
+            Flag.DOMAINS: True,
+            Flag.SSO: True,
         },
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(monthly=True, free=1_000_000),
@@ -251,6 +263,9 @@ ENTITLEMENTS = {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: True,
+            Flag.ACCESS: True,
+            Flag.DOMAINS: True,
+            Flag.SSO: True,
         },
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(monthly=True),
@@ -265,6 +280,9 @@ ENTITLEMENTS = {
         Tracker.FLAGS: {
             Flag.HOOKS: False,
             Flag.RBAC: False,
+            Flag.ACCESS: False,
+            Flag.DOMAINS: False,
+            Flag.SSO: False,
         },
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(monthly=True),
@@ -279,6 +297,9 @@ ENTITLEMENTS = {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: True,
+            Flag.ACCESS: True,
+            Flag.DOMAINS: True,
+            Flag.SSO: True,
         },
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(monthly=True),

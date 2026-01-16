@@ -19,6 +19,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.models import converters
 from oss.src.services import user_service, analytics_service
 from oss.src.utils.common import is_ee
+from oss.src.utils.env import env
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services.json_importer_helper import get_json
 from oss.src.utils.helpers import get_slug_from_name_and_id
@@ -78,6 +79,11 @@ from oss.src.models.db_models import (
 )
 from oss.src.core.testcases.dtos import Testcase
 from oss.src.core.testsets.dtos import TestsetRevisionData
+
+from oss.src.apis.fastapi.testsets.models import (
+    SimpleTestsetCreate,
+    SimpleTestsetCreateRequest,
+)
 
 
 log = get_module_logger(__name__)
@@ -172,10 +178,6 @@ async def add_default_simple_testsets(
     """Create default simple testsets from bundled presets."""
     from oss.src.core.testcases.service import TestcasesService
     from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
-    from oss.src.apis.fastapi.testsets.models import (
-        SimpleTestsetCreate,
-        SimpleTestsetCreateRequest,
-    )
 
     testsets_dir = PARENT_DIRECTORY / "resources" / "default_testsets"
     if not testsets_dir.exists():
@@ -240,11 +242,11 @@ async def add_default_simple_testsets(
                 user_id=user_uuid,
                 simple_testset_create_request=simple_testset_create_request,
             )
-        except Exception as e:
+        except Exception:
             log.error(
                 "An error occurred in adding a default simple testset",
                 template_file=filename,
-                error=str(e),
+                exc_info=True,
             )
 
 
@@ -1071,10 +1073,12 @@ async def check_if_user_exists_and_create_organization(user_email: str):
         )
 
         if user is None and (total_users == 0):
-            organization_name = user_email.split("@")[0]
-            organization_db = await create_organization(name=organization_name)
+            organization_db = await create_organization(
+                name="Organization",
+            )
             workspace_db = await create_workspace(
-                name=organization_name, organization_id=str(organization_db.id)
+                name="Default",
+                organization_id=str(organization_db.id),
             )
 
             # update default project with organization and workspace ids
@@ -1082,7 +1086,7 @@ async def check_if_user_exists_and_create_organization(user_email: str):
                 values_to_update={
                     "organization_id": organization_db.id,
                     "workspace_id": workspace_db.id,
-                    "project_name": organization_name,
+                    "project_name": "Default",
                 }
             )
 
@@ -1145,11 +1149,11 @@ async def delete_accounts() -> None:
                     "[scopes] project deleted",
                     project_id=project.id,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting project",
                     project_id=project.id,
-                    error=str(e),
+                    exc_info=True,
                 )
 
         # fetch all workspaces
@@ -1169,11 +1173,11 @@ async def delete_accounts() -> None:
                     "[scopes] workspace deleted",
                     workspace_id=workspace.id,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting workspace",
                     workspace_id=workspace.id,
-                    error=str(e),
+                    exc_info=True,
                 )
 
         # fetch all organizations
@@ -1193,11 +1197,11 @@ async def delete_accounts() -> None:
                     "[scopes] organization deleted",
                     organization_id=organization.id,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting organization",
                     organization_id=organization.id,
-                    error=str(e),
+                    exc_info=True,
                 )
 
         await session.commit()
@@ -1219,11 +1223,11 @@ async def delete_accounts() -> None:
                     "[scopes] user deleted (supertokens)",
                     user_uid=user.uid,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting user from supertokens",
                     user_uid=user.uid,
-                    error=str(e),
+                    exc_info=True,
                 )
 
         # delete all users
@@ -1235,11 +1239,11 @@ async def delete_accounts() -> None:
                     "[scopes] user deleted",
                     user_id=user.id,
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[scopes] error deleting user",
                     user_id=user.id,
-                    error=str(e),
+                    exc_info=True,
                 )
 
         await session.commit()
@@ -1248,36 +1252,73 @@ async def delete_accounts() -> None:
 async def create_accounts(payload: dict) -> UserDB:
     """Create a new account in the database.
 
+    This unified function handles user creation and delegates organization/workspace
+    assignment to implementation-specific logic (OSS vs EE).
+
     Args:
-        payload (dict): The payload to create the user
+        payload (dict): The payload containing 'uid' and 'email' for user creation.
+                       In OSS, payload may contain 'organization_id' (pre-computed).
+                       In EE, 'organization_id' is not expected.
 
     Returns:
         UserDB: instance of user
     """
 
-    # pop required fields for organization & workspace creation
-    organization_id = payload.pop("organization_id")
-
-    # create user
+    # Create user
     user_info = {**payload, "username": payload["email"].split("@")[0]}
+    # Remove OSS-specific fields that shouldn't go to UserDB
+    user_info.pop("organization_id", None)
+
     user_db = await user_service.create_new_user(payload=user_info)
 
-    # only update organization to have user_db as its "owner" if it does not yet have one
-    # ---> updating the organization only happens in the first-user scenario
-    #   where the first-user becomes the organization/workspace owner.
+    # Delegate organization/workspace assignment to implementation-specific function
+    if is_ee():
+        # EE implementation: handled by ee.src.services.commoners.create_accounts
+        # This function should NOT be called for EE - see __init__.py imports
+        pass
+    else:
+        # OSS implementation: assign user to pre-created single organization
+        organization_id = payload.get("organization_id")
+        if organization_id:
+            await _assign_user_to_organization_oss(
+                user_db=user_db,
+                organization_id=organization_id,
+                email=payload["email"],
+            )
+
+    return user_db
+
+
+async def _assign_user_to_organization_oss(
+    user_db: UserDB,
+    organization_id: str,
+    email: str,
+) -> None:
+    """
+    OSS-specific logic to assign a user to the single organization.
+
+    In OSS, all users are assigned to the same organization created at first sign-up.
+
+    Args:
+        user_db: The created user
+        organization_id: The single organization ID (pre-created)
+        email: User's email
+    """
+    # Only update organization to have user_db as its "owner" if it does not yet have one
+    # This only happens in the first-user scenario
     try:
         await get_organization_owner(organization_id=organization_id)
     except (NoResultFound, ValueError):
         await update_organization(
-            organization_id=organization_id, values_to_update={"owner": str(user_db.id)}
+            organization_id=organization_id, values_to_update={"owner_id": user_db.id}
         )
 
-    # get project belonging to organization
+    # Get project belonging to organization
     project_db = await get_project_by_organization_id(organization_id=organization_id)
 
-    # update user invitation in the case the user was invited
+    # Update user invitation if the user was invited
     invitation = await get_project_invitation_by_email(
-        project_id=str(project_db.id), email=payload["email"]
+        project_id=str(project_db.id), email=email
     )
     if invitation is not None:
         await update_invitation(
@@ -1285,30 +1326,71 @@ async def create_accounts(payload: dict) -> UserDB:
             values_to_update={"user_id": str(user_db.id), "used": True},
         )
 
-    return user_db
+
+async def get_default_workspace_id_oss() -> str:
+    """
+    Get the default (and only) workspace ID in OSS.
+
+    OSS enforces a single-workspace constraint. This function retrieves that
+    single workspace that was created at first sign-up.
+
+    Returns:
+        str: The workspace ID
+
+    Raises:
+        AssertionError: If more than one workspace exists (should never happen in OSS)
+    """
+    workspaces = await get_workspaces()
+
+    assert len(workspaces) == 1, "You can only have a single workspace in OSS."
+
+    return str(workspaces[0].id)
 
 
-async def create_organization(name: str):
+async def create_organization(
+    name: str,
+    owner_id: Optional[uuid.UUID] = None,
+    created_by_id: Optional[uuid.UUID] = None,
+):
     """Create a new organization in the database.
 
     Args:
         name (str): The name of the organization
+        owner_id (Optional[uuid.UUID]): The UUID of the organization owner
+        created_by_id (Optional[uuid.UUID]): The UUID of the user who created the organization
 
     Returns:
         OrganizationDB: instance of organization
     """
 
     async with engine.core_session() as session:
-        organization_db = OrganizationDB(name=name)
+        # For bootstrap scenario, use a placeholder UUID if not provided
+        _owner_id = owner_id or uuid.uuid4()
+        _created_by_id = created_by_id or _owner_id
+
+        organization_db = OrganizationDB(
+            name=name,
+            flags={
+                "is_demo": False,
+                "allow_email": env.auth.email_enabled,
+                "allow_social": env.auth.oidc_enabled,
+                "allow_sso": False,
+                "allow_root": False,
+                "domains_only": False,
+                "auto_join": False,
+            },
+            owner_id=_owner_id,
+            created_by_id=_created_by_id,
+        )
 
         session.add(organization_db)
+
+        await session.commit()
 
         log.info(
             "[scopes] organization created",
             organization_id=organization_db.id,
         )
-
-        await session.commit()
 
         return organization_db
 
@@ -1334,13 +1416,13 @@ async def create_workspace(name: str, organization_id: str):
 
         session.add(workspace_db)
 
+        await session.commit()
+
         log.info(
             "[scopes] workspace created",
             organization_id=organization_id,
             workspace_id=workspace_db.id,
         )
-
-        await session.commit()
 
         return workspace_db
 
@@ -1362,6 +1444,15 @@ async def update_organization(organization_id: str, values_to_update: Dict[str, 
         if organization is None:
             raise Exception(f"Organization with ID {organization_id} not found")
 
+        # Validate slug immutability: once set, cannot be changed
+        if "slug" in values_to_update:
+            new_slug = values_to_update["slug"]
+            if organization.slug is not None and new_slug != organization.slug:
+                raise ValueError(
+                    f"Organization slug cannot be changed once set. "
+                    f"Current slug: '{organization.slug}'"
+                )
+
         for key, value in values_to_update.items():
             if hasattr(organization, key):
                 setattr(organization, key, value)
@@ -1382,7 +1473,7 @@ async def create_or_update_default_project(values_to_update: Dict[str, Any]):
         project = result.scalar()
 
         if project is None:
-            project = ProjectDB(project_name="Default Project", is_default=True)
+            project = ProjectDB(project_name="Default", is_default=True)
 
             session.add(project)
 
@@ -1427,6 +1518,25 @@ async def get_organization_by_id(organization_id: str) -> OrganizationDB:
         return organization
 
 
+async def get_organization_by_slug(organization_slug: str) -> OrganizationDB:
+    """
+    Retrieve an organization from the database by its slug.
+
+    Args:
+        organization_slug (str): The slug of the organization
+
+    Returns:
+        OrganizationDB: The organization object if found, None otherwise.
+    """
+
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(OrganizationDB).filter_by(slug=organization_slug)
+        )
+        organization = result.scalar()
+        return organization
+
+
 async def get_organization_owner(organization_id: str):
     """
     Retrieve the owner of an organization from the database by its ID.
@@ -1446,7 +1556,39 @@ async def get_organization_owner(organization_id: str):
         if organization is None:
             raise NoResultFound(f"Organization with ID {organization_id} not found")
 
-        return await get_user_with_id(user_id=str(organization.owner))
+        return await get_user_with_id(user_id=str(organization.owner_id))
+
+
+async def get_user_organizations(user_id: str) -> List[OrganizationDB]:
+    """
+    Retrieve all organizations that a user is a member of.
+
+    Args:
+        user_id (str): The ID of the user
+
+    Returns:
+        List[OrganizationDB]: List of organizations the user belongs to
+    """
+    # Import OrganizationMemberDB conditionally (EE only)
+    if is_ee():
+        from ee.src.models.db_models import OrganizationMemberDB
+
+        async with engine.core_session() as session:
+            # Query organizations through organization_members table
+            result = await session.execute(
+                select(OrganizationDB)
+                .join(
+                    OrganizationMemberDB,
+                    OrganizationDB.id == OrganizationMemberDB.organization_id,
+                )
+                .filter(OrganizationMemberDB.user_id == uuid.UUID(user_id))
+            )
+            organizations = result.scalars().all()
+            return list(organizations)
+    else:
+        # OSS mode: return empty list or implement simplified logic
+        # In OSS, users might only have one default organization
+        return []
 
 
 async def get_workspace(workspace_id: str) -> WorkspaceDB:
@@ -1569,6 +1711,23 @@ async def get_user_with_id(user_id: str) -> UserDB:
         if user is None:
             log.error("Failed to get user with id")
             raise NoResultFound(f"User with id {user_id} not found")
+        return user
+
+
+async def update_user_username(user_id: str, username: str) -> UserDB:
+    """Update a user's username."""
+
+    async with engine.core_session() as session:
+        result = await session.execute(select(UserDB).filter_by(id=uuid.UUID(user_id)))
+        user = result.scalars().first()
+        if user is None:
+            log.error("Failed to get user with id for username update")
+            raise NoResultFound(f"User with id {user_id} not found")
+
+        user.username = username
+        user.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+        await session.refresh(user)
         return user
 
 
@@ -1988,7 +2147,8 @@ async def update_invitation(invitation_id: str, values_to_update: dict) -> bool:
 
         except MultipleResultsFound as e:
             log.error(
-                f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table. Error details: {str(e)}"
+                f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table",
+                exc_info=True,
             )
             raise HTTPException(
                 500,
@@ -2022,7 +2182,8 @@ async def delete_invitation(invitation_id: str) -> bool:
             invitation = result.scalars().one_or_none()
         except MultipleResultsFound as e:
             log.error(
-                f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table. Error details: {str(e)}"
+                f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table.",
+                exc_info=True,
             )
             raise HTTPException(
                 500,
