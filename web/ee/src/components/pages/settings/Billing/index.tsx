@@ -36,7 +36,9 @@ const Billing = () => {
     useEffect(() => {
         // Check for Stripe return indicators in query params
         const hasStripeReturn =
-            router.query.session_id || router.query.success === "true" || router.query.canceled === "true"
+            router.query.session_id ||
+            router.query.success === "true" ||
+            router.query.canceled === "true"
 
         if (hasStripeReturn) {
             // Refresh billing data after returning from Stripe

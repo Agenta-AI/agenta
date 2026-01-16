@@ -269,8 +269,7 @@ const usePostAuthRedirect = () => {
 
             if (!context.workspaceId) {
                 // Use compatible orgs if available, otherwise fall back to all orgs
-                const orgsToUse =
-                    compatibleOrgs.length > 0 ? compatibleOrgs : store.get(orgsAtom)
+                const orgsToUse = compatibleOrgs.length > 0 ? compatibleOrgs : store.get(orgsAtom)
                 const fallbackWorkspace = resolvePreferredWorkspaceId(userId, orgsToUse)
                 if (fallbackWorkspace) {
                     context = {workspaceId: fallbackWorkspace, projectId: null}

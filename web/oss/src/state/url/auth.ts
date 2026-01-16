@@ -1,10 +1,7 @@
 import {atom, getDefaultStore} from "jotai"
 import Router from "next/router"
-import Session, {signOut} from "supertokens-auth-react/recipe/session"
+import {signOut} from "supertokens-auth-react/recipe/session"
 
-import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
-import {queryClient} from "@/oss/lib/api/queryClient"
-import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {
     appIdentifiersAtom,
     appStateSnapshotAtom,
@@ -30,7 +27,6 @@ export interface InvitePayload {
 const INVITE_STORAGE_KEY = "invite"
 const POST_SIGNUP_PENDING_KEY = "postSignupPending"
 const POST_SIGNUP_TTL_MS = 2 * 60 * 1000
-let authOrgFetchInFlight = false
 
 export const protectedRouteReadyAtom = atom(false)
 export const activeInviteAtom = atom<InvitePayload | null>(null)
@@ -294,7 +290,9 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                 // handle the redirect with proper auth method filtering. The auth sync can't filter
                 // synchronously, so redirecting here would use unfiltered orgs and cause auth upgrade errors.
                 // The auth components will call handleAuthSuccess which does proper filtering.
-                console.log("[auth-sync] Signed in user on /auth - letting usePostAuthRedirect handle redirect")
+                console.log(
+                    "[auth-sync] Signed in user on /auth - letting usePostAuthRedirect handle redirect",
+                )
                 store.set(protectedRouteReadyAtom, true)
                 return
             }
