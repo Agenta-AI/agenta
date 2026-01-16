@@ -15,19 +15,6 @@ This guide covers how to create, list, and retrieve testsets using the Agenta SD
   Open in Google Colaboratory
 </GoogleColabButton>
 
-:::tip Async examples
-Agenta's SDK uses async APIs. In Jupyter/Colab you can use top-level `await`. In a regular Python script, wrap async code like this:
-
-```python
-import asyncio
-
-async def main():
-    ...
-
-asyncio.run(main())
-```
-:::
-
 ## Creating a Testset
 
 Use `ag.testsets.acreate()` to create a new testset with data:
