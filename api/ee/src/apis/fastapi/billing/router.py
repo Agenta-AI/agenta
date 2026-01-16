@@ -169,27 +169,27 @@ class BillingRouter:
             OrganizationUpdate(flags=default_flags),
         )
 
-        self.admin_router.add_api_route(
-            "/subscription/cancel",
-            self.cancel_subscription_admin_route,
-            methods=["POST"],
-            operation_id="admin_cancel_subscription",
-        )
+    self.admin_router.add_api_route(
+        "/subscription/cancel",
+        self.cancel_subscription_admin_route,
+        methods=["POST"],
+        operation_id="admin_cancel_subscription",
+    )
 
-        # DOESN'T REQUIRE 'organization_id'
-        self.admin_router.add_api_route(
-            "/usage/report",
-            self.report_usage,
-            methods=["POST"],
-            operation_id="admin_report_usage",
-        )
+    # DOESN'T REQUIRE 'organization_id'
+    self.admin_router.add_api_route(
+        "/usage/report",
+        self.report_usage,
+        methods=["POST"],
+        operation_id="admin_report_usage",
+    )
 
-        self.admin_router.add_api_route(
-            "/usage/flush",
-            self.flush_usage,
-            methods=["POST"],
-            operation_id="admin_flush_usage",
-        )
+    self.admin_router.add_api_route(
+        "/usage/flush",
+        self.flush_usage,
+        methods=["POST"],
+        operation_id="admin_flush_usage",
+    )
 
     # HANDLERS
 
