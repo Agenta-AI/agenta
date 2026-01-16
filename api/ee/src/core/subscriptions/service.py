@@ -73,13 +73,7 @@ class SubscriptionsService:
         *,
         subscription: SubscriptionDTO,
     ) -> Optional[SubscriptionDTO]:
-        updated = await self.subscriptions_dao.update(subscription=subscription)
-        if updated:
-            await invalidate_cache(
-                namespace="entitlements:subscription",
-                key={"organization_id": str(updated.organization_id)},
-            )
-        return updated
+        return await self.subscriptions_dao.update(subscription=subscription)
 
     async def start_reverse_trial(
         self,
