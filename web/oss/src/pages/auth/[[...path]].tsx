@@ -667,8 +667,13 @@ const Auth = () => {
                                     type="link"
                                     className="text-center p-0"
                                     onClick={() => {
+                                        // Clear auth upgrade state before signing out
+                                        if (typeof window !== "undefined") {
+                                            window.localStorage.removeItem("authUpgradeOrgId")
+                                        }
                                         signOut()
                                             .then(() => {
+                                                // Clear auth error params to avoid showing stale error message
                                                 router.replace("/auth")
                                             })
                                             .catch(console.error)
