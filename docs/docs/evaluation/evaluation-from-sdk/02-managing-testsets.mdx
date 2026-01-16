@@ -1,7 +1,7 @@
 ---
 title: "Managing Testsets"
 sidebar_label: "Managing Testsets"
-description: "Learn how to create, list, and retrieve testsets using the Agenta SDK"
+description: "Learn how to create, list, and retrieve testsets using the Agenta SDK or API"
 sidebar_position: 2
 ---
 
@@ -9,24 +9,11 @@ import GoogleColabButton from "@site/src/components/GoogleColabButton";
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-This guide covers how to create, list, and retrieve testsets using the Agenta SDK for evaluation purposes.
+This guide covers how to create, list, and retrieve testsets using the Agenta SDK or REST API.
 
 <GoogleColabButton notebookPath="examples/jupyter/evaluation/testset-management.ipynb">
   Open in Google Colaboratory
 </GoogleColabButton>
-
-:::tip Async examples
-Agenta's SDK uses async APIs. In Jupyter/Colab you can use top-level `await`. In a regular Python script, wrap async code like this:
-
-```python
-import asyncio
-
-async def main():
-    ...
-
-asyncio.run(main())
-```
-:::
 
 ## Creating a Testset
 
@@ -37,6 +24,8 @@ Use `ag.testsets.acreate()` to create a new testset with data:
 
 ```python
 import agenta as ag
+
+ag.init()
 
 # Create a testset with simple data
 testset = await ag.testsets.acreate(
@@ -53,6 +42,28 @@ print(f"Testset ID: {testset_id}")
 print(f"Revision ID: {testset.id}")
 print(f"Name: {testset.name}")
 print(f"Slug: {testset.slug}")
+```
+
+  </TabItem>
+  <TabItem value="REST API">
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/preview/simple/testsets/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{
+    "testset": {
+      "name": "Country Capitals",
+      "slug": "country-capitals",
+      "data": {
+        "testcases": [
+          {"data": {"country": "Germany", "capital": "Berlin"}},
+          {"data": {"country": "France", "capital": "Paris"}},
+          {"data": {"country": "Spain", "capital": "Madrid"}}
+        ]
+      }
+    }
+  }'
 ```
 
   </TabItem>
@@ -101,6 +112,8 @@ Use `ag.testsets.aupsert()` to create a new testset or update an existing one if
 ```python
 import agenta as ag
 
+ag.init()
+
 # Create or update a testset
 testset = await ag.testsets.aupsert(
     name="Country Capitals",
@@ -115,6 +128,31 @@ testset = await ag.testsets.aupsert(
 testset_id = testset.testset_id or testset.id
 print(f"Testset ID: {testset_id}")
 print(f"Revision ID: {testset.id}")
+```
+
+  </TabItem>
+  <TabItem value="REST API">
+
+To update an existing testset, use the PUT endpoint with the testset ID:
+
+```bash
+curl -X PUT "https://cloud.agenta.ai/api/preview/simple/testsets/{testset_id}" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{
+    "testset": {
+      "id": "YOUR_TESTSET_ID",
+      "name": "Country Capitals",
+      "data": {
+        "testcases": [
+          {"data": {"country": "Germany", "capital": "Berlin"}},
+          {"data": {"country": "France", "capital": "Paris"}},
+          {"data": {"country": "Spain", "capital": "Madrid"}},
+          {"data": {"country": "Italy", "capital": "Rome"}}
+        ]
+      }
+    }
+  }'
 ```
 
   </TabItem>
@@ -141,6 +179,8 @@ To list all testsets in your project, use `ag.testsets.alist()`:
 ```python
 import agenta as ag
 
+ag.init()
+
 # List all testsets
 testsets = await ag.testsets.alist()
 
@@ -148,6 +188,16 @@ print(f"Found {len(testsets)} testsets:")
 for testset in testsets:
     testset_id = testset.testset_id or testset.id
     print(f"  - {testset.name} (testset_id: {testset_id})")
+```
+
+  </TabItem>
+  <TabItem value="REST API">
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/preview/simple/testsets/query" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{}'
 ```
 
   </TabItem>
@@ -189,6 +239,8 @@ To retrieve a specific testset by its ID, use `ag.testsets.aretrieve()`:
 ```python
 import agenta as ag
 
+ag.init()
+
 # Retrieve a specific testset (using the testset_id from creation)
 testset = await ag.testsets.aretrieve(testset_id=testset_id)
 
@@ -197,6 +249,14 @@ if testset:
     print(f"Testcases count: {len(testset.data.testcases) if testset.data and testset.data.testcases else 0}")
 else:
     print("Testset not found")
+```
+
+  </TabItem>
+  <TabItem value="REST API">
+
+```bash
+curl -X GET "https://cloud.agenta.ai/api/preview/simple/testsets/{testset_id}" \
+  -H "Authorization: ApiKey YOUR_API_KEY"
 ```
 
   </TabItem>
@@ -236,13 +296,15 @@ Testsets are versioned. Each update via `ag.testsets.aedit()` or `ag.testsets.au
 
 ## Retrieving a Testset by Name
 
-While there's no dedicated function for this, you can easily find a testset by name by filtering the results from `ag.testsets.alist()`:
+You can find a testset by name by filtering the results from the query endpoint:
 
 <Tabs>
   <TabItem value="Python SDK">
 
 ```python
 import agenta as ag
+
+ag.init()
 
 async def get_testset_by_name(name: str):
     """Helper function to find a testset by name."""
@@ -268,6 +330,20 @@ else:
 ```
 
   </TabItem>
+  <TabItem value="REST API">
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/preview/simple/testsets/query" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{
+    "testset": {
+      "name": "Country Capitals"
+    }
+  }'
+```
+
+  </TabItem>
 </Tabs>
 
 :::tip Helper Pattern
@@ -284,6 +360,8 @@ Once you have a testset, you can access the testcases within it:
 ```python
 import agenta as ag
 
+ag.init()
+
 # Retrieve a testset
 testset = await ag.testsets.aretrieve(testset_id=testset_id)
 
@@ -292,6 +370,32 @@ if testset and testset.data and testset.data.testcases:
     for testcase in testset.data.testcases:
         print(f"Testcase: {testcase.data}")
         # Use testcase.data in your evaluation
+```
+
+  </TabItem>
+  <TabItem value="REST API">
+
+When you retrieve a testset via the API, the response includes the testcases in the `data.testcases` array:
+
+```json
+{
+  "testset": {
+    "id": "01963413-3d39-7650-80ce-3ad5d688da6c",
+    "name": "Country Capitals",
+    "data": {
+      "testcases": [
+        {
+          "id": "bf2de79d-bcd0-569e-92aa-735bbdd0b447",
+          "data": {"country": "Germany", "capital": "Berlin"}
+        },
+        {
+          "id": "f54345c8-939c-5d03-9950-b62b876b10bd",
+          "data": {"country": "France", "capital": "Paris"}
+        }
+      ]
+    }
+  }
+}
 ```
 
   </TabItem>
