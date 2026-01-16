@@ -5,35 +5,61 @@ description: "Learn how to create, load, and manage test sets using the SDK"
 sidebar_position: 3
 ---
 
-<!-- TODO: Replace with new SDK evaluation content -->
-
-## Creating test sets
+## Creating, retrieving, and updating test sets
 
 ```python
-from agenta.client.types.new_testset import NewTestset
+import asyncio
+import agenta as ag
 
-csvdata = [
-    {"country": "france", "capital": "Paris"},
-    {"country": "Germany", "capital": "Berlin"}
-]
+# Initialize from environment variables if set (AGENTA_HOST, AGENTA_API_KEY)
+ag.init()
 
-response = client.testsets.create_testset(
-    request=NewTestset(name="test set", csvdata=csvdata)
-)
-test_set_id = response.id
+async def main():
+    # Create a testset (returns a TestsetRevision)
+    created = await ag.testsets.acreate(
+        name="test set",
+        data=[
+            {"country": "France", "capital": "Paris"},
+            {"country": "Germany", "capital": "Berlin"},
+        ],
+    )
+
+    testset_id = created.testset_id or created.id
+    print(f"Testset ID: {testset_id}")
+    print(f"Revision ID: {created.id}")
+
+    # Retrieve the latest revision for a testset
+    retrieved = await ag.testsets.aretrieve(testset_id=testset_id)
+    if retrieved:
+        print(f"Retrieved testset revision: {retrieved.id}")
+        print(f"Version: {retrieved.version}")
+
+    # Update the testset data
+    await ag.testsets.aedit(
+        testset_id=testset_id,
+        name="test set v2",
+        data=[
+            {"country": "France", "capital": "Paris"},
+            {"country": "Germany", "capital": "Berlin"},
+            {"country": "Spain", "capital": "Madrid"},
+        ],
+    )
+
+    # Fetch the latest revision after editing
+    updated = await ag.testsets.aretrieve(testset_id=testset_id)
+    if updated:
+        print(f"Latest revision ID: {updated.id}")
+        print(f"Version: {updated.version}")
+
+asyncio.run(main())
 ```
-
-## Loading existing test sets
-
-<!-- TODO: Add content for loading test sets -->
-
-## Updating test sets
-
-<!-- TODO: Add content for updating test sets -->
 
 ## Deleting test sets
 
-<!-- TODO: Add content for deleting test sets -->
+The SDK does not currently expose delete helpers. To archive or delete testsets directly, use the API endpoints:
+
+- [Archive simple testset](/reference/api/archive-simple-testset)
+- [Unarchive simple testset](/reference/api/unarchive-simple-testset)
 
 ## Next steps
 

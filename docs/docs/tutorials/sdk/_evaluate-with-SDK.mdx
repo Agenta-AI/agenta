@@ -40,12 +40,7 @@ This operation is managed through TaskIQ tasks. The interactions with the LLM ap
 # In this example we will use the default template single_prompt which has the prompt "Determine the capital of {country}"
 
 # You can find the application ID in the URL. For example, in the URL https://cloud.agenta.ai/apps/666dde95962bbaffdb0072b5/playground?variant=app.default, the application ID is `666dde95962bbaffdb0072b5`.
-from agenta.client.client import AgentaApi
-# Let's list the applications
-client.apps.list_apps()
-```
-
-```python
+import agenta as ag
 
 app_id = "667d8cfad1812781f7e375d9"
 
@@ -55,101 +50,102 @@ api_key = "EUqJGOUu.xxxx"
 # Host.
 host = "https://cloud.agenta.ai"
 
-# Initialize the client
+# Initialize the SDK
+ag.init(host=host, api_key=api_key)
+```
 
-client = AgentaApi(base_url=host + "/api", api_key=api_key)
+## Define the application
+
+```python
+@ag.application(
+    slug="capital_finder",
+    name="Capital Finder",
+)
+async def capital_finder(country: str):
+    capitals = {
+        "Germany": "Berlin",
+        "France": "Paris",
+    }
+    return capitals.get(country, "Unknown")
 ```
 
 ## Create a test set
 
 ```python
-from agenta.client.types.new_testset import NewTestset
+import asyncio
+import agenta as ag
+
+# Assumes `ag.init(...)` has already been called.
 
 csvdata = [
-        {"country": "france", "capital": "Paris"},
-        {"country": "Germany", "capital": "paris"}
-    ]
+    {"country": "France", "capital": "Paris"},
+    {"country": "Germany", "capital": "Paris"},
+]
 
-response = client.testsets.create_testset(request=NewTestset(name="test set", csvdata=csvdata))
-test_set_id = response.id
+async def main():
+    # Create a testset (returns a TestsetRevision)
+    created = await ag.testsets.acreate(name="test set", data=csvdata)
+    testset_id = created.testset_id or created.id
 
-# let's now update it
+    # Update the testset data
+    await ag.testsets.aedit(
+        testset_id=testset_id,
+        name="test set",
+        data=[
+            {"country": "France", "capital": "Paris"},
+            {"country": "Germany", "capital": "Berlin"},
+        ],
+    )
 
-csvdata = [
-        {"country": "france", "capital": "Paris"},
-        {"country": "Germany", "capital": "Berlin"}
-    ]
+    # Fetch the latest revision after editing
+    updated = await ag.testsets.aretrieve(testset_id=testset_id)
+    return updated
 
-client.testsets.update_testset(testset_id=test_set_id, request=NewTestset(name="test set", csvdata=csvdata))
+updated = asyncio.run(main())
+print(f"Latest revision ID: {updated.id}")
 ```
 
 # Create evaluators
 
 ```python
-# Create an evaluator that performs an exact match comparison on the 'capital' column
-# You can find the list of evaluator keys and evaluators and their configurations in https://github.com/Agenta-AI/agenta/blob/main/agenta-backend/agenta_backend/resources/evaluators/evaluators.py
-response = client.evaluators.create_new_evaluator_config(app_id=app_id, name="capital_evaluator", evaluator_key="auto_exact_match", settings_values={"correct_answer_key": "capital"})
-exact_match_eval_id = response.id
+@ag.evaluator(
+    slug="capital_exact_match",
+    name="Capital Exact Match",
+)
+async def exact_match(capital: str, outputs: str):
+    return {
+        "score": 1.0 if outputs == capital else 0.0,
+        "success": outputs == capital,
+    }
 
-code_snippet = """
-from typing import Dict
-
-def evaluate(
-    app_params: Dict[str, str],
-    inputs: Dict[str, str],
-    output: str,  # output of the llm app
-    datapoint: Dict[str, str]  # contains the testset row
-) -> float:
-    if output and output[0].isupper():
-        return 1.0
-    else:
-        return 0.0
-"""
-
-response = client.evaluators.create_new_evaluator_config(app_id=app_id, name="capital_letter_evaluator", evaluator_key="auto_custom_code_run", settings_values={"code": code_snippet})
-letter_match_eval_id = response.id
-```
-
-```python
-# get list of all evaluators
-client.evaluators.get_evaluator_configs(app_id=app_id)
+@ag.evaluator(
+    slug="capital_letter_match",
+    name="Capital Letter Match",
+)
+async def letter_match(outputs: str):
+    is_capitalized = bool(outputs) and outputs[0].isupper()
+    return {
+        "score": 1.0 if is_capitalized else 0.0,
+        "success": is_capitalized,
+    }
 ```
 
 # Run an evaluation
 
 ```python
-response = client.apps.list_app_variants(app_id=app_id)
-print(response)
-myvariant_id = response[0].variant_id
-```
+import asyncio
+from agenta.sdk.evaluations import aevaluate
 
-```python
-# Run an evaluation
-from agenta.client.types.llm_run_rate_limit import LlmRunRateLimit
-response = client.evaluations.create_evaluation(app_id=app_id, variant_ids=[myvariant_id], testset_id=test_set_id, evaluators_configs=[exact_match_eval_id, letter_match_eval_id],
-                                                rate_limit=LlmRunRateLimit(
-        batch_size=10, # number of rows to call in parallel
-        max_retries=3, # max number of time to retry a failed llm call
-        retry_delay=2, # delay before retrying a failed llm call
-        delay_between_batches=5, # delay between batches
-    ),)
-print(response)
-```
+async def main():
+    result = await aevaluate(
+        name="Capital evaluation",
+        testsets=[updated.id],
+        applications=[capital_finder],
+        evaluators=[exact_match, letter_match],
+    )
 
-```python
-# check the status
-client.evaluations.fetch_evaluation_status('667d98fbd1812781f7e3761a')
-```
+    print(result)
+    return result
 
-```python
-# fetch the overall results
-response = client.evaluations.fetch_evaluation_results('667d98fbd1812781f7e3761a')
-
-results = [(evaluator["evaluator_config"]["name"], evaluator["result"]) for evaluator in response["results"]]
-# End of  Selection
-```
-
-```python
-# fetch the detailed results
-client.evaluations.fetch_evaluation_scenarios(evaluations_ids='667d98fbd1812781f7e3761a')
+result = asyncio.run(main())
 ```
