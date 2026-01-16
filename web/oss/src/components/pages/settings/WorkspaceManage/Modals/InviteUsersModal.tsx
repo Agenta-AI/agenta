@@ -2,18 +2,18 @@ import {useCallback, useState, useMemo, type FC} from "react"
 
 import {MinusCircleOutlined} from "@ant-design/icons"
 import {Alert, Form, Input, Modal, Select, Space, Typography, theme} from "antd"
-import {useAtom} from "jotai"
 import Link from "next/link"
 
 import {message} from "@/oss/components/AppMessageContext"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
-import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
+import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
+import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
-import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
+import {snakeToTitle} from "@/oss/lib/helpers/utils"
 import {Plan} from "@/oss/lib/Types"
 import {inviteToWorkspace} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
+import {useWorkspaceRoles} from "@/oss/state/workspace"
 
 import {InviteFormProps, InviteUsersModalProps} from "./assets/types"
 
@@ -23,15 +23,14 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
     }
 
     const {selectedOrg, refetch} = useOrgData()
-    const [roles] = useAtom(workspaceRolesAtom)
+    const {roles} = useWorkspaceRoles()
+    const {hasRBAC} = useEntitlements()
     const {token} = theme.useToken()
     const organizationId = selectedOrg?.id
 
     const filteredRoles = useMemo(() => {
-        if (!isDemo()) {
-            return roles.filter((role) => role.role_name !== "owner")
-        }
-        return roles
+        // Always filter out "owner" role from invite dropdown
+        return roles.filter((role) => role.role_name !== "owner")
     }, [roles])
 
     const onSubmit = useCallback(
@@ -136,7 +135,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                     </>
                 )}
             </Form.List>
-            {isDemo() ? (
+            {isEE() && hasRBAC ? (
                 <>
                     <Form.Item
                         name="role"
@@ -200,6 +199,7 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
 }) => {
     const [form] = Form.useForm()
     const [loading, setLoading] = useState(false)
+    const {hasRBAC} = useEntitlements()
 
     useLazyEffect(() => {
         if (props.open) form.resetFields()
@@ -223,7 +223,7 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
         >
             <Typography.Paragraph type="secondary">
                 Invite members to your team by entering their emails.{" "}
-                {!isDemo()
+                {!isEE() || !hasRBAC
                     ? "Role base access control is available in the cloud and enterprise editions of Agenta"
                     : "You can specify the roles to control the access level of the invited members on Agenta."}
             </Typography.Paragraph>
