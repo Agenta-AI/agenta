@@ -106,7 +106,9 @@ The `data` parameter accepts a simple list of dictionaries. The SDK automaticall
 
 Use `ag.testsets.aupsert()` to create a testset or replace an existing one with the same name.
 
-The function first searches for a testset matching the provided `name` (or `testset_id` if given). If it finds one, it replaces all testcases with your new data. If no match exists, it creates a new testset.
+The function first searches for a testset matching the provided `name` (or `testset_id` if given). If it finds one, it replaces all testcases with your new data and creates a new revision. If no match exists, it creates a new testset.
+
+Each update creates a new revision while keeping the same `testset_id`. This allows you to track changes over time and reference specific versions of your test data.
 
 :::warning
 Upsert performs a full replacement. All existing testcases are removed and replaced with the data you provide. The operation does not merge or append testcases.
