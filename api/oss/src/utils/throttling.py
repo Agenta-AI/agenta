@@ -1,6 +1,8 @@
 """
 API Rate Limiting (Throttling) via Redis.
 
+Operates at millisecond precision for accurate high-rate throttling.
+
 Three-layer architecture:
 
 Layer 1 (Scripts): Raw Redis Lua execution
@@ -8,6 +10,7 @@ Layer 1 (Scripts): Raw Redis Lua execution
     - execute_tbra(key, capacity, rate)
     - execute_gcra(key, interval, tolerance)
     Details:
+    - All time values in milliseconds
     - Computes current time internally
 
 Layer 2 (Library): Public API with precomputation
@@ -15,7 +18,7 @@ Layer 2 (Library): Public API with precomputation
     - check_throttle(key, max_capacity, refill_rate, ...)
     Details:
     - Accepts key as str or dict
-    - Converts to algorithm-specific params
+    - Converts user-friendly rates (req/min) to algorithm-specific params
     - Handles failures
 
 Layer 3 (User code): Middleware/decorators that resolve:
@@ -55,10 +58,7 @@ log = get_module_logger(__name__)
 THROTTLE_DEBUG = False
 THROTTLE_SOCKET_TIMEOUT = 0.1
 
-# Time step: 1 second (can be 100ms for finer granularity)
-TIME_STEP_MS = 1000
-
-# Fixed-point scale for TBRA
+# Fixed-point scale for TBRA (tokens scaled by 1000 for sub-token precision)
 _SCALE = 1000
 
 # TTL: 60 minutes
@@ -79,9 +79,9 @@ def _get_redis() -> Redis:
     return _redis
 
 
-def _now_step() -> int:
-    """Current time as quantized step."""
-    return int(time.time() * 1000) // TIME_STEP_MS
+def _now_ms() -> int:
+    """Current time in milliseconds since epoch."""
+    return int(time.time() * 1000)
 
 
 # =============================================================================
@@ -201,21 +201,21 @@ async def execute_tbra(
 
     Args:
         key: Full Redis key
-        capacity: capacity * 1000
-        rate: tokens per step * 1000
+        capacity: capacity * 1000 (scaled tokens)
+        rate: tokens per millisecond * 1000 (scaled rate)
 
     Returns:
-        (allow, tokens_remaining, retry_steps)
+        (allow, tokens_remaining, retry_ms)
     """
     sha_tbra, _ = await _ensure_scripts()
 
-    now_step = _now_step()
+    now_ms = _now_ms()
 
-    result = await _exec_script(sha_tbra, key, capacity, rate, now_step)
+    result = await _exec_script(sha_tbra, key, capacity, rate, now_ms)
 
-    allow, tokens_scaled, retry_steps = result
+    allow, tokens_scaled, retry_ms = result
 
-    return bool(allow), tokens_scaled / _SCALE, int(retry_steps)
+    return bool(allow), tokens_scaled / _SCALE, int(retry_ms)
 
 
 async def execute_gcra(
@@ -228,21 +228,21 @@ async def execute_gcra(
 
     Args:
         key: Full Redis key
-        interval: Steps between requests at steady rate
-        tolerance: Burst tolerance in steps
+        interval: Milliseconds between requests at steady rate
+        tolerance: Burst tolerance in milliseconds
 
     Returns:
-        (allow, tokens_remaining, retry_steps)
+        (allow, tokens_remaining, retry_ms)
     """
     _, sha_gcra = await _ensure_scripts()
 
-    now_step = _now_step()
+    now_ms = _now_ms()
 
-    result = await _exec_script(sha_gcra, key, interval, tolerance, now_step)
+    result = await _exec_script(sha_gcra, key, interval, tolerance, now_ms)
 
-    allow, tokens_remaining, retry_steps = result
+    allow, tokens_remaining, retry_ms = result
 
-    return bool(allow), float(tokens_remaining), int(retry_steps)
+    return bool(allow), float(tokens_remaining), int(retry_ms)
 
 
 # =============================================================================
@@ -313,9 +313,14 @@ def _to_tbra_params(max_capacity: int, refill_rate: int) -> tuple[int, int]:
         refill_rate: Tokens per minute
 
     Returns:
-        (capacity, rate)
+        (capacity_scaled, rate_scaled_per_ms)
+        - capacity_scaled: Max tokens * 1000 (for fractional precision)
+        - rate_scaled_per_ms: Tokens added per millisecond * 1000
     """
-    rate = (refill_rate * _SCALE * TIME_STEP_MS) // 60000
+    # Rate = tokens added per millisecond (scaled by 1000)
+    # For 120 req/min: (120 * 1000) / 60000 = 2 scaled tokens/ms
+    # For 1200 req/min: (1200 * 1000) / 60000 = 20 scaled tokens/ms
+    rate = (refill_rate * _SCALE) // 60000
 
     if rate < 1:
         rate = 1
@@ -334,9 +339,14 @@ def _to_gcra_params(max_capacity: int, refill_rate: int) -> tuple[int, int]:
         refill_rate: Requests per minute
 
     Returns:
-        (interval, tolerance)
+        (interval_ms, tolerance_ms)
+        - interval_ms: Milliseconds between requests at steady rate
+        - tolerance_ms: Burst tolerance in milliseconds
     """
-    interval = 60000 // (refill_rate * TIME_STEP_MS) if refill_rate > 0 else 1
+    # Interval = milliseconds between requests
+    # For 120 req/min: 60000/120 = 500ms between requests
+    # For 1200 req/min: 60000/1200 = 50ms between requests
+    interval = 60000 // refill_rate if refill_rate > 0 else 1
 
     if interval < 1:
         interval = 1
@@ -387,7 +397,7 @@ async def check_throttle(
                 refill_rate,
             )
 
-            allow, tokens, retry_steps = await execute_tbra(
+            allow, tokens, retry_ms = await execute_tbra(
                 full_key,
                 max_cap_s,
                 refill_s,
@@ -396,7 +406,7 @@ async def check_throttle(
             return ThrottleResult(
                 allow=allow,
                 tokens_remaining=max(0.0, tokens),
-                retry_after_ms=retry_steps * TIME_STEP_MS,
+                retry_after_ms=retry_ms,
                 key=key_str,
             )
 
@@ -406,7 +416,7 @@ async def check_throttle(
                 refill_rate,
             )
 
-            allow, tokens_remaining, retry_steps = await execute_gcra(
+            allow, tokens_remaining, retry_ms = await execute_gcra(
                 full_key,
                 interval,
                 tolerance,
@@ -415,7 +425,7 @@ async def check_throttle(
             return ThrottleResult(
                 allow=allow,
                 tokens_remaining=tokens_remaining,
-                retry_after_ms=retry_steps * TIME_STEP_MS,
+                retry_after_ms=retry_ms,
                 key=key_str,
             )
 
@@ -475,18 +485,18 @@ async def check_throttles(
 
         sha = sha_tbra if algorithm == Algorithm.TBRA else sha_gcra
 
-        now_step = _now_step()
+        now_ms = _now_ms()
 
         pipe = r.pipeline(transaction=False)
 
         for full_key, _, max_capacity, refill_rate in processed:
             if algorithm == Algorithm.TBRA:
                 max_cap_s, refill_s = _to_tbra_params(max_capacity, refill_rate)
-                pipe.evalsha(sha, 1, full_key, max_cap_s, refill_s, now_step)
+                pipe.evalsha(sha, 1, full_key, max_cap_s, refill_s, now_ms)
 
             elif algorithm == Algorithm.GCRA:
                 interval, tolerance = _to_gcra_params(max_capacity, refill_rate)
-                pipe.evalsha(sha, 1, full_key, interval, tolerance, now_step)
+                pipe.evalsha(sha, 1, full_key, interval, tolerance, now_ms)
 
         raw_results = await pipe.execute()
 
@@ -494,23 +504,23 @@ async def check_throttles(
 
         for (_, key_str, max_capacity, _), raw in zip(processed, raw_results):
             if algorithm == Algorithm.TBRA:
-                allow, tokens_scaled, retry_steps = raw
+                allow, tokens_scaled, retry_ms = raw
                 results.append(
                     ThrottleResult(
                         allow=bool(allow),
                         tokens_remaining=max(0.0, tokens_scaled / _SCALE),
-                        retry_after_ms=int(retry_steps) * TIME_STEP_MS,
+                        retry_after_ms=int(retry_ms),
                         key=key_str,
                     )
                 )
 
             elif algorithm == Algorithm.GCRA:
-                allow, tokens_remaining, retry_steps = raw
+                allow, tokens_remaining, retry_ms = raw
                 results.append(
                     ThrottleResult(
                         allow=bool(allow),
                         tokens_remaining=float(tokens_remaining),
-                        retry_after_ms=int(retry_steps) * TIME_STEP_MS,
+                        retry_after_ms=int(retry_ms),
                         key=key_str,
                     )
                 )
