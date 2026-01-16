@@ -115,7 +115,9 @@ logAtom(orgsQueryAtom, "orgsQueryAtom", logOrgs)
 
 export const orgsAtom = atom<Org[]>((get) => {
     const res = (get(orgsQueryAtom) as any)?.data
-    return res ?? []
+    const orgs = res ?? []
+    // Sort organizations to ensure demo orgs are always last
+    return sortOrgsWithDemoLast(orgs)
 })
 
 export const selectedOrgIdAtom = atom((get) => {
@@ -209,9 +211,20 @@ const isDemoOrg = (org?: Partial<Org>): boolean => {
     return false
 }
 
+/**
+ * Sorts organizations to ensure demo orgs are always last
+ * Non-demo orgs maintain their original order, demo orgs are moved to the end
+ */
+const sortOrgsWithDemoLast = (orgs: Org[]): Org[] => {
+    const nonDemoOrgs = orgs.filter((org) => !isDemoOrg(org))
+    const demoOrgs = orgs.filter((org) => isDemoOrg(org))
+    return [...nonDemoOrgs, ...demoOrgs]
+}
+
 const pickFirstNonDemoOrg = (orgs?: Org[]) => {
     if (!Array.isArray(orgs) || orgs.length === 0) return null
     const nonDemo = orgs.find((org) => !isDemoOrg(org))
+    // Only fall back to demo org if there are no non-demo orgs at all
     return nonDemo ?? orgs[0]
 }
 
@@ -228,31 +241,51 @@ export const pickOwnedOrg = (userId: string | null, orgs?: Org[], nonDemoOnly = 
 export const resolvePreferredWorkspaceId = (userId: string | null, orgs?: Org[]) => {
     if (!Array.isArray(orgs) || orgs.length === 0) return null
 
-    // 1. Prefer last-used workspace if still valid
+    // 1. Prefer last-used workspace if still valid AND not a demo org
     const lastWorkspaceId = readLastUsedWorkspaceId()
     if (lastWorkspaceId) {
         const hasDirectOrgMatch = orgs.some((org) => org.id === lastWorkspaceId)
         if (hasDirectOrgMatch) {
-            return lastWorkspaceId
+            const lastOrg = orgs.find((org) => org.id === lastWorkspaceId)
+            // Only use last-used if it's not a demo org, unless it's the only org
+            if (lastOrg && (!isDemoOrg(lastOrg) || orgs.length === 1)) {
+                return lastWorkspaceId
+            }
         }
         const mappedOrgId = resolveOrgId(lastWorkspaceId)
         if (mappedOrgId) {
             const orgExists = orgs.some((org) => org.id === mappedOrgId)
             if (orgExists) {
-                return lastWorkspaceId
+                const lastOrg = orgs.find((org) => org.id === mappedOrgId)
+                // Only use last-used if it's not a demo org, unless it's the only org
+                if (lastOrg && (!isDemoOrg(lastOrg) || orgs.length === 1)) {
+                    return lastWorkspaceId
+                }
             }
         }
     }
 
     // 2. Prefer an owned non-demo org
-    const ownedPreferred = pickOwnedOrg(userId, orgs, true) ?? pickOwnedOrg(userId, orgs, false)
-    if (ownedPreferred?.id) {
-        return ownedPreferred.id
+    const ownedNonDemo = pickOwnedOrg(userId, orgs, true)
+    if (ownedNonDemo?.id) {
+        return ownedNonDemo.id
     }
 
-    // 3. Fall back to first non-demo org
-    const fallback = pickFirstNonDemoOrg(orgs)
-    return fallback?.id ?? null
+    // 3. Fall back to first non-demo org (not owned by user)
+    const firstNonDemo = pickFirstNonDemoOrg(orgs)
+    if (firstNonDemo?.id && !isDemoOrg(firstNonDemo)) {
+        return firstNonDemo.id
+    }
+
+    // 4. Only as absolute last resort: use owned demo org
+    const ownedDemo = pickOwnedOrg(userId, orgs, false)
+    if (ownedDemo?.id && isDemoOrg(ownedDemo)) {
+        return ownedDemo.id
+    }
+
+    // 5. Final fallback: any demo org (only if it's the only option)
+    const anyOrg = orgs[0]
+    return anyOrg?.id ?? null
 }
 
 export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
