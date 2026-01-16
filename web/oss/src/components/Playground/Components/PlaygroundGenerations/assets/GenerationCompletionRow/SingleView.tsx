@@ -131,7 +131,7 @@ const SingleView = ({
                         size="small"
                     />
                     {testCaseNumber && (
-                        <span className="text-sm text-gray-500"  {testCaseNumber}</span>
+                        <span className="text-sm text-gray-500">Test case {testCaseNumber}</span>
                     )}
                     <div className="flex-1" />
                     <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
