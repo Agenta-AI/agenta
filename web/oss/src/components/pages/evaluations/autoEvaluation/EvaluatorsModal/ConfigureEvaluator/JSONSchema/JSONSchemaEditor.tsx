@@ -77,6 +77,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
         return isSchemaCompatibleWithBasicMode(defaultValue)
     })
     const [isInitialized, setIsInitialized] = useState(false)
+    const [isDirty, setIsDirty] = useState(false)
 
     const lastSyncedValueRef = useRef<string | undefined>(undefined)
 
@@ -96,6 +97,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
         } else {
             setCategories(createDefaultCategories())
         }
+        setIsDirty(false)
     }, [])
 
     const syncFormValue = useCallback(
@@ -136,6 +138,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
             setRawSchema("")
             lastSyncedValueRef.current = undefined
             setIsInitialized(true)
+            setIsDirty(false)
             return
         }
 
@@ -151,6 +154,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
         setRawSchema(defaultValue)
         syncFormValue(defaultValue)
         setIsInitialized(true)
+        setIsDirty(false)
     }, [defaultValue, applyParsedConfig, syncFormValue])
 
     useEffect(() => {
@@ -161,7 +165,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
 
     // Update form when basic mode changes
     useEffect(() => {
-        if (!isInitialized) return
+        if (!isInitialized || !isDirty) return
         if (mode === "basic" && supportsBasicMode) {
             const config: SchemaConfig = {
                 responseFormat,
@@ -172,10 +176,12 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
             const schema = generateJSONSchema(config)
             const schemaString = JSON.stringify(schema, null, 2)
 
+            setRawSchema(schemaString)
             syncFormValue(schemaString)
         }
     }, [
         isInitialized,
+        isDirty,
         mode,
         responseFormat,
         includeReasoning,
@@ -219,6 +225,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                         const parsed = parseJSONSchema(rawSchema)
                         const config = parsed ?? getDefaultConfig()
                         applyConfigAndSync(config)
+                        setIsDirty(false)
                         setMode("basic")
                     },
                 })
@@ -228,6 +235,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
             const parsed = parseJSONSchema(rawSchema)
             const config = parsed ?? getDefaultConfig()
             applyConfigAndSync(config)
+            setIsDirty(false)
             setMode("basic")
             return
         }
@@ -237,16 +245,19 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
 
     const addCategory = () => {
         setCategories([...categories, {name: "", description: ""}])
+        setIsDirty(true)
     }
 
     const removeCategory = (index: number) => {
         setCategories(categories.filter((_, i) => i !== index))
+        setIsDirty(true)
     }
 
     const updateCategory = (index: number, field: "name" | "description", value: string) => {
         const updated = [...categories]
         updated[index][field] = value
         setCategories(updated)
+        setIsDirty(true)
     }
 
     if (mode === "advanced") {
@@ -320,7 +331,10 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                         <Select
                             style={{width: "100%"}}
                             value={responseFormat}
-                            onChange={(value) => setResponseFormat(value)}
+                            onChange={(value) => {
+                                setResponseFormat(value)
+                                setIsDirty(true)
+                            }}
                             options={[
                                 {label: "Boolean (True/False)", value: "boolean"},
                                 {label: "Continuous (Numeric Range)", value: "continuous"},
@@ -357,7 +371,10 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                                 <InputNumber
                                     style={{width: "100%"}}
                                     value={minValue}
-                                    onChange={(value) => setMinValue(value ?? 0)}
+                                    onChange={(value) => {
+                                        setMinValue(value ?? 0)
+                                        setIsDirty(true)
+                                    }}
                                 />
                             </div>
                             <div>
@@ -377,7 +394,10 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                                 <InputNumber
                                     style={{width: "100%"}}
                                     value={maxValue}
-                                    onChange={(value) => setMaxValue(value ?? 10)}
+                                    onChange={(value) => {
+                                        setMaxValue(value ?? 10)
+                                        setIsDirty(true)
+                                    }}
                                 />
                             </div>
                         </div>
@@ -440,7 +460,10 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                     <div style={{display: "flex", alignItems: "center", gap: 4}}>
                         <Checkbox
                             checked={includeReasoning}
-                            onChange={(e) => setIncludeReasoning(e.target.checked)}
+                            onChange={(e) => {
+                                setIncludeReasoning(e.target.checked)
+                                setIsDirty(true)
+                            }}
                         >
                             <Typography.Text strong>Include reasoning</Typography.Text>
                         </Checkbox>
