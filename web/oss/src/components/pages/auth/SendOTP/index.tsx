@@ -85,11 +85,8 @@ const SendOTP = ({
                 await clearLoginAttemptInfo()
                 setMessage({message: "Verification successful", type: "success"})
                 // Clear selected org via atom to keep storage in sync
-                const {createdNewRecipeUser, user} = response
-                await handleAuthSuccess(
-                    {createdNewRecipeUser: true, user},
-                    {isInvitedUser},
-                )
+                const {createdNewRecipeUser: _createdNewRecipeUser, user} = response
+                await handleAuthSuccess({createdNewRecipeUser: true, user}, {isInvitedUser})
             } else if (response.status === "INCORRECT_USER_INPUT_CODE_ERROR") {
                 const trileLeft =
                     response.maximumCodeInputAttempts - response.failedCodeInputAttemptCount

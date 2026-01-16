@@ -1,7 +1,7 @@
 import {FC} from "react"
 
-import {Card, Typography} from "antd"
 import {Lock} from "@phosphor-icons/react"
+import {Card, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 

@@ -104,10 +104,7 @@ export const isCurrentAcceptRouteForInvite = (appState: any, invite: InvitePaylo
 export const writePostSignupPending = () => {
     if (!isBrowser) return
     try {
-        window.sessionStorage.setItem(
-            POST_SIGNUP_PENDING_KEY,
-            JSON.stringify({ts: Date.now()}),
-        )
+        window.sessionStorage.setItem(POST_SIGNUP_PENDING_KEY, JSON.stringify({ts: Date.now()}))
     } catch {
         // ignore storage failures
     }

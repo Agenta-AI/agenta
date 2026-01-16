@@ -104,7 +104,13 @@ const Auth = () => {
         isAuthenticated && inviteEmail && currentUserEmail && inviteEmail !== currentUserEmail
 
     // Derived state: whether to show the normal auth flow (not blocked by special states)
-    const shouldShowNormalAuthFlow = !hasInviteEmailMismatch && !isAuthUpgradeRequired
+    // Note: We still show auth methods when isAuthUpgradeRequired because the user needs
+    // to re-authenticate with the required method. Only hide for invite email mismatch.
+    const shouldShowNormalAuthFlow = !hasInviteEmailMismatch
+
+    // When auth upgrade is required, we show social auth but hide email-based flows
+    // since the user needs to authenticate with a different method (social/SSO)
+    const shouldShowEmailFlow = shouldShowNormalAuthFlow && !isAuthUpgradeRequired
 
     // Filter out the current org that requires upgrade - user can navigate to other orgs
     const otherOrgs = useMemo(() => {
@@ -489,45 +495,12 @@ const Auth = () => {
 
                         {/* Show auth upgrade required message prominently */}
                         {isAuthUpgradeRequired && authMessage && !hasInviteEmailMismatch && (
-                            <div className="flex flex-col gap-4">
-                                <Alert
-                                    showIcon
-                                    message="Additional authentication required"
-                                    description={authMessage}
-                                    type="warning"
-                                />
-                                {isAuthenticated && otherOrgs.length > 0 && (
-                                    <div className="flex flex-col gap-2 p-4 bg-[#f5f7fa] rounded-lg">
-                                        <Text className="text-sm text-[#586673]">
-                                            Can't authenticate with the required method? You can
-                                            switch to a different workspace:
-                                        </Text>
-                                        <Select
-                                            placeholder="Select an organization"
-                                            className="w-full"
-                                            options={orgSelectOptions}
-                                            onChange={(value) => {
-                                                router.replace(`/w/${value}`)
-                                            }}
-                                        />
-                                    </div>
-                                )}
-                                {isAuthenticated && (
-                                    <Button
-                                        type="link"
-                                        className="text-center"
-                                        onClick={() => {
-                                            signOut()
-                                                .then(() => {
-                                                    router.replace("/auth")
-                                                })
-                                                .catch(console.error)
-                                        }}
-                                    >
-                                        Sign out and use a different account
-                                    </Button>
-                                )}
-                            </div>
+                            <Alert
+                                showIcon
+                                message="Additional authentication required"
+                                description={authMessage}
+                                type="warning"
+                            />
                         )}
 
                         {/* Step 1: Show social auth options (if configured) */}
@@ -540,7 +513,9 @@ const Auth = () => {
                                     setIsLoading={setIsSocialAuthLoading}
                                     providers={providersToShow}
                                 />
-                                {showEmailEntry && <Divider className="!m-0">or</Divider>}
+                                {showEmailEntry && shouldShowEmailFlow && (
+                                    <Divider className="!m-0">or</Divider>
+                                )}
                             </>
                         )}
 
@@ -549,7 +524,7 @@ const Auth = () => {
                             !emailSubmitted &&
                             !socialAvailable &&
                             !isLoginCodeVisible &&
-                            shouldShowNormalAuthFlow && (
+                            shouldShowEmailFlow && (
                                 <EmailFirst
                                     email={email}
                                     setEmail={setEmail}
@@ -563,7 +538,7 @@ const Auth = () => {
                             !emailSubmitted &&
                             socialAvailable &&
                             !showEmailForm &&
-                            shouldShowNormalAuthFlow && (
+                            shouldShowEmailFlow && (
                                 <Button
                                     type="link"
                                     onClick={() => setShowEmailForm(true)}
@@ -578,7 +553,7 @@ const Auth = () => {
                             socialAvailable &&
                             showEmailForm &&
                             !isLoginCodeVisible &&
-                            shouldShowNormalAuthFlow && (
+                            shouldShowEmailFlow && (
                                 <EmailFirst
                                     email={email}
                                     setEmail={setEmail}
@@ -589,7 +564,7 @@ const Auth = () => {
                             )}
 
                         {/* Step 3: After email discovery, show available methods */}
-                        {emailSubmitted && discoveryComplete && shouldShowNormalAuthFlow && (
+                        {emailSubmitted && discoveryComplete && shouldShowEmailFlow && (
                             <>
                                 {/* Show OTP flow if available */}
                                 {emailOtpAvailable && !isLoginCodeVisible && (
@@ -668,6 +643,40 @@ const Auth = () => {
                                     </Button>
                                 )}
                             </>
+                        )}
+
+                        {/* Auth upgrade: show organization switch and sign out options */}
+                        {isAuthUpgradeRequired && isAuthenticated && !hasInviteEmailMismatch && (
+                            <div className="flex flex-col gap-3 pt-2 border-t border-[#e5e7eb]">
+                                {otherOrgs.length > 0 && (
+                                    <div className="flex flex-col gap-2">
+                                        <Text className="text-sm text-[#586673]">
+                                            Or switch to a different organization:
+                                        </Text>
+                                        <Select
+                                            placeholder="Select an organization"
+                                            className="w-full"
+                                            options={orgSelectOptions}
+                                            onChange={(value) => {
+                                                router.replace(`/w/${value}`)
+                                            }}
+                                        />
+                                    </div>
+                                )}
+                                <Button
+                                    type="link"
+                                    className="text-center p-0"
+                                    onClick={() => {
+                                        signOut()
+                                            .then(() => {
+                                                router.replace("/auth")
+                                            })
+                                            .catch(console.error)
+                                    }}
+                                >
+                                    Sign out and use a different account
+                                </Button>
+                            </div>
                         )}
                     </div>
 
