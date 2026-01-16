@@ -54,7 +54,7 @@ export const useSidebarConfig = () => {
         },
         {
             key: "app-testsets-link",
-            title: "Testsets",
+            title: "Test sets",
             link: `${projectURL}/testsets`,
             icon: <DatabaseOutlined size={16} />,
             disabled: !hasProjectURL,

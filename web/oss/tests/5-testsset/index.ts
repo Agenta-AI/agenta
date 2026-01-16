@@ -34,7 +34,7 @@ const testsetTests = () => {
             await uiHelpers.waitForPath("/testsets")
             const testsets = await apiHelpers.getTestsets()
 
-            await uiHelpers.expectText("Testsets", {role: "heading"})
+            await uiHelpers.expectText("Test sets", {role: "heading"})
 
             // 3. Verify testset is visible in table
             // Preview endpoint returns 'id' instead of '_id'

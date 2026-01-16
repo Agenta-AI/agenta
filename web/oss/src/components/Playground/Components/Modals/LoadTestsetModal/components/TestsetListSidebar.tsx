@@ -191,7 +191,7 @@ export const TestsetListSidebar: React.FC<TestsetListSidebarProps> = ({
             <Divider className="m-0" />
 
             <div className="flex items-center justify-between">
-                <Typography.Text className="font-medium">Testsets</Typography.Text>
+                <Typography.Text className="font-medium">Test sets</Typography.Text>
             </div>
 
             <Menu
