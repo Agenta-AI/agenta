@@ -55,7 +55,8 @@ export interface Workspace {
 export type JSSTheme = GlobalToken & {isDark: boolean; fontWeightMedium: number}
 
 export interface testset {
-    _id: string
+    _id?: string
+    id?: string
     name: string
     created_at: string
     updated_at: string

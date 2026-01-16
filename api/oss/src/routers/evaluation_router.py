@@ -36,9 +36,6 @@ if is_ee():
         NOT_ENTITLED_RESPONSE,
     )
 
-from oss.src.routers.testset_router import _validate_testset_limits
-
-
 from oss.src.apis.fastapi.evaluations.models import EvaluationRunsResponse
 
 

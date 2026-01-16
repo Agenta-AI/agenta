@@ -47,6 +47,8 @@ export interface TestcasesTableShellProps {
     onSearchChange: (term: string) => void
     header: React.ReactNode
     actions: React.ReactNode
+    /** Checkbox (default) or radio selection */
+    selectionType?: "checkbox" | "radio"
     hideControls?: boolean
     enableSelection?: boolean
     autoHeight?: boolean
@@ -89,6 +91,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         onSearchChange,
         header,
         actions,
+        selectionType = "checkbox",
         hideControls = false,
         enableSelection = mode !== "view",
         autoHeight = true,
@@ -135,6 +138,8 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 ? {
                       selectedRowKeys: showRowIndex ? [] : selectedRowKeys,
                       onChange: showRowIndex ? undefined : onSelectedRowKeysChange,
+                      type: selectionType,
+                      hideSelectAll: selectionType === "radio",
                       columnWidth: 48,
                       fixed: "left" as const,
                       columnTitle: showRowIndex ? (

@@ -15,6 +15,19 @@ This guide covers how to create, list, and retrieve testsets using the Agenta SD
   Open in Google Colaboratory
 </GoogleColabButton>
 
+:::tip Async examples
+Agenta's SDK uses async APIs. In Jupyter/Colab you can use top-level `await`. In a regular Python script, wrap async code like this:
+
+```python
+import asyncio
+
+async def main():
+    ...
+
+asyncio.run(main())
+```
+:::
+
 ## Creating a Testset
 
 Use `ag.testsets.acreate()` to create a new testset with data:
@@ -35,7 +48,9 @@ testset = await ag.testsets.acreate(
     name="Country Capitals",
 )
 
-print(f"Created testset with ID: {testset.id}")
+testset_id = testset.testset_id or testset.id
+print(f"Testset ID: {testset_id}")
+print(f"Revision ID: {testset.id}")
 print(f"Name: {testset.name}")
 print(f"Slug: {testset.slug}")
 ```
@@ -48,9 +63,11 @@ print(f"Slug: {testset.slug}")
 - `name`: The name of your testset.
 
 **Returns:** A `TestsetRevision` object containing:
-- `id`: The UUID of the created testset
+- `id`: The UUID of the created testset revision
+- `testset_id`: The parent testset UUID (stable across revisions)
 - `name`: The testset name
-- `slug`: The testset slug
+- `slug`: The revision slug
+- `version`: The revision version string (e.g. "1")
 - `data`: The test data (with `testcases` structure)
 
 **Sample Output:**
@@ -95,7 +112,9 @@ testset = await ag.testsets.aupsert(
     ],
 )
 
-print(f"Upserted testset with ID: {testset.id}")
+testset_id = testset.testset_id or testset.id
+print(f"Testset ID: {testset_id}")
+print(f"Revision ID: {testset.id}")
 ```
 
   </TabItem>
@@ -127,7 +146,8 @@ testsets = await ag.testsets.alist()
 
 print(f"Found {len(testsets)} testsets:")
 for testset in testsets:
-    print(f"  - {testset.name} (ID: {testset.id})")
+    testset_id = testset.testset_id or testset.id
+    print(f"  - {testset.name} (testset_id: {testset_id})")
 ```
 
   </TabItem>
@@ -135,10 +155,11 @@ for testset in testsets:
 
 **Parameters:** None required.
 
-**Returns:** A list of `TestsetRevision` objects, each containing:
-- `id`: The testset UUID
+**Returns:** A list of `TestsetRevision` objects. For each item:
+- `id`: The latest revision UUID
+- `testset_id`: The parent testset UUID
 - `name`: The testset name
-- `slug`: The testset slug
+- `slug`: The revision slug
 - Additional metadata fields
 
 **Sample Output:**
@@ -210,7 +231,7 @@ else:
 ```
 
 :::info
-Currently using the legacy testset API. When retrieving a testset, the function returns a `TestsetRevision` object with version "1". In the future, this will support the new versioning system where each update creates a new revision.
+Testsets are versioned. Each update via `ag.testsets.aedit()` or `ag.testsets.aupsert()` creates a new `TestsetRevision`, while the parent `testset_id` stays the same.
 :::
 
 ## Retrieving a Testset by Name
@@ -240,7 +261,8 @@ async def get_testset_by_name(name: str):
 testset = await get_testset_by_name("Country Capitals")
 
 if testset:
-    print(f"Found testset: {testset.name} with ID: {testset.id}")
+    testset_id = testset.testset_id or testset.id
+    print(f"Found testset: {testset.name} (testset_id: {testset_id}, revision_id: {testset.id})")
 else:
     print("Testset not found")
 ```
