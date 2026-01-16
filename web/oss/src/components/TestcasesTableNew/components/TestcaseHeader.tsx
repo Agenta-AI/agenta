@@ -288,7 +288,7 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
         <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
                 <Typography.Title level={3} style={{margin: 0}}>
-                    {testsetName || "Testset"}
+                    {testsetName || "Test set"}
                 </Typography.Title>
                 <Dropdown
                     menu={{

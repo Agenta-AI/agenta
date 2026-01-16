@@ -143,7 +143,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
             breadcrumbs: {
                 testsets: {label: "testsets", href: `${projectURL}/testsets`},
                 "testset-detail": {
-                    label: metadata?.testsetName ?? "Testset",
+                    label: metadata?.testsetName ?? "Test set",
                     value: revisionIdParam as string,
                 },
             },
@@ -206,7 +206,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 onAddColumn={() => setIsAddColumnModalOpen(true)}
                 header={
                     <TestcaseHeader
-                        testsetName={metadata?.testsetName ?? "Testset"}
+                        testsetName={metadata?.testsetName ?? "Test set"}
                         description={metadata?.description ?? ""}
                         metadata={metadata}
                         availableRevisions={availableRevisions}
@@ -297,7 +297,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                     router.push(`${projectURL}/testsets/${newRevisionId}`)
                 }}
                 testsetId={metadata?.testsetId ?? ""}
-                testsetName={metadata?.testsetName ?? "Testset"}
+                testsetName={metadata?.testsetName ?? "Test set"}
             />
         </div>
     )

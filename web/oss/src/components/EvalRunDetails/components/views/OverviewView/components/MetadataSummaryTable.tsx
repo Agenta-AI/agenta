@@ -381,7 +381,7 @@ const InvocationErrorsCell = makeMetricCell("attributes.ag.metrics.errors.cumula
 const METADATA_ROWS: MetadataRowRecord[] = [
     {
         key: "testsets",
-        label: "Testset",
+        label: "Test set",
         Cell: LegacyTestsetsCell,
         shouldDisplay: ({snapshots}) =>
             snapshots.some(({testsetIds}) => (testsetIds?.length ?? 0) > 0),
