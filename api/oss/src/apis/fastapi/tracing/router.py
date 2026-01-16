@@ -63,6 +63,8 @@ log = get_module_logger(__name__)
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
+    from ee.src.models.shared_models import Permission
+    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
 
 class TracingRouter:
@@ -190,6 +192,14 @@ class TracingRouter:
         request: Request,
         spans_request: OTelTracingRequest,
     ) -> OTelLinksResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -213,6 +223,14 @@ class TracingRouter:
         request: Request,
         query: Optional[TracingQuery] = Depends(parse_query_from_params_request),
     ) -> OTelTracingResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         body_json = None
         query_from_body = None
 
@@ -329,6 +347,14 @@ class TracingRouter:
             parse_analytics_from_params_request
         ),
     ) -> AnalyticsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         body_json = None
         analytics_from_body = (None, None)
 
@@ -399,6 +425,14 @@ class TracingRouter:
         request: Request,
         query: Optional[TracingQuery] = Depends(parse_query_from_params_request),
     ) -> OldAnalyticsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         body_json = None
         query_from_body = None
 
@@ -535,6 +569,14 @@ class TracingRouter:
         trace_request: OTelTracingRequest,
         sync: bool = False,
     ) -> OTelLinksResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         spans = None
 
         if trace_request.traces:
@@ -609,6 +651,14 @@ class TracingRouter:
         request: Request,
         trace_id: str,
     ) -> OTelTracingResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         try:
             trace_id = parse_trace_id_to_uuid(trace_id)
 
@@ -650,6 +700,14 @@ class TracingRouter:
         trace_id: str,
         sync: bool = False,
     ) -> OTelLinksResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         spans = None
 
         if trace_request.traces:
@@ -727,6 +785,14 @@ class TracingRouter:
         request: Request,
         trace_id: str,
     ) -> OTelLinksResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         try:
             trace_id = parse_trace_id_to_uuid(trace_id)
 
@@ -758,6 +824,14 @@ class TracingRouter:
         request: Request,
         sessions_query_request: SessionsQueryRequest,
     ):
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         session_ids, activity_cursor = await self.service.sessions(
             project_id=request.state.project_id,
             #
@@ -788,6 +862,14 @@ class TracingRouter:
         request: Request,
         users_query_request: UsersQueryRequest,
     ):
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         user_ids, activity_cursor = await self.service.users(
             project_id=request.state.project_id,
             #
