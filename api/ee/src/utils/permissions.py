@@ -372,7 +372,12 @@ async def check_project_has_role_or_permission(
         if not check:
             return True
 
-    # OWNER always passes (but demo members can't be owners by design)
+    # Check if user is organization owner - organization owners always have full permissions
+    organization = await db_manager_ee.get_organization(str(project.organization_id))
+    if organization and str(organization.owner_id) == str(user_id):
+        return True
+
+    # OWNER role in workspace members also passes (but demo members can't be owners by design)
     if _project_is_owner(user_id, project_members):
         return True
 

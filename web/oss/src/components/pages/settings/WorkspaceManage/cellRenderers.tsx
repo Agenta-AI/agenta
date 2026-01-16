@@ -6,7 +6,8 @@ import {Button, Dropdown, Input, Modal, Space, Tag, Tooltip, Typography} from "a
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {message} from "@/oss/components/AppMessageContext"
-import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
+import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
+import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
 import {Plan, User} from "@/oss/lib/Types"
@@ -177,6 +178,7 @@ export const Roles: React.FC<{
     const [loading, setLoading] = useState(false)
     const {roles} = useWorkspaceRoles()
     const {selectedOrg, refetch} = useOrgData()
+    const {canModifyRoles} = useWorkspacePermissions()
     const {subscription}: {subscription?: any} = useSubscriptionDataWrapper() ?? {
         subscription: undefined,
     }
@@ -226,7 +228,7 @@ export const Roles: React.FC<{
                     </Tag>
                 </Tooltip>
             )}
-            {!readOnly && !loading && isEE() && subscription?.plan === Plan.Business && (
+            {!readOnly && !loading && canModifyRoles && subscription?.plan === Plan.Business && (
                 <Dropdown
                     trigger={["click"]}
                     menu={{
