@@ -14,6 +14,7 @@ import {
     Alert,
     Tooltip,
     Modal,
+    Form,
 } from "antd"
 import {createUseStyles} from "react-jss"
 
@@ -82,6 +83,24 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
     const lastSyncedValueRef = useRef<string | undefined>(undefined)
 
     const namePath = useMemo(() => (Array.isArray(name) ? name : [name]), [name])
+    const watchedValue = Form.useWatch(namePath as any, form)
+
+    const normalizeSchemaValue = useCallback((value: unknown) => {
+        if (typeof value === "string") return value
+        if (value && typeof value === "object") {
+            return JSON.stringify(value, null, 2)
+        }
+        return undefined
+    }, [])
+
+    const normalizedWatchedValue = useMemo(
+        () => normalizeSchemaValue(watchedValue),
+        [normalizeSchemaValue, watchedValue],
+    )
+    const normalizedDefaultValue = useMemo(
+        () => normalizeSchemaValue(defaultValue),
+        [normalizeSchemaValue, defaultValue],
+    )
 
     const applyParsedConfig = useCallback((parsed: SchemaConfig) => {
         setResponseFormat(parsed.responseFormat)
@@ -133,7 +152,8 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
 
     // Initialize from default value
     useEffect(() => {
-        if (!defaultValue) {
+        const sourceValue = normalizedWatchedValue ?? normalizedDefaultValue
+        if (!sourceValue) {
             setSupportsBasicMode(true)
             setRawSchema("")
             lastSyncedValueRef.current = undefined
@@ -142,20 +162,20 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
             return
         }
 
-        if (lastSyncedValueRef.current === defaultValue) {
+        if (lastSyncedValueRef.current === sourceValue) {
             setIsInitialized(true)
             return
         }
 
-        const parsed = parseJSONSchema(defaultValue)
+        const parsed = parseJSONSchema(sourceValue)
         if (parsed) applyParsedConfig(parsed)
 
-        setSupportsBasicMode(isSchemaCompatibleWithBasicMode(defaultValue))
-        setRawSchema(defaultValue)
-        syncFormValue(defaultValue)
+        setSupportsBasicMode(isSchemaCompatibleWithBasicMode(sourceValue))
+        setRawSchema(sourceValue)
+        syncFormValue(sourceValue)
         setIsInitialized(true)
         setIsDirty(false)
-    }, [defaultValue, applyParsedConfig, syncFormValue])
+    }, [applyParsedConfig, normalizedDefaultValue, normalizedWatchedValue, syncFormValue])
 
     useEffect(() => {
         if (!supportsBasicMode && mode !== "advanced") {
