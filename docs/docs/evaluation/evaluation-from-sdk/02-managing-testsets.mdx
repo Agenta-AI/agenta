@@ -242,9 +242,13 @@ curl -X POST "https://cloud.agenta.ai/api/preview/simple/testsets/query" \
 ]
 ```
 
-## Retrieving a Testset by ID
+## Retrieving a Testset
 
-To retrieve a specific testset by its ID, use `ag.testsets.aretrieve()`:
+Use `ag.testsets.aretrieve()` to fetch a testset. You can retrieve either the latest revision or a specific historical revision.
+
+### Retrieving the Latest Revision
+
+Pass the `testset_id` to get the most recent version of a testset:
 
 <Tabs>
   <TabItem value="Python SDK">
@@ -254,14 +258,11 @@ import agenta as ag
 
 ag.init()
 
-# Retrieve a specific testset (using the testset_id from creation)
+# Retrieve the latest revision
 testset = await ag.testsets.aretrieve(testset_id=testset_id)
 
 if testset:
-    print(f"Retrieved testset: {testset.id}")
-    print(f"Testcases count: {len(testset.data.testcases) if testset.data and testset.data.testcases else 0}")
-else:
-    print("Testset not found")
+    print(f"Testcases: {len(testset.data.testcases)}")
 ```
 
   </TabItem>
@@ -275,36 +276,55 @@ curl -X GET "https://cloud.agenta.ai/api/preview/simple/testsets/{testset_id}" \
   </TabItem>
 </Tabs>
 
-**Parameters:**
-- `testset_id`: The UUID of the testset to retrieve
+### Retrieving a Specific Revision
 
-**Returns:** A `TestsetRevision` object (or `None` if not found) containing:
-- `id`: The testset revision UUID
-- `testset_id`: The parent testset UUID
-- `slug`: The revision slug
-- `version`: The revision version number
-- `data`: The `TestsetRevisionData` with all testcases
+Pass the `testset_revision_id` to get an exact historical version. This is useful when you need to reproduce an evaluation or compare different versions of your test data.
 
-**Sample Output:**
+<Tabs>
+  <TabItem value="Python SDK">
 
 ```python
-{
-    "id": "01963413-3d39-7650-80ce-3ad5d688da6c",
-    "testset_id": "01963413-3d39-7650-80ce-3ad5d688da6c",
-    "slug": "3ad5d688da6c",
-    "version": "1",
-    "data": {
-        "testcases": [
-            {"data": {"country": "Germany", "capital": "Berlin"}},
-            {"data": {"country": "France", "capital": "Paris"}},
-            {"data": {"country": "Spain", "capital": "Madrid"}}
-        ]
-    }
-}
+import agenta as ag
+
+ag.init()
+
+# Retrieve a specific revision
+testset = await ag.testsets.aretrieve(testset_revision_id=revision_id)
+
+if testset:
+    print(f"Version: {testset.version}")
+    print(f"Testcases: {len(testset.data.testcases)}")
 ```
 
+  </TabItem>
+  <TabItem value="REST API">
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/preview/testsets/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{
+    "testset_revision_ref": {
+      "id": "YOUR_REVISION_ID"
+    }
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+**Parameters:**
+- `testset_id`: Retrieves the latest revision of this testset.
+- `testset_revision_id`: Retrieves this exact revision.
+
+**Returns:** A `TestsetRevision` object containing:
+- `id`: The revision UUID
+- `testset_id`: The parent testset UUID (stable across revisions)
+- `version`: The revision version number
+- `data`: The testcases for this revision
+
 :::info
-Testsets are versioned. Each update via `ag.testsets.aedit()` or `ag.testsets.aupsert()` creates a new `TestsetRevision`, while the parent `testset_id` stays the same.
+Each update creates a new revision. The `testset_id` stays the same, but the `revision_id` changes. Store revision IDs when you need to reference exact versions later (for example, when logging which test data was used in an evaluation).
 :::
 
 ## Retrieving a Testset by Name
