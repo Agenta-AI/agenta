@@ -38,12 +38,12 @@ Usage (with multiple dimensions):
     result = await check_throttle({"ep": endpoint, "org": org_id}, ...)
 """
 
+from typing import Optional, Callable, Awaitable, Any, Union, TypeVar
 import time
-from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Callable, Awaitable, Any, Union
 
 from redis.asyncio import Redis
+from redis.exceptions import ResponseError
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
@@ -91,7 +91,7 @@ def _now_ms() -> int:
 _LUA_TBRA = """
 local key = KEYS[1]
 local max_cap = tonumber(ARGV[1])
-local rate = tonumber(ARGV[2])
+local rate_per_min = tonumber(ARGV[2])
 local now = tonumber(ARGV[3])
 
 local val = redis.call('GET', key)
@@ -108,13 +108,25 @@ end
 
 local elapsed = now - last
 if elapsed > 0 then
-    tokens = tokens + elapsed * rate
+    -- Calculate tokens to add: (elapsed_ms / 60000) * rate_per_min_scaled
+    -- = (elapsed_ms * rate_per_min_scaled) / 60000
+    -- This works correctly for any rate, including < 1 req/min
+    tokens = tokens + (elapsed * rate_per_min) / 60000
     if tokens > max_cap then tokens = max_cap end
 end
 
 tokens = tokens - 1000
 local allow = tokens >= 0 and 1 or 0
-local retry = allow == 1 and 0 or math.ceil(-tokens / rate)
+
+-- Calculate retry time in milliseconds
+local retry = 0
+if allow == 0 then
+    -- How many milliseconds until we have enough tokens?
+    -- Need: -tokens scaled tokens
+    -- Rate: rate_per_min scaled tokens per 60000ms
+    -- Time: (-tokens * 60000) / rate_per_min milliseconds
+    retry = math.ceil((-tokens * 60000) / rate_per_min)
+end
 
 redis.call('SET', key, tokens .. '|' .. now, 'PX', 3600000)
 
@@ -172,23 +184,62 @@ async def _ensure_scripts() -> tuple[str, str]:
     return str(_sha_tbra), str(_sha_gcra)
 
 
-async def _exec_script(sha: str, key: str, *args) -> list:
+T = TypeVar("T")
+
+
+async def _with_script_retry(
+    operation: Callable[[], Awaitable[T]],
+    operation_name: str = "script",
+) -> T:
+    """
+    Execute a Redis Lua script operation with automatic NOSCRIPT retry.
+
+    Args:
+        operation: Async callable that executes the Redis operation
+        operation_name: Name for logging (e.g., "script", "batch")
+
+    Returns:
+        Result from operation
+
+    Raises:
+        Exception: Re-raises non-NOSCRIPT exceptions
+    """
     global _sha_tbra, _sha_gcra
 
-    r = _get_redis()
-
     try:
-        return await r.evalsha(sha, 1, key, *args)
+        return await operation()
 
-    except Exception as e:
+    except ResponseError as e:
+        # Handle NOSCRIPT error (Redis script not loaded/evicted)
         if "NOSCRIPT" in str(e):
             _sha_tbra, _sha_gcra = None, None
 
+            log.info(
+                f"[throttle] [{operation_name}] NOSCRIPT detected, reloading scripts and retrying"
+            )
+
+            # Reload scripts and retry once
             await _ensure_scripts()
 
-            return await r.evalsha(sha, 1, key, *args)
+            return await operation()
 
+        # Re-raise other Redis errors
         raise
+
+    except Exception:
+        # Unexpected errors (connection issues, etc.)
+        log.error(f"[throttle] [{operation_name}] Unexpected error", exc_info=True)
+        raise
+
+
+async def _exec_script(sha: str, key: str, *args) -> list:
+    """Execute single Lua script via evalsha with NOSCRIPT retry."""
+    r = _get_redis()
+
+    async def _do_exec():
+        return await r.evalsha(sha, 1, key, *args)
+
+    return await _with_script_retry(_do_exec, "single")
 
 
 async def execute_tbra(
@@ -202,7 +253,7 @@ async def execute_tbra(
     Args:
         key: Full Redis key
         capacity: capacity * 1000 (scaled tokens)
-        rate: tokens per millisecond * 1000 (scaled rate)
+        rate: refill_rate * 1000 (scaled tokens per minute)
 
     Returns:
         (allow, tokens_remaining, retry_ms)
@@ -260,7 +311,6 @@ class FailureMode(Enum):
     CLOSED = "closed"
 
 
-@dataclass(frozen=True)
 class ThrottleResult:
     key: str
     allow: bool
@@ -274,34 +324,51 @@ class ThrottleResult:
         return self.retry_after_ms / 1000.0
 
 
+def _key_to_str(key: Union[str, dict]) -> str:
+    """
+    Convert key to string representation.
+
+    Args:
+        key: Bucket key - str or dict
+
+    Returns:
+        String representation of key
+
+    Examples:
+        _key_to_str("global") -> "global"
+        _key_to_str({"org": "abc123"}) -> "org:abc123"
+        _key_to_str({"ep": "users", "org": "abc123"}) -> "ep:users:org:abc123"
+
+    Raises:
+        TypeError: If key is neither str nor dict
+    """
+    if isinstance(key, dict):
+        return ":".join(f"{k}:{v}" for k, v in sorted(key.items()))
+    elif isinstance(key, str):
+        return key
+    else:
+        raise TypeError(f"key must be str or dict, got {type(key).__name__}")
+
+
 def _build_key(key: Union[str, dict]) -> str:
     """
-    Build Redis key from str or dict.
+    Build Redis key from str or dict by prepending 'throttle:' prefix.
 
-    If str: use as-is
-    If dict: join sorted key-value pairs with ':'
+    Args:
+        key: Bucket key - str or dict
+
+    Returns:
+        Full Redis key with 'throttle:' prefix
 
     Examples:
         _build_key("global") -> "throttle:global"
         _build_key({"org": "abc123"}) -> "throttle:org:abc123"
         _build_key({"ep": "users", "org": "abc123"}) -> "throttle:ep:users:org:abc123"
+
+    Raises:
+        TypeError: If key is neither str nor dict
     """
-    if isinstance(key, dict):
-        key_str = ":".join(f"{k}:{v}" for k, v in sorted(key.items()))
-    elif isinstance(key, str):
-        key_str = key
-    else:
-        raise TypeError("key must be str or dict")
-
-    return f"throttle:{key_str}"
-
-
-def _key_to_str(key: Union[str, dict]) -> str:
-    """Convert key to string for result/logging."""
-    if isinstance(key, dict):
-        return ":".join(f"{k}:{v}" for k, v in sorted(key.items()))
-
-    return key
+    return f"throttle:{_key_to_str(key)}"
 
 
 def _to_tbra_params(max_capacity: int, refill_rate: int) -> tuple[int, int]:
@@ -313,21 +380,26 @@ def _to_tbra_params(max_capacity: int, refill_rate: int) -> tuple[int, int]:
         refill_rate: Tokens per minute
 
     Returns:
-        (capacity_scaled, rate_scaled_per_ms)
+        (capacity_scaled, rate_per_min_scaled)
         - capacity_scaled: Max tokens * 1000 (for fractional precision)
-        - rate_scaled_per_ms: Tokens added per millisecond * 1000
+        - rate_per_min_scaled: Refill rate * 1000 (passed directly to Lua)
+
+    Note:
+        The Lua script now uses rate_per_min directly instead of rate_per_ms,
+        allowing accurate handling of any rate including < 1 req/min.
     """
-    # Rate = tokens added per millisecond (scaled by 1000)
-    # For 120 req/min: (120 * 1000) / 60000 = 2 scaled tokens/ms
-    # For 1200 req/min: (1200 * 1000) / 60000 = 20 scaled tokens/ms
-    rate = (refill_rate * _SCALE) // 60000
+    # New algorithm: Pass rate per minute directly (scaled by 1000)
+    # Lua calculates: tokens += (elapsed_ms * rate_per_min_scaled) / 60000
+    # This works for ANY rate, even sub-1 req/min:
+    #   0.1 req/min: (1000ms * 100) / 60000 = 1.67 scaled tokens/sec ✅
+    #   1 req/min: (1000ms * 1000) / 60000 = 16.67 scaled tokens/sec ✅
+    #   60 req/min: (1000ms * 60000) / 60000 = 1000 scaled tokens/sec ✅
+    #   1200 req/min: (1000ms * 1200000) / 60000 = 20000 scaled tokens/sec ✅
 
-    if rate < 1:
-        rate = 1
+    rate_per_min_scaled = refill_rate * _SCALE
+    capacity_scaled = max_capacity * _SCALE
 
-    capacity = max_capacity * _SCALE
-
-    return capacity, rate
+    return capacity_scaled, rate_per_min_scaled
 
 
 def _to_gcra_params(max_capacity: int, refill_rate: int) -> tuple[int, int]:
@@ -379,14 +451,23 @@ async def check_throttle(
         key: Bucket key - str or dict
             str: "global", "org:123", "ep:users:org:123"
             dict: {"org": "123"}, {"ep": "users", "org": "123"}
-        max_capacity: Burst size / max tokens
-        refill_rate: Tokens per minute
+        max_capacity: Burst size / max tokens (must be > 0)
+        refill_rate: Tokens per minute (must be > 0)
         algorithm: TBRA or GCRA
         failure_mode: OPEN (allow) or CLOSED (deny) on Redis failure
 
     Returns:
         ThrottleResult with decision and timing
+
+    Raises:
+        ValueError: If max_capacity or refill_rate is <= 0
     """
+    # Validate parameters
+    if max_capacity <= 0:
+        raise ValueError(f"max_capacity must be positive, got {max_capacity}")
+    if refill_rate <= 0:
+        raise ValueError(f"refill_rate must be positive, got {refill_rate}")
+
     full_key = _build_key(key)
     key_str = _key_to_str(key)
 
@@ -445,6 +526,69 @@ async def check_throttle(
 # =============================================================================
 
 
+async def _execute_batch_pipeline(
+    processed: list[tuple[str, str, int, int]],
+    algorithm: Algorithm,
+) -> list[ThrottleResult]:
+    """
+    Execute batch throttle check pipeline.
+
+    Args:
+        processed: List of (full_key, key_str, max_capacity, refill_rate)
+        algorithm: TBRA or GCRA
+
+    Returns:
+        List of ThrottleResult
+    """
+    r = _get_redis()
+
+    sha_tbra, sha_gcra = await _ensure_scripts()
+
+    sha = sha_tbra if algorithm == Algorithm.TBRA else sha_gcra
+
+    now_ms = _now_ms()
+
+    pipe = r.pipeline(transaction=False)
+
+    for full_key, _, max_capacity, refill_rate in processed:
+        if algorithm == Algorithm.TBRA:
+            max_cap_s, refill_s = _to_tbra_params(max_capacity, refill_rate)
+            pipe.evalsha(sha, 1, full_key, max_cap_s, refill_s, now_ms)
+
+        elif algorithm == Algorithm.GCRA:
+            interval, tolerance = _to_gcra_params(max_capacity, refill_rate)
+            pipe.evalsha(sha, 1, full_key, interval, tolerance, now_ms)
+
+    raw_results = await pipe.execute()
+
+    results = []
+
+    for (_, key_str, max_capacity, _), raw in zip(processed, raw_results):
+        if algorithm == Algorithm.TBRA:
+            allow, tokens_scaled, retry_ms = raw
+            results.append(
+                ThrottleResult(
+                    allow=bool(allow),
+                    tokens_remaining=max(0.0, tokens_scaled / _SCALE),
+                    retry_after_ms=int(retry_ms),
+                    key=key_str,
+                )
+            )
+
+        elif algorithm == Algorithm.GCRA:
+            allow, tokens_remaining, retry_ms = raw
+            results.append(
+                ThrottleResult(
+                    allow=bool(allow),
+                    tokens_remaining=float(tokens_remaining),
+                    retry_after_ms=int(retry_ms),
+                    key=key_str,
+                )
+            )
+
+    return results
+
+
 async def check_throttles(
     checks: list[tuple[Union[str, dict], int, int]],
     algorithm: Algorithm = Algorithm.TBRA,
@@ -469,6 +613,14 @@ async def check_throttles(
 
         return [_failure_result(_key_to_str(key), failure_mode) for key, _, _ in checks]
 
+    # Optimization: Single check bypasses pipeline
+    if len(checks) == 1:
+        key, max_capacity, refill_rate = checks[0]
+        result = await check_throttle(
+            key, max_capacity, refill_rate, algorithm, failure_mode
+        )
+        return [result]
+
     # Pre-process keys
     processed = []
 
@@ -479,105 +631,16 @@ async def check_throttles(
         processed.append((full_key, key_str, max_capacity, refill_rate))
 
     try:
-        r = _get_redis()
 
-        sha_tbra, sha_gcra = await _ensure_scripts()
+        async def _do_batch():
+            return await _execute_batch_pipeline(processed, algorithm)
 
-        sha = sha_tbra if algorithm == Algorithm.TBRA else sha_gcra
-
-        now_ms = _now_ms()
-
-        pipe = r.pipeline(transaction=False)
-
-        for full_key, _, max_capacity, refill_rate in processed:
-            if algorithm == Algorithm.TBRA:
-                max_cap_s, refill_s = _to_tbra_params(max_capacity, refill_rate)
-                pipe.evalsha(sha, 1, full_key, max_cap_s, refill_s, now_ms)
-
-            elif algorithm == Algorithm.GCRA:
-                interval, tolerance = _to_gcra_params(max_capacity, refill_rate)
-                pipe.evalsha(sha, 1, full_key, interval, tolerance, now_ms)
-
-        raw_results = await pipe.execute()
-
-        results = []
-
-        for (_, key_str, max_capacity, _), raw in zip(processed, raw_results):
-            if algorithm == Algorithm.TBRA:
-                allow, tokens_scaled, retry_ms = raw
-                results.append(
-                    ThrottleResult(
-                        allow=bool(allow),
-                        tokens_remaining=max(0.0, tokens_scaled / _SCALE),
-                        retry_after_ms=int(retry_ms),
-                        key=key_str,
-                    )
-                )
-
-            elif algorithm == Algorithm.GCRA:
-                allow, tokens_remaining, retry_ms = raw
-                results.append(
-                    ThrottleResult(
-                        allow=bool(allow),
-                        tokens_remaining=float(tokens_remaining),
-                        retry_after_ms=int(retry_ms),
-                        key=key_str,
-                    )
-                )
-
-        return results
+        return await _with_script_retry(_do_batch, "batch")
 
     except Exception:
         log.warning("[throttle] [batch] Unexpected error", exc_info=True)
 
         return [_failure_result(ks, failure_mode) for _, ks, _, _ in processed]
-
-
-# =============================================================================
-# Layer 2: Utilities
-# =============================================================================
-
-
-async def peek_throttle(key: Union[str, dict]) -> Optional[dict]:
-    """View bucket state without consuming."""
-    try:
-        r = _get_redis()
-
-        full_key = _build_key(key)
-        val = await r.get(full_key)
-
-        if not val:
-            return None
-
-        val_str = val.decode() if isinstance(val, bytes) else val
-
-        if "|" in val_str:
-            tokens_str, ts_str = val_str.split("|")
-
-            return {"tokens": float(tokens_str) / _SCALE, "last_step": int(ts_str)}
-
-        else:
-            return {"tat": int(val_str)}
-
-    except Exception as e:
-        log.warning("[throttle] PEEK ERROR", error=str(e))
-
-        return None
-
-
-async def reset_throttle(key: Union[str, dict]) -> bool:
-    """Delete bucket."""
-    try:
-        r = _get_redis()
-
-        full_key = _build_key(key)
-
-        return await r.delete(full_key) > 0
-
-    except Exception as e:
-        log.warning("[throttle] RESET ERROR", error=str(e))
-
-        return False
 
 
 # =============================================================================
@@ -592,5 +655,5 @@ ThrottleParamsResolver = Callable[
 
 # Default params for simple usage
 DEFAULT_MAX_CAPACITY = 1000
-DEFAULT_REFILL_RATE = 100  # per minute
+DEFAULT_REFILL_RATE = 120  # per minute
 DEFAULT_ALGORITHM = Algorithm.TBRA

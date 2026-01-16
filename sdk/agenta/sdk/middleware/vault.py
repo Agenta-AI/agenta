@@ -332,7 +332,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
                         }
                         raise DenyException(
                             status_code=429,
-                            content="API Rate limit exceeded. Please try again later or upgrade your plan or upgrade your plan.",
+                            content="API Rate limit exceeded. Please try again later or upgrade your plan.",
                             headers=headers or None,
                         )
                     elif response.status_code != 200:
