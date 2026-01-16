@@ -474,7 +474,7 @@ const Auth = () => {
                                 />
                                 <div className="flex gap-3 justify-center">
                                     <Button onClick={() => router.replace("/w")}>
-                                        Go to your workspaces
+                                        Go to your organizations
                                     </Button>
                                     <Button
                                         type="primary"

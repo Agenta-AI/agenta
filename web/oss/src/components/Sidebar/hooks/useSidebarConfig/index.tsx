@@ -20,9 +20,13 @@ import {
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
+import {isEE} from "@/oss/lib/helpers/isEE"
+import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {useAppsData} from "@/oss/state/app"
 import {useOrgData} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
+import {useWorkspaceMembers} from "@/oss/state/workspace"
 
 import {SidebarConfig} from "../../types"
 
@@ -30,10 +34,33 @@ export const useSidebarConfig = () => {
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {selectedOrg} = useOrgData()
+    const {user: signedInUser} = useProfileData()
+    const {filteredMembers} = useWorkspaceMembers()
+    const {hasRBAC} = useEntitlements()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
 
     const hasProjectURL = Boolean(projectURL)
+
+    // Check if current user can invite members (owner or workspace_admin only)
+    const canInviteMembers = (() => {
+        if (!isEE()) return true // OSS mode - allow all
+        if (!hasRBAC) return true // No RBAC - allow all
+
+        // Check if user is organization owner
+        if (selectedOrg?.owner_id && signedInUser?.id === selectedOrg.owner_id) {
+            return true
+        }
+
+        const currentMember = filteredMembers.find(
+            (member) => member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email
+        )
+
+        if (!currentMember) return false
+
+        const allowedRoles = ["owner", "workspace_admin"]
+        return currentMember.roles?.some((role) => allowedRoles.includes(role.role_name))
+    })()
 
     const sidebarConfig: SidebarConfig[] = [
         {
@@ -142,7 +169,7 @@ export const useSidebarConfig = () => {
             icon: <PaperPlane size={16} />,
             isBottom: true,
             tooltip: "Invite Teammate",
-            isHidden: !doesSessionExist || !selectedOrg,
+            isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
             disabled: !hasProjectURL,
         },
         {

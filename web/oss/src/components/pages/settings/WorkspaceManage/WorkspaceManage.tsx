@@ -7,8 +7,9 @@ import dynamic from "next/dynamic"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
-import {getUsernameFromEmail, isDemo} from "@/oss/lib/helpers/utils"
+import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
+import {isEmailInvitationsEnabled, isEE} from "@/oss/lib/helpers/isEE"
+import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -24,6 +25,7 @@ const WorkspaceManage: FC = () => {
     const {user: signedInUser} = useProfileData()
     const {selectedOrg, loading, refetch} = useOrgData()
     const {filteredMembers, searchTerm, setSearchTerm} = useWorkspaceMembers()
+    const {hasRBAC} = useEntitlements()
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
     const [isInvitedUserLinkModalOpen, setIsInvitedUserLinkModalOpen] = useState(false)
     const [invitedUserData, setInvitedUserData] = useState<{email: string; uri: string}>({
@@ -34,6 +36,26 @@ const WorkspaceManage: FC = () => {
 
     const organizationId = selectedOrg?.id
     const workspaceId = selectedOrg?.default_workspace?.id
+
+    // Check if current user can invite members (owner or workspace_admin only)
+    const canInviteMembers = useMemo(() => {
+        if (!isEE()) return true // OSS mode - allow all
+        if (!hasRBAC) return true // No RBAC - allow all
+
+        // Check if user is organization owner
+        if (selectedOrg?.owner_id && signedInUser?.id === selectedOrg.owner_id) {
+            return true
+        }
+
+        const currentMember = filteredMembers.find(
+            (member) => member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email
+        )
+
+        if (!currentMember) return false
+
+        const allowedRoles = ["owner", "workspace_admin"]
+        return currentMember.roles?.some((role) => allowedRoles.includes(role.role_name))
+    }, [filteredMembers, signedInUser, hasRBAC, selectedOrg])
 
     const columns = useMemo(
         () =>
@@ -67,7 +89,7 @@ const WorkspaceManage: FC = () => {
                             <span className="font-mono text-xs">{member.user?.email}</span>
                         ),
                     },
-                    isDemo()
+                    isEE() && hasRBAC
                         ? {
                               dataIndex: "roles",
                               key: "role",
@@ -145,13 +167,15 @@ const WorkspaceManage: FC = () => {
     return (
         <section className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-                <Button
-                    type="primary"
-                    icon={<Plus size={14} className="mt-0.2" />}
-                    onClick={() => setIsInviteModalOpen(true)}
-                >
-                    Invite Members
-                </Button>
+                {canInviteMembers && (
+                    <Button
+                        type="primary"
+                        icon={<Plus size={14} className="mt-0.2" />}
+                        onClick={() => setIsInviteModalOpen(true)}
+                    >
+                        Invite Members
+                    </Button>
+                )}
 
                 <Input.Search
                     placeholder="Search"
