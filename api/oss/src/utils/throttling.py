@@ -42,6 +42,7 @@ from typing import Optional, Callable, Awaitable, Any, Union, TypeVar
 import time
 from enum import Enum
 
+from pydantic import BaseModel
 from redis.asyncio import Redis
 from redis.exceptions import ResponseError
 
@@ -311,7 +312,7 @@ class FailureMode(Enum):
     CLOSED = "closed"
 
 
-class ThrottleResult:
+class ThrottleResult(BaseModel):
     key: str
     allow: bool
     tokens_remaining: Optional[float]
