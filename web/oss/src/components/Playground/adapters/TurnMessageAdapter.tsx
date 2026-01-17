@@ -15,6 +15,7 @@ import {findPropertyInObject} from "@/oss/components/Playground/hooks/usePlaygro
 import {isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
 import {chatTurnsByIdFamilyAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 import {runChatTurnAtom} from "@/oss/state/newPlayground/chat/actions"
+import {responseByRowRevisionAtomFamily} from "@/oss/state/newPlayground/generation/runtime"
 import {openPlaygroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
 
 import {createToolCallPayloads, ToolCallViewHeader} from "../Components/ToolCallView"
@@ -71,6 +72,12 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const editorIdRef = useRef(uuidv4())
     const turn = useAtomValue(chatTurnsByIdFamilyAtom(rowId)) as any
     const setTurn = useSetAtom(chatTurnsByIdFamilyAtom(rowId))
+    const setResponse = useSetAtom(
+        useMemo(
+            () => responseByRowRevisionAtomFamily({rowId, revisionId: variantId}),
+            [rowId, variantId],
+        ),
+    )
     const [minimized, setMinimized] = useState(false)
     const isToolKind = kind === "tool"
     const toolMessage = useMemo(() => {
@@ -137,7 +144,11 @@ const TurnMessageAdapter: React.FC<Props> = ({
             if (!draft) return
             if (kind === "assistant") {
                 const cur = draft?.assistantMessageByRevision?.[variantId]
-                if (cur && cur.__id === msgId) {
+                // When messageOverride is used (e.g., from result/error), the __id won't match
+                // the stored message. In that case, delete if there's any assistant message.
+                if (messageOverride) {
+                    draft.assistantMessageByRevision[variantId] = null
+                } else if (cur && cur.__id === msgId) {
                     draft.assistantMessageByRevision[variantId] = null
                 }
             } else {
@@ -146,7 +157,11 @@ const TurnMessageAdapter: React.FC<Props> = ({
                 }
             }
         })
-    }, [setTurn, kind, variantId, msg, rowId, turn, isToolKind])
+        // Also clear the response that generates the messageOverride
+        if (kind === "assistant" && messageOverride) {
+            setResponse(null)
+        }
+    }, [setTurn, kind, variantId, msg, rowId, turn, isToolKind, messageOverride, setResponse])
 
     // Shared helper to get and assign the current target message node (user/assistant)
     const getTarget = useCallback(

@@ -16,7 +16,7 @@ from .sdk.decorators.running import (
     evaluator,
     workflow,
 )
-from .sdk.decorators.serving import app, route
+from .sdk.decorators.serving import app, route, create_app
 from .sdk.decorators.tracing import instrument
 from .sdk.managers.apps import AppManager
 from .sdk.managers.config import ConfigManager

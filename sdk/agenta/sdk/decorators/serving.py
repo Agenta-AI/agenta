@@ -82,6 +82,90 @@ class PathValidator(BaseModel):
     url: HttpUrl
 
 
+def _add_middleware_to_app(target_app):
+    """Add all required middleware to a FastAPI app."""
+    from agenta.sdk.middleware.mock import MockMiddleware
+    from agenta.sdk.middleware.inline import InlineMiddleware
+    from agenta.sdk.middleware.vault import VaultMiddleware
+    from agenta.sdk.middleware.config import ConfigMiddleware
+    from agenta.sdk.middleware.otel import OTelMiddleware
+    from agenta.sdk.middleware.auth import AuthHTTPMiddleware
+    from agenta.sdk.middleware.cors import CORSMiddleware
+
+    target_app.add_middleware(MockMiddleware)
+    target_app.add_middleware(InlineMiddleware)
+    target_app.add_middleware(VaultMiddleware)
+    target_app.add_middleware(ConfigMiddleware)
+    target_app.add_middleware(AuthHTTPMiddleware)
+    target_app.add_middleware(OTelMiddleware)
+    target_app.add_middleware(CORSMiddleware)
+
+
+def create_app(prefix: str = ""):
+    """
+    Factory function to create an independent FastAPI app with its own middleware and routes.
+
+    This is useful when you need multiple isolated apps that can be mounted as sub-applications,
+    each with their own OpenAPI schema.
+
+    Args:
+        prefix: Optional URL prefix for the OpenAPI docs (e.g., "/chat", "/completion")
+
+    Returns:
+        A tuple of (FastAPI app, route decorator) for this isolated app context
+
+    Example:
+        chat_app, chat_route = ag.create_app("/chat")
+
+        @chat_route("/", config_schema=MyConfig)
+        async def chat_handler(...):
+            ...
+
+        # Mount on main app
+        main_app.mount("/chat", chat_app)
+    """
+    fastapi = _load_fastapi()
+    from agenta.sdk.router import get_router
+
+    # Create a new FastAPI app with its own OpenAPI schema
+    new_app = fastapi.FastAPI(
+        docs_url="/docs",
+        openapi_url="/openapi.json",
+    )
+    new_app.include_router(get_router())
+    _add_middleware_to_app(new_app)
+
+    # Create isolated route list for this app
+    isolated_routes: List[Dict[str, Any]] = []
+
+    class isolated_route:
+        """Route decorator for isolated app context."""
+
+        def __init__(
+            self,
+            path: Optional[str] = "/",
+            config_schema: Optional[BaseModel] = None,
+        ):
+            self.config_schema = config_schema
+            path = "/" + path.strip("/").strip()
+            path = "" if path == "/" else path
+            PathValidator(url=f"http://example.com{path}")
+            self.route_path = path
+            self.e = None
+
+        def __call__(self, f):
+            self.e = entrypoint(
+                f,
+                route_path=self.route_path,
+                config_schema=self.config_schema,
+                target_app=new_app,
+                app_routes=isolated_routes,
+            )
+            return f
+
+    return new_app, isolated_route
+
+
 class route:  # pylint: disable=invalid-name
     # This decorator is used to expose specific stages of a workflow (embedding, retrieval, summarization, etc.)
     # as independent endpoints. It is designed for backward compatibility with existing code that uses
@@ -158,6 +242,8 @@ class entrypoint:
         func: Callable[..., Any],
         route_path: str = "",
         config_schema: Optional[BaseModel] = None,
+        target_app: Optional[Any] = None,
+        app_routes: Optional[List[Dict[str, Any]]] = None,
     ):
         # Lazy import fastapi components - only loaded when decorator is used
         fastapi = _load_fastapi()
@@ -165,6 +251,10 @@ class entrypoint:
         self.func = func
         self.route_path = route_path
         self.config_schema = config_schema
+
+        # Use provided app/routes or fall back to global defaults
+        target_app = target_app if target_app is not None else app
+        app_routes = app_routes if app_routes is not None else entrypoint.routes
 
         # Store for use in methods
         self._Request = fastapi.Request
@@ -175,23 +265,10 @@ class entrypoint:
         config, default_parameters = self.parse_config()
 
         ### --- Middleware --- #
-        if not entrypoint._middleware:
+        # Only add middleware to global app (isolated apps get middleware in create_app)
+        if target_app is app and not entrypoint._middleware:
             entrypoint._middleware = True
-            from agenta.sdk.middleware.mock import MockMiddleware
-            from agenta.sdk.middleware.inline import InlineMiddleware
-            from agenta.sdk.middleware.vault import VaultMiddleware
-            from agenta.sdk.middleware.config import ConfigMiddleware
-            from agenta.sdk.middleware.otel import OTelMiddleware
-            from agenta.sdk.middleware.auth import AuthHTTPMiddleware
-            from agenta.sdk.middleware.cors import CORSMiddleware
-
-            app.add_middleware(MockMiddleware)
-            app.add_middleware(InlineMiddleware)
-            app.add_middleware(VaultMiddleware)
-            app.add_middleware(ConfigMiddleware)
-            app.add_middleware(AuthHTTPMiddleware)
-            app.add_middleware(OTelMiddleware)
-            app.add_middleware(CORSMiddleware)
+            _add_middleware_to_app(app)
         ### ------------------ #
 
         ### --- Run --- #
@@ -222,7 +299,7 @@ class entrypoint:
         self.update_run_wrapper_signature(wrapper=run_wrapper)
 
         run_route = f"{route_path}{entrypoint._run_path}"
-        app.post(
+        target_app.post(
             run_route,
             response_model=BaseResponse,
             response_model_exclude_none=True,
@@ -233,7 +310,7 @@ class entrypoint:
         # - calls to /generate_deployed must be replaced with calls to /run
         if route_path == "":
             run_route = entrypoint._legacy_generate_deployed_path
-            app.post(
+            target_app.post(
                 run_route,
                 response_model=BaseResponse,
                 response_model_exclude_none=True,
@@ -258,7 +335,7 @@ class entrypoint:
         self.update_test_wrapper_signature(wrapper=test_wrapper, config_instance=config)
 
         test_route = f"{route_path}{entrypoint._test_path}"
-        app.post(
+        target_app.post(
             test_route,
             response_model=BaseResponse,
             response_model_exclude_none=True,
@@ -269,7 +346,7 @@ class entrypoint:
         # - calls to /generate must be replaced with calls to /test
         if route_path == "":
             test_route = entrypoint._legacy_generate_path
-            app.post(
+            target_app.post(
                 test_route,
                 response_model=BaseResponse,
                 response_model_exclude_none=True,
@@ -278,7 +355,7 @@ class entrypoint:
 
         ### --- OpenAPI --- #
         test_route = f"{route_path}{entrypoint._test_path}"
-        entrypoint.routes.append(
+        app_routes.append(
             {
                 "func": func.__name__,
                 "endpoint": test_route,
@@ -290,7 +367,7 @@ class entrypoint:
         # LEGACY
         if route_path == "":
             test_route = entrypoint._legacy_generate_path
-            entrypoint.routes.append(
+            app_routes.append(
                 {
                     "func": func.__name__,
                     "endpoint": test_route,
@@ -304,9 +381,9 @@ class entrypoint:
             )
         # LEGACY
 
-        openapi_schema = self.openapi()
+        openapi_schema = self._generate_openapi(target_app)
 
-        for _route in entrypoint.routes:
+        for _route in app_routes:
             if _route["config"] is not None:
                 self.override_config_in_schema(
                     openapi_schema=openapi_schema,
@@ -315,8 +392,13 @@ class entrypoint:
                     config=_route["config"],
                 )
 
-        app.openapi_schema = openapi_schema
+        target_app.openapi_schema = openapi_schema
         ### --------------- #
+
+    def _generate_openapi(self, target_app: Any) -> Dict[str, Any]:
+        """Generate OpenAPI schema for the target app."""
+        target_app.openapi_schema = None
+        return target_app.openapi()
 
     def parse_config(self) -> Tuple[Optional[Type[BaseModel]], Dict[str, Any]]:
         """Parse the config schema and return the config class and default parameters."""
