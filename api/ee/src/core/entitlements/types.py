@@ -9,6 +9,7 @@ class Tracker(str, Enum):
     FLAGS = "flags"
     COUNTERS = "counters"
     GAUGES = "gauges"
+    THROTTLES = "throttles"
 
 
 class Flag(str, Enum):
@@ -58,6 +59,73 @@ class Quota(BaseModel):
 class Probe(BaseModel):
     monthly: Optional[bool] = False
     delta: Optional[bool] = False
+
+
+class Bucket(BaseModel):
+    capacity: Optional[int] = None  # max tokens in the bucket
+    rate: Optional[int] = None  # tokens added per minute
+    algorithm: Optional[str] = None
+
+
+class Category(str, Enum):
+    STANDARD = "standard"
+    CORE_FAST = "core_fast"
+    CORE_SLOW = "core_slow"
+    TRACING_FAST = "tracing_fast"
+    TRACING_SLOW = "tracing_slow"
+    SERVICES_FAST = "services_fast"
+    SERVICES_SLOW = "services_slow"
+
+
+class Method(str, Enum):
+    POST = "post"
+    GET = "get"
+    PUT = "put"
+    PATCH = "patch"
+    DELETE = "delete"
+    QUERY = "query"
+    MUTATION = "mutation"
+    ANY = "any"
+
+
+class Mode(str, Enum):
+    INCLUDE = "include"
+    EXCLUDE = "exclude"
+
+
+class Throttle(BaseModel):
+    bucket: Bucket
+    mode: Mode
+    categories: list[Category] | None = None
+    endpoints: list[tuple[Method, str]] | None = None
+
+
+ENDPOINTS = {
+    Category.CORE_FAST: [
+        (Method.POST, "*/retrieve"),
+    ],
+    Category.CORE_SLOW: [
+        # None defined yet
+    ],
+    Category.TRACING_FAST: [
+        (Method.POST, "/otlp/v1/traces"),
+    ],
+    Category.TRACING_SLOW: [
+        (Method.POST, "/tracing/*/query"),
+        #
+        (Method.POST, "/tracing/spans/analytics"),  # LEGACY
+    ],
+    Category.SERVICES_FAST: [
+        (Method.ANY, "/permissions/verify"),
+    ],
+    Category.SERVICES_SLOW: [
+        # None defined yet
+    ],
+    Category.STANDARD: [
+        # None defined yet
+        # CATCH ALL
+    ],
+}
 
 
 CATALOG = [
@@ -256,6 +324,42 @@ ENTITLEMENTS = {
                 strict=True,
             ),
         },
+        Tracker.THROTTLES: [
+            Throttle(
+                categories=[
+                    Category.STANDARD,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=120,
+                    rate=120,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.CORE_FAST,
+                    Category.TRACING_FAST,
+                    Category.SERVICES_FAST,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=1200,
+                    rate=1200,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.CORE_SLOW,
+                    Category.TRACING_SLOW,
+                    Category.SERVICES_SLOW,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=120,
+                    rate=1,
+                ),
+            ),
+        ],
     },
     Plan.CLOUD_V0_PRO: {
         Tracker.FLAGS: {
@@ -292,6 +396,42 @@ ENTITLEMENTS = {
                 strict=True,
             ),
         },
+        Tracker.THROTTLES: [
+            Throttle(
+                categories=[
+                    Category.STANDARD,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=360,
+                    rate=360,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.CORE_FAST,
+                    Category.TRACING_FAST,
+                    Category.SERVICES_FAST,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=3600,
+                    rate=3600,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.CORE_SLOW,
+                    Category.TRACING_SLOW,
+                    Category.SERVICES_SLOW,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=180,
+                    rate=1,
+                ),
+            ),
+        ],
     },
     Plan.CLOUD_V0_BUSINESS: {
         Tracker.FLAGS: {
@@ -326,6 +466,42 @@ ENTITLEMENTS = {
                 strict=True,
             ),
         },
+        Tracker.THROTTLES: [
+            Throttle(
+                categories=[
+                    Category.STANDARD,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=3600,
+                    rate=3600,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.CORE_FAST,
+                    Category.TRACING_FAST,
+                    Category.SERVICES_FAST,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=36000,
+                    rate=36000,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.CORE_SLOW,
+                    Category.TRACING_SLOW,
+                    Category.SERVICES_SLOW,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=1800,
+                    rate=1,
+                ),
+            ),
+        ],
     },
     Plan.CLOUD_V0_HUMANITY_LABS: {
         Tracker.FLAGS: {

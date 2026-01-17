@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from typing import Callable, Optional, Dict
 
 from os import getenv
 from json import dumps
@@ -32,10 +32,12 @@ class DenyResponse(JSONResponse):
         self,
         status_code: int = 401,
         detail: str = "Unauthorized",
+        headers: Optional[Dict[str, str]] = None,
     ) -> None:
         super().__init__(
             status_code=status_code,
             content={"detail": detail},
+            headers=headers,
         )
 
 
@@ -44,11 +46,13 @@ class DenyException(Exception):
         self,
         status_code: int = 401,
         content: str = "Unauthorized",
+        headers: Optional[Dict[str, str]] = None,
     ) -> None:
         super().__init__()
 
         self.status_code = status_code
         self.content = content
+        self.headers = headers
 
 
 class AuthHTTPMiddleware(BaseHTTPMiddleware):
@@ -78,6 +82,7 @@ class AuthHTTPMiddleware(BaseHTTPMiddleware):
             return DenyResponse(
                 status_code=deny.status_code,
                 detail=deny.content,
+                headers=deny.headers,
             )
 
         except:  # pylint: disable=bare-except
@@ -187,6 +192,25 @@ class AuthHTTPMiddleware(BaseHTTPMiddleware):
                         raise DenyException(
                             status_code=403,
                             content="Permission denied. Please check your permissions or contact your administrator.",
+                        )
+                    elif response.status_code == 429:
+                        headers = {
+                            key: value
+                            for key, value in {
+                                "Retry-After": response.headers.get("retry-after"),
+                                "X-RateLimit-Limit": response.headers.get(
+                                    "x-ratelimit-limit"
+                                ),
+                                "X-RateLimit-Remaining": response.headers.get(
+                                    "x-ratelimit-remaining"
+                                ),
+                            }.items()
+                            if value is not None
+                        }
+                        raise DenyException(
+                            status_code=429,
+                            content="API Rate limit exceeded. Please try again later or upgrade your plan.",
+                            headers=headers or None,
                         )
                     elif response.status_code != 200:
                         # log.debug(

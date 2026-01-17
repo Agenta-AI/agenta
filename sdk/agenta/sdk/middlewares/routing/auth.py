@@ -198,6 +198,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
                             status_code=403,
                             content="Permission denied. Please check your permissions or contact your administrator.",
                         )
+                    elif response.status_code == 429:
+                        raise DenyException(
+                            status_code=429,
+                            content="API Rate limit exceeded. Please try again later or upgrade your plan.",
+                        )
                     elif response.status_code != 200:
                         # log.debug(
                         #     f"Agenta returned {response.status_code} - Unexpected status code"

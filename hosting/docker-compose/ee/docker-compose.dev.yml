@@ -321,6 +321,8 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-network
+        # ports:
+        #     - "6379:6379"
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
@@ -348,6 +350,8 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-network
+        # ports:
+        #     - "6381:6381"
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:

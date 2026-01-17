@@ -141,7 +141,7 @@ async def handle_invoke_failure(exception: Exception) -> Response:
             else 500
         )
 
-        if code in [401, 403]:
+        if code in [401, 403, 429]:  # Downstream API errors
             code = 424
 
         message = str(exception) or "Internal Server Error"
@@ -194,7 +194,7 @@ async def handle_inspect_failure(exception: Exception) -> Response:
         getattr(exception, "status_code") if hasattr(exception, "status_code") else 500
     )
 
-    if code in [401, 403]:
+    if code in [401, 403, 429]:  # Downstream API errors
         code = 424
 
     message = str(exception) or "Internal Server Error"
