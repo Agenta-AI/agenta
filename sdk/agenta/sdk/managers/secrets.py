@@ -246,11 +246,25 @@ class SecretsManager:
     async def ensure_secrets_in_workflow():
         ctx = RunningContext.get()
 
-        secrets, vault_secrets, local_secrets = await SecretsManager.retrieve_secrets()
+        # First check if secrets are already available in RoutingContext
+        # (populated by HTTP middleware when called from services)
+        routing_ctx = RoutingContext.get()
+        if routing_ctx.secrets:
+            # Use secrets from RoutingContext (already fetched by HTTP middleware with proper credentials)
+            ctx.secrets = routing_ctx.secrets
+            ctx.vault_secrets = routing_ctx.vault_secrets or []
+            ctx.local_secrets = routing_ctx.local_secrets or []
+        else:
+            # Fall back to fetching secrets (for workflow/non-HTTP contexts)
+            (
+                secrets,
+                vault_secrets,
+                local_secrets,
+            ) = await SecretsManager.retrieve_secrets()
 
-        ctx.secrets = secrets
-        ctx.vault_secrets = vault_secrets
-        ctx.local_secrets = local_secrets
+            ctx.secrets = secrets
+            ctx.vault_secrets = vault_secrets
+            ctx.local_secrets = local_secrets
 
         RunningContext.set(ctx)
 
