@@ -82,8 +82,25 @@ class PathValidator(BaseModel):
     url: HttpUrl
 
 
-def _add_middleware_to_app(target_app):
-    """Add all required middleware to a FastAPI app."""
+def _add_middleware_to_app(target_app: "FastAPI") -> None:
+    """
+    Add all required middleware to a FastAPI app.
+
+    This function registers the standard Agenta middleware stack on the given app.
+    The middleware is added in reverse order of execution (last added = first executed).
+
+    Middleware stack (in execution order):
+        1. CORSMiddleware - Handle CORS headers
+        2. OTelMiddleware - OpenTelemetry tracing
+        3. AuthHTTPMiddleware - Authentication
+        4. ConfigMiddleware - Configuration injection
+        5. VaultMiddleware - Secrets management
+        6. InlineMiddleware - Inline execution support
+        7. MockMiddleware - Mock/test mode support
+
+    Args:
+        target_app: The FastAPI application to add middleware to.
+    """
     from agenta.sdk.middleware.mock import MockMiddleware
     from agenta.sdk.middleware.inline import InlineMiddleware
     from agenta.sdk.middleware.vault import VaultMiddleware
@@ -101,21 +118,18 @@ def _add_middleware_to_app(target_app):
     target_app.add_middleware(CORSMiddleware)
 
 
-def create_app(prefix: str = ""):
+def create_app():
     """
     Factory function to create an independent FastAPI app with its own middleware and routes.
 
     This is useful when you need multiple isolated apps that can be mounted as sub-applications,
     each with their own OpenAPI schema.
 
-    Args:
-        prefix: Optional URL prefix for the OpenAPI docs (e.g., "/chat", "/completion")
-
     Returns:
-        A tuple of (FastAPI app, route decorator) for this isolated app context
+        A tuple of (FastAPI app, route decorator class) for this isolated app context.
 
     Example:
-        chat_app, chat_route = ag.create_app("/chat")
+        chat_app, chat_route = ag.create_app()
 
         @chat_route("/", config_schema=MyConfig)
         async def chat_handler(...):
@@ -138,7 +152,7 @@ def create_app(prefix: str = ""):
     # Create isolated route list for this app
     isolated_routes: List[Dict[str, Any]] = []
 
-    class isolated_route:
+    class isolated_route:  # pylint: disable=invalid-name
         """Route decorator for isolated app context."""
 
         def __init__(

@@ -8,7 +8,7 @@ from agenta.sdk.types import Message, PromptTemplate
 
 
 # Create isolated chat app with its own OpenAPI schema
-chat_app, chat_route = ag.create_app("/chat")
+chat_app, chat_route = ag.create_app()
 
 
 class ChatConfig(BaseModel):
@@ -22,8 +22,11 @@ class ChatConfig(BaseModel):
 @chat_route("/", config_schema=ChatConfig)
 async def chat(
     inputs: Optional[Dict[str, str]] = None,
-    messages: List[Message] = [],
+    messages: Optional[List[Message]] = None,
 ):
+    if messages is None:
+        messages = []
+
     config = ag.ConfigManager.get_from_route(schema=ChatConfig)
 
     return await chat_v0(

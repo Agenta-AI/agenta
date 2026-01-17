@@ -161,7 +161,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
         if (kind === "assistant" && messageOverride) {
             setResponse(null)
         }
-    }, [setTurn, kind, variantId, msg, rowId, turn, isToolKind, messageOverride, setResponse])
+    }, [setTurn, kind, variantId, msg, isToolKind, messageOverride, setResponse])
 
     // Shared helper to get and assign the current target message node (user/assistant)
     const getTarget = useCallback(
@@ -192,13 +192,13 @@ const TurnMessageAdapter: React.FC<Props> = ({
             }
             return {target, assign}
         },
-        [kind, variantId, isToolKind, toolMessage],
+        [kind, variantId, isToolKind, toolIndex],
     )
 
     const onChangeRole = useCallback(
         (v: string) => {
             if (isToolKind) return
-            if (!turn || !msg) return
+            if (!msg) return
             setTurn((draft: any) => {
                 const {target, assign} = getTarget(draft)
                 if (!target || !target.role || typeof target.role !== "object") return
@@ -206,12 +206,11 @@ const TurnMessageAdapter: React.FC<Props> = ({
                 assign(updated)
             })
         },
-        [turn, msg, getTarget, setTurn, isToolKind],
+        [msg, getTarget, setTurn, isToolKind],
     )
 
     const onChangeText = useCallback(
         (v: string) => {
-            // if (isToolKind) return
             setTurn((draft: any) => {
                 const {target, assign} = getTarget(draft)
                 if (!target) return
@@ -220,7 +219,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                 assign({...target, content})
             })
         },
-        [getTarget, rowId, updateTextContent, setTurn, isToolKind],
+        [getTarget, rowId, kind, updateTextContent, setTurn],
     )
 
     const onAddUploadSlot = useCallback(() => {

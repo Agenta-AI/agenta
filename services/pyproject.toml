@@ -1,14 +1,12 @@
-[project]
+[tool.poetry]
 name = "services"
 version = "0.79.0"
 description = "Agenta Services (Chat & Completion)"
 authors = [
-    { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
-    { name = "Juan Vega", email = "jp@agenta.ai" }
+    "Mahmoud Mabrouk <mahmoud@agenta.ai>",
+    "Juan Vega <jp@agenta.ai>"
 ]
-
-[tool.poetry]
-package-mode = false # use pyproject.toml as dependency management and not for packaging
+package-mode = false
 
 [build-system]
 requires = ["poetry-core"]

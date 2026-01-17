@@ -8,7 +8,7 @@ from agenta.sdk.types import PromptTemplate
 
 
 # Create isolated completion app with its own OpenAPI schema
-completion_app, completion_route = ag.create_app("/completion")
+completion_app, completion_route = ag.create_app()
 
 
 class CompletionConfig(BaseModel):
