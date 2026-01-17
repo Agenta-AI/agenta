@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "services"
+version = "0.79.0"
+description = "Agenta Services (Chat & Completion)"
+authors = [
+    "Mahmoud Mabrouk <mahmoud@agenta.ai>",
+    "Juan Vega <jp@agenta.ai>"
+]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+# Agenta SDK
+agenta = ">=0.79.0"
+
+# Server
+uvicorn = "^0.40"
+gunicorn = "^23"
+
+# Traces, Metrics, Logs
+structlog = "^25"
+newrelic = "^11"
+
+# LiteLLM providers
+boto3 = "^1"
+google-cloud-aiplatform = "^1"
+
+[tool.poetry.group.dev.dependencies]
+watchdog = { extras = ["watchmedo"], version = "^3" }
+pytest = "^8"
+pytest-asyncio = "^0.21"
