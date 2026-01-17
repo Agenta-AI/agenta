@@ -592,8 +592,8 @@ class entrypoint:
         status_code = (
             getattr(error, "status_code") if hasattr(error, "status_code") else 500
         )
-        if status_code in [401, 403]:  # Reserved HTTP codes for auth middleware
-            status_code = 424  # Proxy Authentication Required
+        if status_code in [401, 403, 429]:  # Downstream API errors
+            status_code = 424  # Failed Dependency
 
         stacktrace = format_exception(error, value=error, tb=error.__traceback__)  # type: ignore
 
