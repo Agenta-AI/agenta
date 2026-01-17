@@ -233,7 +233,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
             const content = target.content || {__id: `content-${rowId}-${kind}`, value: []}
             assign({...target, content: {...content, value: result}})
         })
-    }, [addUploadSlot, setTurn, getTarget, rowId, isToolKind])
+    }, [addUploadSlot, setTurn, getTarget, rowId, kind, isToolKind])
 
     const onAddDocumentSlot = useCallback(() => {
         if (isToolKind) return
@@ -250,7 +250,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
             const content = target.content || {__id: `content-${rowId}-${kind}`, value: []}
             assign({...target, content: {...content, value: result}})
         })
-    }, [addUploadSlot, setTurn, getTarget, rowId, isToolKind])
+    }, [addUploadSlot, setTurn, getTarget, rowId, kind, isToolKind])
 
     const onRemoveUploadItem = useCallback(
         (propertyId: string) => {

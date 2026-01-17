@@ -118,6 +118,12 @@ def _add_middleware_to_app(target_app: "FastAPI") -> None:
     target_app.add_middleware(CORSMiddleware)
 
 
+def _generate_openapi(target_app: Any) -> Dict[str, Any]:
+    """Generate OpenAPI schema for the target app."""
+    target_app.openapi_schema = None
+    return target_app.openapi()
+
+
 def create_app():
     """
     Factory function to create an independent FastAPI app with its own middleware and routes.
@@ -395,7 +401,7 @@ class entrypoint:
             )
         # LEGACY
 
-        openapi_schema = self._generate_openapi(target_app)
+        openapi_schema = _generate_openapi(target_app)
 
         for _route in app_routes:
             if _route["config"] is not None:
@@ -408,11 +414,6 @@ class entrypoint:
 
         target_app.openapi_schema = openapi_schema
         ### --------------- #
-
-    def _generate_openapi(self, target_app: Any) -> Dict[str, Any]:
-        """Generate OpenAPI schema for the target app."""
-        target_app.openapi_schema = None
-        return target_app.openapi()
 
     def parse_config(self) -> Tuple[Optional[Type[BaseModel]], Dict[str, Any]]:
         """Parse the config schema and return the config class and default parameters."""
