@@ -713,7 +713,7 @@ async def fetch_trace_data(
     for attempt in range(max_retries):
         try:
             response = authed_api()(
-                method="GET", endpoint=f"/preview/tracing/traces/{trace_id}"
+                method="GET", endpoint=f"/v2/tracing/traces/{trace_id}"
             )
             response.raise_for_status()
             trace_data = response.json()

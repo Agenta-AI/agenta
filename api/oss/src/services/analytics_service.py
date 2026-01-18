@@ -320,9 +320,11 @@ def _get_event_name_from_path(
         return "evaluator_updated"
 
     elif method == "POST" and (
-        path == "/preview/evaluations/runs/"
+        path == "/v2/evaluations/runs/"
+        or path == "/preview/evaluations/runs/"  # deprecated
         or "/evaluations/preview/start" in path
-        or path == "/preview/simple/evaluations/"
+        or path == "/v2/simple/evaluations/"
+        or path == "/preview/simple/evaluations/"  # deprecated
     ):
         return "evaluation_created"
 
@@ -341,10 +343,12 @@ def _get_event_name_from_path(
     # <----------- End of Observability Events ------------->
 
     # <----------- Query/Prompt Management Events ------------->
-    if method == "POST" and path == "/preview/queries/":
+    if method == "POST" and (path == "/v2/queries/" or path == "/preview/queries/"):
         return "query_created"
 
-    elif method == "POST" and path == "/preview/simple/queries/":
+    elif method == "POST" and (
+        path == "/v2/simple/queries/" or path == "/preview/simple/queries/"
+    ):
         return "query_created"
     # <----------- End of Query/Prompt Management Events ------------->
 

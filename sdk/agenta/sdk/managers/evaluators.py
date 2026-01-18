@@ -51,7 +51,7 @@ async def _retrieve_evaluator(
 
     response = authed_api()(
         method="POST",
-        endpoint=f"/preview/evaluators/revisions/retrieve",
+        endpoint=f"/v2/evaluators/revisions/retrieve",
         json=payload,
     )
 
@@ -229,7 +229,7 @@ async def aupsert(
 
         response = authed_api()(
             method="PUT",
-            endpoint=f"/preview/simple/evaluators/{evaluator_id}",
+            endpoint=f"/v2/simple/evaluators/{evaluator_id}",
             json={
                 "evaluator": evaluator_edit_request.model_dump(
                     mode="json",
@@ -264,7 +264,7 @@ async def aupsert(
 
         response = authed_api()(
             method="POST",
-            endpoint="/preview/simple/evaluators/",
+            endpoint="/v2/simple/evaluators/",
             json={
                 "evaluator": evaluator_create_request.model_dump(
                     mode="json",

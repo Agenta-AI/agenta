@@ -49,7 +49,7 @@ async def _create_simple_testset(
 
     response = authed_api()(
         method="POST",
-        endpoint="/preview/simple/testsets/",
+        endpoint="/v2/simple/testsets/",
         json=payload,
     )
 
@@ -87,7 +87,7 @@ async def _fetch_simple_testset(
     if testset_id:
         response = authed_api()(
             method="GET",
-            endpoint=f"/preview/simple/testsets/{testset_id}",
+            endpoint=f"/v2/simple/testsets/{testset_id}",
         )
 
         if response.status_code == 200:
@@ -117,7 +117,7 @@ async def _fetch_simple_testset(
     if name:
         response = authed_api()(
             method="POST",
-            endpoint="/preview/simple/testsets/query",
+            endpoint="/v2/simple/testsets/query",
             json={"testset": {"name": name}},
         )
 
@@ -158,7 +158,7 @@ async def _edit_simple_testset(
 
     response = authed_api()(
         method="PUT",
-        endpoint=f"/preview/simple/testsets/{testset_id}",
+        endpoint=f"/v2/simple/testsets/{testset_id}",
         json=payload,
     )
 
@@ -186,7 +186,7 @@ async def _list_simple_testsets(
 ) -> List[TestsetRevision]:
     response = authed_api()(
         method="POST",
-        endpoint="/preview/simple/testsets/query",
+        endpoint="/v2/simple/testsets/query",
         json={},
     )
 
@@ -232,7 +232,7 @@ async def _retrieve_testset(
 
     response = authed_api()(
         method="POST",
-        endpoint="/preview/testsets/revisions/retrieve",
+        endpoint="/v2/testsets/revisions/retrieve",
         json=payload,
     )
     response.raise_for_status()

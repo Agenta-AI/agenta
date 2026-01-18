@@ -52,7 +52,7 @@ async def _retrieve_application(
 
     response = authed_api()(
         method="POST",
-        endpoint=f"/preview/legacy/applications/revisions/retrieve",
+        endpoint=f"/v2/legacy/applications/revisions/retrieve",
         json=payload,
     )
     response.raise_for_status()
@@ -232,7 +232,7 @@ async def aupsert(
 
         response = authed_api()(
             method="PUT",
-            endpoint=f"/preview/legacy/applications/{application_id}",
+            endpoint=f"/v2/legacy/applications/{application_id}",
             json={
                 "application": application_edit_request.model_dump(
                     mode="json",
@@ -266,7 +266,7 @@ async def aupsert(
 
         response = authed_api()(
             method="POST",
-            endpoint="/preview/legacy/applications/",
+            endpoint="/v2/legacy/applications/",
             json={
                 "application": application_create_request.model_dump(
                     mode="json",

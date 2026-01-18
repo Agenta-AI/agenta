@@ -31,7 +31,7 @@ async def acreate(
 
     response = authed_api()(
         method="POST",
-        endpoint=f"/preview/evaluations/scenarios/",
+        endpoint=f"/v2/evaluations/scenarios/",
         json=payload,
     )
 

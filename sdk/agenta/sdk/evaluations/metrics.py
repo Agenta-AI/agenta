@@ -20,7 +20,7 @@ async def arefresh(
 
     response = authed_api()(
         method="POST",
-        endpoint="/preview/evaluations/metrics/refresh",
+        endpoint="/v2/evaluations/metrics/refresh",
         json=dict(metrics=metrics),
     )
 
